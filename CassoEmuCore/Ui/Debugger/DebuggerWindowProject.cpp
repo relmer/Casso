@@ -153,7 +153,7 @@ void DebuggerWindow::ReloadProjectState()
 
     restored.PlaceOnMonitors (GetMonitors());
     m_dockSite->SetPaneLayout (restored);
-    m_syncFloats = true;
+    m_floating->MarkSyncNeeded();
 
     m_code->SetOptions (DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions()));
 

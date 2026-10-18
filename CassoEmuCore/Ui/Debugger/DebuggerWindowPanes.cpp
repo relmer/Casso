@@ -321,17 +321,7 @@ void DebuggerWindow::MoveSharedControls (const std::vector<IDxuiControl *> & con
         m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox());
     }
 
-    for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
-    {
-        if (std::ranges::count (controls, it->second) > 0)
-        {
-            it->second->OnFocusChanged (false);
-            it = m_floatFocus.erase (it);
-            continue;
-        }
-
-        ++it;
-    }
+    m_floating->ForgetFocus (controls);
 
     for (IDxuiControl * control : controls)
     {
@@ -1693,17 +1683,7 @@ void DebuggerWindow::ReleaseFocusOf (IDxuiControl * control)
         m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox());
     }
 
-    for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
-    {
-        if (it->second == control)
-        {
-            control->OnFocusChanged (false);
-            it = m_floatFocus.erase (it);
-            continue;
-        }
-
-        ++it;
-    }
+    m_floating->ForgetFocus ({ control });
 }
 
 
@@ -1767,13 +1747,11 @@ void DebuggerWindow::KeepOverlaysLast()
 
 void DebuggerWindow::FocusInPane (const std::wstring & pane, IDxuiControl * control)
 {
-    std::wstring  saved = m_routingPane;
+    FloatingPanes::RouteScope  scope (*m_floating, m_floating->Contains (pane) ? pane : std::wstring());
 
 
 
-    m_routingPane = m_floats.contains (pane) ? pane : std::wstring();
     SetFocusedControl (control);
-    m_routingPane = saved;
 }
 
 

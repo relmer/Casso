@@ -50,6 +50,7 @@
 #include "Ui/Debugger/Panes/IDebuggerPane.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
+#include "Ui/Debugger/FloatingPanes.h"
 #include "Ui/Debugger/TooltipCoordinator.h"
 #include "Ui/Chrome/CassoTheme.h"
 
@@ -107,7 +108,8 @@ class TracePaneController;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources
+class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost, private ICodeViews, private IOperandTipHost, private IFindWidgetHost, private ITooltipSources,
+                       private IFloatingPanesHost
 {
 public:
     DebuggerWindow();
@@ -303,8 +305,8 @@ protected:
     //  panes it lists, and showing or closing one.
     std::vector<std::wstring>  GetViewMenuPanes () const;
     void                       ShowPane         (const std::wstring & pane);
-    void                       ClosePane        (const std::wstring & pane);
-    bool                       IsPaneShown      (const std::wstring & pane) const;
+    void                       ClosePane        (const std::wstring & pane) override;
+    bool                       IsPaneShown      (const std::wstring & pane) const override;
 
     //  The heat map pane, whether the host was last told to record for it, and
     //  the step that keeps the recording current. The rest forward to the
@@ -617,10 +619,27 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiToolbar::Entry  MakeFindEntry (const std::wstring & pane);
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
     bool     IsDocumentPane     (const std::wstring & pane) const;
-    bool     CanClosePane       (const std::wstring & pane) const;
+    bool     CanClosePane       (const std::wstring & pane) const override;
     bool     IsFixedPane        (const std::wstring & pane) const;
     void     ShowPendingPane    ();
-    void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx);
+    void     ShowDockToMenu     (const std::wstring & pane, POINT clientPx) override;
+
+    //  The floating panes' host calls (IFloatingPanesHost).
+    HWND                           GetFloatOwner       () const override { return GetHwnd(); }
+    HINSTANCE                      GetFloatInstance    () const override { return m_hInstance; }
+    DxuiDockSite *                 GetFloatDockSite    () const override { return m_dockSite; }
+    const DxuiKeyMap *             GetFloatKeyMap      () const override { return &DebuggerKeySchemes::GetMap (m_keyScheme); }
+    const DxuiDpiScaler &          GetFloatScaler      () const override { return m_scaler; }
+    std::unique_ptr<IDxuiControl>  DetachFloatControl  (IDxuiControl * control) override { return DetachChild (control); }
+    void                           AttachFloatControl  (std::unique_ptr<IDxuiControl> control) override { (void) AttachChild (std::move (control)); }
+    bool                           RouteFloatedMouse   (const DxuiMouseEvent & ev) override { return OnMouse (ev); }
+    bool                           RouteFloatedKey     (const DxuiKeyEvent & ev) override { return OnKey (ev); }
+    bool                           RunFloatedCommand   (int commandId) override { return OnMappedCommand (commandId); }
+    bool                           DropFloatedFiles    (const std::vector<std::wstring> & paths) override { return OnFilesDropped (paths); }
+    void                           OnFloatFocusChanged (const std::wstring & pane, bool focused) override;
+    void                           OnFloatDocked       (const std::wstring & pane, DxuiDockedWindow * window) override;
+    void                           OnFloatsSynced      () override;
+    void                           OnFloatTipErased    (const DxuiTooltip * tip) override { m_operandTips->ForgetColorTip (tip); }
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> extra);
     void     AddListMenuItems   (DxuiListView * list, int row, int column, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
@@ -640,20 +659,13 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  Floating panes (FR-040): each floats in a DxuiDockedWindow of its own,
     //  its controls moved there whole. The window's routing serves every
     //  window, filtered to the controls of the one the event came from.
-    std::vector<IDxuiControl *>  GetPaneControls   (const std::wstring & pane) const;
+    std::vector<IDxuiControl *>  GetPaneControls   (const std::wstring & pane) const override;
     std::vector<IDxuiControl *>  GetOwnControls    (const std::wstring & pane) const;
-    IDxuiControl *               GetPaneContent    (const std::wstring & pane) const;
-    std::wstring                 GetPaneTitle      (const std::wstring & pane) const;
+    IDxuiControl *               GetPaneContent    (const std::wstring & pane) const override;
+    std::wstring                 GetPaneTitle      (const std::wstring & pane) const override;
     bool                         IsRoutable        (const IDxuiControl * control) const override;
     void                         SetFocusedControl (IDxuiControl * control);
     HWND                         GetRoutingHwnd    () const;
-    void                         RequestFloat      (const std::wstring & pane, POINT clientPx);
-    void                         TearOffPane       (const std::wstring & pane, POINT clientPx);
-    void                         CarryTornOffPane  ();
-    void                         PlaceUnderGrab    (const std::wstring & pane);
-    void                         DropCarriedTab    (const std::wstring & pane);
-    void                         SetFloatFade      (const std::wstring & pane, bool on);
-    void                         SyncFloats        ();
     void                         PlaceOpeningFocus ();
     void                         PlaceLateFocus    ();
     std::wstring                 GetSavedFocusPane () const;
@@ -661,20 +673,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                         FocusPane         (const std::wstring & pane);
     IDxuiControl *               GetMainControl    (const std::wstring & pane) const;
     void                         SaveFocusedPane   ();
-    void                         FloatControls     (const std::wstring & pane);
-    void                         DockControls      (const std::wstring & pane);
-    void                         SaveLayout        ();
+    void                         SaveLayout        () override;
     std::wstring                 ReadSavedLayout   ();
     SIZE                         GetPaneMinimum    (const std::wstring & pane) const;
-    bool                         RouteFloatMouse   (const std::wstring & pane, const DxuiMouseEvent & ev);
-    bool                         RouteFloatKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
-    void                         OnFloatDrag       (const std::wstring & pane, POINT screenPx, bool ended);
-    void                         ShowDragMarks     ();
-    void                         HideDragMarks     ();
     void                         ShowFocusAccent   ();
-    void                         DockFloatingPane  (const std::wstring & pane);
 
-    static std::wstring                          GetMonitorKey (const RECT & rectPx);
     static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();
 
     void     ApplyUndoHistories ();
@@ -682,7 +685,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::wstring GetBarRoutingPane (const std::wstring & pane) const;
     DxuiHwndSource * GetMenuHost () const;
     DxuiTooltip &    GetRoutedTooltip () override;
-    void     TickFloats         (int64_t now);
     void     ClipPaneControls   ();
     void     NoteViewFocus      (bool isSource) override;
     void     NoteTabFocus       (POINT pointDip);
@@ -709,7 +711,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     int                    FindOperandTipView   (POINT clientPx) const;
     bool                   TryFindOperandTipRow (POINT clientPx, int & view, int & row) const;
     bool                   IsOperandTipCovered  (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const;
-    void                   EraseFloatTip        (const std::wstring & key);
     static bool            Meets                (const RECT & over, POINT clientPx, const RECT & tipRect);
 
     //  The tip sources (ITooltipSources).
@@ -867,28 +868,22 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     std::shared_ptr<const DebuggerViewSnapshot>     m_snapshot;
 
-    DxuiToolbar                                                                    * m_commandBar         = nullptr;
-    DxuiMenuBar                                                                    * m_menuBar            = nullptr;
-    std::vector<DxuiMenuBarItem>                                                     m_menuBarItems;
-    std::unique_ptr<DebuggerCommands>                                                m_commands;
-    std::vector<std::shared_ptr<DxuiCommand>>                                        m_menuCommands;
-    DxuiDockSite                                                                   * m_dockSite           = nullptr;
-    HINSTANCE                                                                        m_hInstance          = nullptr;
-    std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>                        m_floats;
-    std::map<std::wstring, IDxuiControl *>                                           m_floatFocus;
-    std::map<std::wstring, std::unique_ptr<DxuiTooltip>>                             m_floatTips;
-    FocusAccentOwner                                                                 m_accentOwner;
-    DxuiDragOverlay                                                                  m_dragOverlay;
-    std::wstring                                                                     m_routingPane;
-    bool                                                                             m_syncFloats         = false;
-    bool                                                                             m_isOpeningFocusDue  = true;
-    OpeningFocusDeferral                                                             m_openingFocus;
-    StopFocus                                                                        m_stopFocus;
-    std::wstring                                                                     m_tornOffPane;
-    uint32_t                                                                         m_shownPaneSerial    = 0;
-    bool                                                                             m_isHeatMapRecording = false;
-    bool                                                                             m_isHeatColumnsRecording = false;
-    int64_t                                                                          m_framePaintedAt     = 0;
+    DxuiToolbar                                * m_commandBar             = nullptr;
+    DxuiMenuBar                                * m_menuBar                = nullptr;
+    std::vector<DxuiMenuBarItem>                 m_menuBarItems;
+    std::unique_ptr<DebuggerCommands>            m_commands;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
+    DxuiDockSite                               * m_dockSite               = nullptr;
+    HINSTANCE                                    m_hInstance              = nullptr;
+    std::unique_ptr<FloatingPanes>               m_floating;
+    FocusAccentOwner                             m_accentOwner;
+    bool                                         m_isOpeningFocusDue      = true;
+    OpeningFocusDeferral                         m_openingFocus;
+    StopFocus                                    m_stopFocus;
+    uint32_t                                     m_shownPaneSerial        = 0;
+    bool                                         m_isHeatMapRecording     = false;
+    bool                                         m_isHeatColumnsRecording = false;
+    int64_t                                      m_framePaintedAt         = 0;
 
     //  The BASIC program pane and the tool panes, each closed until the user
     //  first opens it, that were opened.
@@ -945,7 +940,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiHwndSource     * GetPanePopupHost       () override { return GetPopupHost(); }
     DxuiWindow         * GetPaneWindow          (const std::wstring & pane) override { return GetPaneHost (pane); }
     const DxuiDpiScaler & GetPaneScaler         () const override { return m_scaler; }
-    bool                 IsBarRouted            (const std::wstring & pane) const override { return m_routingPane == GetBarRoutingPane (pane); }
+    bool                 IsBarRouted            (const std::wstring & pane) const override { return m_floating->GetRoutingPane() == GetBarRoutingPane (pane); }
     void                 Repaint                () override { Invalidate(); }
     int                  GetListColumnAt        (const DxuiListView * list, int xPx) const override { return GetColumnAt (list, xPx); }
     void                 OpenSource             (int fileId, int line) override;

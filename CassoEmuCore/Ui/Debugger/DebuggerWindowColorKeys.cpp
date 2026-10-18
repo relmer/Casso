@@ -180,8 +180,7 @@ void DebuggerWindow::PlaceColorKeys()
 
 bool DebuggerWindow::TryGetColorKeyTitleRect (const std::wstring & pane, bool keep, RECT * rect)
 {
-    auto            found = m_floats.find (pane);
-    DxuiDockSite  * site  = (found != m_floats.end() && found->second != nullptr) ? &found->second->GetSite() : m_dockSite;
+    DxuiDockSite  * site  = m_floating->Contains (pane) ? m_floating->FindSite (pane) : m_dockSite;
     RECT            place = {};
     bool            isIn  = false;
 
@@ -255,7 +254,7 @@ bool DebuggerWindow::RouteColorKeyMouse (const DxuiMouseEvent & ev)
             continue;
         }
 
-        if (over == nullptr && m_routingPane == GetBarRoutingPane (key.button->GetPane()) && key.button->Contains (ev.positionDip))
+        if (over == nullptr && m_floating->GetRoutingPane() == GetBarRoutingPane (key.button->GetPane()) && key.button->Contains (ev.positionDip))
         {
             over = key.button;
         }

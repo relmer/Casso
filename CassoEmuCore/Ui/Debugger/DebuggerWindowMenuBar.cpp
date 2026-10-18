@@ -609,7 +609,7 @@ void DebuggerWindow::ResetPaneLayout()
     layout.PlaceOnMonitors (GetMonitors());
     m_closedPanes.clear();
     m_dockSite->SetPaneLayout (layout);
-    m_syncFloats = true;
+    m_floating->MarkSyncNeeded();
     m_dockSite->Relayout();
     SaveLayout();
 
@@ -912,7 +912,7 @@ bool DebuggerWindow::RouteSourceBarMouse (DxuiToolbar * bar, const DxuiMouseEven
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        if (m_routingPane.empty())
+        if (m_floating->GetRoutingPane().empty())
         {
             UpdateTooltip (ev.positionDip);
         }
