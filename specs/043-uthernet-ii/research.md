@@ -122,7 +122,7 @@ A user array replaces the default's wholesale, so a user who saved hardware sett
 
 ## R13. Settings UI
 
-**Decision**: A new Settings page, "Network": an enable toggle, a slot drop-down limited to free slots, a MAC address text field (validated as six hex pairs, unicast), a "Allow connections from other computers" checkbox (LAN access), and a port forward list with add and remove. The Hardware page tree lists the card like any optional slot device. Enabling the card when it has no MAC generates one from the OS random source. All edits follow the sheet's Apply/Cancel model and take effect at the next machine build, which `RequiresReset` already triggers for hardware changes.
+**Decision**: A new Settings page, "Network": an enable toggle, a slot drop-down limited to free slots, a MAC address text field (validated as six hex pairs, unicast), a "Allow connections from other computers" checkbox (LAN access), and a port forward list with add and remove. The Hardware page tree lists the card like any optional slot device. Enabling the card when it has no MAC generates one from the OS random source. All edits follow the sheet's Apply/Cancel model. Turning the card on or off or moving it takes effect at the next machine build, which `RequiresReset` triggers; LAN access and port forwards apply to the running card through the CPU thread's command queue (`IDM_NETWORK_CONFIGURE`): open TCP connections stay open, UDP flows close, and the forwards reopen. The MAC address has no effect inside the chip, so a change to it is saved and nothing more.
 
 ## R14. Windows Firewall
 

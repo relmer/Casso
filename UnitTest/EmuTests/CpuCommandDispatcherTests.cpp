@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/CpuCommandDispatcher.h"
+#include "Config/NetworkCardSettings.h"
 
 #include "resource.h"
 
@@ -124,6 +125,28 @@ public:
         Assert::AreEqual (std::string ("SaveTrace"), target.calls[0]);
     }
 
+
+    TEST_METHOD (NetworkConfigureParsesTheSettings)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_NETWORK_CONFIGURE,
+                  R"({"lanAccess":true,"portForwards":[{"protocol":"tcp","hostPort":8080,"guestPort":80}]})",
+                  target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("ConfigureNetworkCard lan=on forwards=1"), target.calls[0]);
+    }
+
+
+    TEST_METHOD (NetworkConfigureIgnoresAPayloadThatDoesNotParse)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_NETWORK_CONFIGURE, "{not json", target);
+
+        Assert::AreEqual ((size_t) 0, target.calls.size());
+    }
 
     TEST_METHOD (WriteProtectReadsAOneAsOnAndAnythingElseAsOff)
     {
@@ -276,6 +299,12 @@ private:
         void     PowerCycle() override      { calls.push_back ("PowerCycle"); }
         void     StepInstruction() override { calls.push_back ("StepInstruction"); }
         void     SaveTrace() override       { calls.push_back ("SaveTrace"); }
+
+        void     ConfigureNetworkCard (const NetworkCardSettings & settings) override
+        {
+            calls.push_back (std::format ("ConfigureNetworkCard lan={} forwards={}", settings.lanAccess ? "on" : "off", settings.portForwards.size()));
+        }
+
         void     RemountDisks() override    { calls.push_back ("RemountDisks"); }
 
         HRESULT  MountDisk (int drive, const std::string & path) override

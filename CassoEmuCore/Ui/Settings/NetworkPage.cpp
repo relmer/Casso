@@ -26,7 +26,8 @@ static constexpr int  s_kPagePadDp       = 16;
 static constexpr const wchar_t *  s_kpszCardBanner =
     L"The Uthernet II is an Ethernet card. Software that uses its raw Ethernet mode, "
     L"such as ADTPro, receives the address 10.0.65.15 from the virtual network; the "
-    L"gateway address 10.0.65.1 is this PC. Changes take effect when the machine restarts.";
+    L"gateway address 10.0.65.1 is this PC. Turning the card on or off, or moving it to "
+    L"another slot, takes effect when the machine restarts.";
 
 static constexpr const wchar_t *  s_kpszNoSlotsBanner =
     L"This machine has no slots, so it cannot take an Uthernet II.";

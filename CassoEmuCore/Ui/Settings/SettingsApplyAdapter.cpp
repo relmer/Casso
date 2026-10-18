@@ -5,6 +5,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellTapeDeck.h"
+#include "Core/JsonWriter.h"
 #include "resource.h"
 
 
@@ -291,3 +292,16 @@ void SettingsApplyAdapter::ApplyMouseConnected (bool connected)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyNetworkCard
+//
+//  The card's sockets are pumped on the CPU thread, so the settings go
+//  through the command queue, as JSON.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyNetworkCard (const NetworkCardSettings & settings)
+{
+    m_shell.PostCommand (IDM_NETWORK_CONFIGURE, JsonWriter::Write (settings.ToJson()));
+}

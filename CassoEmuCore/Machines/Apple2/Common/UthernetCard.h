@@ -62,6 +62,7 @@ public:
 
     HRESULT  AttachInterruptController (IInterruptController * ic);
     void     AttachNetwork             (IHostNetwork * network, const NetworkCardSettings & settings);
+    void     ApplySettings             (const NetworkCardSettings & settings);
 
     // Port forwards whose host port could not be bound, as sentences.
     const std::vector<std::string> & GetNetworkErrors () const { return m_network.GetErrors(); }

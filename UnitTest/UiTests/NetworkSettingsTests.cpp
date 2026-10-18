@@ -61,6 +61,42 @@ namespace NetworkSettingsTests
     })JSON";
 
 
+    static constexpr const char *  s_kpszEnabled = R"JSON({
+        "name": "Apple //e",
+        "slots": [
+            { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
+            { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": true },
+            { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+        ]
+    })JSON";
+
+
+    // The settings Apply sends for the card, and the resets it queues.
+    class NetworkSink : public ISettingsApplySink
+    {
+    public:
+        void  ApplySpeedMode              (SettingsSpeedMode)            override {}
+        void  ApplyColorMode              (SettingsColorMode)            override {}
+        void  ApplyFloppySound            (bool)                         override {}
+        void  ApplyMechanism              (const std::string &)          override {}
+        void  ApplyFastTapeLoading        (bool)                         override {}
+        void  ApplyTapeVolume             (float)                        override {}
+        void  ApplyTapeAutoStop           (bool)                         override {}
+        void  ApplyTapeIdleStop           (bool)                         override {}
+        void  ApplyTapeEightBit           (bool)                         override {}
+        void  ApplyDriveVolumes           (float, float, float)          override {}
+        void  ApplyDrivePan               (float, float)                 override {}
+        void  ApplyWriteProtect           (int, bool)                    override {}
+        void  ApplyExternalDriveConnected (bool)                         override {}
+        void  ApplyMouseConnected         (bool)                         override {}
+        void  ApplyNetworkCard            (const NetworkCardSettings & settings) override { last = settings; ++applied; }
+        void  QueueMachineReset           ()                             override { ++resets; }
+
+        NetworkCardSettings  last;
+        int                  applied = 0;
+        int                  resets  = 0;
+    };
+
     static bool Fails (HRESULT hr)
     {
         return FAILED (hr);
@@ -102,6 +138,66 @@ namespace NetworkSettingsTests
     TEST_CLASS (NetworkSettingsTests)
     {
     public:
+
+        TEST_METHOD (LanAccessAndForwardsApplyToTheRunningCard)
+        {
+            SettingsPanelState  state;
+            NetworkSink         sink;
+            JsonValue           saved;
+            std::string         error;
+            PortForward         forward;
+
+            Load (state, s_kpszEnabled);
+
+            forward.hostPort  = 8080;
+            forward.guestPort = 80;
+
+            state.SetNetworkLanAccess (true);
+            AssertSucceeded (state.AddPortForward (forward, error));
+
+            Assert::IsFalse (state.RequiresReset());
+
+            AssertSucceeded (state.Apply (sink, saved));
+
+            Assert::AreEqual (1, sink.applied);
+            Assert::AreEqual (0, sink.resets);
+            Assert::IsTrue (sink.last.lanAccess);
+            Assert::AreEqual ((size_t) 1, sink.last.portForwards.size());
+        }
+
+
+        TEST_METHOD (AnUnchangedCardIsNotReconfigured)
+        {
+            SettingsPanelState  state;
+            NetworkSink         sink;
+            JsonValue           saved;
+
+            Load (state, s_kpszEnabled);
+
+            AssertSucceeded (state.Apply (sink, saved));
+
+            Assert::AreEqual (0, sink.applied);
+        }
+
+
+        TEST_METHOD (MovingTheCardResetsTheMachineInsteadOfReconfiguring)
+        {
+            SettingsPanelState  state;
+            NetworkSink         sink;
+            JsonValue           saved;
+
+            Load (state, s_kpszEnabled);
+
+            state.SetNetworkLanAccess (true);
+            AssertSucceeded (state.SetNetworkCardSlot (4));
+
+            Assert::IsTrue (state.RequiresReset());
+
+            AssertSucceeded (state.Apply (sink, saved));
+
+            Assert::AreEqual (0, sink.applied);
+            Assert::AreEqual (1, sink.resets);
+        }
 
         TEST_METHOD (ShippedEntryIsFoundDisabled)
         {

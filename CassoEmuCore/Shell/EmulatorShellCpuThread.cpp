@@ -19,6 +19,9 @@
 #include "Config/CrtResolver.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Core/TextEncoding.h"
 #include "Ui/PrinterPanel.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
@@ -210,6 +213,38 @@ void EmulatorShell::StepInstruction()
     if (m_machine.GetCpu() != nullptr)
     {
         m_machine.StepOne();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfigureNetworkCard
+//
+//  LAN access and port forwards apply to the running card; a forward whose
+//  host port cannot be opened is reported as a notice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ConfigureNetworkCard (const NetworkCardSettings & settings)
+{
+    UthernetCard *  card = m_machine.GetRefs().uthernet;
+
+
+
+    if (card == nullptr)
+    {
+        return;
+    }
+
+    card->ApplySettings (settings);
+
+    for (const std::string & error : card->GetNetworkErrors())
+    {
+        m_chrome->PostNotice (TextEncoding::NarrowToWide (error));
     }
 }
 

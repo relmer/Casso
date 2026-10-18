@@ -5,6 +5,7 @@
 #include "Core/InterruptController.h"
 #include "Core/Prng.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Network/VirtualSubnet.h"
 #include "Devices/Network/W5100Registers.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 
@@ -227,6 +228,31 @@ namespace UthernetCardTests
             Assert::AreEqual ((size_t) 0, network.GetSockets().size());
         }
 
+
+        TEST_METHOD (ApplySettingsReopensTheForwardsOnARunningCard)
+        {
+            FakeHostNetwork                    network;
+            NetworkCardSettings                settings;
+            UthernetCard                       card (kSlot3);
+            std::shared_ptr<FakeSocketState>   before;
+            std::shared_ptr<FakeSocketState>   after;
+
+            settings.portForwards = { { PortForwardProtocol::Tcp, 8080, 80 } };
+            card.AttachNetwork (&network, settings);
+
+            before = network.FindBound (HostSocketKind::Tcp, 8080);
+            Assert::IsNotNull (before.get());
+            Assert::AreEqual (VirtualSubnet::kLoopbackIp, before->local.ipv4);
+
+            settings.lanAccess = true;
+            card.ApplySettings (settings);
+
+            after = network.FindBound (HostSocketKind::Tcp, 8080);
+            Assert::IsNotNull (after.get());
+            Assert::IsTrue (before->destroyed, L"the loopback listener is closed");
+            Assert::AreEqual (VirtualSubnet::kAnyIp, after->local.ipv4);
+            Assert::IsTrue (after->listening);
+        }
 
         TEST_METHOD (ShippedSlottedMachinesCarryTheCardDisabled)
         {

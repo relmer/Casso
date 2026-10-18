@@ -3,6 +3,9 @@
 #include "Pch.h"
 
 
+class NetworkCardSettings;
+
+
 
 
 
@@ -55,6 +58,7 @@ public:
     virtual void     PowerCycle                ()                                  = 0;
     virtual void     StepInstruction           ()                                  = 0;
     virtual void     SaveTrace                 ()                                  = 0;
+    virtual void     ConfigureNetworkCard      (const NetworkCardSettings & settings) = 0;
 };
 
 

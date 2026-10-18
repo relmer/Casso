@@ -51,6 +51,7 @@ public:
     void ApplyWriteProtect           (int drive, bool wp)                    override;
     void ApplyExternalDriveConnected (bool connected)                        override;
     void ApplyMouseConnected         (bool connected)                        override;
+    void ApplyNetworkCard            (const NetworkCardSettings & settings)  override;
     void QueueMachineReset           ()                                      override { m_resetQueued = true; }
 
     bool IsResetQueued () const { return m_resetQueued; }

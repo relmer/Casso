@@ -200,9 +200,27 @@ void UthernetCard::AttachNetwork (
     const NetworkCardSettings  & settings)
 {
     m_bridge.SetHostNetwork (network);
-    m_bridge.SetLanAccess (settings.lanAccess);
-
     m_network.SetHostNetwork (network);
+
+    ApplySettings (settings);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::ApplySettings
+//
+//  LAN access and port forwards, on a running card as at power-on. Open TCP
+//  connections stay open; UDP flows close, and the port forwards reopen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::ApplySettings (const NetworkCardSettings & settings)
+{
+    m_bridge.SetLanAccess (settings.lanAccess);
     m_network.Configure (settings.lanAccess, settings.portForwards);
 }
 

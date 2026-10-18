@@ -275,6 +275,7 @@ private:
     // commands go to ShellDisks, ShellAudio and ShellTapeDeck.
     void     StepInstruction           () override;
     void     SaveTrace                 () override;
+    void     ConfigureNetworkCard      (const NetworkCardSettings & settings) override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
 
     // Posts a reset with the Apple keys as they are at this moment, read on

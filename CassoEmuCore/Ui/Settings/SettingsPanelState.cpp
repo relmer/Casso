@@ -599,9 +599,9 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  Per FR-010: a reset is required iff the hardware-enable bits
-//  changed. Speed / color / sound / mechanism / write-protect are
-//  all live-applicable.
+//  Per FR-010: a reset is required iff a card is turned on or off or
+//  moved to another slot. Speed / color / sound / mechanism /
+//  write-protect and the Uthernet II's settings are all live-applicable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -615,8 +615,7 @@ bool SettingsPanelState::RequiresReset() const
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
         changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled
-               || m_original.hardware[i].slot    != m_current.hardware[i].slot
-               || !(m_original.hardware[i].network == m_current.hardware[i].network);
+               || m_original.hardware[i].slot    != m_current.hardware[i].slot;
     }
 
     return changed;
@@ -1164,8 +1163,9 @@ HRESULT SettingsPanelState::Apply (
     ISettingsApplySink & sink,
     JsonValue          & outCurrentJson) const
 {
-    HRESULT  hr = S_OK;
-    int      i  = 0;
+    HRESULT  hr      = S_OK;
+    int      i       = 0;
+    int      network = -1;
 
 
 
@@ -1191,6 +1191,17 @@ HRESULT SettingsPanelState::Apply (
 
     sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
     sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
+
+    // The Uthernet II's LAN access and port forwards apply to the running
+    // card. Turning the card on or off, or moving it, takes the reset below.
+    network = FindNetworkCard();
+
+    if (network >= 0 && !RequiresReset()
+        && m_current.hardware[(size_t) network].enabled
+        && !(m_original.hardware[(size_t) network].network == m_current.hardware[(size_t) network].network))
+    {
+        sink.ApplyNetworkCard (m_current.hardware[(size_t) network].network);
+    }
 
     // FR-010: any hardware enable diff requires the caller to confirm
     // and the machine to be reset. Queue the reset request; the

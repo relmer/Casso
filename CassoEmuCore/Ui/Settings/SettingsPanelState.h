@@ -226,6 +226,7 @@ public:
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void ApplyMouseConnected         (bool connected)        = 0;
+    virtual void ApplyNetworkCard    (const NetworkCardSettings & settings) = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
