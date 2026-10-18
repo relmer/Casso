@@ -9,6 +9,7 @@
 #include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/StopChanges.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Ui/Debugger/SourceSyntax.h"
 #include "Ui/Debugger/TextDialog.h"
 
 class DebuggerPaneFrame;
@@ -161,8 +162,25 @@ public:
     virtual void                   OpenSource       (int fileId, int line) = 0;
     virtual void                   ShowBasicLine    (Word line) = 0;
 
-    //  Saves the open views, with the choices the panes save among them.
+    //  Saves the open views, with the choices the panes save among them; and
+    //  whether the views the window reopens at startup have yet to settle.
     virtual void                   SaveOpenViews    () = 0;
+    virtual bool                   IsRestoringViews () const = 0;
+
+    //  The PC's arrow, over a gutter mark when the line has one, and its
+    //  row's color in the theme; and the source views' syntax colors.
+    virtual std::shared_ptr<const DxuiIconImage>  GetPcMarker (const std::shared_ptr<const DxuiIconImage> & dot) = 0;
+    virtual uint32_t               GetPcRowArgb     () const = 0;
+    virtual SourceSyntax::Colors   GetSyntaxColors  () const = 0;
+
+    //  Whether the disassembly views' heat column is on, which the other
+    //  listings match.
+    virtual bool                   IsCodeHeatOn     () const = 0;
+
+    //  Runs a key scheme's action, as its key does, true when it acted; and a
+    //  command bar entry, as a click on it does.
+    virtual bool                   RunKeyAction     (DebuggerKeySchemes::Action action) = 0;
+    virtual void                   RunCommandBarEntry (int id) = 0;
 
     //  Opens a pane and brings it forward, as its row on the View menu does.
     virtual void                   OpenPane         (const std::wstring & pane) = 0;

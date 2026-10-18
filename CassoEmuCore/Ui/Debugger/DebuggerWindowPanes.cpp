@@ -8,9 +8,12 @@
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/HeatRangesPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/CallStackController.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
@@ -30,20 +33,22 @@
 
 void DebuggerWindow::CreatePanes()
 {
-    IDebuggerPaneHost                   & host     = *this;
-    std::unique_ptr<ProfilerPane>         profiler = std::make_unique<ProfilerPane> (host);
-    std::unique_ptr<HeatMapPane>          heatMap  = std::make_unique<HeatMapPane>  (host, HeatMapPane::Ranges
+    IDebuggerPaneHost                      & host     = *this;
+    std::unique_ptr<ProfilerPane>            profiler = std::make_unique<ProfilerPane>           (host);
+    std::unique_ptr<HeatMapPane>             heatMap  = std::make_unique<HeatMapPane>            (host, HeatMapPane::Ranges
     {
         [this] () -> const HeatMapRangeSets & { return m_heatRangesPane->GetSets(); },
         [this] () -> const HeatMapSymbols &   { return m_heatRangesPane->GetSymbols(); },
         [this] { m_heatRangesPane->SetMenus(); },
     });
-    std::unique_ptr<HeatRangesPane>       ranges   = std::make_unique<HeatRangesPane>    (host, *heatMap);
-    std::unique_ptr<MemoryWindowGroup>    memory   = std::make_unique<MemoryWindowGroup> (host);
-    std::unique_ptr<RegistersPane>        regs     = std::make_unique<RegistersPane>     (host);
-    std::unique_ptr<StackPane>            stack    = std::make_unique<StackPane>         (host);
-    std::unique_ptr<WatchesPane>          watches  = std::make_unique<WatchesPane>       (host);
-    std::unique_ptr<BreakpointsPane>      bps      = std::make_unique<BreakpointsPane>   (host);
+    std::unique_ptr<HeatRangesPane>          ranges   = std::make_unique<HeatRangesPane>         (host, *heatMap);
+    std::unique_ptr<MemoryWindowGroup>       memory   = std::make_unique<MemoryWindowGroup>      (host);
+    std::unique_ptr<RegistersPane>           regs     = std::make_unique<RegistersPane>          (host);
+    std::unique_ptr<StackPane>               stack    = std::make_unique<StackPane>              (host);
+    std::unique_ptr<WatchesPane>             watches  = std::make_unique<WatchesPane>            (host);
+    std::unique_ptr<BreakpointsPane>         bps      = std::make_unique<BreakpointsPane>        (host);
+    std::unique_ptr<TracePaneController>     trace    = std::make_unique<TracePaneController>    (host);
+    std::unique_ptr<BasicProgramController>  basic    = std::make_unique<BasicProgramController> (host);
 
 
 
@@ -55,12 +60,16 @@ void DebuggerWindow::CreatePanes()
     m_stackPane       = stack.get();
     m_watchesPane     = watches.get();
     m_breakpointsPane = bps.get();
+    m_tracePane       = trace.get();
+    m_basicProgram    = basic.get();
 
     m_panes.push_back (std::move (regs));
     m_panes.push_back (std::move (watches));
     m_panes.push_back (std::move (stack));
     m_panes.push_back (std::move (bps));
     m_panes.push_back (std::make_unique<CallStackController> (host));
+    m_panes.push_back (std::move (trace));
+    m_panes.push_back (std::move (basic));
 
     m_panes.push_back (std::move (heatMap));
     m_panes.push_back (std::move (ranges));
@@ -77,6 +86,13 @@ void DebuggerWindow::CreatePanes()
     m_panes.push_back (std::make_unique<BookmarksPane>  (host));
     m_panes.push_back (std::move (profiler));
     m_panes.push_back (std::make_unique<DataBlocksPane> (host));
+
+    //  Every device panel the window can place; each shows while its device
+    //  is present and its panel open.
+    for (const DebuggerLayout::DiagnosticsPanel & panel : DebuggerLayout::GetDiagnosticsPanels())
+    {
+        m_panes.push_back (std::make_unique<DevicePanelController> (host, panel.id, panel.title));
+    }
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -682,21 +698,6 @@ void DebuggerWindow::AddZeroPagePointer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RunBreakpointStep
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RunBreakpointStep (BreakpointStep step)
-{
-    RunAction (DebuggerActions::GetBreakpointStep (std::move (step)));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::GetBreakpointList
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -842,6 +843,21 @@ void DebuggerWindow::ApplyBreakpoints()
     {
         m_breakpointsPane->Apply (*m_snapshot);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowBasicLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowBasicLine (Word line)
+{
+    m_basicProgram->ShowLine (line);
 }
 
 

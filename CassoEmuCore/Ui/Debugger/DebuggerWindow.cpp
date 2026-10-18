@@ -18,13 +18,13 @@
 #include "Debugger/SymbolDescriptions.h"
 #include "Cassque/CassquePromptDialog.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/Panes/TracePaneController.h"
 #include "Ui/Debugger/MemoryBarCommands.h"
 #include "Ui/Debugger/Panes/MeterBar.h"
 #include "Ui/Debugger/MemoryAddressEntry.h"
 #include "Debugger/LineAssembler.h"
 #include "OpcodeTable.h"
-#include "Ui/Debugger/Panes/BasicPanes.h"
+#include "Ui/Debugger/Panes/BasicProgramController.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
@@ -187,17 +187,11 @@ void DebuggerWindow::OnCreate()
     m_codeOptions = DisassemblyOptions::FromText ((m_host != nullptr) ? m_host->GetDebuggerDisassemblyOptions() : std::string());
 
     m_consoleView       = CreateChild<DxuiTextView>  ();
-    m_traceList         = CreateChild<DxuiListView>  ();
-    m_traceHint         = CreateChild<KeyHintLine>   ();
     m_codeHistoryBand   = CreateChild<HistoryBand>   ();
     m_codeHistoryBand->SetOnGoLive ([this] { GoLiveFromBand(); });
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
-
-    m_tracePane = std::make_unique<TracePane> (
-        m_traceList,
-        [this] (std::optional<uint64_t> first) { if (m_host != nullptr) { m_host->SetDebuggerTraceTop (first); } });
 
     //  A document per source file, each shown only while it holds one (FR-054).
     for (SourceDocument & document : m_sourceDocs)
@@ -226,22 +220,7 @@ void DebuggerWindow::OnCreate()
         m_sourceDocs[(size_t) slot].pane->SetOnLoadSymbols ([this, slot] { LoadSymbolsFor (slot); });
     }
 
-    CreateBasicPanes();
     CreatePanes();
-
-    //  Every device panel the window can place; each shows while its device
-    //  is present and its panel open.
-    for (const DebuggerLayout::DiagnosticsPanel & panel : DebuggerLayout::GetDiagnosticsPanels())
-    {
-        DxuiListView  * list   = CreateChild<DxuiListView>();
-        MemoryMapBar  * map    = CreateChild<MemoryMapBar>();
-        DiskHeadView  * head   = CreateChild<DiskHeadView>();
-        MeterBar      * meters = CreateChild<MeterBar>();
-
-        m_diagPanes.push_back (std::make_unique<DiagnosticsPane> (panel.id, panel.title, list, map, head, meters));
-        list->SetVisible (false);
-    }
-
 
     //  Last, so its strips and the drop overlay paint over the panes.
     m_dockSite = CreateChild<DxuiDockSite>();
@@ -288,12 +267,6 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureSourceBars();
     ConfigureCodeBars();
 
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        pane->Configure();
-    }
-
-    ConfigureBasicPanes();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -343,9 +316,6 @@ void DebuggerWindow::ConfigureWidgets()
         code->SetPaneTextInset (false);
     }
 
-    m_tracePane->Configure();
-    m_traceHint->SetPairs  (TracePane::GetKeyPairs());
-    m_traceHint->SetOnPick ([this] (int id) { (void) RunTraceAction (id); });
 
     m_commandBox->SetHwnd      (GetHwnd());
     m_commandBox->SetMaxLength (256);
@@ -576,18 +546,13 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
-    std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_traceList, m_basicProgramList };
+    std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList };
 
 
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         std::ranges::copy (pane->GetLists(), std::back_inserter (lists));
-    }
-
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        lists.push_back (pane->GetList());
     }
 
     return lists;
@@ -609,18 +574,13 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
-    std::vector<DxuiListView *>  lists = { m_traceList, m_basicProgramList };
+    std::vector<DxuiListView *>  lists;
 
 
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         std::ranges::copy (pane->GetLists(), std::back_inserter (lists));
-    }
-
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        lists.push_back (pane->GetList());
     }
 
     return lists;
@@ -2246,8 +2206,7 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         active.code = GetCodeLines (m_activeCode);
     }
 
-    taken = GetBasicStep (action);
-    taken = taken.has_value() ? taken : DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
+    taken = DebuggerActions::GetForKey (action, (m_snapshot != nullptr) ? &active : nullptr, row, GetMode());
 
     if (taken.has_value())
     {
@@ -4273,12 +4232,6 @@ void DebuggerWindow::ConfigureDockSite()
     //  console's text and the pane's title do.
     m_consoleFrame->SetPartTextAligned (m_commandBox, DxuiTextInput::kPadLeftDip);
 
-    //  The trace pane lists its keys above its rows.
-    m_traceFrame = std::make_unique<DebuggerPaneFrame> (L"Trace");
-    m_traceFrame->AddPart (m_traceHint, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); });
-    m_traceFrame->AddPart (m_traceList);
-    m_traceFrame->SetPartTextAligned (m_traceHint);
-
     //  A disassembly view is its toolbar over its lines.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
     {
@@ -4303,17 +4256,10 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
 
-    AddBasicPanes();
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->AddToDock (*m_dockSite);
-    }
-
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        m_dockSite->AddPane (DebuggerLayout::GetDiagnosticsPaneId (pane->GetId()), pane->GetTitle(), pane->GetFrame());
     }
 
     m_dockSite->SetShownFn    ([this] (const std::wstring & pane) { return IsPaneShown (pane); });
@@ -4383,8 +4329,7 @@ void DebuggerWindow::ConfigureDockSite()
 
 bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 {
-    std::string  diagnosticsId;
-    bool         isOpened      = false;
+    bool  isOpened = false;
 
 
 
@@ -4415,11 +4360,6 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
         {
             return m_codeOpen[(size_t) view];
         }
-    }
-
-    if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
-    {
-        return m_diagOpen.contains (diagnosticsId);
     }
 
     return true;
@@ -4836,10 +4776,6 @@ std::vector<std::wstring> DebuggerWindow::GetViewMenuPanes() const
 
 void DebuggerWindow::ShowPane (const std::wstring & pane)
 {
-    std::string  diagnosticsId;
-
-
-
     //  A pane turned on opens docked and shown, not slid in at an edge.
     if (!IsPaneShown (pane) && m_dockSite->GetPaneLayout().IsAutoHidden (pane))
     {
@@ -4874,11 +4810,6 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
         if (FindPane (pane) != nullptr)
         {
             (void) FindPane (pane)->RequestOpen();
-        }
-
-        if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
-        {
-            RunAction (DebuggerActions::GetPanel (diagnosticsId, true, GetMode()));
         }
     }
 
@@ -4941,8 +4872,7 @@ void DebuggerWindow::ShowPendingPane()
 
 void DebuggerWindow::ClosePane (const std::wstring & pane)
 {
-    std::string  diagnosticsId;
-    int          slot = GetSourceSlotOf (pane);
+    int  slot = GetSourceSlotOf (pane);
 
 
 
@@ -4960,12 +4890,6 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
     if (slot >= 0)
     {
         CloseSourceDocument (slot);
-        return;
-    }
-
-    if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
-    {
-        RunAction (DebuggerActions::GetPanel (diagnosticsId, false, GetMode()));
         return;
     }
 
@@ -5056,14 +4980,6 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
         if (focused == m_sourceDocs[(size_t) slot].view)
         {
             return DebuggerLayout::GetSourcePaneId (slot);
-        }
-    }
-
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        if (focused == pane->GetList())
-        {
-            return DebuggerLayout::GetDiagnosticsPaneId (pane->GetId());
         }
     }
 
@@ -5917,10 +5833,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ std::format (L"Close Disassembly {}", view + 1), [this, view] { if (m_host != nullptr) { m_host->CloseDebuggerCodeView (view); } } });
         }
     }
-    else if (list == m_traceList)
-    {
-        items.push_back ({ L"Copy", copy });
-    }
 }
 
 
@@ -5980,13 +5892,7 @@ void DebuggerWindow::RenderFrame()
         list->Tick (now);
     }
 
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        pane->Tick (now);
-    }
-
     SyncHeatMapRecording();
-    SyncBasicReading();
 
     //  Focus moves by click, key and command alike, so the group the user is
     //  working in is found once a frame rather than at each of them.
@@ -6057,7 +5963,6 @@ void DebuggerWindow::RenderFrame()
     FollowOperandTipPointer();
     TickFloats (now);
 
-    m_tracePane->FollowScroll();
     ApplyLogDeltas();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -6398,7 +6303,7 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     //  to the program pane, where the steps are BASIC's.
     if (m_stopFocus.OnSnapshot (m_snapshot->isPaused) && GetPaneOfFocus() == DebuggerLayout::kConsole)
     {
-        FocusPane (m_isBasicStop ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (m_activeCode));
+        FocusPane (m_basicProgram->IsStop() ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (m_activeCode));
     }
 
     //  The drop-downs carry the mode and the panels they were built with, so
@@ -6647,13 +6552,8 @@ void DebuggerWindow::ApplySnapshot()
         m_completion.OfferSuggestion (Widen (m_snapshot->suggestion), m_commandBox->GetText());
     }
 
-    m_tracePane->SetColors  (GetTextColors());
-    m_tracePane->SetPcStyle (GetPcIcon (nullptr), GetPcRowArgb());
-    m_tracePane->Apply      (m_snapshot->trace);
 
 
-    FollowBasicProgram();
-    ApplyBasicPanes();
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->Apply (*m_snapshot);
@@ -6662,7 +6562,6 @@ void DebuggerWindow::ApplySnapshot()
 
     ApplyUndoHistories();
     ApplySource();
-    ApplyDiagnostics();
     KeepOpenViews();
     ShowPendingPane();
 
@@ -6922,75 +6821,6 @@ void DebuggerWindow::UpdateChanges()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ApplyDiagnostics
-//
-//  The snapshot holds a panel for each device whose panel is open. A panel
-//  that opens comes to the front of its tab group, and one whose device left
-//  the machine is no longer in the snapshot, so it hides.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplyDiagnostics()
-{
-    std::set<std::string>        open;
-    bool                         changed = false;
-    DebuggerTextColors::Set      colors  = GetTextColors();
-    MemoryMapBar::SourceColors   map     = {};
-
-
-
-    //  The memory map in the theme's colors, which fall back to its own.
-    map[(size_t) MemorySource::Main]    = colors.mapMain;
-    map[(size_t) MemorySource::Aux]     = colors.mapAux;
-    map[(size_t) MemorySource::LcBank1] = colors.mapLcBank1;
-    map[(size_t) MemorySource::LcBank2] = colors.mapLcBank2;
-    map[(size_t) MemorySource::Rom]     = colors.mapRom;
-    map[(size_t) MemorySource::SlotRom] = colors.mapSlotRom;
-    map[(size_t) MemorySource::Io]      = colors.mapIo;
-
-    for (const DiagnosticsSnapshot & diagnostics : m_snapshot->diagnostics)
-    {
-        DiagnosticsPane  * pane = GetDiagnosticsPane (DebuggerLayout::GetDiagnosticsPaneId (diagnostics.id));
-
-        if (pane == nullptr)
-        {
-            continue;
-        }
-
-        open.insert (diagnostics.id);
-        pane->GetMap()->SetSourceColors (map);
-
-        if (pane->Apply (diagnostics))
-        {
-            pane->GetFrame()->Relayout();
-        }
-    }
-
-    //  A panel the window reopens at startup keeps its group on the tab
-    //  the group showed when the window closed.
-    for (const std::string & id : open)
-    {
-        if (!m_diagOpen.contains (id) && !IsRestoringViews())
-        {
-            (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetDiagnosticsPaneId (id));
-        }
-    }
-
-    changed    = (open != m_diagOpen);
-    m_diagOpen = std::move (open);
-
-    if (changed)
-    {
-        m_dockSite->Relayout();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::IsRestoringViews
 //
 //  True from the window's first snapshot until the views it reopens have
@@ -7002,40 +6832,6 @@ void DebuggerWindow::ApplyDiagnostics()
 bool DebuggerWindow::IsRestoringViews() const
 {
     return !m_openViewsRestored || m_openViewsSettling > 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetDiagnosticsPane
-//
-//  Null for a pane that is not a device panel.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DiagnosticsPane * DebuggerWindow::GetDiagnosticsPane (const std::wstring & pane) const
-{
-    std::string  id;
-
-
-
-    if (!DebuggerLayout::TryGetDiagnosticsId (pane, id))
-    {
-        return nullptr;
-    }
-
-    for (const std::unique_ptr<DiagnosticsPane> & diagnostics : m_diagPanes)
-    {
-        if (diagnostics->GetId() == id)
-        {
-            return diagnostics.get();
-        }
-    }
-
-    return nullptr;
 }
 
 
@@ -7393,15 +7189,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         (void) TryGetCellTip (clientPx, spot, colorTip);
         tip.SetMonospace (true);
         tip.RequestShow  (cell, ColorLegend::JoinLines ({ text, colorTip }), now);
-        return;
-    }
-
-    //  Over a memory map's strips, the run of pages there and what it is, at
-    //  once and following the pointer, as a memory window's byte does.
-    if (TryGetMemoryMapTip (clientPx, text))
-    {
-        tip.SetMonospace   (false);
-        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
         return;
     }
 
@@ -8566,31 +8353,6 @@ bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstrin
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::TryGetMemoryMapTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::TryGetMemoryMapTip (POINT clientPx, std::wstring & text) const
-{
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        MemoryMapBar  * map = pane->GetMap();
-
-        if (map != nullptr && IsRoutable (map) && map->IsVisible() && map->TryGetTipAt (clientPx, text))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::TryGetGraphicTip
 //
 //  Over a device panel's disk head, what its colors mean; over the status
@@ -8600,24 +8362,6 @@ bool DebuggerWindow::TryGetMemoryMapTip (POINT clientPx, std::wstring & text) co
 
 bool DebuggerWindow::TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const
 {
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        DiskHeadView  * head = pane->GetHead();
-
-        if (head == nullptr || !IsRoutable (head))
-        {
-            continue;
-        }
-
-        text = head->GetColorTipAt (clientPx);
-
-        if (!text.empty())
-        {
-            anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
-            return true;
-        }
-    }
-
     if (m_routingPane.empty() && m_statusBar != nullptr && m_statusBar->IsVisible() &&
         m_statusBar->FindFieldAt (clientPx) == (int) kStatusHistory &&
         DebuggerStatusText::GetHistoryFill (m_snapshot != nullptr ? m_snapshot->history : HistoryStatus()) >= 0.0f)
@@ -9845,12 +9589,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             }
         }
 
-        //  The trace's key hints light under the pointer.
-        if (IsRoutable (m_traceHint) && m_traceHint->OnMouse (ev))
-        {
-            Invalidate();
-        }
-
         return true;
 
     case DxuiMouseEventKind::Down:
@@ -9861,14 +9599,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
         if (ClickGutter (ev))
         {
-            return true;
-        }
-
-        //  A trace key hint is a button; the keys stay with the trace's rows.
-        if (IsRoutable (m_traceHint) && m_traceHint->IsVisible() && m_traceHint->OnMouse (ev))
-        {
-            SetFocusedControl (m_traceList);
-            Invalidate();
             return true;
         }
 
@@ -9900,12 +9630,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left && DropPcMarker (ev))
         {
-            return true;
-        }
-
-        if (IsRoutable (m_traceHint) && m_traceHint->OnMouse (ev))
-        {
-            Invalidate();
             return true;
         }
 
@@ -10028,21 +9752,10 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     }
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
-    if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
-
-    if (DebuggerLayout::IsBasicPane (pane))
-    {
-        return { GetBasicList (pane) };
-    }
 
     if (FindPane (pane) != nullptr)
     {
         return FindPane (pane)->GetControls();
-    }
-
-    if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
-    {
-        return diagnostics->GetControls();
     }
 
     return {};
@@ -10077,16 +9790,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return m_consoleFrame.get();
     }
 
-    if (pane == DebuggerLayout::kTrace)
-    {
-        return m_traceFrame.get();
-    }
-
-    if (DebuggerLayout::IsBasicPane (pane))
-    {
-        return GetBasicFrame (pane);
-    }
-
     if (FindPane (pane) != nullptr)
     {
         return FindPane (pane)->GetContent();
@@ -10098,11 +9801,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         {
             return m_codeFrames[(size_t) view].get();
         }
-    }
-
-    if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
-    {
-        return diagnostics->GetFrame();
     }
 
     controls = GetPaneControls (pane);
@@ -10136,11 +9834,6 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kInputLog)    { return L"Input log"; }
     if (pane == DebuggerLayout::kBasicProgram)   { return L"BASIC program";   }
     if (FindPane (pane) != nullptr)              { return FindPane (pane)->GetTitle(); }
-
-    if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
-    {
-        return diagnostics->GetTitle();
-    }
 
     if (pane.starts_with (L"code"))
     {
@@ -11457,55 +11150,6 @@ bool DebuggerWindow::RouteCompletionKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RouteTraceKey
-//
-//  The trace pane's own keys, so stepping needs neither the code pane nor the
-//  toolbar. Each step and Run goes the way its key-scheme key does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RouteTraceKey (const DxuiKeyEvent & ev)
-{
-    return RunTraceAction ((int) TracePane::GetKeyAction (ev.vk, ev.ctrl, ev.alt, ev.shift));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RunTraceAction
-//
-//  A trace key's action, from the key or a click on its hint.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RunTraceAction (int action)
-{
-    using Action = DebuggerKeySchemes::Action;
-
-
-
-    switch ((TracePane::KeyAction) action)
-    {
-    case TracePane::KeyAction::StepInto:    return OnMappedCommand ((int) Action::StepInto);
-    case TracePane::KeyAction::StepOver:    return OnMappedCommand ((int) Action::StepOver);
-    case TracePane::KeyAction::StepOut:     return OnMappedCommand ((int) Action::StepOut);
-    case TracePane::KeyAction::Run:         return OnMappedCommand ((int) Action::Run);
-    case TracePane::KeyAction::ToggleTrace: RunCommandBarEntry (DebuggerCommands::kTrace); return true;
-    case TracePane::KeyAction::ToggleBytes: m_tracePane->ToggleBytes(); Invalidate();      return true;
-    case TracePane::KeyAction::Save:        SaveTrace();                                   return true;
-    default:                                                                               return false;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::RefreshCommandGhost
 //
 //  The gray text after the caret: the last reply's suggestion while the box
@@ -11572,45 +11216,6 @@ void DebuggerWindow::ShowHistoryList()
     }
 
     DxuiContextMenu::Show (*GetMenuHost(), box.left, box.top, std::move (menu));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SaveTrace
-//
-//  HISTORY SAVE to a file the user picks; backing out of the picker saves
-//  nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SaveTrace()
-{
-    HRESULT                hr     = S_OK;
-    FileDialogSpec         spec;
-    std::filesystem::path  chosen;
-    bool                   picked = false;
-
-
-
-    BAIL_OUT_IF (m_host == nullptr, S_OK);
-
-    spec.filters          = { { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
-    spec.defaultExtension = L"txt";
-    spec.defaultFileName  = L"trace.txt";
-
-    hr = m_host->GetHostDialogs().PickFileToSave (GetHwnd(), spec, chosen, picked);
-    CHR (hr);
-
-    BAIL_OUT_IF (!picked, S_OK);
-
-    RunAction (DebuggerActions::GetSaveHistory (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
-
-Error:
-    return;
 }
 
 
@@ -11763,11 +11368,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (RouteBoxKey (ev, handled))
     {
         return handled;
-    }
-
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_traceList && RouteTraceKey (ev))
-    {
-        return true;
     }
 
     if (ev.kind == DxuiKeyEventKind::Down && RouteDockKey (ev))

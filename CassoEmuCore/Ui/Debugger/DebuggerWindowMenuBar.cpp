@@ -13,6 +13,7 @@
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/TracePaneController.h"
 
 
 
@@ -244,7 +245,7 @@ void DebuggerWindow::SetWindowMenus()
     row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { m_breakpointsPane->Export(); });
     row->isEnabled = [this] { return IsBreakpointBarEnabled (BreakpointBarCommands::kExport); };
     add (file, row);
-    add (file, DebuggerMenuCommand::Make (L"Save trace...", false, [this] { SaveTrace(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save trace...", false, [this] { m_tracePane->Save(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
     row            = DebuggerMenuCommand::Make (L"Load file into memory...", false, [this] { LoadFileIntoMemory(); });
     row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };

@@ -2,7 +2,6 @@
 
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
-#include "Ui/Debugger/Panes/DiagnosticsPane.h"
 #include "Ui/Debugger/ColorKeyButton.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 
@@ -43,15 +42,6 @@ void DebuggerWindow::CreateColorKeys()
         {
             AddColorKey (pane->GetId(), key->slot, key->legend, key->dynamic);
         }
-    }
-
-
-    for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
-    {
-        DiagnosticsPane  * each = pane.get();
-
-        AddColorKey (DebuggerLayout::GetDiagnosticsPaneId (each->GetId()), nullptr, ColorLegend::Pane::MemoryMap,
-                     [each] { return each->GetColorKey(); });
     }
 }
 

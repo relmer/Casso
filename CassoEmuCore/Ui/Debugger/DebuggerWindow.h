@@ -59,7 +59,7 @@ class ColorKeyButton;
 class ToolbarCheckEntry;
 class ToolbarLabelEntry;
 class HistoryBand;
-class BasicProgramPane;
+class BasicProgramController;
 class BookmarksPane;
 class DataBlocksPane;
 class ProfilerPane;
@@ -73,9 +73,8 @@ class StackPane;
 class WatchesPane;
 class SymbolsPane;
 class BreakpointsPane;
-class DiagnosticsPane;
 class MemoryPane;
-class TracePane;
+class TracePaneController;
 
 
 
@@ -313,10 +312,6 @@ protected:
     HeatMapView::Palette       GetHeatPalette       () const override;
     bool                       IsAnyHeatColumnOn    () const;
 
-    //  The BASIC panes: whether the last request to the host turned the
-    //  reading of the program on, and the step that updates it.
-    bool                       IsBasicReading       () const { return m_isBasicReading; }
-    void                       SyncBasicReading     ();
     void                       ApplyHeatMap         ();
     void                       SetHeatMapBarMenus   ();
     void                       SetHeatMapOptions    (const HeatMapOptions & options);
@@ -402,7 +397,6 @@ protected:
     bool                                               IsBreakpointBarEnabled (int id) const;
     void                                               RunBreakpointBarEntry  (int id);
     void                                               AddZeroPagePointer     () override;
-    void                                               RunBreakpointStep      (BreakpointStep step);
 
     //  Protected so a test can work the registers, stack and watch panes'
     //  Undo and Redo bars as a click does.
@@ -467,7 +461,6 @@ protected:
     bool                  TryGetCellTip    (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool                  TryGetBranchTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
     bool                  TryGetGraphicTip (POINT clientPx, RECT & anchor, std::wstring & text) const;
-    bool                  TryGetMemoryMapTip (POINT clientPx, std::wstring & text) const;
     ColorLegend::Palette  GetColorPalette  () const;
 
     //  Protected so a test can lay out the tip over a disassembly row's
@@ -603,7 +596,6 @@ private:
     static constexpr int    kPaneRowDip            = 16;
     static constexpr int    kPaneHeaderDip         = 22;
     static constexpr int    kPanePadDip            = 4;
-    static constexpr int    kTraceHintDip          = 20;
     static constexpr int    kPaneRows              = 8;
     static constexpr int    kRegisterRows          = 6;
     //  The breakpoint icon's size in a list cell, which the source view's
@@ -677,7 +669,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ConfigureDockSite  ();
     void     ConfigureCommandBar ();
     std::string  GetMenuState   () const;
-    void     RunCommandBarEntry  (int id);
+    void     RunCommandBarEntry  (int id) override;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
     void     ConfigureCommandBarHost ();
     void     SyncCommandBarFloatTip  ();
@@ -742,9 +734,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     AddShowInMemory    (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
     static int  GetColumnAt     (const DxuiListView * list, int xPx);
     bool     RouteDockKey       (const DxuiKeyEvent & ev);
-    bool     RouteTraceKey      (const DxuiKeyEvent & ev);
-    bool     RunTraceAction     (int action);    // a TracePane::KeyAction
-    void     SaveTrace          ();
     void     ApplySavedPlacement ();
 
     //  Debug projects (FR-170, FR-171): File's Save project as..., Open
@@ -816,9 +805,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ShowSourceLine     (int fileId, int line);
     int      GetSourceSlotOf    (const std::wstring & pane) const;
     int      GetSourceSlotAt    (POINT atDip) const;
-    void     ApplyDiagnostics   ();
-    bool     IsRestoringViews   () const;
-    DiagnosticsPane *  GetDiagnosticsPane (const std::wstring & pane) const;
+    bool     IsRestoringViews   () const override;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     ShowCode         (std::optional<Word> address);
     void     ConfigureCodeList (int view);
@@ -878,7 +865,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::shared_ptr<const DxuiIconImage>  GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot);
     bool      TryGetSourceText     (int fileId, int line, std::wstring & text);
     uint32_t  GetPcMarkerArgb      () const;
-    uint32_t  GetPcRowArgb         () const;
+    uint32_t  GetPcRowArgb         () const override;
     uint32_t  GetNavigatedRowArgb  () const;
     uint32_t  GetTargetRowArgb     () const;
     uint32_t  GetAnnotationArgb    () const;
@@ -888,7 +875,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  column.
     void      UpdateCodeChanges    ();
     uint32_t  GetResultArgb        () const;
-    SourceSyntax::Colors  GetSyntaxColors () const;
+    SourceSyntax::Colors  GetSyntaxColors () const override;
     DebuggerTextColors::Set  GetTextColors () const override;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
@@ -1057,32 +1044,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
     int                                                                              m_activeCode         = 0;
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>                m_codeSelected;
-    DxuiListView                                                                   * m_traceList          = nullptr;
-    std::unique_ptr<TracePane>                                                       m_tracePane;
-    KeyHintLine                                                                    * m_traceHint          = nullptr;
     HistoryBand                                                                    * m_codeHistoryBand    = nullptr;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_traceFrame;
     bool                                                                             m_isHeatMapRecording = false;
     bool                                                                             m_isHeatColumnsRecording = false;
     int64_t                                                                          m_framePaintedAt     = 0;
 
-    //  The BASIC program pane (DebuggerWindowBasic.cpp), whether it was
-    //  opened, and the line it last scrolled to.
-    DxuiListView                         * m_basicProgramList         = nullptr;
-    std::unique_ptr<BasicProgramPane>      m_basicProgramPane;
-    std::unique_ptr<DebuggerPaneFrame>     m_basicProgramFrame;
+    //  The BASIC program pane and the tool panes, each closed until the user
+    //  first opens it, that were opened.
     std::set<std::wstring>                 m_basicOpened;
-    std::optional<Word>                    m_basicShownLine;
-    bool                                   m_isBasicReading           = false;
-
-    //  The line the program pane scrolls to once it has the program, whether
-    //  the last snapshot was of a stopped machine, whether this stop brought
-    //  the program pane forward, and the BASIC line breakpoints already seen;
-    //  none until the first snapshot.
-    std::optional<Word>                    m_basicPendingLine;
-    bool                                   m_wasBasicPaused      = false;
-    bool                                   m_isBasicStop         = false;
-    std::optional<std::set<int>>           m_basicBreakpointIds;
 
     //  The panes on the pane interface, in the order the window creates and
     //  calls them, and the profiler among them, whose bar's commands a test
@@ -1096,6 +1065,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     StackPane                                    * m_stackPane       = nullptr;
     WatchesPane                                  * m_watchesPane     = nullptr;
     BreakpointsPane                              * m_breakpointsPane = nullptr;
+    TracePaneController                          * m_tracePane       = nullptr;
+    BasicProgramController                       * m_basicProgram    = nullptr;
 
     void                 CreatePanes            ();
     IDebuggerPane      * FindPane               (const std::wstring & pane) const;
@@ -1137,21 +1108,15 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                 Repaint                () override { Invalidate(); }
     void                 OpenSource             (int fileId, int line) override { OpenSourceDocument (fileId, line, true); }
     void                 SaveOpenViews          () override { KeepOpenViews(); }
+    std::shared_ptr<const DxuiIconImage>  GetPcMarker (const std::shared_ptr<const DxuiIconImage> & dot) override { return GetPcIcon (dot); }
+    bool                 IsCodeHeatOn           () const override { return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat); }
+    bool                 RunKeyAction           (DebuggerKeySchemes::Action action) override { return OnMappedCommand ((int) action); }
 
     Word                 GetCursorAddress       () const;
     void                 ToggleBookmarkAtCursor ();
     void                 GoToBookmark           (bool isBackward);
 
-    void                           CreateBasicPanes      ();
-    void                           ConfigureBasicPanes   ();
-    void                           AddBasicPanes         ();
-    void                           ApplyBasicPanes       ();
-    void                           FollowBasicProgram    ();
-    void                           ToggleBasicBreakpoint (Word line);
-    void                           ShowBasicLine         (Word line) override;
-    std::optional<DebuggerAction>  GetBasicStep          (DebuggerKeySchemes::Action action) const;
-    DebuggerPaneFrame            * GetBasicFrame         (const std::wstring & pane) const;
-    DxuiListView                 * GetBasicList          (const std::wstring & pane) const;
+    void                 ShowBasicLine          (Word line) override;
 
     bool                     ShowColumnMenu           (DxuiListView * list, POINT clientPx);
     bool                     HasOwnColumnWidths       (const DxuiListView * list) const;
@@ -1229,8 +1194,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                                          m_showSourceCode      = true;
     uint64_t                                                      m_sourceClickMs       = 0;
     POINT                                                         m_sourceClickAt       = {};
-    std::vector<std::unique_ptr<DiagnosticsPane>>                 m_diagPanes;
-    std::set<std::string>                                         m_diagOpen;
 
     //  The fixed panes closed from their close buttons, which the View menu
     //  shows again where the layout still keeps them, and a pane the View

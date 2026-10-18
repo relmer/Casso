@@ -221,7 +221,6 @@
     <ClCompile Include="Ui\Debugger\WatchHistory.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointImport.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerActions.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerWindowBasic.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowProject.cpp" />
     <ClCompile Include="Ui\Debugger\ProjectSettingsDialog.cpp" />
     <ClCompile Include="Ui\Debugger\StepFiltersDialog.cpp" />
@@ -234,6 +233,9 @@
     <ClCompile Include="Ui\Debugger\Panes\ProfileTimeline.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\BreakpointsPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\CallStackController.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\TracePaneController.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\BasicProgramController.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\DevicePanelController.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatRangesPane.cpp" />
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
@@ -883,6 +885,9 @@
     <ClInclude Include="Ui\Debugger\Panes\MemoryWindows.h" />
     <ClInclude Include="Ui\Debugger\Panes\BreakpointsPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\CallStackController.h" />
+    <ClInclude Include="Ui\Debugger\Panes\TracePaneController.h" />
+    <ClInclude Include="Ui\Debugger\Panes\BasicProgramController.h" />
+    <ClInclude Include="Ui\Debugger\Panes\DevicePanelController.h" />
     <ClInclude Include="Ui\Debugger\Panes\UndoListPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\WatchesPane.h" />
     <ClInclude Include="Ui\Debugger\IDebuggerWindowHost.h" />
