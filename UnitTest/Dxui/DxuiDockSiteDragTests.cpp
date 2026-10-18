@@ -120,6 +120,62 @@ namespace DxuiDockSiteDragTests
 
         //  A tool window's title bar carries every tab of its group, in order,
         //  and the one shown stays shown.
+        //  The registers' group has the stack active. A press and drag on the
+        //  registers' tab, which is not active, takes the tab off at once.
+        TEST_METHOD (AnInactiveTabDragsOffWithoutAClickToActivateItFirst)
+        {
+            Rig             rig;
+            DxuiTabGroup  * group = rig.GroupOf (rig.regs);
+            RECT            tab   = {};
+
+
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a registers group");
+                return;
+            }
+
+            Assert::IsTrue (group->GetActiveContent() == &rig.stack, L"the stack is the active tab");
+
+            tab = group->GetTabRect (group->IndexOf (&rig.regs));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (tab)));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { Center (tab).x, tab.top - 80 }));
+
+            Assert::IsTrue (rig.site.IsDragging(), L"the press activated the tab and lost the drag");
+        }
+
+
+        //  A tab dragged along its strip moves within its group, and the group
+        //  is a tab group throughout.
+        TEST_METHOD (ATabDraggedAlongItsStripMovesWithinItsGroup)
+        {
+            Rig             rig;
+            DxuiTabGroup  * group = rig.GroupOf (rig.regs);
+            RECT            from  = {};
+            RECT            to    = {};
+
+
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a registers group");
+                return;
+            }
+
+            from = group->GetTabRect (group->IndexOf (&rig.regs));
+            to   = group->GetTabRect (group->IndexOf (&rig.stack));
+
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (from)));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { Center (from).x + 6, Center (from).y }));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { to.right - 2, Center (to).y }));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up,   POINT { to.right - 2, Center (to).y }));
+
+            Assert::IsFalse (rig.site.IsDragging(), L"a drag along the strip took the tab off");
+            Assert::IsTrue  (rig.site.GetPaneLayout().GetGroup (L"regs") == std::vector<std::wstring> { L"stack", L"regs" }, L"the tab did not move");
+        }
+
+
         TEST_METHOD (DraggingATitleBarMovesTheWholeGroup)
         {
             Rig             rig;

@@ -549,11 +549,12 @@ namespace DxuiDockSiteTests
             Assert::IsTrue (rig.site.IsDragging());
             Assert::IsTrue (rig.site.GetSlidPane().empty(), L"slid back so the zones show");
 
-            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (rig.regs.GetBounds())));
+            //  Over the registers' group, whose active tab is the stack.
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (rig.stack.GetBounds())));
             zone = rig.site.GetHoveredZone();
             Assert::IsNotNull (zone);
 
-            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up, Center (rig.regs.GetBounds())));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up, Center (rig.stack.GetBounds())));
             Assert::IsTrue (rig.site.GetPaneLayout().IsDocked (L"console"));
         }
 

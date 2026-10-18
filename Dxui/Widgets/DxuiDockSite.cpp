@@ -210,11 +210,11 @@ void DxuiDockSite::Arrange()
         bool            carried  = false;
         RECT            rect     = {};
 
-        while (group->GetTabCount() > 0)
-        {
-            group->RemoveTab (group->GetContent (0));
-        }
+        std::vector<std::pair<std::wstring, IDxuiControl *>>  tabs;
 
+        //  Every tab at once, so a press on a tab survives the refill: an
+        //  arrangement runs when a pressed tab is activated, and the press
+        //  may go on to drag it.
         for (const std::wstring & pane : groups[i].panes)
         {
             auto  found = m_panes.find (pane);
@@ -224,16 +224,24 @@ void DxuiDockSite::Arrange()
                 continue;
             }
 
-            active    = (pane == groups[i].active) ? (int) group->GetTabCount() : active;
+            active    = (pane == groups[i].active) ? (int) tabs.size() : active;
             document  = document || m_isDocument (pane);
             focused   = focused || pane == m_focusedPane;
             carried   = carried || (!m_carriedPane.empty() && pane == m_carriedPane);
 
-            group->AddTab         (found->second.title, found->second.content);
-            group->SetLeadingMark (found->second.content, found->second.leadMark);
-            group->SetTabTip      (found->second.content, found->second.tip);
-            group->SetTitleExtra  (found->second.content, found->second.titleExtraDip);
+            tabs.push_back ({ found->second.title, found->second.content });
             placed.insert (found->second.content);
+        }
+
+        group->ReplaceTabs (tabs, active);
+
+        for (const auto & [title, content] : tabs)
+        {
+            const Pane  & entry = m_panes.find (GetPaneOf (content))->second;
+
+            group->SetLeadingMark (content, entry.leadMark);
+            group->SetTabTip      (content, entry.tip);
+            group->SetTitleExtra  (content, entry.titleExtraDip);
         }
 
         //  A floating window's title bar is its pane's, so every group there
@@ -322,6 +330,35 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         {
             BeginDrag (pane);
             m_pointerDrag = IsDragging();
+        }
+    });
+
+    //  A tab dragged along its strip moves within the group, among every pane
+    //  in the group, visible or not: ahead of the tab now after it, or after
+    //  the tab now before it.
+    group->SetOnMove ([this, group] (int from, int to)
+    {
+        std::wstring               pane  = GetPaneOf (group->GetContent (to));
+        std::wstring               after = (to + 1 < (int) group->GetTabCount()) ? GetPaneOf (group->GetContent (to + 1)) : std::wstring();
+        std::wstring               ahead = (to > 0) ? GetPaneOf (group->GetContent (to - 1)) : std::wstring();
+        std::vector<std::wstring>  all   = m_layout.GetGroup (pane);
+        std::wstring               other = !after.empty() ? after : ahead;
+        int                        index = 0;
+
+
+
+        (void) from;
+
+        if (other.empty())
+        {
+            return;
+        }
+
+        index = (int) (std::find (all.begin(), all.end(), other) - all.begin()) + (after.empty() ? 1 : 0);
+
+        if (m_layout.TabWithAt (pane, other, index))
+        {
+            NotifyChanged();
         }
     });
 
