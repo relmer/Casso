@@ -3,6 +3,9 @@
 #include "Shell/MachineHost.h"
 
 #include "Core/Prng.h"
+#include "Devices/RamDevice.h"
+#include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/VideoScanner.h"
 #include "Machines/Apple2/Apple2c/Apple2cRomBank.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
@@ -31,6 +34,14 @@ MachineHost::MachineHost() :
     m_config    (std::make_unique<MachineConfig>()),
     m_tapeDeck  (std::make_unique<TapeDeck>())
 {
+    m_memoryBus->SetFloatingBusSource ([this]() { return ReadFloatingBus(); });
+
+    //  The store frees an image on an eject or a remount, so the controller
+    //  is re-pointed on every bay change rather than by each caller.
+    m_diskStore->SetBayChangeSink ([this] (int slot, int drive, BayChange)
+    {
+        ConnectDiskToController (slot, drive);
+    });
 }
 
 
@@ -235,6 +246,47 @@ Byte MachineHost::StepOne()
     }
 
     return (cycles);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ReadFloatingBus
+//
+//  The byte the video scanner is reading now, from main RAM as the display
+//  scans it whatever the CPU's banking. A machine with no video timing or no
+//  display switches, as in tests that build none, returns the last byte on
+//  the bus. The timing advances once per instruction, so the position is the
+//  instruction's first cycle rather than the cycle of the read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte MachineHost::ReadFloatingBus()
+{
+    AppleSoftSwitchBank  * switches = m_refs.softSwitches;
+    Byte                 * mainRam  = (m_mmu != nullptr && m_refs.mainRamDev != nullptr) ? m_refs.mainRamDev->GetData() : nullptr;
+    Byte                   value    = m_memoryBus->GetFloatingBusValue();
+    VideoScanMode          mode;
+    Word                   address  = 0;
+
+
+
+    if (m_videoTiming != nullptr && switches != nullptr)
+    {
+        mode.graphics = switches->IsGraphicsMode();
+        mode.mixed    = switches->IsMixedMode();
+        mode.page2    = switches->IsPage2();
+        mode.hires    = switches->IsHiresMode();
+        mode.store80  = m_refs.iieSoftSwitches != nullptr && m_refs.iieSoftSwitches->Is80Store();
+
+        address = VideoScanner::GetScannedAddress (m_videoTiming->GetCycleInFrame(), mode);
+        value   = (mainRam != nullptr) ? mainRam[address] : m_memoryBus->ReadByte (address);
+    }
+
+    return value;
 }
 
 
@@ -466,6 +518,34 @@ void MachineHost::AttachObservers (const MachineObservers & observers)
     {
         m_refs.gamePort->SetInputEventSink (observers.input);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ConnectDiskToController
+//
+//  Points the slot 6 controller's drive at the store's image for that bay. A
+//  null image, on an eject, selects the controller's own empty disk. Only
+//  slot 6 has a controller in the machine references.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ConnectDiskToController (int slot, int drive)
+{
+    Disk2Controller  *  controller = m_refs.diskController;
+
+
+
+    if (slot != 6 || controller == nullptr)
+    {
+        return;
+    }
+
+    controller->SetExternalDisk (drive, m_diskStore->GetImage (slot, drive));
 }
 
 

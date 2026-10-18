@@ -1573,6 +1573,35 @@ public:
             Assert::AreEqual ((size_t) 1, rig->bayChanges.size());
             Assert::IsTrue (rig->bayChanges[0] == BayChange::Inserted);
         }
+
+        //  A mount from bytes -> Inserted.
+        {
+            auto  rig = std::make_unique<Rig>();
+
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.MountFromBytes (kSlot, kDrive, kImagePath, DiskFormat::Dsk, rig->files[kImagePath]));
+
+            Assert::AreEqual ((size_t) 1, rig->bayChanges.size());
+            Assert::IsTrue (rig->bayChanges[0] == BayChange::Inserted);
+        }
+
+        //  A failed remount frees the mounted disk and empties the bay ->
+        //  Ejected.
+        {
+            auto               rig      = std::make_unique<Rig>();
+            std::vector<Byte>  junk (0x10, 0);
+            HRESULT            hrMount  = S_OK;
+
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+
+            hrMount = rig->store.MountFromBytes (kSlot, kDrive, "junk.dsk", DiskFormat::Dsk, junk);
+
+            Assert::IsTrue (FAILED (hrMount));
+            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
+            Assert::IsTrue (rig->bayChanges[1] == BayChange::Ejected);
+            Assert::IsFalse (rig->store.IsMounted (kSlot, kDrive));
+        }
     }
 
 
