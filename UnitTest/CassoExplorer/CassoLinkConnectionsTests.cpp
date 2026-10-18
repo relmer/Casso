@@ -316,4 +316,20 @@ public:
         Assert::AreEqual (std::wstring (L"Click My //c to connect."), CassoLinkConnections::DescribeState (LinkState::Closed, false, link, L"pc"));
         Assert::AreEqual (std::wstring (L"1,200"), CassoLinkConnections::FormatBaud (1200));
     }
+
+
+
+    //  A line that closes or goes quiet during an operation is reported as
+    //  that, not as the Apple failing the operation.
+    TEST_METHOD (AFailure_FromALostLine_GivesTheReason)
+    {
+        LinkOperation  operation;
+
+        operation.drive  = 2;
+        operation.result = HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE);
+        Assert::AreEqual (std::wstring (L"Drive 2: the connection to the Apple closed."), CassoLinkConnections::DescribeFailure (operation));
+
+        operation.result = HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
+        Assert::AreEqual (std::wstring (L"Drive 2: the Apple stopped answering."), CassoLinkConnections::DescribeFailure (operation));
+    }
 };
