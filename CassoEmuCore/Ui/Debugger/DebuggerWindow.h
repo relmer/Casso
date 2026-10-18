@@ -68,6 +68,7 @@ class ProfileTimeline;
 class FlameGraphView;
 class HeatMapPane;
 class HeatRangesPane;
+class MemoryWindowGroup;
 class SymbolsPane;
 class CallStackPane;
 class DiagnosticsPane;
@@ -152,7 +153,7 @@ protected:
 
     //  Protected so a test can submit the Address box as Enter does.
     void             SubmitMemoryBox ();
-    DxuiTextInput  * GetMemoryBox    () const { return m_memoryBox; }
+    DxuiTextInput  * GetMemoryBox    () const;
 
     //  Protected so a test can focus a control as a click does.
     DxuiTextInput  * GetCommandBox   () const { return m_commandBox; }
@@ -160,7 +161,7 @@ protected:
 
     //  Protected so a test can write to the console as the host's lines do,
     //  and search it as the find bar does.
-    void             AppendConsole   (const std::vector<std::string> & lines);
+    void             AppendConsole   (const std::vector<std::string> & lines) override;
     void             OpenFind        ();
     void             OpenFindIn      (const std::wstring & pane);
     void             CloseFind       ();
@@ -275,8 +276,8 @@ protected:
 
     //  Protected so a test can work the memory bar as a click does, and see
     //  which of its entries a narrow pane moves into its overflow menu.
-    DxuiToolbar *                      GetMemoryBar         () const { return m_memoryBar; }
-    const std::vector<std::wstring> &  GetMemoryHistory     () const { return m_memoryHistory; }
+    DxuiToolbar *                      GetMemoryBar         () const;
+    const std::vector<std::wstring> &  GetMemoryHistory     () const;
     void                               RunMemoryBarEntry    (int id);
     void                               ChooseMemoryColumns  (int columns);
     void                               ChooseMemoryGrouping (int grouping);
@@ -367,8 +368,8 @@ protected:
 
     //  A line typed for a Memory pane's Find, Fill, Copy or Compare, none when
     //  canceled; a test overrides it.
-    virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
-                                                        TextDialog::CheckFn check);
+    std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
+                                                TextDialog::CheckFn check) override;
 
     virtual std::optional<MemoryFileDialog::Fields>  RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial);
 
@@ -653,7 +654,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     UndoWatchEdit    (bool redo);
     void     UndoRegisterEdit (bool redo);
     void     UndoStackEdit    (bool redo);
-    void     UndoMemoryEdit   (MemoryPane * pane, bool redo);
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     RunToCursor      (Word address);
@@ -729,13 +729,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     SaveUndoHistories    ();
     std::string  GetUndoHistoriesText () const;
     void     ApplySavedFind       (const std::wstring & pane, FindState & state) const;
-    void     FindInMemory         (MemoryPane * pane);
-    void     StepMemoryFind       (bool forward);
-    void     FillMemorySelection  (MemoryPane * pane);
-    void     CopyMemorySelection  (MemoryPane * pane);
-    void     CompareMemorySelection (MemoryPane * pane);
-    void     ApplyMemoryResults   ();
-    static size_t  GetSearchLength (const std::wstring & items);
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
     void     OpenLooseFile        (const std::wstring & path, const std::string & text, bool isSource);
@@ -748,18 +741,12 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ConfigureSourceBars  ();
     void     PlaceSourceBars      ();
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
-    void     ConfigureMemoryBar   ();
-    void     SetMemoryBarMenus    ();
-    void     AddMemoryHistory     (const std::wstring & text);
-    bool     RouteMemoryBarMouse  (const DxuiMouseEvent & ev);
     void     ConfigureBreakpointBar  ();
     void     SetBreakpointBarMenus   ();
     void     PlaceBreakpointBar      ();
     bool     RouteBreakpointBarMouse (const DxuiMouseEvent & ev);
     void     ExportBreakpoints       ();
     void     ImportBreakpoints       ();
-    std::wstring  GetMemoryBarLabel  (int id) const;
-    std::wstring  GetMemoryBarTip    (int id) const;
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
     bool     IsFixedPane        (const std::wstring & pane) const;
@@ -825,16 +812,13 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     static std::wstring                          GetMonitorKey (const RECT & rectPx);
     static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();
 
-    void     ApplyMemoryWindows ();
-    void     PlaceMemoryBar     ();
-    void     MoveMemoryBar      (DxuiWindow * to);
+    void     ApplyUndoHistories ();
     DxuiWindow * GetPaneHost    (const std::wstring & pane);
     std::wstring GetBarRoutingPane (const std::wstring & pane) const;
     DxuiHwndSource * GetMenuHost () const;
     DxuiTooltip &    GetRoutedTooltip ();
     void     TickFloats         (int64_t now);
     void     ClipPaneControls   ();
-    bool     RouteMemoryMouse   (const DxuiMouseEvent & ev);
     bool     RouteSourceMouse   (const DxuiMouseEvent & ev);
     bool     RouteConsoleMouse  (const DxuiMouseEvent & ev);
     void     NoteViewFocus      (bool isSource);
@@ -898,7 +882,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     std::wstring  GetTitleButtonTipAt (POINT clientPx, RECT & button) const;
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
-    bool     TryGetMemoryTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
 
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.
     static RECT  GetPointerAnchor (POINT clientPx) { return RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 }; }
@@ -931,14 +914,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void      UpdateCodeChanges    ();
     uint32_t  GetResultArgb        () const;
     SourceSyntax::Colors  GetSyntaxColors () const;
-    DebuggerTextColors::Set  GetTextColors () const;
+    DebuggerTextColors::Set  GetTextColors () const override;
     void     OfferPress       (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     std::vector<DxuiListView *>  GetLists          () const;
     std::vector<DxuiListView *>  GetTextLists      () const;
-    std::vector<MemoryPane *>    GetOpenMemoryPanes () const;
-    MemoryPane *                 GetActiveMemoryPane () const;
-    MemoryPane *                 GetFocusedMemoryPane () const;
     std::vector<IDxuiControl *>  GetPressTargets   () const;
     DxuiTextInput *              GetFocusedBox     () const;
 
@@ -959,26 +939,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                    m_swallowSpace       = false;
     bool                                    m_swallowChordChar   = false;
 
-    //  A Memory pane's last Find: the pane, the bytes a match covers, the hit
-    //  it is on, and the serial of the snapshot's hits it waits to replace;
-    //  and a Compare with... waiting for its differences the same way.
-    struct MemoryFind
-    {
-        int       pane       = -1;
-        size_t    length     = 1;
-        int       at         = -1;
-        uint64_t  awaited    = 0;
-        bool      isAwaiting = false;
-    };
-
-    struct MemoryCompare
-    {
-        int       pane       = -1;
-        uint64_t  awaited    = 0;
-        bool      isAwaiting = false;
-    };
-
-    MemoryFind                              m_memoryFind;
 
     //  Find histories and options a project brought back for panes whose find
     //  widgets are not built yet, and the column widths in dips by pane.
@@ -998,7 +958,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  that follows clears none of them.
     bool                                      m_isHistoryRestored = false;
 
-    MemoryCompare                           m_memoryCompare;
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
     std::optional<Word>                     m_navigatedTo;
@@ -1173,7 +1132,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     int                                                                              m_breakpointSort     = -1;
     bool                                                                             m_breakpointReverse  = false;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
-    std::array<bool, DebuggerViewState::kMaxMemoryWindows>                           m_memoryOpen         = {};
     DxuiListView                                                                   * m_codeList           = nullptr;
     std::array<DxuiListView *, DebuggerViewState::kMaxCodeViews>                     m_codeLists          = {};
     std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxCodeViews> m_codeFrames;
@@ -1239,6 +1197,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     ProfilerPane                                 * m_profilerPane   = nullptr;
     HeatMapPane                                  * m_heatMapPane    = nullptr;
     HeatRangesPane                               * m_heatRangesPane = nullptr;
+    MemoryWindowGroup                            * m_memoryGroup    = nullptr;
 
     void                 CreatePanes            ();
     IDebuggerPane      * FindPane               (const std::wstring & pane) const;
@@ -1250,6 +1209,13 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                 IsPaneOpen             (const std::wstring & pane) const override { return IsPaneShown (pane); }
     IDxuiControl       * GetFocusedControl      () const override { return m_focusMgr.GetFocusedControl(); }
     void                 FocusDefault           () override { m_focusMgr.SetFocused (m_commandBox); }
+    void                 HideTooltip            () override { GetRoutedTooltip().HideImmediate(); }
+    void                 ActivatePaneTab        (const std::wstring & pane) override;
+    void                 RelayoutDock           () override;
+    void                 RelayoutWindow         () override { LayoutWidgets(); }
+    void                 SyncHeatRecording      () override { SyncHeatMapRecording(); }
+    void                 MoveSharedControls     (const std::vector<IDxuiControl *> & controls, DxuiWindow * from, DxuiWindow * to) override;
+    void                 AddHeatAccessItems     (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) override;
     const DxuiTheme    * GetTheme               () const override { return m_theme; }
     void                 OpenPane               (const std::wstring & pane) override { ShowPane (pane); }
     void                 ShowMemoryAddress      (Word address) override;
@@ -1285,14 +1251,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                     IsTextBox                (const IDxuiControl * control) const;
     void                     ApplyLogDeltas           ();
 
-    std::array<std::unique_ptr<MemoryPane>, DebuggerViewState::kMaxMemoryWindows>           m_memoryPanes;
-    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryFrames;
-    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxMemoryWindows>    m_memoryBars;
-    DxuiToolbar                                                                           * m_memoryBar          = nullptr;
-    DxuiWindow                                                                            * m_memoryBarHost      = nullptr;
-    std::wstring                                                                            m_memoryBarPane;
-    std::unique_ptr<MemoryBarCommands>                                                      m_memoryCommands;
-    std::unique_ptr<MemoryAddressEntry>                                                     m_addressEntry;
     std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointFrame;
     std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointSlot;
     DxuiToolbar                                                                           * m_breakpointBar      = nullptr;
@@ -1352,8 +1310,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void  ShowColorKey        (ColorKeyButton * button, bool hold);
     void  ToggleColorKey      (ColorKeyButton * button);
     void  HideColorKey        ();
-    std::vector<std::wstring>                                     m_memoryHistory;
-    MemoryPane                                                  * m_activePane          = nullptr;
     std::string                                                   m_machine;
     DxuiTextView                                                * m_consoleView         = nullptr;
     DxuiTextInput                                               * m_commandBox          = nullptr;
@@ -1380,7 +1336,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                                          m_findInSelection     = false;
     int                                                           m_findHistoryAt       = -1;
     std::map<std::wstring, FindState>                             m_findStates;
-    DxuiTextInput                                               * m_memoryBox           = nullptr;
     std::array<SourceDocument, SourceDocuments::kMaxDocuments>    m_sourceDocs;
     SourceDocuments                                               m_documents;
     int                                                           m_macroLevel          = 0;

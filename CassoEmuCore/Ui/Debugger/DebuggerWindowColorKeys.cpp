@@ -61,11 +61,6 @@ void DebuggerWindow::CreateColorKeys()
 
     AddColorKey (DebuggerLayout::kBreakpoints, m_breakpointSlot.get(),   ColorLegend::Pane::Breakpoints);
 
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        AddColorKey (DebuggerLayout::GetMemoryPaneId (pane->GetId()), m_memoryBars[(size_t) (pane->GetId() - 1)].get(), ColorLegend::Pane::Memory);
-    }
-
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
         DiagnosticsPane  * each = pane.get();

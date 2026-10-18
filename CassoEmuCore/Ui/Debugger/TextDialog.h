@@ -26,6 +26,7 @@ public:
     //  or without a dollar sign; and one address of one to four.
     static bool  TryParseBytes   (const std::wstring & text, std::vector<Byte> & bytes);
     static bool  TryParseAddress (const std::wstring & text, Word & address);
+    static bool  TryParseHexWord (std::wstring text, Word & value);
 
     //  Runs the dialog modally over `owner`; the text when OK.
     static std::optional<std::wstring>  RunModal (HWND owner, const IDxuiTheme * theme, const std::wstring & title, const std::wstring & label,

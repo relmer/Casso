@@ -29,6 +29,7 @@
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/HeatStrip.h"
@@ -64,56 +65,6 @@ static constexpr LPCWSTR  s_kpszClassName   = L"CassoDebuggerWindow";
 static std::wstring Widen (const std::string & text)
 {
     return TextEncoding::NarrowToWide (text);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryParseHexWord
-//
-//  Hex with or without a `$` or `0x` in front. The window's small boxes take an
-//  address the way a person types one, and a stray prefix is not an error.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool TryParseHexWord (std::wstring text, Word & value)
-{
-    uint32_t  parsed = 0;
-
-
-
-    while (!text.empty() && iswspace (text.front())) { text.erase (0, 1); }
-    while (!text.empty() && iswspace (text.back()))  { text.pop_back(); }
-
-    if (!text.empty() && text[0] == L'$')
-    {
-        text.erase (0, 1);
-    }
-    else if (text.size() > 2 && text[0] == L'0' && (text[1] == L'x' || text[1] == L'X'))
-    {
-        text.erase (0, 2);
-    }
-
-    if (text.empty() || text.size() > 4)
-    {
-        return false;
-    }
-
-    for (wchar_t c : text)
-    {
-        if (!iswxdigit (c))
-        {
-            return false;
-        }
-
-        parsed = parsed * 16 + (uint32_t) (iswdigit (c) ? c - L'0' : (towupper (c) - L'A' + 10));
-    }
-
-    value = (Word) parsed;
-    return true;
 }
 
 
@@ -249,26 +200,8 @@ void DebuggerWindow::OnCreate()
     m_regHistoryBand->SetOnGoLive  ([this] { GoLiveFromBand(); });
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
-    //  The memory bar before its Address box, so the box paints over the strip.
-    m_memoryBar         = CreateChild<DxuiToolbar>   ();
-    m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_breakpointBar     = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
-
-    //  All four windows exist from the start; the ones not open are hidden.
-    for (int id = 1; id <= DebuggerViewState::kMaxMemoryWindows; id++)
-    {
-        DxuiHexView  * view = CreateChild<DxuiHexView>();
-
-        m_memoryPanes[(size_t) (id - 1)] = std::make_unique<MemoryPane> (
-            id, view,
-            [this] (int window, Word first)          { if (m_host != nullptr) { m_host->SetDebuggerMemoryWindow (window, first); } },
-            [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
-            [this] (const std::string & line)        { AppendConsole ({ line }); });
-
-        view->SetVisible (id == 1);
-        m_memoryOpen[(size_t) (id - 1)] = (id == 1);
-    }
 
     m_tracePane = std::make_unique<TracePane> (
         m_traceList,
@@ -399,7 +332,6 @@ void DebuggerWindow::ConfigureWidgets()
         pane->Configure();
     }
 
-    ConfigureMemoryBar();
     ConfigureBreakpointBar();
     ConfigureUndoBars();
     ConfigureBasicPanes();
@@ -407,11 +339,6 @@ void DebuggerWindow::ConfigureWidgets()
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->Configure();
-    }
-
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        pane->Configure (GetHwnd());
     }
 
     for (SourceDocument & document : m_sourceDocs)
@@ -467,7 +394,7 @@ void DebuggerWindow::ConfigureWidgets()
             return;
         }
 
-        GetActiveMemoryPane()->GoTo (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address);
+        m_memoryGroup->GetActive()->GetModel().GoTo (m_snapshot->stack[m_snapshot->stack.size() - 1 - (size_t) row].address);
     });
 
     //  Double-clicking PC shows the PC, as Show Next Statement does; on P's
@@ -583,17 +510,13 @@ void DebuggerWindow::ConfigureWidgets()
     m_traceHint->SetPairs  (TracePane::GetKeyPairs());
     m_traceHint->SetOnPick ([this] (int id) { (void) RunTraceAction (id); });
 
-    for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
-    {
-        box->SetHwnd      (GetHwnd());
-        box->SetMaxLength (256);
-    }
+    m_commandBox->SetHwnd      (GetHwnd());
+    m_commandBox->SetMaxLength (256);
 
     ConfigureFindBar();
 
     m_commandBox->SetPrompt      (GetPromptText (CommandMode::AppleWin));
     m_commandBox->SetPlaceholder (L"Command (Enter to run, HELP for help)");
-    m_memoryBox->SetPlaceholder  (L"Address: 0300, PC, (3E),Y");
 
     m_focusMgr.Attach   (this);
     m_focusMgr.SetTheme (m_theme);
@@ -664,309 +587,6 @@ void DebuggerWindow::ConfigureCommandBar()
     m_barHost.JoinGroup      (m_toolbarDocks);
 
     SetWindowMenus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ConfigureMemoryBar
-//
-//  Visual Studio's memory window bar: the Address box, Refresh, Columns and
-//  the grouping. View > Memory opens another window. Typing into the bytes or
-//  POKE at the console writes memory, so the bar has no poke box; a window
-//  closes from its tab.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ConfigureMemoryBar()
-{
-    MemoryBarCommands::Handlers  handlers;
-
-
-
-    handlers.dispatch  = [this] (int id) { RunMemoryBarEntry (id); };
-    handlers.getLabel  = [this] (int id) { return GetMemoryBarLabel (id); };
-    handlers.isEnabled = [this] (int id) { return IsMemoryBarEnabled (id); };
-    handlers.isChecked = [this] (int id) { return id == MemoryBarCommands::kHeat && GetActiveMemoryPane() != nullptr && GetActiveMemoryPane()->IsHeatOn(); };
-    handlers.getTip    = [this] (int id) { return GetMemoryBarTip (id); };
-
-    m_memoryCommands = std::make_unique<MemoryBarCommands>  (std::move (handlers));
-    m_addressEntry   = std::make_unique<MemoryAddressEntry> (m_memoryBox);
-
-    m_addressEntry->SetTooltips (L"Address: a hex address, a register, a symbol or an expression such as (3E),Y; Enter goes there",
-                                 L"Addresses entered before");
-
-    m_memoryBar->SetTextRenderer  (GetTextRenderer());
-    m_memoryBar->SetPopupHost     (GetPopupHost());
-    m_memoryBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
-    m_memoryBar->SetCompact       (true);
-    m_memoryBar->SetPaneTextInset (true);
-    m_memoryBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
-    m_memoryBar->SetEntries       (m_memoryCommands->BuildEntries (m_addressEntry.get()));
-    m_memoryBar->SetVisible       (false);
-
-    SetMemoryBarMenus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SetMemoryBarMenus
-//
-//  The Address box's history, newest first, and the Columns and grouping
-//  choices with the active window's checked. Rebuilt whenever what they list
-//  changes, since the rows carry the state they were built with.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SetMemoryBarMenus()
-{
-    std::vector<DxuiPopupMenuItem>  history;
-    std::vector<DxuiPopupMenuItem>  columns;
-    std::vector<DxuiPopupMenuItem>  grouping;
-    MemoryPane                    * pane     = GetActiveMemoryPane();
-
-
-
-    for (const std::wstring & entered : m_memoryHistory)
-    {
-        history.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (entered, false, [this, entered]
-        {
-            m_memoryBox->SetText (entered);
-            SubmitMemoryBox();
-        })));
-    }
-
-    for (int choice : MemoryBarCommands::GetColumnChoices())
-    {
-        columns.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetColumnsLabel (choice),
-                                                                            pane != nullptr && pane->GetColumns() == choice,
-                                                                            [this, choice] { ChooseMemoryColumns (choice); })));
-    }
-
-    for (int choice : MemoryBarCommands::GetGroupingChoices())
-    {
-        grouping.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetGroupingName (choice),
-                                                                             pane != nullptr && pane->GetGrouping() == choice,
-                                                                             [this, choice] { ChooseMemoryGrouping (choice); })));
-    }
-
-    m_memoryBar->SetDropDownItems (MemoryBarCommands::kAddress,  std::move (history));
-    m_memoryBar->SetDropDownItems (MemoryBarCommands::kColumns,  std::move (columns));
-    m_memoryBar->SetDropDownItems (MemoryBarCommands::kGrouping, std::move (grouping));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetMemoryBarLabel
-//
-//  What the drop-downs show: the choice in force in the active window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetMemoryBarLabel (int id) const
-{
-    MemoryPane  * pane = GetActiveMemoryPane();
-
-
-
-    if (pane == nullptr)
-    {
-        return std::wstring();
-    }
-
-    if (id == MemoryBarCommands::kColumns)
-    {
-        return L"Columns: " + MemoryBarCommands::GetColumnsLabel (pane->GetColumns());
-    }
-
-    if (id == MemoryBarCommands::kGrouping)
-    {
-        return MemoryBarCommands::GetGroupingLabel (pane->GetGrouping());
-    }
-
-    return std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::IsMemoryBarEnabled
-//
-//  Undo and Redo, while the active window has an edit to take back or make
-//  again.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::IsMemoryBarEnabled (int id) const
-{
-    MemoryPane  * pane = GetActiveMemoryPane();
-
-
-
-    if (id == MemoryBarCommands::kUndo)
-    {
-        return pane != nullptr && pane->CanUndo();
-    }
-
-    if (id == MemoryBarCommands::kRedo)
-    {
-        return pane != nullptr && pane->CanRedo();
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetMemoryBarTip
-//
-//  Undo's and Redo's tips say what they would act on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetMemoryBarTip (int id) const
-{
-    MemoryPane    * pane = GetActiveMemoryPane();
-    std::wstring    text;
-
-
-
-    if (pane != nullptr && id == MemoryBarCommands::kUndo && pane->CanUndo())
-    {
-        text = GetUndoLabel (false, pane->GetUndoText());
-    }
-    else if (pane != nullptr && id == MemoryBarCommands::kRedo && pane->CanRedo())
-    {
-        text = GetUndoLabel (true, pane->GetRedoText());
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RunMemoryBarEntry
-//
-//  The drop-downs open from the strip; a choice from one comes back through
-//  ChooseMemoryColumns or ChooseMemoryGrouping.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::RunMemoryBarEntry (int id)
-{
-    switch (id)
-    {
-    case MemoryBarCommands::kAddress:
-        SetFocusedControl (m_memoryBox);
-        break;
-
-    case MemoryBarCommands::kRefresh:
-        GetActiveMemoryPane()->Refresh();
-        break;
-
-    case MemoryBarCommands::kUndo:
-    case MemoryBarCommands::kRedo:
-        UndoMemoryEdit (GetActiveMemoryPane(), id == MemoryBarCommands::kRedo);
-        break;
-
-    case MemoryBarCommands::kHeat:
-        GetActiveMemoryPane()->SetHeatOn (!GetActiveMemoryPane()->IsHeatOn());
-        SyncHeatMapRecording();
-        break;
-
-    default:
-        break;
-    }
-
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ChooseMemoryColumns
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ChooseMemoryColumns (int columns)
-{
-    GetActiveMemoryPane()->SetColumns (columns);
-    SetMemoryBarMenus();
-    LayoutWidgets();
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ChooseMemoryGrouping
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ChooseMemoryGrouping (int grouping)
-{
-    GetActiveMemoryPane()->SetGrouping (grouping);
-    SetMemoryBarMenus();
-    LayoutWidgets();
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::AddMemoryHistory
-//
-//  Newest first, each address once, as Visual Studio's Address box keeps it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::AddMemoryHistory (const std::wstring & text)
-{
-    constexpr size_t  kMaxHistory = 16;
-    std::wstring      entered     = text;
-
-
-
-    std::erase (m_memoryHistory, entered);
-    m_memoryHistory.insert (m_memoryHistory.begin(), entered);
-
-    if (m_memoryHistory.size() > kMaxHistory)
-    {
-        m_memoryHistory.resize (kMaxHistory);
-    }
-
-    SetMemoryBarMenus();
 }
 
 
@@ -1316,9 +936,9 @@ void DebuggerWindow::ApplyTextZoom (float zoom)
         list->ResetAutoFit();
     }
 
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        pane->GetView()->SetZoom (m_textZoom);
+        pane->SetTextZoom (m_textZoom);
     }
 
     for (SourceDocument & document : m_sourceDocs)
@@ -1355,7 +975,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 
 
-    targets.insert (targets.end(), { m_callStackButton, m_commandBox, m_memoryBox });
+    targets.insert (targets.end(), { m_callStackButton, m_commandBox });
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -1381,115 +1001,18 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetOpenMemoryPanes
+//  DebuggerWindow::ApplyUndoHistories
 //
-//  In window order, which is the order they are laid out.
+//  The registers' and the stack's undo, cleared when the machine moves on
+//  from the stop the edits were made at. A different machine clears every
+//  memory window's undo and the watch pane's, since the addresses they would
+//  restore belonged to the old one, unless the histories were restored for
+//  the new machine since the last change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<MemoryPane *> DebuggerWindow::GetOpenMemoryPanes() const
+void DebuggerWindow::ApplyUndoHistories()
 {
-    std::vector<MemoryPane *>  open;
-
-
-
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        if (pane != nullptr && m_memoryOpen[(size_t) (pane->GetId() - 1)])
-        {
-            open.push_back (pane.get());
-        }
-    }
-
-    return open;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetActiveMemoryPane
-//
-//  The window last clicked in, which the memory box and the grouping button
-//  act on; the first window until another is clicked.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MemoryPane * DebuggerWindow::GetActiveMemoryPane() const
-{
-    return (m_activePane != nullptr) ? m_activePane : m_memoryPanes[0].get();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetFocusedMemoryPane
-//
-////////////////////////////////////////////////////////////////////////////////
-
-MemoryPane * DebuggerWindow::GetFocusedMemoryPane() const
-{
-    IDxuiControl  * focused = GetFocused();
-
-
-
-    for (MemoryPane * pane : GetOpenMemoryPanes())
-    {
-        if (focused != nullptr && focused == pane->GetView())
-        {
-            return pane;
-        }
-    }
-
-    return nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ApplyMemoryWindows
-//
-//  The snapshot says which windows are open: each one it holds is shown and
-//  given its bytes, and the rest are hidden. A different machine clears every
-//  window's undo, since the addresses it would restore belonged to the old
-//  one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplyMemoryWindows()
-{
-    std::array<bool, DebuggerViewState::kMaxMemoryWindows>  open    = {};
-    bool                                                    changed = false;
-
-
-
-    //  A Go to the CPU thread resolved, once.
-    if (m_snapshot->goTo.has_value() && m_snapshot->goTo->serial != m_goToSerial)
-    {
-        const DebuggerViewSnapshot::GoTo & goTo = *m_snapshot->goTo;
-
-        m_goToSerial = goTo.serial;
-
-        if (goTo.address.has_value() && goTo.window >= 1 && goTo.window <= DebuggerViewState::kMaxMemoryWindows)
-        {
-            m_memoryPanes[(size_t) (goTo.window - 1)]->GoTo (*goTo.address);
-        }
-        else
-        {
-            AppendConsole ({ std::format ("Go to: \"{}\" is not an address. {}", goTo.text, goTo.error) });
-        }
-    }
-
-    ApplyMemoryResults();
-
     m_registerHistory.OnSnapshot (m_snapshot->isPaused, m_snapshot->pc);
     m_stackHistory.OnSnapshot    (m_snapshot->isPaused, m_snapshot->pc);
 
@@ -1497,66 +1020,13 @@ void DebuggerWindow::ApplyMemoryWindows()
     {
         m_machine = m_snapshot->machine;
 
-        //  Every undo record has the old machine's values and addresses, the
-        //  watch pane's as much as the memory windows', unless the histories
-        //  were restored for the new machine since the last change.
         if (!m_isHistoryRestored)
         {
-            for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-            {
-                pane->ClearHistory();
-            }
-
+            m_memoryGroup->ClearHistories();
             m_watchHistory.Clear();
         }
 
         m_isHistoryRestored = false;
-    }
-
-    for (const DebuggerViewSnapshot::MemoryWindow & window : m_snapshot->memoryWindows)
-    {
-        if (window.id >= 1 && window.id <= DebuggerViewState::kMaxMemoryWindows)
-        {
-            open[(size_t) (window.id - 1)] = true;
-            m_memoryPanes[(size_t) (window.id - 1)]->SetTextColors   (GetTextColors());
-            m_memoryPanes[(size_t) (window.id - 1)]->SetPaused       (m_snapshot->isPaused);
-            m_memoryPanes[(size_t) (window.id - 1)]->SetHeat         (m_snapshot->heatColumns, GetHeatPalette());
-
-            //  Bytes are edited while the machine is stopped, as Visual
-            //  Studio's memory window allows: a running machine would
-            //  overwrite the edit, or be changed under the code using it.
-            if (m_memoryPanes[(size_t) (window.id - 1)]->GetView()->IsEditable() != m_snapshot->isPaused)
-            {
-                m_memoryPanes[(size_t) (window.id - 1)]->GetView()->SetEditable (m_snapshot->isPaused);
-            }
-
-            m_memoryPanes[(size_t) (window.id - 1)]->Apply (window);
-        }
-    }
-
-    for (size_t i = 0; i < m_memoryPanes.size(); i++)
-    {
-        //  A window opened comes to the front of its tab group.
-        if (m_memoryOpen[i] != open[i])
-        {
-            m_memoryOpen[i] = open[i];
-            changed         = true;
-
-            if (open[i])
-            {
-                (void) m_dockSite->EditPaneLayout().Activate (DebuggerLayout::GetMemoryPaneId ((int) i + 1));
-            }
-        }
-
-        if (!open[i] && m_activePane == m_memoryPanes[i].get())
-        {
-            m_activePane = nullptr;
-        }
-    }
-
-    if (changed)
-    {
-        m_dockSite->Relayout();
     }
 }
 
@@ -2627,68 +2097,6 @@ void DebuggerWindow::ShowDroppedSource (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RouteMemoryMouse
-//
-//  A drag in a window keeps its events until it ends; a press or the wheel goes
-//  to the window under it, and a press makes it the active one. Releases reach
-//  every window, so none is left thinking a drag is still on.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RouteMemoryMouse (const DxuiMouseEvent & ev)
-{
-    POINT  at = ev.positionDip;
-
-
-
-    for (MemoryPane * pane : GetOpenMemoryPanes())
-    {
-        DxuiHexView  * view   = pane->GetView();
-        RECT           bounds = view->GetBounds();
-        bool           inside = view->IsVisible() && at.x >= bounds.left && at.x < bounds.right && at.y >= bounds.top && at.y < bounds.bottom;
-
-        if (!IsRoutable (view))
-        {
-            continue;
-        }
-
-        if (view->IsDragging() && ev.kind != DxuiMouseEventKind::Down)
-        {
-            (void) view->OnMouse (ev);
-            return true;
-        }
-
-        if (inside && (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel))
-        {
-            (void) view->OnMouse (ev);
-
-            //  A press starts a selection or an edit, which the address tip
-            //  would sit over; the next move brings it back.
-            if (ev.kind == DxuiMouseEventKind::Down)
-            {
-                GetRoutedTooltip().HideImmediate();
-                SetFocusedControl (view);
-                m_activePane = pane;
-            }
-
-            return true;
-        }
-
-        if (ev.kind == DxuiMouseEventKind::Up)
-        {
-            (void) view->OnMouse (ev);
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::GetFocusedBox
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2699,12 +2107,9 @@ DxuiTextInput * DebuggerWindow::GetFocusedBox() const
 
 
 
-    for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
+    if (focused != nullptr && focused == m_commandBox)
     {
-        if (focused != nullptr && focused == box)
-        {
-            return box;
-        }
+        return m_commandBox;
     }
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -2968,21 +2373,15 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
         return true;
     }
 
-    //  In a Memory pane, Find searches memory and F3 and Shift+F3 walk the
-    //  matches.
-    if (GetFocusedMemoryPane() != nullptr && (action == DebuggerKeySchemes::Action::Find || action == DebuggerKeySchemes::Action::FindNext ||
-                                              action == DebuggerKeySchemes::Action::FindPrevious))
+    //  A pane's own use of an action while it has the focus, as a memory
+    //  window's Find, which searches memory, and F3 and Shift+F3, which walk
+    //  the matches.
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        if (action != DebuggerKeySchemes::Action::Find && m_memoryFind.pane == GetFocusedMemoryPane()->GetId())
+        if (pane->OnMappedAction (action, GetFocused()))
         {
-            StepMemoryFind (action == DebuggerKeySchemes::Action::FindNext);
+            return true;
         }
-        else
-        {
-            FindInMemory (GetFocusedMemoryPane());
-        }
-
-        return true;
     }
 
     //  Find acts on the window, not the machine.
@@ -3052,7 +2451,7 @@ bool DebuggerWindow::OnMappedCommand (int commandId)
 bool DebuggerWindow::RouteBoxKey (const DxuiKeyEvent & ev, bool & handled)
 {
     DxuiTextInput                               * box           = GetFocusedBox();
-    bool                                          inMemory      = GetFocusedMemoryPane() != nullptr;
+    bool                                          inMemory      = std::ranges::any_of (m_panes, [this] (const std::unique_ptr<IDebuggerPane> & pane) { return pane->TakesTyping (GetFocused()); });
     bool                                          decided       = false;
     CommandMode                                   mode          = (m_snapshot != nullptr) ? m_snapshot->mode : CommandMode::AppleWin;
     std::optional<DebuggerKeySchemes::Action>     consoleAction;
@@ -4466,7 +3865,6 @@ void DebuggerWindow::LayoutWidgets()
     m_dockSite->Layout (RECT { area.left, top, area.right, area.bottom }, m_scaler);
 
     UpdateCodeLines();
-    PlaceMemoryBar();
     PlaceBreakpointBar();
     PlaceUndoBars();
 
@@ -4731,87 +4129,6 @@ void DebuggerWindow::UpdateCodeLines()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::PlaceMemoryBar
-//
-//  The memory bar sits in the bar of the memory pane it acts on: the active
-//  one when it is shown here, or else the first memory pane shown. With none
-//  shown in this window, it hides.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PlaceMemoryBar()
-{
-    DebuggerPaneFrame  * bar    = nullptr;
-    MemoryPane         * owner  = GetActiveMemoryPane();
-    DxuiWindow         * host   = nullptr;
-    RECT                 slot   = {};
-    auto                 isHere = [this] (size_t i)
-    {
-        return m_memoryBars[i] != nullptr && m_memoryBars[i]->IsVisible();
-    };
-
-
-
-    if (owner != nullptr && isHere ((size_t) (owner->GetId() - 1)))
-    {
-        bar             = m_memoryBars[(size_t) (owner->GetId() - 1)].get();
-        m_memoryBarPane = DebuggerLayout::GetMemoryPaneId (owner->GetId());
-    }
-
-    for (size_t i = 0; bar == nullptr && i < m_memoryBars.size(); i++)
-    {
-        if (isHere (i))
-        {
-            bar             = m_memoryBars[i].get();
-            m_memoryBarPane = DebuggerLayout::GetMemoryPaneId ((int) i + 1);
-        }
-    }
-
-    //  The bar is the pane's, so it goes with the pane into a floating
-    //  window; with no pane to sit in, it waits in this one.
-    host = (bar != nullptr) ? GetPaneHost (m_memoryBarPane) : this;
-    MoveMemoryBar (host);
-
-    if (bar == nullptr)
-    {
-        m_memoryBarPane.clear();
-    }
-
-    m_memoryBar->SetVisible (bar != nullptr);
-
-    //  A hidden box keeps no focus, or it would go on taking the keys; they
-    //  go back to the command line, as they do when the find bar closes.
-    m_memoryBox->SetVisible (bar != nullptr);
-
-    if (bar == nullptr && m_focusMgr.GetFocusedControl() == m_memoryBox)
-    {
-        m_focusMgr.SetFocused (m_commandBox);
-    }
-
-    if (bar == nullptr)
-    {
-        return;
-    }
-
-    //  The strip lays out its own entries, the Address box among them, and
-    //  moves what does not fit into its "..." menu.
-    slot = bar->GetBounds();
-
-    m_memoryBar->SetTextRenderer   (host->GetTextRenderer());
-    m_memoryBar->SetPopupHost      (host->GetPopupHost());
-    m_memoryBar->SetHostClientRect (host->GetBounds());
-    m_memoryBar->Layout            (GetBarStrip (m_memoryBarPane, slot), m_scaler);
-
-    host->SetChildClip (m_memoryBar, slot);
-    host->SetChildClip (m_memoryBox, slot);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::GetPaneHost
 //
 //  The window a pane's controls are in: its floating window, or this one.
@@ -4935,72 +4252,6 @@ void DebuggerWindow::TickFloats (int64_t now)
 std::wstring DebuggerWindow::GetBarRoutingPane (const std::wstring & pane) const
 {
     return (!pane.empty() && m_floats.contains (pane)) ? pane : std::wstring();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::MoveMemoryBar
-//
-//  Moves the memory bar and its Address box into another window. Focus on
-//  the box stays behind in the window it leaves, so it goes to the command
-//  line there, as it does when the box hides.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::MoveMemoryBar (DxuiWindow * to)
-{
-    DxuiWindow  * from = m_memoryBarHost != nullptr ? m_memoryBarHost : this;
-
-
-
-    if (to == from)
-    {
-        return;
-    }
-
-    if (m_focusMgr.GetFocusedControl() == m_memoryBox)
-    {
-        m_focusMgr.SetFocused (m_commandBox);
-    }
-
-    for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
-    {
-        if (it->second == m_memoryBox)
-        {
-            m_memoryBox->OnFocusChanged (false);
-            it = m_floatFocus.erase (it);
-            continue;
-        }
-
-        ++it;
-    }
-
-    for (IDxuiControl * control : { (IDxuiControl *) m_memoryBar, (IDxuiControl *) m_memoryBox })
-    {
-        std::unique_ptr<IDxuiControl>  owned = from->DetachChild (control);
-
-        if (owned != nullptr)
-        {
-            (void) to->AttachChild (std::move (owned));
-        }
-    }
-
-    m_memoryBarHost = to;
-
-    //  The site's strips and drop zones paint over the panes, so it stays
-    //  this window's last child.
-    if (to == this)
-    {
-        std::unique_ptr<IDxuiControl>  site = DetachChild (m_dockSite);
-
-        (void) AttachChild (std::move (site));
-    }
-
-    m_focusMgr.Rebuild();
 }
 
 
@@ -5269,23 +4520,6 @@ void DebuggerWindow::ConfigureDockSite()
         pane->AddToDock (*m_dockSite);
     }
 
-    //  A memory pane is its command bar over its bytes (FR-089). The bar is a
-    //  place held at the pane's top; the controls, shared by every memory
-    //  pane, are put in the bar of the one they act on (PlaceMemoryBar).
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        size_t  i = (size_t) (pane->GetId() - 1);
-
-        m_memoryBars[i]   = std::make_unique<DebuggerPaneFrame> (L"Memory commands");
-        m_memoryFrames[i] = std::make_unique<DebuggerPaneFrame> (std::format (L"Memory {}", pane->GetId()));
-        m_memoryFrames[i]->AddPart (m_memoryBars[i].get(), barHeight);
-        m_memoryFrames[i]->AddPart (pane->GetView());
-        pane->GetView()->SetPaneTextInset (true);
-
-        m_dockSite->AddPane (DebuggerLayout::GetMemoryPaneId (pane->GetId()),
-                             std::format (L"Memory {}", pane->GetId()), m_memoryFrames[i].get());
-    }
-
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
         m_dockSite->AddPane (DebuggerLayout::GetDiagnosticsPaneId (pane->GetId()), pane->GetTitle(), pane->GetFrame());
@@ -5395,14 +4629,6 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
     if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
     {
         return m_diagOpen.contains (diagnosticsId);
-    }
-
-    for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
-    {
-        if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
-        {
-            return m_memoryOpen[(size_t) (memory->GetId() - 1)];
-        }
     }
 
     return true;
@@ -5726,12 +4952,9 @@ bool DebuggerWindow::IsFixedPane (const std::wstring & pane) const
         }
     }
 
-    for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    if (FindPane (pane) != nullptr && !FindPane (pane)->IsFixed())
     {
-        if (pane == DebuggerLayout::GetMemoryPaneId (window))
-        {
-            return false;
-        }
+        return false;
     }
 
     return GetSourceSlotOf (pane) < 0 && !DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId);
@@ -5857,12 +5080,9 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
             }
         }
 
-        for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+        if (FindPane (pane) != nullptr)
         {
-            if (pane == DebuggerLayout::GetMemoryPaneId (window) && m_host != nullptr)
-            {
-                m_host->SetDebuggerMemoryWindow (window, m_memoryPanes[0]->GetTopAddress());
-            }
+            (void) FindPane (pane)->RequestOpen();
         }
 
         if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
@@ -5972,13 +5192,9 @@ void DebuggerWindow::ClosePane (const std::wstring & pane)
         }
     }
 
-    for (int window = 2; window <= DebuggerViewState::kMaxMemoryWindows; window++)
+    if (FindPane (pane) != nullptr && FindPane (pane)->RequestClose())
     {
-        if (pane == DebuggerLayout::GetMemoryPaneId (window))
-        {
-            m_host->SetDebuggerMemoryWindow (window, std::nullopt);
-            return;
-        }
+        return;
     }
 }
 
@@ -6193,10 +5409,8 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 {
     std::vector<std::pair<std::wstring, std::function<void()>>>  items;
     std::vector<DxuiPopupMenuItem>                               menu;
-    MemoryPane                                                 * memory = nullptr;
     int                                                          row    = -1;
     RECT                                                         bounds = {};
-    std::optional<Word>                                          byte;
 
 
 
@@ -6245,66 +5459,6 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
         }
 
         AddListMenuItems (list, row, GetColumnAt (list, clientPx.x - bounds.left), items);
-    }
-
-    for (MemoryPane * each : GetOpenMemoryPanes())
-    {
-        if (IsRoutable (each->GetView()) && DxuiDockSite::Contains (each->GetView()->GetBounds(), clientPx) && each->GetView()->IsVisible())
-        {
-            memory = each;
-        }
-    }
-
-
-    if (memory != nullptr)
-    {
-        m_activePane = memory;
-        items.push_back ({ L"Copy",         [memory] { memory->GetView()->CopySelection(); } });
-        items.push_back ({ L"Go to...",     [this]   { SetFocusedControl (m_memoryBox); } });
-        items.push_back ({ L"Change bytes per value", [memory] { (void) memory->CycleGrouping(); } });
-        items.push_back ({ L"Find...",                [this, memory] { FindInMemory (memory); } });
-
-        //  On a selection: F and M write the machine, so only while it is
-        //  stopped; MC reads it, so at any time.
-        if (memory->GetSelectedRange().has_value())
-        {
-            if (m_snapshot->isPaused)
-            {
-                items.push_back ({ L"Fill selection...",    [this, memory] { FillMemorySelection (memory); } });
-                items.push_back ({ L"Copy selection to...", [this, memory] { CopyMemorySelection (memory); } });
-            }
-
-            items.push_back ({ L"Compare with...", [this, memory] { CompareMemorySelection (memory); } });
-        }
-
-        if (memory->HasComparison())
-        {
-            items.push_back ({ memory->IsShowingOther() ? L"View this range's values" : L"View the other range's values", [memory] { memory->ToggleShowOther(); } });
-            items.push_back ({ L"Clear comparison", [memory] { memory->ClearComparison(); } });
-        }
-
-        if (memory->CanUndo())
-        {
-            items.push_back ({ GetUndoLabel (false, memory->GetUndoText()), [this, memory] { UndoMemoryEdit (memory, false); } });
-        }
-
-        if (memory->CanRedo())
-        {
-            items.push_back ({ GetUndoLabel (true, memory->GetRedoText()), [this, memory] { UndoMemoryEdit (memory, true); } });
-        }
-
-        byte = memory->GetAddressAt (clientPx);
-
-        //  A byte in zero page can be the low byte of a pointer.
-        if (byte.has_value() && *byte < 0x100)
-        {
-            items.push_back ({ L"Add as pointer watch", [this, at = (Byte) *byte] { RunAction (DebuggerActions::GetAddZeroPagePointer (at, GetMode())); } });
-        }
-
-        if (byte.has_value())
-        {
-            m_heatMapPane->AddAccessItems (*byte, HeatMapOptions::Bank::Cpu, items);
-        }
     }
 
     if (FindPane (pane) != nullptr)
@@ -6489,9 +5643,9 @@ int DebuggerWindow::GetColumnAt (const DxuiListView * list, int xPx)
 
 void DebuggerWindow::AddShowInMemory (const std::wstring & what, const std::string & goTo, std::vector<std::pair<std::wstring, std::function<void()>>> & items)
 {
-    for (MemoryPane * pane : GetOpenMemoryPanes())
+    for (MemoryWindowPane * window : m_memoryGroup->GetOpenWindows())
     {
-        int  id = pane->GetId();
+        int  id = window->GetWindowId();
 
         items.push_back ({ std::format (L"Show {} in Memory {}", what, id), [this, id, goTo]
         {
@@ -7248,7 +6402,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -7303,12 +6457,6 @@ void DebuggerWindow::RenderFrame()
     FollowOperandTipPointer();
     TickFloats (now);
 
-    for (MemoryPane * pane : GetOpenMemoryPanes())
-    {
-        pane->FollowScroll();
-        isAnimating = pane->GetView()->TickScrollbars (now) || isAnimating;
-    }
-
     m_tracePane->FollowScroll();
     ApplyLogDeltas();
 
@@ -7324,7 +6472,6 @@ void DebuggerWindow::RenderFrame()
     SyncCommandBarFloatTip();
     SyncTimeline();
     CarryTornOffPane();
-    PlaceMemoryBar();
     PlaceBreakpointBar();
     PlaceUndoBars();
 
@@ -7695,13 +6842,13 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
 
 void DebuggerWindow::ShowMemoryAddress (Word address)
 {
-    MemoryPane  * pane = GetActiveMemoryPane();
+    MemoryWindowPane  * pane = m_memoryGroup->GetActive();
 
 
 
     if (!pane->GetView()->IsVisible())
     {
-        for (MemoryPane * open : GetOpenMemoryPanes())
+        for (MemoryWindowPane * open : m_memoryGroup->GetOpenWindows())
         {
             if (open->GetView()->IsVisible())
             {
@@ -7711,11 +6858,11 @@ void DebuggerWindow::ShowMemoryAddress (Word address)
         }
     }
 
-    pane->GoTo (address);
+    pane->GetModel().GoTo (address);
 
     if (!pane->GetView()->IsVisible())
     {
-        m_dockSite->ActivatePane (DebuggerLayout::GetMemoryPaneId (pane->GetId()));
+        m_dockSite->ActivatePane (pane->GetId());
         m_dockSite->Relayout();
         SyncHeatMapRecording();
     }
@@ -7779,7 +6926,7 @@ void DebuggerWindow::SyncHeatMapRecording()
 bool DebuggerWindow::IsAnyHeatColumnOn() const
 {
     return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat) ||
-           std::ranges::any_of (m_memoryPanes, [] (const std::unique_ptr<MemoryPane> & pane) { return pane != nullptr && pane->IsHeatOn(); });
+           (m_memoryGroup != nullptr && m_memoryGroup->IsAnyHeatOn());
 }
 
 
@@ -8015,7 +7162,7 @@ void DebuggerWindow::ApplySnapshot()
     }
 
 
-    ApplyMemoryWindows();
+    ApplyUndoHistories();
     ApplySource();
     ApplyDiagnostics();
     KeepOpenViews();
@@ -8572,30 +7719,6 @@ void DebuggerWindow::UndoStackEdit (bool redo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::UndoMemoryEdit
-//
-//  A memory window's last edit taken back, or with `redo` made again, while
-//  the machine is stopped and the window takes edits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::UndoMemoryEdit (MemoryPane * pane, bool redo)
-{
-    if (pane == nullptr)
-    {
-        return;
-    }
-
-    (void) (redo ? pane->Redo() : pane->Undo());
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::KeepOpenViews
 //
 //  The first snapshot reopens whatever was open when Casso last closed; each
@@ -9079,52 +8202,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::SubmitMemoryBox
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SubmitMemoryBox()
-{
-    const std::wstring &  text     = m_memoryBox->GetText();
-    Word                  address  = 0;
-    bool                  isBlank  = std::all_of (text.begin(), text.end(), [] (wchar_t ch) { return iswspace (ch) != 0; });
-    std::wstring          upper;
-
-
-
-    //  A register's own letter is also a hex digit, so the resolver sees the
-    //  register names before the text is read as an address.
-    for (wchar_t ch : text)
-    {
-        if (!iswspace (ch))
-        {
-            upper += (wchar_t) towupper (ch);
-        }
-    }
-
-    if (isBlank)
-    {
-        return;
-    }
-
-    AddMemoryHistory (text);
-
-    if (upper != L"A" && TryParseHexWord (text, address))
-    {
-        GetActiveMemoryPane()->GoTo (address);
-    }
-    else if (m_host != nullptr)
-    {
-        m_host->GoToDebuggerMemory (GetActiveMemoryPane()->GetId(), SourcePathList::WideToUtf8 (m_memoryBox->GetText()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::GetRegisterByte
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -9137,7 +8214,7 @@ std::optional<Byte> DebuggerWindow::GetRegisterByte (const std::string & name) c
 
     for (const DebuggerViewSnapshot::RegisterRow & reg : m_snapshot->registers)
     {
-        if (reg.name == name && !DebuggerViewState::IsReadOnlyRegister (name) && TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
+        if (reg.name == name && !DebuggerViewState::IsReadOnlyRegister (name) && TextDialog::TryParseHexWord (Widen (reg.value), value) && value <= 0xFF)
         {
             return (Byte) value;
         }
@@ -9350,7 +8427,7 @@ void DebuggerWindow::EndValueEdit (bool commit)
         return;
     }
 
-    isByte = TryParseHexWord (editor->GetText(), typed) && typed <= 0xFF;
+    isByte = TextDialog::TryParseHexWord (editor->GetText(), typed) && typed <= 0xFF;
 
     m_valueEdit = ValueEdit {};
     editor->SetVisible (false);
@@ -9454,7 +8531,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_breakpointBar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -9532,13 +8609,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (m_routingPane == (m_barHost.IsFloating() ? std::wstring (kBarFloatKey) : std::wstring()) && m_commandBar != nullptr && m_commandBar->IsVisible())
     {
         barTip = m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-    }
-
-    //  The memory bar's the same, and its Address box's.
-    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (m_memoryBarPane) &&
-        m_memoryBar != nullptr && m_memoryBar->IsVisible())
-    {
-        barTip = m_memoryBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  And the breakpoints pane's.
@@ -9637,15 +8707,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
             tip.RequestShowNow (GetPointerAnchor (clientPx), paneTip.text, now);
         }
 
-        return;
-    }
-
-    //  Over a memory window's byte, its address, at once and following the
-    //  pointer itself rather than snapping from byte to byte.
-    if (TryGetMemoryTip (clientPx, cell, text))
-    {
-        tip.SetMonospace   (true);
-        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
         return;
     }
 
@@ -10623,35 +9684,6 @@ const wchar_t * DebuggerWindow::GetFindBarTip (POINT clientPx, RECT & anchor) co
     }
 
     return nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::TryGetMemoryTip
-//
-//  Over a byte of an open memory window, in either column, the tip the view
-//  gives for it: its address.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::TryGetMemoryTip (POINT clientPx, RECT & anchor, std::wstring & text) const
-{
-    for (MemoryPane * pane : GetOpenMemoryPanes())
-    {
-        DxuiHexView  * view = pane->GetView();
-
-        if (IsRoutable (view) && view->IsVisible() && DxuiDockSite::Contains (view->GetBounds(), clientPx) &&
-            view->TryGetByteTipAt (clientPx, anchor, text))
-        {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 
@@ -11914,68 +10946,6 @@ bool DebuggerWindow::RouteFloatingBarMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::RouteMemoryBarMouse
-//
-//  As the command bar's, less the Address box: the box is the window's own
-//  control and takes its presses as every box does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RouteMemoryBarMouse (const DxuiMouseEvent & ev)
-{
-    int   x     = ev.positionDip.x;
-    int   y     = ev.positionDip.y;
-    RECT  strip = m_memoryBar->GetBounds();
-    RECT  box   = m_memoryBox->GetBounds();
-    bool  open  = m_memoryBar->IsMenuOpen();
-    bool  over  = m_memoryBar->IsVisible() && DxuiDockSite::Contains (strip, POINT { x, y }) &&
-                  !(m_memoryBox->IsVisible() && DxuiDockSite::Contains (box, POINT { x, y }));
-
-
-
-    if (!over && !open)
-    {
-        m_memoryBar->OnToolbarMouseLeave();
-        return false;
-    }
-
-    //  The right button over the strip opens the pane's own menu.
-    if ((ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Up) && ev.button != DxuiMouseButton::Left && !open)
-    {
-        return false;
-    }
-
-    switch (ev.kind)
-    {
-    case DxuiMouseEventKind::Move:
-        UpdateTooltip (ev.positionDip);
-
-        return m_memoryBar->OnToolbarMouseMove (x, y);
-
-    case DxuiMouseEventKind::Down:
-        //  The rows carry the checks they were built with, and the active
-        //  window may have changed since, so they are built again here.
-        if (!open)
-        {
-            SetMemoryBarMenus();
-        }
-
-        return m_memoryBar->OnToolbarLButtonDown (x, y);
-
-    case DxuiMouseEventKind::Up:
-        return m_memoryBar->OnToolbarLButtonUp (x, y);
-
-    default:
-        return open;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -12129,13 +11099,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Then the memory bar, which owns its strip less the Address box, and
-    //  whatever menu it has open.
-    if (m_routingPane == GetBarRoutingPane (m_memoryBarPane) && RouteMemoryBarMouse (ev))
-    {
-        return true;
-    }
-
     //  Then the breakpoints pane's toolbar.
     if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) && RouteBreakpointBarMouse (ev))
     {
@@ -12243,7 +11206,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  The find widget floats over its pane's text, so a press on it is the
     //  widget's, not the text's.
     if (!std::ranges::any_of (m_findStates, [&] (const auto & entry) { const FindWidgetPlate * plate = entry.second.plate; return plate != nullptr && IsRoutable (plate) && plate->IsVisible() && DxuiDockSite::Contains (plate->GetBounds(), ev.positionDip); }) &&
-        (RouteMemoryMouse (ev) || RouteSourceMouse (ev) || RouteConsoleMouse (ev)))
+        (RouteSourceMouse (ev) || RouteConsoleMouse (ev)))
     {
         return true;
     }
@@ -12282,12 +11245,9 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         HoverGutter   (ev.positionDip);
         DragPcMarker  (ev.positionDip);
 
-        for (DxuiTextInput * box : { m_commandBox, m_memoryBox })
+        if (IsRoutable (m_commandBox))
         {
-            if (IsRoutable (box))
-            {
-                box->SetMouseHover (x, y);
-            }
+            m_commandBox->SetMouseHover (x, y);
         }
 
         for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
@@ -12528,14 +11488,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
         return FindPane (pane)->GetControls();
     }
 
-    for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
-    {
-        if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
-        {
-            return { m_memoryBars[(size_t) (memory->GetId() - 1)].get(), memory->GetView() };
-        }
-    }
-
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {
         return diagnostics->GetControls();
@@ -12603,14 +11555,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         if (pane == DebuggerLayout::GetCodePaneId (view))
         {
             return m_codeFrames[(size_t) view].get();
-        }
-    }
-
-    for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
-    {
-        if (pane == DebuggerLayout::GetMemoryPaneId (memory->GetId()))
-        {
-            return m_memoryFrames[(size_t) (memory->GetId() - 1)].get();
         }
     }
 
@@ -12688,9 +11632,16 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
 
 std::wstring DebuggerWindow::GetPaneOfControl (const IDxuiControl * control) const
 {
-    if (control != nullptr && (control == m_memoryBar || control == m_memoryBox))
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
-        return m_memoryBarPane;
+        std::wstring  shared = each->GetPaneOfSharedControl (control);
+
+
+
+        if (!shared.empty())
+        {
+            return shared;
+        }
     }
 
     //  A find widget is the pane's it searches, and goes with it.
@@ -13592,11 +12543,11 @@ void DebuggerWindow::DockControls (const std::wstring & pane)
         }
     }
 
-    //  The memory bar may be sitting in this pane, and would go with the
-    //  window.
-    if (m_memoryBarHost == window.get())
+    //  A control several panes share, as the memory bar is, may be sitting
+    //  in this pane, and would go with the window.
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
-        MoveMemoryBar (this);
+        each->OnFloatClosed (window.get());
     }
 
     //  And each find widget, in the pane it searches.
@@ -14350,13 +13301,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  Typing into a memory window is an edit, which the address tip would
-    //  sit over; the next move of the pointer brings it back.
-    if (ev.kind == DxuiKeyEventKind::Down && GetFocusedMemoryPane() != nullptr)
-    {
-        GetRoutedTooltip().HideImmediate();
-    }
-
     //  The menu bar takes the keys while one of its menus is open, and Alt
     //  with a letter opens the menu it marks.
     if (RouteMenuBarKey (ev, handled))
@@ -14572,13 +13516,19 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN)
     {
-        if      (focused == m_commandBox) { SubmitCommandBox(); return true; }
-        else if (focused == m_memoryBox)  { SubmitMemoryBox();  return true; }
-    }
+        if (focused == m_commandBox)
+        {
+            SubmitCommandBox();
+            return true;
+        }
 
-    if (ev.kind == DxuiKeyEventKind::Char && GetFocusedMemoryPane() != nullptr)
-    {
-        return focused->OnKey (ev);
+        for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
+        {
+            if (each->SubmitTextBox (dynamic_cast<DxuiTextInput *> (focused)))
+            {
+                return true;
+            }
+        }
     }
 
     //  A floating window types into its own focused control.
@@ -14604,13 +13554,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         case '0':          case VK_NUMPAD0:   ApplyTextZoom (1.0f);              return true;
         default:                                                                 break;
         }
-    }
-
-    //  Ctrl+Z and Ctrl+Y in a memory window undo and redo that window's edits.
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && (ev.vk == 'Z' || ev.vk == 'Y') && GetFocusedMemoryPane() != nullptr)
-    {
-        UndoMemoryEdit (GetFocusedMemoryPane(), ev.vk == 'Y');
-        return true;
     }
 
     if (ev.kind == DxuiKeyEventKind::Down)

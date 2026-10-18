@@ -5,7 +5,10 @@
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/IDebuggerWindowHost.h"
+#include "Ui/Debugger/DebuggerKeySchemes.h"
+#include "Ui/Debugger/DebuggerTextColors.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Ui/Debugger/TextDialog.h"
 
 class DebuggerPaneFrame;
 
@@ -113,9 +116,14 @@ public:
     virtual DxuiWindow           * GetPaneWindow    (const std::wstring & pane) = 0;
     virtual const DxuiDpiScaler  & GetPaneScaler    () const = 0;
 
-    //  The theme in force, and the heat map's colors in it.
+    //  The theme in force, the text colors and the heat map's colors in it.
     virtual const DxuiTheme      * GetTheme         () const = 0;
+    virtual DebuggerTextColors::Set  GetTextColors  () const = 0;
     virtual HeatMapView::Palette   GetHeatPalette   () const = 0;
+
+    //  The rows a menu on a byte gets for its last write and read in a bank:
+    //  show each in the disassembly, or go back to it.
+    virtual void                   AddHeatAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) = 0;
 
     //  Opens a pane and brings it forward, as its row on the View menu does.
     virtual void                   OpenPane         (const std::wstring & pane) = 0;
@@ -149,6 +157,28 @@ public:
     //  command line, for a pane whose focused control is hidden.
     virtual IDxuiControl         * GetFocusedControl () const = 0;
     virtual void                   FocusDefault     () = 0;
+
+    //  Writes lines to the console; and the line the user types in a dialog,
+    //  none when canceled, which a test supplies instead.
+    virtual void                   AppendConsole    (const std::vector<std::string> & lines) = 0;
+    virtual std::optional<std::wstring>  RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
+                                                        TextDialog::CheckFn check) = 0;
+
+    //  Hides the tip under the pointer at once, as a press or a key does.
+    virtual void                   HideTooltip      () = 0;
+
+    //  Brings a pane's tab forward in its group, and lays the dock out again;
+    //  and lays the whole window out again.
+    virtual void                   ActivatePaneTab  (const std::wstring & pane) = 0;
+    virtual void                   RelayoutDock     () = 0;
+    virtual void                   RelayoutWindow   () = 0;
+
+    //  Sends the machine again whether to record the heat map's accesses.
+    virtual void                   SyncHeatRecording () = 0;
+
+    //  Moves controls that several panes share into another window, the one
+    //  the pane they now act on is in.
+    virtual void                   MoveSharedControls (const std::vector<IDxuiControl *> & controls, DxuiWindow * from, DxuiWindow * to) = 0;
 
     //  Paints the window again at its next frame, or once the messages
     //  waiting are handled, so a burst of input is taken before the paint.
@@ -194,10 +224,19 @@ public:
     virtual void                         CreateOverlays () {}
     virtual void                         Configure      () {}
 
-    //  For a pane closed until the user first opens it, whether that has
-    //  happened, and the step that saves it; false for any other pane.
+    //  For a pane closed until the user first opens it, or one the machine
+    //  opens, whether it is open, and the step that saves it opened; false for
+    //  any other pane.
     virtual bool                         TryGetOpened   (bool & isOpened) const { (void) isOpened; return false; }
     virtual void                         Open           () {}
+
+    //  For a pane the machine opens and closes, the request for either, as
+    //  its row on the View menu or its close button makes it; false for any
+    //  other pane. And whether the window always has the pane, closing it
+    //  only hiding it.
+    virtual bool                         RequestOpen    () { return false; }
+    virtual bool                         RequestClose   () { return false; }
+    virtual bool                         IsFixed        () const { return true; }
 
     //  Builds the frame and adds it to the dock under the pane's id; then,
     //  once every pane is in the dock and has its info button, sends the
@@ -220,6 +259,13 @@ public:
     virtual std::vector<IDxuiControl *>  GetPressTargets () const { return {}; }
     virtual std::vector<DxuiTextInput *> GetTextBoxes   () const { return {}; }
 
+    //  The pane a control several panes share is in now, such as the memory
+    //  windows' bar; empty for a control not the pane's.
+    virtual std::wstring                 GetPaneOfSharedControl (const IDxuiControl * control) const { (void) control; return {}; }
+
+    //  Whether a control of the pane takes typed characters, as a box does.
+    virtual bool                         TakesTyping    (const IDxuiControl * control) const { (void) control; return false; }
+
     //  Whether the pane saves its lists' column widths in its own settings,
     //  in place of the debug project's.
     virtual bool                         HasOwnColumnWidths () const { return false; }
@@ -229,8 +275,14 @@ public:
 
     virtual void                         Apply          (const DebuggerViewSnapshot & snapshot) { (void) snapshot; }
 
+    //  The panes' text size, as a fraction of the usual.
+    virtual void                         SetTextZoom    (float zoom) { (void) zoom; }
+
     //  Moves what moves between snapshots; true while something does.
     virtual bool                         Tick           (int64_t nowMs) { (void) nowMs; return false; }
+
+    //  A floating window closed, its panes docked again.
+    virtual void                         OnFloatClosed  (DxuiWindow * window) { (void) window; }
 
     //  Reads the pane's settings again after another debug project opens,
     //  and saves what it has to as the window closes.
@@ -255,6 +307,11 @@ public:
     //  A key for a box being edited in place, or for the pane's own control
     //  with the focus, ahead of the window's keys.
     virtual bool                         RouteEditKey      (const DxuiKeyEvent & ev, IDxuiControl * focused) { (void) ev; (void) focused; return false; }
+
+    //  A key scheme's action, such as Find, while a control of the pane has
+    //  the focus; and Enter in one of the pane's boxes.
+    virtual bool                         OnMappedAction    (DebuggerKeySchemes::Action action, IDxuiControl * focused) { (void) action; (void) focused; return false; }
+    virtual bool                         SubmitTextBox     (DxuiTextInput * box) { (void) box; return false; }
 
     //  The tip of the bar entry under a point, or null; and the tip of what
     //  the pane draws under a point.

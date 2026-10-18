@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 
 #include "Core/TextEncoding.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -284,10 +285,7 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
     m_stackHistory.FromText    (std::string());
     m_watchHistory.Clear();
 
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        pane->ClearHistory();
-    }
+    m_memoryGroup->ClearHistories();
 
     m_isHistoryRestored = true;
 
@@ -311,7 +309,7 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
         }
         else if (name.starts_with ("memory") && name.size() == 7 && name[6] >= '1' && name[6] < '1' + DebuggerViewState::kMaxMemoryWindows)
         {
-            m_memoryPanes[(size_t) (name[6] - '1')]->SetHistoryText (text);
+            m_memoryGroup->GetWindow (name[6] - '0')->GetModel().SetHistoryText (text);
         }
     }
 
@@ -348,9 +346,9 @@ std::string DebuggerWindow::GetUndoHistoriesText() const
 
 
 
-    for (size_t i = 0; i < m_memoryPanes.size(); i++)
+    for (int id = 1; id <= DebuggerViewState::kMaxMemoryWindows; id++)
     {
-        text += std::format ("memory{}={}\n", i + 1, m_memoryPanes[i]->GetHistoryText());
+        text += std::format ("memory{}={}\n", id, m_memoryGroup->GetWindow (id)->GetModel().GetHistoryText());
     }
 
     return text;

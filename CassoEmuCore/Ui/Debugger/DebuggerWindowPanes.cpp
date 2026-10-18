@@ -7,6 +7,8 @@
 #include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/HeatRangesPane.h"
+#include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/StepFiltersDialog.h"
 
@@ -24,26 +26,35 @@
 
 void DebuggerWindow::CreatePanes()
 {
-    IDebuggerPaneHost            & host     = *this;
-    std::unique_ptr<ProfilerPane>  profiler = std::make_unique<ProfilerPane> (host);
-    std::unique_ptr<HeatMapPane>   heatMap  = std::make_unique<HeatMapPane>  (host, HeatMapPane::Ranges
+    IDebuggerPaneHost                   & host     = *this;
+    std::unique_ptr<ProfilerPane>         profiler = std::make_unique<ProfilerPane> (host);
+    std::unique_ptr<HeatMapPane>          heatMap  = std::make_unique<HeatMapPane>  (host, HeatMapPane::Ranges
     {
         [this] () -> const HeatMapRangeSets & { return m_heatRangesPane->GetSets(); },
-        [this] () -> const HeatMapSymbols & { return m_heatRangesPane->GetSymbols(); },
+        [this] () -> const HeatMapSymbols &   { return m_heatRangesPane->GetSymbols(); },
         [this] { m_heatRangesPane->SetMenus(); },
     });
-    std::unique_ptr<HeatRangesPane>  ranges = std::make_unique<HeatRangesPane> (host, *heatMap);
+    std::unique_ptr<HeatRangesPane>       ranges   = std::make_unique<HeatRangesPane>    (host, *heatMap);
+    std::unique_ptr<MemoryWindowGroup>    memory   = std::make_unique<MemoryWindowGroup> (host);
 
 
 
     m_profilerPane   = profiler.get();
     m_heatMapPane    = heatMap.get();
     m_heatRangesPane = ranges.get();
+    m_memoryGroup    = memory.get();
 
     m_panes.push_back (std::move (heatMap));
     m_panes.push_back (std::move (ranges));
     m_panes.push_back (std::make_unique<DiskLogController>  (host));
     m_panes.push_back (std::make_unique<InputLogController> (host));
+    m_panes.push_back (std::move (memory));
+
+    for (std::unique_ptr<IDebuggerPane> & window : m_memoryGroup->CreateWindows())
+    {
+        m_panes.push_back (std::move (window));
+    }
+
     m_panes.push_back (std::make_unique<SymbolsPane>    (host));
     m_panes.push_back (std::make_unique<BookmarksPane>  (host));
     m_panes.push_back (std::move (profiler));
@@ -174,7 +185,7 @@ bool DebuggerWindow::IsTextBox (const IDxuiControl * control) const
         return false;
     }
 
-    if (control == m_commandBox || control == m_memoryBox)
+    if (control == m_commandBox)
     {
         return true;
     }
@@ -188,6 +199,232 @@ bool DebuggerWindow::IsTextBox (const IDxuiControl * control) const
     }
 
     return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ActivatePaneTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ActivatePaneTab (const std::wstring & pane)
+{
+    (void) m_dockSite->EditPaneLayout().Activate (pane);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RelayoutDock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RelayoutDock()
+{
+    m_dockSite->Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::MoveSharedControls
+//
+//  Moves controls several panes share, such as the memory bar and its
+//  Address box, into another window. Focus on one of them is left behind in
+//  the window it leaves, so it goes to the command line there, as it does
+//  when the control hides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::MoveSharedControls (const std::vector<IDxuiControl *> & controls, DxuiWindow * from, DxuiWindow * to)
+{
+    if (to == from)
+    {
+        return;
+    }
+
+    if (std::ranges::count (controls, m_focusMgr.GetFocusedControl()) > 0)
+    {
+        m_focusMgr.SetFocused (m_commandBox);
+    }
+
+    for (auto it = m_floatFocus.begin(); it != m_floatFocus.end(); )
+    {
+        if (std::ranges::count (controls, it->second) > 0)
+        {
+            it->second->OnFocusChanged (false);
+            it = m_floatFocus.erase (it);
+            continue;
+        }
+
+        ++it;
+    }
+
+    for (IDxuiControl * control : controls)
+    {
+        std::unique_ptr<IDxuiControl>  owned = from->DetachChild (control);
+
+        if (owned != nullptr)
+        {
+            (void) to->AttachChild (std::move (owned));
+        }
+    }
+
+    //  The site's strips and drop zones paint over the panes, so it is put
+    //  back as this window's last child.
+    if (to == this)
+    {
+        std::unique_ptr<IDxuiControl>  site = DetachChild (m_dockSite);
+
+        (void) AttachChild (std::move (site));
+    }
+
+    m_focusMgr.Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddHeatAccessItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddHeatAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items)
+{
+    m_heatMapPane->AddAccessItems (address, bank, items);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SubmitMemoryBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SubmitMemoryBox()
+{
+    m_memoryGroup->SubmitBox();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMemoryBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetMemoryBox() const
+{
+    return m_memoryGroup->GetBox();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMemoryBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * DebuggerWindow::GetMemoryBar() const
+{
+    return m_memoryGroup->GetBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetMemoryHistory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<std::wstring> & DebuggerWindow::GetMemoryHistory() const
+{
+    return m_memoryGroup->GetHistory();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunMemoryBarEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunMemoryBarEntry (int id)
+{
+    m_memoryGroup->RunBarEntry (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ChooseMemoryColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ChooseMemoryColumns (int columns)
+{
+    m_memoryGroup->ChooseColumns (columns);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ChooseMemoryGrouping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ChooseMemoryGrouping (int grouping)
+{
+    m_memoryGroup->ChooseGrouping (grouping);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsMemoryBarEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsMemoryBarEnabled (int id) const
+{
+    return m_memoryGroup->IsBarEnabled (id);
 }
 
 
