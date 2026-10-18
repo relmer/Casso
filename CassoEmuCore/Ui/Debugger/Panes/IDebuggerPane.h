@@ -341,6 +341,10 @@ public:
     virtual void                         CreateOverlays () {}
     virtual void                         Configure      () {}
 
+    //  The pane's own settings for its lists, applied after the window's, so
+    //  they take precedence.
+    virtual void                         ConfigureLists () {}
+
     //  For a pane closed until the user first opens it, or one the machine
     //  opens, whether it is open, and the step that saves it opened; false for
     //  any other pane.

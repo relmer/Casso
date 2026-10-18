@@ -35,6 +35,7 @@ public:
     std::wstring                     GetTitle          () const override { return L"Trace"; }
     void                             CreateControls    () override;
     void                             Configure         () override;
+    void                             ConfigureLists    () override;
     void                             AddToDock         (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent        () const override;
     std::vector<IDxuiControl *>      GetControls       () const override;

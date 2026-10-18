@@ -107,6 +107,24 @@ void TracePaneController::Configure()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TracePaneController::ConfigureLists
+//
+//  The trace's rows come from a provider, which a precise fit never
+//  measures, so its columns are fitted to the text of the rows drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TracePaneController::ConfigureLists()
+{
+    m_list->SetPreciseAutoFit (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TracePaneController::AddToDock
 //
 //  The keys over the rows, their text where the pane's title starts.

@@ -258,6 +258,11 @@ void DebuggerWindow::ConfigureWidgets()
         list->SetMonospace (false);
     }
 
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->ConfigureLists();
+    }
+
     //  A disassembly opens with its glyph margin for the breakpoints and the
     //  PC's arrow, as Visual Studio's does, so its columns start at the list's
     //  left rather than at the pane's text inset.
