@@ -21,7 +21,9 @@
 //
 //  A part with a height function gets that height, and one without takes
 //  what is left. A part with a shown function is hidden while it answers
-//  false, and gives its height to the rest.
+//  false, and its height goes to the rest. A part set beside another is
+//  not stacked: it is at the left of that part, as tall as it, and the other
+//  part is narrowed by the width it takes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +32,7 @@ class DebuggerPaneFrame : public IDxuiControl
 public:
     using HeightFn = std::function<int (int widthDip, const DxuiDpiScaler & scaler)>;
     using ShownFn  = std::function<bool ()>;
+    using WidthFn  = std::function<int (int heightPx, const DxuiDpiScaler & scaler)>;
 
     DebuggerPaneFrame  (std::wstring accessibleName) : m_name (std::move (accessibleName)) {}
     ~DebuggerPaneFrame () override = default;
@@ -48,6 +51,10 @@ public:
     //  kept in by the pane's text inset, less the room the part keeps ahead
     //  of its own text. Its top inset and its height are unchanged.
     void  SetPartTextAligned (IDxuiControl * control, int innerPadDip = 0);
+
+    //  A part at the left of `beside`, as tall as it, the width the function
+    //  returns for that height.
+    void  SetPartBeside (IDxuiControl * control, IDxuiControl * beside, WidthFn width);
 
     //  Lays the parts out again, for a part whose height or shown state
     //  changed while the frame kept its bounds.
@@ -76,6 +83,8 @@ private:
         int             insetDip    = 0;
         bool            textAligned = false;
         int             innerPadDip = 0;
+        IDxuiControl  * beside      = nullptr;
+        WidthFn         width;
     };
 
     bool  IsPartShown (const Part & part) const;

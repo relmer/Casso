@@ -23,6 +23,19 @@ static constexpr uint32_t  s_kSourceColors[] =
     0xFFD0505A,     // Io
 };
 
+//  The words drawn inside a run tall enough to have them.
+static constexpr const wchar_t * s_kSourceLabels[] =
+{
+    L"",
+    L"Main RAM",
+    L"Aux RAM",
+    L"LC bank 1",
+    L"LC bank 2",
+    L"ROM",
+    L"Slot ROM",
+    L"I/O",
+};
+
 static constexpr const wchar_t * s_kSourceNames[] =
 {
     L"none",
@@ -103,98 +116,17 @@ const wchar_t * MemoryMapBar::GetSourceName (MemorySource source)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryMapBar::GetPreferredHeightPx
-//
-//  The read strip and the write strip. What each color is, each run's tip
-//  says (TryGetTipAt).
+//  MemoryMapBar::GetSourceLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int MemoryMapBar::GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
+const wchar_t * MemoryMapBar::GetSourceLabel (MemorySource source)
 {
-    constexpr int  kStrips = 2;
+    size_t  index = (size_t) source;
 
 
 
-    UNREFERENCED_PARAMETER (widthPx);
-
-    return scaler.ToPx ((kStripDip + kGapDip) * kStrips);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MemoryMapBar::TryGetTipAt
-//
-//  Over a run of pages from one source, in either strip: the source's color
-//  and what it is, which way the strip goes, and the run's addresses, "Blue:
-//  reads come from Main RAM ($0000-$BFFF)".
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool MemoryMapBar::TryGetTipAt (POINT point, std::wstring & text) const
-{
-    float         strip   = m_scaler.ToPxf ((float) kStripDip);
-    float         gap     = m_scaler.ToPxf ((float) kGapDip);
-    float         top     = (float) m_boundsDip.top;
-    float         y       = (float) point.y;
-    float         x       = (float) point.x;
-    float         left    = GetPageX (0);
-    float         right   = GetPageX ((int) DiagnosticsMemoryMap::kPageCount);
-    bool          isWrite = false;
-    int           page    = 0;
-    int           first   = 0;
-    int           end     = 0;
-    MemorySource  source  = MemorySource::None;
-    auto          sourceOf = [this, &isWrite] (int at) { return isWrite ? m_map.pages[(size_t) at].write : m_map.pages[(size_t) at].read; };
-
-
-
-    if (!m_visible || x < left || x >= right || right <= left)
-    {
-        return false;
-    }
-
-    if (y >= top && y < top + strip)
-    {
-        isWrite = false;
-    }
-    else if (y >= top + strip + gap && y < top + strip + gap + strip)
-    {
-        isWrite = true;
-    }
-    else
-    {
-        return false;
-    }
-
-    page   = std::clamp ((int) ((x - left) / (right - left) * (float) DiagnosticsMemoryMap::kPageCount), 0, (int) DiagnosticsMemoryMap::kPageCount - 1);
-    source = sourceOf (page);
-    first  = page;
-    end    = page + 1;
-
-    while (first > 0 && sourceOf (first - 1) == source)
-    {
-        first--;
-    }
-
-    while (end < (int) DiagnosticsMemoryMap::kPageCount && sourceOf (end) == source)
-    {
-        end++;
-    }
-
-    if (source == MemorySource::None)
-    {
-        text = std::format (L"Nothing is {} here (${:04X}-${:04X})", isWrite ? L"written" : L"read", first * 0x100, end * 0x100 - 1);
-        return true;
-    }
-
-    text = std::format (L"{}: {} {} (${:04X}-${:04X})", ColorLegend::GetColorName (GetColorOf (source)),
-                        isWrite ? L"writes go to" : L"reads come from", GetSourceDescription (source), first * 0x100, end * 0x100 - 1);
-    return true;
+    return (index < std::size (s_kSourceLabels)) ? s_kSourceLabels[index] : L"";
 }
 
 
@@ -230,18 +162,141 @@ const wchar_t * MemoryMapBar::GetSourceDescription (MemorySource source)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryMapBar::GetPageX
+//  MemoryMapBar::GetPreferredWidthPx
+//
+//  The read strip with its bounds on its left, and the write strip with
+//  its bounds on its right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float MemoryMapBar::GetPageX (int page) const
+int MemoryMapBar::GetPreferredWidthPx (const DxuiDpiScaler & scaler)
 {
-    float  label = m_scaler.ToPxf ((float) kLabelDip);
-    float  width = std::max (0.0f, (float) (m_boundsDip.right - m_boundsDip.left) - label);
+    return scaler.ToPx (kBoundsDip * 2 + kStripDip * 2 + kStripGapDip);
+}
 
 
 
-    return (float) m_boundsDip.left + label + width * (float) page / (float) DiagnosticsMemoryMap::kPageCount;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetStripX
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float MemoryMapBar::GetStripX (bool isWrite) const
+{
+    return (float) m_boundsDip.left + m_scaler.ToPxf ((float) kBoundsDip) + (isWrite ? m_scaler.ToPxf ((float) (kStripDip + kStripGapDip)) : 0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetPageY
+//
+//  Below the headings, page $00 at the top and page $FF at the bottom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float MemoryMapBar::GetPageY (int page) const
+{
+    float  top    = (float) m_boundsDip.top + m_scaler.ToPxf ((float) kHeadingDip);
+    float  height = std::max (0.0f, (float) m_boundsDip.bottom - top);
+
+
+
+    return top + height * (float) page / (float) DiagnosticsMemoryMap::kPageCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetSourceOf
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemorySource MemoryMapBar::GetSourceOf (int page, bool isWrite) const
+{
+    return isWrite ? m_map.pages[(size_t) page].write : m_map.pages[(size_t) page].read;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::TryGetTipAt
+//
+//  Over a run of pages from one source, in either strip: the source's color
+//  and what it is, which way the strip goes, and the run's addresses, "Blue:
+//  reads come from Main RAM ($0000-$BFFF)".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryMapBar::TryGetTipAt (POINT point, std::wstring & text) const
+{
+    float         strip   = m_scaler.ToPxf ((float) kStripDip);
+    float         x       = (float) point.x;
+    float         y       = (float) point.y;
+    float         top     = GetPageY (0);
+    float         bottom  = GetPageY ((int) DiagnosticsMemoryMap::kPageCount);
+    bool          isWrite = false;
+    int           page    = 0;
+    int           first   = 0;
+    int           end     = 0;
+    MemorySource  source  = MemorySource::None;
+
+
+
+    if (!m_visible || y < top || y >= bottom || bottom <= top)
+    {
+        return false;
+    }
+
+    if (x >= GetStripX (false) && x < GetStripX (false) + strip)
+    {
+        isWrite = false;
+    }
+    else if (x >= GetStripX (true) && x < GetStripX (true) + strip)
+    {
+        isWrite = true;
+    }
+    else
+    {
+        return false;
+    }
+
+    page   = std::clamp ((int) ((y - top) / (bottom - top) * (float) DiagnosticsMemoryMap::kPageCount), 0, (int) DiagnosticsMemoryMap::kPageCount - 1);
+    source = GetSourceOf (page, isWrite);
+    first  = page;
+    end    = page + 1;
+
+    while (first > 0 && GetSourceOf (first - 1, isWrite) == source)
+    {
+        first--;
+    }
+
+    while (end < (int) DiagnosticsMemoryMap::kPageCount && GetSourceOf (end, isWrite) == source)
+    {
+        end++;
+    }
+
+    if (source == MemorySource::None)
+    {
+        text = std::format (L"Nothing is {} here (${:04X}-${:04X})", isWrite ? L"written" : L"read", first * 0x100, end * 0x100 - 1);
+        return true;
+    }
+
+    text = std::format (L"{}: {} {} (${:04X}-${:04X})", ColorLegend::GetColorName (GetColorOf (source)),
+                        isWrite ? L"writes go to" : L"reads come from", GetSourceDescription (source), first * 0x100, end * 0x100 - 1);
+    return true;
 }
 
 
@@ -268,35 +323,34 @@ void MemoryMapBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 //  MemoryMapBar::Paint
 //
+//  Each strip under its heading, then each strip's bounds.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryMapBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    DxuiFontHandle  font  = theme.MonospaceFont();
+    DxuiFontHandle  font  = theme.BodyFont();
     float           strip = m_scaler.ToPxf ((float) kStripDip);
-    float           gap   = m_scaler.ToPxf ((float) kGapDip);
-    float           label = m_scaler.ToPxf ((float) kLabelDip);
-    float           left  = (float) m_boundsDip.left;
     float           top   = (float) m_boundsDip.top;
     HRESULT         hr    = S_OK;
 
 
 
-    if (!m_visible || m_boundsDip.right <= m_boundsDip.left)
+    if (!m_visible || m_boundsDip.right <= m_boundsDip.left || m_boundsDip.bottom <= m_boundsDip.top)
     {
         return;
     }
 
-    PaintStrip (painter, theme, top,               false);
-    PaintStrip (painter, theme, top + strip + gap, true);
+    for (bool isWrite : { false, true })
+    {
+        hr = text.DrawString (isWrite ? L"Write" : L"Read", GetStripX (isWrite), top, strip, m_scaler.ToPxf ((float) kHeadingDip),
+                              theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
-    hr = text.DrawString (L"R", left, top, label, strip, theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    hr = text.DrawString (L"W", left, top + strip + gap, label, strip, theme.ForegroundMuted(), m_scaler.ToPxf (font.sizeDip), font.face,
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+        PaintStrip  (painter, text, theme, isWrite);
+        PaintBounds (text, theme, isWrite);
+    }
 }
 
 
@@ -308,30 +362,108 @@ void MemoryMapBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //  MemoryMapBar::PaintStrip
 //
 //  A run of pages with the same source is one fill, so the usual map of a
-//  few large regions is a handful of rectangles rather than 256.
+//  few large regions is a handful of rectangles rather than 256. The source's
+//  name is centered in a run that has room for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryMapBar::PaintStrip (IDxuiPainter & painter, const IDxuiTheme & theme, float y, bool isWrite) const
+void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const
 {
-    float  strip = m_scaler.ToPxf ((float) kStripDip);
-    int    first = 0;
+    DxuiFontHandle  font  = theme.BodyFont();
+    float           size  = m_scaler.ToPxf (font.sizeDip);
+    float           strip = m_scaler.ToPxf ((float) kStripDip);
+    float           pad   = m_scaler.ToPxf ((float) kNamePadDip);
+    float           x     = GetStripX (isWrite);
+    int             first = 0;
+    HRESULT         hr    = S_OK;
 
 
 
     while (first < (int) DiagnosticsMemoryMap::kPageCount)
     {
-        MemorySource  source = isWrite ? m_map.pages[(size_t) first].write : m_map.pages[(size_t) first].read;
-        int           end    = first + 1;
-        uint32_t      color  = (source == MemorySource::None) ? theme.Divider() : GetColorOf (source);
+        MemorySource     source = GetSourceOf (first, isWrite);
+        int              end    = first + 1;
+        uint32_t         color  = (source == MemorySource::None) ? theme.Divider() : GetColorOf (source);
+        const wchar_t  * label  = GetSourceLabel (source);
+        float            y      = GetPageY (first);
+        float            height = 0.0f;
+        float            w      = 0.0f;
+        float            h      = 0.0f;
+        HRESULT          fit    = E_FAIL;
 
-        while (end < (int) DiagnosticsMemoryMap::kPageCount &&
-               (isWrite ? m_map.pages[(size_t) end].write : m_map.pages[(size_t) end].read) == source)
+        while (end < (int) DiagnosticsMemoryMap::kPageCount && GetSourceOf (end, isWrite) == source)
         {
             end++;
         }
 
-        painter.FillRect (GetPageX (first), y, GetPageX (end) - GetPageX (first), strip, color);
+        height = GetPageY (end) - y;
+        painter.FillRect (x, y, strip, height, color);
+
+        fit = (*label != L'\0') ? text.MeasureString (label, size, font.face, w, h) : E_FAIL;
+
+        if (SUCCEEDED (fit) && h + pad * 2.0f <= height && w + pad * 2.0f <= strip)
+        {
+            hr = text.DrawString (label, x, y, strip, height, DxuiColor::ChooseInkFor (color, 0xFF000000u, 0xFFFFFFFFu), size, font.face,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
         first = end;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::PaintBounds
+//
+//  Each run's first address beside the strip at its top edge, and $FFFF at
+//  the strip's foot: the read strip's on its left, the write strip's on
+//  its right. A label that would overlap the one above it is left out; the
+//  run's tip has its addresses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryMapBar::PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const
+{
+    DxuiFontHandle  font     = theme.MonospaceFont();
+    float           size     = m_scaler.ToPxf (font.sizeDip);
+    float           pad      = m_scaler.ToPxf ((float) kNamePadDip);
+    float           width    = m_scaler.ToPxf ((float) kBoundsDip) - pad;
+    float           x        = isWrite ? GetStripX (true) + m_scaler.ToPxf ((float) kStripDip) + pad : (float) m_boundsDip.left;
+    float           top      = GetPageY (0);
+    float           bottom   = GetPageY ((int) DiagnosticsMemoryMap::kPageCount);
+    float           line     = size * 1.3f;
+    float           last     = -FLT_MAX;
+    DxuiTextHAlign  align    = isWrite ? DxuiTextHAlign::Left : DxuiTextHAlign::Right;
+    auto            draw     = [&] (const std::wstring & label, float at)
+    {
+        HRESULT  hr = S_OK;
+
+        if (at < last)
+        {
+            return;
+        }
+
+        hr = text.DrawString (label.c_str(), x, at, width, line, theme.ForegroundMuted(), size, font.face,
+                              align, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        last = at + line;
+    };
+
+
+
+    for (int page = 0; page < (int) DiagnosticsMemoryMap::kPageCount; page++)
+    {
+        if (page == 0 || GetSourceOf (page, isWrite) != GetSourceOf (page - 1, isWrite))
+        {
+            draw (std::format (L"${:04X}", page * 0x100), std::clamp (GetPageY (page) - line / 2.0f, top, bottom - line));
+        }
+    }
+
+    draw (L"$FFFF", bottom - line);
 }

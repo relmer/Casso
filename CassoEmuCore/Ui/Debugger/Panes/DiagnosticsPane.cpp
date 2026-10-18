@@ -36,9 +36,8 @@ DiagnosticsPane::DiagnosticsPane (
     m_meters  (meters),
     m_frame   (std::make_unique<DebuggerPaneFrame> (m_title))
 {
-    m_frame->AddPart (m_map,
-                      [this] (int width, const DxuiDpiScaler & scaler) { return m_map->GetPreferredHeightPx (width, scaler); },
-                      [this] { return m_visual == Visual::MemoryMap; });
+    //  The memory map's strips run down the pane beside the list.
+    m_frame->AddPart (m_map, nullptr, [this] { return m_visual == Visual::MemoryMap; });
     m_frame->AddPart (m_head,
                       [this] (int width, const DxuiDpiScaler & scaler) { return m_head->GetPreferredHeightPx (width, scaler); },
                       [this] { return m_visual == Visual::DiskHead; });
@@ -46,6 +45,7 @@ DiagnosticsPane::DiagnosticsPane (
                       [this] (int, const DxuiDpiScaler & scaler) { return m_meters->GetPreferredHeightPx (scaler); },
                       [this] { return m_visual == Visual::Meters; });
     m_frame->AddPart (m_list);
+    m_frame->SetPartBeside (m_map, m_list, [] (int, const DxuiDpiScaler & scaler) { return MemoryMapBar::GetPreferredWidthPx (scaler); });
 
     m_frame->SetPartInsetDip (m_map,    kGraphicInsetDip);
     m_frame->SetPartInsetDip (m_head,   kGraphicInsetDip);

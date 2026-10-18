@@ -23,6 +23,28 @@ void DebuggerPaneFrame::AddPart (IDxuiControl * control, HeightFn height, ShownF
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerPaneFrame::SetPartBeside
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerPaneFrame::SetPartBeside (IDxuiControl * control, IDxuiControl * beside, WidthFn width)
+{
+    for (Part & part : m_parts)
+    {
+        if (part.control == control)
+        {
+            part.beside = beside;
+            part.width  = std::move (width);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerPaneFrame::SetPartInsetDip
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,11 +184,12 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
 
     for (size_t i = 0; i < m_parts.size(); i++)
     {
-        bool  on = IsPartShown (m_parts[i]);
+        bool  on   = IsPartShown (m_parts[i]);
+        long  left = 0;
 
         m_parts[i].control->SetVisible (on);
 
-        if (!on)
+        if (!on || m_parts[i].beside != nullptr)
         {
             continue;
         }
@@ -174,7 +197,29 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
         inset      = scaler.ToPx (m_parts[i].insetDip);
         side       = GetSideInsetPx (m_parts[i], scaler);
         heights[i] = (m_parts[i].height != nullptr) ? heights[i] : fill;
-        m_parts[i].control->Layout (RECT { boundsDip.left + side, y + inset, boundsDip.right - side, y + heights[i] }, scaler);
+        left       = boundsDip.left + side;
+
+        //  A part beside this one takes the left of its place.
+        for (const Part & besidePart : m_parts)
+        {
+            int  besideSide  = 0;
+            int  besideInset = 0;
+            int  besideWidth = 0;
+
+            if (besidePart.beside != m_parts[i].control || !IsPartShown (besidePart))
+            {
+                continue;
+            }
+
+            besideSide  = GetSideInsetPx (besidePart, scaler);
+            besideInset = scaler.ToPx (besidePart.insetDip);
+            besideWidth = std::max (0, besidePart.width (heights[i] - besideInset, scaler));
+
+            besidePart.control->Layout (RECT { boundsDip.left + besideSide, y + besideInset, boundsDip.left + besideSide + besideWidth, y + heights[i] }, scaler);
+            left = std::max (left, (long) (boundsDip.left + besideSide + besideWidth + gap));
+        }
+
+        m_parts[i].control->Layout (RECT { left, y + inset, boundsDip.right - side, y + heights[i] }, scaler);
         y += heights[i] + gap;
     }
 }
@@ -211,7 +256,7 @@ int DebuggerPaneFrame::MeasureFixedParts (
 
     for (size_t i = 0; i < m_parts.size(); i++)
     {
-        if (!IsPartShown (m_parts[i]))
+        if (!IsPartShown (m_parts[i]) || m_parts[i].beside != nullptr)
         {
             continue;
         }

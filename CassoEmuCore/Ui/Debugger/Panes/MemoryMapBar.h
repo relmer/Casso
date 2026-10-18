@@ -11,9 +11,13 @@
 //
 //  MemoryMapBar
 //
-//  All 256 pages of the address space in two strips, what each page reads
-//  from over what it writes to, colored by source. A run's tip says what its
-//  color is and the addresses it covers.
+//  All 256 pages of the address space in two wide vertical strips, page $00
+//  at the top: what each page reads from beside what it writes to, colored
+//  by source. A run of pages tall enough has its source's name inside it;
+//  each run's first address is a label outside its strip, the read strip's
+//  on the left and the write strip's on the right, left out where it would
+//  overlap the one above. A run's tip has its color, its source and the
+//  addresses it covers.
 //
 //  Bounds are pixels, like every Dxui control; the bar scales only its own
 //  metrics.
@@ -23,14 +27,17 @@
 class MemoryMapBar : public IDxuiControl
 {
 public:
-    static constexpr int  kStripDip     = 12;
-    static constexpr int  kLabelDip     = 16;
-    static constexpr int  kGapDip       = 2;
+    static constexpr int  kStripDip    = 72;
+    static constexpr int  kStripGapDip = 4;
+    static constexpr int  kBoundsDip   = 44;
+    static constexpr int  kHeadingDip  = 18;
+    static constexpr int  kNamePadDip  = 2;
 
     void                          SetMap (const DiagnosticsMemoryMap & map) { m_map = map; }
     const DiagnosticsMemoryMap &  GetMap () const                           { return m_map; }
 
-    int                           GetPreferredHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
+    //  The width of the two strips and their bounds' labels.
+    static int                    GetPreferredWidthPx (const DxuiDpiScaler & scaler);
 
     //  The tip over a run of pages from one source in either strip, or false
     //  off the strips.
@@ -40,6 +47,7 @@ public:
     //  has no entry of its own.
     static uint32_t               GetSourceColor (MemorySource source);
     static const wchar_t *        GetSourceName  (MemorySource source);
+    static const wchar_t *        GetSourceLabel (MemorySource source);
     static const wchar_t *        GetSourceDescription (MemorySource source);
 
     //  The theme's colors in place of the mid-tones, one per source in
@@ -49,8 +57,10 @@ public:
     void                          SetSourceColors (const SourceColors & colors) { m_colors = colors; }
     uint32_t                      GetColorOf      (MemorySource source) const;
 
-    //  Where a page's strip segment starts, in pixels from the bar's left.
-    float                         GetPageX       (int page) const;
+    //  Where a strip starts, in pixels from the bar's left; and where a page's
+    //  segment starts, in pixels from the bar's top.
+    float                         GetStripX (bool isWrite) const;
+    float                         GetPageY  (int page) const;
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -58,7 +68,9 @@ public:
     std::wstring        GetAccessibleName () const override { return L"Memory map"; }
 
 private:
-    void  PaintStrip (IDxuiPainter & painter, const IDxuiTheme & theme, float y, bool isWrite) const;
+    MemorySource  GetSourceOf (int page, bool isWrite) const;
+    void          PaintStrip  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
+    void          PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
 
     DiagnosticsMemoryMap  m_map;
     DxuiDpiScaler         m_scaler;
