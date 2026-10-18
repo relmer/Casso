@@ -33,7 +33,7 @@ public:
     //  builds the range set drop-down on the strip.
     struct Ranges
     {
-        const HeatMapRangeSets                     * sets = nullptr;
+        std::function<const HeatMapRangeSets & ()>   sets;
         std::function<const HeatMapSymbols & ()>     symbols;
         std::function<void ()>                       buildMenu;
     };

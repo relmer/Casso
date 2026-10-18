@@ -156,13 +156,6 @@ void DebuggerWindow::ReloadProjectState()
         ApplyCodeView (view);
     }
 
-    m_isHeatRangesOpened = !m_host->GetDebuggerHeatMapRanges().empty();
-    m_heatRanges         = HeatMapRangeSets::FromText (m_host->GetDebuggerHeatMapRanges());
-    (void) m_heatRanges.TryAddDefaultSet();
-    m_heatRangeSet       = (m_heatRanges.FindSet (m_heatRangeSet) != nullptr || m_heatRanges.sets.empty()) ? m_heatRangeSet : m_heatRanges.sets.front().name;
-
-    ApplyHeatRanges();
-    SetHeatRangeMenus();
     RestoreWindowState (true);
 
     m_openViewsRestored = false;

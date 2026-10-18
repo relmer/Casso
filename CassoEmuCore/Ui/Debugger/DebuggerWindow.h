@@ -67,6 +67,7 @@ class ProfilerPane;
 class ProfileTimeline;
 class FlameGraphView;
 class HeatMapPane;
+class HeatRangesPane;
 class SymbolsPane;
 class CallStackPane;
 class DiagnosticsPane;
@@ -331,13 +332,12 @@ protected:
     //  so a test can work them as the bars, the list and the edit box do:
     //  the set the map shows and the set the pane edits, the pane's entries,
     //  an edit in place over a cell or the set's name, and a range's check.
-    const HeatMapRangeSets &   GetHeatRanges          () const { return m_heatRanges; }
-    const std::string &        GetEditedRangeSet      () const { return m_heatRangeSet; }
-    DxuiEditableGrid *         GetHeatRangeList       () const { return m_heatRangeList; }
-    DxuiToolbar *              GetHeatRangeBar        () const { return m_heatRangeBar; }
-    DxuiTextInput *            GetHeatRangeEditor     () const { return m_heatRangeEdit.isSetName ? m_heatRangeEditor : &m_heatRangeList->GetEditor(); }
+    const HeatMapRangeSets &   GetHeatRanges          () const;
+    const std::string &        GetEditedRangeSet      () const;
+    DxuiEditableGrid *         GetHeatRangeList       () const;
+    DxuiTextInput *            GetHeatRangeEditor     () const;
     std::wstring               GetHeatRangeError      () const;
-    bool                       IsEditingHeatRange     () const { return m_heatRangeEdit.isSetName || m_heatRangeList->IsEditing(); }
+    bool                       IsEditingHeatRange     () const;
     void                       ShowRangeSet           (const std::string & name);
     void                       EditRangeSet           (const std::string & name);
     void                       RunHeatRangeBarEntry   (int id);
@@ -353,12 +353,11 @@ protected:
     void                       BeginHeatRangeEdit     (int row, HeatMapRangeSets::Field field);
     void                       EndHeatRangeEdit       (bool commit);
     void                       ToggleHeatRange        (int row, bool included);
-    void                       ApplyHeatRanges        ();
-    const std::vector<std::shared_ptr<DxuiCommand>> &  GetRangeSetCommands () const { return m_rangeSetCommands; }
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetRangeSetCommands () const;
 
     //  A question put to the user in a message box centered on owner, as
     //  DxuiMessageBox puts it, with its answer; a test answers it instead.
-    virtual int                ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type);
+    int                        ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type) override;
 
     //  The format, address and length of a file loaded into memory, or the
     //  address and length of memory saved to one; none when canceled. A test
@@ -378,7 +377,6 @@ protected:
     virtual std::optional<std::vector<std::wstring>>  RunStepFiltersDialog (const std::vector<std::wstring> & filters,
                                                                             std::function<bool (const std::wstring &, std::wstring &)> check);
     void                       EditStepFilters        ();
-    bool                       ConfirmDeleteRangeSet  ();
 
     //  Whether a frame repaints the window: when it took an update, while
     //  something moves, and otherwise every kIdlePaintMs, for a caret's blink.
@@ -1214,60 +1212,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                                                             m_isHeatColumnsRecording = false;
     int64_t                                                                          m_framePaintedAt     = 0;
 
-    //  The heat map's ranges: every set and the set shown, the set the ranges
-    //  pane edits, the symbols they were last read against, and each list
-    //  row's range in the set. The pane is its bar over a line that says why
-    //  an edit was refused over its list, and an edit opens a box over a cell
-    //  or over the set's name on the bar.
-    struct HeatRangeEdit
-    {
-        bool  isNew     = false;
-        bool  isSetName = false;
-    };
-
-    static constexpr int                         kHeatRangeEditMaxChars = 64;
-    static constexpr int                         kHeatRangeNameDip      = 150;
-    static constexpr int                         kHeatRangeSpanDip      = 130;
-    static constexpr int                         kHeatRangeSizeDip      = 70;
-    HeatMapRangeSets                             m_heatRanges;
-    std::string                                  m_heatRangeSet;
-    std::shared_ptr<const HeatMapSymbols>        m_heatRangeSymbols;
-    std::vector<size_t>                          m_heatRangeRows;
-    DxuiEditableGrid                           * m_heatRangeList        = nullptr;
-    DxuiToolbar                                * m_heatRangeBar         = nullptr;
-    DxuiTextInput                              * m_heatRangeEditor      = nullptr;
-    DxuiLabel                                  * m_heatRangeError       = nullptr;
-    std::unique_ptr<DebuggerPaneFrame>           m_heatRangeFrame;
-    std::unique_ptr<DebuggerPaneFrame>           m_heatRangeSlot;
-    std::unique_ptr<HeatMapRangeBarCommands>     m_heatRangeCommands;
-    std::vector<std::shared_ptr<DxuiCommand>>    m_rangeSetCommands;
-    std::vector<std::shared_ptr<DxuiCommand>>    m_editedSetCommands;
-    HeatRangeEdit                                m_heatRangeEdit;
-    bool                                         m_isHeatRangesOpened   = false;
-
-    void                     ConfigureHeatRanges      ();
-    void                     OpenHeatRanges           ();
-    void                     SetHeatRangeMenus        ();
-    void                     PlaceHeatRangeBar        ();
-    bool                     RouteHeatRangeBarMouse   (const DxuiMouseEvent & ev);
-    bool                     RouteHeatRangeEditMouse  (const DxuiMouseEvent & ev);
-    bool                     RouteHeatRangeKey        (const DxuiKeyEvent & ev, IDxuiControl * focused);
-    std::wstring             GetHeatRangeBarLabel     (int id) const;
-    void                     ApplyHeatRangeRows       ();
-    void                     ApplyHeatRangeSymbols    ();
-    void                     SaveHeatRanges           ();
-    void                     SetHeatRangeError        (const std::string & error);
-    void                     BeginSetNameEdit         (bool isNew);
-    void                     MoveHeatRange            (int delta);
-    void                     MoveHeatRangeRow         (int row, int to);
-    bool                     AddHeatRange             (const std::vector<std::wstring> & texts, std::wstring & outError);
-    bool                     CommitHeatRangeCell      (int row, int column, const std::wstring & text, std::wstring & outError);
-    void                     RemoveHeatRange          (int row);
-    HeatMapRangeSet *        GetEditedSet             ();
-    const HeatMapRangeSet *  GetEditedSet             () const;
-    const HeatMapSymbols &   GetHeatRangeSymbols      () const;
-    std::optional<size_t>    GetSelectedHeatRange     () const;
-
     //  The Disk II event log and the input log, each its bar over its list.
     //  The Disk II log's bar has its track and sector boxes, and a line under
     //  it lists the tokens not taken. Each pane is closed until the user
@@ -1318,9 +1262,10 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  The panes on the pane interface, in the order the window creates and
     //  calls them, and the profiler among them, whose bar's commands a test
     //  reads.
-    std::vector<std::unique_ptr<IDebuggerPane>>                      m_panes;
-    ProfilerPane                                                   * m_profilerPane = nullptr;
-    HeatMapPane                                                    * m_heatMapPane  = nullptr;
+    std::vector<std::unique_ptr<IDebuggerPane>>    m_panes;
+    ProfilerPane                                 * m_profilerPane   = nullptr;
+    HeatMapPane                                  * m_heatMapPane    = nullptr;
+    HeatRangesPane                               * m_heatRangesPane = nullptr;
 
     void                 CreatePanes            ();
     IDebuggerPane      * FindPane               (const std::wstring & pane) const;
@@ -1329,6 +1274,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiPanel          & GetControlParent       () override { return *this; }
     void                 GoToCode               (Word address) override { ShowCode (address); }
     IDebuggerWindowHost * GetWindowHost         () override { return m_host; }
+    const DxuiTheme    * GetTheme               () const override { return m_theme; }
+    void                 OpenPane               (const std::wstring & pane) override { ShowPane (pane); }
     void                 ShowMemoryAddress      (Word address) override;
     IHostDialogs       * GetHostDialogs         () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
     bool                 IsTooltipVisible       () const override { return m_tooltip.IsVisible(); }

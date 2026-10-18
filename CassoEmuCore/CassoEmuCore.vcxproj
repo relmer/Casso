@@ -233,7 +233,7 @@
     <ClCompile Include="Ui\Debugger\Panes\ProfileTimeline.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapPane.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerWindowHeatMapRanges.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\HeatRangesPane.cpp" />
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowMenuBar.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerWindowTimeline.cpp" />
@@ -875,6 +875,7 @@
     <ClInclude Include="Ui\Debugger\DebuggerMenuCommand.h" />
     <ClInclude Include="Ui\Debugger\Panes\IDebuggerPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\HeatMapPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\HeatRangesPane.h" />
     <ClInclude Include="Ui\Debugger\IDebuggerWindowHost.h" />
     <ClInclude Include="Ui\Debugger\Panes\ProfileTimeline.h" />
     <ClInclude Include="Ui\Debugger\Panes\DiskHeadView.h" />

@@ -113,8 +113,16 @@ public:
     virtual DxuiWindow           * GetPaneWindow    (const std::wstring & pane) = 0;
     virtual const DxuiDpiScaler  & GetPaneScaler    () const = 0;
 
-    //  The heat map's colors in the theme in force.
+    //  The theme in force, and the heat map's colors in it.
+    virtual const DxuiTheme      * GetTheme         () const = 0;
     virtual HeatMapView::Palette   GetHeatPalette   () const = 0;
+
+    //  Opens a pane and brings it forward, as its row on the View menu does.
+    virtual void                   OpenPane         (const std::wstring & pane) = 0;
+
+    //  A question put to the user in a message box centered on owner, with
+    //  the user's answer; a test supplies the answer instead.
+    virtual int                    ShowMessageBox   (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type) = 0;
 
     //  Whether the event being routed goes to a control, and whether it
     //  came from the window a pane's bar is in.
@@ -170,9 +178,17 @@ public:
     virtual std::wstring                 GetId          () const = 0;
     virtual std::wstring                 GetTitle       () const = 0;
 
-    //  Creates the pane's controls, then sets them up once all exist.
+    //  Creates the pane's controls, ahead of the dock; then any box laid over
+    //  a cell in place, after the dock, so it paints over the pane; then sets
+    //  them up once all exist.
     virtual void                         CreateControls () = 0;
+    virtual void                         CreateOverlays () {}
     virtual void                         Configure      () {}
+
+    //  For a pane closed until the user first opens it, whether that has
+    //  happened, and the step that saves it; false for any other pane.
+    virtual bool                         TryGetOpened   (bool & isOpened) const { (void) isOpened; return false; }
+    virtual void                         Open           () {}
 
     //  Builds the frame and adds it to the dock under the pane's id; then,
     //  once every pane is in the dock and has its info button, sends the
@@ -204,21 +220,27 @@ public:
     //  Lays the pane's bar out in its slot, in the window the pane is in.
     virtual void                         PlaceBar       () {}
 
-    //  The mouse, at three points of the window's routing: ahead of every
-    //  other control, as a Ctrl+wheel over a map that zooms it; at the
-    //  pane's bar, ahead of the panes' contents; and at what the pane draws,
-    //  after the dock's strips and sashes.
+    //  The mouse, at four points of the window's routing: a box being
+    //  edited in place; ahead of every other control, as a Ctrl+wheel over a
+    //  map that zooms it; at the pane's bar, ahead of the panes' contents; and
+    //  at what the pane draws, after the dock's strips and sashes.
+    virtual bool                         RouteEditMouse    (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteEarlyMouse   (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteBarMouse     (const DxuiMouseEvent & ev) { (void) ev; return false; }
     virtual bool                         RouteContentMouse (const DxuiMouseEvent & ev) { (void) ev; return false; }
+
+    //  A key for a box being edited in place, or for the pane's own control
+    //  with the focus, ahead of the window's keys.
+    virtual bool                         RouteEditKey      (const DxuiKeyEvent & ev, IDxuiControl * focused) { (void) ev; (void) focused; return false; }
 
     //  The tip of the bar entry under a point, or null; and the tip of what
     //  the pane draws under a point.
     virtual const wchar_t              * GetBarTip      (POINT clientPx, RECT & anchor) const { (void) clientPx; (void) anchor; return nullptr; }
     virtual bool                         TryGetTip      (POINT clientPx, PaneTip & tip) { (void) clientPx; (void) tip; return false; }
 
-    //  A list row's context menu, false for a list not the pane's; and the
-    //  menu on what the pane draws under a point.
+    //  A list row's context menu, Copy among its rows where the list copies,
+    //  false for a list not the pane's; and the menu on what the pane draws
+    //  under a point.
     virtual bool                         AddMenuItems        (DxuiListView * list, int row, PaneMenuItems & items) { (void) list; (void) row; (void) items; return false; }
     virtual void                         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) { (void) clientPx; (void) items; }
 

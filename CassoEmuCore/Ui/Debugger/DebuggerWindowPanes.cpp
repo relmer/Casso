@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
+#include "Ui/Debugger/Panes/HeatRangesPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/StepFiltersDialog.h"
 
@@ -25,17 +26,20 @@ void DebuggerWindow::CreatePanes()
     std::unique_ptr<ProfilerPane>  profiler = std::make_unique<ProfilerPane> (host);
     std::unique_ptr<HeatMapPane>   heatMap  = std::make_unique<HeatMapPane>  (host, HeatMapPane::Ranges
     {
-        &m_heatRanges,
-        [this] () -> const HeatMapSymbols & { return GetHeatRangeSymbols(); },
-        [this] { SetHeatRangeMenus(); },
+        [this] () -> const HeatMapRangeSets & { return m_heatRangesPane->GetSets(); },
+        [this] () -> const HeatMapSymbols & { return m_heatRangesPane->GetSymbols(); },
+        [this] { m_heatRangesPane->SetMenus(); },
     });
+    std::unique_ptr<HeatRangesPane>  ranges = std::make_unique<HeatRangesPane> (host, *heatMap);
 
 
 
-    m_profilerPane = profiler.get();
-    m_heatMapPane  = heatMap.get();
+    m_profilerPane   = profiler.get();
+    m_heatMapPane    = heatMap.get();
+    m_heatRangesPane = ranges.get();
 
     m_panes.push_back (std::move (heatMap));
+    m_panes.push_back (std::move (ranges));
     m_panes.push_back (std::make_unique<SymbolsPane>    (host));
     m_panes.push_back (std::make_unique<BookmarksPane>  (host));
     m_panes.push_back (std::move (profiler));
@@ -144,8 +148,8 @@ DxuiToolbar * DebuggerWindow::GetHeatViewBar() const
 
 void DebuggerWindow::ApplyHeatMap()
 {
-    m_heatMapPane->Apply (*m_snapshot);
-    ApplyHeatRangeSymbols();
+    m_heatMapPane->Apply    (*m_snapshot);
+    m_heatRangesPane->Apply (*m_snapshot);
 }
 
 
@@ -477,4 +481,233 @@ void DebuggerWindow::GoToBookmark (bool isBackward)
     {
         ShowCode (*next);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatRanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const HeatMapRangeSets & DebuggerWindow::GetHeatRanges() const
+{
+    return m_heatRangesPane->GetSets();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetEditedRangeSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::string & DebuggerWindow::GetEditedRangeSet() const
+{
+    return m_heatRangesPane->GetEditedSetName();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatRangeList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiEditableGrid * DebuggerWindow::GetHeatRangeList() const
+{
+    return m_heatRangesPane->GetList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatRangeEditor
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTextInput * DebuggerWindow::GetHeatRangeEditor() const
+{
+    return m_heatRangesPane->GetEditor();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetHeatRangeError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetHeatRangeError() const
+{
+    return m_heatRangesPane->GetError();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsEditingHeatRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsEditingHeatRange() const
+{
+    return m_heatRangesPane->IsEditing();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowRangeSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowRangeSet (const std::string & name)
+{
+    m_heatRangesPane->ShowRangeSet (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EditRangeSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EditRangeSet (const std::string & name)
+{
+    m_heatRangesPane->EditRangeSet (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunHeatRangeBarEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunHeatRangeBarEntry (int id)
+{
+    m_heatRangesPane->RunBarEntry (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsHeatRangeBarEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsHeatRangeBarEnabled (int id) const
+{
+    return m_heatRangesPane->IsBarEnabled (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::BeginHeatRangeEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BeginHeatRangeEdit (int row, HeatMapRangeSets::Field field)
+{
+    m_heatRangesPane->BeginEdit (row, field);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EndHeatRangeEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EndHeatRangeEdit (bool commit)
+{
+    m_heatRangesPane->EndEdit (commit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ToggleHeatRange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ToggleHeatRange (int row, bool included)
+{
+    m_heatRangesPane->ToggleRange (row, included);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetRangeSetCommands
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<std::shared_ptr<DxuiCommand>> & DebuggerWindow::GetRangeSetCommands() const
+{
+    return m_heatRangesPane->GetRangeSetCommands();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowMessageBox
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::ShowMessageBox (
+    HWND                   owner,
+    const std::wstring   & text,
+    const wchar_t        * caption,
+    UINT                   type)
+{
+    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type);
 }

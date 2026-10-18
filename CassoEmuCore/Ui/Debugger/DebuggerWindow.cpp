@@ -247,15 +247,12 @@ void DebuggerWindow::OnCreate()
     m_regHistoryBand    = CreateChild<HistoryBand>   ();
     m_codeHistoryBand->SetOnGoLive ([this] { GoLiveFromBand(); });
     m_regHistoryBand->SetOnGoLive  ([this] { GoLiveFromBand(); });
-    m_heatRangeError    = CreateChild<DxuiLabel>     ();
-    m_heatRangeList     = CreateChild<DxuiEditableGrid> ();
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
     //  The memory bar before its Address box, so the box paints over the strip.
     m_memoryBar         = CreateChild<DxuiToolbar>   ();
     m_memoryBox         = CreateChild<DxuiTextInput> ();
     m_breakpointBar     = CreateChild<DxuiToolbar>   ();
-    m_heatRangeBar      = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
 
     //  All four windows exist from the start; the ones not open are hidden.
@@ -350,8 +347,11 @@ void DebuggerWindow::OnCreate()
     m_stackEditor    = CreateChild<DxuiTextInput>();
     m_registerEditor = CreateChild<DxuiTextInput>();
 
-    //  And a heat map range's, or its set's name.
-    m_heatRangeEditor = CreateChild<DxuiTextInput>();
+    //  And each pane's own, such as a heat map range's or its set's name.
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->CreateOverlays();
+    }
 
     for (DxuiTextInput * editor : { m_stackEditor, m_registerEditor })
     {
@@ -369,8 +369,6 @@ void DebuggerWindow::OnCreate()
     {
         pane->OnDocked();
     }
-
-    ConfigureHeatRanges();
 
     //  The text size the user last left, once every pane it sizes exists.
     if (m_host != nullptr)
@@ -1124,7 +1122,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
+                                           m_traceList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
 
 
 
@@ -1158,7 +1156,7 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
     std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
-                                           m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
+                                           m_diskLog.list, m_inputLog.list, m_basicProgramList };
 
 
 
@@ -4461,7 +4459,6 @@ void DebuggerWindow::LayoutWidgets()
     UpdateCodeLines();
     PlaceMemoryBar();
     PlaceBreakpointBar();
-    PlaceHeatRangeBar();
     PlaceEventLogBars();
     PlaceUndoBars();
 
@@ -5204,16 +5201,6 @@ void DebuggerWindow::ConfigureDockSite()
     m_traceFrame->AddPart (m_traceList);
     m_traceFrame->SetPartTextAligned (m_traceHint);
 
-    //  The ranges it can be focused on are their bar over a line that says
-    //  why an edit was refused, which shows only then, over their list.
-    m_heatRangeSlot  = std::make_unique<DebuggerPaneFrame> (L"Heat map range commands");
-    m_heatRangeFrame = std::make_unique<DebuggerPaneFrame> (L"Heat map ranges");
-    m_heatRangeFrame->AddPart (m_heatRangeSlot.get(), barHeight);
-    m_heatRangeFrame->AddPart (m_heatRangeError, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); },
-                               [this] { return !m_heatRangeError->GetText().empty(); });
-    m_heatRangeFrame->AddPart (m_heatRangeList);
-    m_heatRangeFrame->SetPartTextAligned (m_heatRangeError);
-
     //  The breakpoints pane is its toolbar over its rows (FR-119). The bar is a
     //  place held at the pane's top, which PlaceBreakpointBar fills.
     m_breakpointSlot  = std::make_unique<DebuggerPaneFrame> (L"Breakpoint commands");
@@ -5267,7 +5254,6 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kStack,       L"Stack",       m_undoBars[kStackUndoBar].frame.get());
     m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kHeatRanges,  L"Heat map ranges", m_heatRangeFrame.get());
 
     //  The event logs are each their bar over their rows; between them, the
     //  Disk II log has a line listing the filter tokens not taken, only when
@@ -5389,6 +5375,7 @@ void DebuggerWindow::ConfigureDockSite()
 bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
 {
     std::string  diagnosticsId;
+    bool         isOpened      = false;
 
 
 
@@ -5397,9 +5384,9 @@ bool DebuggerWindow::IsPaneShown (const std::wstring & pane) const
         return false;
     }
 
-    if (pane == DebuggerLayout::kHeatRanges)
+    if (FindPane (pane) != nullptr && FindPane (pane)->TryGetOpened (isOpened))
     {
-        return m_isHeatRangesOpened;
+        return isOpened;
     }
 
     if (DebuggerLayout::IsOpenedLater (pane))
@@ -5867,12 +5854,11 @@ void DebuggerWindow::ShowPane (const std::wstring & pane)
 
     m_closedPanes.erase (pane);
 
-    //  The heat map's ranges stay closed until first shown; their setting,
-    //  written now, keeps the pane open from then on.
-    if (pane == DebuggerLayout::kHeatRanges)
+    //  A pane closed until first shown, such as the heat map's ranges, is
+    //  opened from then on.
+    if (FindPane (pane) != nullptr)
     {
-        m_isHeatRangesOpened = true;
-        SaveHeatRanges();
+        FindPane (pane)->Open();
     }
 
     //  A BASIC or tool pane is added to the open views the same way.
@@ -7022,10 +7008,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
     {
         AddEventLogMenuItems (list, row, items);
     }
-    else if (list == m_heatRangeList && m_heatRangeList->CanDeleteRow (row))
-    {
-        items.push_back ({ L"Delete", [this, row] { m_heatRangeList->DeleteRow (row); Invalidate(); } });
-    }
     else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
     {
         const DebuggerViewSnapshot::BreakpointLine  bp     = *GetBreakpointOfRow (row);
@@ -7296,7 +7278,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -7374,7 +7356,6 @@ void DebuggerWindow::RenderFrame()
     CarryTornOffPane();
     PlaceMemoryBar();
     PlaceBreakpointBar();
-    PlaceHeatRangeBar();
     PlaceEventLogBars();
     PlaceUndoBars();
 
@@ -8064,7 +8045,6 @@ void DebuggerWindow::ApplySnapshot()
         pane->Apply (*m_snapshot);
     }
 
-    ApplyHeatRangeSymbols();
 
     ApplyMemoryWindows();
     ApplySource();
@@ -9505,7 +9485,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -9597,13 +9577,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
     {
         barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-    }
-
-    //  And its ranges'.
-    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kHeatRanges) &&
-        m_heatRangeBar != nullptr && m_heatRangeBar->IsVisible())
-    {
-        barTip = m_heatRangeBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  And the event logs'.
@@ -12139,10 +12112,14 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    //  And a heat map range or its set's name being edited.
-    if (RouteHeatRangeEditMouse (ev))
+    //  And a pane's own box being edited, such as a heat map range or its
+    //  set's name.
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
-        return true;
+        if (each->RouteEditMouse (ev))
+        {
+            return true;
+        }
     }
 
     //  A pane's own use of the mouse ahead of every other control, such as
@@ -12202,12 +12179,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  Then the breakpoints pane's toolbar.
     if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) && RouteBreakpointBarMouse (ev))
-    {
-        return true;
-    }
-
-    //  And its ranges'.
-    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kHeatRanges) && RouteHeatRangeBarMouse (ev))
     {
         return true;
     }
@@ -12582,7 +12553,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     if (pane == DebuggerLayout::kStack)       { return { m_undoBars[kStackUndoBar].slot.get(), m_stackList, m_stackEditor, m_undoBars[kStackUndoBar].bar }; }
     if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
-    if (pane == DebuggerLayout::kHeatRanges)  { return { m_heatRangeSlot.get(), m_heatRangeError, m_heatRangeList, m_heatRangeEditor, m_heatRangeBar }; }
     if (pane == DebuggerLayout::kDiskLog)     { return { m_diskLog.slot.get(), m_diskLogError, m_diskLog.list, m_diskLog.bar, m_diskTrackBox, m_diskSectorBox }; }
     if (pane == DebuggerLayout::kInputLog)    { return { m_inputLog.slot.get(), m_inputLog.list, m_inputLog.bar }; }
 
@@ -12654,11 +12624,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     if (pane == DebuggerLayout::kTrace)
     {
         return m_traceFrame.get();
-    }
-
-    if (pane == DebuggerLayout::kHeatRanges)
-    {
-        return m_heatRangeFrame.get();
     }
 
     if (GetEventLogOf (pane) != nullptr)
@@ -14521,11 +14486,14 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  So does a heat map range being edited; the ranges list takes its own
-    //  keys.
-    if (RouteHeatRangeKey (ev, focused))
+    //  So does a pane's own box being edited, such as a heat map range; the
+    //  ranges list takes its own keys.
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
-        return true;
+        if (each->RouteEditKey (ev, focused))
+        {
+            return true;
+        }
     }
 
     //  Shift+Esc closes the pane that has the focus, as in Visual Studio.

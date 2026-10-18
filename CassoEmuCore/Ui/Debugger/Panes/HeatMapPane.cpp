@@ -473,7 +473,7 @@ void HeatMapPane::SetIgnoreMenu()
 
     m_ignoreCommands.clear();
 
-    for (const HeatMapRangeSet & set : m_ranges.sets->sets)
+    for (const HeatMapRangeSet & set : m_ranges.sets().sets)
     {
         names.push_back (set.name);
     }
@@ -520,7 +520,7 @@ void HeatMapPane::SendIgnore()
 
 
 
-    for (const HeatMapRangeSets::Span & span : m_ranges.sets->GetSpans (m_view->GetOptions().ignoreSet, m_ranges.symbols()))
+    for (const HeatMapRangeSets::Span & span : m_ranges.sets().GetSpans (m_view->GetOptions().ignoreSet, m_ranges.symbols()))
     {
         spans.emplace_back (span.first, span.last);
     }
@@ -756,7 +756,7 @@ std::wstring HeatMapPane::GetBarLabel (int id) const
 
     if (id == HeatMapBarCommands::kRangeSet)
     {
-        return TextEncoding::Utf8ToWide (m_ranges.sets->shown.empty() ? std::string (HeatMapRangeSets::kpszAllMemory) : m_ranges.sets->shown);
+        return TextEncoding::Utf8ToWide (m_ranges.sets().shown.empty() ? std::string (HeatMapRangeSets::kpszAllMemory) : m_ranges.sets().shown);
     }
 
     return {};
