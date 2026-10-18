@@ -1187,9 +1187,9 @@ void DebuggerWindow::TakeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> s
     //  At a stop, focus moves from the console to the disassembly unless the
     //  console received the last input; at a stop in a running BASIC program,
     //  to the program pane, where the steps are BASIC's.
-    if (m_stopFocus.OnSnapshot (m_snapshot->isPaused) && GetPaneOfFocus() == DebuggerLayout::kConsole)
+    if (m_stopFocus.OnSnapshot (m_snapshot->isPaused) && IsCommandPane (GetPaneOfFocus()) && !GetStopFocusPane().empty())
     {
-        FocusPane (m_basicProgram->IsStop() ? std::wstring (DebuggerLayout::kBasicProgram) : DebuggerLayout::GetCodePaneId (m_code->GetActive()));
+        FocusPane (GetStopFocusPane());
     }
 
     //  The drop-downs carry the mode and the panels they were built with, so
@@ -1320,6 +1320,7 @@ void DebuggerWindow::ApplySnapshot()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     bool                                          restoring = IsRestoringViews();
+    IDebuggerPane                               * shown     = nullptr;
 
 
 
@@ -1353,10 +1354,11 @@ void DebuggerWindow::ApplySnapshot()
     {
         m_shownPaneSerial = m_snapshot->showPaneSerial;
         m_dockSite->ActivatePane (m_snapshot->showPane);
+        shown = FindPane (m_snapshot->showPane);
 
-        if (m_snapshot->showPane == DebuggerLayout::kConsole && IsRoutable (m_consolePane->GetCommandLine().GetBox()))
+        if (shown != nullptr && shown->GetMainControl() != nullptr && IsRoutable (shown->GetMainControl()))
         {
-            SetFocusedControl (m_consolePane->GetCommandLine().GetBox());
+            SetFocusedControl (shown->GetMainControl());
         }
     }
 }

@@ -54,6 +54,8 @@ public:
     void                             AddToDock      (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent     () const override;
     std::vector<IDxuiControl *>      GetControls    () const override;
+    DxuiTextView                   * GetFindView    () const override { return m_view; }
+    DebuggerPaneFrame              * GetFindFrame   () const override { return m_frame.get(); }
     std::vector<DxuiToolbar *>       GetBars        () const override { return { m_bar.GetBar() }; }
     std::optional<PaneColorKeySpec>  GetColorKey    () const override;
     void                             SetTextZoom    (float zoom) override;

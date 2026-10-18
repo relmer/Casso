@@ -83,6 +83,41 @@ std::wstring DisassemblyViewPane::GetTitle() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DisassemblyViewPane::GetTabTitle
+//
+//  The first view's tab has no number, as it is the only view by default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DisassemblyViewPane::GetTabTitle() const
+{
+    return (m_view == 0) ? std::wstring (L"Disassembly") : GetTitle();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyViewPane::GetStopFocusRank
+//
+//  At a stop the focus moves to the active view, unless another pane has a
+//  higher rank, such as a BASIC program stopped in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DisassemblyViewPane::GetStopFocusRank() const
+{
+    return (m_group.GetActive() == m_view) ? 1 : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisassemblyViewPane::CreateControls
 //
 //  The first view's history band has its place in history and a Go live

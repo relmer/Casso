@@ -195,7 +195,7 @@ void DebuggerWindow::NoteTabFocus (POINT pointDip)
 
     if (GetPaneOfFocus() != pane)
     {
-        target = (pane == DebuggerLayout::kConsole) ? m_consolePane->GetCommandLine().GetBox() : nullptr;
+        target = (FindPane (pane) != nullptr) ? FindPane (pane)->GetMainControl() : nullptr;
 
         for (IDxuiControl * part : GetPaneControls (pane))
         {
@@ -692,7 +692,7 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Down)
     {
         m_openingFocus.OnUserInput();
-        m_stopFocus.OnInput ((m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane()) == DebuggerLayout::kConsole);
+        m_stopFocus.OnInput (IsCommandPane (m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane()));
         m_lastPressPx = POINT { x, y };
     }
 
@@ -1208,7 +1208,7 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     if (ev.kind == DxuiKeyEventKind::Down || ev.kind == DxuiKeyEventKind::Char)
     {
         m_openingFocus.OnUserInput();
-        m_stopFocus.OnInput (GetPaneOfFocus() == DebuggerLayout::kConsole);
+        m_stopFocus.OnInput (IsCommandPane (GetPaneOfFocus()));
     }
 
     //  A key can scroll, step or resize what the operand tip lies over, so

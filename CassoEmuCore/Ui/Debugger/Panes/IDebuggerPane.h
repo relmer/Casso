@@ -366,6 +366,23 @@ public:
     virtual IDxuiControl               * GetContent     () const = 0;
     virtual std::vector<IDxuiControl *>  GetControls    () const = 0;
 
+    //  The control the keys go to when the pane gets the focus, null to use
+    //  the first of its lists and views; whether the pane is the command
+    //  input, which a stop moves the focus away from; and the pane's rank as
+    //  the focus at a stop, highest first, 0 for none.
+    virtual IDxuiControl               * GetMainControl   () const { return nullptr; }
+    virtual bool                         IsCommandInput   () const { return false; }
+    virtual int                          GetStopFocusRank () const { return 0; }
+
+    //  The title on the pane's tab, where it differs from its row on the
+    //  View menu.
+    virtual std::wstring                 GetTabTitle    () const { return GetTitle(); }
+
+    //  The text a find widget searches in the pane, and the frame the widget
+    //  is drawn in; null for a pane with no find widget.
+    virtual DxuiTextView               * GetFindView    () const { return nullptr; }
+    virtual DebuggerPaneFrame          * GetFindFrame   () const { return nullptr; }
+
     //  The pane's lists, which the window makes dense, sets in the text face
     //  and routes the mouse to; and its toolbars, whose menus it ticks.
     virtual std::vector<DxuiListView *>  GetLists       () const { return {}; }

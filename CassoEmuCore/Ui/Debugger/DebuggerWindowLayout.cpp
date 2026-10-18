@@ -85,7 +85,7 @@ void DebuggerWindow::PlaceOpeningFocus()
         m_openingFocus.Defer();
     }
 
-    FocusPane (isReady ? saved : std::wstring (DebuggerLayout::kConsole));
+    FocusPane (isReady ? saved : GetCommandPane());
 }
 
 
@@ -220,9 +220,9 @@ IDxuiControl * DebuggerWindow::GetMainControl (const std::wstring & pane) const
 
 
 
-    if (pane == DebuggerLayout::kConsole)
+    if (FindPane (pane) != nullptr && FindPane (pane)->GetMainControl() != nullptr)
     {
-        return m_consolePane->GetCommandLine().GetBox();
+        return FindPane (pane)->GetMainControl();
     }
 
     for (IDxuiControl * each : controls)
@@ -234,6 +234,77 @@ IDxuiControl * DebuggerWindow::GetMainControl (const std::wstring & pane) const
     }
 
     return controls.empty() ? nullptr : controls.back();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsCommandPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsCommandPane (const std::wstring & pane) const
+{
+    return FindPane (pane) != nullptr && FindPane (pane)->IsCommandInput();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCommandPane
+//
+//  The pane the focus goes to at the start when no other pane has it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetCommandPane() const
+{
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
+    {
+        if (each->IsCommandInput())
+        {
+            return each->GetId();
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetStopFocusPane
+//
+//  The pane of the highest rank as the focus at a stop, or none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DebuggerWindow::GetStopFocusPane() const
+{
+    std::wstring  found;
+    int           best  = 0;
+
+
+
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
+    {
+        if (each->GetStopFocusRank() > best)
+        {
+            best  = each->GetStopFocusRank();
+            found = each->GetId();
+        }
+    }
+
+    return found;
 }
 
 
@@ -980,11 +1051,6 @@ std::wstring DebuggerWindow::GetPaneOfFocus() const
         return L"";
     }
 
-    if (focused == m_consolePane->GetOutput().GetView() || focused == m_consolePane->GetCommandLine().GetBox() || GetPaneOfControl (focused) == DebuggerLayout::kConsole)
-    {
-        return DebuggerLayout::kConsole;
-    }
-
     //  A pane docked as a frame -- a disassembly view, the call stack, a
     //  memory window -- holds its focusable controls inside the frame, so
     //  the dock site, which knows only the frame, cannot place them.
@@ -1089,12 +1155,7 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
 
 std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
 {
-    if (pane == DebuggerLayout::kCode)
-    {
-        return L"Disassembly";
-    }
-
-    return (FindPane (pane) != nullptr) ? FindPane (pane)->GetTitle() : pane;
+    return (FindPane (pane) != nullptr) ? FindPane (pane)->GetTabTitle() : pane;
 }
 
 

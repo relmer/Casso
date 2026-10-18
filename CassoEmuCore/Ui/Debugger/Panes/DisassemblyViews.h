@@ -46,6 +46,8 @@ public:
 
     std::wstring                     GetId          () const override;
     std::wstring                     GetTitle       () const override;
+    std::wstring                     GetTabTitle    () const override;
+    int                              GetStopFocusRank () const override;
     void                             CreateControls () override;
     void                             Configure      () override;
     bool                             TryGetOpened   (bool & isOpened) const override;

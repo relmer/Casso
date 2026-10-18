@@ -207,6 +207,10 @@ public:
     void                             AddToDock      (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent     () const override;
     std::vector<IDxuiControl *>      GetControls    () const override;
+    IDxuiControl                   * GetMainControl () const override { return m_commandLine.GetBox(); }
+    bool                             IsCommandInput () const override { return true; }
+    DxuiTextView                   * GetFindView    () const override { return m_output.GetView(); }
+    DebuggerPaneFrame              * GetFindFrame   () const override { return m_frame.get(); }
     std::vector<DxuiToolbar *>       GetBars        () const override { return { m_modeBar.GetSlot().GetBar() }; }
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     void                             SetTextZoom    (float zoom) override;

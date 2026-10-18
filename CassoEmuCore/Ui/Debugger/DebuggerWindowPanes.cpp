@@ -1630,16 +1630,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetFindControls() const
 
 DxuiTextView * DebuggerWindow::GetFindView (const std::wstring & pane) const
 {
-    int  slot = GetSourceSlotOf (pane);
-
-
-
-    if (slot >= 0)
-    {
-        return m_sources->GetDocument (slot).GetView();
-    }
-
-    return (pane == DebuggerLayout::kConsole) ? m_consolePane->GetOutput().GetView() : nullptr;
+    return (FindPane (pane) != nullptr) ? FindPane (pane)->GetFindView() : nullptr;
 }
 
 
@@ -1654,16 +1645,7 @@ DxuiTextView * DebuggerWindow::GetFindView (const std::wstring & pane) const
 
 DebuggerPaneFrame * DebuggerWindow::GetFindFrame (const std::wstring & pane) const
 {
-    int  slot = GetSourceSlotOf (pane);
-
-
-
-    if (slot >= 0)
-    {
-        return m_sources->GetDocument (slot).GetFrame();
-    }
-
-    return (pane == DebuggerLayout::kConsole) ? m_consolePane->GetFrame() : nullptr;
+    return (FindPane (pane) != nullptr) ? FindPane (pane)->GetFindFrame() : nullptr;
 }
 
 

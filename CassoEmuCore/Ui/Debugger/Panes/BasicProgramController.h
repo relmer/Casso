@@ -45,6 +45,7 @@ public:
     void                             AddToDock      (DxuiDockSite & dock) override;
     IDxuiControl                   * GetContent     () const override;
     std::vector<IDxuiControl *>      GetControls    () const override { return { m_list }; }
+    int                              GetStopFocusRank () const override { return m_isStop ? 2 : 0; }
     std::vector<DxuiListView *>      GetLists       () const override { return { m_list }; }
     void                             Apply          (const DebuggerViewSnapshot & snapshot) override;
     bool                             Tick           (int64_t nowMs) override;
