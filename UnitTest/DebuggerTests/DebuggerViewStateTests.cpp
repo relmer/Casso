@@ -3713,9 +3713,11 @@ namespace DebuggerViewStateTests
         //  stop (SC-015).
         TEST_METHOD (AnOpenPanelIsInEverySnapshot)
         {
-            PanelRig              rig;
-            DebuggerViewSnapshot  first;
-            DebuggerViewSnapshot  second;
+            PanelRig                               rig;
+            std::unique_ptr<DebuggerViewSnapshot>  firstOwner  = std::make_unique<DebuggerViewSnapshot>();
+            std::unique_ptr<DebuggerViewSnapshot>  secondOwner = std::make_unique<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot                 & first       = *firstOwner;
+            DebuggerViewSnapshot                 & second      = *secondOwner;
 
 
 

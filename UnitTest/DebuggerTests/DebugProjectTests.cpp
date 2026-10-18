@@ -61,12 +61,14 @@ namespace DebuggerTests
         //  set in one session are all there in the next, through the JSON.
         TEST_METHOD (WhatOneSessionSetsComesBackInAnother)
         {
-            SessionRig                first;
-            SessionRig                second;
-            DebugProject              project;
-            DebugProject              read;
-            std::string               error;
-            std::vector<std::string>  failures;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
 
 
 
@@ -110,12 +112,14 @@ namespace DebuggerTests
         //  mode and the trip count's mark; and the window's states by name.
         TEST_METHOD (TheSessionsSettingsAndTheWindowsStatesComeBack)
         {
-            SessionRig                first;
-            SessionRig                second;
-            DebugProject              project;
-            DebugProject              read;
-            std::string               error;
-            std::vector<std::string>  failures;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
 
 
 
@@ -148,14 +152,16 @@ namespace DebuggerTests
         //  would have taken in the first session.
         TEST_METHOD (EachItemKeepsItsIdAndTheNextIdIsKept)
         {
-            SessionRig                first;
-            SessionRig                second;
-            DebugProject              project;
-            DebugProject              read;
-            std::string               error;
-            std::vector<std::string>  failures;
-            BreakpointListData        list;
-            std::vector<int>          ids;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+            std::vector<int>               ids;
 
 
 

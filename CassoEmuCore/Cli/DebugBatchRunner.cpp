@@ -138,12 +138,14 @@ Error:
 
 void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options, const std::string & scriptText, DebugBatchResult & result)
 {
-    HRESULT                   hr     = S_OK;
-    std::vector<std::string>  lines;
-    DebugCommand              mode;
-    OutputFormat              output = OutputFormat::AppleWin;
-    DebugSession              session (*m_target, m_sink, RunState::Paused);
-    DebugEventLogs            logs    (*m_host);
+    HRESULT                          hr           = S_OK;
+    std::vector<std::string>         lines;
+    DebugCommand                     mode;
+    OutputFormat                     output       = OutputFormat::AppleWin;
+    std::unique_ptr<DebugSession>    sessionOwner = std::make_unique<DebugSession> (*m_target, m_sink, RunState::Paused);
+    std::unique_ptr<DebugEventLogs>  logsOwner    = std::make_unique<DebugEventLogs> (*m_host);
+    DebugSession                   & session      = *sessionOwner;
+    DebugEventLogs                 & logs         = *logsOwner;
 
 
 

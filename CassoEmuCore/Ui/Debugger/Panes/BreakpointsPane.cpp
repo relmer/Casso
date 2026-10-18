@@ -468,7 +468,7 @@ bool BreakpointsPane::IsBarEntryEnabled (int id) const
     case BreakpointBarCommands::kDisableAll: return any;
     case BreakpointBarCommands::kUndo:       return snapshot != nullptr && snapshot->canUndoBreakpoints;
     case BreakpointBarCommands::kRedo:       return snapshot != nullptr && snapshot->canRedoBreakpoints;
-    case BreakpointBarCommands::kGoToSource: return one && BreakpointColumns::TryGetSourcePlace (*snapshot, selected[0], fileId, line);
+    case BreakpointBarCommands::kGoToSource: return one && snapshot != nullptr && BreakpointColumns::TryGetSourcePlace (*snapshot, selected[0], fileId, line);
     case BreakpointBarCommands::kGoToCode:   return one && (BreakpointColumns::HasAddress (selected[0].info) || BreakpointColumns::HasRoutine (selected[0].info));
     default:                                 return true;
     }
@@ -525,7 +525,7 @@ void BreakpointsPane::RunBarEntry (int id)
     case BreakpointBarCommands::kImport:     Import();                                                                                                 break;
 
     case BreakpointBarCommands::kGoToSource:
-        if (BreakpointColumns::TryGetSourcePlace (*snapshot, selected[0], fileId, line))
+        if (snapshot != nullptr && BreakpointColumns::TryGetSourcePlace (*snapshot, selected[0], fileId, line))
         {
             m_host.OpenSource (fileId, line);
         }

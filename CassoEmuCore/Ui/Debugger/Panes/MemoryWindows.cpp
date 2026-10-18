@@ -1745,7 +1745,7 @@ void MemoryWindowGroup::CompareSelection (MemoryWindowPane * window)
 
 
 
-    if (!range.has_value() || !m_hasSnapshot)
+    if (window == nullptr || !range.has_value() || !m_hasSnapshot)
     {
         return;
     }
