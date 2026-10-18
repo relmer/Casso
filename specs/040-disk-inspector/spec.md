@@ -1888,11 +1888,14 @@ legend, and tilt the platter and back.
   can be centered. The platter MUST
   outline the selected sector or nibbles in the selection color on a
   contrasting edge, at least 8 DIP across at any zoom, and the selection MUST
-  shimmer continuously in the platter, the strip and the File map grid, on
-  the platter along the selection's outline as well as over it, lit
-  by a narrow band of light at 45 degrees, its angle the same in a short
-  strip as in a tall cell, that sweeps across the whole window from its top
-  left to its bottom right. On a new track, the
+  shimmer continuously in the platter, the strip and the File map grid, over
+  its whole area and, on the platter, its outline, lit by a band of light at
+  45 degrees that sweeps across the selection's part in view from its top
+  left to its bottom right. The band MUST take the same time to cross every
+  selection, however large: a sector at fit on the platter, a cell of the
+  File map grid, or a sector the strip's zoom makes as wide as the window.
+  Its width MUST be a share of the selection's shorter side, so its angle
+  reads the same in a short strip as in a tall cell. On a new track, the
   strip MUST keep the same fraction of the turn in view unless the new
   selection is outside it. If analyzing a
   track again removes the selected sector, the sector nearest the same cell
