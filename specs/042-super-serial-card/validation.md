@@ -63,13 +63,37 @@ ProTERM times its delays with the //e's vertical-blank flag at $C019. A
 committed test depends on it: the unit and scenario suites have the same
 results with a video timing attached to every test machine.
 
+## Through the UI
+
+Driven in Casso itself on a //e: one instance launched without activation,
+posted clicks and keys, PrintWindow captures, with `UserPrefs.json`, the
+machine's config and autosave, and `SSC.rom` backed up and restored.
+
+| Quickstart step | Result |
+|---|---|
+| 1. Turn the card on under Settings > Machine with the firmware missing | Pass: the checkbox stays off, the download is offered, Yes downloads `SSC.rom` (the same SHA-1), turns the card on and opens the Serial card tab |
+| 2. Printer mode, 40 characters with the screen on, file out with a path | Pass: the page's settings and the SW1 and SW2 readout follow each change; the path is chosen in the Save As dialog |
+| 3. `PR#2`, `LIST`, `PR#0` after OK (reboot) | Pass after the fix below: the listing is in the chosen file |
+| 5. The infobar after `SSC.rom` is removed | Pass: it reports the missing firmware with Download and Dismiss; Download installs it and offers Restart, which rebuilds the machine and clears it |
+
+Two bugs found and fixed (`fix(ssc): Save the Super Serial Card's switches
+and connector when Settings applies`):
+
+- On OK, the sheet re-reads the machine's prefs from disk, and the refresh
+  replaced every card's staged connector with the one on disk, which
+  discarded the connector chosen on the Serial card page. A connector changed
+  in the sheet is now left as staged.
+- For a slot, the saved difference and the merge on load included only
+  `enabled` and `ports`, so the switches were never saved. Both now include
+  `switches` too.
+
+The download prompt's text overruns its 500 by 230 dialog: it starts under
+the title bar and runs into the buttons.
 ## Not yet checked
 
-- Steps 1 and 2 through the UI: turning the card on under Settings > Machine
-  with the firmware missing, accepting the download, and setting the switches
-  and attachment on the Serial card page.
-- Steps 5 and 6: the missing-firmware infobar after `SSC.rom` is removed, and
-  the //c's paced serial printing.
+- Step 4 through the UI; the scenario tests cover it through the same build
+  path.
+- Step 6: the //c's paced serial printing.
 - The ][: GuestSession recognizes only the ] prompt, and the ][ boots to
   Integer BASIC.
 - ADTPro with its host, which arrives with the host connection in spec 033.
