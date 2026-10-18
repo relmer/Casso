@@ -290,6 +290,18 @@ private:
     bool           IsSerialFirmwareMissing   () const;
     std::wstring   GetSerialFirmwareStatus   () const;
 
+    // The card is turned on only with Apple's firmware installed. Turning it
+    // on without the firmware turns it off again and offers the download;
+    // the card is turned on when the download succeeds.
+    void           OfferSerialFirmwareDownload ();
+    void           StartSerialFirmwareDownload (bool enableOnSuccess);
+    void           PollSerialFirmwareDownload  ();
+    void           SetSerialCardEnabled        (bool enabled);
+
+    bool           m_serialDownloadAwaited   = false;
+    bool           m_serialEnableOnDownload  = false;
+    uint32_t       m_serialDownloadCount     = 0;
+
     // The dialog tick last asked for: the Controllers page's live rate while
     // it is shown, the default otherwise.
     UINT           m_tickMs = kDefaultDialogTickMs;

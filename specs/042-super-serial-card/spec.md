@@ -50,6 +50,10 @@ The 6551's baud code 0 selects 16 times the external clock. The SSC clocks its 6
 - Q: Which attachments does the serial connector offer before spec 033? → A: Nothing, a loopback plug, a file that receives what the card sends, and a file sent into the card, whose bytes arrive one character time apart at the card's baud rate and format (FR-015).
 - Q: How does Casso report missing firmware? → A: Turning the card on in Settings offers to download the firmware at once. At each start with the card on and no valid firmware, an infobar reports the missing file with a Download button. The startup download dialog never stops a launch for it (FR-006, FR-007).
 
+### Session 2026-10-17
+
+- Q: Can the card be turned on in Settings without its firmware? → A: No. Turning it on with the firmware missing turns it off again and offers to download Apple's ROM; on success the card is turned on and its Serial card tab opens, and after a declined or failed download the card stays off. The infobar remains for a config edited outside Settings or a firmware file removed after the card was turned on (FR-006, FR-007).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Put a Super Serial Card in a slot (Priority: P1)
@@ -179,8 +183,8 @@ In the card's settings the user chooses what is plugged into its serial connecto
 - **FR-003**: With the firmware installed, `$Cn00`-`$CnFF` MUST read the top 256 bytes of the 2 KB firmware, and `$C800`-`$CEFF` MUST read the firmware's first 1,792 bytes while the card's expansion ROM is selected.
 - **FR-004**: An access to `$Cn00`-`$CnFF` MUST select the card's expansion ROM, and an access to `$CF00`-`$CFFF` or a reset MUST deselect it, on every machine the card is offered for, including under the //e's `INTCXROM`, `SLOTC3ROM` and `INTC8ROM` rules.
 - **FR-005**: The 6551's interrupt MUST drive the CPU's IRQ line through the card as the hardware routes it, including the effect of switch SW2-6.
-- **FR-006**: The firmware MUST be supplied by the user as a file, found the way Casso's other ROMs are. Turning the card on in Settings MUST offer to download it when it is absent. Its absence MUST NOT stop or delay the machine's start, and the startup download dialog MUST NOT open for it.
-- **FR-007**: When the card is on and its firmware is missing or invalid, Casso MUST display an infobar each time the machine starts, with the file Casso looked for and a Download button. A successful download MUST install the firmware for the next reset.
+- **FR-006**: The firmware MUST be supplied by the user as a file, found the way Casso's other ROMs are. Settings MUST NOT turn the card on without it: turning the card on while the firmware is absent MUST offer to download it, and the card MUST be turned on only once the download succeeds; after a declined or failed download the card MUST stay off. Its absence MUST NOT stop or delay the machine's start, and the startup download dialog MUST NOT open for it.
+- **FR-007**: When the card is on and its firmware is missing or invalid, which only a config edited outside Settings or a firmware file removed later can cause, Casso MUST display an infobar each time the machine starts, with the file Casso looked for and a Download button. A successful download MUST install the firmware for the next reset.
 - **FR-008**: Without the firmware, the 6551, the switches and the interrupt MUST work as with it, and the ROM space MUST read as an empty ROM socket reads.
 - **FR-009**: The user MUST be able to set the card's DIP switches from Settings as the settings they select (mode, baud rate, data format, parity, line feed after carriage return, interrupts, and the printer-mode options), each offered only in the modes where its switches have that meaning, with a readout of the resulting SW1 and SW2 positions. The settings MUST be saved per machine and MUST take effect in the switch registers without a reset.
 - **FR-010**: The default switch settings MUST be communications mode, 9,600 baud, 8 data bits, 1 stop bit, no parity, no line feed after carriage return, and interrupts off.

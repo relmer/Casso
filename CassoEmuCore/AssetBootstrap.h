@@ -272,4 +272,8 @@ public:
     // UI; `outPath` is the file written.
     static HRESULT   DownloadOptionalRom   (string_view   cassoName,
                                             fs::path    & outPath,
-                                            string      & outError);};
+                                            string      & outError);
+
+    // Whether that ROM is in its device folder under the asset base, at the
+    // size the catalog lists.
+    static bool      IsOptionalRomInstalled (string_view cassoName);};

@@ -43,10 +43,17 @@ public:
     // download.
     void  Tick ();
 
-    // UI thread: downloads Apple's firmware into the asset folder, reporting
-    // progress and the result in the infobar.
-    void  StartFirmwareDownload ();
+    // UI thread: downloads Apple's firmware into the asset folder. With
+    // `reportInInfobar`, progress and the result appear in the infobar;
+    // Settings passes false and reports the result itself.
+    void  StartFirmwareDownload (bool reportInInfobar = true);
     bool  IsDownloading () const { return m_isDownloading; }
+
+    // Downloads finished so far, and the last one's outcome, for a caller
+    // that started one and waits for the count to move.
+    uint32_t        GetCompletedDownloadCount () const { return m_completedDownloads; }
+    bool            DidLastDownloadSucceed    () const { return m_lastDownloadSucceeded; }
+    const string &  GetLastDownloadError      () const { return m_lastDownloadError; }
 
     DxuiActionBanner &  GetBanner           () { return m_banner; }
     int                 GetBandThicknessPx  (int clientWidthPx) const;
@@ -66,10 +73,14 @@ private:
     atomic<uint32_t>                       m_pendingGeneration = 0;
     uint32_t                               m_appliedGeneration = 0;
 
-    bool                                   m_isDownloading     = false;
-    atomic<bool>                           m_downloadFinished  = false;
-    bool                                   m_downloadSucceeded = false;
-    string                                 m_downloadError;
+    bool          m_isDownloading         = false;
+    bool          m_reportInInfobar       = true;
+    uint32_t      m_completedDownloads    = 0;
+    bool          m_lastDownloadSucceeded = false;
+    string        m_lastDownloadError;
+    atomic<bool>  m_downloadFinished      = false;
+    bool          m_downloadSucceeded     = false;
+    string        m_downloadError;
 
     // Last, so it is destroyed first: its destructor finishes a download
     // job, which writes the members above.

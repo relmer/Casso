@@ -2077,6 +2077,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsOptionalRomInstalled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::IsOptionalRomInstalled (string_view cassoName)
+{
+    const RomSpec  * spec      = FindRomSpec ("", cassoName);
+    error_code       ec;
+    fs::path         path;
+    uintmax_t        size      = 0;
+    bool             installed = false;
+
+
+
+    if (spec != nullptr)
+    {
+        path      = GetAssetBaseDirectory() / string (spec->localRelDir) / string (spec->cassoName);
+        size      = fs::file_size (path, ec);
+        installed = !ec && size == spec->expectedSize;
+    }
+
+    return installed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FilesHaveSameContent
 //
 //  Cheap byte-equality check for disk-image dedup heuristics in the

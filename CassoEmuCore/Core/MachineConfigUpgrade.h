@@ -164,7 +164,6 @@ private:
     static constexpr int           kPrinterDefaultSlot    = 1;
     static constexpr const char *  kpszFirmwareKey        = "firmware";
     static constexpr const char *  kpszEnabledKey         = "enabled";
-    static constexpr const char *  kpszSerialCardFirmware = "SSC.rom";
     static constexpr int           kSerialCardDefaultSlot = 2;
     static constexpr const char *  kpszPortsKey           = "ports";
     static constexpr const char *  kpszPortNameKey        = "name";

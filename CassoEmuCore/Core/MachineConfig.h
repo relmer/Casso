@@ -191,6 +191,7 @@ static constexpr uint32_t      kLanguageCardRamK      = 16;
 static constexpr const char *  kpszSuperSerialCardDevice   = "super-serial-card";
 static constexpr const char *  kpszSuperSerialFirmwareDir  = "Devices/SuperSerialCard";
 static constexpr size_t        kSuperSerialFirmwareSize    = 2048;
+static constexpr const char *  kpszSerialCardFirmware      = "SSC.rom";
 
 // Serial connector attachments a card's ports list can specify.
 static constexpr const char *  kpszSerialLoopback = "serial-loopback";

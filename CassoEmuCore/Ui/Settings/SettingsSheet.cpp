@@ -15,6 +15,7 @@
 #include "Ui/Settings/SerialCardPage.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
+#include "AssetBootstrap.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Config/GlobalUserPrefs.h"
 #include "GeneralPageModel.h"
@@ -628,9 +629,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
     m_serialPage->SetOnDownload ([this] ()
     {
-        m_emuShell->GetSerialCard().StartFirmwareDownload();
-        m_serialPage->SetFirmwareStatus (L"Downloading Apple's firmware. The main window reports when the download "
-                                         L"finishes.", false);
+        StartSerialFirmwareDownload (false);
     });
     m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
     {
@@ -1014,6 +1013,7 @@ void SettingsSheet::OnDialogTick()
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
     UpdateSerialTabVisibility();
+    PollSerialFirmwareDownload();
     UpdateTickInterval();
 
 
@@ -1544,21 +1544,29 @@ void SettingsSheet::UpdateSerialTabVisibility()
 
     BAIL_OUT_IF (settled, S_OK);
 
+    missing = turnedOn && IsSerialFirmwareMissing();
+
+    if (missing)
+    {
+        // Not without its firmware: off again, before the tab appears, and
+        // the download offered.
+        SetSerialCardEnabled (false);
+        OfferSerialFirmwareDownload();
+    }
+
+    BAIL_OUT_IF (missing, S_OK);
+
     m_serialTabVisible = want;
     SetPageVisible (m_serialPageIndex, want);
 
-    missing = IsSerialFirmwareMissing();
-
-    if (turnedOn && missing)
+    if (turnedOn)
     {
         m_serialPage->Rebuild();
-        SetActivePage (m_serialPageIndex);
     }
 
 Error:
     return;
 }
-
 
 
 
@@ -1586,6 +1594,13 @@ bool SettingsSheet::IsSerialFirmwareMissing() const
         }
     }
 
+    // A download since the machine was built installs the file without
+    // updating the running config's status.
+    if (missing && AssetBootstrap::IsOptionalRomInstalled (kpszSerialCardFirmware))
+    {
+        missing = false;
+    }
+
     return missing;
 }
 
@@ -1601,13 +1616,14 @@ bool SettingsSheet::IsSerialFirmwareMissing() const
 
 std::wstring SettingsSheet::GetSerialFirmwareStatus() const
 {
-    std::wstring  text = L"Apple's Super Serial Card firmware is installed.";
+    std::wstring  text    = L"Apple's Super Serial Card firmware is installed.";
+    bool          missing = IsSerialFirmwareMissing();
 
 
 
     for (const SlotConfig & slot : m_emuShell->GetMachine().GetConfig().slots)
     {
-        if (slot.device == kpszSuperSerialCardDevice && slot.firmwareStatus != SlotFirmwareStatus::Present)
+        if (missing && slot.device == kpszSuperSerialCardDevice)
         {
             text = L"Apple's Super Serial Card firmware is not installed. Programs that drive the card's 6551 "
                    L"work without it; PR# and IN# do not. Casso looked for "
@@ -1616,6 +1632,140 @@ std::wstring SettingsSheet::GetSerialFirmwareStatus() const
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferSerialFirmwareDownload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::OfferSerialFirmwareDownload()
+{
+    int  answer = DxuiMessageBox (GetHwnd(),
+                                  &m_emuShell->GetChrome().GetTheme(),
+                                  L"The Super Serial Card runs Apple's firmware, a 2 KB ROM that Casso downloads "
+                                  L"from the Apple II Documentation Project. Download it and turn the card on?",
+                                  L"Super Serial Card",
+                                  MB_YESNO | MB_ICONQUESTION);
+
+
+
+    if (answer == IDYES)
+    {
+        StartSerialFirmwareDownload (true);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartSerialFirmwareDownload
+//
+//  The download runs on the shell's queue; PollSerialFirmwareDownload picks
+//  up the result on a later tick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::StartSerialFirmwareDownload (bool enableOnSuccess)
+{
+    ShellSerialCard &  serial = m_emuShell->GetSerialCard();
+
+
+
+    m_serialDownloadAwaited  = true;
+    m_serialEnableOnDownload = enableOnSuccess;
+    m_serialDownloadCount    = serial.GetCompletedDownloadCount();
+
+    serial.StartFirmwareDownload (false);
+    m_serialPage->SetFirmwareStatus (L"Downloading Apple's Super Serial Card firmware.", false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PollSerialFirmwareDownload
+//
+//  On success the card is turned on, if the download was started by turning
+//  it on, and its tab is opened. On failure the card stays as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::PollSerialFirmwareDownload()
+{
+    ShellSerialCard &  serial   = m_emuShell->GetSerialCard();
+    bool               finished = m_serialDownloadAwaited &&
+                                  serial.GetCompletedDownloadCount() != m_serialDownloadCount;
+    std::wstring       message;
+    HRESULT            hr       = S_OK;
+
+
+
+    BAIL_OUT_IF (!finished, S_OK);
+
+    m_serialDownloadAwaited = false;
+
+    if (serial.DidLastDownloadSucceed())
+    {
+        m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
+
+        if (m_serialEnableOnDownload)
+        {
+            SetSerialCardEnabled (true);
+            UpdateSerialTabVisibility();
+            SetActivePage (m_serialPageIndex);
+        }
+    }
+    else
+    {
+        message = L"The Super Serial Card firmware could not be downloaded, so the card stays off. "
+                + TextEncoding::NarrowToWide (serial.GetLastDownloadError());
+
+        DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), message.c_str(),
+                        L"Super Serial Card", MB_OK | MB_ICONWARNING);
+
+        m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialCardEnabled
+//
+//  Stages the card's enable and refreshes the Machine tab's tree to match.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::SetSerialCardEnabled (bool enabled)
+{
+    int      index = m_state.FindSerialCard();
+    HRESULT  hr    = S_OK;
+
+
+
+    if (index >= 0)
+    {
+        hr = m_state.SetHardwareEnabled (static_cast<size_t> (index), enabled);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_hardwarePage->Rebuild();
+    }
 }
 
 

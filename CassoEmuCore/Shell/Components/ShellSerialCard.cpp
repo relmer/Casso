@@ -105,9 +105,16 @@ void ShellSerialCard::Tick()
 
     if (m_downloadFinished.exchange (false))
     {
-        m_isDownloading = false;
-        Show (m_downloadSucceeded ? SerialCardNotice::MakeInstalled()
-                                  : SerialCardNotice::MakeDownloadFailed (m_downloadError));
+        m_isDownloading         = false;
+        m_lastDownloadSucceeded = m_downloadSucceeded;
+        m_lastDownloadError     = m_downloadError;
+        ++m_completedDownloads;
+
+        if (m_reportInInfobar)
+        {
+            Show (m_downloadSucceeded ? SerialCardNotice::MakeInstalled()
+                                      : SerialCardNotice::MakeDownloadFailed (m_downloadError));
+        }
     }
 }
 
@@ -124,7 +131,7 @@ void ShellSerialCard::Tick()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellSerialCard::StartFirmwareDownload()
+void ShellSerialCard::StartFirmwareDownload (bool reportInInfobar)
 {
     HRESULT  hr = S_OK;
 
@@ -132,14 +139,19 @@ void ShellSerialCard::StartFirmwareDownload()
 
     BAIL_OUT_IF (m_isDownloading, S_OK);
 
-    m_isDownloading = true;
-    Show (SerialCardNotice::MakeDownloading());
+    m_isDownloading   = true;
+    m_reportInInfobar = reportInInfobar;
+
+    if (reportInInfobar)
+    {
+        Show (SerialCardNotice::MakeDownloading());
+    }
 
     m_downloader->Post ([this] ()
     {
         fs::path  path;
         string    error;
-        HRESULT   hrDownload = AssetBootstrap::DownloadOptionalRom ("SSC.rom", path, error);
+        HRESULT   hrDownload = AssetBootstrap::DownloadOptionalRom (kpszSerialCardFirmware, path, error);
 
         m_downloadSucceeded = SUCCEEDED (hrDownload);
         m_downloadError     = error;
