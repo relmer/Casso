@@ -12,6 +12,7 @@
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/CallStackController.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
@@ -57,6 +58,12 @@ void DebuggerWindow::CreatePanes()
 
     m_codeEdits = std::make_unique<CodeEditCommands> (host, static_cast<const ICodeViews &> (*this));
     m_sources   = std::make_unique<SourceDocumentGroup> (host);
+    m_code      = std::make_unique<DisassemblyGroup> (host, *m_gutter, *m_codeEdits, *m_sources);
+
+    for (std::unique_ptr<IDebuggerPane> & view : m_code->CreateViews())
+    {
+        m_panes.push_back (std::move (view));
+    }
 
     for (std::unique_ptr<IDebuggerPane> & document : m_sources->CreateDocuments())
     {
@@ -1193,6 +1200,231 @@ bool DebuggerWindow::IsTipBlocked() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetCodeList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * DebuggerWindow::GetCodeList (int view) const
+{
+    return m_code->GetCodeList (view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCodeLines
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<DebuggerViewSnapshot::CodeLine> & DebuggerWindow::GetCodeLines (int view) const
+{
+    return m_code->GetCodeLines (view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCodeLineOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::GetCodeLineOfRow (int view, int row) const
+{
+    return m_code->GetCodeLineOfRow (view, row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCodeBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * DebuggerWindow::GetCodeBar (int view) const
+{
+    return m_code->GetView (view).GetBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetCodeOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DisassemblyOptions & DebuggerWindow::GetCodeOptions() const
+{
+    return m_code->GetOptions();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ToggleCodeOption
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ToggleCodeOption (DisassemblyOptions::Option option)
+{
+    m_code->ToggleOption (option);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsCodeOptionEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsCodeOptionEnabled (DisassemblyOptions::Option option) const
+{
+    return m_code->IsOptionEnabled (option);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyCodeView
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyCodeView (int view)
+{
+    m_code->ApplyView (view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsCodeHeatOn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsCodeHeatOn() const
+{
+    return m_code->GetOptions().IsOn (DisassemblyOptions::Option::Heat);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowCode
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ShowCode (std::optional<Word> address)
+{
+    m_code->ShowCode (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBranchArrow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::GetBranchArrow (int view, BranchArrow::Input & input, Word & goesTo, bool & isTaken, bool isBranchedFrom) const
+{
+    return m_code->GetBranchArrow (view, input, goesTo, isTaken, isBranchedFrom);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::PaintBranchArrow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::PaintBranchArrow (IDxuiPainter & painter, int view)
+{
+    m_code->PaintBranchArrow (painter, view);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ClickBranchArrow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::ClickBranchArrow (POINT pointPx)
+{
+    return m_code->ClickBranchArrow (pointPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetBranchTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetBranchTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    return m_code->TryGetBranchTip (clientPx, anchor, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::TryGetSymbolTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstring & text) const
+{
+    return m_code->TryGetSymbolTip (clientPx, anchor, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::GetProfilerCommands
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1533,13 +1765,13 @@ void DebuggerWindow::EditStepFilters()
 
 Word DebuggerWindow::GetCursorAddress() const
 {
-    int  line = GetCodeLineOfRow (m_activeCode, m_codeLists[(size_t) m_activeCode]->GetSelectedRow());
+    int  line = GetCodeLineOfRow (m_code->GetActive(), m_code->GetCodeList (m_code->GetActive())->GetSelectedRow());
 
 
 
     if (line >= 0)
     {
-        return GetCodeLines (m_activeCode)[(size_t) line].address;
+        return GetCodeLines (m_code->GetActive())[(size_t) line].address;
     }
 
     return (m_snapshot != nullptr) ? m_snapshot->pc : 0;

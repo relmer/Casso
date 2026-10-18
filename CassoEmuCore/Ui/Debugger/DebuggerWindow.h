@@ -77,6 +77,7 @@ class SymbolsPane;
 class BreakpointsPane;
 class CodeEditCommands;
 class DisassemblyGutter;
+class DisassemblyGroup;
 class SourceDocumentGroup;
 class MemoryPane;
 class TracePaneController;
@@ -226,7 +227,7 @@ protected:
 
     //  Protected so a test can apply a snapshot's disassembly as a frame does.
     void            ApplyCodeSnapshot (std::shared_ptr<const DebuggerViewSnapshot> snapshot, int view) { m_snapshot = std::move (snapshot); ApplyCodeView (view); }
-    DxuiListView  * GetCodeList       (int view) const override { return m_codeLists[(size_t) view]; }
+    DxuiListView  * GetCodeList       (int view) const override;
 
     //  Protected so a test can read and run a code row's menu entries.
     std::optional<std::pair<Word, Word>>  GetCodeSelection (int view, int row) const;
@@ -241,8 +242,8 @@ protected:
     //  check box does, read the rows a view shows, and hover its gutter.
     void                         ToggleCodeOption    (DisassemblyOptions::Option option);
     bool                         IsCodeOptionEnabled (DisassemblyOptions::Option option) const;
-    const DisassemblyOptions  &  GetCodeOptions      () const { return m_codeOptions; }
-    DxuiToolbar               *  GetCodeBar          (int view) const { return m_codeBars[(size_t) view]; }
+    const DisassemblyOptions  &  GetCodeOptions      () const;
+    DxuiToolbar               *  GetCodeBar          (int view) const;
     int                          GetCodeLineOfRow    (int view, int row) const override;
     void                         HoverGutter         (POINT atDip);
 
@@ -413,9 +414,8 @@ protected:
 
     //  Protected so a test can read the menu bar's menus as a click opens
     //  them, and the command bar's and the console bar's entries.
-    static constexpr int  kDialectEntry    = 1;
-    static constexpr int  kFindEntry       = 2;
-    static constexpr int  kCodeOptionEntry = 100;
+    static constexpr int  kDialectEntry = 1;
+    static constexpr int  kFindEntry    = 2;
 
     void                                  SetWindowMenus     ();
     void                                  Detach             ();
@@ -481,7 +481,7 @@ protected:
                                  { return m_operandTips->TryGet (clientPx, scaler, text, screen, out, outCell); }
     void  PlaceOperandTip        (const DxuiMouseEvent & ev, bool isPressed, const DxuiDpiScaler & scaler, IDxuiTextRenderer & text, const OperandTipScreen & screen)
                                  { m_operandTips->Place (ev, isPressed, scaler, text, screen); }
-    void  CheckOperandTip        (int view) { m_operandTips->Check (view); }
+    void  CheckOperandTip        (int view) override { m_operandTips->Check (view); }
     void  CheckOperandTipPointer (POINT clientPx) { m_operandTips->CheckPointer (clientPx); }
     bool  HasOperandTip          () const { return m_operandTips->HasTip(); }
 
@@ -598,9 +598,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     CloseZoomPopup   ();
     void     PaintZoomPopup   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void     ApplySnapshot    ();
-    void     ApplyHistory     ();
     void     UpdateChanges    ();
-    void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     RunToCursor      (Word address);
     void     RunAction        (const DebuggerAction & action) override;
@@ -676,8 +674,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ApplySavedFind       (const std::wstring & pane, FindState & state) const;
     void     OpenSpeedMenu        (const RECT & field);
     void     SaveMemoryToFile     ();
-    void     ConfigureCodeBars    ();
-    void     PlaceCodeBars        ();
     void     ConfigureConsoleBar  ();
     void     PlaceConsoleBar      ();
     bool     RouteConsoleBarMouse (const DxuiMouseEvent & ev);
@@ -759,9 +755,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool     IsRestoringViews   () const override;
     bool     ForwardToList    (DxuiListView * list, const DxuiMouseEvent & ev);
     void     ShowCode         (std::optional<Word> address);
-    void     ConfigureCodeList (int view);
-    int      GetCodeViewOf    (const IDxuiControl * control) const;
-    int      GetOpenCodeViewCount () const;
     const std::vector<DebuggerViewSnapshot::CodeLine> &  GetCodeLines (int view) const override;
     void     ApplyCodeView    (int view);
     void     UpdateTooltip    (POINT clientPx) override;
@@ -782,14 +775,13 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                   IsOperandTipCovered  (int view, POINT clientPx, const RECT & tipRect, const OperandTipScreen & screen) const;
     void                   EraseFloatTip        (const std::wstring & key);
     static bool            Meets                (const RECT & over, POINT clientPx, const RECT & tipRect);
-    static BOOL CALLBACK   CollectWindowOver       (HWND hwnd, LPARAM param);
 
     std::wstring  GetTitleButtonTipAt (POINT clientPx, RECT & button) const;
     bool     TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
 
     //  The anchor of a tip that follows the pointer: the pointer's own pixel.
     static RECT  GetPointerAnchor (POINT clientPx) { return RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 }; }
-    std::optional<Byte>  GetRegisterByte (const std::string & name) const;
+    std::optional<Byte>  GetRegisterByte (const std::string & name) const override;
 
     //  The debugger's colors, from the active theme: a breakpoint's red, the
     //  PC's arrow and row, the row another pane brought into view, a branch's
@@ -797,21 +789,19 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool      IsDarkTheme          () const;
     uint32_t  GetBreakpointArgb    () const override;
     std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled) override;
-    std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon ();
+    std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon () override;
 
     //  The PC's arrow for the glyph margin, over `dot` when the line has one.
     std::shared_ptr<const DxuiIconImage>  GetPcIcon (const std::shared_ptr<const DxuiIconImage> & dot);
-    bool      TryGetSourceText     (int fileId, int line, std::wstring & text);
     uint32_t  GetPcMarkerArgb      () const override;
     uint32_t  GetPcRowArgb         () const override;
-    uint32_t  GetNavigatedRowArgb  () const;
-    uint32_t  GetTargetRowArgb     () const;
+    uint32_t  GetNavigatedRowArgb  () const override;
+    uint32_t  GetTargetRowArgb     () const override;
     uint32_t  GetAnnotationArgb    () const;
     uint32_t  GetChangedArgb       () const;
 
     //  The disassembly views' bytes, for the changed color in their bytes
     //  column.
-    void      UpdateCodeChanges    ();
     uint32_t  GetResultArgb        () const override;
     SourceSyntax::Colors  GetSyntaxColors () const override;
     DebuggerTextColors::Set  GetTextColors () const override;
@@ -860,15 +850,11 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     RECT                                    m_openedRect         = {};
     bool                                    m_placed             = false;
-    std::optional<Word>                     m_navigatedTo;
-    int                                     m_navigatedView      = 0;
     std::string                             m_menuState;
     uint32_t                                m_goToSerial         = 0;
     StopChanges                             m_stopChanges;
-    ByteChanges                             m_codeChanges;
 
     POINT                                   m_lastPressPx        = {};
-    bool                                    m_arrowShowsTarget   = false;
 
     //  The optional views open at the last save, and whether the ones saved
     //  before have been reopened yet. Reopening is asynchronous, so saving
@@ -887,6 +873,9 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
     //  The disassembly views' breakpoint column and the PC's arrow in it.
     std::unique_ptr<DisassemblyGutter>      m_gutter;
+
+    //  The disassembly views and what they share.
+    std::unique_ptr<DisassemblyGroup>       m_code;
 
     //  The status bar along the bottom, and the zoom popup its zoom field
     //  opens above it, drawn on the top layer.
@@ -950,22 +939,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     StopFocus                                                                        m_stopFocus;
     std::wstring                                                                     m_tornOffPane;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
-    DxuiListView                                                                   * m_codeList           = nullptr;
-    std::array<DxuiListView *, DebuggerViewState::kMaxCodeViews>                     m_codeLists          = {};
-    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxCodeViews> m_codeFrames;
-    std::array<std::unique_ptr<DebuggerPaneFrame>, DebuggerViewState::kMaxCodeViews> m_codeBarSlots;
-    std::array<DxuiToolbar *, DebuggerViewState::kMaxCodeViews>                      m_codeBars           = {};
-    std::vector<std::unique_ptr<ToolbarCheckEntry>>                                  m_codeOptionEntries;
-    DisassemblyOptions                                                               m_codeOptions;
-    std::array<std::vector<DisassemblyOptions::Row>, DebuggerViewState::kMaxCodeViews> m_codeRows;
-    std::wstring                                                                     m_codeSourceKey;
-    std::map<int, std::vector<std::wstring>>                                         m_codeSourceText;
-    std::array<bool, DebuggerViewState::kMaxCodeViews>                               m_codeOpen           = { true };
     uint32_t                                                                         m_shownPaneSerial    = 0;
-    std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
-    int                                                                              m_activeCode         = 0;
-    std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>                m_codeSelected;
-    HistoryBand                                                                    * m_codeHistoryBand    = nullptr;
     bool                                                                             m_isHeatMapRecording = false;
     bool                                                                             m_isHeatColumnsRecording = false;
     int64_t                                                                          m_framePaintedAt     = 0;
@@ -1027,6 +1001,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     const DxuiDpiScaler & GetPaneScaler         () const override { return m_scaler; }
     bool                 IsBarRouted            (const std::wstring & pane) const override { return m_routingPane == GetBarRoutingPane (pane); }
     void                 Repaint                () override { Invalidate(); }
+    int                  GetListColumnAt        (const DxuiListView * list, int xPx) const override { return GetColumnAt (list, xPx); }
     void                 OpenSource             (int fileId, int line) override;
     void                 SetPaneTitle           (const std::wstring & pane, const std::wstring & title) override { m_dockSite->SetTitle (pane, title); }
     void                 SetPaneTabMark         (const std::wstring & pane, const DxuiTabGroup::LeadingMark & mark, const std::wstring & tip) override;
@@ -1034,7 +1009,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiToolbar::Entry   GetFindEntry           (const std::wstring & pane) override { return MakeFindEntry (pane); }
     void                 SaveOpenViews          () override { KeepOpenViews(); }
     std::shared_ptr<const DxuiIconImage>  GetPcMarker (const std::shared_ptr<const DxuiIconImage> & dot) override { return GetPcIcon (dot); }
-    bool                 IsCodeHeatOn           () const override { return m_codeOptions.IsOn (DisassemblyOptions::Option::Heat); }
+    bool                 IsCodeHeatOn           () const override;
     bool                 RunKeyAction           (DebuggerKeySchemes::Action action) override { return OnMappedCommand ((int) action); }
 
     Word                 GetCursorAddress       () const;

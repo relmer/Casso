@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
@@ -152,7 +153,7 @@ void DebuggerWindow::ReloadProjectState()
     m_dockSite->SetPaneLayout (restored);
     m_syncFloats = true;
 
-    m_codeOptions = DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions());
+    m_code->SetOptions (DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions()));
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
     {

@@ -12,6 +12,7 @@
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 #include "Ui/Debugger/DebuggerCommands.h"
 #include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 #include "Ui/Debugger/Panes/TracePaneController.h"
@@ -470,7 +471,7 @@ void DebuggerWindow::OpenOptions()
     }
 
     current.reverse     = m_host->GetReverseOptions();
-    current.disassembly = m_codeOptions;
+    current.disassembly = m_code->GetOptions();
 
     chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_theme, current, (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus());
 
@@ -481,8 +482,8 @@ void DebuggerWindow::OpenOptions()
 
     m_host->SetReverseOptions (chosen->reverse);
 
-    m_codeOptions = chosen->disassembly;
-    m_host->SetDebuggerDisassemblyOptions (m_codeOptions.ToText());
+    m_code->SetOptions (chosen->disassembly);
+    m_host->SetDebuggerDisassemblyOptions (m_code->GetOptions().ToText());
 
     for (view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
     {
@@ -1204,127 +1205,6 @@ DxuiToolbar::Entry DebuggerWindow::MakeFindEntry (const std::wstring & pane)
     entry.kind    = DxuiToolbar::Kind::Command;
 
     return entry;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ConfigureCodeBars
-//
-//  Each disassembly view's toolbar: its viewing options as check boxes, as
-//  Visual Studio's are. The options hold for every view.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ConfigureCodeBars()
-{
-    constexpr DisassemblyOptions::Option  kOrder[] = { DisassemblyOptions::Option::Addresses,
-                                                       DisassemblyOptions::Option::CodeBytes,
-                                                       DisassemblyOptions::Option::Source,
-                                                       DisassemblyOptions::Option::Symbols,
-                                                       DisassemblyOptions::Option::LineNumbers,
-                                                       DisassemblyOptions::Option::Heat };
-
-
-
-    m_codeOptionEntries.clear();
-
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        DxuiToolbar                      * bar = m_codeBars[(size_t) view];
-        std::vector<DxuiToolbar::Entry>    entries;
-
-        for (DisassemblyOptions::Option option : kOrder)
-        {
-            auto                command = std::make_shared<DxuiCommand>();
-            DxuiToolbar::Entry  entry;
-
-            command->id        = kCodeOptionEntry + (int) option;
-            command->label     = DisassemblyOptions::GetLabel (option);
-            command->dispatch  = [this, option] { ToggleCodeOption (option); };
-            command->isChecked = [this, option] { return m_codeOptions.IsOn (option); };
-            command->isEnabled = [this, option] { return IsCodeOptionEnabled (option); };
-
-            m_codeOptionEntries.push_back (std::make_unique<ToolbarCheckEntry> (command));
-
-            if (option == DisassemblyOptions::Option::Source)
-            {
-                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSourceTip (IsCodeOptionEnabled (DisassemblyOptions::Option::Source)); });
-            }
-            else if (option == DisassemblyOptions::Option::LineNumbers)
-            {
-                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetLineNumbersTip (m_snapshot != nullptr && m_snapshot->source.has_value(), m_codeOptions.IsOn (DisassemblyOptions::Option::Source)); });
-            }
-            else if (option == DisassemblyOptions::Option::Symbols)
-            {
-                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSymbolsTip ((m_snapshot != nullptr) ? m_snapshot->symbolSources : std::vector<std::string>()); });
-            }
-
-            //  A command, not a toggle: the check box shows the state, so the
-            //  entry draws no pressed box around a checked one.
-            entry.command = command;
-            entry.kind    = DxuiToolbar::Kind::Command;
-            entry.custom  = m_codeOptionEntries.back().get();
-            entries.push_back (std::move (entry));
-        }
-
-        bar->SetTextRenderer  (GetTextRenderer());
-        bar->SetPopupHost     (GetPopupHost());
-        bar->SetCompact       (true);
-        bar->SetPaneTextInset (true);
-        bar->SetEntries       (std::move (entries));
-        bar->SetVisible       (false);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::PlaceCodeBars
-//
-//  As the source documents' bars: each sits in the place held at the top of
-//  its view and goes with the view into a floating window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PlaceCodeBars()
-{
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        DxuiToolbar        * bar   = m_codeBars[(size_t) view];
-        DebuggerPaneFrame  * slot  = m_codeBarSlots[(size_t) view].get();
-        bool                 shown = bar != nullptr && slot != nullptr && slot->IsVisible();
-        DxuiWindow         * host  = nullptr;
-        RECT                 place = {};
-
-        if (bar == nullptr)
-        {
-            continue;
-        }
-
-        bar->SetVisible (shown);
-
-        if (!shown)
-        {
-            continue;
-        }
-
-        host  = GetPaneHost (DebuggerLayout::GetCodePaneId (view));
-        place = slot->GetBounds();
-
-        bar->SetTextRenderer   (host->GetTextRenderer());
-        bar->SetPopupHost      (host->GetPopupHost());
-        bar->SetHostClientRect (host->GetBounds());
-        bar->Layout            (GetBarStrip (DebuggerLayout::GetCodePaneId (view), place), m_scaler);
-
-        host->SetChildClip (bar, place);
-    }
 }
 
 

@@ -22,11 +22,6 @@
 
 void DebuggerWindow::CreateColorKeys()
 {
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        AddColorKey (DebuggerLayout::GetCodePaneId (view), m_codeBarSlots[(size_t) view].get(), ColorLegend::Pane::Disassembly);
-    }
-
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         std::optional<PaneColorKeySpec>  key = pane->GetColorKey();
