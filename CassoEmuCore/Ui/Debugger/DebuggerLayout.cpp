@@ -316,6 +316,18 @@ std::wstring DebuggerLayout::TakeClosedPanes (const std::wstring & text, std::se
 
 std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, const std::wstring & pane)
 {
+    //  The heat map and its ranges go together, wherever the one already in
+    //  the layout is.
+    if (pane == kHeatRanges && layout.Contains (kHeatMap))
+    {
+        return kHeatMap;
+    }
+
+    if (pane == kHeatMap && layout.Contains (kHeatRanges))
+    {
+        return kHeatRanges;
+    }
+
     if (pane.starts_with (L"memory") || pane == kHeatMap || pane == kHeatRanges)
     {
         return GetMemoryPaneId (1);

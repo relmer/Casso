@@ -192,5 +192,18 @@ namespace DebuggerLayoutTests
 
             Assert::IsTrue   (IsInGroup (restored, DebuggerLayout::kConsole, DebuggerLayout::kTrace));
             Assert::IsTrue   (restored.IsDocked (DebuggerLayout::kTrace));
-        }    };
+        }
+
+
+        TEST_METHOD (TheHeatMapRangesJoinTheHeatMapWhereverItIs)
+        {
+            DxuiPaneLayout  restored = DebuggerLayout::Restore (
+                L"dxui-layout 1\ntree (split h 0.6000 (tabs 0 \"code\" \"heatmap\") (tabs 0 \"registers\" \"memory1\"))\n");
+
+
+
+            Assert::IsTrue  (IsInGroup (restored, DebuggerLayout::kHeatMap, DebuggerLayout::kHeatRanges), L"the ranges are not beside the heat map");
+            Assert::IsFalse (IsInGroup (restored, DebuggerLayout::GetMemoryPaneId (1), DebuggerLayout::kHeatRanges));
+        }
+    };
 }
