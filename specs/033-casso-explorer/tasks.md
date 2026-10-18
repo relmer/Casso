@@ -699,7 +699,7 @@ audio bootstrap, once Casso emulates the cards.
 
 ## Phase 24: Section H validation
 
-- [ ] T218 Walk quickstart.md §7b steps 1 to 4 on x64 Debug and Release, and record SC-029, SC-030 and SC-032 in `specs/033-casso-explorer/validation.md`. Per SC-029, SC-030 and SC-032.
+- [X] T218 Walk quickstart.md §7b steps 1 to 4 on x64 Debug and Release, and record SC-029, SC-030 and SC-032 in `specs/033-casso-explorer/validation.md`. Per SC-029, SC-030 and SC-032.
 
 ## Section H dependencies
 

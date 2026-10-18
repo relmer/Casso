@@ -201,6 +201,47 @@ on both builds at every step.
 | FR-068 | The command bar ends with Theme and the Preview toggle, with no Monitor drop-down |
 | FR-067, Release | With PICTURE selected, Amber monochrome picked on the options dialog's Display page turned the preview amber before OK: the lit pixels' mean went from R 118 G 121 B 121 to R 151 G 124 B 33. Cancel was then pressed |
 
+### Quickstart 7b steps 1 to 4, 2026-10-17 and 18
+
+x64 Release, then x64 Debug at commit `64741e1d`, driven with posted clicks and
+keys. An emulated //c in Casso had `link.dsk` in drive 1 and a copy of
+`UnitTest/Fixtures/CassoExplorer/dos33.dsk` with a 10 KB binary, TENK at
+$4000, in drive 2; its port 2 was the TCP bridge on port 6502. For step 3,
+drive 1 had ADTPro 2.1.0's client disk. Eight defects were found in the walk,
+each fixed before the Debug pass and listed below the table.
+
+| Check | Result |
+|---|---|
+| FR-083b: no setup | With Casso running and Casso Explorer started, CassoLink listed `Casso on port 6502`, and the connection opened with the status bar at `Connected to Apple //c (ROM 4)` |
+| FR-090: the screens | Before Casso Explorer started, the shim's `WAITING FOR THE PC ON PORT 2 AT 115200`; connected, the program's status screen with `PC: CONNECTED`; during the catalog read, `READING THE CATALOG OF D2` |
+| Drives and volumes | Two drives, `Slot 6, Drive 2 (DOS 3.3 volume 77)` once its catalog was read, eight files with TENK at 11 KB |
+| Closing Casso | Its connection was removed from CassoLink, and the list on it went to This PC |
+| SC-029: copy out | TENK copied and pasted into a folder as `TENK.Binary.$4000.bin`: `fc /b` against the original, no differences, on both builds |
+| SC-029: copy in | A copy pasted onto drive 2 as TENK2, read back with `CassoCli disk get`: loads at $4000, `fc /b` no differences, on both builds |
+| SC-029: disk to `.dsk` | Create image, 30 s: `fc /b` against the source image, no differences, on both builds |
+| Step 2: a pause | The //c paused 10.0 s (Release 11.1 s) in the middle of a read; the read completed in 38 s (Debug 40 s), equal to the disk |
+| SC-032: ADTPro send | The client's Send of drive 1, 29 s on both builds: `STEP3.dsk` in the ADTPro folder, byte for byte the client disk |
+| SC-032: ADTPro receive | The client's Receive into drive 2, picked from its file chooser: drive 2's image byte for byte the client disk, 43 s (Debug 45 s), `COMPLETE!` |
+| SC-030: the line closed | Port 2 set to Not connected partway through a read: `Drive 2: the connection to the Apple closed.`, no image file. Port 2 back on TCP: the connection was made again with no action, and the next read, 28 s (Debug 29 s), equal, with neither program restarted |
+
+Defects found and fixed in the walk:
+
+- A file copied out of a disk image or a CassoLink drive could not be pasted
+  in Casso Explorer itself; Paste now goes through the folder's drop target.
+- Paste was offered only in host folders; it now puts files onto disk images
+  and CassoLink drives by the rules a drop follows.
+- The status bar drew its activity text over the item count, and a link
+  operation's progress flickered on and off as other updates replaced it.
+- With ADTPro's client served, a Casso found on its own was not opened until
+  its connection was, so the client's first request timed out.
+- A receive into a //c running at its own speed stopped after 40 blocks: the
+  host's timeout for the client's next request, 3 s, was shorter than the
+  client's write of the blocks to its disk. The timeout is now 30 s.
+- A line that closed was reported as `the Apple did not complete it`.
+- The message box's error icon was a pink circle with a black cross.
+- The tree did not open to a CassoLink connection or drive open in the list, and
+  highlighted `Documents\ADTPro` for a tab in the ADTPro folder.
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
