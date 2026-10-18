@@ -232,7 +232,8 @@
     <ClCompile Include="Ui\Debugger\PaneBarSlot.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerMenuCommand.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\ProfileTimeline.cpp" />
-    <ClCompile Include="Ui\Debugger\DebuggerWindowBreakpoints.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\BreakpointsPane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\CallStackController.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatMapPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\HeatRangesPane.cpp" />
     <ClCompile Include="Ui\Debugger\HeatMapRangeBarCommands.cpp" />
@@ -880,6 +881,8 @@
     <ClInclude Include="Ui\Debugger\Panes\HeatRangesPane.h" />
     <ClInclude Include="Ui\Debugger\Panes\EventLogControllers.h" />
     <ClInclude Include="Ui\Debugger\Panes\MemoryWindows.h" />
+    <ClInclude Include="Ui\Debugger\Panes\BreakpointsPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\CallStackController.h" />
     <ClInclude Include="Ui\Debugger\Panes\UndoListPanes.h" />
     <ClInclude Include="Ui\Debugger\Panes\WatchesPane.h" />
     <ClInclude Include="Ui\Debugger\IDebuggerWindowHost.h" />

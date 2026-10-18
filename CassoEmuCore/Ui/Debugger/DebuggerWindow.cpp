@@ -25,9 +25,9 @@
 #include "Debugger/LineAssembler.h"
 #include "OpcodeTable.h"
 #include "Ui/Debugger/Panes/BasicPanes.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
-#include "Ui/Debugger/Panes/CallStackPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
@@ -45,7 +45,6 @@
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 #include "Ui/Debugger/UndoBarCommands.h"
-#include "Ui/Debugger/BreakpointBarCommands.h"
 
 
 
@@ -187,9 +186,6 @@ void DebuggerWindow::OnCreate()
 
     m_codeOptions = DisassemblyOptions::FromText ((m_host != nullptr) ? m_host->GetDebuggerDisassemblyOptions() : std::string());
 
-    m_breakpointList    = CreateChild<DxuiListView>  ();
-    m_callStackList     = CreateChild<DxuiListView>  ();
-    m_callStackButton   = CreateChild<DxuiButton>    (L"Hybrid");
     m_consoleView       = CreateChild<DxuiTextView>  ();
     m_traceList         = CreateChild<DxuiListView>  ();
     m_traceHint         = CreateChild<KeyHintLine>   ();
@@ -197,7 +193,6 @@ void DebuggerWindow::OnCreate()
     m_codeHistoryBand->SetOnGoLive ([this] { GoLiveFromBand(); });
     m_commandBox       = CreateChild<DxuiTextInput> ();
     m_consoleBar        = CreateChild<DxuiToolbar>   ();
-    m_breakpointBar     = CreateChild<DxuiToolbar>   ();
     CreateStatusBar();
 
     m_tracePane = std::make_unique<TracePane> (
@@ -231,12 +226,6 @@ void DebuggerWindow::OnCreate()
         m_sourceDocs[(size_t) slot].pane->SetOnLoadSymbols ([this, slot] { LoadSymbolsFor (slot); });
     }
 
-    m_callStackPane = std::make_unique<CallStackPane> (
-        m_callStackList, m_callStackButton,
-        [this] (const DebuggerActionBuilder & build) { RunAction (build (GetMode())); },
-        [this] (Word address)             { ShowCode (address); },
-        [this] (Word line)                { ShowBasicLine (line); });
-
     CreateBasicPanes();
     CreatePanes();
 
@@ -258,15 +247,8 @@ void DebuggerWindow::OnCreate()
     m_dockSite = CreateChild<DxuiDockSite>();
     m_dockSite->SetPaneGap (DxuiDockSite::kPaneGapDip, DxuiDockSite::kPaneMarginDip);
 
-    //  After even the site, so a box being edited in place is drawn over its
-    //  row.
-    m_nameEditor = CreateChild<DxuiTextInput>();
-    m_nameEditor->SetVisible       (false);
-    m_nameEditor->SetOverText      (true);
-    m_nameEditor->SetHwnd          (GetHwnd());
-    m_nameEditor->SetMaxLength     (64);
-
-    //  And each pane's own, such as a heat map range's or its set's name.
+    //  After even the site, so a box being edited in place, such as a
+    //  breakpoint's or a heat map range's name, is drawn over its row.
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->CreateOverlays();
@@ -311,7 +293,6 @@ void DebuggerWindow::ConfigureWidgets()
         pane->Configure();
     }
 
-    ConfigureBreakpointBar();
     ConfigureBasicPanes();
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -324,7 +305,6 @@ void DebuggerWindow::ConfigureWidgets()
         document.pane->Configure (GetHwnd());
     }
 
-    m_callStackPane->Configure();
     SetAcceptsDroppedFiles  (true);
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
@@ -332,9 +312,6 @@ void DebuggerWindow::ConfigureWidgets()
         ConfigureCodeList (view);
     }
 
-    m_breakpointList->SetActivateOnDoubleClick (true);
-
-    SetBreakpointColumns();
     //  THE CONSOLE IS TEXT, NOT A LIST: no columns or rows to pick, a
     //  selection that runs through the text as an editor's does, and Ctrl+C
     //  to copy it.
@@ -342,41 +319,6 @@ void DebuggerWindow::ConfigureWidgets()
     m_consoleView->SetFollowEnd     (true);
     m_consoleView->SetLineSpacing   (kConsoleLineSpacing);
     m_consoleView->SetPaneTextInset (true);
-
-    //  Activating a breakpoint brings its address into view, or on its Name
-    //  opens the rename box; its checkbox turns it on and off, as in Visual
-    //  Studio's Breakpoints window.
-    m_breakpointList->SetOnActivateRow ([this] (int row)
-    {
-        const DebuggerViewSnapshot::BreakpointLine  * bp   = GetBreakpointOfRow (row);
-        RECT                                          name = {};
-        RECT                                          list = m_breakpointList->GetBounds();
-        bool                                          isOn = m_breakpointList->GetCellTextRectPx (row, 0, name) && m_lastPressPx.x - list.left >= name.left &&
-                                                             m_lastPressPx.x - list.left < name.right;
-
-        if (bp != nullptr && isOn)
-        {
-            BeginNameEdit (row);
-        }
-        else if (bp != nullptr)
-        {
-            ShowCode (bp->address);
-        }
-    });
-
-    m_breakpointList->SetOnCheckToggled ([this] (int row, size_t, bool checked)
-    {
-        const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
-
-        if (bp != nullptr)
-        {
-            RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp->id, checked, GetMode()) }, {} });
-        }
-    });
-
-    //  A click on a heading sorts by that column, and a second click on the
-    //  same one turns the order around.
-    m_breakpointList->SetOnSortColumn ([this] (int column) { SortBreakpoints ((BreakpointColumns::Column) column); });
 
     for (DxuiListView * list : GetLists())
     {
@@ -634,8 +576,7 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
-    std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_breakpointList, m_callStackList,
-                                           m_traceList, m_basicProgramList };
+    std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_traceList, m_basicProgramList };
 
 
 
@@ -668,8 +609,7 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
-    std::vector<DxuiListView *>  lists = { m_callStackList, m_breakpointList, m_traceList,
-                                           m_basicProgramList };
+    std::vector<DxuiListView *>  lists = { m_traceList, m_basicProgramList };
 
 
 
@@ -870,7 +810,7 @@ std::vector<IDxuiControl *> DebuggerWindow::GetPressTargets() const
 
 
 
-    targets.insert (targets.end(), { m_callStackButton, m_commandBox });
+    targets.push_back (m_commandBox);
 
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
@@ -3756,8 +3696,6 @@ void DebuggerWindow::LayoutWidgets()
     m_dockSite->Layout (RECT { area.left, top, area.right, area.bottom }, m_scaler);
 
     UpdateCodeLines();
-    PlaceBreakpointBar();
-
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->PlaceBar();
@@ -4335,27 +4273,11 @@ void DebuggerWindow::ConfigureDockSite()
     //  console's text and the pane's title do.
     m_consoleFrame->SetPartTextAligned (m_commandBox, DxuiTextInput::kPadLeftDip);
 
-    m_callStackFrame = std::make_unique<DebuggerPaneFrame> (L"Call stack");
-    //  The pane always shows hybrid; CALLS MODE picks another (FR-068), so
-    //  the button that cycled them is not shown.
-    m_callStackButton->SetVisible (false);
-
-    //  The call stack has no toolbar and no color key: its Found by column
-    //  says what each dimmed row is, and the row's tip says why.
-    m_callStackFrame->AddPart (m_callStackList);
-
     //  The trace pane lists its keys above its rows.
     m_traceFrame = std::make_unique<DebuggerPaneFrame> (L"Trace");
     m_traceFrame->AddPart (m_traceHint, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTraceHintDip); });
     m_traceFrame->AddPart (m_traceList);
     m_traceFrame->SetPartTextAligned (m_traceHint);
-
-    //  The breakpoints pane is its toolbar over its rows (FR-119). The bar is a
-    //  place held at the pane's top, which PlaceBreakpointBar fills.
-    m_breakpointSlot  = std::make_unique<DebuggerPaneFrame> (L"Breakpoint commands");
-    m_breakpointFrame = std::make_unique<DebuggerPaneFrame> (L"Breakpoints");
-    m_breakpointFrame->AddPart (m_breakpointSlot.get(), barHeight);
-    m_breakpointFrame->AddPart (m_breakpointList);
 
     //  A disassembly view is its toolbar over its lines.
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
@@ -4381,8 +4303,6 @@ void DebuggerWindow::ConfigureDockSite()
     }
 
     m_dockSite->AddPane (DebuggerLayout::kConsole,     L"Console",     m_consoleFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kBreakpoints, L"Breakpoints", m_breakpointFrame.get());
-    m_dockSite->AddPane (DebuggerLayout::kCallStack,   L"Call stack",  m_callStackFrame.get());
     m_dockSite->AddPane (DebuggerLayout::kTrace,       L"Trace",       m_traceFrame.get());
 
     AddBasicPanes();
@@ -5382,11 +5302,6 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
         return false;
     }
 
-    if (list == m_breakpointList)
-    {
-        AddBreakpointColumnItems (commands);
-    }
-
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         (void) pane->AddColumnMenuItems (list, commands);
@@ -6002,64 +5917,6 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
             items.push_back ({ std::format (L"Close Disassembly {}", view + 1), [this, view] { if (m_host != nullptr) { m_host->CloseDebuggerCodeView (view); } } });
         }
     }
-    else if (list == m_breakpointList && GetBreakpointOfRow (row) != nullptr)
-    {
-        const DebuggerViewSnapshot::BreakpointLine  bp     = *GetBreakpointOfRow (row);
-        int                                         fileId = -1;
-        int                                         line   = 0;
-
-
-
-        //  Go to source code for one set from source or at an address with a
-        //  source line, and Go to disassembly for one at an address, as a
-        //  double-click does (FR-119).
-        if (BreakpointColumns::TryGetSourcePlace (s, bp, fileId, line))
-        {
-            items.push_back ({ L"Go to source code", [this, fileId, line] { OpenSourceDocument (fileId, line, true); } });
-        }
-
-        if (BreakpointColumns::HasAddress (bp.info))
-        {
-            items.push_back ({ L"Go to disassembly", [this, bp] { ShowCode (bp.address); } });
-        }
-
-        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, GetMode()) }, {} }); } });
-        items.push_back ({ L"Rename",                           [this, row] { BeginNameEdit (row); } });
-        items.push_back ({ L"Remove",                           [this, bp] { RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearBreakpoint (bp.id, GetMode()) }, {} }); } });
-
-        //  Its type and the fields that type needs, in a dialog; the result is
-        //  the definition BPEDIT takes, as a person could have typed it
-        //  (FR-094).
-        items.push_back ({ L"Edit...", [this, bp]
-        {
-            std::optional<std::string>  definition = BreakpointDialog::RunModal (GetHwnd(), m_theme, bp.info);
-
-            if (definition.has_value())
-            {
-                RunBreakpointStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEditBreakpoint (bp.id, *definition, GetMode()) }, {} });
-            }
-        } });
-    }
-    else if (list == m_callStackList && row >= 0 && row < (int) m_callStackPane->GetShownRows().size())
-    {
-        //  The pane's own rows: the BASIC frames come before the machine's.
-        const CallStackPane::Row  frame = m_callStackPane->GetShownRows()[(size_t) row];
-
-        if (!frame.basicLine.has_value())
-        {
-            items.push_back ({ L"Show call site", [this, at = frame.address] { ShowCode (at); } });
-        }
-
-        if (frame.routineAddress.has_value())
-        {
-            items.push_back ({ L"Never step into this routine", [this, frame]
-            {
-                RunAction (DebuggerActions::GetSkipRoutine (frame.routineSymbol, *frame.routineAddress, GetMode()));
-            } });
-        }
-
-        items.push_back ({ L"Copy", copy });
-    }
     else if (list == m_traceList)
     {
         items.push_back ({ L"Copy", copy });
@@ -6145,7 +6002,7 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_breakpointBar, m_consoleBar })
+    for (DxuiToolbar * strip : { m_commandBar, m_consoleBar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
@@ -6215,8 +6072,6 @@ void DebuggerWindow::RenderFrame()
     SyncCommandBarFloatTip();
     SyncTimeline();
     CarryTornOffPane();
-    PlaceBreakpointBar();
-
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->PlaceBar();
@@ -6797,11 +6652,6 @@ void DebuggerWindow::ApplySnapshot()
     m_tracePane->Apply      (m_snapshot->trace);
 
 
-    ApplyBreakpoints();
-
-    m_callStackPane->SetColors (GetTextColors());
-    m_callStackPane->Apply     (m_snapshot->callStack, BasicWatches::IsStoppedInProgram (m_snapshot->basic) ? m_snapshot->basic->frames : std::vector<BasicFrame>());
-
     FollowBasicProgram();
     ApplyBasicPanes();
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
@@ -6893,7 +6743,7 @@ void DebuggerWindow::KeepOpenViews()
     text  = DebuggerViewState::FormatOpenViews (*m_snapshot);
     text += m_documents.Format (nameOf);
     text += SourceDocuments::FormatSaved (m_pendingSourceDocs);
-    text += BreakpointColumns::FormatShown (m_breakpointShown);
+    text += BreakpointColumns::FormatShown (m_breakpointsPane->GetShown());
     text += DebuggerLayout::FormatBasicOpened (m_basicOpened);
 
     if (!text.empty() && text.front() == ' ')
@@ -6908,10 +6758,9 @@ void DebuggerWindow::KeepOpenViews()
         m_openViewsSettling = m_openViewsSaved.empty() ? 0 : kSettlingSnapshots;
         views               = DebuggerViewState::ParseOpenViews (m_openViewsSaved);
         m_pendingSourceDocs = SourceDocuments::Parse (m_openViewsSaved);
-        m_breakpointShown   = BreakpointColumns::ParseShown (m_openViewsSaved);
         m_basicOpened       = DebuggerLayout::ParseBasicOpened (m_openViewsSaved);
 
-        SetBreakpointColumns();
+        m_breakpointsPane->SetShown (BreakpointColumns::ParseShown (m_openViewsSaved));
 
         for (int view = 1; view < DebuggerViewState::kMaxCodeViews; view++)
         {
@@ -7369,7 +7218,7 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_breakpointBar, m_consoleBar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_consoleBar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
     }
@@ -7443,13 +7292,6 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
     if (m_routingPane == (m_barHost.IsFloating() ? std::wstring (kBarFloatKey) : std::wstring()) && m_commandBar != nullptr && m_commandBar->IsVisible())
     {
         barTip = m_commandBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
-    }
-
-    //  And the breakpoints pane's.
-    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) &&
-        m_breakpointBar != nullptr && m_breakpointBar->IsVisible())
-    {
-        barTip = m_breakpointBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
     }
 
     //  And each pane's on the pane interface.
@@ -9782,27 +9624,8 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
     //  marks a drag over the cell.
     UpdateOperandTip (ev, ev.button == DxuiMouseButton::Left);
 
-    //  A breakpoint being renamed takes the pointer while it is over the box;
-    //  a press or a wheel anywhere else keeps the edit and lets it through.
-    if (m_nameEdit.row >= 0)
-    {
-        RECT  box = m_nameEditor->GetBounds();
-
-        if (DxuiDockSite::Contains (box, POINT { x, y }))
-        {
-            m_nameEditor->OnMouse (ev);
-            Invalidate();
-            return true;
-        }
-
-        if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel)
-        {
-            EndNameEdit (true);
-        }
-    }
-
-    //  And a pane's own box being edited, such as a watch, a register, a heat
-    //  map range or its set's name.
+    //  A pane's own box being edited, such as a breakpoint's name, a watch, a
+    //  register, a heat map range or its set's name.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteEditMouse (ev))
@@ -9855,12 +9678,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  The panes' info buttons first: they sit at the ends of the toolbars.
     if (RouteColorKeyMouse (ev))
-    {
-        return true;
-    }
-
-    //  Then the breakpoints pane's toolbar.
-    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kBreakpoints) && RouteBreakpointBarMouse (ev))
     {
         return true;
     }
@@ -10026,12 +9843,6 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
             {
                 button->SetMouse (x, y, button->HitTest (x, y) && lbDown);
             }
-        }
-
-        //  The call stack's button moves with its pane.
-        if (IsRoutable (m_callStackButton))
-        {
-            m_callStackButton->SetMouse (x, y, m_callStackButton->HitTest (x, y) && lbDown);
         }
 
         //  The trace's key hints light under the pointer.
@@ -10217,8 +10028,6 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
     }
 
     if (pane == DebuggerLayout::kConsole)     { return { m_consoleBarSlot.get(), m_consoleBar, m_consoleView, m_commandBox }; }
-    if (pane == DebuggerLayout::kBreakpoints) { return { m_breakpointSlot.get(), m_breakpointList, m_breakpointBar, m_nameEditor }; }
-    if (pane == DebuggerLayout::kCallStack)   { return { m_callStackButton, m_callStackList }; }
     if (pane == DebuggerLayout::kTrace)       { return { m_traceHint, m_traceList };     }
 
     if (DebuggerLayout::IsBasicPane (pane))
@@ -10266,16 +10075,6 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
     if (pane == DebuggerLayout::kConsole)
     {
         return m_consoleFrame.get();
-    }
-
-    if (pane == DebuggerLayout::kCallStack)
-    {
-        return m_callStackFrame.get();
-    }
-
-    if (pane == DebuggerLayout::kBreakpoints)
-    {
-        return m_breakpointFrame.get();
     }
 
     if (pane == DebuggerLayout::kTrace)
@@ -10997,172 +10796,6 @@ void DebuggerWindow::FloatControls (const std::wstring & pane)
     }
 
     m_floats[pane] = std::move (window);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SetBreakpointColumns
-//
-//  Every column of FR-117, each shown or not as chosen; Name always shows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SetBreakpointColumns()
-{
-    std::vector<DxuiListView::Column>  columns;
-
-
-
-    for (size_t i = 0; i < BreakpointColumns::kCount; i++)
-    {
-        DxuiListView::Column  column;
-
-        column.title   = BreakpointColumns::GetHeading ((BreakpointColumns::Column) i);
-        column.visible = i == (size_t) BreakpointColumns::Column::Name || m_breakpointShown[i];
-        columns.push_back (column);
-    }
-
-    m_breakpointList->SetColumns (columns);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ApplyBreakpoints
-//
-//  A checkbox and the mark the code views' gutter shows ahead of the name,
-//  then a cell for each column, in the order the chosen heading sorts them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplyBreakpoints()
-{
-    std::vector<std::vector<DxuiListView::Cell>>  rows;
-
-
-
-    if (m_snapshot == nullptr)
-    {
-        return;
-    }
-
-    if (m_breakpointSort >= 0 && m_breakpointSort < (int) BreakpointColumns::kCount)
-    {
-        m_breakpointOrder = BreakpointColumns::GetOrder (*m_snapshot, (BreakpointColumns::Column) m_breakpointSort, m_breakpointReverse);
-        m_breakpointList->SetSortIndicator (m_breakpointSort, m_breakpointReverse);
-    }
-    else
-    {
-        m_breakpointOrder.resize (m_snapshot->breakpoints.size());
-
-        for (size_t i = 0; i < m_breakpointOrder.size(); i++)
-        {
-            m_breakpointOrder[i] = i;
-        }
-    }
-
-    for (size_t index : m_breakpointOrder)
-    {
-        const DebuggerViewSnapshot::BreakpointLine  & bp    = m_snapshot->breakpoints[index];
-        BreakpointColumns::Cells                      cells = BreakpointColumns::GetCells (*m_snapshot, bp);
-        std::vector<DxuiListView::Cell>               row;
-
-        for (const std::string & text : cells)
-        {
-            DxuiListView::Cell  cell;
-
-            cell.text = Widen (text);
-            cell.dim  = !bp.enabled;
-            row.push_back (cell);
-        }
-
-        row[(size_t) BreakpointColumns::Column::Name].check = bp.enabled;
-        row[(size_t) BreakpointColumns::Column::Name].icon  = GetBreakpointIcon (bp.enabled);
-        rows.push_back (std::move (row));
-    }
-
-    m_breakpointList->SetRows (std::move (rows));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetBreakpointOfRow
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const DebuggerViewSnapshot::BreakpointLine * DebuggerWindow::GetBreakpointOfRow (int row) const
-{
-    if (m_snapshot == nullptr || row < 0 || row >= (int) m_breakpointOrder.size())
-    {
-        return nullptr;
-    }
-
-    if (m_breakpointOrder[(size_t) row] >= m_snapshot->breakpoints.size())
-    {
-        return nullptr;
-    }
-
-    return &m_snapshot->breakpoints[m_breakpointOrder[(size_t) row]];
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ToggleBreakpointColumn
-//
-//  Shows or hides a column, and keeps the choice with the open views.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ToggleBreakpointColumn (BreakpointColumns::Column column)
-{
-    if (column == BreakpointColumns::Column::Name || column >= BreakpointColumns::Column::Count)
-    {
-        return;
-    }
-
-    m_breakpointShown[(size_t) column] = !m_breakpointShown[(size_t) column];
-    SetBreakpointColumns();
-    ApplyBreakpoints();
-
-    if (m_snapshot != nullptr)
-    {
-        KeepOpenViews();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SortBreakpoints
-//
-//  A click on a heading sorts by that column, and a second click on the
-//  same one turns the order around.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SortBreakpoints (BreakpointColumns::Column column)
-{
-    m_breakpointReverse = ((int) column == m_breakpointSort) && !m_breakpointReverse;
-    m_breakpointSort    = (int) column;
-    ApplyBreakpoints();
 }
 
 
@@ -12073,26 +11706,10 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  A breakpoint being renamed takes every key: Enter keeps what was
-    //  typed, Escape leaves the name as it was.
-    if (m_nameEdit.row >= 0)
-    {
-        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
-        {
-            EndNameEdit (ev.vk == VK_RETURN);
-        }
-        else
-        {
-            m_nameEditor->OnKey (ev);
-        }
-
-        Invalidate();
-        return true;
-    }
-
-    //  So does a pane's own box being edited, such as a watch, a register or
-    //  a heat map range; and a pane's list with the focus takes its own keys,
-    //  as F2 and Ctrl+Z in the registers, stack and watches.
+    //  A pane's own box being edited, such as a breakpoint's name, a watch, a
+    //  register or a heat map range, takes every key; and a pane's list with
+    //  the focus takes its own keys, as F2 and Ctrl+Z in the registers, stack,
+    //  watches and breakpoints.
     for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
         if (each->RouteEditKey (ev, focused))
@@ -12104,13 +11721,6 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  Shift+Esc closes the pane that has the focus, as in Visual Studio.
     if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && ev.shift && !ev.ctrl && !ev.alt && ClosePaneOfFocus())
     {
-        return true;
-    }
-
-    //  F2 renames the selected breakpoint, as in Visual Studio.
-    if (ev.kind == DxuiKeyEventKind::Down && focused == m_breakpointList && !ev.ctrl && !ev.alt && ev.vk == VK_F2)
-    {
-        BeginNameEdit (m_breakpointList->GetSelectedRow());
         return true;
     }
 

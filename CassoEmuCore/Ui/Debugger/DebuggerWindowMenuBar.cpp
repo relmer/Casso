@@ -11,6 +11,7 @@
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
 
 
@@ -239,8 +240,8 @@ void DebuggerWindow::SetWindowMenus()
     add (file, DebuggerMenuCommand::Make (L"Open source file...", false, [this] { OpenSourceFile(); }));
     add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", false, [this] { OpenSymbolFile(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", false, [this] { ImportBreakpoints(); }));
-    row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { ExportBreakpoints(); });
+    add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", false, [this] { m_breakpointsPane->Import(); }));
+    row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { m_breakpointsPane->Export(); });
     row->isEnabled = [this] { return IsBreakpointBarEnabled (BreakpointBarCommands::kExport); };
     add (file, row);
     add (file, DebuggerMenuCommand::Make (L"Save trace...", false, [this] { SaveTrace(); }));

@@ -45,7 +45,6 @@ void DebuggerWindow::CreateColorKeys()
         }
     }
 
-    AddColorKey (DebuggerLayout::kBreakpoints, m_breakpointSlot.get(),   ColorLegend::Pane::Breakpoints);
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {

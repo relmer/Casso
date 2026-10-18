@@ -151,6 +151,19 @@ public:
     //  show each in the disassembly, or go back to it.
     virtual void                   AddHeatAccessItems (Word address, HeatMapOptions::Bank bank, PaneMenuItems & items) = 0;
 
+    //  The breakpoints' color in the theme, and the code views' gutter mark
+    //  for one on or off.
+    virtual uint32_t               GetBreakpointArgb () const = 0;
+    virtual std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled) = 0;
+
+    //  Opens a source file's document at a line and brings it forward; and
+    //  moves the BASIC program pane to a line.
+    virtual void                   OpenSource       (int fileId, int line) = 0;
+    virtual void                   ShowBasicLine    (Word line) = 0;
+
+    //  Saves the open views, with the choices the panes save among them.
+    virtual void                   SaveOpenViews    () = 0;
+
     //  Opens a pane and brings it forward, as its row on the View menu does.
     virtual void                   OpenPane         (const std::wstring & pane) = 0;
 

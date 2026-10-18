@@ -8,6 +8,8 @@
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/HeatRangesPane.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/CallStackController.h"
 #include "Ui/Debugger/Panes/MemoryWindows.h"
 #include "Ui/Debugger/Panes/UndoListPanes.h"
 #include "Ui/Debugger/Panes/WatchesPane.h"
@@ -41,20 +43,24 @@ void DebuggerWindow::CreatePanes()
     std::unique_ptr<RegistersPane>        regs     = std::make_unique<RegistersPane>     (host);
     std::unique_ptr<StackPane>            stack    = std::make_unique<StackPane>         (host);
     std::unique_ptr<WatchesPane>          watches  = std::make_unique<WatchesPane>       (host);
+    std::unique_ptr<BreakpointsPane>      bps      = std::make_unique<BreakpointsPane>   (host);
 
 
 
-    m_profilerPane   = profiler.get();
-    m_heatMapPane    = heatMap.get();
-    m_heatRangesPane = ranges.get();
-    m_memoryGroup    = memory.get();
-    m_registersPane  = regs.get();
-    m_stackPane      = stack.get();
-    m_watchesPane    = watches.get();
+    m_profilerPane    = profiler.get();
+    m_heatMapPane     = heatMap.get();
+    m_heatRangesPane  = ranges.get();
+    m_memoryGroup     = memory.get();
+    m_registersPane   = regs.get();
+    m_stackPane       = stack.get();
+    m_watchesPane     = watches.get();
+    m_breakpointsPane = bps.get();
 
     m_panes.push_back (std::move (regs));
     m_panes.push_back (std::move (watches));
     m_panes.push_back (std::move (stack));
+    m_panes.push_back (std::move (bps));
+    m_panes.push_back (std::make_unique<CallStackController> (host));
 
     m_panes.push_back (std::move (heatMap));
     m_panes.push_back (std::move (ranges));
@@ -644,6 +650,198 @@ DxuiToolbar * DebuggerWindow::GetUndoBar (const std::wstring & pane) const
     }
 
     return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::AddZeroPagePointer
+//
+//  ZP of a zero-page address typed in a dialog, run directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::AddZeroPagePointer()
+{
+    std::optional<Byte>  address = RunByteDialog (L"Add zero-page pointer", L"Zero-page address");
+
+
+
+    if (address.has_value())
+    {
+        RunAction (DebuggerActions::GetAddZeroPagePointer (*address, GetMode()));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunBreakpointStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunBreakpointStep (BreakpointStep step)
+{
+    RunAction (DebuggerActions::GetBreakpointStep (std::move (step)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBreakpointList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView * DebuggerWindow::GetBreakpointList() const
+{
+    return m_breakpointsPane->GetList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBreakpointBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiToolbar * DebuggerWindow::GetBreakpointBar() const
+{
+    return m_breakpointsPane->GetBar();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::IsBreakpointBarEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::IsBreakpointBarEnabled (int id) const
+{
+    return m_breakpointsPane->IsBarEntryEnabled (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::RunBreakpointBarEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RunBreakpointBarEntry (int id)
+{
+    m_breakpointsPane->RunBarEntry (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::BeginNameEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::BeginNameEdit (int row)
+{
+    m_breakpointsPane->BeginNameEdit (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::EndNameEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::EndNameEdit (bool commit)
+{
+    m_breakpointsPane->EndNameEdit (commit);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::GetBreakpointOfRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DebuggerViewSnapshot::BreakpointLine * DebuggerWindow::GetBreakpointOfRow (int row) const
+{
+    return m_breakpointsPane->GetBreakpointOfRow (row);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ToggleBreakpointColumn
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ToggleBreakpointColumn (BreakpointColumns::Column column)
+{
+    m_breakpointsPane->ToggleColumn (column);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::SortBreakpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::SortBreakpoints (BreakpointColumns::Column column)
+{
+    m_breakpointsPane->Sort (column);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ApplyBreakpoints
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::ApplyBreakpoints()
+{
+    if (m_snapshot != nullptr)
+    {
+        m_breakpointsPane->Apply (*m_snapshot);
+    }
 }
 
 

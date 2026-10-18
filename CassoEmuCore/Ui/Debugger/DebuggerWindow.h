@@ -52,7 +52,6 @@
 class DebuggerCommands;
 class MemoryAddressEntry;
 class UndoBarCommands;
-class BreakpointBarCommands;
 class MemoryBarCommands;
 class HeatMapBarCommands;
 class HeatMapRangeBarCommands;
@@ -73,7 +72,7 @@ class RegistersPane;
 class StackPane;
 class WatchesPane;
 class SymbolsPane;
-class CallStackPane;
+class BreakpointsPane;
 class DiagnosticsPane;
 class MemoryPane;
 class TracePane;
@@ -393,20 +392,17 @@ protected:
     void                                          ToggleBreakpointColumn (BreakpointColumns::Column column);
     void                                          SortBreakpoints        (BreakpointColumns::Column column);
     void                                          KeepOpenViews          ();
-    DxuiListView *                                GetBreakpointList      () const { return m_breakpointList; }
+    DxuiListView *                                GetBreakpointList      () const;
     void                                          SetSnapshotForTest     (std::shared_ptr<const DebuggerViewSnapshot> snapshot) { m_snapshot = std::move (snapshot); }
     IDxuiControl *                                GetPaneContentForTest  (const std::wstring & pane) const { return GetPaneContent (pane); }
 
     //  Protected so a test can work the breakpoints pane's toolbar (FR-119)
     //  as a click does, and see which of its buttons can act.
-    DxuiToolbar *                                      GetBreakpointBar       () const { return m_breakpointBar; }
+    DxuiToolbar *                                      GetBreakpointBar       () const;
     bool                                               IsBreakpointBarEnabled (int id) const;
     void                                               RunBreakpointBarEntry  (int id);
-    void                                               NewBreakpoint          (BreakpointKind kind, WatchAccess access, bool isIoPage,
-                                                                               std::optional<BreakpointDialog::Type> type = std::nullopt);
     void                                               AddZeroPagePointer     () override;
     void                                               RunBreakpointStep      (BreakpointStep step);
-    std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelectedBreakpoints () const;
 
     //  Protected so a test can work the registers, stack and watch panes'
     //  Undo and Redo bars as a click does.
@@ -735,12 +731,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ConfigureSourceBars  ();
     void     PlaceSourceBars      ();
     bool     RouteSourceBarMouse  (DxuiToolbar * bar, const DxuiMouseEvent & ev);
-    void     ConfigureBreakpointBar  ();
-    void     SetBreakpointBarMenus   ();
-    void     PlaceBreakpointBar      ();
-    bool     RouteBreakpointBarMouse (const DxuiMouseEvent & ev);
-    void     ExportBreakpoints       ();
-    void     ImportBreakpoints       ();
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
     bool     IsFixedPane        (const std::wstring & pane) const;
@@ -801,7 +791,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                         HideDragMarks     ();
     void                         ShowFocusAccent   ();
     void                         DockFloatingPane  (const std::wstring & pane);
-    void                         SetBreakpointColumns ();
 
     static std::wstring                          GetMonitorKey (const RECT & rectPx);
     static std::vector<DxuiPaneLayout::Monitor>  GetMonitors   ();
@@ -881,8 +870,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  PC's arrow and row, the row another pane brought into view, a branch's
     //  destination, the annotations' comment color, and the syntax colors.
     bool      IsDarkTheme          () const;
-    uint32_t  GetBreakpointArgb    () const;
-    std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled);
+    uint32_t  GetBreakpointArgb    () const override;
+    std::shared_ptr<const DxuiIconImage>  GetBreakpointIcon (bool enabled) override;
     std::shared_ptr<const DxuiIconImage>  GetHoverBreakpointIcon ();
 
     //  The PC's arrow for the glyph margin, over `dot` when the line has one.
@@ -952,18 +941,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     uint32_t                                m_goToSerial         = 0;
     StopChanges                             m_stopChanges;
     ByteChanges                             m_codeChanges;
-
-    //  Renaming a breakpoint in place: the row and the breakpoint, and the
-    //  name the box opened with; Enter on that same name renames nothing.
-    struct NameEdit
-    {
-        int           row  = -1;
-        int           id   = -1;
-        std::wstring  opened;
-    };
-
-    DxuiTextInput                         * m_nameEditor         = nullptr;
-    NameEdit                                m_nameEdit;
 
     POINT                                   m_lastPressPx        = {};
     bool                                    m_arrowShowsTarget   = false;
@@ -1059,10 +1036,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     OpeningFocusDeferral                                                             m_openingFocus;
     StopFocus                                                                        m_stopFocus;
     std::wstring                                                                     m_tornOffPane;
-    std::array<bool, BreakpointColumns::kCount>                                      m_breakpointShown    = BreakpointColumns::GetDefaultShown();
-    std::vector<size_t>                                                              m_breakpointOrder;
-    int                                                                              m_breakpointSort     = -1;
-    bool                                                                             m_breakpointReverse  = false;
     std::unique_ptr<DebuggerPaneFrame>                                               m_consoleFrame;
     DxuiListView                                                                   * m_codeList           = nullptr;
     std::array<DxuiListView *, DebuggerViewState::kMaxCodeViews>                     m_codeLists          = {};
@@ -1084,11 +1057,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::array<int, DebuggerViewState::kMaxCodeViews>                                m_codeLinesSentTo    = {};
     int                                                                              m_activeCode         = 0;
     std::array<std::optional<Word>, DebuggerViewState::kMaxCodeViews>                m_codeSelected;
-    DxuiListView                                                                   * m_breakpointList     = nullptr;
-    DxuiListView                                                                   * m_callStackList      = nullptr;
-    DxuiButton                                                                     * m_callStackButton    = nullptr;
-    std::unique_ptr<CallStackPane>                                                   m_callStackPane;
-    std::unique_ptr<DebuggerPaneFrame>                                               m_callStackFrame;
     DxuiListView                                                                   * m_traceList          = nullptr;
     std::unique_ptr<TracePane>                                                       m_tracePane;
     KeyHintLine                                                                    * m_traceHint          = nullptr;
@@ -1120,13 +1088,14 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     //  calls them, and the profiler among them, whose bar's commands a test
     //  reads.
     std::vector<std::unique_ptr<IDebuggerPane>>    m_panes;
-    ProfilerPane                                 * m_profilerPane   = nullptr;
-    HeatMapPane                                  * m_heatMapPane    = nullptr;
-    HeatRangesPane                               * m_heatRangesPane = nullptr;
-    MemoryWindowGroup                            * m_memoryGroup    = nullptr;
-    RegistersPane                                * m_registersPane  = nullptr;
-    StackPane                                    * m_stackPane      = nullptr;
-    WatchesPane                                  * m_watchesPane    = nullptr;
+    ProfilerPane                                 * m_profilerPane    = nullptr;
+    HeatMapPane                                  * m_heatMapPane     = nullptr;
+    HeatRangesPane                               * m_heatRangesPane  = nullptr;
+    MemoryWindowGroup                            * m_memoryGroup     = nullptr;
+    RegistersPane                                * m_registersPane   = nullptr;
+    StackPane                                    * m_stackPane       = nullptr;
+    WatchesPane                                  * m_watchesPane     = nullptr;
+    BreakpointsPane                              * m_breakpointsPane = nullptr;
 
     void                 CreatePanes            ();
     IDebuggerPane      * FindPane               (const std::wstring & pane) const;
@@ -1166,6 +1135,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     const DxuiDpiScaler & GetPaneScaler         () const override { return m_scaler; }
     bool                 IsBarRouted            (const std::wstring & pane) const override { return m_routingPane == GetBarRoutingPane (pane); }
     void                 Repaint                () override { Invalidate(); }
+    void                 OpenSource             (int fileId, int line) override { OpenSourceDocument (fileId, line, true); }
+    void                 SaveOpenViews          () override { KeepOpenViews(); }
 
     Word                 GetCursorAddress       () const;
     void                 ToggleBookmarkAtCursor ();
@@ -1177,23 +1148,17 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                           ApplyBasicPanes       ();
     void                           FollowBasicProgram    ();
     void                           ToggleBasicBreakpoint (Word line);
-    void                           ShowBasicLine         (Word line);
+    void                           ShowBasicLine         (Word line) override;
     std::optional<DebuggerAction>  GetBasicStep          (DebuggerKeySchemes::Action action) const;
     DebuggerPaneFrame            * GetBasicFrame         (const std::wstring & pane) const;
     DxuiListView                 * GetBasicList          (const std::wstring & pane) const;
 
-    void                     AddBreakpointColumnItems (std::vector<std::shared_ptr<DxuiCommand>> & commands);
     bool                     ShowColumnMenu           (DxuiListView * list, POINT clientPx);
     bool                     HasOwnColumnWidths       (const DxuiListView * list) const;
     bool                     IsTextBox                (const IDxuiControl * control) const;
     void                     NoteListReleased         (DxuiListView * list, POINT clientPx);
     std::vector<IDxuiControl *>  GetLastChildren      () const;
     void                     ApplyLogDeltas           ();
-
-    std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointFrame;
-    std::unique_ptr<DebuggerPaneFrame>                                                      m_breakpointSlot;
-    DxuiToolbar                                                                           * m_breakpointBar      = nullptr;
-    std::unique_ptr<BreakpointBarCommands>                                                  m_breakpointCommands;
 
     //  Each pane whose colors mean something has an info button at the end of
     //  its toolbar, in a band of its own where the pane has no toolbar (the
