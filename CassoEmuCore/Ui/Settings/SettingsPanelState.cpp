@@ -1228,12 +1228,22 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
     AddDefinedDevices (m_machineName, augmented);
     hr = ExtractHardware (augmented, hardware);
 
+    // A card's connectors are taken from disk too, unless a page in this sheet
+    // changed them: the Super Serial Card's connector is chosen on its page,
+    // and the copy on disk is the one the user just replaced.
     for (size_t i = 0; SUCCEEDED (hr) && i < hardware.size() && i < m_current.hardware.size(); i++)
     {
-        if (hardware[i].type == m_current.hardware[i].type && hardware[i].slot == m_current.hardware[i].slot)
+        HardwareEntry &  current   = m_current.hardware[i];
+        HardwareEntry &  original  = m_original.hardware[i];
+        bool             sameCard  = hardware[i].type == current.type && hardware[i].slot == current.slot;
+        bool             unchanged = current.ports == original.ports && current.portPath == original.portPath;
+
+        if (sameCard && unchanged)
         {
-            m_current.hardware[i].ports  = hardware[i].ports;
-            m_original.hardware[i].ports = hardware[i].ports;
+            current.ports     = hardware[i].ports;
+            current.portPath  = hardware[i].portPath;
+            original.ports    = hardware[i].ports;
+            original.portPath = hardware[i].portPath;
         }
     }
 

@@ -5,6 +5,8 @@
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
+#include "Core/TextEncoding.h"
+#include "Config/UserConfigStore.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1486,6 +1488,51 @@ public:
         text = WriteCompactOrFail (outJson);
         Assert::IsTrue (text.find ("\"on on on on on on on\"") != std::string::npos, L"switches saved");
         Assert::IsTrue (text.find ("C:\\\\out.txt") != std::string::npos,            L"the file path is saved");
+    }
+
+
+    //  The card as it ships, off and with no switches or connector in its slot
+    //  entry: turned on, set up and applied, its settings are saved as a
+    //  difference from the shipped entry and read back from it.
+    TEST_METHOD (SerialCard_SettingsChosenAfterTurningTheCardOnAreSavedAndReadBack)
+    {
+        static constexpr const char *  kShipped = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "internalDevices": [ { "type": "keyboard" } ],
+            "slots": [ { "slot": 2, "device": "super-serial-card", "firmware": "SSC.rom", "enabled": false } ]
+        })JSON";
+
+        SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           shipped = ParseOrFail (kShipped);
+        JsonValue           outJson;
+        JsonValue           merged;
+        std::string         text;
+        int                 index   = -1;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("X", shipped, shipped));
+
+        index = st.FindSerialCard();
+        Assert::IsTrue (index >= 0);
+
+        AssertSucceeded (st.SetHardwareEnabled (static_cast<size_t> (index), true));
+        AssertSucceeded (st.SetSerialCardSwitches ("off off off on off on on", "on on on on off off off"));
+        AssertSucceeded (st.SetSerialCardAttachment ("serial-file-out", "C:\\out.txt"));
+
+        //  OK re-reads the machine's prefs from disk before applying, as
+        //  SettingsApplyController::CommitApply does.
+        st.RefreshMergedJson (shipped);
+        st.Apply (sink, outJson);
+
+        merged = UserConfigStore::MergeJson (shipped, UserConfigStore::DiffJson (outJson, shipped));
+        text   = WriteCompactOrFail (merged);
+
+        Assert::IsTrue (text.find ("\"serial-file-out\"") != std::string::npos,       TextEncoding::NarrowToWide ("the connector is read back: " + text).c_str());
+        Assert::IsTrue (text.find ("C:\\\\out.txt") != std::string::npos,            L"with its file");
+        Assert::IsTrue (text.find ("\"off off off on off on on\"") != std::string::npos, L"and the switches");
     }
 
 
