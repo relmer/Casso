@@ -2144,12 +2144,14 @@ void CassoExplorerWindow::FillPreview()
     bool                                            error    = preview.kind == PreviewContent::Kind::Error || (hostFile && !opened);
     bool                                            catalog  = preview.kind == PreviewContent::Kind::Catalog;
     bool                                            hex      = preview.kind == PreviewContent::Kind::Hex && (!preview.bytes.empty() || opened);
+    bool                                            disasm   = preview.kind == PreviewContent::Kind::Hex && preview.bytes.empty() && !preview.lines.empty();
     bool                                            columns  = preview.kind == PreviewContent::Kind::Catalog && preview.lines.empty();
     bool                                            program  = preview.kind == PreviewContent::Kind::Listing && !preview.bytes.empty();
     bool                                            forms    = picture && m_browser.CanTogglePictureColor();
     bool                                            shell    = preview.kind == PreviewContent::Kind::Shell;
     int                                             mode     = !visible ? CassoExplorerCommands::kPreviewBarNone
                                                              : hex      ? CassoExplorerCommands::kPreviewBarHex
+                                                             : disasm   ? CassoExplorerCommands::kPreviewBarHex
                                                              : program  ? CassoExplorerCommands::kPreviewBarListing
                                                              : forms    ? CassoExplorerCommands::kPreviewBarPicture
                                                                         : CassoExplorerCommands::kPreviewBarNone;
@@ -4592,7 +4594,7 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kBack:              return model.HasTabs() && model.CanGoBack();
         case CassoExplorerCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassoExplorerCommands::kUp:                return m_browser.CanGoUp();
-        case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs();
+        case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && m_browser.GetPreview().kind == PreviewContent::Kind::Hex && m_browser.GetPreview().hostPath.empty();
         case CassoExplorerCommands::kLineAddresses:     return m_previewBarMode == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_browser.CanTogglePictureColor();
@@ -7627,7 +7629,14 @@ bool CassoExplorerWindow::TryGetHostDropFolder (int tag, POINT screen, std::wstr
             return true;
         }
 
-        if (row < 0 || !m_browser.TryGetRowLocation (row, location) || location.kind != Location::Kind::HostFolder)
+        //  A disk image's row takes the drop itself, so its folder is not the
+        //  target; a drop on a file row that takes none goes to the listed folder.
+        if (row >= 0 && m_browser.TryGetRowLocation (row, location) && location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::RecycleBin)
+        {
+            return false;
+        }
+
+        if (row < 0 || (location.kind != Location::Kind::HostFolder && location.kind != Location::Kind::RecycleBin))
         {
             location = m_browser.GetLocation();
         }
@@ -14610,7 +14619,7 @@ CassoExplorerActions::AddressFn CassoExplorerWindow::MakeAddressPrompt()
 
         for (;;)
         {
-            if (!CassoExplorerPromptDialog::Ask (GetHwnd(), m_theme, L"Load Address",
+            if (!CassoExplorerPromptDialog::Ask (GetHwnd(), m_theme, L"Load address",
                                            hostName + L" is a binary. Load address:", text, 8, text))
             {
                 return false;
@@ -15081,7 +15090,9 @@ void CassoExplorerWindow::HideHoverTip (TipOwner owner)
 //  CassoExplorerWindow::UpdateTreeTip
 //
 //  The Casso node's tip lists what the folders under it are, since nothing
-//  else on screen does. A known folder that is not there gets a tip on why.
+//  else on screen does. A known folder that is not there gets a tip on why,
+//  and so does an image that is not a disk, with the same reason as in the list.
+//  That reason is read from the file once per node the pointer enters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15091,6 +15102,7 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
     const DxuiTreeNode *  node = nullptr;
     RECT                  tree = m_tree->GetBounds();
     RECT                  anchor;
+    Location              location;
 
 
 
@@ -15101,10 +15113,17 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
     }
 
     bool  adtPro = node != nullptr && TreeModel::StripLinkCopy (node->id).starts_with (TreeModel::kAdtProId);
+    bool  broken = node != nullptr && node->iconBroken;
 
 
 
-    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro))
+    if (broken && node->id != m_treeTipId)
+    {
+        m_treeTipId   = node->id;
+        m_treeTipText = m_browser.TryGetNodeLocation (node->id, location) ? m_browser.GetImageProblem (location.path) : std::wstring();
+    }
+
+    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro && !(broken && !m_treeTipText.empty())))
     {
         HideHoverTip (TipOwner::Tree);
         return;
@@ -15115,7 +15134,8 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
     anchor.top    = tree.top + (row - m_tree->GetTopRow()) * m_tree->GetRowHeight();
     anchor.bottom = anchor.top + m_tree->GetRowHeight();
 
-    ShowHoverTip (TipOwner::Tree, anchor, adtPro      ? m_browser.GetTreeModel().GetAdtProFolder().c_str()
+    ShowHoverTip (TipOwner::Tree, anchor, adtPro       ? m_browser.GetTreeModel().GetAdtProFolder().c_str()
+                                        : broken       ? m_treeTipText.c_str()
                                         : node->dimmed ? kMissingNodeTip : kCassoNodeTip);
 }
 

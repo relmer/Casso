@@ -1006,6 +1006,8 @@ private:
 
     int                                          m_treeDropRow       = -1;
     ULONGLONG                                    m_treeDropSinceMs   = 0;
+    std::wstring                                 m_treeTipId;        // the broken image whose reason is in m_treeTipText
+    std::wstring                                 m_treeTipText;
     std::vector<BrowserModel::AddressSegment>    m_addressSegments;
     BrowserModel::AddressRoot                    m_addressRoot;
 
