@@ -43,6 +43,7 @@
 #include "Ui/Debugger/ToolbarBoxEntry.h"
 #include "Ui/Debugger/Panes/FindWidgetPlate.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
+#include "Ui/Debugger/Panes/IDebuggerPane.h"
 #include "Ui/Debugger/Panes/SourceDocuments.h"
 #include "Ui/Debugger/Panes/SourcePane.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -358,7 +359,7 @@ private:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DebuggerWindow : public DxuiWindow
+class DebuggerWindow : public DxuiWindow, private IDebuggerPaneHost
 {
 public:
     DebuggerWindow();
@@ -627,8 +628,13 @@ protected:
     void                       EditRangeSet           (const std::string & name);
     void                       RunHeatRangeBarEntry   (int id);
 
+    //  Protected so a test can add a pane of its own ahead of OnCreate, as
+    //  CreatePanes adds the window's, over the window's pane host.
+    void                 AddPane            (std::unique_ptr<IDebuggerPane> pane) { m_panes.push_back (std::move (pane)); }
+    IDebuggerPaneHost  & GetPaneHostForTest () { return *this; }
+
     //  The profiler bar's commands, protected so a test can work the bar.
-    const std::vector<std::shared_ptr<DxuiCommand>> &  GetProfilerCommands () const { return m_profilerCommands; }
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetProfilerCommands () const;
     bool                       IsHeatRangeBarEnabled  (int id) const;
     void                       BeginHeatRangeEdit     (int row, HeatMapRangeSets::Field field);
     void                       EndHeatRangeEdit       (bool commit);
@@ -939,8 +945,8 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     UpdateCodeLines  ();
     void     SubmitCommandBox ();
     void     RunToCursor      (Word address);
-    void     RunAction        (const DebuggerAction & action);
-    CommandMode  GetMode      () const;
+    void     RunAction        (const DebuggerAction & action) override;
+    CommandMode  GetMode      () const override;
     DebuggerKeyScheme  GetSavedKeyScheme () const;
     bool     RouteBoxKey      (const DxuiKeyEvent & ev, bool & handled);
     bool     RouteFindKey     (const DxuiKeyEvent & ev, bool & handled);
@@ -1042,7 +1048,6 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ImportBreakpoints       ();
     std::wstring  GetMemoryBarLabel  (int id) const;
     std::wstring  GetMemoryBarTip    (int id) const;
-    static std::shared_ptr<DxuiCommand>  MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen);
     bool     IsDocumentPane     (const std::wstring & pane) const;
     bool     CanClosePane       (const std::wstring & pane) const;
     bool     IsFixedPane        (const std::wstring & pane) const;
@@ -1074,7 +1079,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::vector<IDxuiControl *>  GetOwnControls    (const std::wstring & pane) const;
     IDxuiControl *               GetPaneContent    (const std::wstring & pane) const;
     std::wstring                 GetPaneTitle      (const std::wstring & pane) const;
-    bool                         IsRoutable        (const IDxuiControl * control) const;
+    bool                         IsRoutable        (const IDxuiControl * control) const override;
     void                         SetFocusedControl (IDxuiControl * control);
     HWND                         GetRoutingHwnd    () const;
     void                         RequestFloat      (const std::wstring & pane, POINT clientPx);
@@ -1147,7 +1152,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     ClickRegister    (POINT clientPx);
     void     CommitStackByte  (int row, Byte typed);
     void     CommitRegister   (const std::string & name, Byte typed);
-    void     UpdateTooltip    (POINT clientPx);
+    void     UpdateTooltip    (POINT clientPx) override;
     void     UpdateOperandTip (const DxuiMouseEvent & ev, bool isPressed);
     void     ShowOperandTip   ();
     void     HideOperandTip   ();
@@ -1609,41 +1614,27 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                   m_isBasicStop         = false;
     std::optional<std::set<int>>           m_basicBreakpointIds;
 
-    //  The tool panes (DebuggerWindowTools.cpp): symbols, bookmarks, the
-    //  profiler and the data ranges, each a list in a frame. The profiler's
-    //  bar is laid out in a place over its timeline, and its flame graph
-    //  takes the list's place in that view.
-    DxuiListView                                                   * m_symbolList    = nullptr;
-    DxuiListView                                                   * m_bookmarkList  = nullptr;
-    DxuiListView                                                   * m_profilerList  = nullptr;
-    DxuiListView                                                   * m_dataBlockList = nullptr;
-    DxuiToolbar                                                    * m_profilerBar   = nullptr;
-    ProfileTimeline                                                * m_profileTimeline = nullptr;
-    FlameGraphView                                                 * m_flameGraph    = nullptr;
-    std::unique_ptr<DebuggerPaneFrame>                               m_profilerSlot;
-    std::vector<std::shared_ptr<DxuiCommand>>                        m_profilerCommands;
-    std::unique_ptr<SymbolsPane>                                     m_symbolsPane;
-    std::unique_ptr<BookmarksPane>                                   m_bookmarksPane;
-    std::unique_ptr<ProfilerPane>                                    m_profilerPane;
-    std::unique_ptr<DataBlocksPane>                                  m_dataBlocksPane;
-    std::map<std::wstring, std::unique_ptr<DebuggerPaneFrame>>       m_toolFrames;
+    //  The panes on the pane interface, in the order the window creates and
+    //  calls them, and the profiler among them, whose bar's commands a test
+    //  reads.
+    std::vector<std::unique_ptr<IDebuggerPane>>                      m_panes;
+    ProfilerPane                                                   * m_profilerPane = nullptr;
 
-    void                 CreateToolPanes        ();
-    void                 ConfigureToolPanes     ();
-    void                 AddToolPanes           ();
-    void                 ApplyToolPanes         ();
-    DebuggerPaneFrame  * GetToolFrame           (const std::wstring & pane) const;
-    DxuiListView       * GetToolList            (const std::wstring & pane) const;
-    bool                 AddToolMenuItems       (DxuiListView * list, int row, std::vector<std::pair<std::wstring, std::function<void()>>> & items);
-    void                 SaveSymbolTable        (const std::string & table);
-    void                 SaveProfile            ();
-    void                 SetProfilerBarEntries  ();
-    void                 SetProfilerBarMenu     ();
-    void                 PlaceProfilerBar       ();
-    bool                 RouteProfilerBarMouse  (const DxuiMouseEvent & ev);
-    bool                 RouteFlameGraphMouse   (const DxuiMouseEvent & ev);
-    bool                 TryGetProfilerTip      (POINT clientPx, std::wstring & text) const;
-    void                 SetProfilerView        (int view);
+    void                 CreatePanes            ();
+    IDebuggerPane      * FindPane               (const std::wstring & pane) const;
+
+    //  The window's calls the panes make (IDebuggerPaneHost).
+    DxuiPanel          & GetControlParent       () override { return *this; }
+    void                 GoToCode               (Word address) override { ShowCode (address); }
+    IHostDialogs       * GetHostDialogs         () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
+    HWND                 GetOwnerHwnd           () const override { return GetHwnd(); }
+    IDxuiTextRenderer  * GetPaneTextRenderer    () override { return GetTextRenderer(); }
+    DxuiHwndSource     * GetPanePopupHost       () override { return GetPopupHost(); }
+    DxuiWindow         * GetPaneWindow          (const std::wstring & pane) override { return GetPaneHost (pane); }
+    const DxuiDpiScaler & GetPaneScaler         () const override { return m_scaler; }
+    bool                 IsBarRouted            (const std::wstring & pane) const override { return m_routingPane == GetBarRoutingPane (pane); }
+    void                 Repaint                () override { Invalidate(); }
+
     Word                 GetCursorAddress       () const;
     void                 ToggleBookmarkAtCursor ();
     void                 GoToBookmark           (bool isBackward);
@@ -1740,7 +1731,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
                                std::function<std::optional<ColorLegend::Pane> ()> dynamic = nullptr);
     void  PlaceColorKeys      ();
     bool  TryGetColorKeyTitleRect (const std::wstring & pane, bool keep, RECT * rect = nullptr);
-    RECT  GetBarStrip         (const std::wstring & pane, const RECT & slot);
+    RECT  GetBarStrip         (const std::wstring & pane, const RECT & slot) override;
     bool  RouteColorKeyMouse  (const DxuiMouseEvent & ev);
     void  ShowColorKey        (ColorKeyButton * button, bool hold);
     void  ToggleColorKey      (ColorKeyButton * button);

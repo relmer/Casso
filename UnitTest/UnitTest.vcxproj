@@ -313,6 +313,7 @@
     <ClCompile Include="DebuggerTests\DebuggerBasicFollowTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerCodeMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerToolPanesTests.cpp" />
+    <ClCompile Include="DebuggerTests\DebuggerPaneListTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerWatchAddRowTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerReviewPolishTests.cpp" />
     <ClCompile Include="DebuggerTests\RegisterHistoryTests.cpp" />

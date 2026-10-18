@@ -3,6 +3,22 @@
 #include "Ui/Debugger/Panes/ToolPanes.h"
 
 #include "Core/TextEncoding.h"
+#include "Debugger/SymbolTable.h"
+#include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
+#include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
+#include "Ui/Debugger/Panes/FlameGraphView.h"
+#include "Ui/Debugger/Panes/ProfileTimeline.h"
+
+
+
+
+
+//  The profiler bar's entries.
+static constexpr int  s_kProfileOn    = 1;
+static constexpr int  s_kProfileReset = 2;
+static constexpr int  s_kProfileSave  = 3;
+static constexpr int  s_kProfileView  = 4;
 
 
 
@@ -62,14 +78,124 @@ static std::string FindSymbolName (const DebuggerViewSnapshot::SymbolsState * sy
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ToolListPane::ToolListPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ToolListPane::ToolListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title) :
+    IDebuggerPane (host),
+    m_id          (std::move (id)),
+    m_title       (std::move (title))
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToolListPane::~ToolListPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ToolListPane::~ToolListPane() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToolListPane::CreateControls
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ToolListPane::CreateControls()
+{
+    m_list = m_host.GetControlParent().CreateChild<DxuiListView>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToolListPane::AddToDock
+//
+//  The pane is its list, with its commands on its rows' menus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ToolListPane::AddToDock (DxuiDockSite & dock)
+{
+    m_frame = std::make_unique<DebuggerPaneFrame> (m_title);
+    m_frame->AddPart (m_list);
+
+    dock.AddPane (m_id, m_title, m_frame.get());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToolListPane::GetContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * ToolListPane::GetContent() const
+{
+    return m_frame.get();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToolListPane::PickSaveFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ToolListPane::PickSaveFile (const wchar_t * filterName, const wchar_t * filter, const wchar_t * extension, const std::wstring & fileName)
+{
+    HRESULT                hr      = S_OK;
+    IHostDialogs         * dialogs = m_host.GetHostDialogs();
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked  = false;
+
+
+
+    BAIL_OUT_IF (dialogs == nullptr, S_OK);
+
+    spec.filters          = { { filterName, filter }, { L"All files", L"*.*" } };
+    spec.defaultExtension = extension;
+    spec.defaultFileName  = fileName;
+
+    hr = dialogs->PickFileToSave (m_host.GetOwnerHwnd(), spec, chosen, picked);
+    CHR (hr);
+
+Error:
+    return picked ? chosen.wstring() : std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SymbolsPane::SymbolsPane
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SymbolsPane::SymbolsPane (DxuiListView * list, ShowFn show, EnableFn enable) :
-    m_list   (list),
-    m_show   (std::move (show)),
-    m_enable (std::move (enable))
+SymbolsPane::SymbolsPane (IDebuggerPaneHost & host) :
+    ToolListPane (host, DebuggerLayout::kSymbols, L"Symbols")
 {
 }
 
@@ -98,7 +224,7 @@ void SymbolsPane::Configure()
 
         if (each != nullptr && !each->isHeading)
         {
-            m_show (each->address);
+            m_host.GoToCode (each->address);
         }
     });
 
@@ -110,7 +236,7 @@ void SymbolsPane::Configure()
 
         if (each != nullptr && each->isHeading)
         {
-            m_enable (each->table, checked);
+            m_host.RunAction (DebuggerActions::GetEnableSymbols (SymbolTable::ToUpper (each->table), checked, m_host.GetMode()));
         }
     });
 }
@@ -125,16 +251,16 @@ void SymbolsPane::Configure()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolsPane::Apply (const std::shared_ptr<const DebuggerViewSnapshot::SymbolsState> & symbols)
+void SymbolsPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    if (symbols == nullptr || symbols == m_symbols)
+    if (snapshot.symbols == nullptr || snapshot.symbols == m_symbols)
     {
         return;
     }
 
-    m_symbols = symbols;
-    m_rows    = GetRows (*symbols);
-    m_list->SetRows (GetCells (*symbols, m_rows));
+    m_symbols = snapshot.symbols;
+    m_rows    = GetRows (*m_symbols);
+    m_list->SetRows (GetCells (*m_symbols, m_rows));
 }
 
 
@@ -150,6 +276,67 @@ void SymbolsPane::Apply (const std::shared_ptr<const DebuggerViewSnapshot::Symbo
 const SymbolsPane::Row * SymbolsPane::GetRow (int row) const
 {
     return (row >= 0 && row < (int) m_rows.size()) ? &m_rows[(size_t) row] : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::AddMenuItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SymbolsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
+{
+    const Row  * each = GetRow (row);
+
+
+
+    if (list != m_list)
+    {
+        return false;
+    }
+
+    if (each != nullptr && !each->isHeading)
+    {
+        items.push_back ({ L"Go to",  [this, at = each->address] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Remove", [this, table = each->table, name = each->name]
+        {
+            m_host.RunAction (DebuggerActions::GetRemoveSymbol (SymbolTable::ToUpper (table), name, m_host.GetMode()));
+        } });
+    }
+
+    if (each != nullptr)
+    {
+        items.push_back ({ L"Clear table",   [this, table = each->table] { m_host.RunAction (DebuggerActions::GetClearSymbols (SymbolTable::ToUpper (table), m_host.GetMode())); } });
+        items.push_back ({ L"Save table...", [this, table = each->table] { SaveTable (table); } });
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolsPane::SaveTable
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolsPane::SaveTable (const std::string & table)
+{
+    std::wstring  path = PickSaveFile (L"Symbol files", L"*.sym", L"sym", TextEncoding::NarrowToWide (table) + L".sym");
+
+
+
+    if (!path.empty())
+    {
+        m_host.RunAction (DebuggerActions::GetSaveSymbols (SymbolTable::ToUpper (table), TextEncoding::WideToNarrow (path), m_host.GetMode()));
+    }
 }
 
 
@@ -246,9 +433,8 @@ std::vector<std::vector<DxuiListView::Cell>> SymbolsPane::GetCells (const Debugg
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BookmarksPane::BookmarksPane (DxuiListView * list, ShowFn show) :
-    m_list (list),
-    m_show (std::move (show))
+BookmarksPane::BookmarksPane (IDebuggerPaneHost & host) :
+    ToolListPane (host, DebuggerLayout::kBookmarks, L"Bookmarks")
 {
 }
 
@@ -278,7 +464,7 @@ void BookmarksPane::Configure()
 
         if (bookmark.has_value())
         {
-            m_show (bookmark->address);
+            m_host.GoToCode (bookmark->address);
         }
     });
 }
@@ -293,10 +479,10 @@ void BookmarksPane::Configure()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BookmarksPane::Apply (const std::vector<DebuggerViewSnapshot::WatchLine> & bookmarks, const DebuggerViewSnapshot::SymbolsState * symbols)
+void BookmarksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_bookmarks = bookmarks;
-    m_list->SetRows (GetCells (bookmarks, symbols));
+    m_bookmarks = snapshot.bookmarks;
+    m_list->SetRows (GetCells (m_bookmarks, snapshot.symbols.get()));
 }
 
 
@@ -317,6 +503,36 @@ std::optional<DebuggerViewSnapshot::WatchLine> BookmarksPane::GetBookmark (int r
     }
 
     return m_bookmarks[(size_t) row];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BookmarksPane::AddMenuItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BookmarksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
+{
+    std::optional<DebuggerViewSnapshot::WatchLine>  bookmark = GetBookmark (row);
+
+
+
+    if (list != m_list)
+    {
+        return false;
+    }
+
+    if (bookmark.has_value())
+    {
+        items.push_back ({ L"Go to",  [this, at = bookmark->address] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Delete", [this, id = bookmark->id]      { m_host.RunAction (DebuggerActions::GetClearBookmark (id, m_host.GetMode())); } });
+    }
+
+    return true;
 }
 
 
@@ -404,10 +620,46 @@ std::optional<Word> BookmarksPane::GetNext (const std::vector<DebuggerViewSnapsh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ProfilerPane::ProfilerPane (DxuiListView * list, ShowFn show) :
-    m_list (list),
-    m_show (std::move (show))
+ProfilerPane::ProfilerPane (IDebuggerPaneHost & host) :
+    ToolListPane (host, DebuggerLayout::kProfiler, L"Profiler"),
+    m_bar        (host, DebuggerLayout::kProfiler, L"Profiler commands")
 {
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::~ProfilerPane
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfilerPane::~ProfilerPane() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::CreateControls
+//
+//  The list, the timeline and the flame graph, then the bar, which paints over
+//  them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::CreateControls()
+{
+    ToolListPane::CreateControls();
+
+    m_timeline   = m_host.GetControlParent().CreateChild<ProfileTimeline>();
+    m_flameGraph = m_host.GetControlParent().CreateChild<FlameGraphView>();
+    m_bar.Create();
+
+    m_flameGraph->SetOnActivate ([this] (Word address) { m_host.GoToCode (address); });
 }
 
 
@@ -432,11 +684,61 @@ void ProfilerPane::Configure()
 
         if (address.has_value())
         {
-            m_show (*address);
+            m_host.GoToCode (*address);
         }
     });
 
     SetView (View::Opcodes);
+
+    m_bar.Configure();
+    m_bar.SetOnPress ([this] { SetViewMenu(); });
+    SetBarEntries();
+    SetViewMenu();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::AddToDock
+//
+//  Its bar, in a place the bar is laid out over, over its timeline, over its
+//  list or, in the flame graph view, its flame graph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::AddToDock (DxuiDockSite & dock)
+{
+    auto  isFlame = [this] { return m_view == View::Flame; };
+
+
+
+    m_frame = std::make_unique<DebuggerPaneFrame> (m_title);
+    m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
+    m_frame->AddPart (m_timeline,      [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (ProfileTimeline::kHeightDip); });
+    m_frame->AddPart (m_list,          nullptr, [isFlame] { return !isFlame(); });
+    m_frame->AddPart (m_flameGraph,    nullptr, isFlame);
+    m_frame->SetPartInsetDip (m_timeline,   4);
+    m_frame->SetPartInsetDip (m_flameGraph, 4);
+
+    dock.AddPane (m_id, m_title, m_frame.get());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetControls
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> ProfilerPane::GetControls() const
+{
+    return { m_bar.GetSlot(), m_timeline, m_list, m_flameGraph, m_bar.GetBar() };
 }
 
 
@@ -454,6 +756,14 @@ void ProfilerPane::Configure()
 void ProfilerPane::SetView (View view)
 {
     m_view = view;
+
+    //  The flame graph and the list take turns in the pane, so it is laid
+    //  out again.
+    if (m_frame != nullptr)
+    {
+        m_frame->Relayout();
+        m_host.Repaint();
+    }
 
     switch (view)
     {
@@ -575,22 +885,23 @@ std::optional<Word> ProfilerPane::GetRowAddress (const std::optional<ProfileData
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ProfilerPane::Apply (const std::optional<ProfileData> & byOpcode, const std::optional<ProfileData> & byAddress, bool isOn)
+void ProfilerPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    if (!byOpcode.has_value() && isOn == m_isOn)
+    if (snapshot.profile.has_value() || snapshot.isProfiling != m_isOn)
     {
-        return;
+        m_isOn = snapshot.isProfiling;
+
+        if (snapshot.profile.has_value())
+        {
+            m_byOpcode  = snapshot.profile;
+            m_byAddress = snapshot.profileByAddress;
+        }
+
+        Refresh();
     }
 
-    m_isOn = isOn;
-
-    if (byOpcode.has_value())
-    {
-        m_byOpcode  = byOpcode;
-        m_byAddress = byAddress;
-    }
-
-    Refresh();
+    m_timeline->SetData   (m_byOpcode);
+    m_flameGraph->SetData (m_byOpcode);
 }
 
 
@@ -606,6 +917,206 @@ void ProfilerPane::Apply (const std::optional<ProfileData> & byOpcode, const std
 void ProfilerPane::Refresh()
 {
     m_list->SetRows (GetCells ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, m_isOn));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::RunProfile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::RunProfile (const char * words)
+{
+    m_host.RunAction (DebuggerActions::GetProfile (words, m_host.GetMode()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::Save
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::Save()
+{
+    std::wstring  path = PickSaveFile (L"Text files", L"*.txt", L"txt", L"Profile.txt");
+
+
+
+    if (!path.empty())
+    {
+        RunProfile (std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (path)).c_str());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::SetBarEntries
+//
+//  Profile turns profiling on and off, Reset starts the counts over, Save...
+//  writes them to a text file, and the view drop-down chooses opcodes,
+//  addresses, routines, the call tree or the flame graph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::SetBarEntries()
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+    auto                             add = [this, &entries] (int id, const wchar_t * label, const wchar_t * tip, DxuiToolbar::Kind kind, int group, std::function<void()> dispatch)
+    {
+        std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
+        DxuiToolbar::Entry            entry;
+
+        command->id       = id;
+        command->label    = label;
+        command->tip      = tip;
+        command->dispatch = std::move (dispatch);
+
+        entry.command = command;
+        entry.kind    = kind;
+        entry.group   = group;
+
+        m_commands.push_back (command);
+        entries.push_back (std::move (entry));
+
+        return command;
+    };
+    std::shared_ptr<DxuiCommand>     command;
+
+
+
+    m_commands.clear();
+
+    command            = add (s_kProfileOn, L"Profile", L"Count each instruction and its cycles as the machine runs", DxuiToolbar::Kind::Toggle, 0, [this]
+    {
+        RunProfile (m_isOn ? "OFF" : "ON");
+    });
+    command->isChecked = [this] { return m_isOn; };
+
+    add (s_kProfileReset, L"Reset",   L"Start the counts over",            DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); });
+    add (s_kProfileSave,  L"Save...", L"Save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { Save(); });
+
+    command            = add (s_kProfileView, L"Opcodes", L"Choose the profile's view: opcodes, addresses, routines, the call tree or a flame graph", DxuiToolbar::Kind::DropDown, 1, [] {});
+    command->labelText = [this] { return std::wstring (GetViewLabel (m_view)); };
+
+    m_bar.GetBar()->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::SetViewMenu
+//
+//  Built again before the drop-down opens, since the rows have the checks
+//  they were built with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::SetViewMenu()
+{
+    std::vector<DxuiPopupMenuItem>  views;
+
+
+
+    for (int view = 0; view < kViewCount; view++)
+    {
+        views.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (GetViewLabel ((View) view), (int) m_view == view,
+                                                                                  [this, view] { SetView ((View) view); })));
+    }
+
+    m_bar.GetBar()->SetDropDownItems (s_kProfileView, std::move (views));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::RouteContentMouse
+//
+//  The flame graph takes a click on a bar, to zoom or to go to its routine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfilerPane::RouteContentMouse (const DxuiMouseEvent & ev)
+{
+    bool  isUsed = false;
+
+
+
+    if (!m_host.IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !DxuiDockSite::Contains (m_flameGraph->GetBounds(), ev.positionDip))
+    {
+        return false;
+    }
+
+    isUsed = m_flameGraph->OnMouse (ev);
+
+    if (isUsed)
+    {
+        m_host.Repaint();
+    }
+
+    return isUsed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::TryGetContentTip
+//
+//  Over the timeline, the frame there; over the flame graph, the routine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfilerPane::TryGetContentTip (POINT clientPx, std::wstring & text) const
+{
+    if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, text))
+    {
+        return true;
+    }
+
+    return m_host.IsRoutable (m_flameGraph) && m_flameGraph->TryGetTipAt (clientPx, text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::AddMenuItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfilerPane::AddMenuItems (DxuiListView * list, int, PaneMenuItems & items)
+{
+    if (list != m_list)
+    {
+        return false;
+    }
+
+    items.push_back ({ m_isOn ? L"Stop profiling" : L"Start profiling", [this, on = m_isOn] { RunProfile (on ? "OFF" : "ON"); } });
+    items.push_back ({ L"Reset",   [this] { RunProfile ("RESET"); } });
+    items.push_back ({ L"Save...", [this] { Save(); } });
+    return true;
 }
 
 
@@ -690,9 +1201,8 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DataBlocksPane::DataBlocksPane (DxuiListView * list, ShowFn show) :
-    m_list (list),
-    m_show (std::move (show))
+DataBlocksPane::DataBlocksPane (IDebuggerPaneHost & host) :
+    ToolListPane (host, DebuggerLayout::kDataBlocks, L"Data ranges")
 {
 }
 
@@ -722,7 +1232,7 @@ void DataBlocksPane::Configure()
 
         if (block.has_value())
         {
-            m_show (block->first);
+            m_host.GoToCode (block->first);
         }
     });
 }
@@ -737,10 +1247,10 @@ void DataBlocksPane::Configure()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DataBlocksPane::Apply (const std::vector<DataBlockEntry> & blocks)
+void DataBlocksPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    m_blocks = blocks;
-    m_list->SetRows (GetCells (blocks));
+    m_blocks = snapshot.dataBlocks;
+    m_list->SetRows (GetCells (m_blocks));
 }
 
 
@@ -761,6 +1271,36 @@ std::optional<DataBlockEntry> DataBlocksPane::GetBlock (int row) const
     }
 
     return m_blocks[(size_t) row];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DataBlocksPane::AddMenuItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DataBlocksPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
+{
+    std::optional<DataBlockEntry>  block = GetBlock (row);
+
+
+
+    if (list != m_list)
+    {
+        return false;
+    }
+
+    if (block.has_value())
+    {
+        items.push_back ({ L"Go to",  [this, at = block->first] { m_host.GoToCode (at); } });
+        items.push_back ({ L"Delete", [this, from = block->first, to = block->last] { m_host.RunAction (DebuggerActions::GetClearData (from, to, m_host.GetMode())); } });
+    }
+
+    return true;
 }
 
 

@@ -3,6 +3,7 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/HeatMapRangeBarCommands.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
@@ -131,7 +132,7 @@ void DebuggerWindow::SetHeatRangeMenus()
     m_rangeSetCommands.clear();
     m_editedSetCommands.clear();
 
-    m_rangeSetCommands.push_back (MakeMenuCommand (TextEncoding::Utf8ToWide (HeatMapRangeSets::kpszAllMemory), m_heatRanges.shown.empty(),
+    m_rangeSetCommands.push_back (DebuggerMenuCommand::Make (TextEncoding::Utf8ToWide (HeatMapRangeSets::kpszAllMemory), m_heatRanges.shown.empty(),
                                                    [this] { ShowRangeSet ({}); }));
 
     for (const HeatMapRangeSet & set : m_heatRanges.sets)
@@ -141,8 +142,8 @@ void DebuggerWindow::SetHeatRangeMenus()
 
 
 
-        m_rangeSetCommands.push_back  (MakeMenuCommand (label, m_heatRanges.shown == name, [this, name] { ShowRangeSet (name); }));
-        m_editedSetCommands.push_back (MakeMenuCommand (label, m_heatRangeSet     == name, [this, name] { EditRangeSet (name); }));
+        m_rangeSetCommands.push_back  (DebuggerMenuCommand::Make (label, m_heatRanges.shown == name, [this, name] { ShowRangeSet (name); }));
+        m_editedSetCommands.push_back (DebuggerMenuCommand::Make (label, m_heatRangeSet     == name, [this, name] { EditRangeSet (name); }));
     }
 
     for (const std::shared_ptr<DxuiCommand> & command : m_rangeSetCommands)
@@ -150,7 +151,7 @@ void DebuggerWindow::SetHeatRangeMenus()
         shown.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    m_rangeSetCommands.push_back (MakeMenuCommand (L"Edit ranges...", false, [this] { OpenHeatRanges(); }));
+    m_rangeSetCommands.push_back (DebuggerMenuCommand::Make (L"Edit ranges...", false, [this] { OpenHeatRanges(); }));
     shown.push_back (DxuiPopupMenuItem::ForSeparator());
     shown.push_back (DxuiPopupMenuItem::ForCommand (m_rangeSetCommands.back()));
 

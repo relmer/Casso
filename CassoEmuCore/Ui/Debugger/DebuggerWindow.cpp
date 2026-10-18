@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DroppedFiles.h"
 #include "Ui/Debugger/BranchArrow.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -312,7 +313,7 @@ void DebuggerWindow::OnCreate()
         [this] (Word line)                { ShowBasicLine (line); });
 
     CreateBasicPanes();
-    CreateToolPanes();
+    CreatePanes();
 
     //  Every device panel the window can place; each shows while its device
     //  is present and its panel open.
@@ -402,7 +403,11 @@ void DebuggerWindow::ConfigureWidgets()
     ConfigureUndoBars();
     ConfigureEventLogs();
     ConfigureBasicPanes();
-    ConfigureToolPanes();
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->Configure();
+    }
 
     for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
     {
@@ -667,32 +672,6 @@ void DebuggerWindow::ConfigureCommandBar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::MakeMenuCommand
-//
-//  A command for one row of a drop-down: its own label, whether it is the
-//  one in force, and what choosing it runs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::shared_ptr<DxuiCommand> DebuggerWindow::MakeMenuCommand (const std::wstring & label, bool checked, std::function<void()> chosen)
-{
-    std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
-
-
-
-    command->label     = label;
-    command->isChecked = [checked] { return checked; };
-    command->dispatch  = std::move (chosen);
-
-    return command;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::ConfigureMemoryBar
 //
 //  Visual Studio's memory window bar: the Address box, Refresh, Columns and
@@ -757,7 +736,7 @@ void DebuggerWindow::SetMemoryBarMenus()
 
     for (const std::wstring & entered : m_memoryHistory)
     {
-        history.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (entered, false, [this, entered]
+        history.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (entered, false, [this, entered]
         {
             m_memoryBox->SetText (entered);
             SubmitMemoryBox();
@@ -766,14 +745,14 @@ void DebuggerWindow::SetMemoryBarMenus()
 
     for (int choice : MemoryBarCommands::GetColumnChoices())
     {
-        columns.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (MemoryBarCommands::GetColumnsLabel (choice),
+        columns.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetColumnsLabel (choice),
                                                                             pane != nullptr && pane->GetColumns() == choice,
                                                                             [this, choice] { ChooseMemoryColumns (choice); })));
     }
 
     for (int choice : MemoryBarCommands::GetGroupingChoices())
     {
-        grouping.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (MemoryBarCommands::GetGroupingName (choice),
+        grouping.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (MemoryBarCommands::GetGroupingName (choice),
                                                                              pane != nullptr && pane->GetGrouping() == choice,
                                                                              [this, choice] { ChooseMemoryGrouping (choice); })));
     }
@@ -1141,10 +1120,14 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
 std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 {
     std::vector<DxuiListView *>  lists = { m_codeLists[1], m_codeLists[2], m_codeLists[3], m_codeList, m_registerList, m_breakpointList, m_watchList, m_stackList, m_callStackList,
-                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList,
-                                           m_symbolList, m_bookmarkList, m_profilerList, m_dataBlockList };
+                                           m_traceList, m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
 
 
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetLists(), std::back_inserter (lists));
+    }
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
@@ -1171,10 +1154,14 @@ std::vector<DxuiListView *> DebuggerWindow::GetLists() const
 std::vector<DxuiListView *> DebuggerWindow::GetTextLists() const
 {
     std::vector<DxuiListView *>  lists = { m_registerList, m_stackList, m_watchList, m_callStackList, m_breakpointList, m_traceList,
-                                           m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList,
-                                           m_symbolList, m_bookmarkList, m_profilerList, m_dataBlockList };
+                                           m_heatRangeList, m_diskLog.list, m_inputLog.list, m_basicProgramList };
 
 
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        std::ranges::copy (pane->GetLists(), std::back_inserter (lists));
+    }
 
     for (const std::unique_ptr<DiagnosticsPane> & pane : m_diagPanes)
     {
@@ -4474,7 +4461,12 @@ void DebuggerWindow::LayoutWidgets()
     PlaceHeatRangeBar();
     PlaceEventLogBars();
     PlaceUndoBars();
-    PlaceProfilerBar();
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->PlaceBar();
+    }
+
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
@@ -5308,7 +5300,10 @@ void DebuggerWindow::ConfigureDockSite()
     m_dockSite->AddPane (DebuggerLayout::kInputLog, L"Input log",   m_inputLog.frame.get());
 
     AddBasicPanes();
-    AddToolPanes();
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->AddToDock (*m_dockSite);
+    }
 
     //  A memory pane is its command bar over its bytes (FR-089). The bar is a
     //  place held at the pane's top; the controls, shared by every memory
@@ -6170,7 +6165,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
 
         if (m_snapshot->followView != view)
         {
-            m_menuCommands.push_back (MakeMenuCommand (L"Follow PC", false, [this, view] { if (m_host != nullptr) { m_host->SetDebuggerFollowView (view); } }));
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Follow PC", false, [this, view] { if (m_host != nullptr) { m_host->SetDebuggerFollowView (view); } }));
             menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
         }
 
@@ -6192,7 +6187,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
         for (SourceSyntax::Assembler each : { SourceSyntax::Assembler::Any, SourceSyntax::Assembler::As65,
                                               SourceSyntax::Assembler::Merlin, SourceSyntax::Assembler::Ca65 })
         {
-            m_menuCommands.push_back (MakeMenuCommand (SourceSyntax::GetAssemblerLabel (each), source->GetAssemblerChoice() == each, [this, source, each]
+            m_menuCommands.push_back (DebuggerMenuCommand::Make (SourceSyntax::GetAssemblerLabel (each), source->GetAssemblerChoice() == each, [this, source, each]
             {
                 source->SetAssembler (each);
 
@@ -6205,7 +6200,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             syntax.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
         }
 
-        m_menuCommands.push_back (MakeMenuCommand (L"Syntax", false, [] {}));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (L"Syntax", false, [] {}));
         menu.push_back (DxuiPopupMenuItem::ForSubmenu (m_menuCommands.back(), std::move (syntax)));
         menu.push_back (DxuiPopupMenuItem::ForSeparator());
     }
@@ -6218,7 +6213,7 @@ void DebuggerWindow::ShowDockToMenu (const std::wstring & pane, POINT clientPx)
             continue;
         }
 
-        m_menuCommands.push_back (MakeMenuCommand (item.label, false, [action = item.action] { if (action) { (void) action(); } }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (item.label, false, [action = item.action] { if (action) { (void) action(); } }));
         m_menuCommands.back()->accelerator = item.accelerator;
         m_menuCommands.back()->isEnabled   = [enabled = item.enabled] { return enabled; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -6379,7 +6374,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     for (auto & [label, action] : items)
     {
-        m_menuCommands.push_back (MakeMenuCommand (label, false, action));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
@@ -6478,7 +6473,7 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
             continue;
         }
 
-        m_menuCommands.push_back (MakeMenuCommand (label, false, [this, control, command] { (void) control->InvokeCommand (command); Invalidate(); }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, [this, control, command] { (void) control->InvokeCommand (command); Invalidate(); }));
         m_menuCommands.back()->accelerator = accelerator;
         m_menuCommands.back()->isEnabled   = [control, command] { bool on = false; return control->QueryCommand (command, on) && on; };
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
@@ -6491,7 +6486,7 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
 
     for (auto & [label, action] : extra)
     {
-        m_menuCommands.push_back (MakeMenuCommand (label, false, action));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
@@ -6988,10 +6983,13 @@ void DebuggerWindow::AddListMenuItems (DxuiListView * list, int row, int column,
 
 
 
-    if (AddToolMenuItems (list, row, items))
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        items.push_back ({ L"Copy", copy });
-        return;
+        if (pane->AddMenuItems (list, row, items))
+        {
+            items.push_back ({ L"Copy", copy });
+            return;
+        }
     }
 
     if (GetCodeViewOf (list) >= 0 && GetCodeLineOfRow (GetCodeViewOf (list), row) >= 0)
@@ -7309,12 +7307,24 @@ void DebuggerWindow::RenderFrame()
     //  menu stayed at the first frame of its reveal, a sliver under the
     //  entry, and Panels, Dialect and Keys looked as if they did nothing.
     //  The content menus are the same.
-    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar, m_profilerBar })
+    for (DxuiToolbar * strip : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         if (strip != nullptr && strip->WantsTick())
         {
             strip->TickMenus (now);
             isAnimating = true;
+        }
+    }
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        for (DxuiToolbar * strip : pane->GetBars())
+        {
+            if (strip != nullptr && strip->WantsTick())
+            {
+                strip->TickMenus (now);
+                isAnimating = true;
+            }
         }
     }
 
@@ -7374,7 +7384,12 @@ void DebuggerWindow::RenderFrame()
     PlaceHeatRangeBar();
     PlaceEventLogBars();
     PlaceUndoBars();
-    PlaceProfilerBar();
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->PlaceBar();
+    }
+
     PlaceConsoleBar();
     PlaceSourceBars();
     PlaceCodeBars();
@@ -8270,7 +8285,10 @@ void DebuggerWindow::ApplySnapshot()
 
     FollowBasicProgram();
     ApplyBasicPanes();
-    ApplyToolPanes();
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->Apply (*m_snapshot);
+    }
 
     ApplyMemoryWindows();
     ApplySource();
@@ -9711,9 +9729,17 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
     open = (m_menuBar != nullptr && m_menuBar->IsOpen()) || (popups != nullptr && popups->GetContextMenu().IsVisible());
 
-    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar, m_profilerBar })
+    for (const DxuiToolbar * bar : { m_commandBar, m_memoryBar, m_breakpointBar, m_heatMapBar, m_heatViewBar, m_heatRangeBar, m_diskLog.bar, m_inputLog.bar, m_consoleBar, m_undoBars[0].bar, m_undoBars[1].bar, m_undoBars[2].bar })
     {
         open = open || (bar != nullptr && bar->IsMenuOpen());
+    }
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        for (const DxuiToolbar * bar : pane->GetBars())
+        {
+            open = open || (bar != nullptr && bar->IsMenuOpen());
+        }
     }
 
     for (const DxuiToolbar * bar : m_codeBars)
@@ -9837,11 +9863,13 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         }
     }
 
-    //  And the profiler's.
-    if ((barTip == nullptr || *barTip == L'\0') && m_routingPane == GetBarRoutingPane (DebuggerLayout::kProfiler) &&
-        m_profilerBar != nullptr && m_profilerBar->IsVisible())
+    //  And each pane's on the pane interface.
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        barTip = m_profilerBar->GetTooltipAt (clientPx.x, clientPx.y, cell);
+        if (barTip == nullptr || *barTip == L'\0')
+        {
+            barTip = pane->GetBarTip (clientPx, cell);
+        }
     }
 
     //  And the console's.
@@ -9972,13 +10000,16 @@ void DebuggerWindow::UpdateTooltip (POINT clientPx)
         return;
     }
 
-    //  Over the profiler's timeline or flame graph, the frame or the routine
-    //  there, at once and following the pointer.
-    if (TryGetProfilerTip (clientPx, text))
+    //  Over a pane's graphic, such as the profiler's timeline or flame graph,
+    //  what is there, at once and following the pointer.
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
-        tip.SetMonospace   (false);
-        tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
-        return;
+        if (pane->TryGetContentTip (clientPx, text))
+        {
+            tip.SetMonospace   (false);
+            tip.RequestShowNow (GetPointerAnchor (clientPx), text, now);
+            return;
+        }
     }
 
     //  Over a memory map's strips, the run of pages there and what it is, at
@@ -12443,15 +12474,21 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  Then the profiler's, and its flame graph.
-    if (m_routingPane == GetBarRoutingPane (DebuggerLayout::kProfiler) && RouteProfilerBarMouse (ev))
+    //  Then each pane's on the pane interface, and the graphics they draw.
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
-        return true;
+        if (each->RouteBarMouse (ev))
+        {
+            return true;
+        }
     }
 
-    if (RouteFlameGraphMouse (ev))
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
     {
-        return true;
+        if (each->RouteContentMouse (ev))
+        {
+            return true;
+        }
     }
 
     //  Then the history bands, whose Go live link takes a press.
@@ -12809,14 +12846,9 @@ std::vector<IDxuiControl *> DebuggerWindow::GetOwnControls (const std::wstring &
         return { GetBasicList (pane) };
     }
 
-    if (pane == DebuggerLayout::kProfiler)
+    if (FindPane (pane) != nullptr)
     {
-        return { m_profilerSlot.get(), m_profileTimeline, m_profilerList, m_flameGraph, m_profilerBar };
-    }
-
-    if (GetToolList (pane) != nullptr)
-    {
-        return { GetToolList (pane) };
+        return FindPane (pane)->GetControls();
     }
 
     for (const std::unique_ptr<MemoryPane> & memory : m_memoryPanes)
@@ -12899,9 +12931,9 @@ IDxuiControl * DebuggerWindow::GetPaneContent (const std::wstring & pane) const
         return GetBasicFrame (pane);
     }
 
-    if (GetToolFrame (pane) != nullptr)
+    if (FindPane (pane) != nullptr)
     {
-        return GetToolFrame (pane);
+        return FindPane (pane)->GetContent();
     }
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
@@ -12963,10 +12995,7 @@ std::wstring DebuggerWindow::GetPaneTitle (const std::wstring & pane) const
     if (pane == DebuggerLayout::kDiskLog)     { return L"Disk II log"; }
     if (pane == DebuggerLayout::kInputLog)    { return L"Input log"; }
     if (pane == DebuggerLayout::kBasicProgram)   { return L"BASIC program";   }
-    if (pane == DebuggerLayout::kSymbols)        { return L"Symbols";         }
-    if (pane == DebuggerLayout::kBookmarks)      { return L"Bookmarks";       }
-    if (pane == DebuggerLayout::kProfiler)       { return L"Profiler";        }
-    if (pane == DebuggerLayout::kDataBlocks)     { return L"Data ranges";     }
+    if (FindPane (pane) != nullptr)              { return FindPane (pane)->GetTitle(); }
 
     if (DiagnosticsPane * diagnostics = GetDiagnosticsPane (pane))
     {
@@ -13006,6 +13035,17 @@ std::wstring DebuggerWindow::GetPaneOfControl (const IDxuiControl * control) con
     if (!GetFindPaneOfControl (control).empty())
     {
         return GetFindPaneOfControl (control);
+    }
+
+    for (const std::unique_ptr<IDebuggerPane> & each : m_panes)
+    {
+        for (const IDxuiControl * part : GetPaneControls (each->GetId()))
+        {
+            if (part == control)
+            {
+                return each->GetId();
+            }
+        }
     }
 
     for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
@@ -14539,7 +14579,7 @@ void DebuggerWindow::ShowHistoryList()
 
 
 
-        m_menuCommands.push_back (MakeMenuCommand (line, false, [this, line]
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (line, false, [this, line]
         {
             m_commandBox->SetText (line);
             m_commandBox->SetSelection (line.size(), line.size());

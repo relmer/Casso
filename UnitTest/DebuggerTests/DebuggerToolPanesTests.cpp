@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "Core/TextEncoding.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -97,6 +98,7 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::OnMappedCommand;
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetProfilerCommands;
+        using DebuggerWindow::GetPaneHostForTest;
 
         std::optional<std::vector<std::wstring>> RunStepFiltersDialog (const std::vector<std::wstring> & shown,
                                                                        std::function<bool (const std::wstring &, std::wstring &)> check) override
@@ -397,6 +399,64 @@ namespace DebuggerToolPanesTests
                 Assert::IsTrue  (DebuggerLayout::MakeDefault().Contains (pane), pane.c_str());
                 Assert::IsFalse (window.IsPaneShown (pane), pane.c_str());
             }
+        }
+
+
+
+        //  The labels of a pane's row menu, none for a list not the pane's.
+        static std::vector<std::wstring> GetMenuLabels (IDebuggerPane & pane, DxuiListView * list, int row)
+        {
+            PaneMenuItems              items;
+            std::vector<std::wstring>  labels;
+
+
+
+            if (!pane.AddMenuItems (list, row, items))
+            {
+                return { L"none" };
+            }
+
+            for (const auto & [label, chosen] : items)
+            {
+                labels.push_back (label);
+            }
+
+            return labels;
+        }
+
+
+
+        //  A symbol's row has Go to and Remove over its table's commands; a
+        //  table's heading has only the table's; another pane's list has none.
+        TEST_METHOD (TheSymbolsRowMenuActsOnTheSymbolAndItsTable)
+        {
+            CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost     host;
+            ToolWindow            window  (theme, host);
+            SymbolsPane           symbols (window.GetPaneHostForTest());
+            BookmarksPane         other   (window.GetPaneHostForTest());
+            DebuggerViewSnapshot  snapshot;
+            PaneMenuItems         items;
+
+
+
+            window.OnCreate();
+            symbols.CreateControls();
+            other.CreateControls();
+            symbols.Configure();
+
+            snapshot.symbols = MakeSymbols();
+            symbols.Apply (snapshot);
+
+            Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 1) == std::vector<std::wstring> { L"Go to", L"Remove", L"Clear table", L"Save table..." });
+            Assert::IsTrue (GetMenuLabels (symbols, symbols.GetList(), 0) == std::vector<std::wstring> { L"Clear table", L"Save table..." });
+            Assert::IsTrue (GetMenuLabels (symbols, other.GetList(), 1)   == std::vector<std::wstring> { L"none" });
+
+            (void) symbols.AddMenuItems (symbols.GetList(), 1, items);
+            items[1].second();
+
+            Assert::AreEqual ((size_t) 1, host.commands.size());
+            Assert::IsTrue   (host.commands[0].find ("COUT") != std::string::npos, TextEncoding::NarrowToWide (host.commands[0]).c_str());
         }
     };
 }

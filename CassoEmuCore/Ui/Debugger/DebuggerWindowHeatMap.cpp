@@ -2,6 +2,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
 
@@ -84,7 +85,7 @@ void DebuggerWindow::SetHeatMapBarMenus()
 
     for (int seconds : HeatMapOptions::kFadeChoices)
     {
-        command = MakeMenuCommand (HeatMapBarCommands::GetFadeLabel (seconds), !shown.cumulative && seconds == shown.fadeSeconds, [this, seconds]
+        command = DebuggerMenuCommand::Make (HeatMapBarCommands::GetFadeLabel (seconds), !shown.cumulative && seconds == shown.fadeSeconds, [this, seconds]
         {
             HeatMapOptions  options = m_heatMapView->GetOptions();
 
@@ -99,7 +100,7 @@ void DebuggerWindow::SetHeatMapBarMenus()
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
-    command = MakeMenuCommand (L"Cumulative", shown.cumulative, [this]
+    command = DebuggerMenuCommand::Make (L"Cumulative", shown.cumulative, [this]
     {
         HeatMapOptions  options = m_heatMapView->GetOptions();
 
@@ -122,7 +123,7 @@ void DebuggerWindow::SetHeatMapBarMenus()
     {
         HeatMapView::Mode  mode = (HeatMapView::Mode) index;
 
-        command = MakeMenuCommand (HeatMapView::GetModeLabel (mode), mode == shown.view, [this, mode]
+        command = DebuggerMenuCommand::Make (HeatMapView::GetModeLabel (mode), mode == shown.view, [this, mode]
         {
             HeatMapOptions  options = m_heatMapView->GetOptions();
 
@@ -143,7 +144,7 @@ void DebuggerWindow::SetHeatMapBarMenus()
 
     for (HeatMapOptions::Bank bank : GetHeatMapBanks())
     {
-        std::shared_ptr<DxuiCommand>  command = MakeMenuCommand (HeatMapOptions::GetBankLabel (bank), bank == GetShownHeatMapBank(), [this, bank]
+        std::shared_ptr<DxuiCommand>  command = DebuggerMenuCommand::Make (HeatMapOptions::GetBankLabel (bank), bank == GetShownHeatMapBank(), [this, bank]
         {
             HeatMapOptions  options = m_heatMapView->GetOptions();
 
@@ -193,7 +194,7 @@ void DebuggerWindow::SetHeatIgnoreMenu()
     for (const std::string & name : names)
     {
         std::wstring                  label   = name.empty() ? std::wstring (L"None") : TextEncoding::Utf8ToWide (name);
-        std::shared_ptr<DxuiCommand>  command = MakeMenuCommand (label, name == current, [this, name]
+        std::shared_ptr<DxuiCommand>  command = DebuggerMenuCommand::Make (label, name == current, [this, name]
         {
             HeatMapOptions  options = m_heatMapView->GetOptions();
 

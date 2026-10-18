@@ -6,6 +6,7 @@
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 
 
@@ -108,14 +109,14 @@ void DebuggerWindow::SetBreakpointBarMenus()
         WatchAccess     access   = each.access;
         bool            isIoPage = each.isIoPage;
 
-        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, kind, access, isIoPage] { NewBreakpoint (kind, access, isIoPage); })));
+        kinds.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (each.label, false, [this, kind, access, isIoPage] { NewBreakpoint (kind, access, isIoPage); })));
     }
 
     for (const Special & each : kSpecials)
     {
         BreakpointDialog::Type  type = each.type;
 
-        kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (each.label, false, [this, type]
+        kinds.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (each.label, false, [this, type]
         {
             NewBreakpoint (BreakpointKind::Address, WatchAccess::ReadWrite, false, type);
         })));
@@ -140,12 +141,12 @@ void DebuggerWindow::SetBreakpointBarMenus()
 
 void DebuggerWindow::AddBreakpointColumnItems (std::vector<std::shared_ptr<DxuiCommand>> & commands)
 {
-    commands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading (BreakpointColumns::Column::Name), true, [] {}));
+    commands.push_back (DebuggerMenuCommand::Make (BreakpointColumns::GetHeading (BreakpointColumns::Column::Name), true, [] {}));
     commands.back()->isEnabled = [] { return false; };
 
     for (size_t i = 1; i < BreakpointColumns::kCount; i++)
     {
-        commands.push_back (MakeMenuCommand (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
+        commands.push_back (DebuggerMenuCommand::Make (BreakpointColumns::GetHeading ((BreakpointColumns::Column) i), m_breakpointShown[i],
                                              [this, i] { ToggleBreakpointColumn ((BreakpointColumns::Column) i); }));
     }
 }

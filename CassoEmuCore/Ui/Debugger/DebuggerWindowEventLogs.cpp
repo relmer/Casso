@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 
 
 
@@ -209,7 +210,7 @@ void DebuggerWindow::SetEventLogMenus()
         isAll = isAll && m_diskLogPane->IsKindShown ((DiskLogPane::Kind) i);
     }
 
-    kinds.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (L"All", isAll, [this, isAll]
+    kinds.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (L"All", isAll, [this, isAll]
     {
         for (size_t kind = 0; kind < DiskLogPane::kKindCount; kind++)
         {
@@ -223,7 +224,7 @@ void DebuggerWindow::SetEventLogMenus()
     {
         DiskLogPane::Kind  kind = (DiskLogPane::Kind) i;
 
-        item      = MakeMenuCommand (DiskLogPane::GetKindLabel (kind), m_diskLogPane->IsKindShown (kind), [this, kind]
+        item      = DebuggerMenuCommand::Make (DiskLogPane::GetKindLabel (kind), m_diskLogPane->IsKindShown (kind), [this, kind]
         {
             m_diskLogPane->SetKindShown (kind, !m_diskLogPane->IsKindShown (kind));
             SaveEventLogOptions (DebugLogKind::Disk);
@@ -235,7 +236,7 @@ void DebuggerWindow::SetEventLogMenus()
 
     for (int drive = 0; drive <= 2; drive++)
     {
-        drives.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand ((drive == 0) ? L"All drives" : std::format (L"Drive {}", drive), m_diskLogPane->GetDrive() == drive, [this, drive]
+        drives.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make ((drive == 0) ? L"All drives" : std::format (L"Drive {}", drive), m_diskLogPane->GetDrive() == drive, [this, drive]
         {
             m_diskLogPane->SetDrive (drive);
             SaveEventLogOptions (DebugLogKind::Disk);
@@ -246,7 +247,7 @@ void DebuggerWindow::SetEventLogMenus()
     {
         DiskLogPane::Severity  severity = (DiskLogPane::Severity) i;
 
-        severities.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (DiskLogPane::GetSeverityLabel (severity), m_diskLogPane->IsSeverityShown (severity), [this, severity]
+        severities.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (DiskLogPane::GetSeverityLabel (severity), m_diskLogPane->IsSeverityShown (severity), [this, severity]
         {
             m_diskLogPane->SetSeverityShown (severity, !m_diskLogPane->IsSeverityShown (severity));
             SaveEventLogOptions (DebugLogKind::Disk);
@@ -257,7 +258,7 @@ void DebuggerWindow::SetEventLogMenus()
     {
         bool  isGuest = lane == InputLogPane::kGuestKeyboard || lane == InputLogPane::kJoystick || lane == InputLogPane::kPaddle;
 
-        item      = MakeMenuCommand (InputLogPane::GetLaneLabel (lane), m_inputLogPane->IsLaneShown (lane), [this, lane]
+        item      = DebuggerMenuCommand::Make (InputLogPane::GetLaneLabel (lane), m_inputLogPane->IsLaneShown (lane), [this, lane]
         {
             m_inputLogPane->SetLaneShown (lane, !m_inputLogPane->IsLaneShown (lane));
             SaveEventLogOptions (DebugLogKind::Input);
@@ -286,7 +287,7 @@ void DebuggerWindow::SetEventLogMenus()
         {
             std::wstring  label = isJoystick ? std::format (L"Joystick {}", pair) : std::format (L"Paddles {}, {}", pair * 2, pair * 2 + 1);
 
-            menu.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (label, m_inputLogPane->IsPairJoystick (pair) == isJoystick, [this, pair, isJoystick]
+            menu.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (label, m_inputLogPane->IsPairJoystick (pair) == isJoystick, [this, pair, isJoystick]
             {
                 m_inputLogPane->SetPairJoystick (pair, isJoystick);
                 SaveEventLogOptions (DebugLogKind::Input);
@@ -767,7 +768,7 @@ void DebuggerWindow::AddEventLogColumnItems (
     {
         size_t  each = column;
 
-        commands.push_back (MakeMenuCommand (list->GetColumnAt (column).title, list->IsColumnVisible (column), [this, list, each, kind]
+        commands.push_back (DebuggerMenuCommand::Make (list->GetColumnAt (column).title, list->IsColumnVisible (column), [this, list, each, kind]
         {
             list->SetColumnVisible (each, !list->IsColumnVisible (each));
             SaveEventLogOptions (kind);

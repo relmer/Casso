@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "resource.h"
 
@@ -199,7 +200,7 @@ void DebuggerWindow::OpenSpeedMenu (const RECT & field)
 
     for (const auto & [mode, id] : speeds)
     {
-        m_menuCommands.push_back (MakeMenuCommand (DebuggerStatusText::GetSpeedText (mode), mode == speed, [this, id] { m_host->RunEmulatorCommand (id); }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (DebuggerStatusText::GetSpeedText (mode), mode == speed, [this, id] { m_host->RunEmulatorCommand (id); }));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
