@@ -606,9 +606,10 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
         hr = text.MeasureString (sel.c_str(),    fontPx, GetFace(), sx, textMeasH);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  A line of the text tall, centered as the text is, so a field taller
-        //  than its text keeps the selection clear of its edges.
-        selH = (std::min) ((textMeasH > 1.0f) ? textMeasH : fontPx * 1.3f, h);
+        //  A line of the text tall, centered as the text is, and inside the
+        //  edge and a pixel of the fill, so a field as short as its text
+        //  draws the band within its box.
+        selH = (std::min) ((textMeasH > 1.0f) ? textMeasH : fontPx * 1.3f, std::max (h - 4.0f, 1.0f));
         text.FillRect (x + padL + bx - m_scrollPx, y + (h - selH) * 0.5f, sx, selH, selArgb);
     }
 

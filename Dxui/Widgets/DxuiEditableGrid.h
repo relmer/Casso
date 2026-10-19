@@ -148,6 +148,8 @@ private:
     bool  CommitEdit       ();
     bool  CommitAddRow     (const std::wstring & text, int next);
     bool  MoveEdit         (int step);
+    bool  MoveEditRow      (int step);
+    void  FindNextCell     (int row, int column, int step, int & outRow, int & outColumn) const;
     int   GetNextEditColumn (int column, int step) const;
     int   GetNextEmptyColumn (int column) const;
     bool  IsColumnEditable (int column) const;

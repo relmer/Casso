@@ -151,6 +151,63 @@ public:
 
 
 
+    //  Up and Down move an edit to the same column of the row above or
+    //  below, committing it; a read-only row is skipped by neither, so the
+    //  edit does not move onto it.
+    TEST_METHOD (UpAndDownMoveTheEditBetweenRows)
+    {
+        Host  host;
+
+
+
+        Assert::IsTrue (host.grid.BeginEdit (0, 1));
+
+        host.Key (VK_DOWN);
+        Assert::AreEqual (1, host.grid.GetEditRow());
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+
+        host.Key (VK_DOWN);
+        Assert::AreEqual (1, host.grid.GetEditRow(), L"the read-only row takes no edit");
+
+        host.Key (VK_UP);
+        Assert::AreEqual (0, host.grid.GetEditRow());
+
+        host.Key (VK_UP);
+        Assert::AreEqual (0, host.grid.GetEditRow(), L"nothing above the first row");
+    }
+
+
+
+    //  Tab skips a row's read-only cell and goes on into the next row.
+    TEST_METHOD (TabSkipsReadOnlyCellsAndWraps)
+    {
+        Host                                     host;
+        std::vector<DxuiEditableGrid::GridRow>   rows;
+        DxuiEditableGrid::GridRow                row;
+
+
+
+        for (int r = 0; r < 2; r++)
+        {
+            row.cells         = { { L"A" }, { L"$0" }, { L"$1" } };
+            row.readOnlyCells = { false, false, true };
+            rows.push_back (row);
+        }
+
+        host.grid.SetGridRows (std::move (rows));
+        Assert::IsTrue (host.grid.BeginEdit (0, 1));
+
+        host.Key (VK_TAB);
+        Assert::AreEqual (1, host.grid.GetEditRow(), L"the read-only End was skipped into the next row");
+        Assert::AreEqual (0, host.grid.GetEditColumn());
+
+        host.Key (VK_TAB, true);
+        Assert::AreEqual (0, host.grid.GetEditRow());
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+    }
+
+
+
     TEST_METHOD (TheLastRowIsAHintToAddARow)
     {
         Host  host;

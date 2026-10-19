@@ -1928,7 +1928,8 @@ std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snaps
 //  that command in the console:
 //
 //    manual watch, expression   the watch moved to the new address
-//    manual watch, value        the word written to the watched address
+//    manual watch, value        the word written to the watched address,
+//                               or R <register> <value> for a register
 //    automatic register         R <register> <value>
 //    automatic flag             R P with that one bit set or cleared
 //    automatic address          the byte written there
@@ -1966,6 +1967,7 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
                 //  A BASIC watch's value is the program's to change.
                 return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
                      : !watch.basicName.empty() || !watch.isValueEditable ? std::vector<DebuggerAction> {}
+                     : IsRegisterWatch (watch)      ? std::vector<DebuggerAction> { DebuggerActions::GetSetRegister (GetUpper (watch.expression), text, mode) }
                      :                               std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
             }
         }
@@ -2022,6 +2024,46 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::IsRegisterWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsRegisterWatch (const DebuggerViewSnapshot::WatchLine & watch)
+{
+    static constexpr const char *  kRegisters[] = { "A", "X", "Y", "S", "P", "PC" };
+    std::string                    upper        = GetUpper (watch.expression);
+
+
+
+    return watch.basicName.empty() && std::ranges::any_of (kRegisters, [&upper] (const char * reg) { return upper == reg; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetUpper
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetUpper (const std::string & text)
+{
+    std::string  upper = text;
+
+
+
+    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) std::toupper ((unsigned char) ch); });
+    return upper;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetWatchUndo
 //
 //  The value each kind of edit overwrote, written back the way the edit wrote
@@ -2069,7 +2111,8 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
                 return std::nullopt;
             }
 
-            undo.actions = { DebuggerActions::GetEnterWord (watch.address, value, mode) };
+            undo.actions = { IsRegisterWatch (watch) ? DebuggerActions::GetSetRegister (GetUpper (watch.expression), value, mode)
+                                                     : DebuggerActions::GetEnterWord (watch.address, value, mode) };
             return undo;
         }
 

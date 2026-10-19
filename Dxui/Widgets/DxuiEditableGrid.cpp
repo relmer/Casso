@@ -609,17 +609,18 @@ std::wstring DxuiEditableGrid::MarkMissing()
 //
 //  DxuiEditableGrid::MoveEdit
 //
-//  Tab: the edit is committed and the next editable column of its row, or
-//  the one before for Shift+Tab, opens. In the hint row, a row that is
-//  complete is added.
+//  Tab: the edit is committed and the next editable cell opens, or the one
+//  before for Shift+Tab: along the row, skipping its read-only cells, then
+//  on into the next row. In the hint row, a row that is complete is added.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiEditableGrid::MoveEdit (int step)
 {
-    int           row    = m_editRow;
-    int           next   = GetNextEditColumn (m_editColumn, step);
-    std::wstring  text   = m_editor.GetText();
+    int           row     = m_editRow;
+    int           next    = GetNextEditColumn (m_editColumn, step);
+    int           nextRow = row;
+    std::wstring  text    = m_editor.GetText();
     std::wstring  error;
 
 
@@ -635,6 +636,8 @@ bool DxuiEditableGrid::MoveEdit (int step)
         return CommitAddRow (text, next);
     }
 
+    FindNextCell (row, m_editColumn, step, nextRow, next);
+
     if (!CommitEdit())
     {
         return false;
@@ -642,10 +645,112 @@ bool DxuiEditableGrid::MoveEdit (int step)
 
     if (next >= 0)
     {
-        BeginEdit (row, next);
+        BeginEdit (nextRow, next);
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::MoveEditRow
+//
+//  Up or Down: the edit is committed and the same column of the row above
+//  or below opens, or the row's first editable cell where that one is
+//  read-only. Down from the last row goes to the hint row; Up from an empty
+//  hint row goes to the last row, and from one with text, nowhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiEditableGrid::MoveEditRow (int step)
+{
+    int           row    = m_editRow;
+    int           column = m_editColumn;
+    int           target = row + step;
+    int           found  = target;
+    int           next   = -1;
+    bool          isAdd  = IsAddRow (row);
+    std::wstring  text   = m_editor.GetText();
+    std::wstring  error;
+
+
+
+    if (target < 0 || (isAdd && (step > 0 || text.find_first_not_of (L" \t") != std::wstring::npos)))
+    {
+        return true;
+    }
+
+    next = IsCellEditable (target, column) ? column : -1;
+
+    if (next < 0 && !IsAddRow (target))
+    {
+        FindNextCell (target, -1, 1, found, next);
+        next = (found == target) ? next : -1;
+    }
+
+    if (next < 0)
+    {
+        return true;
+    }
+
+    if (isAdd)
+    {
+        EndEdit (false);
+    }
+    else if (m_validate && !m_validate (column, text, error))
+    {
+        ReportError (error);
+        return false;
+    }
+    else if (!CommitEdit())
+    {
+        return false;
+    }
+
+    return BeginEdit (target, next);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::FindNextCell
+//
+//  The next editable cell of the data rows after (row, column) in the
+//  direction of step, along the row and then into the rows beyond; -1 for
+//  the column past the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::FindNextCell (int row, int column, int step, int & outRow, int & outColumn) const
+{
+    int  rows = GetDataRowCount();
+
+
+
+    outRow    = row;
+    outColumn = -1;
+
+    for (int r = row; r >= 0 && r < rows; r += step)
+    {
+        int  start = (r == row) ? column : (step > 0) ? -1 : (int) m_columns.size();
+
+        for (int c = GetNextEditColumn (start, step); c >= 0; c = GetNextEditColumn (c, step))
+        {
+            if (IsCellEditable (r, c))
+            {
+                outRow    = r;
+                outColumn = c;
+                return;
+            }
+        }
+    }
 }
 
 
@@ -1124,9 +1229,10 @@ LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
 //  DxuiEditableGrid::OnKey
 //
 //  While a cell is edited: Enter commits it (in the hint row, going on to
-//  the next empty column), Escape cancels it, Tab and Shift+Tab move
-//  along the row, and every other key edits the text. Otherwise F2 and Enter
-//  edit the selected row, Delete deletes it, and Insert starts a new row.
+//  the next empty column), Escape cancels it, Tab and Shift+Tab move to the
+//  next or previous editable cell, Up and Down to the row above or below,
+//  and every other key edits the text. Otherwise F2 and Enter edit the
+//  selected row, Delete deletes it, and Insert starts a new row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1187,6 +1293,12 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
         if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_TAB)
         {
             MoveEdit (ev.shift ? -1 : 1);
+            return true;
+        }
+
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_UP || ev.vk == VK_DOWN))
+        {
+            MoveEditRow (ev.vk == VK_UP ? -1 : 1);
             return true;
         }
 

@@ -339,7 +339,8 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
 //
 //  WatchHandlers::ReadTyped
 //
-//  A register's value, two hex digits or four for PC; a symbol's word at
+//  A register's value, two hex digits or four for PC, which edits as R does;
+//  a symbol's word at
 //  wherever it now is, in the symbol's own case; an expression's value, two
 //  digits for a byte read through *, else four. A symbol not loaded, or an
 //  expression that does not evaluate, has why as its error.
@@ -377,7 +378,8 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
     case WatchItem::Kind::Register:
         if (session.TryGetRegister (item.expression, reg))
         {
-            entry.valueText = (item.expression == "PC") ? std::format ("{:04X}", reg) : std::format ("{:02X}", reg & 0xFF);
+            entry.valueText       = (item.expression == "PC") ? std::format ("{:04X}", reg) : std::format ("{:02X}", reg & 0xFF);
+            entry.isValueEditable = true;
         }
 
         break;

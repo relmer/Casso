@@ -96,6 +96,35 @@ public:
 
 
 
+    //  A register watch's value edits as R, and its undo sets the register
+    //  back.
+    TEST_METHOD (ARegisterWatchValueEditSetsTheRegister)
+    {
+        ControllerRig                                rig;
+        DebuggerViewSnapshot                         snapshot;
+        std::vector<DebuggerAction>                  actions;
+        std::optional<DebuggerViewState::WatchUndo>  undo;
+
+
+
+        snapshot.watches                    = { { 3, 0x0000, "12" } };
+        snapshot.watches[0].expression      = "a";
+        snapshot.watches[0].isValueEditable = true;
+
+        actions = DebuggerViewState::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "41", CommandMode::AppleWin);
+        undo    = DebuggerViewState::GetWatchUndo (snapshot, 3, std::nullopt, 1, CommandMode::AppleWin);
+
+        Assert::AreEqual ((size_t) 1, actions.size());
+        Assert::AreEqual ((int) DebugVerb::SetRegister, (int) actions[0].command.verb);
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+        Assert::AreEqual ((Byte) 0x41, rig.controller.GetSession().GetTarget().GetRegisters().a);
+
+        Assert::IsTrue (undo.has_value() && undo->actions.size() == 1 && undo->actions[0].command.verb == DebugVerb::SetRegister);
+    }
+
+
+
     TEST_METHOD (AnAutomaticWatchEditWritesItsRegisterAndAddress)
     {
         ControllerRig         rig;

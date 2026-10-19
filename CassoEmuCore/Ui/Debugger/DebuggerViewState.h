@@ -702,6 +702,10 @@ public:
     static void                                        NoteMovedWatch      (const DebuggerViewSnapshot & now, WatchUndo & undo);
     static std::optional<std::vector<DebuggerAction>>  GetWatchUndoActions (const DebuggerViewSnapshot & now, WatchUndo & undo, CommandMode mode);
 
+    //  A manual watch of a register, A, X, Y, S, P or PC, in any case.
+    static bool         IsRegisterWatch (const DebuggerViewSnapshot::WatchLine & watch);
+    static std::string  GetUpper        (const std::string & text);
+
     //  Which optional views are open, as the text the preferences keep, so a
     //  restart brings them back: `code2=E000 follow=2 memory3=0300 panel=mmu`.
     //  A disassembly view keeps the address at its top, and a memory window
