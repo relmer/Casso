@@ -38,10 +38,11 @@ private:
 //  BreakpointDialog
 //
 //  Edits a breakpoint's type and the fields that type takes, and returns
-//  the definition BPEDIT reads: BP, BPMR, BPMW, BPM, BPMV, BPR or BRKOP with
-//  its arguments, a watchpoint's BEFORE and any IF condition, BRK ON or
-//  BRKINT ON, BPDISK with its drive, event, arguments and condition, or
-//  BPBASIC, BPBASICVAR or BRKBASIC ON.
+//  the definition BPEDIT reads: BP, BPMR, BPMW, BPM, BPMV or BRKOP with its
+//  arguments, a data breakpoint's BEFORE and any IF condition, BPR IF and a
+//  condition, BRK ON or BRKINT ON, BPDISK with its drive, event, arguments
+//  and condition, or BPBASIC, BPBASICVAR or BRKBASIC ON. The type list is
+//  grouped under headings, which cannot be chosen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,8 +50,18 @@ class BreakpointDialog : public DxuiDialogWindow
 {
 public:
     //  The types offered, in the order the list shows them.
-    enum class Type { Execute, Read, Write, ReadWrite, Value, Register, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError,
-                      UnwrittenRead, VideoLine, Beam, ExecuteWatch };
+    enum class Type { Execute, Read, Write, ReadWrite, Value, Condition, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError,
+                      UnwrittenRead, VideoLine, Beam };
+
+    //  A row of the type list: a heading when type is empty.
+    struct TypeRow
+    {
+        const wchar_t        * label = nullptr;
+        std::optional<Type>    type;
+    };
+
+    static const std::vector<TypeRow> &  GetTypeRows ();
+    static int                           GetRowOf    (Type type);
 
     //  The values of the dialog's controls. A disk breakpoint's event is an
     //  index into DiskBreakSpecText::GetEventWords, its drive 0 for either,
@@ -94,17 +105,23 @@ public:
     //  the breakpoint's own type otherwise; the definition when OK.
     static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt);
 
+    //  A new breakpoint's dialog: Execute at the PC, every other type's
+    //  fields empty.
+    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Word pc);
+
 protected:
     void  OnCreate() override;
 
 private:
     void  ShowFieldsForType ();
+    Type  GetSelectedType   () const;
 
     static Fields  GetDiskFields (const BreakpointInfo & info, Fields fields);
 
     const IDxuiTheme            * m_theme          = nullptr;
     BreakpointInfo                m_info;
     std::optional<Type>           m_presetType;
+    std::optional<std::wstring>   m_newAddress;
     std::optional<std::string>    m_definition;
     DxuiLabel                     m_typeLabel;
     DxuiLabel                     m_modeLabel;

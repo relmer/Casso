@@ -1483,7 +1483,7 @@ namespace DebuggerViewStateTests
                 { Type::Write,     "0400",      "",     "",    "BPMW 0400"           },
                 { Type::ReadWrite, "0400",      "",     "",    "BPM 0400"            },
                 { Type::Value,     "0400",      "41",   "",    "BPMV 0400 41"        },
-                { Type::Register,  "",          "A=41", "",    "BPR A=41"            },
+                { Type::Condition, "",          "",     "A == 41 && X > 3", "BPR IF A == 41 && X > 3" },
                 { Type::Opcode,    "",          "EA",   "",    "BRKOP EA"            },
             };
 

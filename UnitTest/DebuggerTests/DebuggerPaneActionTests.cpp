@@ -137,7 +137,6 @@ public:
             { Type::VideoLine,     "64:6B",     "",   "BPV 64:6B"     },
             { Type::Beam,          "64",        "20", "BPBEAM 64 20"  },
             { Type::Beam,          "vbl",       "",   "BPBEAM VBL"    },
-            { Type::ExecuteWatch,  "0300:030F", "",   "BPA 0300:030F" },
         };
 
 
@@ -162,14 +161,14 @@ public:
 
 
     //  The dialog has only the fields a type's definition reads: a BASIC
-    //  variable change, its variable; a register test, its test; a disk
+    //  variable change, its variable; a condition, its condition; a disk
     //  event, its event, drive, arguments and condition.
     TEST_METHOD (TheBreakpointDialogHasOnlyTheFieldsATypeUses)
     {
         using Type = BreakpointDialog::Type;
 
         BreakpointDialog::VisibleFields  variable = BreakpointDialog::GetVisibleFields (Type::BasicVariable);
-        BreakpointDialog::VisibleFields  reg      = BreakpointDialog::GetVisibleFields (Type::Register);
+        BreakpointDialog::VisibleFields  reg      = BreakpointDialog::GetVisibleFields (Type::Condition);
         BreakpointDialog::VisibleFields  disk     = BreakpointDialog::GetVisibleFields (Type::Disk);
         BreakpointDialog::VisibleFields  brk      = BreakpointDialog::GetVisibleFields (Type::Brk);
 
@@ -178,14 +177,46 @@ public:
         Assert::IsTrue  (variable.address);
         Assert::IsFalse (variable.value || variable.condition || variable.mode || variable.event || variable.drive);
 
-        Assert::IsTrue  (reg.value);
-        Assert::IsFalse (reg.address || reg.condition);
+        Assert::IsTrue  (reg.condition);
+        Assert::IsFalse (reg.address || reg.value);
 
         Assert::IsTrue  (disk.event && disk.drive && disk.address && disk.condition);
         Assert::IsFalse (disk.value || disk.mode);
 
         Assert::IsFalse (brk.address || brk.value || brk.condition, L"BRK ON takes nothing");
-        Assert::IsTrue  (BreakpointDialog::GetVisibleFields (Type::Read).mode, L"a watchpoint stops before or after");
+        Assert::IsTrue  (BreakpointDialog::GetVisibleFields (Type::Read).mode, L"a data breakpoint stops before or after");
+    }
+
+
+
+    //  The type list is grouped under headings that cannot be chosen, every
+    //  type is in it once, and no type repeats another's breakpoint.
+    TEST_METHOD (TheBreakpointTypesAreGroupedUnderHeadings)
+    {
+        using Type = BreakpointDialog::Type;
+
+        const std::vector<BreakpointDialog::TypeRow>  & rows     = BreakpointDialog::GetTypeRows();
+        std::vector<std::wstring>                       headings;
+        size_t                                          types    = 0;
+
+
+
+        for (const BreakpointDialog::TypeRow & row : rows)
+        {
+            if (!row.type.has_value())
+            {
+                headings.push_back (row.label);
+            }
+            else
+            {
+                types++;
+            }
+        }
+
+        Assert::IsTrue   (headings == std::vector<std::wstring> { L"Code", L"Memory", L"BASIC", L"Hardware" });
+        Assert::AreEqual ((size_t) Type::Beam + 1, types, L"a type is missing or repeated");
+        Assert::IsFalse  (rows.front().type.has_value(), L"the list does not start with a heading");
+        Assert::AreEqual (std::wstring (L"Reading uninitialized memory"), std::wstring (rows[(size_t) BreakpointDialog::GetRowOf (Type::UnwrittenRead)].label));
     }
 
 

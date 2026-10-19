@@ -539,7 +539,9 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
     }
 
     // A comparison is the whole condition; IF would be read as part of its value.
+    // BPR IF, with IF first, is a condition of any form.
     if (!takesIf && (isConditional || command.verb == DebugVerb::SetRegisterBreakpoint) &&
+        !(command.verb == DebugVerb::SetRegisterBreakpoint && !args.tokens.empty() && isIf (args.tokens[0])) &&
         std::find_if (args.tokens.begin(), args.tokens.end(), isIf) != args.tokens.end())
     {
         error = std::format ("{} with a comparison does not take IF.", ToUpper (command.sourceName));
@@ -606,6 +608,11 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         return TryParseValueBreakpoint (args, command, error);
 
     case DebugVerb::SetRegisterBreakpoint:
+        if (!args.tokens.empty() && isIf (args.tokens[0]))
+        {
+            return TryParseFreeCondition (Join (args.tokens, 1), command, error, args.context->GetNumberSyntax());
+        }
+
         return TryParseRegisterCondition (args.tokens, command, error);
 
     case DebugVerb::BreakOnOpcode:
@@ -2455,6 +2462,34 @@ bool AppleWinParser::TryParseIdOrAll (const Tokens & tokens, DebugCommand & comm
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::TryParseFreeCondition
+//
+//  The whole text as one expression, as an IF clause is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseFreeCondition (const std::string & text, DebugCommand & command, std::string & error, NumberSyntax syntax)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (text.find_first_not_of (" \t") == std::string::npos)
+    {
+        error = "BPR IF needs a condition.";
+        return false;
+    }
+
+    hr = DebugExpressionEvaluator::Parse (text, command.expression, error, syntax);
+    return SUCCEEDED (hr);
 }
 
 

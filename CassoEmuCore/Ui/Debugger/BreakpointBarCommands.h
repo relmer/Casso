@@ -11,9 +11,9 @@
 //  BreakpointBarCommands
 //
 //  The breakpoints pane's toolbar, as Visual Studio's Breakpoints window has
-//  it (FR-119): New, Delete, Delete all, Disable all, Undo, Redo, Go to source
-//  code, Go to disassembly, Export and Import. New is a word with a drop-down
-//  arrow; the rest are icons with a tip, drawn after Visual Studio's where no
+//  it (FR-119): New breakpoint, Delete, Delete all, Disable all, Undo, Redo,
+//  Go to source code, Go to disassembly, Export and Import. New breakpoint is
+//  a word, which opens the breakpoint dialog; the rest are icons with a tip, drawn after Visual Studio's where no
 //  icon-font glyph matches. Disable all enables them all again when every one
 //  is already disabled, as Visual Studio's button does. The bar is a
 //  DxuiToolbar, so what does not fit goes into its "..." menu as on every

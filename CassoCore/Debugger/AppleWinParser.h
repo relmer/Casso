@@ -117,6 +117,7 @@ private:
     static bool    TryEvaluateQuietly         (const std::string & text, const IDebugExpressionContext & context, Word & value);
     static bool    TryParseFrameArguments    (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error);
+    static bool    TryParseFreeCondition     (const std::string & text, DebugCommand & command, std::string & error, NumberSyntax syntax);
     static bool    TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseMemoryArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseDataArguments     (const Arguments & args, DebugCommand & command, std::string & error);

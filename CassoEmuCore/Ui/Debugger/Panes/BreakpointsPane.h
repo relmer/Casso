@@ -90,11 +90,9 @@ private:
         std::wstring  opened;
     };
 
-    void                             SetBarMenus    ();
     void                             SetColumns     ();
     void                             ApplyRows      ();
-    void                             NewBreakpoint  (BreakpointKind kind, WatchAccess access, bool isIoPage,
-                                                     std::optional<BreakpointDialog::Type> type = std::nullopt);
+    void                             NewBreakpoint  ();
     void                             RunStep        (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
 

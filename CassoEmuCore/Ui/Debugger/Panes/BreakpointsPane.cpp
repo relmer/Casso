@@ -116,9 +116,6 @@ void BreakpointsPane::Configure()
 
     m_bar.Configure();
     m_bar.GetBar()->SetEntries (m_commands->BuildEntries());
-    m_bar.SetOnPress ([this] { SetBarMenus(); });
-
-    SetBarMenus();
 
     m_nameEditor->SetVisible   (false);
     m_nameEditor->SetOverText  (true);
@@ -258,83 +255,6 @@ void BreakpointsPane::SetShown (const Shown & shown)
 {
     m_shown = shown;
     SetColumns();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointsPane::SetBarMenus
-//
-//  New's kinds, each opening the breakpoint dialog set to that kind. Rebuilt
-//  before each drop-down opens.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void BreakpointsPane::SetBarMenus()
-{
-    struct Kind
-    {
-        const wchar_t   * label;
-        BreakpointKind    kind;
-        WatchAccess       access;
-        bool              isIoPage;
-    };
-
-    static constexpr Kind           kKinds[] =
-    {
-        { L"Breakpoint at address...", BreakpointKind::Address,  WatchAccess::ReadWrite, false },
-        { L"Function breakpoint...",   BreakpointKind::Address,  WatchAccess::ReadWrite, false },
-        { L"Data breakpoint...",       BreakpointKind::Memory,   WatchAccess::Write,     false },
-        { L"Register condition...",    BreakpointKind::Register, WatchAccess::ReadWrite, false },
-        { L"Opcode...",                BreakpointKind::Opcode,   WatchAccess::ReadWrite, false },
-        { L"I/O range...",             BreakpointKind::Memory,   WatchAccess::ReadWrite, true  },
-        { L"Disk event...",            BreakpointKind::Disk,     WatchAccess::ReadWrite, false },
-        { L"BASIC line...",            BreakpointKind::BasicLine,     WatchAccess::ReadWrite, false },
-        { L"BASIC variable change...", BreakpointKind::BasicVariable, WatchAccess::ReadWrite, false },
-        { L"BASIC error...",           BreakpointKind::BasicError,    WatchAccess::ReadWrite, false },
-    };
-    //  Stops that are not entries of the breakpoint table, which the dialog
-    //  makes as BRKUNINIT, BPV, BPBEAM and BPA.
-    struct Special
-    {
-        const wchar_t           * label;
-        BreakpointDialog::Type    type;
-    };
-
-    static constexpr Special        kSpecials[] =
-    {
-        { L"Read of memory never written...", BreakpointDialog::Type::UnwrittenRead },
-        { L"Video line...",                   BreakpointDialog::Type::VideoLine     },
-        { L"Beam position...",                BreakpointDialog::Type::Beam          },
-        { L"Execute and watch...",            BreakpointDialog::Type::ExecuteWatch  },
-    };
-    std::vector<DxuiPopupMenuItem>  kinds;
-
-
-
-    for (const Kind & each : kKinds)
-    {
-        BreakpointKind  kind     = each.kind;
-        WatchAccess     access   = each.access;
-        bool            isIoPage = each.isIoPage;
-
-        kinds.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (each.label, false, [this, kind, access, isIoPage] { NewBreakpoint (kind, access, isIoPage); })));
-    }
-
-    for (const Special & each : kSpecials)
-    {
-        BreakpointDialog::Type  type = each.type;
-
-        kinds.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (each.label, false, [this, type]
-        {
-            NewBreakpoint (BreakpointKind::Address, WatchAccess::ReadWrite, false, type);
-        })));
-    }
-
-    m_bar.GetBar()->SetDropDownItems (BreakpointBarCommands::kNew, std::move (kinds));
 }
 
 
@@ -517,6 +437,7 @@ void BreakpointsPane::RunBarEntry (int id)
         RunStep (std::move (step));
         break;
 
+    case BreakpointBarCommands::kNew:        NewBreakpoint();                                                                                          break;
     case BreakpointBarCommands::kDeleteAll:  RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints  (mode) },              {} }); break;
     case BreakpointBarCommands::kDisableAll: RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (!anyEnabled, mode) }, {} }); break;
     case BreakpointBarCommands::kUndo:       RunStep ({ BreakpointStep::Kind::Undo,    {}, {} });                                                      break;
@@ -550,30 +471,19 @@ void BreakpointsPane::RunBarEntry (int id)
 //
 //  BreakpointsPane::NewBreakpoint
 //
-//  The breakpoint dialog, set to the kind chosen at the PC, or over the I/O
-//  page for an I/O range; its definition is the line a person could have
-//  typed. An I/O range is a memory watchpoint, as AppleWin's BPIO is.
+//  The breakpoint dialog on Execute at the PC; its definition is the line a
+//  person could have typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointsPane::NewBreakpoint (BreakpointKind kind, WatchAccess access, bool isIoPage, std::optional<BreakpointDialog::Type> type)
+void BreakpointsPane::NewBreakpoint()
 {
-    constexpr Word                 kIoFirst   = 0xC000;
-    constexpr Word                 kIoLast    = 0xC0FF;
     const DebuggerViewSnapshot   * snapshot   = m_host.GetLatestSnapshot();
-    BreakpointInfo                 info;
     std::optional<std::string>     definition;
-    bool                           isBasic    = kind == BreakpointKind::BasicLine || kind == BreakpointKind::BasicVariable || kind == BreakpointKind::BasicError;
 
 
 
-    //  A new BASIC line breakpoint's field starts empty, not at the PC.
-    info.kind    = kind;
-    info.access  = access;
-    info.address = isIoPage ? kIoFirst : (isBasic || snapshot == nullptr) ? (Word) 0 : snapshot->pc;
-    info.last    = isIoPage ? kIoLast  : info.address;
-
-    definition = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), info, type);
+    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), (snapshot != nullptr) ? snapshot->pc : (Word) 0);
 
     if (definition.has_value())
     {
