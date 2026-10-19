@@ -13,11 +13,13 @@
 //
 //  All 256 pages of the address space in two wide vertical strips, page $00
 //  at the top: what each page reads from beside what it writes to, colored
-//  by source. A run of pages tall enough has its source's name inside it;
-//  each run's first address is a label outside its strip, the read strip's
-//  on the left and the write strip's on the right, left out where it would
-//  overlap the one above. A run's tip has its color, its source and the
-//  addresses it covers.
+//  by source. Every run of pages of one source is at least kMinRunDip tall,
+//  the height taken from the larger runs, so a single I/O page is as easy
+//  to see and to point at as main RAM; a run with room has its source's
+//  name inside it. Each run's first address is a label outside its strip,
+//  the read strip's on the left and the write strip's on the right, left
+//  out where it would overlap the one above. A run's tip has its source and
+//  the addresses it covers.
 //
 //  Bounds are pixels, like every Dxui control; the bar scales only its own
 //  metrics.
@@ -32,9 +34,10 @@ public:
     static constexpr int  kBoundsDip   = 44;
     static constexpr int  kHeadingDip  = 18;
     static constexpr int  kNamePadDip  = 2;
+    static constexpr int  kMinRunDip   = 20;
 
-    void                          SetMap (const DiagnosticsMemoryMap & map) { m_map = map; }
-    const DiagnosticsMemoryMap &  GetMap () const                           { return m_map; }
+    void                          SetMap (const DiagnosticsMemoryMap & map);
+    const DiagnosticsMemoryMap &  GetMap () const { return m_map; }
 
     //  The width of the two strips and their bounds' labels.
     static int                    GetPreferredWidthPx (const DxuiDpiScaler & scaler);
@@ -58,9 +61,10 @@ public:
     uint32_t                      GetColorOf      (MemorySource source) const;
 
     //  Where a strip starts, in pixels from the bar's left; and where a page's
-    //  segment starts, in pixels from the bar's top.
+    //  segment starts in a strip, in pixels from the bar's top. Page 256 is
+    //  the strip's foot.
     float                         GetStripX (bool isWrite) const;
-    float                         GetPageY  (int page) const;
+    float                         GetPageY  (int page, bool isWrite) const;
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -68,11 +72,23 @@ public:
     std::wstring        GetAccessibleName () const override { return L"Memory map"; }
 
 private:
+    //  Pages first to end - 1 of one source, from top to bottom in pixels.
+    struct Run
+    {
+        int    first  = 0;
+        int    end    = 0;
+        float  top    = 0.0f;
+        float  bottom = 0.0f;
+    };
+
+    void          PlaceRuns   ();
+    const Run *   FindRunAt   (float y, bool isWrite) const;
     MemorySource  GetSourceOf (int page, bool isWrite) const;
     void          PaintStrip  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
     void          PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
 
-    DiagnosticsMemoryMap  m_map;
-    DxuiDpiScaler         m_scaler;
-    SourceColors          m_colors  = {};
+    DiagnosticsMemoryMap               m_map;
+    DxuiDpiScaler                      m_scaler;
+    SourceColors                       m_colors  = {};
+    std::array<std::vector<Run>, 2>    m_runs;           // read, then write
 };

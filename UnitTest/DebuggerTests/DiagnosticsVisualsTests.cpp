@@ -61,21 +61,12 @@ namespace DebuggerTests
 
 
 
-        //  Strips 256 pixels tall below their headings make each page one
-        //  pixel tall; a run of pages of one source is one fill, the read
-        //  strip's left of the write strip's.
-        TEST_METHOD (TheMemoryMapColorsEachPageBySource)
+        //  A map of a few runs per strip: aux pages 0 and 1 (only page 0
+        //  written there), main RAM, the I/O page, main RAM again, then ROM
+        //  that writes go nowhere from.
+        static DiagnosticsMemoryMap MakeMap()
         {
-            constexpr float       kRead     = (float) MemoryMapBar::kBoundsDip;
-            constexpr float       kWrite    = (float) (MemoryMapBar::kBoundsDip + MemoryMapBar::kStripDip + MemoryMapBar::kStripGapDip);
-            constexpr float       kTop      = (float) MemoryMapBar::kHeadingDip;
-            constexpr float       kStrip    = (float) MemoryMapBar::kStripDip;
-            MemoryMapBar          bar;
             DiagnosticsMemoryMap  map;
-            MockDxuiPainter       painter;
-            MockDxuiTextRenderer  text;
-            MockDxuiTheme         theme;
-            size_t                readFills = 0;
 
 
 
@@ -93,15 +84,35 @@ namespace DebuggerTests
                 map.pages[page] = { MemorySource::Rom, MemorySource::None };
             }
 
-            bar.SetMap (map);
-            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), (LONG) kTop + 256 }, Scaler96());
+            return map;
+        }
+
+
+
+        //  A run of pages of one source is one fill from its first page to
+        //  the next run, the read strip's left of the write strip's.
+        TEST_METHOD (TheMemoryMapColorsEachPageBySource)
+        {
+            constexpr float       kRead     = (float) MemoryMapBar::kBoundsDip;
+            constexpr float       kWrite    = (float) (MemoryMapBar::kBoundsDip + MemoryMapBar::kStripDip + MemoryMapBar::kStripGapDip);
+            constexpr float       kStrip    = (float) MemoryMapBar::kStripDip;
+            MemoryMapBar          bar;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            size_t                readFills = 0;
+
+
+
+            bar.SetMap (MakeMap());
+            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), MemoryMapBar::kHeadingDip + 256 }, Scaler96());
             bar.Paint  (painter, text, theme);
 
-            Assert::IsTrue (HasFill (painter, kRead,  kTop,        kStrip, MemoryMapBar::GetSourceColor (MemorySource::Aux)),  L"pages 0 and 1 read aux");
-            Assert::IsTrue (HasFill (painter, kRead,  kTop + 2,    kStrip, MemoryMapBar::GetSourceColor (MemorySource::Main)), L"then main to $BF");
-            Assert::IsTrue (HasFill (painter, kRead,  kTop + 0xC0, kStrip, MemoryMapBar::GetSourceColor (MemorySource::Io)));
-            Assert::IsTrue (HasFill (painter, kWrite, kTop,        kStrip, MemoryMapBar::GetSourceColor (MemorySource::Aux)),  L"only page 0 writes aux");
-            Assert::IsTrue (HasFill (painter, kWrite, kTop + 0xD0, kStrip, theme.Divider()), L"a write that goes nowhere");
+            Assert::IsTrue (HasFill (painter, kRead,  bar.GetPageY (0x00, false), kStrip, MemoryMapBar::GetSourceColor (MemorySource::Aux)),  L"pages 0 and 1 read aux");
+            Assert::IsTrue (HasFill (painter, kRead,  bar.GetPageY (0x02, false), kStrip, MemoryMapBar::GetSourceColor (MemorySource::Main)), L"then main to $BF");
+            Assert::IsTrue (HasFill (painter, kRead,  bar.GetPageY (0xC0, false), kStrip, MemoryMapBar::GetSourceColor (MemorySource::Io)));
+            Assert::IsTrue (HasFill (painter, kWrite, bar.GetPageY (0x00, true),  kStrip, MemoryMapBar::GetSourceColor (MemorySource::Aux)),  L"only page 0 writes aux");
+            Assert::IsTrue (HasFill (painter, kWrite, bar.GetPageY (0xD0, true),  kStrip, theme.Divider()), L"a write that goes nowhere");
 
             for (const RecordedPaintCall & call : painter.Calls())
             {
@@ -114,45 +125,55 @@ namespace DebuggerTests
         }
 
 
-        //  A run of pages from one source tells, in its tip, its color, what
-        //  it is, which way the strip goes, and its addresses.
-        TEST_METHOD (AMemoryMapRunsTipSaysItsColorWhatAndWhere)
+        //  A run of one page is as tall as the minimum, taken from the larger
+        //  runs, and the runs fill the strip from its heading to its foot.
+        TEST_METHOD (EveryMemoryMapRunIsAtLeastTheMinimumTall)
+        {
+            constexpr float  kTop    = (float) MemoryMapBar::kHeadingDip;
+            constexpr float  kMin    = (float) MemoryMapBar::kMinRunDip;
+            MemoryMapBar     bar;
+
+
+
+            bar.SetMap (MakeMap());
+            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), MemoryMapBar::kHeadingDip + 256 }, Scaler96());
+
+            for (bool isWrite : { false, true })
+            {
+                Assert::AreEqual (kTop,         bar.GetPageY (0x00, isWrite), 0.01f, L"the strip does not start below its heading");
+                Assert::AreEqual (kTop + 256.0f, bar.GetPageY ((int) DiagnosticsMemoryMap::kPageCount, isWrite), 0.01f, L"the runs do not fill the strip");
+                Assert::IsTrue   (bar.GetPageY (0xC1, isWrite) - bar.GetPageY (0xC0, isWrite) >= kMin - 0.01f, L"the I/O page is shorter than the minimum");
+            }
+
+            Assert::IsTrue (bar.GetPageY (0x02, false) - bar.GetPageY (0x00, false) >= kMin - 0.01f, L"the two aux pages are shorter than the minimum");
+            Assert::IsTrue (bar.GetPageY (0x01, true)  - bar.GetPageY (0x00, true)  >= kMin - 0.01f, L"the one aux page written is shorter than the minimum");
+        }
+
+
+        //  A run's tip has its source and its addresses, and nothing over the
+        //  bounds' labels or the headings.
+        TEST_METHOD (AMemoryMapRunsTipHasItsSourceAndAddresses)
         {
             constexpr LONG        kRead  = MemoryMapBar::kBoundsDip;
             constexpr LONG        kWrite = MemoryMapBar::kBoundsDip + MemoryMapBar::kStripDip + MemoryMapBar::kStripGapDip;
-            constexpr LONG        kTop   = MemoryMapBar::kHeadingDip;
             MemoryMapBar          bar;
-            DiagnosticsMemoryMap  map;
             std::wstring          tip;
 
 
 
-            for (DiagnosticsMemoryMap::Page & page : map.pages)
-            {
-                page = { MemorySource::Main, MemorySource::Main };
-            }
+            bar.SetMap (MakeMap());
+            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), MemoryMapBar::kHeadingDip + 256 }, Scaler96());
 
-            map.pages[0x00] = { MemorySource::Aux, MemorySource::Aux };
-            map.pages[0x01] = { MemorySource::Aux, MemorySource::Main };
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, (LONG) bar.GetPageY (0x00, false) + 1 }, tip));
+            Assert::AreEqual (std::wstring (L"Aux RAM  $0000-$01FF"), tip);
 
-            for (size_t page = 0xD0; page < DiagnosticsMemoryMap::kPageCount; page++)
-            {
-                map.pages[page] = { MemorySource::Rom, MemorySource::None };
-            }
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, (LONG) bar.GetPageY (0x40, false) }, tip));
+            Assert::AreEqual (std::wstring (L"Main RAM  $0200-$BFFF"), tip);
 
-            bar.SetMap (map);
-            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), kTop + 256 }, Scaler96());
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kWrite + 1, (LONG) bar.GetPageY (0xE0, true) }, tip));
+            Assert::AreEqual (std::wstring (L"Not written  $D000-$FFFF"), tip);
 
-            Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, kTop + 1 }, tip));
-            Assert::AreEqual (std::wstring (L"Orange: reads come from Aux RAM ($0000-$01FF)"), tip);
-
-            Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, kTop + 0x40 }, tip));
-            Assert::AreEqual (std::wstring (L"Blue: reads come from Main RAM ($0200-$CFFF)"), tip);
-
-            Assert::IsTrue   (bar.TryGetTipAt (POINT { kWrite + 1, kTop + 0xE0 }, tip));
-            Assert::AreEqual (std::wstring (L"Nothing is written here ($D000-$FFFF)"), tip);
-
-            Assert::IsFalse  (bar.TryGetTipAt (POINT { 2, kTop + 2 }, tip), L"none over the bounds' labels");
+            Assert::IsFalse  (bar.TryGetTipAt (POINT { 2, (LONG) bar.GetPageY (0x02, false) }, tip), L"none over the bounds' labels");
             Assert::IsFalse  (bar.TryGetTipAt (POINT { kRead + 1, 2 }, tip), L"none over the headings");
         }
 

@@ -195,20 +195,167 @@ float MemoryMapBar::GetStripX (bool isWrite) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryMapBar::GetPageY
-//
-//  Below the headings, page $00 at the top and page $FF at the bottom.
+//  MemoryMapBar::SetMap
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float MemoryMapBar::GetPageY (int page) const
+void MemoryMapBar::SetMap (const DiagnosticsMemoryMap & map)
 {
-    float  top    = (float) m_boundsDip.top + m_scaler.ToPxf ((float) kHeadingDip);
-    float  height = std::max (0.0f, (float) m_boundsDip.bottom - top);
+    m_map = map;
+    PlaceRuns();
+}
 
 
 
-    return top + height * (float) page / (float) DiagnosticsMemoryMap::kPageCount;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::PlaceRuns
+//
+//  Each strip's runs share its height by their pages, except that a run
+//  whose share is less than kMinRunDip gets kMinRunDip, and the rest share
+//  what is left; a run that then falls short is raised in turn. When the
+//  strip is too short for every run to have kMinRunDip, every run has its
+//  plain share.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryMapBar::PlaceRuns()
+{
+    float  top     = (float) m_boundsDip.top + m_scaler.ToPxf ((float) kHeadingDip);
+    float  height  = std::max (0.0f, (float) m_boundsDip.bottom - top);
+    float  minimum = m_scaler.ToPxf ((float) kMinRunDip);
+
+
+
+    for (bool isWrite : { false, true })
+    {
+        std::vector<Run>   & runs     = m_runs[isWrite ? 1 : 0];
+        std::vector<bool>    isRaised;
+        bool                 isMoved  = true;
+        float                free     = height;
+        int                  pages    = 0;
+        float                y        = top;
+
+        runs.clear();
+
+        for (int first = 0; first < (int) DiagnosticsMemoryMap::kPageCount; )
+        {
+            int  end = first + 1;
+
+            while (end < (int) DiagnosticsMemoryMap::kPageCount && GetSourceOf (end, isWrite) == GetSourceOf (first, isWrite))
+            {
+                end++;
+            }
+
+            runs.push_back ({ first, end });
+            first = end;
+        }
+
+        isRaised.assign (runs.size(), false);
+
+        //  Raise each run below the minimum until none is left below it.
+        while (isMoved && minimum * (float) runs.size() <= height)
+        {
+            isMoved = false;
+            free    = height;
+            pages   = 0;
+
+            for (size_t i = 0; i < runs.size(); i++)
+            {
+                free  -= isRaised[i] ? minimum : 0.0f;
+                pages += isRaised[i] ? 0 : runs[i].end - runs[i].first;
+            }
+
+            for (size_t i = 0; i < runs.size() && pages > 0; i++)
+            {
+                if (!isRaised[i] && free * (float) (runs[i].end - runs[i].first) / (float) pages < minimum)
+                {
+                    isRaised[i] = true;
+                    isMoved     = true;
+                }
+            }
+        }
+
+        if (minimum * (float) runs.size() > height)
+        {
+            isRaised.assign (runs.size(), false);
+            free  = height;
+            pages = (int) DiagnosticsMemoryMap::kPageCount;
+        }
+
+        for (size_t i = 0; i < runs.size(); i++)
+        {
+            float  share = isRaised[i] ? minimum : (pages > 0 ? free * (float) (runs[i].end - runs[i].first) / (float) pages : 0.0f);
+
+            runs[i].top    = y;
+            runs[i].bottom = y + share;
+            y             += share;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetPageY
+//
+//  Within its run, pages share the run's height evenly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float MemoryMapBar::GetPageY (int page, bool isWrite) const
+{
+    const std::vector<Run>  & runs = m_runs[isWrite ? 1 : 0];
+
+
+
+    if (runs.empty())
+    {
+        return (float) m_boundsDip.top + m_scaler.ToPxf ((float) kHeadingDip);
+    }
+
+    if (page >= (int) DiagnosticsMemoryMap::kPageCount)
+    {
+        return runs.back().bottom;
+    }
+
+    for (const Run & run : runs)
+    {
+        if (page >= run.first && page < run.end)
+        {
+            return run.top + (run.bottom - run.top) * (float) (page - run.first) / (float) (run.end - run.first);
+        }
+    }
+
+    return runs.front().top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::FindRunAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const MemoryMapBar::Run * MemoryMapBar::FindRunAt (float y, bool isWrite) const
+{
+    for (const Run & run : m_runs[isWrite ? 1 : 0])
+    {
+        if (y >= run.top && y < run.bottom)
+        {
+            return &run;
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -234,9 +381,9 @@ MemorySource MemoryMapBar::GetSourceOf (int page, bool isWrite) const
 //
 //  MemoryMapBar::TryGetTipAt
 //
-//  Over a run of pages from one source, in either strip: the source's color
-//  and what it is, which way the strip goes, and the run's addresses, "Blue:
-//  reads come from Main RAM ($0000-$BFFF)".
+//  Over a run of pages from one source, in either strip: the source and the
+//  run's addresses, "Main RAM  $0200-$BFFF". The strip's heading has whether
+//  it reads or writes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,18 +391,13 @@ bool MemoryMapBar::TryGetTipAt (POINT point, std::wstring & text) const
 {
     float         strip   = m_scaler.ToPxf ((float) kStripDip);
     float         x       = (float) point.x;
-    float         y       = (float) point.y;
-    float         top     = GetPageY (0);
-    float         bottom  = GetPageY ((int) DiagnosticsMemoryMap::kPageCount);
     bool          isWrite = false;
-    int           page    = 0;
-    int           first   = 0;
-    int           end     = 0;
+    const Run   * run     = nullptr;
     MemorySource  source  = MemorySource::None;
 
 
 
-    if (!m_visible || y < top || y >= bottom || bottom <= top)
+    if (!m_visible)
     {
         return false;
     }
@@ -273,29 +415,17 @@ bool MemoryMapBar::TryGetTipAt (POINT point, std::wstring & text) const
         return false;
     }
 
-    page   = std::clamp ((int) ((y - top) / (bottom - top) * (float) DiagnosticsMemoryMap::kPageCount), 0, (int) DiagnosticsMemoryMap::kPageCount - 1);
-    source = GetSourceOf (page, isWrite);
-    first  = page;
-    end    = page + 1;
+    run = FindRunAt ((float) point.y, isWrite);
 
-    while (first > 0 && GetSourceOf (first - 1, isWrite) == source)
+    if (run == nullptr)
     {
-        first--;
+        return false;
     }
 
-    while (end < (int) DiagnosticsMemoryMap::kPageCount && GetSourceOf (end, isWrite) == source)
-    {
-        end++;
-    }
-
-    if (source == MemorySource::None)
-    {
-        text = std::format (L"Nothing is {} here (${:04X}-${:04X})", isWrite ? L"written" : L"read", first * 0x100, end * 0x100 - 1);
-        return true;
-    }
-
-    text = std::format (L"{}: {} {} (${:04X}-${:04X})", ColorLegend::GetColorName (GetColorOf (source)),
-                        isWrite ? L"writes go to" : L"reads come from", GetSourceDescription (source), first * 0x100, end * 0x100 - 1);
+    source = GetSourceOf (run->first, isWrite);
+    text   = std::format (L"{}  ${:04X}-${:04X}",
+                          (source == MemorySource::None) ? (isWrite ? L"Not written" : L"Not read") : GetSourceDescription (source),
+                          run->first * 0x100, run->end * 0x100 - 1);
     return true;
 }
 
@@ -313,6 +443,7 @@ void MemoryMapBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     m_boundsDip = boundsPx;
     m_scaler    = scaler;
+    PlaceRuns();
 }
 
 
@@ -385,7 +516,7 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
         int              end    = first + 1;
         uint32_t         color  = (source == MemorySource::None) ? theme.Divider() : GetColorOf (source);
         const wchar_t  * label  = GetSourceLabel (source);
-        float            y      = GetPageY (first);
+        float            y      = GetPageY (first, isWrite);
         float            height = 0.0f;
         float            w      = 0.0f;
         float            h      = 0.0f;
@@ -396,7 +527,7 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
             end++;
         }
 
-        height = GetPageY (end) - y;
+        height = GetPageY (end, isWrite) - y;
         painter.FillRect (x, y, strip, height, color);
 
         fit = (*label != L'\0') ? text.MeasureString (label, size, font.face, w, h) : E_FAIL;
@@ -434,8 +565,8 @@ void MemoryMapBar::PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & the
     float           pad      = m_scaler.ToPxf ((float) kNamePadDip);
     float           width    = m_scaler.ToPxf ((float) kBoundsDip) - pad;
     float           x        = isWrite ? GetStripX (true) + m_scaler.ToPxf ((float) kStripDip) + pad : (float) m_boundsDip.left;
-    float           top      = GetPageY (0);
-    float           bottom   = GetPageY ((int) DiagnosticsMemoryMap::kPageCount);
+    float           top      = GetPageY (0, isWrite);
+    float           bottom   = GetPageY ((int) DiagnosticsMemoryMap::kPageCount, isWrite);
     float           line     = size * 1.3f;
     float           last     = -FLT_MAX;
     DxuiTextHAlign  align    = isWrite ? DxuiTextHAlign::Left : DxuiTextHAlign::Right;
@@ -461,7 +592,7 @@ void MemoryMapBar::PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & the
     {
         if (page == 0 || GetSourceOf (page, isWrite) != GetSourceOf (page - 1, isWrite))
         {
-            draw (std::format (L"${:04X}", page * 0x100), std::clamp (GetPageY (page) - line / 2.0f, top, bottom - line));
+            draw (std::format (L"${:04X}", page * 0x100), std::clamp (GetPageY (page, isWrite) - line / 2.0f, top, bottom - line));
         }
     }
 
