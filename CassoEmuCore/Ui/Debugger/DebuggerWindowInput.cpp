@@ -689,8 +689,11 @@ bool DebuggerWindow::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+    //  A press hides any tip at once: a button it lands on may open a dialog
+    //  or a menu, and the tip would stay up over it.
     if (ev.kind == DxuiMouseEventKind::Down)
     {
+        GetRoutedTooltip().HideImmediate();
         m_openingFocus.OnUserInput();
         m_stopFocus.OnInput (IsCommandPane (m_floating->GetRoutingPane().empty() ? m_dockSite->GetPaneAt (ev.positionDip) : m_floating->GetRoutingPane()));
         m_lastPressPx = POINT { x, y };

@@ -190,6 +190,38 @@ namespace DebuggerCommandTipTests
         }
 
 
+        //  A press on a button hides its tip at once, since the button may
+        //  open a dialog the tip would stay over.
+        TEST_METHOD (APressOnAButtonHidesItsTip)
+        {
+            CassoTheme       theme = CassoTheme::MakeSkeuomorphic();
+            TipHost          host;
+            TipWindow        window (theme, host);
+            DxuiDpiScaler    scaler;
+            RECT             brk   = {};
+            DxuiMouseEvent   press;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
+
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+
+            Move (window, GetCenter (brk));
+            (void) window.TickTooltip ((int64_t) GetTickCount64() + 10000);
+            Assert::IsTrue (window.GetTooltip().IsVisible(), L"no tip over Break");
+
+            press.kind        = DxuiMouseEventKind::Down;
+            press.button      = DxuiMouseButton::Left;
+            press.positionDip = GetCenter (brk);
+            (void) window.OnMouse (press);
+
+            Assert::IsFalse (window.GetTooltip().IsVisible(), L"the tip outlasted the press");
+        }
+
+
         //  A menu opened by a press the window did not route, as a pane bar's
         //  drop-down is, has no tip over it once the tip's delay runs out.
         TEST_METHOD (ATipDueWhileAMenuIsOpenNeverAppears)

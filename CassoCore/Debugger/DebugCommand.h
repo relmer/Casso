@@ -294,12 +294,13 @@ struct DebugCommand
     std::string              text;
     std::string              symbolTable;
     std::string              symbol;   // BP: the symbol its address was given as
-    bool                     isTypedWatch = false;   // W: text is the watch as typed, resolved once to its kind
-    uint32_t                 count        = 0;
+    bool                     isTypedWatch       = false;   // W: text is the watch as typed, resolved once to its kind
+    bool                     isDuplicateAllowed = false;   // BP: set even over the same breakpoint, for an undo's rebuild
+    uint32_t                 count              = 0;
     std::optional<uint64_t>  budget;
     std::optional<uint64_t>  fromCycle;   // HISTORY: the window starts at the first entry at or after this cycle
-    CommandMode              mode         = CommandMode::AppleWin;
-    OutputFormat             output       = OutputFormat::AppleWin;
+    CommandMode              mode               = CommandMode::AppleWin;
+    OutputFormat             output             = OutputFormat::AppleWin;
 
     std::optional<DiskBreakSpec>  disk;    // BPDISK
 };

@@ -716,6 +716,9 @@ bool BreakpointHistory::TryRebuild (DebugSession & session, const std::string & 
         return false;
     }
 
+    //  The same breakpoint may be set already, as one an undo puts back is.
+    parsed.command.isDuplicateAllowed = true;
+
     (void) session.Execute (parsed.command);
     after = ListById (session);
 

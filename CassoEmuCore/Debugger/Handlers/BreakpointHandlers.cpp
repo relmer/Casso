@@ -297,6 +297,10 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BreakpointHandlers::SetAddress
+//
+//  An execution breakpoint over the same addresses with the same condition
+//  as one already set is an error, which has the first one's number.
+//
 //////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand & command, Reply & reply)
@@ -310,6 +314,17 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
     if (!TryValidateCondition (session, command.expression, false, false, reply))
     {
         return;
+    }
+
+    for (const Breakpoint & existing : command.isDuplicateAllowed ? std::vector<Breakpoint>() : session.GetBreakpoints().GetAll())
+    {
+        if (existing.kind == BreakpointKind::Address && existing.first == command.a1 && existing.last == last &&
+            existing.condition.text == command.expression.text)
+        {
+            reply.SetError (CommandStatus::Error, "breakpoint already set",
+                            std::format ("Breakpoint #{} is already set at ${:04X}.", existing.id, command.a1));
+            return;
+        }
     }
 
     id = session.GetBreakpoints().AddAddress (command.a1, last, command.expression);

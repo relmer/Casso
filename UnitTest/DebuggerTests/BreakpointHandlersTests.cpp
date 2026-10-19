@@ -62,6 +62,24 @@ namespace DebuggerTests
 
 
 
+        //  A second execution breakpoint over the same addresses with the same
+        //  condition is an error with the first one's number; another
+        //  condition or another range is a breakpoint of its own.
+        TEST_METHOD (BP_TheSameBreakpointTwiceIsAnError)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk    ("BP C283");
+            rig.RunFails ("BP C283", "breakpoint already set");
+            rig.RunOk    ("BP C283 IF A == 1");
+            rig.RunOk    ("BP C283:C285");
+            Assert::AreEqual ((size_t) 3, rig.session.GetBreakpoints().GetAll().size());
+        }
+
+
+
         //  A BPV scanline break has no id, so it is listed after the table's
         //  entries, and alone when there are none.
         TEST_METHOD (BPL_ListsTheVideoBreak)
