@@ -548,10 +548,14 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
     //  Over another control's text, the fill goes through the text renderer,
     //  which draws after every painter fill and would otherwise show that
-    //  text through the field.
+    //  text through the field. It is two bands that stop short of the
+    //  corners, since a square fill drawn after the edge covers its arcs.
     if (m_overText)
     {
-        text.FillRect (x + 1.0f, y + 1.0f, w - 2.0f, h - 2.0f, bgArgb);
+        float  radius = std::min (m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip), std::min (w, h) / 2.0f);
+
+        text.FillRect (x + 1.0f,   y + radius, w - 2.0f,          h - 2.0f * radius, bgArgb);
+        text.FillRect (x + radius, y + 1.0f,   w - 2.0f * radius, h - 2.0f,          bgArgb);
     }
 
     if (!m_chromeless)
