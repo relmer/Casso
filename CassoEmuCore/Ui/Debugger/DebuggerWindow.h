@@ -429,6 +429,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void     CloseZoomPopup   ();
     void     PaintZoomPopup   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void     ApplySnapshot    ();
+    void     UpdateLiveTrace  ();
     void     UpdateChanges    ();
     void     RunToCursor      (Word address);
     void     RunAction        (const DebuggerAction & action) override;
@@ -714,6 +715,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     bool                                  m_zoomOpen            = false;
     bool                                  m_isSpeedPressed      = false;
     bool                                  m_isHistoryPressed    = false;
+    std::optional<bool>                   m_liveTraceRequest;           // the live trace state requested of the session, until a snapshot has it
     RECT                                  m_zoomRect            = {};
     bool                                  m_isHistoryFitted     = false;
 

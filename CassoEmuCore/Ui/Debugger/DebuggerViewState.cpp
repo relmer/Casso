@@ -1230,7 +1230,7 @@ void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot
     snapshot.trace.first   = first;
     snapshot.trace.entries = std::move (data.entries);
 
-    if (snapshot.isPaused && data.isOn)
+    if (snapshot.isPaused && (data.isOn || data.total > 0))
     {
         BuildTraceNext (session, snapshot);
     }

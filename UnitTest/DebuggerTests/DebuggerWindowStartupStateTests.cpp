@@ -131,6 +131,54 @@ namespace DebuggerStartupStateTests
     {
     public:
 
+        //  While history recording is on, the live trace runs only while the trace
+        //  pane is on screen: none is requested while the pane is behind
+        //  another tab, one quiet trace-on action once it is on screen, and a
+        //  trace-off once the trace pane is closed.
+        TEST_METHOD (TheLiveTraceRunsOnlyWhileTheTracePaneIsOnScreen)
+        {
+            CassoTheme     theme    = CassoTheme::MakeSkeuomorphic();
+            StartupHost    host;
+            StartupWindow  window   (theme, host);
+            DxuiDpiScaler  scaler;
+            auto           snapshot = std::make_shared<DebuggerViewSnapshot>();
+            auto           on       = std::make_shared<DebuggerViewSnapshot>();
+            size_t         count    = 0;
+
+
+
+            snapshot->history.isRecording = true;
+            *on                           = *snapshot;
+            on->trace.isOn                = true;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ClosePane (DebuggerLayout::kTrace);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            count = std::ranges::count_if (host.actions, [] (const DebuggerAction & action) { return action.command.verb == DebugVerb::SetHistory; });
+            Assert::AreEqual ((size_t) 0, count, L"the live trace started with the trace pane closed");
+
+            window.ShowPane (DebuggerLayout::kTrace);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            Assert::IsFalse (host.actions.empty(), L"no action");
+            Assert::IsTrue  (host.actions.back().command.verb == DebugVerb::SetHistory, L"the live trace was not started");
+            Assert::IsTrue  (host.actions.back().quiet, L"the change is echoed as if someone asked for it");
+
+            window.TakeSnapshot (on);
+            window.ClosePane (DebuggerLayout::kTrace);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot> (*on));
+
+            count = std::ranges::count_if (host.actions, [] (const DebuggerAction & action) { return action.command.verb == DebugVerb::SetHistory; });
+            Assert::AreEqual ((size_t) 2, count, L"the live trace was not stopped with the pane closed");
+        }
+
+
         static std::wstring  GetActive (const DxuiPaneLayoutNode * node, const std::wstring & pane)
         {
             std::wstring  found;

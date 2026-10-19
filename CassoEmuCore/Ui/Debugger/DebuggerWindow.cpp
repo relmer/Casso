@@ -405,7 +405,11 @@ void DebuggerWindow::RunCommandBarEntry (int id)
 
     if (id == DebuggerCommands::kTrace)
     {
-        RunAction (DebuggerActions::GetTraceToggle (m_snapshot != nullptr && m_snapshot->trace.isOn, GetMode()));
+        if (IsCommandBarEntryEnabled (id))
+        {
+            RunAction (DebuggerActions::GetTraceToggle (m_snapshot != nullptr && m_snapshot->trace.isOn, GetMode()));
+        }
+
         return;
     }
 
@@ -444,6 +448,13 @@ bool DebuggerWindow::IsCommandBarEntryEnabled (int id) const
     bool  paused = m_snapshot != nullptr && m_snapshot->isPaused;
 
 
+
+    //  While history recording is on, the trace is rebuilt from history, so
+    //  there is nothing to turn on or off.
+    if (id == DebuggerCommands::kTrace)
+    {
+        return m_snapshot == nullptr || !m_snapshot->history.isRecording;
+    }
 
     if (id == DebuggerCommands::kRun)
     {
@@ -1339,6 +1350,7 @@ void DebuggerWindow::ApplySnapshot()
 
     ApplyUndoHistories();
     m_sources->Apply();
+    UpdateLiveTrace();
     KeepOpenViews();
     ShowPendingPane();
 
@@ -1362,6 +1374,60 @@ void DebuggerWindow::ApplySnapshot()
             SetFocusedControl (shown->GetMainControl());
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::UpdateLiveTrace
+//
+//  While history recording is on, the trace is rebuilt from history, and
+//  the live trace ring, which slows every instruction, runs only while the
+//  trace pane is on screen and the machine runs at 1x: the only time anyone
+//  watches the trace grow. The change goes to the session once, and
+//  quietly, since no one requested it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::UpdateLiveTrace()
+{
+    IDebuggerPane   * trace    = FindPane (DebuggerLayout::kTrace);
+    bool              isShown  = false;
+    bool              isWanted = false;
+    DebuggerAction    action;
+
+
+
+    if (m_snapshot == nullptr || m_host == nullptr || !m_snapshot->history.isRecording)
+    {
+        m_liveTraceRequest.reset();
+        return;
+    }
+
+    for (IDxuiControl * control : (trace != nullptr) ? trace->GetControls() : std::vector<IDxuiControl *>())
+    {
+        isShown = isShown || (control != nullptr && control->IsVisible());
+    }
+
+    isWanted = isShown && m_host->GetEmulatorSpeed() == SpeedMode::Authentic;
+
+    if (m_liveTraceRequest == m_snapshot->trace.isOn)
+    {
+        m_liveTraceRequest.reset();
+    }
+
+    if (isWanted == m_snapshot->trace.isOn || m_liveTraceRequest == isWanted)
+    {
+        return;
+    }
+
+    m_liveTraceRequest = isWanted;
+    action             = DebuggerActions::GetTraceToggle (m_snapshot->trace.isOn, GetMode());
+    action.quiet       = true;
+    RunAction (action);
 }
 
 
