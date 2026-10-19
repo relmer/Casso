@@ -1745,4 +1745,4 @@ The owner's review of the Phase 44 build. Each task is a commit that builds and 
 - [X] T954 Move the condition's info tip after its label and make it open on hover and click in the dialog (BreakpointDialog.cpp, Dxui dialog tick and mouse routing), FR-289
 - [X] T955 [P] Hide a toolbar button's tip on a press (DebuggerWindow input, PaneBarSlot), FR-290
 - [X] T956 [P] Make a duplicate execution breakpoint an error whose message has the first one's number (Debugger/Handlers/BreakpointHandlers.cpp), FR-291
-- [ ] T957 Launch a build for the owner, and remind the owner to validate the heat map, profiler, trace, MMU panel and tooltips
+- [X] T957 Launch a build for the owner, and remind the owner to validate the heat map, profiler, trace, MMU panel and tooltips
