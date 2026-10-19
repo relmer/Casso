@@ -179,6 +179,12 @@ public:
     //
     void  HideImmediate   ();
 
+    //  A visible tip that is not fading out closes no sooner than atMs.
+    void  ExtendVisible   (int64_t atMs);
+
+    //  True when a screen point is on the tip's popup.
+    bool  IsOnPopup       (POINT screenPt) const;
+
     bool                 IsVisible () const { return m_visible; }
 
     //  How many times a balloon window has been raised. A tip that follows

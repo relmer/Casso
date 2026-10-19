@@ -97,8 +97,8 @@ public:
     void  SetPrompt      (const std::wstring & text)  { m_prompt = text; }
     void  SetGhostText   (const std::wstring & text)  { m_ghost = text; }
 
-    //  Draws the placeholder in italics and the disabled color, as File
-    //  Explorer's search box draws its hint.
+    //  Whether the placeholder is drawn in italics and the disabled color, as
+    //  File Explorer's search box draws its hint. On by default.
     void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
     void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
@@ -200,7 +200,7 @@ private:
     bool                 m_dragging          = false;
     bool                 m_chromeless        = false;
     bool                 m_overText          = false;
-    bool                 m_placeholderItalic = false;
+    bool                 m_placeholderItalic = true;
     const wchar_t      * m_face              = nullptr;   // null: the theme's body face
     float                m_fontDip           = 13.0f;
     const IDxuiTheme   * m_theme             = nullptr;
