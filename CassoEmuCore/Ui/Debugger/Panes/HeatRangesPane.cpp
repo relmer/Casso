@@ -1336,20 +1336,21 @@ bool HeatRangesPane::RouteEditKey (const DxuiKeyEvent & ev, IDxuiControl * focus
 //
 //  HeatRangesPane::ConfirmDeleteSet
 //
-//  A set and its ranges go only once the user says yes, in a box centered
-//  on the window that holds the pane, floating or not; No is the default.
+//  A set and its ranges go only once the user presses Delete, in a box
+//  centered on the pane's window, floating or not; Cancel is the default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool HeatRangesPane::ConfirmDeleteSet()
 {
     DxuiWindow    * host     = m_host.GetPaneWindow (DebuggerLayout::kHeatRanges);
-    std::wstring    question = std::format (L"Delete the set \"{}\" and all of its ranges?", TextEncoding::Utf8ToWide (m_editedSet));
-    int             answer   = IDNO;
+    std::wstring    question = std::format (L"Delete the range set \"{}\"?", TextEncoding::Utf8ToWide (m_editedSet));
+    int             answer   = IDCANCEL;
 
 
 
-    answer = m_host.ShowMessageBox ((host != nullptr) ? host->GetHwnd() : m_host.GetOwnerHwnd(), question, L"Delete set", MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
+    answer = m_host.ShowMessageBox ((host != nullptr) ? host->GetHwnd() : m_host.GetOwnerHwnd(), question, L"Delete range set", MB_ICONWARNING,
+                                    { { L"&Delete", IDYES }, { L"&Cancel", IDCANCEL } }, IDCANCEL);
 
     return answer == IDYES;
 }

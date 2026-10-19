@@ -232,6 +232,11 @@ public:
     //  the user's answer; a test supplies the answer instead.
     virtual int                    ShowMessageBox   (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type) = 0;
 
+    //  The same with buttons of the pane's own, and the id of the one
+    //  pressed; IDCANCEL for Escape.
+    virtual int                    ShowMessageBox   (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type,
+                                                     const std::vector<DxuiMessageBoxButton> & buttons, int defaultId) = 0;
+
     //  Whether the event being routed goes to a control, and whether it
     //  came from the window a pane's bar is in.
     virtual bool                   IsRoutable       (const IDxuiControl * control) const = 0;

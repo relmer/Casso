@@ -75,8 +75,8 @@ public:
     //  as the bar has little room.
     static std::wstring  GetBankEntryLabel  (HeatMapOptions::Bank bank);
 
-    //  The set left out as the entry shows it, "Leave out: Boot probes", or
-    //  "Leave out: None".
+    //  The set left out as the entry reads, "Uninitialized reads: not in Boot
+    //  probes", or "Uninitialized reads: all".
     static std::wstring  GetIgnoreSetLabel  (const std::wstring & set);
 
 private:

@@ -496,24 +496,26 @@ bool DxuiEditableGrid::CommitEdit()
 //
 //  DxuiEditableGrid::CommitAddRow
 //
-//  The text goes into the hint row. With every required column filled, the
-//  row goes to the add callback, and when that returns true the hint row
-//  starts over. Otherwise the edit moves to `next`, or closes for -1, with
-//  the typed text in place. When the add callback returns false, the box
-//  stays open where it is for -1.
+//  The text goes into the hint row. A Tab along the row, isMove, only moves
+//  the edit to `next`, so the row is checked only once the edit moves out.
+//  Otherwise, with every required column filled, the row goes to the add
+//  callback, and when that returns true the hint row starts over. Otherwise
+//  the edit moves to `next`, or closes for -1, with the typed text in place.
+//  When the add callback returns false, the box stays open where it is for
+//  -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
+bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next, bool isMove)
 {
     std::wstring  error;
-    bool          isComplete = true;
+    bool          isComplete = !isMove;
 
 
 
     m_pending[(size_t) m_editColumn] = text;
 
-    for (size_t c = 0; c < m_columns.size(); c++)
+    for (size_t c = 0; c < m_columns.size() && isComplete; c++)
     {
         if (m_columns[c].isRequired && m_pending[c].find_first_not_of (L" \t") == std::wstring::npos)
         {
@@ -633,7 +635,7 @@ bool DxuiEditableGrid::MoveEdit (int step)
 
     if (IsAddRow (row))
     {
-        return CommitAddRow (text, next);
+        return CommitAddRow (text, next, next >= 0);
     }
 
     FindNextCell (row, m_editColumn, step, nextRow, next);

@@ -146,7 +146,7 @@ public:
 private:
     void  RebuildRows      ();
     bool  CommitEdit       ();
-    bool  CommitAddRow     (const std::wstring & text, int next);
+    bool  CommitAddRow     (const std::wstring & text, int next, bool isMove = false);
     bool  MoveEdit         (int step);
     bool  MoveEditRow      (int step);
     void  FindNextCell     (int row, int column, int step, int & outRow, int & outColumn) const;

@@ -241,6 +241,8 @@ protected:
     //  A question put to the user in a message box centered on owner, as
     //  DxuiMessageBox puts it, with its answer; a test answers it instead.
     int                        ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type) override;
+    int                        ShowMessageBox         (HWND owner, const std::wstring & text, const wchar_t * caption, UINT type,
+                                                       const std::vector<DxuiMessageBoxButton> & buttons, int defaultId) override;
 
     //  The format, address and length of a file loaded into memory, or the
     //  address and length of memory saved to one; none when canceled. A test

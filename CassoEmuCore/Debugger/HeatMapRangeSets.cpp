@@ -781,7 +781,7 @@ bool HeatMapRangeSets::TryResolve (const HeatMapRange & range, const HeatMapSymb
 
     if (end.empty() && !symbols.TryGetSize (start, size))
     {
-        error = std::format ("{} has no size of its own. Give the range an end or a size, as $6000-$95FF or {}..+$20.", start, start);
+        error = std::format ("Enter an end or a size for the range from {}.", start);
         return false;
     }
 

@@ -480,7 +480,7 @@ void HeatMapPane::SetIgnoreMenu()
 
     for (const std::string & name : names)
     {
-        std::wstring                  label   = name.empty() ? std::wstring (L"None") : TextEncoding::Utf8ToWide (name);
+        std::wstring                  label   = name.empty() ? std::wstring (L"All of memory") : L"Not in " + TextEncoding::Utf8ToWide (name);
         std::shared_ptr<DxuiCommand>  command = DebuggerMenuCommand::Make (label, name == current, [this, name]
         {
             HeatMapOptions  options = m_view->GetOptions();

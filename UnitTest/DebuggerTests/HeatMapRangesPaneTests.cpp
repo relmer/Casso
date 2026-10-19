@@ -119,10 +119,24 @@ namespace HeatMapRangesPaneTests
             return answer;
         }
 
-        int                        answer = IDNO;
-        std::vector<std::wstring>  questions;
-        std::vector<std::wstring>  captions;
-        std::vector<UINT>          types;
+        int  ShowMessageBox (HWND, const std::wstring & text, const wchar_t * caption, UINT type,
+                             const std::vector<DxuiMessageBoxButton> & buttons, int defaultId) override
+        {
+            questions.push_back (text);
+            captions.push_back  (caption);
+            types.push_back     (type);
+            labels    = buttons;
+            defaultAt = defaultId;
+
+            return (answer == IDYES) ? IDYES : IDCANCEL;
+        }
+
+        int                                answer    = IDNO;
+        std::vector<DxuiMessageBoxButton>  labels;
+        int                                defaultAt = 0;
+        std::vector<std::wstring>          questions;
+        std::vector<std::wstring>          captions;
+        std::vector<UINT>                  types;
     };
 
 
@@ -506,10 +520,10 @@ namespace HeatMapRangesPaneTests
             window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kDeleteSet);
 
             Assert::AreEqual ((size_t) 1, window.questions.size(), L"asked before deleting");
-            Assert::AreEqual (std::wstring (L"Delete set"), window.captions[0]);
-            Assert::IsTrue   (window.questions[0].find (L"\"Game\"") != std::wstring::npos, L"the question gives the set");
-            Assert::AreEqual ((int) MB_YESNO, (int) (window.types[0] & MB_TYPEMASK));
-            Assert::AreEqual ((int) MB_DEFBUTTON2, (int) (window.types[0] & MB_DEFMASK), L"No is the default");
+            Assert::AreEqual (std::wstring (L"Delete range set"), window.captions[0]);
+            Assert::AreEqual (std::wstring (L"Delete the range set \"Game\"?"), window.questions[0]);
+            Assert::IsTrue   (window.labels.size() == 2 && window.labels[0].label == L"&Delete" && window.labels[1].label == L"&Cancel");
+            Assert::AreEqual ((int) IDCANCEL, window.defaultAt, L"Cancel is the default");
             Assert::AreEqual ((size_t) 2, window.GetHeatRangesPane().GetSets().sets.size(), L"No: the set is not deleted");
             Assert::AreEqual (std::string ("Game"), window.GetHeatRangesPane().GetEditedSetName());
             Assert::AreEqual (kept, host.ranges, L"and saves nothing");

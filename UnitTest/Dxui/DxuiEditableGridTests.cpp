@@ -151,6 +151,33 @@ public:
 
 
 
+    //  A Tab from the hint row's Start to its End adds nothing, though Start
+    //  is the only required column; the row goes to the add callback once
+    //  the edit moves out of the row.
+    TEST_METHOD (TheHintRowIsCheckedOnlyOnLeavingIt)
+    {
+        Host  host;
+        int   hint = (int) host.rows.size();
+
+
+
+        Assert::IsTrue (host.grid.BeginEdit (hint, 1));
+
+        for (wchar_t ch : std::wstring (L"$300"))
+        {
+            host.grid.OnChar (ch);
+        }
+
+        host.Key (VK_TAB);
+        Assert::IsTrue   (host.adds.empty(), L"checked before the edit left the row");
+        Assert::AreEqual (2, host.grid.GetEditColumn());
+
+        host.Key (VK_TAB);
+        Assert::AreEqual ((size_t) 1, host.adds.size(), L"leaving the row adds it");
+    }
+
+
+
     //  Up and Down move an edit to the same column of the row above or
     //  below, committing it; a read-only row is skipped by neither, so the
     //  edit does not move onto it.

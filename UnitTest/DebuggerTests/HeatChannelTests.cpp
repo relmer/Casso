@@ -329,8 +329,8 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring (L"Skip unchanged writes"), commands.Find (HeatMapBarCommands::kIgnoreSame)->label);
             Assert::IsNotNull (commands.Find (HeatMapBarCommands::kIgnoreSet).get());
-            Assert::AreEqual (std::wstring (L"Leave out: None"),        HeatMapBarCommands::GetIgnoreSetLabel (L""));
-            Assert::AreEqual (std::wstring (L"Leave out: Boot probes"), HeatMapBarCommands::GetIgnoreSetLabel (L"Boot probes"));
+            Assert::AreEqual (std::wstring (L"Uninitialized reads: all"),                HeatMapBarCommands::GetIgnoreSetLabel (L""));
+            Assert::AreEqual (std::wstring (L"Uninitialized reads: not in Boot probes"), HeatMapBarCommands::GetIgnoreSetLabel (L"Boot probes"));
 
             for (const ColorLegend::Entry & entry : ColorLegend::GetEntries())
             {

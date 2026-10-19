@@ -125,7 +125,7 @@ namespace DebuggerTests
 
 
             Assert::IsFalse (HeatMapRangeSets::TryResolve (MakeRange ("SPRITES", ""), symbols, first, last, error));
-            Assert::IsTrue  (error.find ("SPRITES has no size of its own") != std::string::npos, L"a symbol with no size needs an end");
+            Assert::IsTrue  (error.find ("Enter an end or a size for the range from SPRITES") != std::string::npos, L"a symbol with no size of its own takes an end");
 
             error.clear();
             Assert::IsFalse (HeatMapRangeSets::TryResolve (MakeRange ("NOSUCH", "+4"), symbols, first, last, error));

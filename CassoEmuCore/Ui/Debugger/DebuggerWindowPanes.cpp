@@ -1115,3 +1115,24 @@ int DebuggerWindow::ShowMessageBox (
 {
     return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::ShowMessageBox (buttons)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DebuggerWindow::ShowMessageBox (
+    HWND                                       owner,
+    const std::wstring                       & text,
+    const wchar_t                            * caption,
+    UINT                                       type,
+    const std::vector<DxuiMessageBoxButton>  & buttons,
+    int                                        defaultId)
+{
+    return DxuiMessageBox (owner, m_theme, text.c_str(), caption, type, buttons, defaultId);
+}
