@@ -289,16 +289,17 @@ struct DebugCommand
     bool                     hasA3    = false;
 
     std::vector<Byte>        values;
-    std::vector<Byte>        mask;         // per byte of values: bits a search must match
+    std::vector<Byte>        mask;   // per byte of values: bits a search must match
     Expression               expression;
     std::string              text;
     std::string              symbolTable;
-    std::string              symbol;       // BP: the symbol its address was given as
-    uint32_t                 count    = 0;
+    std::string              symbol;   // BP: the symbol its address was given as
+    bool                     isTypedWatch = false;   // W: text is the watch as typed, resolved once to its kind
+    uint32_t                 count        = 0;
     std::optional<uint64_t>  budget;
-    std::optional<uint64_t>  fromCycle;    // HISTORY: the window starts at the first entry at or after this cycle
-    CommandMode              mode     = CommandMode::AppleWin;
-    OutputFormat             output   = OutputFormat::AppleWin;
+    std::optional<uint64_t>  fromCycle;   // HISTORY: the window starts at the first entry at or after this cycle
+    CommandMode              mode         = CommandMode::AppleWin;
+    OutputFormat             output       = OutputFormat::AppleWin;
 
     std::optional<DiskBreakSpec>  disk;    // BPDISK
 };

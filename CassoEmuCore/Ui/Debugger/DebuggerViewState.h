@@ -148,14 +148,18 @@ struct DebuggerViewSnapshot
         std::string     label;
     };
 
-    //  basicName is a BASIC watch's variable, empty for an address.
+    //  basicName is a BASIC watch's variable, empty for an address;
+    //  expression is a typed watch's text. A register's or an expression's
+    //  value is not edited in the watch pane.
     struct WatchLine
     {
-        int          id      = 0;
-        Word         address = 0;
+        int          id              = 0;
+        Word         address         = 0;
         std::string  value;
-        bool         enabled = true;
+        bool         enabled         = true;
         std::string  basicName;
+        std::string  expression;
+        bool         isValueEditable = true;
     };
 
     //  One thing the instruction at the PC, or the one just executed, reads or
@@ -657,6 +661,12 @@ public:
     static std::vector<DebuggerAction>  GetWatchEditActions (const DebuggerViewSnapshot & snapshot,
                                                              std::optional<int> watchId, std::optional<int> autoIndex,
                                                              int column, const std::string & typed, CommandMode mode);
+
+    //  Why text typed as a watch cannot be one, against the snapshot's
+    //  symbols, or empty when it can. The session checks it again when the
+    //  watch is added; with this check, a typing mistake stays in the edit
+    //  box.
+    static std::string  GetWatchError (const DebuggerViewSnapshot & snapshot, const std::string & typed);
 
     //  What puts a watch edit back (FR-097), from the snapshot as it stood
     //  BEFORE the edit. Moving a manual watch cannot be undone by an action

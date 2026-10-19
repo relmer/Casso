@@ -196,6 +196,12 @@ struct WatchEntry
     std::optional<Word>         value;
     std::string                 basicName;
     std::optional<std::string>  basicValue;
+
+    //  A typed watch's text, and its value as text for a register or an
+    //  expression; a symbol's value is `value`, read at its address.
+    std::string                 expression;
+    std::optional<std::string>  valueText;
+    bool                        isValueEditable = true;
 };
 
 struct WatchListData

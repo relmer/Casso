@@ -45,8 +45,12 @@ public:
     std::wstring                   GetUndoText    (bool redo) const override;
     void                           Undo           (bool redo) override;
 
+    //  The reason the last entry could not be watched, or empty.
+    std::wstring                   GetError       () const { return (m_error != nullptr) ? m_error->GetText() : std::wstring(); }
+
 protected:
     DxuiListView *                 CreateList     () override;
+    void                           AddMiddleParts (DebuggerPaneFrame & frame) override;
 
 private:
     //  What each row is, since the list mixes headings, automatic watches and
@@ -73,6 +77,7 @@ private:
     };
 
     static constexpr int  kEditMaxChars     = 64;
+    static constexpr int  kErrorDip         = 20;
     static constexpr int  kFirstFieldColumn = 1;      // the ID column comes before the watch's cells
 
     std::vector<DxuiListView::Cell>  MakeHeading    (const std::wstring & title) const;
@@ -82,12 +87,14 @@ private:
 
     //  The grid's commit of a watch's cell, column 0 the expression and 1
     //  the value, and of the add row.
-    bool                             CommitCell     (int row, int column, const std::wstring & typed);
-    bool                             AddWatch       (const std::wstring & typed);
+    bool                             CommitCell     (int row, int column, const std::wstring & typed, std::wstring & outError);
+    bool                             AddWatch       (const std::wstring & typed, std::wstring & outError);
+    void                             SetError       (const std::wstring & text);
     void                             NoteEditBegun  (int row);
 
     WatchHistory         m_history;
     DxuiEditableGrid   * m_grid                     = nullptr;
+    DxuiLabel          * m_error                    = nullptr;
     std::vector<Row>     m_rows;
     Edit                 m_edit;
     bool                 m_isBasicVariablesExpanded = false;

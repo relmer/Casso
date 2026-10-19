@@ -53,6 +53,43 @@ namespace DebuggerTests
 
 
 
+        //  A watch typed with EXPR is resolved once to what it is: a register
+        //  reads as its value, never a word at the address its value makes; a
+        //  symbol, the word at wherever it is now; *expr, the byte there. A
+        //  name that is nothing known is an error. A plain W is AppleWin's
+        //  address watch.
+        TEST_METHOD (W_ExprIsResolvedOnceToWhatItIs)
+        {
+            Rig  rig;
+
+
+
+            rig.target.registers.x    = 0x4C;
+            rig.target.memory[0x004C] = 0x11;
+            rig.target.memory[0x00FB] = 0xA5;
+            rig.target.memory[0x0300] = 0x34;
+            rig.target.memory[0x0301] = 0x12;
+            rig.target.memory[0x0400] = 0x78;
+            rig.target.memory[0x0401] = 0x56;
+            rig.session.GetSymbols().Add (SymbolTableId::User, "COUNT", 0x0300);
+
+            Assert::AreEqual (std::string ("#0 X = $4C"),     rig.RunOk ("W EXPR X").text.at (0), L"a register is its value");
+            Assert::AreEqual (std::string ("#1 COUNT = $1234"), rig.RunOk ("W EXPR COUNT").text.at (0), L"a symbol is the word at it");
+            Assert::AreEqual (std::string ("#2 *FB = $A5"),   rig.RunOk ("W EXPR *FB").text.at (0), L"a dereference is the byte there");
+
+            rig.target.registers.x = 0x20;
+            rig.session.GetSymbols().Add (SymbolTableId::User, "COUNT", 0x0400);
+
+            Assert::AreEqual (std::string ("#0 X = $20"),     rig.RunOk ("WL").text.at (0), L"the register is read again");
+            Assert::AreEqual (std::string ("#1 COUNT = $5678"), rig.RunOk ("WL").text.at (1), L"the symbol is followed to where it is now");
+
+            rig.RunFails ("W EXPR ASDF", "invalid arguments");
+            Assert::AreEqual (std::string ("#3 $0020 = $0000"), rig.RunOk ("W X").text.at (0), L"W alone is an address watch");
+            Assert::IsTrue   (WatchHandlers::MakeScript (rig.session, WatchListKind::Watch).find ("WA EXPR *FB") != std::string::npos, L"a typed watch saves as typed");
+        }
+
+
+
         TEST_METHOD (ZP_SlotsAndPointers)
         {
             Rig                       rig;

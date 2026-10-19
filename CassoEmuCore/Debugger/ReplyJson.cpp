@@ -1157,6 +1157,14 @@ JsonValue ReplyJson::MakeWatchList (const WatchListData & data)
             members.emplace_back ("basicValue", entry.basicValue.has_value() ? MakeString (*entry.basicValue) : JsonValue (nullptr));
         }
 
+        //  A typed watch has its text, and a register's or an expression's
+        //  value as hex text.
+        if (!entry.expression.empty())
+        {
+            members.emplace_back ("expression", MakeString (entry.expression));
+            members.emplace_back ("valueText",  entry.valueText.has_value() ? MakeString (*entry.valueText) : JsonValue (nullptr));
+        }
+
         entries.push_back (JsonValue (std::move (members)));
     }
 

@@ -6,6 +6,7 @@
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/Basic/ApplesoftProgram.h"
 #include "Debugger/Basic/BasicStopMonitor.h"
+#include "Debugger/DebugExpressionEvaluator.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/DataDirectiveHandlers.h"
 
@@ -75,6 +76,7 @@ std::string WatchHandlers::MakeScript (DebugSession & session, WatchListKind kin
     {
         script += (kind == WatchListKind::ZeroPage) ? std::format ("{}{} {:04X}\n", kAdd[(int) kind], item.id, item.address)
                 : !item.basicName.empty()           ? std::format ("{} BASIC {}\n", kAdd[(int) kind], item.basicName)
+                : !item.expression.empty()          ? std::format ("{} EXPR {}\n",  kAdd[(int) kind], item.expression)
                 :                                     std::format ("{} {:04X}\n",   kAdd[(int) kind], item.address);
     }
 
@@ -115,14 +117,19 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
 
 
 
-        entry.id        = item.id;
-        entry.address   = item.address;
-        entry.enabled   = item.enabled;
-        entry.basicName = item.basicName;
+        entry.id         = item.id;
+        entry.address    = item.address;
+        entry.enabled    = item.enabled;
+        entry.basicName  = item.basicName;
+        entry.expression = item.expression;
 
         if (!item.basicName.empty())
         {
             entry.basicValue = isReadingBasic ? ReadBasicValue (session, item.basicName) : std::nullopt;
+        }
+        else if (!item.expression.empty())
+        {
+            ReadTyped (session, item, entry);
         }
         else if (kind != WatchListKind::Bookmark)
         {
@@ -176,8 +183,21 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
     }
 
     //  A watch's text is resolved here, where the symbols and the program
-    //  are: a BASIC variable, or the address the text evaluates to.
-    if (kind == WatchListKind::Watch && !command.text.empty() && TryGetBasicName (session, command.text, name))
+    //  are: what a typed watch is, a BASIC variable, or the address the text
+    //  evaluates to.
+    if (kind == WatchListKind::Watch && command.isTypedWatch)
+    {
+        WatchItem  item;
+
+        if (!TryResolveTyped (session, command.text, item, error))
+        {
+            reply.SetError (CommandStatus::Error, "invalid arguments", error);
+            return;
+        }
+
+        id = table.AddTyped (item);
+    }
+    else if (kind == WatchListKind::Watch && !command.text.empty() && TryGetBasicName (session, command.text, name))
     {
         id = table.AddBasic (name);
     }
@@ -216,6 +236,151 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
     }
 
     reply.data = one;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::TryResolveTyped
+//
+//  The kind of watch the typed text is, resolved here once: a BASIC
+//  variable; a symbol, before a register of the same name, as in an
+//  expression; a register; a hex number, an address; or else an expression,
+//  which must evaluate now. A name is never read again as something else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string & text, WatchItem & item, std::string & error)
+{
+    static constexpr const char *  kRegisters[] = { "A", "X", "Y", "P", "S", "PC" };
+    std::string                    trimmed      = text;
+    std::string                    upper;
+    std::string                    name;
+    Expression                     parsed;
+    Word                           address      = 0;
+    int32_t                        value        = 0;
+    HRESULT                        hr           = S_OK;
+
+
+
+    trimmed.erase (0, std::min (trimmed.size(), trimmed.find_first_not_of (" \t")));
+    trimmed.erase (trimmed.find_last_not_of (" \t") + 1);
+    upper = trimmed;
+    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) std::toupper ((unsigned char) ch); });
+
+    if (trimmed.empty())
+    {
+        error = "There is nothing to watch.";
+        return false;
+    }
+
+    if (TryGetBasicName (session, trimmed, name))
+    {
+        item.kind      = WatchItem::Kind::Basic;
+        item.basicName = name;
+        return true;
+    }
+
+    if (session.TryResolveSymbol (trimmed, address))
+    {
+        item.kind       = WatchItem::Kind::Symbol;
+        item.expression = trimmed;
+        item.address    = address;
+        return true;
+    }
+
+    if (std::ranges::any_of (kRegisters, [&upper] (const char * reg) { return upper == reg || upper == std::string ("@") + reg; }))
+    {
+        item.kind       = WatchItem::Kind::Register;
+        item.expression = upper.starts_with ("@") ? upper.substr (1) : upper;
+        return true;
+    }
+
+    if (trimmed.find_first_not_of ("$0123456789ABCDEFabcdef") == std::string::npos && AppleWinParser::TryEvaluate (trimmed, session, address, error))
+    {
+        item.kind    = WatchItem::Kind::Address;
+        item.address = address;
+        return true;
+    }
+
+    hr = DebugExpressionEvaluator::Parse (trimmed, parsed, error);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = DebugExpressionEvaluator::Evaluate (parsed, session, value, error, EvaluationMode::Check);
+    }
+
+    if (FAILED (hr))
+    {
+        return false;
+    }
+
+    item.kind       = WatchItem::Kind::Expression;
+    item.expression = trimmed;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchHandlers::ReadTyped
+//
+//  A register's value, two hex digits or four for PC; a symbol's word at
+//  wherever it now is; an expression's value, two digits for a byte read
+//  through *, else four. A name no longer known reads as nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, WatchEntry & entry)
+{
+    Word         address = 0;
+    Word         reg     = 0;
+    int32_t      value   = 0;
+    std::string  error;
+    HRESULT      hr      = S_OK;
+
+
+
+    entry.isValueEditable = item.kind == WatchItem::Kind::Symbol;
+
+    switch (item.kind)
+    {
+    case WatchItem::Kind::Symbol:
+        if (session.TryResolveSymbol (item.expression, address))
+        {
+            entry.address = address;
+            entry.value   = PeekWord (session, address, WatchListKind::Watch);
+        }
+
+        break;
+
+    case WatchItem::Kind::Register:
+        if (session.TryGetRegister (item.expression, reg))
+        {
+            entry.valueText = (item.expression == "PC") ? std::format ("{:04X}", reg) : std::format ("{:02X}", reg & 0xFF);
+        }
+
+        break;
+
+    case WatchItem::Kind::Expression:
+        hr = DebugExpressionEvaluator::ParseAndEvaluate (item.expression, session, value, error);
+
+        if (SUCCEEDED (hr))
+        {
+            entry.valueText = item.expression.starts_with ("*") ? std::format ("{:02X}", value & 0xFF) : std::format ("{:04X}", value & 0xFFFF);
+        }
+
+        break;
+
+    default:
+        break;
+    }
 }
 
 

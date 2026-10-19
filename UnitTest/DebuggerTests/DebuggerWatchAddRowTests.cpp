@@ -164,6 +164,38 @@ namespace DebuggerWatchAddRowTests
         }
 
 
+        //  An entry that is nothing known stays in the edit, with the reason
+        //  above the list, and nothing runs.
+        TEST_METHOD (AnEntryThatCannotBeWatchedStaysInTheEditWithItsError)
+        {
+            CassoTheme                          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                   host;
+            WatchWindow                         window   (theme, host);
+            DxuiDpiScaler                       scaler;
+            auto                                snapshot = std::make_shared<DebuggerViewSnapshot>();
+            int                                 last     = 0;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (snapshot);
+            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"ID",    40, false, DxuiTextHAlign::Left }, false, false },
+                                                                                    { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
+                                                                                    { { L"Value", 120, false, DxuiTextHAlign::Left }, true, false } });
+
+            last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
+            window.GetWatchesPane().BeginEdit (last, 0);
+            window.Type (L"asdf");
+            window.GetWatchesPane().EndEdit (true);
+
+            Assert::IsTrue   (host.commands.empty(), L"a watch of nothing was added");
+            Assert::IsTrue   (static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->IsEditing(), L"the edit closed");
+            Assert::IsFalse  (window.GetWatchesPane().GetError().empty(), L"no reason shown");
+        }
+
+
         //  As the heat map ranges pane's add row: one click starts the edit.
         TEST_METHOD (OneClickOnTheAddRowStartsTheEdit)
         {

@@ -69,6 +69,26 @@ int WatchTable::AddBasic (const std::string & name)
 
     item.id        = m_nextId++;
     item.basicName = name;
+    item.kind      = WatchItem::Kind::Basic;
+    m_items.push_back (item);
+    return item.id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::AddTyped
+//
+//  The item as resolved, given the next id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int WatchTable::AddTyped (WatchItem item)
+{
+    item.id = m_nextId++;
     m_items.push_back (item);
     return item.id;
 }

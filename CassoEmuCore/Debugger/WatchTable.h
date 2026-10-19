@@ -13,13 +13,27 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 //  basicName is a BASIC watch's Applesoft variable, as Applesoft writes it;
-//  empty for an address.
+//  empty for an address. A watch typed in the watch pane is resolved once
+//  to its kind, with the text typed as its expression: a register's
+//  name, a symbol's, whose address is looked up again at each read, or an
+//  expression evaluated at each read.
 struct WatchItem
 {
+    enum class Kind
+    {
+        Address,
+        Basic,
+        Register,
+        Symbol,
+        Expression,
+    };
+
     int          id      = 0;
     Word         address = 0;
     bool         enabled = true;
     std::string  basicName;
+    Kind         kind    = Kind::Address;
+    std::string  expression;
 };
 
 
@@ -43,6 +57,7 @@ class WatchTable
 public:
     int   Add           (Word address);
     int   AddBasic      (const std::string & name);
+    int   AddTyped      (WatchItem item);
     int   AddAt         (int id, Word address);
     bool  TryClear      (int id);
     void  ClearAll      ();

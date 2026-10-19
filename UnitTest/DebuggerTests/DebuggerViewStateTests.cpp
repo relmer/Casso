@@ -894,7 +894,7 @@ namespace DebuggerViewStateTests
 
             //  A manual watch: the expression moves it, the value writes the
             //  word it watches.
-            Assert::AreEqual (std::string ("WC 3 | W 0500"),  lines (3, std::nullopt, 0, "0500"));
+            Assert::AreEqual (std::string ("WC 3 | W EXPR 0500"), lines (3, std::nullopt, 0, "0500"));
             Assert::AreEqual (std::string ("MEW 0400 BEEF"),  lines (3, std::nullopt, 1, " BEEF "), L"typed space is not part of it");
 
             //  An automatic watch writes what it stands for.
@@ -977,7 +977,7 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (lines.has_value());
             Assert::AreEqual ((size_t) 2, lines->size());
             Assert::AreEqual (std::string ("WC 6"),   lines->at (0).echo);
-            Assert::AreEqual (std::string ("W 0400"), lines->at (1).echo);
+            Assert::AreEqual (std::string ("W EXPR 0400"), lines->at (1).echo);
 
             //  Watch 6 removed and watch 7 added since: 7 is not the moved
             //  watch, and nothing is removed.

@@ -1355,6 +1355,15 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
 
         command.hasA1 = !args.tokens.empty();
 
+        //  With EXPR, the text after it is the watch, resolved once to what
+        //  it is: a register, a symbol or an expression, read at each stop.
+        if (command.verb == DebugVerb::AddWatch && args.tokens.size() > 1 && ToUpper (args.tokens[0]) == "EXPR")
+        {
+            command.text         = args.rest.substr (args.rest.find_first_not_of (" \t", args.tokens[0].size()));
+            command.isTypedWatch = true;
+            return true;
+        }
+
         //  A watch's text also goes to the session, which reads it as a BASIC
         //  variable where it is one; text that is not an address may be one.
         if (command.verb == DebugVerb::AddWatch && !args.tokens.empty())

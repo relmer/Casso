@@ -35,6 +35,57 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SnapshotExpressionContext
+//
+//  The snapshot's symbols, for a check that each identifier in an
+//  expression is known; every register is, and memory reads as zero, since
+//  a check reads only the identifiers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class SnapshotExpressionContext : public IDebugExpressionContext
+{
+public:
+    explicit SnapshotExpressionContext (const DebuggerViewSnapshot & snapshot) : m_snapshot (snapshot) {}
+
+    bool  TryGetRegister (const std::string &, Word & value) const override { value = 0; return true; }
+    bool  TryPeek        (Word, Byte & value) const override               { value = 0; return true; }
+
+    bool  TryResolveSymbol (const std::string & name, Word & address) const override
+    {
+        if (_strnicmp (name.c_str(), "DISK.", 5) == 0)
+        {
+            address = 0;
+            return true;
+        }
+
+        if (m_snapshot.symbols == nullptr)
+        {
+            return false;
+        }
+
+        for (const SymbolInfo & symbol : m_snapshot.symbols->symbols)
+        {
+            if (_stricmp (symbol.name.c_str(), name.c_str()) == 0)
+            {
+                address = symbol.address;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+private:
+    const DebuggerViewSnapshot  & m_snapshot;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::IsBuildDue
 //
 //  A change between running and paused is due at once: a breakpoint that just
@@ -219,9 +270,12 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     for (const WatchEntry & entry : watches.entries)
     {
-        snapshot.watches.push_back ({ entry.id, entry.address,
-                                      entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
-                                      entry.enabled, entry.basicName });
+        std::string  value = entry.valueText.has_value() ? *entry.valueText
+                           : entry.value.has_value()     ? std::format ("{:04X}", *entry.value)
+                           :                               std::string ("--");
+
+        snapshot.watches.push_back ({ entry.id, entry.address, value, entry.enabled, entry.basicName, entry.expression,
+                                      entry.isValueEditable });
     }
 
     for (const WatchEntry & entry : pointers.entries)
@@ -1867,6 +1921,62 @@ std::string DebuggerViewState::GetPokeLine (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetWatchError
+//
+//  A BASIC variable, and anything once the machine is stopped in a program,
+//  is left to the session; otherwise the text must parse, and each
+//  identifier in it must be a register or one of the snapshot's symbols.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snapshot, const std::string & typed)
+{
+    static constexpr std::string_view  kBasic  = "BASIC ";
+    std::string                        text    = typed;
+    std::string                        error;
+    BasicReference                     reference;
+    Expression                         parsed;
+    int32_t                            value   = 0;
+    HRESULT                            hr      = S_OK;
+    SnapshotExpressionContext          context (snapshot);
+
+
+
+    text.erase (0, std::min (text.size(), text.find_first_not_of (" \t")));
+    text.erase (text.find_last_not_of (" \t") + 1);
+
+    if (text.empty())
+    {
+        return "There is nothing to watch.";
+    }
+
+    if (text.size() > kBasic.size() && _strnicmp (text.c_str(), kBasic.data(), kBasic.size()) == 0)
+    {
+        return {};
+    }
+
+    if (ApplesoftProgram::TryParseReference (text, reference) &&
+        (text.find_first_of ("$%(") != std::string::npos || (snapshot.basic.has_value() && snapshot.basic->hasValues)))
+    {
+        return {};
+    }
+
+    hr = DebugExpressionEvaluator::Parse (text, parsed, error);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = DebugExpressionEvaluator::Evaluate (parsed, context, value, error, EvaluationMode::Check);
+    }
+
+    return FAILED (hr) ? error : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetWatchEditActions
 //
 //  Each edit runs as the command anyone could have typed, and is echoed as
@@ -1910,7 +2020,7 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
             {
                 //  A BASIC watch's value is the program's to change.
                 return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
-                     : !watch.basicName.empty()    ? std::vector<DebuggerAction> {}
+                     : !watch.basicName.empty() || !watch.isValueEditable ? std::vector<DebuggerAction> {}
                      :                               std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
             }
         }
@@ -1997,7 +2107,9 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
 
             if (column == 0)
             {
-                undo.restoreText = watch.basicName.empty() ? std::format ("{:04X}", watch.address) : "BASIC " + watch.basicName;
+                undo.restoreText = !watch.expression.empty() ? watch.expression
+                                 : watch.basicName.empty()   ? std::format ("{:04X}", watch.address)
+                                 :                             "BASIC " + watch.basicName;
 
                 for (const DebuggerViewSnapshot::WatchLine & other : before.watches)
                 {

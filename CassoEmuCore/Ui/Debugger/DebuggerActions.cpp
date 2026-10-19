@@ -1346,12 +1346,13 @@ DebuggerAction DebuggerActions::GetAddWatch (Word address, CommandMode mode)
 
 DebuggerAction DebuggerActions::GetAddWatch (const std::string & expression, CommandMode mode)
 {
-    DebuggerAction  action = Make (DebugVerb::AddWatch, "W " + expression, mode);
+    DebuggerAction  action = Make (DebugVerb::AddWatch, "W EXPR " + expression, mode);
 
 
 
-    action.command.hasA1 = true;
-    action.operand       = expression;
+    action.command.hasA1        = true;
+    action.command.isTypedWatch = true;
+    action.operand              = expression;
     return action;
 }
 

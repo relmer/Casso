@@ -92,8 +92,9 @@ void WatchesPane::Configure()
     m_grid->SetAddRowText      (L"Add new watch");
     m_grid->SetEditorHwnd      (m_host.GetOwnerHwnd());
     m_grid->SetEditorMaxLength (kEditMaxChars);
-    m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring &) { return CommitCell (row, column - kFirstFieldColumn, text); });
-    m_grid->SetOnAddRow        ([this] (const std::vector<std::wstring> & texts, std::wstring &) { return AddWatch (texts[kFirstFieldColumn]); });
+    m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring & outError) { return CommitCell (row, column - kFirstFieldColumn, text, outError); });
+    m_grid->SetOnAddRow        ([this] (const std::vector<std::wstring> & texts, std::wstring & outError) { return AddWatch (texts[kFirstFieldColumn], outError); });
+    m_grid->SetOnError         ([this] (const std::wstring & text) { SetError (text); });
     m_grid->SetOnDeleteRow     ([this] (int) { RemoveSelected(); });
     m_grid->SetOnBeginEdit     ([this] (int row, int) { NoteEditBegun (row); });
 }
@@ -116,6 +117,10 @@ DxuiListView * WatchesPane::CreateList()
     m_grid = m_host.GetControlParent().CreateChild<DxuiEditableGrid>();
     m_grid->SetRowsMovable (false);
 
+    m_error = m_host.GetControlParent().CreateChild<DxuiLabel>();
+    m_error->SetTextRole  (DxuiTextRole::Error);
+    m_error->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+
     return m_grid;
 }
 
@@ -131,7 +136,7 @@ DxuiListView * WatchesPane::CreateList()
 
 std::vector<IDxuiControl *> WatchesPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_list, m_bar.GetBar() };
+    return { m_bar.GetSlot(), m_error, m_list, m_bar.GetBar() };
 }
 
 
@@ -223,8 +228,9 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
     for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
     {
         DxuiListView::Cell  id    = MakeIdCell (std::to_wstring (watch.id));
-        DxuiListView::Cell  name  = watch.basicName.empty() ? DxuiListView::Cell { std::format (L"${:04X}", watch.address) }
-                                                            : BasicWatches::MakeNameCell (watch.basicName);
+        DxuiListView::Cell  name  = !watch.basicName.empty()  ? BasicWatches::MakeNameCell (watch.basicName)
+                                  : !watch.expression.empty() ? DxuiListView::Cell { TextEncoding::NarrowToWide (watch.expression) }
+                                  :                             DxuiListView::Cell { std::format (L"${:04X}", watch.address) };
         DxuiListView::Cell  value = { TextEncoding::NarrowToWide (watch.value) };
 
         //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
@@ -251,9 +257,12 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         //  value is the program's to change.
         id.check = watch.enabled;
         rows.push_back ({ { id, name, value },
-                          { std::wstring(), watch.basicName.empty() ? std::format (L"{:04X}", watch.address) : TextEncoding::NarrowToWide (watch.basicName),
+                          { std::wstring(),
+                            !watch.basicName.empty()  ? TextEncoding::NarrowToWide (watch.basicName)
+                            : !watch.expression.empty() ? TextEncoding::NarrowToWide (watch.expression)
+                            :                             std::format (L"{:04X}", watch.address),
                             TextEncoding::NarrowToWide (watch.value) },
-                          false, { true, false, !watch.basicName.empty() } });
+                          false, { true, false, !watch.basicName.empty() || !watch.isValueEditable } });
         m_rows.push_back ({ RowKind::Manual, watch.id });
     }
 
@@ -410,7 +419,7 @@ void WatchesPane::EndEdit (bool commit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed)
+bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed, std::wstring & outError)
 {
     const DebuggerViewSnapshot                  * snapshot = m_host.GetLatestSnapshot();
     Edit                                          edit     = m_edit;
@@ -418,10 +427,25 @@ bool WatchesPane::CommitCell (int row, int column, const std::wstring & typed)
     std::optional<int>                            autoAt;
     std::optional<DebuggerViewState::WatchUndo>   undo;
     std::vector<DebuggerAction>                   actions;
+    std::string                                   error;
 
 
 
     (void) row;
+
+    //  For an expression that cannot be watched, the edit stays open and the
+    //  watch it would replace remains.
+    if (snapshot != nullptr && edit.isOpen && column == 0 && edit.what.kind == RowKind::Manual)
+    {
+        error = DebuggerViewState::GetWatchError (*snapshot, TextEncoding::WideToNarrow (typed));
+
+        if (!error.empty())
+        {
+            outError = TextEncoding::NarrowToWide (error);
+            return false;
+        }
+    }
+
     m_edit = Edit {};
 
     if (snapshot == nullptr || !edit.isOpen)
@@ -509,21 +533,83 @@ void WatchesPane::NoteEditBegun (int row)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool WatchesPane::AddWatch (const std::wstring & typed)
+bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
 {
-    std::string  expression = TextEncoding::WideToNarrow (typed);
+    const DebuggerViewSnapshot  * snapshot   = m_host.GetLatestSnapshot();
+    std::string                   expression = TextEncoding::WideToNarrow (typed);
+    std::string                   error;
 
 
 
     expression.erase (0, std::min (expression.size(), expression.find_first_not_of (" \t")));
     expression.erase (expression.find_last_not_of (" \t") + 1);
 
-    if (!expression.empty())
+    if (expression.empty())
     {
-        m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
+        return true;
     }
 
+    error = (snapshot != nullptr) ? DebuggerViewState::GetWatchError (*snapshot, expression) : std::string();
+
+    if (!error.empty())
+    {
+        outError = TextEncoding::NarrowToWide (error);
+        return false;
+    }
+
+    m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::AddMiddleParts
+//
+//  The reason an entry cannot be watched, above the list while there is
+//  one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::AddMiddleParts (DebuggerPaneFrame & frame)
+{
+    frame.AddPart (m_error, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kErrorDip); },
+                   [this] { return m_error != nullptr && !m_error->GetText().empty(); });
+    frame.SetPartTextAligned (m_error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::SetError
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::SetError (const std::wstring & text)
+{
+    bool  wasShown = m_error != nullptr && !m_error->GetText().empty();
+
+
+
+    if (m_error == nullptr)
+    {
+        return;
+    }
+
+    m_error->SetText (text);
+
+    if (wasShown != !text.empty() && m_frame != nullptr)
+    {
+        m_frame->Relayout();
+    }
+
+    m_host.Repaint();
 }
 
 
