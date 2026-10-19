@@ -60,7 +60,7 @@ void BreakpointDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
 
     for (const Row & each : m_rows)
     {
-        int  right = (each.tip != nullptr) ? boundsDip.right - tip : boundsDip.right;
+        int  labelRight = (each.tip != nullptr) ? split - tip : split;
 
         each.label->SetVisible (each.field->IsVisible());
 
@@ -74,12 +74,13 @@ void BreakpointDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
             continue;
         }
 
-        each.label->Layout (RECT { boundsDip.left, y, split, y + row }, scaler);
-        each.field->Layout (RECT { split, y, right, y + row }, scaler);
+        each.label->Layout (RECT { boundsDip.left, y, labelRight, y + row }, scaler);
+        each.field->Layout (RECT { split, y, boundsDip.right, y + row }, scaler);
 
         if (each.tip != nullptr)
         {
-            each.tip->Layout (RECT { right, y, boundsDip.right, y + row }, scaler);
+            each.tip->SetDpi (scaler.GetDpi());
+            each.tip->Layout (RECT { labelRight, y, split, y + row }, scaler);
         }
 
         y += row + gap;
@@ -94,8 +95,8 @@ void BreakpointDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
 //
 //  BreakpointDialog::GetTypeRows
 //
-//  The types under headings: code, memory accesses, BASIC's,
-//  then the machine's own.
+//  The types under headings: execution, memory accesses, BASIC's, then the
+//  machine's own. A memory address is ReadWrite here; its checks choose.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,22 +104,20 @@ const std::vector<BreakpointDialog::TypeRow> & BreakpointDialog::GetTypeRows()
 {
     static const std::vector<TypeRow>  rows =
     {
-        { L"Code",                         std::nullopt              },
-        { L"Execute",                      Type::Execute             },
+        { L"Execution",                    std::nullopt              },
+        { L"Address",                      Type::Execute             },
         { L"Condition",                    Type::Condition           },
         { L"Opcode",                       Type::Opcode              },
         { L"BRK",                          Type::Brk                 },
         { L"BRK on interrupt",             Type::Interrupt           },
         { L"Memory",                       std::nullopt              },
-        { L"Read",                         Type::Read                },
-        { L"Write",                        Type::Write               },
-        { L"Read or write",                Type::ReadWrite           },
-        { L"Memory value",                 Type::Value               },
+        { L"Address",                      Type::ReadWrite           },
+        { L"Value",                        Type::Value               },
         { L"Reading uninitialized memory", Type::UnwrittenRead       },
         { L"BASIC",                        std::nullopt              },
-        { L"BASIC line",                   Type::BasicLine           },
-        { L"BASIC variable change",        Type::BasicVariable       },
-        { L"BASIC error",                  Type::BasicError          },
+        { L"Line",                         Type::BasicLine           },
+        { L"Variable change",              Type::BasicVariable       },
+        { L"Error",                        Type::BasicError          },
         { L"Hardware",                     std::nullopt              },
         { L"Disk event",                   Type::Disk                },
         { L"Video line",                   Type::VideoLine           },
@@ -146,15 +145,62 @@ int BreakpointDialog::GetRowOf (Type type)
 
 
 
+    Type                          shown = (type == Type::Read || type == Type::Write) ? Type::ReadWrite : type;
+
+
+
     for (size_t i = 0; i < rows.size(); i++)
     {
-        if (rows[i].type == type)
+        if (rows[i].type == shown)
         {
             return (int) i;
         }
     }
 
     return 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::GetTitle
+//
+//  The type's heading and label, from the New drop-down's rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BreakpointDialog::GetTitle (Type type, std::optional<int> id)
+{
+    const std::vector<TypeRow>  & rows    = GetTypeRows();
+    int                           row     = GetRowOf (type);
+    std::wstring                  heading;
+
+
+
+    for (int i = row; i >= 0; i--)
+    {
+        if (!rows[(size_t) i].type.has_value())
+        {
+            heading = rows[(size_t) i].label;
+            break;
+        }
+    }
+
+    if (id.has_value())
+    {
+        return std::format (L"{} breakpoint #{}: {}", heading, *id, rows[(size_t) row].label);
+    }
+
+    //  BASIC is an acronym; the other headings are words.
+    if (!heading.empty() && heading != L"BASIC")
+    {
+        heading[0] = (wchar_t) towlower (heading[0]);
+    }
+
+    return std::format (L"New {} breakpoint: {}", heading, rows[(size_t) row].label);
 }
 
 
@@ -433,6 +479,7 @@ BreakpointDialog::VisibleFields BreakpointDialog::GetVisibleFields (Type type)
     shown.event     = type == Type::Disk;
     shown.drive     = type == Type::Disk;
     shown.mode      = isWatched;
+    shown.access    = isWatched;
     shown.value     = type == Type::Value || type == Type::Opcode || type == Type::Beam;
     shown.condition = type == Type::Execute || isWatched || type == Type::Value || type == Type::Disk || type == Type::Condition;
     shown.address   = type == Type::Execute || isWatched || type == Type::Value || type == Type::BasicLine ||
@@ -625,6 +672,8 @@ void BreakpointDialog::ShowFieldsForType()
     m_value.SetVisible     (shown.value);
     m_address.SetVisible   (shown.address);
     m_condition.SetVisible (shown.condition);
+    m_accessRead.SetVisible  (shown.access);
+    m_accessWrite.SetVisible (shown.access);
     ShowDiskFields (type == Type::Disk);
 
     //  A new breakpoint's address is the PC only while its type is Execute.
@@ -708,20 +757,24 @@ void BreakpointDialog::ShowFieldsForType()
 //
 //  BreakpointDialog::GetSelectedType
 //
+//  The type the dialog opened on; for a memory address, the one its checks
+//  choose, both or neither being Read or write.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 BreakpointDialog::Type BreakpointDialog::GetSelectedType() const
 {
-    int  row = m_type.GetSelectedIndex();
+    bool  isRead  = m_accessRead.IsChecked();
+    bool  isWrite = m_accessWrite.IsChecked();
 
 
 
-    if (row < 0 || row >= (int) GetTypeRows().size() || !GetTypeRows()[(size_t) row].type.has_value())
+    if (m_type != Type::Read && m_type != Type::Write && m_type != Type::ReadWrite)
     {
-        return Type::Execute;
+        return m_type;
     }
 
-    return *GetTypeRows()[(size_t) row].type;
+    return (isRead && !isWrite) ? Type::Read : (isWrite && !isRead) ? Type::Write : Type::ReadWrite;
 }
 
 
@@ -820,43 +873,31 @@ void BreakpointDialog::OnCreate()
 
 
 
-    //  A type no breakpoint kind has, such as a video line, opens on that
-    //  type.
+    //  The New drop-down's choice, or the edited breakpoint's own type.
     if (m_presetType.has_value())
     {
         fields.type = *m_presetType;
     }
 
-    for (DxuiLabel * label : { &m_typeLabel, &m_eventLabel, &m_driveLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel })
+    m_type = fields.type;
+
+    for (DxuiLabel * label : { &m_accessLabel, &m_accessWriteLabel, &m_eventLabel, &m_driveLabel, &m_modeLabel, &m_addressLabel, &m_valueLabel, &m_conditionLabel })
     {
         label->SetTextRole  (DxuiTextRole::Body);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
 
-    m_typeLabel.SetText      (L"Type");
+    m_accessLabel.SetText    (L"Access");
     m_eventLabel.SetText     (L"Disk event");
     m_driveLabel.SetText     (L"Drive");
     m_modeLabel.SetText      (L"Stops");
     m_addressLabel.SetText   (L"Address or range");
     m_conditionLabel.SetText (L"Condition");
 
-    {
-        std::vector<std::wstring>  labels;
-        std::vector<bool>          enabled;
-
-        for (const TypeRow & row : GetTypeRows())
-        {
-            labels.push_back  (row.label);
-            enabled.push_back (row.type.has_value());
-        }
-
-        m_type.SetItems        (labels);
-        m_type.SetItemsEnabled (enabled);
-    }
-
-    m_type.SetSelected (GetRowOf (fields.type));
-    m_type.SetSelect   ([this] (int) { ShowFieldsForType(); Invalidate(); });
-    m_type.SetPopupHost (GetPopupHost());
+    m_accessRead.SetLabel    (L"Read");
+    m_accessWrite.SetLabel   (L"Write");
+    m_accessRead.SetChecked  (fields.type != Type::Write);
+    m_accessWrite.SetChecked (fields.type != Type::Read);
 
     m_mode.SetItems     ({ L"After the access", L"Before the access" });
     m_mode.SetSelected  ((int) fields.mode);
@@ -932,7 +973,6 @@ void BreakpointDialog::OnCreate()
     ShowFieldsForType();
 
     m_body = CreateDialogContent<BreakpointDialogPanel>();
-    m_body->Add (m_typeLabel,      m_type);
     m_body->Add (m_eventLabel,     m_event);
     m_body->Add (m_driveLabel,     m_drive);
     m_body->Add (m_diskChoiceLabel,   m_diskChoice);
@@ -945,6 +985,8 @@ void BreakpointDialog::OnCreate()
     m_body->Add (m_diskCheckLabels[3], m_diskBump);
     m_body->Add (m_diskCheckLabels[4], m_diskEvery);
     m_body->Add (m_diskAdvancedLabel, m_diskAdvanced);
+    m_body->Add (m_accessLabel,      m_accessRead);
+    m_body->Add (m_accessWriteLabel, m_accessWrite);
     m_body->Add (m_modeLabel,      m_mode);
     m_body->Add (m_addressLabel,   m_address);
     m_body->Add (m_valueLabel,     m_value);
@@ -971,10 +1013,12 @@ void BreakpointDialog::OnCreate()
         EndDialog (IDOK);
     });
 
-    //  The first text field the type uses.
-    SetInitialFocus (GetVisibleFields (fields.type).address ? (IDxuiControl *) &m_address
-                   : GetVisibleFields (fields.type).value   ? (IDxuiControl *) &m_value
-                   :                                          (IDxuiControl *) &m_type);
+    //  The first field the type uses.
+    SetInitialFocus (GetVisibleFields (fields.type).address   ? (IDxuiControl *) &m_address
+                   : GetVisibleFields (fields.type).value     ? (IDxuiControl *) &m_value
+                   : GetVisibleFields (fields.type).condition ? (IDxuiControl *) &m_condition
+                   : GetVisibleFields (fields.type).event     ? (IDxuiControl *) &m_event
+                   :                                            (IDxuiControl *) ok);
 }
 
 
@@ -1000,7 +1044,7 @@ std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTh
     dialog.m_presetType = type;
     dialog.m_newAddress = (info.id < 0) ? std::optional<std::wstring> (std::wstring()) : std::nullopt;
 
-    params.title                    = (info.id < 0) ? std::wstring (L"New breakpoint") : std::format (L"Breakpoint #{}", info.id);
+    params.title                    = GetTitle (type.value_or (GetType (info)), (info.id < 0) ? std::nullopt : std::optional<int> (info.id));
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { 500, 560 };
@@ -1033,7 +1077,7 @@ std::optional<std::string> BreakpointDialog::RunModal (HWND owner, const IDxuiTh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiTheme * theme, Word pc)
+std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiTheme * theme, Type type, Word pc)
 {
     BreakpointInfo  info;
 
@@ -1044,5 +1088,23 @@ std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiThem
     info.address = pc;
     info.last    = pc;
 
-    return RunModal (owner, theme, info, Type::Execute);
+    return RunModal (owner, theme, info, type);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::OnDialogTick
+//
+//  The condition's info tip appears after its dwell and fades on the dialog's
+//  ticks, as nothing else ticks a dialog's controls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointDialog::OnDialogTick()
+{
+    m_conditionTip.Tick ((int64_t) GetTickCount64());
 }

@@ -249,8 +249,9 @@ public:
 
 
 
-    //  The type list is grouped under headings that cannot be chosen, every
-    //  type is in it once, and no type repeats another's breakpoint.
+    //  The New drop-down's types are under headings, every type the dialog
+    //  makes is in it once, a memory address standing for reads, writes and
+    //  both, and the dialog's title has the heading and the type.
     TEST_METHOD (TheBreakpointTypesAreGroupedUnderHeadings)
     {
         using Type = BreakpointDialog::Type;
@@ -273,8 +274,12 @@ public:
             }
         }
 
-        Assert::IsTrue   (headings == std::vector<std::wstring> { L"Code", L"Memory", L"BASIC", L"Hardware" });
-        Assert::AreEqual ((size_t) Type::Beam + 1, types, L"a type is missing or repeated");
+        Assert::IsTrue   (headings == std::vector<std::wstring> { L"Execution", L"Memory", L"BASIC", L"Hardware" });
+        Assert::AreEqual ((size_t) Type::Beam + 1 - 2, types, L"a type is missing or repeated");
+        Assert::AreEqual (BreakpointDialog::GetRowOf (Type::ReadWrite), BreakpointDialog::GetRowOf (Type::Read), L"a read is not a memory address");
+        Assert::AreEqual (std::wstring (L"New memory breakpoint: Address"),   BreakpointDialog::GetTitle (Type::Write, std::nullopt));
+        Assert::AreEqual (std::wstring (L"Execution breakpoint #3: Address"), BreakpointDialog::GetTitle (Type::Execute, 3));
+        Assert::AreEqual (std::wstring (L"New BASIC breakpoint: Line"),       BreakpointDialog::GetTitle (Type::BasicLine, std::nullopt));
         Assert::IsFalse  (rows.front().type.has_value(), L"the list does not start with a heading");
         Assert::AreEqual (std::wstring (L"Reading uninitialized memory"), std::wstring (rows[(size_t) BreakpointDialog::GetRowOf (Type::UnwrittenRead)].label));
     }

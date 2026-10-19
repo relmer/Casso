@@ -31,7 +31,7 @@ const std::vector<BreakpointBarCommands::Row> & BreakpointBarCommands::GetRows()
 {
     static const std::vector<Row>  rows =
     {
-        { kNew,        L"New breakpoint...", nullptr,            L"New breakpoint",                                                    DxuiToolbar::Kind::Command,  0 },
+        { kNew,        L"New",               nullptr,            L"New breakpoint, of a type the drop-down lists",                     DxuiToolbar::Kind::DropDown, 0 },
         { kDelete,     L"Delete",            s_kGlyphDelete,     L"Delete the selected breakpoints",                                   DxuiToolbar::Kind::Command,  1 },
         { kDeleteAll,  L"Delete all",        nullptr,            L"Delete all breakpoints",                                            DxuiToolbar::Kind::Command,  1 },
         { kDisableAll, L"Disable all",       nullptr,            L"Disable all breakpoints, or enable them all when all are disabled", DxuiToolbar::Kind::Command,  1 },
@@ -112,7 +112,7 @@ std::vector<DxuiToolbar::Entry> BreakpointBarCommands::BuildEntries() const
         entry.command  = Find (row.id);
         entry.kind     = row.kind;
         entry.group    = row.group;
-        entry.iconOnly = row.id != kNew;
+        entry.iconOnly = row.kind != DxuiToolbar::Kind::DropDown;
 
         switch (row.id)
         {

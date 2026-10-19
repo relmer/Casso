@@ -116,6 +116,9 @@ void BreakpointsPane::Configure()
 
     m_bar.Configure();
     m_bar.GetBar()->SetEntries (m_commands->BuildEntries());
+    m_bar.SetOnPress ([this] { SetBarMenus(); });
+
+    SetBarMenus();
 
     m_nameEditor->SetVisible   (false);
     m_nameEditor->SetOverText  (true);
@@ -437,7 +440,6 @@ void BreakpointsPane::RunBarEntry (int id)
         RunStep (std::move (step));
         break;
 
-    case BreakpointBarCommands::kNew:        NewBreakpoint();                                                                                          break;
     case BreakpointBarCommands::kDeleteAll:  RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints  (mode) },              {} }); break;
     case BreakpointBarCommands::kDisableAll: RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (!anyEnabled, mode) }, {} }); break;
     case BreakpointBarCommands::kUndo:       RunStep ({ BreakpointStep::Kind::Undo,    {}, {} });                                                      break;
@@ -469,21 +471,56 @@ void BreakpointsPane::RunBarEntry (int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BreakpointsPane::NewBreakpoint
+//  BreakpointsPane::SetBarMenus
 //
-//  The breakpoint dialog on Execute at the PC; its definition is the line a
-//  person could have typed.
+//  New's types under their headings, each opening the breakpoint dialog on
+//  that type. Built again before the drop-down opens.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointsPane::NewBreakpoint()
+void BreakpointsPane::SetBarMenus()
+{
+    std::vector<DxuiPopupMenuItem>  items;
+
+
+
+    for (const BreakpointDialog::TypeRow & row : BreakpointDialog::GetTypeRows())
+    {
+        BreakpointDialog::Type  type = row.type.value_or (BreakpointDialog::Type::Execute);
+
+        if (!row.type.has_value())
+        {
+            items.push_back (DxuiPopupMenuItem::ForHeader (row.label));
+            continue;
+        }
+
+        items.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (std::wstring (row.label) + L"...", false, [this, type] { NewBreakpoint (type); })));
+    }
+
+    m_bar.GetBar()->SetDropDownItems (BreakpointBarCommands::kNew, std::move (items));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::NewBreakpoint
+//
+//  The breakpoint dialog for the type chosen, an execution address at the
+//  PC; its definition is the line a person could have typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 {
     const DebuggerViewSnapshot   * snapshot   = m_host.GetLatestSnapshot();
     std::optional<std::string>     definition;
 
 
 
-    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), (snapshot != nullptr) ? snapshot->pc : (Word) 0);
+    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0);
 
     if (definition.has_value())
     {

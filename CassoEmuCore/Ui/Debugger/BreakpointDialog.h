@@ -10,8 +10,8 @@
 //
 //  BreakpointDialogPanel
 //
-//  A label beside each field, one field a row, and an info tip at a row's
-//  right end where it has one; a hidden field's row is left out, so the
+//  A label beside each field, one field a row, and an info tip after a
+//  row's label where it has one; a hidden field's row is left out, so the
 //  rows of the visible ones are together.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,8 +50,10 @@ private:
 //  the definition BPEDIT reads: BP, BPMR, BPMW, BPM, BPMV or BRKOP with its
 //  arguments, a data breakpoint's BEFORE and any IF condition, BPR IF and a
 //  condition, BRK ON or BRKINT ON, BPDISK with its drive, event, arguments
-//  and condition, or BPBASIC, BPBASICVAR or BRKBASIC ON. The type list is
-//  grouped under headings, which cannot be chosen.
+//  and condition, or BPBASIC, BPBASICVAR or BRKBASIC ON. The dialog makes
+//  only the type it opens on: the New drop-down's choice, or an edited
+//  breakpoint's own. A memory address's Read and Write checks choose BPMR,
+//  BPMW or BPM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +64,7 @@ public:
     enum class Type { Execute, Read, Write, ReadWrite, Value, Condition, Opcode, Brk, Interrupt, Disk, BasicLine, BasicVariable, BasicError,
                       UnwrittenRead, VideoLine, Beam };
 
-    //  A row of the type list: a heading when type is empty.
+    //  A row of the New drop-down: a heading when type is empty.
     struct TypeRow
     {
         const wchar_t        * label = nullptr;
@@ -71,6 +73,10 @@ public:
 
     static const std::vector<TypeRow> &  GetTypeRows ();
     static int                           GetRowOf    (Type type);
+
+    //  The dialog's title for a type: "New memory breakpoint: Address", or
+    //  "Memory breakpoint #3: Address" for breakpoint 3.
+    static std::wstring                  GetTitle    (Type type, std::optional<int> id);
 
     //  The values of the dialog's controls. A disk breakpoint's event is an
     //  index into DiskBreakSpecText::GetEventWords, its drive 0 for either,
@@ -97,6 +103,7 @@ public:
         bool  address   = false;
         bool  value     = false;
         bool  condition = false;
+        bool  access    = false;
     };
 
     static VisibleFields  GetVisibleFields (Type type);
@@ -156,12 +163,13 @@ public:
     //  the breakpoint's own type otherwise; the definition when OK.
     static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt);
 
-    //  A new breakpoint's dialog: Execute at the PC, every other type's
-    //  fields empty.
-    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Word pc);
+    //  A new breakpoint's dialog for the type chosen: an execution address
+    //  starts at the PC, and every other type's fields start empty.
+    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc);
 
 protected:
-    void  OnCreate() override;
+    void  OnCreate     () override;
+    void  OnDialogTick () override;
 
 private:
     void        ShowFieldsForType ();
@@ -176,14 +184,17 @@ private:
     std::optional<Type>            m_presetType;
     std::optional<std::wstring>    m_newAddress;
     std::optional<std::string>     m_definition;
-    DxuiLabel                      m_typeLabel;
+    DxuiLabel                      m_accessLabel;
+    DxuiLabel                      m_accessWriteLabel;
     DxuiLabel                      m_modeLabel;
     DxuiLabel                      m_addressLabel;
     DxuiLabel                      m_valueLabel;
     DxuiLabel                      m_conditionLabel;
     DxuiLabel                      m_eventLabel;
     DxuiLabel                      m_driveLabel;
-    DxuiComboBox                   m_type;
+    DxuiCheckbox                   m_accessRead;
+    DxuiCheckbox                   m_accessWrite;
+    Type                           m_type               = Type::Execute;
     DxuiComboBox                   m_mode;
     DxuiComboBox                   m_event;
     DxuiComboBox                   m_drive;

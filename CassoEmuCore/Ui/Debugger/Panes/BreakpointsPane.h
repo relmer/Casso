@@ -92,7 +92,8 @@ private:
 
     void                             SetColumns     ();
     void                             ApplyRows      ();
-    void                             NewBreakpoint  ();
+    void                             SetBarMenus    ();
+    void                             NewBreakpoint  (BreakpointDialog::Type type);
     void                             RunStep        (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
 
