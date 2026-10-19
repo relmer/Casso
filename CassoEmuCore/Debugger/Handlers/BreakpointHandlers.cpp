@@ -189,14 +189,14 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
     {
     case BreakpointKind::Address:       return "BP " + (info.symbol.empty() ? range : info.symbol) + clause;
     case BreakpointKind::Register:      return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
-    case BreakpointKind::Opcode:        return std::format ("BRKOP {:02X}", info.opcode);
-    case BreakpointKind::Brk:           return "BRK ON";
-    case BreakpointKind::Interrupt:     return "BRKINT ON";
+    case BreakpointKind::Opcode:        return std::format ("BRKOP {:02X}", info.opcode) + clause;
+    case BreakpointKind::Brk:           return "BRK ON" + clause;
+    case BreakpointKind::Interrupt:     return "BRKINT ON" + clause;
     case BreakpointKind::MemoryValue:   return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
     case BreakpointKind::Disk:          return "BPDISK " + DiskBreakSpecText::FormatArguments (info.disk.value_or (DiskBreakSpec {})) + clause;
-    case BreakpointKind::BasicLine:     return std::format ("BPBASIC {}", info.address);
-    case BreakpointKind::BasicVariable: return "BPBASICVAR " + info.basicName;
-    case BreakpointKind::BasicError:    return "BRKBASIC ON";
+    case BreakpointKind::BasicLine:     return std::format ("BPBASIC {}", info.address) + clause;
+    case BreakpointKind::BasicVariable: return "BPBASICVAR " + info.basicName + clause;
+    case BreakpointKind::BasicError:    return "BRKBASIC ON" + clause;
     default:                            return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
     }
 }
@@ -648,6 +648,11 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
         return;
     }
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     if (!isOn.has_value())
     {
         ReportBrk (session, reply);
@@ -669,7 +674,19 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
         if (length == kBrkSelector && *isOn && !session.GetBreakpoints().HasBrk())
         {
             session.GetBreakpoints().TryFind (session.GetBreakpoints().AddBrk(), entry);
+            session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+            entry.condition = command.expression;
             added.breakpoints.push_back (MakeInfo (entry));
+        }
+        else if (length == kBrkSelector && *isOn)
+        {
+            //  BRK ON again, with or without IF, sets the condition.
+            for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
+            {
+                entry = (existing.kind == BreakpointKind::Brk) ? existing : entry;
+            }
+
+            session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
         }
         else if (length == kBrkSelector && !*isOn)
         {
@@ -965,6 +982,11 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
 
 
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     while (mnemonics >> mnemonic)
     {
         if (!TryFindOpcodes (session, mnemonic, found))
@@ -981,7 +1003,7 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
 
     for (Byte opcode : opcodes)
     {
-        AddOpcodeEntry (session, opcode, list);
+        AddOpcodeEntry (session, opcode, command.expression, list);
     }
 
     session.OnStopConditionsChanged();
@@ -1019,7 +1041,7 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, BreakpointListData & list)
+void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, const Expression & condition, BreakpointListData & list)
 {
     BreakpointTable  & table = session.GetBreakpoints();
     Breakpoint         entry;
@@ -1039,6 +1061,8 @@ void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, Br
     {
         id = (opcode == kBrkOpcode) ? table.AddBrk() : table.AddOpcode (opcode);
     }
+
+    table.TrySetCondition (id, condition);
 
     if (table.TryFind (id, entry))
     {
@@ -1137,6 +1161,11 @@ void BreakpointHandlers::SetInterrupt (DebugSession & session, const DebugComman
 
 
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     if (command.text == "ON")
     {
         if (!HasInterrupt (session))
@@ -1152,6 +1181,9 @@ void BreakpointHandlers::SetInterrupt (DebugSession & session, const DebugComman
                 entry = existing;
             }
         }
+
+        session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+        entry.condition = command.expression;
 
         reply.data = BreakpointSetData { MakeInfo (entry) };
     }
@@ -1476,6 +1508,7 @@ bool BreakpointHandlers::TryMakeEntry (
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);
     watchpoint.condition = definition.expression;
+    breakpoint.condition = definition.expression;
     isWatchpoint         = false;
 
     switch (definition.verb)

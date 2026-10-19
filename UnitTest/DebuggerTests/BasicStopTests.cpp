@@ -235,6 +235,24 @@ namespace DebuggerTests
             Assert::IsTrue (basic.rig.session.GetBreakpoints().GetAll().empty());
         }
 
+        //  The BASIC breakpoints take an IF clause, and their definitions have
+        //  it; a line breakpoint whose condition is false does not stop.
+        TEST_METHOD (TheBasicBreakpointsTakeIf)
+        {
+            BasicRig  basic ({ "10 A = 1", "20 GOSUB 100", "30 END", "100 FOR I = 1 TO 3: RETURN" });
+
+
+
+            basic.rig.RunOk ("BPBASIC 100 IF A == 1");
+            basic.rig.RunOk ("BPBASICVAR D(3,4) IF X == 2");
+            basic.rig.RunOk ("BRKBASIC ON IF Y == 3");
+            Assert::AreEqual (std::string ("BPC *\nBPBASIC 100 IF A == 1\nBPBASICVAR D(3,4) IF X == 2\nBRKBASIC ON IF Y == 3\n"), BreakpointHandlers::MakeScript (basic.rig.session));
+
+            basic.rig.RunOk ("BPC *");
+            basic.rig.RunOk ("BPBASIC 100 IF PC == 0");
+            Assert::AreNotEqual ((int) StopReason::Breakpoint, (int) basic.Run().reason, L"a false condition stopped");
+        }
+
         //  BPL's lines, BPSAVE's script, the channel's JSON and the stop text.
         TEST_METHOD (TheBreakpointsListSaveAndReport)
         {

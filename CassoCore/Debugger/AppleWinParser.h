@@ -99,6 +99,7 @@ private:
     static bool    TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error);
     static bool    TryParseValueBreakpoint   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseOpcodes           (const Arguments & args, DebugCommand & command, std::string & error);
+    static std::string  CutIfClause          (const std::string & text);
     static void    NoteSymbol                (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool    IsMnemonicToken           (const std::string & token);
     static bool    TryParseBeamArguments     (const Arguments & args, DebugCommand & command, std::string & error);

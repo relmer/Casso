@@ -32,8 +32,8 @@ AppleWin commands:
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]                                             Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
-    BPBASIC line                                                                        Stop as an Applesoft line begins
-    BPBASICVAR name                                                                     Stop after the Applesoft statement that changes a variable or array element
+    BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
+    BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
     BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
     BPC #|*                                                                             Clear a breakpoint, or all of them
     BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
@@ -51,10 +51,10 @@ AppleWin commands:
     BPSAVE file                                                                         Save the breakpoints as a script
     BPV line[,len|:last]                                                                Stop at a video scanline
     BPX addr[,len|:last]|file:line [IF expr]                                            Set an execution breakpoint, as BP does
-    BRK [0|1|2|3|ALL] [ON|OFF]                                                          Stop on BRK, or on invalid opcodes of a length
-    BRKBASIC [ON|OFF]                                                                   Stop on an Applesoft error, whether ONERR handles it or not
-    BRKINT [ON|OFF]                                                                     Stop on an interrupt
-    BRKOP [opcode | mnemonic ...]                                                       Stop on an opcode or every opcode of a mnemonic, or list them
+    BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
+    BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
+    BRKINT [ON|OFF] [IF expr]                                                           Stop on an interrupt
+    BRKOP [opcode | mnemonic ...] [IF expr]                                             Stop on an opcode or every opcode of a mnemonic, or list them
     BRKUNINIT [ON|OFF]                                                                  Stop on a read of RAM nothing has written since power-on
   Registers and flags
     CL flag                                                                             Clear a flag: C, Z, I, D, B, R, V or N
@@ -302,8 +302,8 @@ Casso commands:
   Breakpoints
     /BP addr[,len|:last]|file:line [IF expr]                                             Set an execution breakpoint, or one on PC with < > = !
     /BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
-    /BPBASIC line                                                                        Stop as an Applesoft line begins
-    /BPBASICVAR name                                                                     Stop after the Applesoft statement that changes a variable or array element
+    /BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
+    /BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
     /BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
     /BPC #|*                                                                             Clear a breakpoint, or all of them
     /BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
@@ -321,10 +321,10 @@ Casso commands:
     /BPSAVE file                                                                         Save the breakpoints as a script
     /BPV line[,len|:last]                                                                Stop at a video scanline
     /BPX addr[,len|:last]|file:line [IF expr]                                            Set an execution breakpoint, as BP does
-    /BRK [0|1|2|3|ALL] [ON|OFF]                                                          Stop on BRK, or on invalid opcodes of a length
-    /BRKBASIC [ON|OFF]                                                                   Stop on an Applesoft error, whether ONERR handles it or not
-    /BRKINT [ON|OFF]                                                                     Stop on an interrupt
-    /BRKOP [opcode | mnemonic ...]                                                       Stop on an opcode or every opcode of a mnemonic, or list them
+    /BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
+    /BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
+    /BRKINT [ON|OFF] [IF expr]                                                           Stop on an interrupt
+    /BRKOP [opcode | mnemonic ...] [IF expr]                                             Stop on an opcode or every opcode of a mnemonic, or list them
     /BRKUNINIT [ON|OFF]                                                                  Stop on a read of RAM nothing has written since power-on
   Registers and flags
     /CALLS [MODE [RECORDED|WALK|HYBRID]]                                                 Show the call stack, or choose how it is found
@@ -538,8 +538,8 @@ Casso commands:
     TF [ON|OFF] [file] [V]                                                              Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
   Breakpoints
     BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
-    BPBASIC line                                                                        Stop as an Applesoft line begins
-    BPBASICVAR name                                                                     Stop after the Applesoft statement that changes a variable or array element
+    BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
+    BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
     BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
     BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
     BPDISK [D1|D2] event [arguments] [IF expr]                                          Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
@@ -551,10 +551,10 @@ Casso commands:
     BPR reg [op] value                                                                  Stop when a register meets a condition
     BPSAVE file                                                                         Save the breakpoints as a script
     BPV line[,len|:last]                                                                Stop at a video scanline
-    BRK [0|1|2|3|ALL] [ON|OFF]                                                          Stop on BRK, or on invalid opcodes of a length
-    BRKBASIC [ON|OFF]                                                                   Stop on an Applesoft error, whether ONERR handles it or not
-    BRKINT [ON|OFF]                                                                     Stop on an interrupt
-    BRKOP [opcode | mnemonic ...]                                                       Stop on an opcode or every opcode of a mnemonic, or list them
+    BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
+    BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
+    BRKINT [ON|OFF] [IF expr]                                                           Stop on an interrupt
+    BRKOP [opcode | mnemonic ...] [IF expr]                                             Stop on an opcode or every opcode of a mnemonic, or list them
     BRKUNINIT [ON|OFF]                                                                  Stop on a read of RAM nothing has written since power-on
   Registers and flags
     CALLS [MODE [RECORDED|WALK|HYBRID]]                                                 Show the call stack, or choose how it is found
@@ -739,8 +739,8 @@ Casso commands:
     !TF [ON|OFF] [file] [V]                                                              Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position
   Breakpoints
     !BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
-    !BPBASIC line                                                                        Stop as an Applesoft line begins
-    !BPBASICVAR name                                                                     Stop after the Applesoft statement that changes a variable or array element
+    !BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
+    !BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
     !BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
     !BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
     !BPDISK [D1|D2] event [arguments] [IF expr]                                          Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
@@ -750,10 +750,10 @@ Casso commands:
     !BPR reg [op] value                                                                  Stop when a register meets a condition
     !BPSAVE file                                                                         Save the breakpoints as a script
     !BPV line[,len|:last]                                                                Stop at a video scanline
-    !BRK [0|1|2|3|ALL] [ON|OFF]                                                          Stop on BRK, or on invalid opcodes of a length
-    !BRKBASIC [ON|OFF]                                                                   Stop on an Applesoft error, whether ONERR handles it or not
-    !BRKINT [ON|OFF]                                                                     Stop on an interrupt
-    !BRKOP [opcode | mnemonic ...]                                                       Stop on an opcode or every opcode of a mnemonic, or list them
+    !BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
+    !BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
+    !BRKINT [ON|OFF] [IF expr]                                                           Stop on an interrupt
+    !BRKOP [opcode | mnemonic ...] [IF expr]                                             Stop on an opcode or every opcode of a mnemonic, or list them
     !BRKUNINIT [ON|OFF]                                                                  Stop on a read of RAM nothing has written since power-on
   Registers and flags
     !CL flag                                                                             Clear a flag: C, Z, I, D, B, R, V or N
@@ -911,8 +911,8 @@ Casso commands:
   Breakpoints
     BP addr[,len|:last]|file:line [IF expr]                                             Set an execution breakpoint, or one on PC with < > = !
     BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
-    BPBASIC line                                                                        Stop as an Applesoft line begins
-    BPBASICVAR name                                                                     Stop after the Applesoft statement that changes a variable or array element
+    BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
+    BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
     BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
     BPC #|*                                                                             Clear a breakpoint, or all of them
     BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
@@ -930,10 +930,10 @@ Casso commands:
     BPSAVE file                                                                         Save the breakpoints as a script
     BPV line[,len|:last]                                                                Stop at a video scanline
     BPX addr[,len|:last]|file:line [IF expr]                                            Set an execution breakpoint, as BP does
-    BRK [0|1|2|3|ALL] [ON|OFF]                                                          Stop on BRK, or on invalid opcodes of a length
-    BRKBASIC [ON|OFF]                                                                   Stop on an Applesoft error, whether ONERR handles it or not
-    BRKINT [ON|OFF]                                                                     Stop on an interrupt
-    BRKOP [opcode | mnemonic ...]                                                       Stop on an opcode or every opcode of a mnemonic, or list them
+    BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
+    BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
+    BRKINT [ON|OFF] [IF expr]                                                           Stop on an interrupt
+    BRKOP [opcode | mnemonic ...] [IF expr]                                             Stop on an opcode or every opcode of a mnemonic, or list them
     BRKUNINIT [ON|OFF]                                                                  Stop on a read of RAM nothing has written since power-on
   Registers and flags
     CALLS [MODE [RECORDED|WALK|HYBRID]]                                                 Show the call stack, or choose how it is found

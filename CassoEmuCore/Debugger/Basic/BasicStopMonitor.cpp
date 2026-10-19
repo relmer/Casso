@@ -266,10 +266,10 @@ bool BasicStopMonitor::PollBoundary (Word pc, const IDebugExpressionContext & co
 
     if (m_isReplay)
     {
-        return m_table.IsBasicStop (isMatch);
+        return m_table.IsBasicStop (isMatch, context);
     }
 
-    isHit = m_table.TryMatchBasic (isMatch, hitId);
+    isHit = m_table.TryMatchBasic (isMatch, context, hitId);
 
     if (isHit)
     {
@@ -325,10 +325,10 @@ bool BasicStopMonitor::PollError (const IDebugExpressionContext & context)
 
     if (m_isReplay)
     {
-        return m_table.IsBasicStop (isMatch);
+        return m_table.IsBasicStop (isMatch, context);
     }
 
-    if (!m_table.TryMatchBasic (isMatch, hitId))
+    if (!m_table.TryMatchBasic (isMatch, context, hitId))
     {
         return false;
     }

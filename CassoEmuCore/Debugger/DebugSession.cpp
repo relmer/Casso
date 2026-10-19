@@ -1648,7 +1648,7 @@ bool DebugSession::ShouldStopAfterInterrupt (Word pc)
 
     m_watchpoints.SetAccessPc (pc);
 
-    if (!m_breakpoints.TryMatchInterrupt (hitId))
+    if (!m_breakpoints.TryMatchInterrupt (*this, hitId))
     {
         return false;
     }

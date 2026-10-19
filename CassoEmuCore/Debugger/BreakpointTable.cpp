@@ -328,6 +328,30 @@ bool BreakpointTable::TrySetName (int id, const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointTable::TrySetCondition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointTable::TrySetCondition (int id, const Expression & condition)
+{
+    auto  found = std::ranges::find_if (m_entries, [id] (const Breakpoint & entry) { return entry.id == id; });
+
+
+
+    if (found != m_entries.end())
+    {
+        found->condition = condition;
+    }
+
+    return found != m_entries.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointTable::TrySetSymbol
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -480,15 +504,16 @@ int BreakpointTable::AddBasicError()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointTable::TryMatchBasic (const std::function<bool (const Breakpoint &)> & isMatch, int & hitId)
+bool BreakpointTable::TryMatchBasic (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context, int & hitId)
 {
-    bool  isHit = false;
+    bool                    isHit = false;
+    std::optional<int32_t>  value;
 
 
 
     for (Breakpoint & entry : m_entries)
     {
-        if (!entry.enabled || !entry.IsBasic() || !isMatch (entry))
+        if (!entry.enabled || !entry.IsBasic() || !isMatch (entry) || !ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, value))
         {
             continue;
         }
@@ -518,9 +543,17 @@ bool BreakpointTable::TryMatchBasic (const std::function<bool (const Breakpoint 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointTable::IsBasicStop (const std::function<bool (const Breakpoint &)> & isMatch) const
+bool BreakpointTable::IsBasicStop (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const
 {
-    return std::ranges::any_of (m_entries, [&] (const Breakpoint & entry) { return entry.enabled && entry.stops && entry.IsBasic() && isMatch (entry); });
+    std::optional<int32_t>  value;
+
+
+
+    return std::ranges::any_of (m_entries, [&] (const Breakpoint & entry)
+    {
+        return entry.enabled && entry.stops && entry.IsBasic() && isMatch (entry) &&
+               ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, value);
+    });
 }
 
 
@@ -805,15 +838,16 @@ bool BreakpointTable::TryMatchBeforeInstruction (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool BreakpointTable::TryMatchInterrupt (int & hitId)
+bool BreakpointTable::TryMatchInterrupt (const IDebugExpressionContext & context, int & hitId)
 {
-    bool  isHit = false;
+    bool                    isHit = false;
+    std::optional<int32_t>  value;
 
 
 
     for (Breakpoint & entry : m_entries)
     {
-        if (!entry.enabled || entry.kind != BreakpointKind::Interrupt)
+        if (!entry.enabled || entry.kind != BreakpointKind::Interrupt || !ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, value))
         {
             continue;
         }
@@ -996,7 +1030,8 @@ bool BreakpointTable::TryMatchEntry (
 
     case BreakpointKind::Opcode:
     case BreakpointKind::Brk:
-        return opcode.has_value() && *opcode == entry.opcode;
+        return opcode.has_value() && *opcode == entry.opcode &&
+               ConditionContext::IsMet (entry.condition, context, std::nullopt, std::nullopt, conditionValue);
 
     case BreakpointKind::Register:
         hr = DebugExpressionEvaluator::Evaluate (entry.condition, context, value, error);

@@ -61,6 +61,10 @@ public:
     static void            SetState       (DebugSession & session, int id, const BreakpointInfo & info);
     static void            Remove         (DebugSession & session, int id);
 
+    //  False, with the error in the reply, when an IF expression cannot be
+    //  evaluated: an unknown symbol, or a read of an I/O address.
+    static bool            TryValidateCondition (DebugSession & session, const Expression & condition, bool hasAccess, bool hasValue, Reply & reply);
+
 private:
     static constexpr int   kOpcodeCount  = 256;
     static constexpr int   kBrkSelector  = 0;
@@ -74,11 +78,10 @@ private:
     static void  SetCondition   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetWatchpoint  (DebugSession & session, const DebugCommand & command, WatchAccess access, Reply & reply);
     static void  SetValue       (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static bool  TryValidateCondition (DebugSession & session, const Expression & condition, bool hasAccess, bool hasValue, Reply & reply);
     static void  SetBoth        (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetBrk         (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetOpcode      (DebugSession & session, const DebugCommand & command, Reply & reply);
-    static void  AddOpcodeEntry (DebugSession & session, Byte opcode, BreakpointListData & list);
+    static void  AddOpcodeEntry (DebugSession & session, Byte opcode, const Expression & condition, BreakpointListData & list);
     static bool  TryFindOpcodes (DebugSession & session, const std::string & mnemonic, std::vector<Byte> & opcodes);
     static void  SetInterrupt   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SetUnwritten   (DebugSession & session, const DebugCommand & command, Reply & reply);

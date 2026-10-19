@@ -62,6 +62,28 @@ namespace DebuggerTests
 
 
 
+        //  BRKOP, BRK and BRKINT take an IF clause, and their definitions
+        //  have it; BRK ON again sets the condition of the one BRK entry.
+        TEST_METHOD (OpcodeBrkAndInterruptTakeIf)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BRKOP EA IF A == 1");
+            rig.RunOk ("BRK ON IF X == 2");
+            rig.RunOk ("BRKINT ON IF Y == 3");
+            Assert::AreEqual (std::string ("BPC *\nBRKOP EA IF A == 1\nBRK ON IF X == 2\nBRKINT ON IF Y == 3\n"), BreakpointHandlers::MakeScript (rig.session));
+
+            rig.RunOk ("BRK ON IF X == 4");
+            Assert::AreEqual ((size_t) 3, rig.session.GetBreakpoints().GetAll().size());
+            Assert::AreEqual (std::string ("X == 4"), rig.session.GetBreakpoints().GetAll()[1].condition.text);
+
+            rig.RunFails ("BRK ON IF NOSUCHSYMBOL == 1", "invalid condition");
+        }
+
+
+
         //  A second execution breakpoint over the same addresses with the same
         //  condition is an error with the first one's number; another
         //  condition or another range is a breakpoint of its own.

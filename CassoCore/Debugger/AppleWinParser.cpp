@@ -508,11 +508,17 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
     static constexpr std::string_view  kOperators = "<>=!";
     Arguments                          args          = source;
     bool                               isConditional = !args.tokens.empty() && kOperators.find (args.tokens[0][0]) != std::string_view::npos;
-    bool                               takesIf       = command.verb == DebugVerb::SetMemoryWatchpoint ||
-                                                       command.verb == DebugVerb::SetReadWatchpoint   ||
-                                                       command.verb == DebugVerb::SetWriteWatchpoint  ||
-                                                       command.verb == DebugVerb::SetValueBreakpoint  ||
-                                                       command.verb == DebugVerb::SetDiskBreakpoint   ||
+    bool                               takesIf       = command.verb == DebugVerb::SetMemoryWatchpoint        ||
+                                                       command.verb == DebugVerb::SetReadWatchpoint          ||
+                                                       command.verb == DebugVerb::SetWriteWatchpoint         ||
+                                                       command.verb == DebugVerb::SetValueBreakpoint         ||
+                                                       command.verb == DebugVerb::SetDiskBreakpoint          ||
+                                                       command.verb == DebugVerb::BreakOnOpcode              ||
+                                                       command.verb == DebugVerb::BreakOnBrk                 ||
+                                                       command.verb == DebugVerb::BreakOnInterrupt           ||
+                                                       command.verb == DebugVerb::SetBasicLineBreakpoint     ||
+                                                       command.verb == DebugVerb::SetBasicVariableBreakpoint ||
+                                                       command.verb == DebugVerb::BreakOnBasicError          ||
                                                        (command.verb == DebugVerb::SetBreakpoint && !isConditional);
     bool                               takesOne      = command.verb == DebugVerb::SetBreakpointAndWatchpoint ||
                                                        command.verb == DebugVerb::ClearBreakpoint            ||
@@ -658,8 +664,9 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         command.text = args.rest;
         return true;
 
+    //  An IF clause is parsed above; the text is what comes before it.
     default:
-        command.text = ToUpper (args.rest);
+        command.text = ToUpper (takesIf ? CutIfClause (args.rest) : args.rest);
         return true;
     }
 }
@@ -752,6 +759,49 @@ bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, 
 
     hr = DebugExpressionEvaluator::Parse (expression, command.expression, error, syntax);
     return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::CutIfClause
+//
+//  The text before a word IF, its trailing spaces taken off; all of it when
+//  there is no IF.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinParser::CutIfClause (const std::string & text)
+{
+    std::string  upper = ToUpper (text);
+    size_t       at    = 0;
+
+
+
+    while ((at = upper.find ("IF", at)) != std::string::npos)
+    {
+        bool  isStart = at == 0 || isspace ((unsigned char) upper[at - 1]);
+        bool  isEnd   = at + 2 == upper.size() || isspace ((unsigned char) upper[at + 2]);
+
+
+
+        if (isStart && isEnd)
+        {
+            std::string  head = text.substr (0, at);
+            size_t       end  = head.find_last_not_of (" \t");
+
+
+
+            return (end == std::string::npos) ? std::string() : head.substr (0, end + 1);
+        }
+
+        at += 2;
+    }
+
+    return text;
 }
 
 
