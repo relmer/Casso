@@ -421,6 +421,7 @@ bool DxuiEditableGrid::EndEdit (bool commit)
         if (IsAddRow (m_editRow))
         {
             m_pending.assign (m_columns.size(), std::wstring());
+            m_missing.clear();
         }
 
         m_editRow    = -1;
@@ -515,6 +516,7 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
     if (isComplete && m_add && m_add (m_pending, error))
     {
         m_pending.assign (m_columns.size(), std::wstring());
+        m_missing.clear();
         m_editRow    = -1;
         m_editColumn = -1;
         m_editor.SetFocused (false);
@@ -527,12 +529,17 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
 
     if (isComplete)
     {
+        m_missing.clear();
         ReportError (error);
 
         if (next < 0)
         {
             return false;
         }
+    }
+    else if (next < 0)
+    {
+        ReportError (MarkMissing());
     }
     else
     {
@@ -549,6 +556,41 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
     }
 
     return !isComplete;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::MarkMissing
+//
+//  With anything typed in the hint row, each required column left empty is
+//  marked, and the error is the first one's: "Start is required." With
+//  nothing typed, an edit left at once marks nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiEditableGrid::MarkMissing()
+{
+    bool          isTyped = std::ranges::any_of (m_pending, [] (const std::wstring & text) { return text.find_first_not_of (L" \t") != std::wstring::npos; });
+    std::wstring  error;
+
+
+
+    m_missing.assign (m_columns.size(), false);
+
+    for (size_t c = 0; c < m_columns.size() && isTyped; c++)
+    {
+        if (m_columns[c].isRequired && m_columns[c].isEditable && m_pending[c].find_first_not_of (L" \t") == std::wstring::npos)
+        {
+            m_missing[c] = true;
+            error        = error.empty() ? m_columns[c].column.title + L" is required." : error;
+        }
+    }
+
+    return error;
 }
 
 
@@ -760,6 +802,8 @@ void DxuiEditableGrid::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         PaintDropLine (painter, theme);
     }
 
+    PaintMissing (painter, theme);
+
     if (IsEditing())
     {
         m_editor.Paint (painter, text, theme);
@@ -806,6 +850,37 @@ void DxuiEditableGrid::PaintGrippers (IDxuiPainter & painter, const IDxuiTheme &
             painter.FillCircle (cx - step / 2.0f, cy + step * (float) dy, radius, theme.ForegroundMuted());
             painter.FillCircle (cx + step / 2.0f, cy + step * (float) dy, radius, theme.ForegroundMuted());
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::PaintMissing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::PaintMissing (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT   bounds = GetBounds();
+    RECT   cell   = {};
+    float  line   = m_gridScaler.ToPxf (1.0f);
+
+
+
+    for (size_t c = 0; c < m_missing.size(); c++)
+    {
+        if (!m_missing[c] || !GetCellTextRectPx (GetDataRowCount(), c + 1, cell))
+        {
+            continue;
+        }
+
+        OffsetRect (&cell, bounds.left, bounds.top);
+        painter.OutlineRect ((float) cell.left - line, (float) cell.top, (float) (cell.right - cell.left) + line * 2.0f, (float) (cell.bottom - cell.top), line,
+                             theme.ErrorForeground());
     }
 }
 

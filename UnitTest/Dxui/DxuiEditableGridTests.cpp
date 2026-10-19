@@ -297,6 +297,49 @@ public:
 
 
 
+    //  An edit of the hint row left with a required column empty marks that
+    //  column and reports it; Escape on the row discards it and the mark.
+    TEST_METHOD (ANewRowLeftWithoutItsRequiredColumnMarksIt)
+    {
+        Host  host;
+
+
+
+        host.grid.BeginEdit (3, 0);
+        host.grid.GetEditor().SetText (L"Game");
+        (void) host.grid.EndEdit (true);
+
+        Assert::IsFalse  (host.grid.IsEditing(), L"the edit ends");
+        Assert::IsTrue   (host.adds.empty(), L"a row with no start was added");
+        Assert::IsTrue   (host.grid.GetMissingColumns().size() > 1 && host.grid.GetMissingColumns()[1], L"the start is not marked");
+        Assert::IsFalse  (host.grid.GetMissingColumns()[0], L"the name is marked");
+        Assert::AreEqual (std::wstring (L"Start is required."), host.error);
+
+        host.grid.BeginEdit (3, 1);
+        host.Key (VK_ESCAPE);
+
+        Assert::IsTrue (host.grid.GetMissingColumns().empty(), L"the mark outlived the row");
+        Assert::IsTrue (host.grid.GetPendingTexts()[0].empty(), L"the row was not discarded");
+    }
+
+
+
+    //  An edit of the hint row left with nothing typed marks nothing.
+    TEST_METHOD (AnEmptyNewRowLeftAtOnceMarksNothing)
+    {
+        Host  host;
+
+
+
+        host.grid.BeginEdit (3, 0);
+        (void) host.grid.EndEdit (true);
+
+        Assert::IsFalse (std::ranges::any_of (host.grid.GetMissingColumns(), [] (bool isMissing) { return isMissing; }));
+        Assert::IsTrue  (host.error.empty());
+    }
+
+
+
     TEST_METHOD (TabAndShiftTabMoveAlongARow)
     {
         Host  host;

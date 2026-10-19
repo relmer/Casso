@@ -108,6 +108,11 @@ public:
     DxuiTextInput  & GetEditor      ()       { return m_editor; }
     const std::vector<std::wstring> & GetPendingTexts() const { return m_pending; }
 
+    //  The hint row's required columns left empty when its edit ended with
+    //  something typed, each outlined in the error color until the row is
+    //  added or discarded.
+    const std::vector<bool> &  GetMissingColumns() const { return m_missing; }
+
     //  The row a drag of row `from` would drop at for a point at y, relative
     //  to the list, and whether a drag is under way.
     int   GetDropRowAt   (int yPx) const;
@@ -139,12 +144,15 @@ private:
     bool  RouteEditorMouse (const DxuiMouseEvent & ev);
     void  PaintGrippers    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     void  PaintDropLine    (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    void  PaintMissing     (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    std::wstring  MarkMissing ();
     std::wstring  GetEditText (int row, int column) const;
     bool          TryGetEditorRect (int row, int column, RECT & outRect) const;
 
     std::vector<GridColumn>    m_columns;
     std::vector<GridRow>       m_rows;
     std::vector<std::wstring>  m_pending;
+    std::vector<bool>          m_missing;
     std::wstring               m_addRowText;
     DxuiTextInput              m_editor;
     DxuiDpiScaler              m_gridScaler;
