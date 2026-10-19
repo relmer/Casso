@@ -340,6 +340,40 @@ public:
     }
 
 
+    //  The debugger window's placements are a top-level key, which a build
+    //  without the debugger passes through as it does any unknown key, so
+    //  they survive its rewrite of "window"; one written inside
+    //  "window" by an earlier build is read too.
+    TEST_METHOD (DebuggerPlacements_AreATopLevelKeyAndTheOldPlaceIsRead)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        GlobalUserPrefs     older;
+        HRESULT             hr;
+        std::string         text;
+
+
+
+        prefs.window.debuggerPlacements["topology-A"] = { 300, 120, 1100, 840 };
+
+        hr = prefs.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+        Assert::IsTrue (text.find ("\"debuggerPlacements\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"debuggerPlacements\"") > text.find ("\"fullscreen\""), L"the placements are inside window");
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"window\":{\"debuggerPlacements\":{\"topology-B\":{\"x\":10,\"y\":20,\"w\":900,\"h\":700}}}}");
+        AssertSucceeded (hr);
+
+        hr = older.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (1), older.window.debuggerPlacements.size(), L"the placement an earlier build wrote is lost");
+        Assert::AreEqual (10, older.window.debuggerPlacements["topology-B"].x);
+    }
+
+
     TEST_METHOD (Screenshot_DefaultsAreSceneAndSaving)
     {
         GlobalUserPrefs  prefs;

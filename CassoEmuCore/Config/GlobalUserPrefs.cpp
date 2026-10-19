@@ -105,6 +105,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerCommandBarDock",
     "debuggerTimelineDock",
     "debuggerFocusedPane",
+    "debuggerPlacements",
     "debuggerDisassemblyOptions",
     "debuggerHeatMapOptions",
     "debuggerHeatMapRanges",
@@ -1230,11 +1231,15 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("crtOverrides", JsonValue (std::move (crtObj)));
 
     // window
-    windowObj.emplace_back ("placements",         PlacementsToJson (window.placements));
-    windowObj.emplace_back ("debuggerPlacements", PlacementsToJson (window.debuggerPlacements));
+    windowObj.emplace_back ("placements", PlacementsToJson (window.placements));
     windowObj.emplace_back ("fullscreen", JsonValue (window.fullscreen));
 
     root.emplace_back ("window", JsonValue (std::move (windowObj)));
+
+    //  The debugger window's placements are a key of their own, outside
+    //  "window": a build without the debugger writes "window" from its own
+    //  fields only, and passes an unknown top-level key through unchanged.
+    root.emplace_back ("debuggerPlacements", PlacementsToJson (window.debuggerPlacements));
 
     // monitorTilt: radians by monitor name. Written only for monitors the
     // user has actually moved, so an untouched install carries none.
@@ -1516,12 +1521,18 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             PlacementsFromJson (*placementsObj, window.placements);
         }
 
+        //  Where earlier builds wrote the debugger window's placements.
         if (windowSub->HasObject ("debuggerPlacements", placementsObj))
         {
             PlacementsFromJson (*placementsObj, window.debuggerPlacements);
         }
 
         window.fullscreen = TryGetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
+    }
+
+    if (v.HasObject ("debuggerPlacements", placementsObj))
+    {
+        PlacementsFromJson (*placementsObj, window.debuggerPlacements);
     }
 
     // recentDisks: drop non-string and empty entries silently per
