@@ -295,6 +295,8 @@ public:
     bool                 IsHistorySeekBusy    () const override;
     std::string  GetDebuggerFocusedPane () override;
     void         SetDebuggerFocusedPane (const std::string & text) override;
+    bool         IsDebuggerEchoingActions  () override;
+    void         SetDebuggerEchoingActions (bool isEchoing) override;
     std::string  GetDebuggerWindowState (const std::string & name) override;
     std::map<std::string, std::string>  GetProjectWindowStrings () const;
     void         SetProjectWindowStrings (const std::map<std::string, std::string> & strings);

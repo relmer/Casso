@@ -792,7 +792,7 @@ public:
     //  each action's echo behind the prompt, then that action's reply.
     //  An import ends with how many of the file's lines were skipped.
     //  CPU thread only.
-    std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step);
+    std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step, bool isEchoed = true);
 
     //  The Breakpoints pane's undo history as a debug project saves it, and
     //  that history replaced from such text. CPU thread only.
@@ -865,6 +865,7 @@ private:
     Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
     void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
     Reply  ExecuteActionCommand (DebugSession & session, const DebuggerAction & action);
+    void   AddActionLines       (DebugSession & session, const DebuggerAction & action, const Reply & reply, std::vector<std::string> & lines);
 
     //  The action's command with its definition parsed and what the user
     //  typed evaluated, or false with why not.

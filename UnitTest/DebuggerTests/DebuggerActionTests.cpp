@@ -46,6 +46,16 @@ public:
 
 
 
+    //  The action as the window sends it while the console lists actions as
+    //  commands.
+    static DebuggerAction Echoed (DebuggerAction action)
+    {
+        action.isEchoed = true;
+        return action;
+    }
+
+
+
     static void AssertParsesTo (ControllerRig & rig, const std::string & line, const DebuggerAction & action)
     {
         AppleWinParseResult  parsed = AppleWinParser::Parse (line, rig.controller.GetSession());
@@ -121,7 +131,7 @@ public:
         rig.Run ("MODE GSSQUARED");
 
         lines = rig.view.ExecuteAction (rig.controller.GetSession(),
-                                        DebuggerActions::GetToggleBreakpoint (none, 0x0300, CommandMode::GSSquared));
+                                        Echoed (DebuggerActions::GetToggleBreakpoint (none, 0x0300, CommandMode::GSSquared)));
         after = rig.view.Build (rig.controller.GetSession());
 
         Assert::IsFalse  (lines.empty());
@@ -163,7 +173,7 @@ public:
 
 
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetPanel ("mmu", true, CommandMode::AppleWin));
+        lines = rig.view.ExecuteAction (rig.controller.GetSession(), Echoed (DebuggerActions::GetPanel ("mmu", true, CommandMode::AppleWin)));
 
         Assert::IsTrue   (rig.view.IsPanelOpen ("mmu"));
         Assert::AreEqual (std::string (">PANEL mmu"), lines[0]);
@@ -223,8 +233,47 @@ public:
 
         rig.Run ("MODE GSSQUARED");
 
-        lines = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetRunToCursor (0x0305));
+        lines = rig.view.ExecuteAction (rig.controller.GetSession(), Echoed (DebuggerActions::GetRunToCursor (0x0305)));
 
         Assert::AreEqual (std::string (">G 0305"), lines[0]);
+    }
+
+
+
+    //  An action the console does not list as a command adds no line when it
+    //  succeeds, and only its error when it fails.
+    TEST_METHOD (AnActionThatIsNotEchoedAddsOnlyAnError)
+    {
+        ControllerRig             rig;
+        DebuggerViewSnapshot      none;
+        std::vector<std::string>  set;
+        std::vector<std::string>  failed;
+
+
+
+        set    = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetToggleBreakpoint (none, 0x0300, CommandMode::AppleWin));
+        failed = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetClearWatch (7, CommandMode::AppleWin));
+
+        Assert::IsTrue  (set.empty(), L"a breakpoint set from a control printed lines");
+        Assert::IsFalse (failed.empty(), L"a failed action printed no error");
+        Assert::IsFalse (std::ranges::any_of (failed, [] (const std::string & line) { return line.starts_with (">"); }), L"a failed action printed its echo");
+    }
+
+
+
+    //  An action whose reply is its result, as a search's matches are, has
+    //  the reply in the console without the echo.
+    TEST_METHOD (AnActionsResultIsListedWithoutItsEcho)
+    {
+        ControllerRig             rig;
+        std::vector<std::string>  lines;
+
+
+
+        rig.machine.GetMemoryBus().WriteByte (0x6000, 0x5A);
+        lines = rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetSearchMemory ("5A", CommandMode::AppleWin));
+
+        Assert::IsFalse (lines.empty(), L"the search's matches are missing");
+        Assert::IsFalse (std::ranges::any_of (lines, [] (const std::string & line) { return line.starts_with (">"); }), L"the search printed its echo");
     }
 };

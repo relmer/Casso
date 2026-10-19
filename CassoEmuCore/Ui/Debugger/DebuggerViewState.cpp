@@ -2450,7 +2450,7 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
 
     if (action.breakpointStep.has_value())
     {
-        return ExecuteBreakpointStep (session, *action.breakpointStep);
+        return ExecuteBreakpointStep (session, *action.breakpointStep, action.isEchoed);
     }
 
     reply = ExecuteActionCommand (session, action);
@@ -2462,11 +2462,39 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
 
     reply.mode = mode;
     session.FormatReply (reply, mode);
-
-    lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
-    lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+    AddActionLines (session, action, reply, lines);
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::AddActionLines
+//
+//  An echoed action's prompt, echo and reply. Otherwise only the reply, and
+//  only when it is an error or the action's result.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAction & action, const Reply & reply, std::vector<std::string> & lines)
+{
+    CommandMode  mode = action.echoMode.value_or (session.GetMode());
+
+
+
+    if (action.isEchoed)
+    {
+        lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
+    }
+
+    if (action.isEchoed || action.isResult || reply.status != CommandStatus::Ok)
+    {
+        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+    }
 }
 
 
@@ -2625,7 +2653,7 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step)
+std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step, bool isEchoed)
 {
     std::vector<std::string>         lines;
     BreakpointHistory::ActionRunner  act;
@@ -2634,32 +2662,40 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
 
 
 
-    act = [this, &session, &lines] (const DebuggerAction & action)
+    act = [this, &session, &lines, isEchoed] (const DebuggerAction & action)
     {
-        CommandMode  mode  = action.echoMode.value_or (session.GetMode());
-        Reply        reply = ExecuteActionCommand (session, action);
+        DebuggerAction  echoed = action;
+        CommandMode     mode   = action.echoMode.value_or (session.GetMode());
+        Reply           reply  = ExecuteActionCommand (session, action);
 
-        reply.mode = mode;
+        echoed.isEchoed = isEchoed;
+        reply.mode      = mode;
         session.FormatReply (reply, mode);
-
-        lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
-        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        AddActionLines (session, echoed, reply, lines);
         return reply;
     };
 
-    run = [this, &session, &lines] (const std::string & line, CommandMode mode)
+    run = [this, &session, &lines, isEchoed] (const std::string & line, CommandMode mode)
     {
         Reply  reply = ExecuteSessionLine (session, line, mode);
 
-        lines.push_back (DebugSession::GetPrompt (mode) + line);
-        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        if (isEchoed)
+        {
+            lines.push_back (DebugSession::GetPrompt (mode) + line);
+        }
+
+        if (isEchoed || reply.status != CommandStatus::Ok)
+        {
+            lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        }
+
         return reply;
     };
 
     switch (step.kind)
     {
     case BreakpointStep::Kind::Undo:
-        if (m_breakpointHistory.TryUndo (session, summary))
+        if (m_breakpointHistory.TryUndo (session, summary) && isEchoed)
         {
             lines.insert (lines.end(), summary.begin(), summary.end());
         }
@@ -2667,7 +2703,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
         break;
 
     case BreakpointStep::Kind::Redo:
-        if (m_breakpointHistory.TryRedo (session, summary))
+        if (m_breakpointHistory.TryRedo (session, summary) && isEchoed)
         {
             lines.insert (lines.end(), summary.begin(), summary.end());
         }

@@ -79,6 +79,11 @@ struct DebuggerSettings
     std::string  diskLogOptions;
     std::string  inputLogOptions;
 
+    // Whether the console lists each action taken in the window as the
+    // command that does the same, with its reply. Off, the console has only a
+    // failed action's error and the result of an action that produces one.
+    bool         echoActions              = false;
+
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one
     // following the PC, memory windows 2 to 4, and device panels. The layout

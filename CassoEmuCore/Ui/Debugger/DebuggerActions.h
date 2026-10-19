@@ -63,8 +63,17 @@ struct DebuggerAction
     std::optional<BreakpointStep>  breakpointStep;
 
     //  The window putting back what it had open, not a choice the user
-    //  made: the command runs and the console shows neither echo nor reply.
+    //  made: the command runs and the console has neither echo nor reply.
     bool                           quiet = false;
+
+    //  Whether the console lists the echo and the reply. Without it the
+    //  console has only an error, or the reply of an action whose reply is
+    //  its result.
+    bool                           isEchoed = false;
+
+    //  The reply is what the action produces, as a search's matches or a
+    //  timing are, so the console lists it whether or not it is echoed.
+    bool                           isResult = false;
 
     //  For a memory window's undo or redo: the bytes memory must contain from
     //  the command's address, or nothing is written.

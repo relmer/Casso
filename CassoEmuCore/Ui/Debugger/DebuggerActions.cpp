@@ -754,6 +754,7 @@ DebuggerAction DebuggerActions::GetSearchMemory (const std::string & items, Comm
 
 
     action.definition = line;
+    action.isResult   = true;
     return action;
 }
 
@@ -1111,6 +1112,7 @@ DebuggerAction DebuggerActions::GetStopwatch (Word start, Word stop, CommandMode
 
 
     action.command.text = std::format ("{:04X} {:04X}", start, stop);
+    action.isResult     = true;
     return action;
 }
 
@@ -1282,6 +1284,7 @@ DebuggerAction DebuggerActions::GetCompareMemory (Word other, Word first, Word l
 
 
     SetRangeFrom (action.command, other, first, last);
+    action.isResult = true;
     return action;
 }
 

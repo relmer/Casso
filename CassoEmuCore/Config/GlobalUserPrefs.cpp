@@ -110,6 +110,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerHeatMapRanges",
     "debuggerDiskLogOptions",
     "debuggerInputLogOptions",
+    "debuggerEchoActions",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
@@ -1290,6 +1291,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerHeatMapRanges",      JsonValue (debugger.heatMapRanges));
     root.emplace_back ("debuggerDiskLogOptions",     JsonValue (debugger.diskLogOptions));
     root.emplace_back ("debuggerInputLogOptions",    JsonValue (debugger.inputLogOptions));
+    root.emplace_back ("debuggerEchoActions",        JsonValue (debugger.echoActions));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debugger.openViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debugger.textZoomPercent));
     root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debugger.sourceFolders));
@@ -1562,6 +1564,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     debugger.heatMapRanges      = GetStringOpt (v, "debuggerHeatMapRanges",      debugger.heatMapRanges);
     debugger.diskLogOptions     = GetStringOpt (v, "debuggerDiskLogOptions",     debugger.diskLogOptions);
     debugger.inputLogOptions    = GetStringOpt (v, "debuggerInputLogOptions",    debugger.inputLogOptions);
+
+    debugger.echoActions = TryGetBoolOpt (v, "debuggerEchoActions", debugger.echoActions);
 
     debugger.textZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debugger.textZoomPercent),
                                           DebuggerSettings::kMinTextZoomPercent, DebuggerSettings::kMaxTextZoomPercent);

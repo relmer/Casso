@@ -168,6 +168,11 @@ public:
     virtual std::string  GetDebuggerFocusedPane ()                         { return {}; }
     virtual void         SetDebuggerFocusedPane (const std::string &)      {}
 
+    //  Whether the console lists the window's actions as commands, saved with
+    //  the other settings. A host with no preferences lists none.
+    virtual bool         IsDebuggerEchoingActions  ()                      { return false; }
+    virtual void         SetDebuggerEchoingActions (bool isEchoing)        { (void) isEchoing; }
+
     //  The window's state with no setting of its own, by name, saved with the
     //  debug project: "console", "find" and "columns".
     virtual std::string  GetDebuggerWindowState (const std::string & name)                       { (void) name; return {}; }

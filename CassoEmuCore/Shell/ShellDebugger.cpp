@@ -587,6 +587,47 @@ void ShellDebugger::SetDebuggerFocusedPane (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsDebuggerEchoingActions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::IsDebuggerEchoingActions()
+{
+    return m_settings.echoActions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerEchoingActions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerEchoingActions (bool isEchoing)
+{
+    if (m_settings.echoActions == isEchoing)
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+        m_settings.echoActions = isEchoing;
+    }
+
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDebuggerTextZoomPercent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1039,6 +1080,7 @@ void ShellDebugger::RunDebuggerAction (const DebuggerAction & action)
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
         m_debugActionsPending.push_back (action);
+        m_debugActionsPending.back().isEchoed = m_settings.echoActions;
     }
 
     m_cpuManager.PostCommand (IDM_DEBUG_ACTION);

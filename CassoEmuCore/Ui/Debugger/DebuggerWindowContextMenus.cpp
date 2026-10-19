@@ -193,7 +193,7 @@ bool DebuggerWindow::ShowContentMenu (const std::wstring & pane, POINT clientPx)
 
     if (GetPaneOfControl (m_consolePane->GetOutput().GetView()) == pane && m_consolePane->GetOutput().GetView()->IsVisible() && DxuiDockSite::Contains (m_consolePane->GetOutput().GetView()->GetBounds(), clientPx))
     {
-        ShowEditMenu (m_consolePane->GetOutput().GetView(), clientPx, { { L"Clear", [this] { m_consolePane->GetOutput().Clear(); } } });
+        ShowEditMenu (m_consolePane->GetOutput().GetView(), clientPx, GetConsoleMenuCommands());
         return true;
     }
 
@@ -330,6 +330,38 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::GetConsoleMenuCommands
+//
+//  The console output's rows after the edit rows: Clear, and whether the
+//  console lists the window's actions as commands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::shared_ptr<DxuiCommand>> DebuggerWindow::GetConsoleMenuCommands()
+{
+    bool  isEchoing = m_host != nullptr && m_host->IsDebuggerEchoingActions();
+
+
+
+    return
+    {
+        DebuggerMenuCommand::Make (L"Clear", false, [this] { m_consolePane->GetOutput().Clear(); }),
+        DebuggerMenuCommand::Make (L"Show UI actions as commands", isEchoing, [this, isEchoing]
+        {
+            if (m_host != nullptr)
+            {
+                m_host->SetDebuggerEchoingActions (!isEchoing);
+            }
+        }),
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::ShowEditMenu
 //
 //  Cut, Copy, Paste and Select all, as far as the control does them, each
@@ -337,7 +369,7 @@ bool DebuggerWindow::ShowColumnMenu (DxuiListView * list, POINT clientPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::vector<std::pair<std::wstring, std::function<void()>>> extra)
+void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra)
 {
     static constexpr std::tuple<DxuiStandardCommand, const wchar_t *, const wchar_t *>  s_kEdits[] =
     {
@@ -372,9 +404,9 @@ void DebuggerWindow::ShowEditMenu (IDxuiControl * control, POINT clientPx, std::
         menu.push_back (DxuiPopupMenuItem::ForSeparator());
     }
 
-    for (auto & [label, action] : extra)
+    for (std::shared_ptr<DxuiCommand> & command : extra)
     {
-        m_menuCommands.push_back (DebuggerMenuCommand::Make (label, false, action));
+        m_menuCommands.push_back (std::move (command));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
