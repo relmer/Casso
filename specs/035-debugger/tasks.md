@@ -1730,4 +1730,4 @@ The owner's review of the Phase 44 build. Each task is a commit that builds and 
 - [X] T944 Build a profile from history over a period by replaying it on a scratch machine with the profiler, in the background, with progress (CassoEmuCore/Shell, ScratchEventReplayer, Debugger/RoutineProfile), with tests, FR-268
 - [X] T945 Replace the Profiler pane's Profile button with "Show profile:" and a drop-down of Last 10 s, Last 60 s, Last 5 min and Since history start, with a progress bar in the pane while the profile builds (Panes/ToolPanes.cpp, ProfilerPane), FR-268
 - [X] T946 [P] Update docs/Debugger.md and docs/Debugger-Commands.md for the watch grid, the breakpoint dialog, condition flags, the trace and the profiler from history, and the console option
-- [ ] T947 Launch a build for the owner to try the Phase 45 changes
+- [X] T947 Launch a build for the owner to try the Phase 45 changes
