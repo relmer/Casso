@@ -481,6 +481,7 @@ private:
     void   AttachCondition       (StopEvent & event) const;
 
     static bool         TryGetRunKind  (DebugVerb verb, RunKind & kind);
+    static bool         TryGetFlagMask (const std::string & name, Byte & mask);
     static void         SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
     static std::string  Trim           (const std::string & text);
 

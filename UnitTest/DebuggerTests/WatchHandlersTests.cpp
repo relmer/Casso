@@ -90,6 +90,27 @@ namespace DebuggerTests
 
 
 
+        //  P.C through P.N are P's flags in an expression, each 0 or 1.
+        TEST_METHOD (TheFlagsAreNamesInAnExpression)
+        {
+            Rig   rig;
+            Word  value = 0xFFFF;
+
+
+
+            rig.target.registers.p = 0x81;
+
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("P.C", value));
+            Assert::AreEqual ((Word) 1, value, L"the carry is set");
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("p.n", value));
+            Assert::AreEqual ((Word) 1, value, L"N is set, in either case");
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("P.Z", value));
+            Assert::AreEqual ((Word) 0, value, L"Z is clear");
+            Assert::IsFalse  (rig.session.TryResolveSymbol ("P.Q", value), L"there is no Q flag");
+        }
+
+
+
         TEST_METHOD (ZP_SlotsAndPointers)
         {
             Rig                       rig;

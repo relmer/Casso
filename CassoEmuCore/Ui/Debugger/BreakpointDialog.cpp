@@ -24,11 +24,16 @@ static constexpr const char *  s_kDrivePrefixes[] = { "", "D1 ", "D2 " };
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointDialogPanel::Add (DxuiLabel & label, IDxuiControl & field)
+void BreakpointDialogPanel::Add (DxuiLabel & label, IDxuiControl & field, DxuiInfoTip * tip)
 {
-    m_rows.push_back ({ &label, &field });
+    m_rows.push_back ({ &label, &field, tip });
     Adopt (label);
     Adopt (field);
+
+    if (tip != nullptr)
+    {
+        Adopt (*tip);
+    }
 }
 
 
@@ -46,23 +51,37 @@ void BreakpointDialogPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler 
     int  row   = scaler.ToPx (kRowDip);
     int  gap   = scaler.ToPx (kGapDip);
     int  split = boundsDip.left + scaler.ToPx (kLabelDip);
+    int  tip   = scaler.ToPx (kTipDip);
     int  y     = boundsDip.top;
 
 
 
     SetBounds (boundsDip);
 
-    for (const auto & [label, field] : m_rows)
+    for (const Row & each : m_rows)
     {
-        label->SetVisible (field->IsVisible());
+        int  right = (each.tip != nullptr) ? boundsDip.right - tip : boundsDip.right;
 
-        if (!field->IsVisible())
+        each.label->SetVisible (each.field->IsVisible());
+
+        if (each.tip != nullptr)
+        {
+            each.tip->SetVisible (each.field->IsVisible());
+        }
+
+        if (!each.field->IsVisible())
         {
             continue;
         }
 
-        label->Layout (RECT { boundsDip.left, y, split, y + row }, scaler);
-        field->Layout (RECT { split, y, boundsDip.right, y + row }, scaler);
+        each.label->Layout (RECT { boundsDip.left, y, split, y + row }, scaler);
+        each.field->Layout (RECT { split, y, right, y + row }, scaler);
+
+        if (each.tip != nullptr)
+        {
+            each.tip->Layout (RECT { right, y, boundsDip.right, y + row }, scaler);
+        }
+
         y += row + gap;
     }
 }
@@ -537,6 +556,17 @@ void BreakpointDialog::OnCreate()
     m_newAddress = m_newAddress.has_value() ? std::optional<std::wstring> (SourcePathList::Utf8ToWide (fields.address)) : std::nullopt;
     m_value.SetText     (SourcePathList::Utf8ToWide (fields.value));
     m_condition.SetText (SourcePathList::Utf8ToWide (fields.condition));
+
+    m_conditionTip.SetText (L"Stops when the condition is true. For example:\n"
+                            L"A == 41\n"
+                            L"X >= 10 && Y < 20\n"
+                            L"P.C && A >= 80, flag C set and A at least $80\n"
+                            L"*FB == 0, the byte at $FB\n"
+                            L"PC == COUT, a symbol's address\n"
+                            L"Numbers are hex; 0n10 is decimal. P.C, P.Z, P.I, P.D, P.B, P.V and P.N are the flags, 0 or 1.\n"
+                            L"Operators: + - * / % & | ^ ~ ! == != < > <= >= && ||, and parentheses.");
+    m_conditionTip.SetPopupHost (GetPopupHost());
+    m_conditionTip.SetDpi       (GetDpi());
     ShowFieldsForType();
 
     m_body = CreateDialogContent<BreakpointDialogPanel>();
@@ -546,7 +576,7 @@ void BreakpointDialog::OnCreate()
     m_body->Add (m_modeLabel,      m_mode);
     m_body->Add (m_addressLabel,   m_address);
     m_body->Add (m_valueLabel,     m_value);
-    m_body->Add (m_conditionLabel, m_condition);
+    m_body->Add (m_conditionLabel, m_condition, &m_conditionTip);
 
     ok = AddDialogButton (L"OK", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);

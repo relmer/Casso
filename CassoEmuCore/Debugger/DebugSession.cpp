@@ -2507,8 +2507,9 @@ bool DebugSession::TryPeekIo (Word address, Byte & value) const
 //  DebugSession::TryResolveSymbol
 //
 //  The disk values come first, ahead of any program symbol with the same
-//  name, and are unknown on a machine with no Disk II. @n is the nth search
-//  result, counted from 1; any other name is looked up in the enabled symbol
+//  name, and are unknown on a machine with no Disk II. P.C, P.Z, P.I, P.D,
+//  P.B, P.V and P.N are P's flags, 0 or 1. @n is the nth search result,
+//  counted from 1; any other name is looked up in the enabled symbol
 //  tables.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2517,12 +2518,25 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 {
     size_t         index = 0;
     SymbolTableId  table = SymbolTableId::Main;
+    Byte           mask  = 0;
+    Word           p     = 0;
 
 
 
     if (DiskValueSymbols::IsDiskValue (name))
     {
         return DiskValueSymbols::TryResolve (name, m_target, address);
+    }
+
+    if (TryGetFlagMask (name, mask))
+    {
+        if (!TryGetRegister ("P", p))
+        {
+            return false;
+        }
+
+        address = (p & mask) != 0 ? 1 : 0;
+        return true;
     }
 
     if (name.size() < 2 || name[0] != '@' || name.find_first_not_of ("0123456789", 1) != std::string::npos)
@@ -2547,6 +2561,44 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::TryGetFlagMask
+//
+//  P's bit for a flag's name, P.C through P.N, in any case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryGetFlagMask (const std::string & name, Byte & mask)
+{
+    static constexpr std::pair<char, Byte>  kFlags[] =
+    {
+        { 'C', 0x01 }, { 'Z', 0x02 }, { 'I', 0x04 }, { 'D', 0x08 }, { 'B', 0x10 }, { 'V', 0x40 }, { 'N', 0x80 },
+    };
+
+
+
+    if (name.size() != 3 || std::toupper ((unsigned char) name[0]) != 'P' || name[1] != '.')
+    {
+        return false;
+    }
+
+    for (const auto & [letter, bit] : kFlags)
+    {
+        if (std::toupper ((unsigned char) name[2]) == letter)
+        {
+            mask = bit;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::GetSymbolRevision
 //
 //  A disk value or a search result is worked out at each lookup; any other
@@ -2556,7 +2608,11 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 
 uint64_t DebugSession::GetSymbolRevision (const std::string & name) const
 {
-    if (DiskValueSymbols::IsDiskValue (name) || name.starts_with ('@'))
+    Byte  mask = 0;
+
+
+
+    if (DiskValueSymbols::IsDiskValue (name) || name.starts_with ('@') || TryGetFlagMask (name, mask))
     {
         return 0;
     }

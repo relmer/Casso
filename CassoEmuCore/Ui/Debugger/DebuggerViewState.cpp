@@ -53,7 +53,7 @@ public:
 
     bool  TryResolveSymbol (const std::string & name, Word & address) const override
     {
-        if (_strnicmp (name.c_str(), "DISK.", 5) == 0)
+        if (_strnicmp (name.c_str(), "DISK.", 5) == 0 || _strnicmp (name.c_str(), "P.", 2) == 0)
         {
             address = 0;
             return true;

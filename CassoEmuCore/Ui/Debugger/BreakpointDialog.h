@@ -10,23 +10,32 @@
 //
 //  BreakpointDialogPanel
 //
-//  A label beside each field, one field a row; a hidden field's row is
-//  left out, so the rows of the visible ones are together.
+//  A label beside each field, one field a row, and an info tip at a row's
+//  right end where it has one; a hidden field's row is left out, so the
+//  rows of the visible ones are together.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class BreakpointDialogPanel : public DxuiPanel
 {
 public:
-    void  Add    (DxuiLabel & label, IDxuiControl & field);
+    void  Add    (DxuiLabel & label, IDxuiControl & field, DxuiInfoTip * tip = nullptr);
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
 
     static constexpr int  kRowDip   = 30;
     static constexpr int  kGapDip   = 8;
     static constexpr int  kLabelDip = 130;
+    static constexpr int  kTipDip   = 24;
 
 private:
-    std::vector<std::pair<DxuiLabel *, IDxuiControl *>>  m_rows;
+    struct Row
+    {
+        DxuiLabel     * label = nullptr;
+        IDxuiControl  * field = nullptr;
+        DxuiInfoTip   * tip   = nullptr;
+    };
+
+    std::vector<Row>  m_rows;
 };
 
 
@@ -137,5 +146,6 @@ private:
     DxuiTextInput                 m_address;
     DxuiTextInput                 m_value;
     DxuiTextInput                 m_condition;
+    DxuiInfoTip                   m_conditionTip;
     BreakpointDialogPanel       * m_body           = nullptr;
 };
