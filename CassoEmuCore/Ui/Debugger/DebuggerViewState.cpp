@@ -28,6 +28,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/HeatAccessJump.h"
 #include "Core/IParallelRunner.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
@@ -184,6 +185,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
         session.GetSymbols().TryFindName (address, snapshot.breakpoints.back().label, table);
     }
+
+    AddSessionStops (session, snapshot);
 
     if (session.GetTarget().TryGetDiskState (diskState))
     {
@@ -2691,6 +2694,55 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::AddSessionStops
+//
+//  The session's own stops after the table's breakpoints: a read before
+//  written, which counts only once the heat map is tracking writes, a video
+//  scanline range, and a beam position, each with no id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::AddSessionStops (DebugSession & session, DebuggerViewSnapshot & snapshot)
+{
+    std::optional<std::pair<uint32_t, uint32_t>>  video = session.GetVideoBreak();
+    std::optional<uint32_t>                       beam  = session.GetBeamBreak();
+    BreakpointInfo                                info;
+
+
+
+    info.id      = -1;
+    info.enabled = true;
+
+    if (session.HasUnwrittenBreak())
+    {
+        info.kind       = BreakpointKind::UnwrittenRead;
+        info.isTracking = session.GetTarget().GetUnwrittenStatus().isTracking;
+        snapshot.breakpoints.push_back ({ -1, 0, std::string(), true, info });
+    }
+
+    if (video.has_value())
+    {
+        info.kind    = BreakpointKind::VideoLine;
+        info.address = (Word) video->first;
+        info.last    = (Word) video->second;
+        snapshot.breakpoints.push_back ({ -1, 0, std::string(), true, info });
+    }
+
+    if (beam.has_value())
+    {
+        info.kind    = BreakpointKind::Beam;
+        info.address = (Word) (*beam / VideoTiming::kCyclesPerScanline);
+        info.last    = (Word) (*beam % VideoTiming::kCyclesPerScanline);
+        snapshot.breakpoints.push_back ({ -1, 0, std::string(), true, info });
+    }
 }
 
 

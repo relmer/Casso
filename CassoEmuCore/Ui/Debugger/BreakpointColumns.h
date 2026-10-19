@@ -76,6 +76,9 @@ public:
         BasicLine,
         BasicVariable,
         BasicError,
+        UnwrittenRead,
+        VideoLine,
+        Beam,
         Count,
     };
 

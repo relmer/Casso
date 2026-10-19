@@ -153,7 +153,12 @@ void BreakpointsPane::Configure()
     {
         const DebuggerViewSnapshot::BreakpointLine  * bp = GetBreakpointOfRow (row);
 
-        if (bp != nullptr)
+        //  A session stop has no off state of its own; unchecked, it is cleared.
+        if (bp != nullptr && bp->id < 0 && !checked)
+        {
+            RunStep ({ BreakpointStep::Kind::Actions, { GetClearAction (*bp) }, {} });
+        }
+        else if (bp != nullptr && bp->id >= 0)
         {
             RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp->id, checked, m_host.GetMode()) }, {} });
         }
@@ -340,22 +345,36 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
         items.push_back ({ L"Go to disassembly", [this, bp] { m_host.GoToCode (bp.address); } });
     }
 
-    items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
-    items.push_back ({ L"Rename",                           [this, row] { BeginNameEdit (row); } });
-    items.push_back ({ L"Remove",                           [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearBreakpoint (bp.id, m_host.GetMode()) }, {} }); } });
+    //  A session stop is no table entry: it has no off state, no name and no
+    //  id, and a new definition replaces it.
+    if (bp.id >= 0)
+    {
+        items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
+        items.push_back ({ L"Rename",                           [this, row] { BeginNameEdit (row); } });
+    }
+
+    items.push_back ({ L"Remove", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { GetClearAction (bp) }, {} }); } });
 
     //  Its type and the fields of that type, in a dialog; the result is
     //  the definition BPEDIT takes, as a person could have typed it
     //  (FR-094).
-    items.push_back ({ L"Edit...", [this, bp]
+    if (bp.info.kind != BreakpointKind::UnwrittenRead)
     {
-        std::optional<std::string>  definition = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (bp.id));
-
-        if (definition.has_value())
+        items.push_back ({ L"Edit...", [this, bp]
         {
-            RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEditBreakpoint (bp.id, *definition, m_host.GetMode()) }, {} });
-        }
-    } });
+            std::optional<int>          editedId   = (bp.id >= 0) ? std::optional<int> (bp.id) : std::nullopt;
+            std::optional<std::string>  definition = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (editedId));
+
+            if (definition.has_value() && bp.id >= 0)
+            {
+                RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEditBreakpoint (bp.id, *definition, m_host.GetMode()) }, {} });
+            }
+            else if (definition.has_value())
+            {
+                RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, m_host.GetMode()) }, {} });
+            }
+        } });
+    }
 
     return true;
 }
@@ -435,7 +454,7 @@ void BreakpointsPane::RunBarEntry (int id)
     case BreakpointBarCommands::kDelete:
         for (const DebuggerViewSnapshot::BreakpointLine & bp : selected)
         {
-            step.actions.push_back (DebuggerActions::GetClearBreakpoint (bp.id, mode));
+            step.actions.push_back (GetClearAction (bp));
         }
 
         RunStep (std::move (step));
@@ -474,31 +493,125 @@ void BreakpointsPane::RunBarEntry (int id)
 //
 //  BreakpointsPane::SetBarMenus
 //
-//  New's types under their headings, each opening the breakpoint dialog on
-//  that type. Built again before the drop-down opens.
+//  Execution's types at the top, then Memory, BASIC and Hardware as
+//  submenus. A type with fields opens the breakpoint dialog on it; one with
+//  none is set or cleared at once and checked while on. Built again before
+//  the drop-down opens, so the checks are current.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointsPane::SetBarMenus()
 {
+    m_bar.GetBar()->SetDropDownItems (BreakpointBarCommands::kNew, GetNewMenuItems());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::GetNewMenuItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> BreakpointsPane::GetNewMenuItems()
+{
     std::vector<DxuiPopupMenuItem>  items;
+    std::vector<DxuiPopupMenuItem>  submenu;
+    std::wstring                    heading;
+    auto                            close = [&]
+    {
+        if (!heading.empty() && heading != L"Execution")
+        {
+            items.push_back (DxuiPopupMenuItem::ForSubmenu (DebuggerMenuCommand::Make (heading, false, [] {}), std::move (submenu)));
+        }
+
+        submenu.clear();
+    };
 
 
 
     for (const BreakpointDialog::TypeRow & row : BreakpointDialog::GetTypeRows())
     {
-        BreakpointDialog::Type  type = row.type.value_or (BreakpointDialog::Type::Execute);
-
         if (!row.type.has_value())
         {
-            items.push_back (DxuiPopupMenuItem::ForHeader (row.label));
+            close();
+            heading = row.label;
             continue;
         }
 
-        items.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (std::wstring (row.label) + L"...", false, [this, type] { NewBreakpoint (type); })));
+        (heading == L"Execution" ? items : submenu).push_back (DxuiPopupMenuItem::ForCommand (MakeTypeCommand (*row.type, row.label)));
     }
 
-    m_bar.GetBar()->SetDropDownItems (BreakpointBarCommands::kNew, std::move (items));
+    close();
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::MakeTypeCommand
+//
+//  BRK, BRK on interrupt, Reading uninitialized memory and BASIC errors take
+//  only a condition, which Edit adds; they toggle with ON and OFF.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<DxuiCommand> BreakpointsPane::MakeTypeCommand (BreakpointDialog::Type type, const wchar_t * label)
+{
+    using Type = BreakpointDialog::Type;
+
+    const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+    BreakpointKind                kind     = (type == Type::Brk)           ? BreakpointKind::Brk
+                                           : (type == Type::Interrupt)     ? BreakpointKind::Interrupt
+                                           : (type == Type::UnwrittenRead) ? BreakpointKind::UnwrittenRead
+                                           :                                 BreakpointKind::BasicError;
+    const char                  * verb     = (type == Type::Brk)           ? "BRK"
+                                           : (type == Type::Interrupt)     ? "BRKINT"
+                                           : (type == Type::UnwrittenRead) ? "BRKUNINIT"
+                                           :                                 "BRKBASIC";
+    bool                          isToggle = type == Type::Brk || type == Type::Interrupt || type == Type::UnwrittenRead || type == Type::BasicError;
+    bool                          isOn     = snapshot != nullptr && std::ranges::any_of (snapshot->breakpoints,
+                                                 [kind] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.info.kind == kind; });
+
+
+
+    if (!isToggle)
+    {
+        return DebuggerMenuCommand::Make (std::wstring (label) + L"...", false, [this, type] { NewBreakpoint (type); });
+    }
+
+    return DebuggerMenuCommand::Make (label, isOn, [this, verb, isOn]
+    {
+        RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (std::format ("{} {}", verb, isOn ? "OFF" : "ON"), m_host.GetMode()) }, {} });
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::GetClearAction
+//
+//  BPC for a table entry; the OFF form for a session stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction BreakpointsPane::GetClearAction (const DebuggerViewSnapshot::BreakpointLine & bp) const
+{
+    const char  * off = (bp.info.kind == BreakpointKind::UnwrittenRead) ? "BRKUNINIT OFF"
+                      : (bp.info.kind == BreakpointKind::VideoLine)     ? "BPV OFF"
+                      :                                                   "BPBEAM OFF";
+
+
+
+    return (bp.id >= 0) ? DebuggerActions::GetClearBreakpoint (bp.id, m_host.GetMode()) : DebuggerActions::GetDefineBreakpoint (off, m_host.GetMode());
 }
 
 
@@ -712,7 +825,7 @@ void BreakpointsPane::BeginNameEdit (int row)
 
 
 
-    if (bp == nullptr || !m_list->GetCellTextRectPx (row, 0, cell))
+    if (bp == nullptr || bp->id < 0 || !m_list->GetCellTextRectPx (row, 0, cell))
     {
         return;
     }

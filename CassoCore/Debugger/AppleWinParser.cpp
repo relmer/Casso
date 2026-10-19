@@ -573,6 +573,12 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
     case DebugVerb::SetBreakpointAndWatchpoint:
     case DebugVerb::BreakOnVideoLine:
+        if (command.verb == DebugVerb::BreakOnVideoLine && args.tokens.size() == 1 && ToUpper (args.tokens[0]) == "OFF")
+        {
+            command.text = "OFF";
+            return true;
+        }
+
         if (args.tokens.empty())
         {
             error = std::format ("{} needs an address.", ToUpper (command.sourceName));
@@ -1034,20 +1040,20 @@ bool AppleWinParser::TryParseWatchpointArguments (const Arguments & args, DebugC
 //
 //  AppleWinParser::TryParseBeamArguments
 //
-//  `BPBEAM line cycle` or `BPBEAM VBL`. VBL is held in text; the handler
-//  turns it into the frame's first blanked scanline.
+//  `BPBEAM line cycle`, `BPBEAM VBL` or `BPBEAM OFF`. VBL and OFF are put in
+//  the text; the handler turns VBL into the frame's first blanked scanline.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseBeamArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    bool  isVbl = args.tokens.size() == 1 && ToUpper (args.tokens[0]) == "VBL";
+    std::string  word = (args.tokens.size() == 1) ? ToUpper (args.tokens[0]) : std::string();
 
 
 
-    if (isVbl)
+    if (word == "VBL" || word == "OFF")
     {
-        command.text = "VBL";
+        command.text = word;
         return true;
     }
 

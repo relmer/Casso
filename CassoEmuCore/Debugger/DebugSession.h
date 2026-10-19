@@ -389,6 +389,10 @@ public:
     void   ClearBeamBreak        ();
     bool   HasBeamBreak          () const { return m_beamBreak.has_value(); }
 
+    //  BPBEAM's place in the frame, as the cycle within it; none for no
+    //  break, or for FRAME's, which goes with its run.
+    std::optional<uint32_t>  GetBeamBreak () const;
+
     // BRKUNINIT: stop after a read of RAM nothing has written since power-on,
     // reported as a watchpoint hit is, with the address and the instruction.
     void   SetUnwrittenBreak     (bool isOn);

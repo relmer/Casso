@@ -355,7 +355,8 @@ void ExecutionHandlers::FeedKeys (DebugSession & session)
 //
 //  BPV vpos[,len] stops when the scanline enters the range, once. A range
 //  that starts past the frame's last scanline could never stop. The
-//  scanline is hex, like every number BPV and VIDEOINFO show.
+//  scanline is hex, like every number BPV and VIDEOINFO print. BPV OFF
+//  clears it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,6 +365,13 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
     Word  last = command.hasA2 ? command.a2 : command.a1;
 
 
+
+    if (command.text == "OFF")
+    {
+        session.ClearVideoBreak();
+        reply.data = MessageData { { "Video scanline breakpoint cleared." } };
+        return;
+    }
 
     if (command.a1 >= VideoTiming::kScanlinesPerFrame)
     {
@@ -386,7 +394,7 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
 //
 //  BPBEAM line cycle stops when the beam reaches that scanline and cycle;
 //  BPBEAM VBL stops where vertical blank starts. Like BPV it fires once, and
-//  the numbers are hex.
+//  the numbers are hex. BPBEAM OFF clears it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -397,6 +405,13 @@ void ExecutionHandlers::BreakOnBeam (DebugSession & session, const DebugCommand 
     uint32_t  cycle    = isVbl ? 0 : command.a2;
 
 
+
+    if (command.text == "OFF")
+    {
+        session.ClearBeamBreak();
+        reply.data = MessageData { { "Beam position breakpoint cleared." } };
+        return;
+    }
 
     if (scanline >= VideoTiming::kScanlinesPerFrame)
     {

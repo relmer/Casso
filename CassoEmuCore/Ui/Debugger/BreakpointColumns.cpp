@@ -109,6 +109,9 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
     case BreakpointKind::BasicLine:     return RowKind::BasicLine;
     case BreakpointKind::BasicVariable: return RowKind::BasicVariable;
     case BreakpointKind::BasicError:    return RowKind::BasicError;
+    case BreakpointKind::UnwrittenRead: return RowKind::UnwrittenRead;
+    case BreakpointKind::VideoLine:     return RowKind::VideoLine;
+    case BreakpointKind::Beam:          return RowKind::Beam;
     case BreakpointKind::Address:       break;
     }
 
@@ -134,7 +137,7 @@ std::string BreakpointColumns::GetKindText (RowKind kind)
                                                 "Register", "Opcode", "BRK", "Interrupt",
                                                 "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
                                                 "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
-                                                "BASIC", "BASIC", "BASIC" };
+                                                "BASIC", "BASIC", "BASIC", "Memory", "Video", "Video" };
 
 
 
@@ -163,7 +166,7 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
                                                 "Condition", "Execute", "Execute", "IRQ or NMI",
                                                 "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS block",
                                                 "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject",
-                                                "Line", "Variable change", "Error" };
+                                                "Line", "Variable change", "Error", "Uninitialized", "Scanline", "Beam position" };
 
 
 
@@ -560,7 +563,10 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
     case BreakpointKind::Disk:          return GetDiskName (info);
     case BreakpointKind::BasicLine:     return std::format ("Line {}", info.address);
     case BreakpointKind::BasicVariable: return info.basicName;
-    case BreakpointKind::BasicError:    return "Any error";
+    case BreakpointKind::BasicError:    return "BASIC errors";
+    case BreakpointKind::UnwrittenRead: return info.isTracking ? "Reading uninitialized memory" : "Reading uninitialized memory, from the next power cycle";
+    case BreakpointKind::VideoLine:     return (info.last > info.address) ? std::format ("Scanlines ${:X}-${:X}", info.address, info.last) : std::format ("Scanline ${:X}", info.address);
+    case BreakpointKind::Beam:          return std::format ("Scanline ${:X}, cycle ${:X}", info.address, info.last);
     }
 
     return named;

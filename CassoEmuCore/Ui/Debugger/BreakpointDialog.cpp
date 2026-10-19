@@ -778,6 +778,13 @@ BreakpointDialog::Fields BreakpointDialog::GetFields (const BreakpointInfo & inf
     case Type::BasicVariable:
         fields.address = info.basicName;
         break;
+    case Type::VideoLine:
+        fields.address = (info.last > info.address) ? std::format ("{:X}:{:X}", info.address, info.last) : std::format ("{:X}", info.address);
+        break;
+    case Type::Beam:
+        fields.address = std::format ("{:X}", info.address);
+        fields.value   = std::format ("{:X}", info.last);
+        break;
     default:                                                                             break;
     }
 
@@ -844,6 +851,9 @@ BreakpointDialog::Type BreakpointDialog::GetType (const BreakpointInfo & info)
     case BreakpointKind::BasicLine:     return Type::BasicLine;
     case BreakpointKind::BasicVariable: return Type::BasicVariable;
     case BreakpointKind::BasicError:    return Type::BasicError;
+    case BreakpointKind::UnwrittenRead: return Type::UnwrittenRead;
+    case BreakpointKind::VideoLine:     return Type::VideoLine;
+    case BreakpointKind::Beam:          return Type::Beam;
     case BreakpointKind::Memory:
         return (info.access == WatchAccess::Read)  ? Type::Read
              : (info.access == WatchAccess::Write) ? Type::Write

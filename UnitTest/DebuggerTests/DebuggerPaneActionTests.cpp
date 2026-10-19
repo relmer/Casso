@@ -3,6 +3,7 @@
 #include "ControllerRig.h"
 #include "Debugger/AppleWinParser.h"
 #include "Debugger/DiskBreakSpecText.h"
+#include "Ui/Debugger/BreakpointColumns.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -250,6 +251,49 @@ public:
 
             Assert::IsTrue (AppleWinParser::Parse (line, rig.controller.GetSession()).status == ParseStatus::Ok, TextEncoding::NarrowToWide (line).c_str());
         }
+    }
+
+
+
+    //  The session's own stops, set as the dialog sets them, are rows of the
+    //  Breakpoints pane after the table's, with no id, and each OFF form
+    //  clears its row.
+    TEST_METHOD (TheSessionStopsAreRowsOfThePane)
+    {
+        ControllerRig                                       rig;
+        CommandMode                                         aw       = CommandMode::AppleWin;
+        DebuggerViewSnapshot                                snapshot;
+        std::vector<std::string>                            names;
+
+
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BP 300",       aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BRKUNINIT ON", aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPV 64:6B",    aw));
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPBEAM 10 1A", aw));
+
+        snapshot = rig.view.Build (rig.controller.GetSession());
+        Assert::AreEqual ((size_t) 4, snapshot.breakpoints.size());
+
+        for (const DebuggerViewSnapshot::BreakpointLine & bp : snapshot.breakpoints)
+        {
+            names.push_back (BreakpointColumns::GetCells (snapshot, bp)[(size_t) BreakpointColumns::Column::Name]);
+        }
+
+        Assert::AreEqual (-1, snapshot.breakpoints[1].id);
+        Assert::IsTrue   (snapshot.breakpoints[1].info.kind == BreakpointKind::UnwrittenRead);
+        Assert::IsTrue   (names[1].starts_with ("Reading uninitialized memory"), TextEncoding::NarrowToWide (names[1]).c_str());
+        Assert::AreEqual (std::string ("Scanlines $64-$6B"),      names[2]);
+        Assert::AreEqual (std::string ("Scanline $10, cycle $1A"), names[3]);
+        Assert::IsTrue   (BreakpointDialog::GetType (snapshot.breakpoints[3].info) == BreakpointDialog::Type::Beam);
+        Assert::AreEqual (std::string ("BPBEAM 10 1A"), BreakpointDialog::MakeDefinition (BreakpointDialog::GetFields (snapshot.breakpoints[3].info)));
+
+        for (const char * off : { "BRKUNINIT OFF", "BPV OFF", "BPBEAM OFF" })
+        {
+            rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint (off, aw));
+        }
+
+        Assert::AreEqual ((size_t) 1, rig.view.Build (rig.controller.GetSession()).breakpoints.size(), L"an OFF form left its row");
     }
 
 

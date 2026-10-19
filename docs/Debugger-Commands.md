@@ -34,7 +34,7 @@ AppleWin commands:
     BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
     BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
     BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
-    BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
+    BPBEAM line cycle|VBL|OFF                                                           Stop when the beam is at a scanline and cycle, or at vertical blank
     BPC #|*                                                                             Clear a breakpoint, or all of them
     BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
     BPD #|*                                                                             Disable a breakpoint, or all of them
@@ -49,7 +49,7 @@ AppleWin commands:
     BPNAME # ["text"]                                                                   Set a breakpoint's name, or with none return it to the default
     BPR reg [op] value                                                                  Stop when a register meets a condition
     BPSAVE file                                                                         Save the breakpoints as a script
-    BPV line[,len|:last]                                                                Stop at a video scanline
+    BPV line[,len|:last]|OFF                                                            Stop at a video scanline
     BPX addr[,len|:last]|file:line [IF expr]                                            Set an execution breakpoint, as BP does
     BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
     BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
@@ -304,7 +304,7 @@ Casso commands:
     /BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
     /BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
     /BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
-    /BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
+    /BPBEAM line cycle|VBL|OFF                                                           Stop when the beam is at a scanline and cycle, or at vertical blank
     /BPC #|*                                                                             Clear a breakpoint, or all of them
     /BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
     /BPD #|*                                                                             Disable a breakpoint, or all of them
@@ -319,7 +319,7 @@ Casso commands:
     /BPNAME # ["text"]                                                                   Set a breakpoint's name, or with none return it to the default
     /BPR reg [op] value                                                                  Stop when a register meets a condition
     /BPSAVE file                                                                         Save the breakpoints as a script
-    /BPV line[,len|:last]                                                                Stop at a video scanline
+    /BPV line[,len|:last]|OFF                                                            Stop at a video scanline
     /BPX addr[,len|:last]|file:line [IF expr]                                            Set an execution breakpoint, as BP does
     /BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
     /BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
@@ -540,7 +540,7 @@ Casso commands:
     BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
     BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
     BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
-    BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
+    BPBEAM line cycle|VBL|OFF                                                           Stop when the beam is at a scanline and cycle, or at vertical blank
     BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
     BPDISK [D1|D2] event [arguments] [IF expr]                                          Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     BPE #|*                                                                             Enable a breakpoint, or all of them
@@ -550,7 +550,7 @@ Casso commands:
     BPNAME # ["text"]                                                                   Set a breakpoint's name, or with none return it to the default
     BPR reg [op] value                                                                  Stop when a register meets a condition
     BPSAVE file                                                                         Save the breakpoints as a script
-    BPV line[,len|:last]                                                                Stop at a video scanline
+    BPV line[,len|:last]|OFF                                                            Stop at a video scanline
     BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
     BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
     BRKINT [ON|OFF] [IF expr]                                                           Stop on an interrupt
@@ -741,7 +741,7 @@ Casso commands:
     !BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
     !BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
     !BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
-    !BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
+    !BPBEAM line cycle|VBL|OFF                                                           Stop when the beam is at a scanline and cycle, or at vertical blank
     !BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
     !BPDISK [D1|D2] event [arguments] [IF expr]                                          Stop on a Disk II event: a sector or field read, a head move, a write, a call, the motor
     !BPEDIT # definition                                                                 Replace a breakpoint with a new definition
@@ -749,7 +749,7 @@ Casso commands:
     !BPNAME # ["text"]                                                                   Set a breakpoint's name, or with none return it to the default
     !BPR reg [op] value                                                                  Stop when a register meets a condition
     !BPSAVE file                                                                         Save the breakpoints as a script
-    !BPV line[,len|:last]                                                                Stop at a video scanline
+    !BPV line[,len|:last]|OFF                                                            Stop at a video scanline
     !BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
     !BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not
     !BRKINT [ON|OFF] [IF expr]                                                           Stop on an interrupt
@@ -913,7 +913,7 @@ Casso commands:
     BPA addr[,len|:last]                                                                Set an execution breakpoint and a data breakpoint
     BPBASIC line [IF expr]                                                              Stop as an Applesoft line begins
     BPBASICVAR name [IF expr]                                                           Stop after the Applesoft statement that changes a variable or array element
-    BPBEAM line cycle|VBL                                                               Stop when the beam reaches a scanline and cycle, or vertical blank
+    BPBEAM line cycle|VBL|OFF                                                           Stop when the beam is at a scanline and cycle, or at vertical blank
     BPC #|*                                                                             Clear a breakpoint, or all of them
     BPCHANGE # flags                                                                    Change a breakpoint's flags: E enabled, T temporary, S stops
     BPD #|*                                                                             Disable a breakpoint, or all of them
@@ -928,7 +928,7 @@ Casso commands:
     BPNAME # ["text"]                                                                   Set a breakpoint's name, or with none return it to the default
     BPR reg [op] value                                                                  Stop when a register meets a condition
     BPSAVE file                                                                         Save the breakpoints as a script
-    BPV line[,len|:last]                                                                Stop at a video scanline
+    BPV line[,len|:last]|OFF                                                            Stop at a video scanline
     BPX addr[,len|:last]|file:line [IF expr]                                            Set an execution breakpoint, as BP does
     BRK [0|1|2|3|ALL] [ON|OFF] [IF expr]                                                Stop on BRK, or on invalid opcodes of a length
     BRKBASIC [ON|OFF] [IF expr]                                                         Stop on an Applesoft error, whether ONERR handles it or not

@@ -55,6 +55,9 @@ enum class BreakpointKind
     BasicLine,
     BasicVariable,
     BasicError,
+    UnwrittenRead,      // the session's own stops, listed in the Breakpoints
+    VideoLine,          // pane but no entries of the breakpoint table
+    Beam,
 };
 
 enum class WatchAccess
@@ -170,6 +173,10 @@ struct BreakpointInfo
     // Kind BasicVariable: the variable or array element, as BPBASICVAR was
     // given it. Kind BasicLine has its line number in address.
     std::string                   basicName;
+
+    // Kind UnwrittenRead: true once the heat map tracks which RAM has been
+    // written, which starts at a power cycle.
+    bool                          isTracking = false;
 };
 
 struct BreakpointSetData

@@ -908,6 +908,8 @@ private:
     Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
     void         UpdateLastStop   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+
+    static void  AddSessionStops  (DebugSession & session, DebuggerViewSnapshot & snapshot);
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
     static Byte  GetRegisterByte  (const std::string & name, const Cpu6502Registers & registers);

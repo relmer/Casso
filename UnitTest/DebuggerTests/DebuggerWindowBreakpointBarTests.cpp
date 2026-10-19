@@ -135,6 +135,48 @@ namespace DebuggerBreakpointBarTests
     TEST_CLASS (DebuggerWindowBreakpointBarTests)
     {
     public:
+        //  New lists Execution's types at its top level and Memory, BASIC
+        //  and Hardware as submenus; BRK is a check, on while a BRK
+        //  breakpoint is set, and opens no dialog.
+        TEST_METHOD (NewHasExecutionAtTheTopAndSubmenus)
+        {
+            CassoTheme                              theme    = CassoTheme::MakeSkeuomorphic();
+            BarHost                                 host;
+            BarWindow                               window (theme, host);
+            std::vector<DxuiPopupMenuItem>          items;
+            std::vector<std::wstring>               labels;
+            std::shared_ptr<DebuggerViewSnapshot>   snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::BreakpointLine    brk;
+
+
+
+            window.Build();
+            items = window.GetBreakpointsPane().GetNewMenuItems();
+
+            for (const DxuiPopupMenuItem & item : items)
+            {
+                labels.push_back (item.command != nullptr ? item.command->label : std::wstring());
+            }
+
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Address...", L"Condition...", L"Opcode...", L"BRK", L"BRK on interrupt", L"Memory", L"BASIC", L"Hardware" });
+            Assert::IsTrue (items[5].kind == DxuiPopupMenuItem::Kind::Submenu && items[5].children.size() == 3);
+            Assert::IsFalse (items[3].command->isChecked && items[3].command->isChecked(), L"BRK is off");
+
+            brk.id        = 9;
+            brk.info.id   = 9;
+            brk.info.kind = BreakpointKind::Brk;
+            snapshot->breakpoints.push_back (brk);
+            window.SetSnapshotForTest (snapshot);
+
+            items = window.GetBreakpointsPane().GetNewMenuItems();
+            Assert::IsTrue (items[3].command->isChecked && items[3].command->isChecked(), L"BRK is on");
+
+            items[3].command->dispatch();
+            Assert::AreEqual ((size_t) 1, host.actions.size());
+            Assert::IsTrue   (host.actions[0].breakpointStep.has_value() && host.actions[0].breakpointStep->actions.at (0).definition == "BRK OFF");
+        }
+
+
 
         TEST_METHOD (TheBarHoldsEveryButtonEachWithATip)
         {

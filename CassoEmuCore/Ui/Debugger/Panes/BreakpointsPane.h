@@ -38,6 +38,10 @@ public:
     const Shown                    & GetShown       () const { return m_shown; }
     void                             SetShown       (const Shown & shown);
 
+    //  The New drop-down's rows: Execution's types, then the Memory, BASIC
+    //  and Hardware submenus.
+    std::vector<DxuiPopupMenuItem>   GetNewMenuItems ();
+
     //  The breakpoint a row of the list has, in the list's order; null for a
     //  row past the end.
     const DebuggerViewSnapshot::BreakpointLine *  GetBreakpointOfRow (int row) const;
@@ -95,6 +99,8 @@ private:
     void                             SetBarMenus    ();
     void                             NewBreakpoint  (BreakpointDialog::Type type);
     BreakpointDialog::Validator      MakeValidator  (std::optional<int> editedId);
+    std::shared_ptr<DxuiCommand>     MakeTypeCommand (BreakpointDialog::Type type, const wchar_t * label);
+    DebuggerAction                   GetClearAction (const DebuggerViewSnapshot::BreakpointLine & bp) const;
     void                             RunStep        (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
 
