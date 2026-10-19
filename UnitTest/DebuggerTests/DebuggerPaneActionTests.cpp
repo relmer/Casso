@@ -162,8 +162,9 @@ public:
 
 
     //  The dialog has only the fields a type's definition reads: a BASIC
-    //  variable change, its variable; a condition, its condition; a disk
-    //  event, its event, drive, arguments and condition.
+    //  variable change, its variable and condition; a condition, its
+    //  condition; a disk event, its event, drive, arguments and condition;
+    //  BRK, a condition. A video line takes no condition.
     TEST_METHOD (TheBreakpointDialogHasOnlyTheFieldsATypeUses)
     {
         using Type = BreakpointDialog::Type;
@@ -175,8 +176,8 @@ public:
 
 
 
-        Assert::IsTrue  (variable.address);
-        Assert::IsFalse (variable.value || variable.condition || variable.mode || variable.event || variable.drive);
+        Assert::IsTrue  (variable.address && variable.condition);
+        Assert::IsFalse (variable.value || variable.mode || variable.event || variable.drive);
 
         Assert::IsTrue  (reg.condition);
         Assert::IsFalse (reg.address || reg.value);
@@ -184,7 +185,9 @@ public:
         Assert::IsTrue  (disk.event && disk.drive && disk.condition);
         Assert::IsFalse (disk.value || disk.mode || disk.address, L"a disk event's arguments are its own fields");
 
-        Assert::IsFalse (brk.address || brk.value || brk.condition, L"BRK ON takes nothing");
+        Assert::IsTrue  (brk.condition);
+        Assert::IsFalse (brk.address || brk.value, L"BRK ON takes nothing but a condition");
+        Assert::IsFalse (BreakpointDialog::GetVisibleFields (Type::VideoLine).condition);
         Assert::IsTrue  (BreakpointDialog::GetVisibleFields (Type::Read).mode, L"a data breakpoint stops before or after");
     }
 
@@ -206,7 +209,9 @@ public:
         const Case  cases[] =
         {
             { "READ",    { "11", "0F", "", 0, true },                                   "11 0F PASSED"                },
-            { "READ",    { "11", "0F", "", 0, false, false, false, false, false, "ADDR D5 AA 97" }, "11 0F ADDR D5 AA 97" },
+            { "READ",    { "11", "0F", "", 0, false, false, false, false, false, "D5 AA 97", "D5 AA ??", true }, "11 0F ADDR D5 AA 97 DATA D5 AA ?? SECTORS 13" },
+            { "READ",    { "", "0F" },                                                  "* 0F"                        },
+            { "ADDRESS", { "", "", "254" },                                             "* * FE"                      },
             { "ADDRESS", { "11", "", "", 0, false, true, true },                        "11 BADSUM WRONGTRACK"        },
             { "HEAD",    { "10:12", "", "", 1, false, false, false, true },             "T 10:12 BUMP"                },
             { "HEAD",    { "", "", "", 3 },                                             "HALF"                        },

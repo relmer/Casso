@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
+#include "Ui/Debugger/BreakpointDefinitionCheck.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
@@ -348,7 +349,7 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     //  (FR-094).
     items.push_back ({ L"Edit...", [this, bp]
     {
-        std::optional<std::string>  definition = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info);
+        std::optional<std::string>  definition = BreakpointDialog::RunModal (m_host.GetOwnerHwnd(), m_host.GetTheme(), bp.info, std::nullopt, MakeValidator (bp.id));
 
         if (definition.has_value())
         {
@@ -520,12 +521,36 @@ void BreakpointsPane::NewBreakpoint (BreakpointDialog::Type type)
 
 
 
-    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0);
+    definition = BreakpointDialog::RunNew (m_host.GetOwnerHwnd(), m_host.GetTheme(), type, (snapshot != nullptr) ? snapshot->pc : (Word) 0, MakeValidator (std::nullopt));
 
     if (definition.has_value())
     {
         RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetDefineBreakpoint (*definition, m_host.GetMode()) }, {} });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::MakeValidator
+//
+//  The dialog's check, against the latest snapshot when OK is pressed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+BreakpointDialog::Validator BreakpointsPane::MakeValidator (std::optional<int> editedId)
+{
+    return [this, editedId] (const std::string & definition)
+    {
+        const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+
+
+
+        return (snapshot != nullptr) ? BreakpointDefinitionCheck::GetError (definition, *snapshot, editedId) : std::string();
+    };
 }
 
 

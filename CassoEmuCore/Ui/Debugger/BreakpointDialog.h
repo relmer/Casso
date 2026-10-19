@@ -10,32 +10,46 @@
 //
 //  BreakpointDialogPanel
 //
-//  A label beside each field, one field a row, and an info tip after a
-//  row's label where it has one; a hidden field's row is left out, so the
-//  rows of the visible ones are together.
+//  A label beside each field, one field a row or two side by side, and an
+//  info tip just after a row's label text where it has one; a hidden
+//  field's row is left out, so the rows of the visible ones are together.
+//  An error row spans the width and is as tall as its wrapped message.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class BreakpointDialogPanel : public DxuiPanel
 {
 public:
-    void  Add    (DxuiLabel & label, IDxuiControl & field, DxuiInfoTip * tip = nullptr);
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Add            (DxuiLabel & label, IDxuiControl & field, DxuiInfoTip * tip = nullptr, IDxuiControl * second = nullptr);
+    void  AddError       (DxuiFieldError & error);
+    void  SetTextMeasure (IDxuiTextRenderer * text, const IDxuiTheme * theme) { m_text = text; m_theme = theme; }
+    void  Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
 
-    static constexpr int  kRowDip   = 30;
-    static constexpr int  kGapDip   = 8;
-    static constexpr int  kLabelDip = 130;
-    static constexpr int  kTipDip   = 24;
+    //  The height of the visible rows at a width, both in pixels.
+    int   GetHeightPx    (const DxuiDpiScaler & scaler, int widthPx) const;
+
+    static constexpr int  kRowDip    = 30;
+    static constexpr int  kGapDip    = 8;
+    static constexpr int  kLabelDip  = 130;
+    static constexpr int  kTipDip    = 22;
+    static constexpr int  kTipGapDip = 4;
 
 private:
     struct Row
     {
-        DxuiLabel     * label = nullptr;
-        IDxuiControl  * field = nullptr;
-        DxuiInfoTip   * tip   = nullptr;
+        DxuiLabel       * label  = nullptr;
+        IDxuiControl    * field  = nullptr;
+        DxuiInfoTip     * tip    = nullptr;
+        IDxuiControl    * second = nullptr;
+        DxuiFieldError  * error  = nullptr;
     };
 
-    std::vector<Row>  m_rows;
+    int  GetErrorHeightPx (const DxuiFieldError & error, const DxuiDpiScaler & scaler, int widthPx) const;
+    int  GetTextWidthPx   (const DxuiLabel & label, const DxuiDpiScaler & scaler) const;
+
+    std::vector<Row>      m_rows;
+    IDxuiTextRenderer   * m_text  = nullptr;
+    const IDxuiTheme    * m_theme = nullptr;
 };
 
 
@@ -109,9 +123,10 @@ public:
     static VisibleFields  GetVisibleFields (Type type);
 
     //  A disk breakpoint's fields: a track, or for HEAD and WRITE a range
-    //  such as 10:12; a sector; ADDRESS's volume or BLOCK's and DRIVER's
-    //  block; the event's drop-down; its checks; and the custom marks and
-    //  field length, as BPDISK writes them after ADDR, DATA and SECTORS.
+    //  such as 10:12; a sector; ADDRESS's volume, in decimal, or BLOCK's and
+    //  DRIVER's block; the event's drop-down; its checks; and the prologue
+    //  marks and the 13-sector format, as BPDISK writes them after ADDR,
+    //  DATA and SECTORS.
     struct DiskFields
     {
         std::string  track;
@@ -123,25 +138,28 @@ public:
         bool         isWrongTrack  = false;
         bool         isBump        = false;
         bool         isEvery       = false;
-        std::string  advanced;
+        std::string  addressMarks;
+        std::string  dataMarks;
+        bool         isThirteen    = false;
     };
 
     //  Which disk fields an event has, and their labels; a null label is a
     //  field the event does not have.
     struct DiskFieldSet
     {
-        const wchar_t              * trackLabel    = nullptr;
-        const wchar_t              * sectorLabel   = nullptr;
-        const wchar_t              * numberLabel   = nullptr;
-        const wchar_t              * choiceLabel   = nullptr;
+        const wchar_t              * trackLabel     = nullptr;
+        const wchar_t              * sectorLabel    = nullptr;
+        const wchar_t              * numberLabel    = nullptr;
+        const wchar_t              * choiceLabel    = nullptr;
         std::vector<std::wstring>    choices;
-        bool                         isPassed      = false;
-        bool                         isBadChecksum = false;
-        bool                         isWrongTrack  = false;
-        bool                         isBump        = false;
-        bool                         isEvery       = false;
-        bool                         isAdvanced    = false;
-        bool                         isRange       = false;   // the track field takes a range
+        bool                         isPassed       = false;
+        bool                         isBadChecksum  = false;
+        bool                         isWrongTrack   = false;
+        bool                         isBump         = false;
+        bool                         isEvery        = false;
+        bool                         isAddressMarks = false;   // ADDR and SECTORS
+        bool                         isDataMarks    = false;   // DATA
+        bool                         isRange        = false;   // the track field takes a range
     };
 
     //  By the event's index into DiskBreakSpecText::GetEventWords. The
@@ -159,23 +177,41 @@ public:
     //  The type an existing breakpoint is.
     static Type  GetType (const BreakpointInfo & info);
 
+    //  Why a definition cannot be set, or nothing when it can.
+    using Validator = std::function<std::string (const std::string & definition)>;
+
     //  Runs the dialog modally over `owner`, on `type` when given and on
-    //  the breakpoint's own type otherwise; the definition when OK.
-    static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt);
+    //  the breakpoint's own type otherwise; the definition when OK. OK
+    //  closes the dialog only once the validator, when given, accepts the
+    //  definition; otherwise its reason is drawn under the fields.
+    static std::optional<std::string>  RunModal (HWND owner, const IDxuiTheme * theme, const BreakpointInfo & info, std::optional<Type> type = std::nullopt,
+                                                 Validator validator = {});
 
     //  A new breakpoint's dialog for the type chosen: an execution address
     //  starts at the PC, and every other type's fields start empty.
-    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc);
+    static std::optional<std::string>  RunNew   (HWND owner, const IDxuiTheme * theme, Type type, Word pc, Validator validator = {});
+
+    //  The condition's info tip text.
+    static const wchar_t *  GetConditionTip ();
+
+    //  The disk event row's info tip text: what each event stops on.
+    static const wchar_t *  GetDiskEventTip ();
 
 protected:
-    void  OnCreate     () override;
-    void  OnDialogTick () override;
+    void  OnCreate              () override;
+    void  OnDialogTick          () override;
+    bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
 
 private:
     void        ShowFieldsForType ();
     void        ShowDiskFields    (bool isDisk);
+    void        Resize            ();
+    void        Confirm           ();
     Type        GetSelectedType   () const;
     DiskFields  ReadDiskFields    () const;
+
+    static std::string  ToDecimal (const std::string & hex);
+    static std::string  ToHex     (const std::string & decimal);
 
     static Fields  GetDiskFields (const BreakpointInfo & info, Fields fields);
 
@@ -184,8 +220,9 @@ private:
     std::optional<Type>            m_presetType;
     std::optional<std::wstring>    m_newAddress;
     std::optional<std::string>     m_definition;
+    Validator                      m_validator;
+    DxuiFieldError                 m_error;
     DxuiLabel                      m_accessLabel;
-    DxuiLabel                      m_accessWriteLabel;
     DxuiLabel                      m_modeLabel;
     DxuiLabel                      m_addressLabel;
     DxuiLabel                      m_valueLabel;
@@ -206,8 +243,11 @@ private:
     DxuiLabel                      m_diskSectorLabel;
     DxuiLabel                      m_diskNumberLabel;
     DxuiLabel                      m_diskChoiceLabel;
-    DxuiLabel                      m_diskAdvancedLabel;
-    DxuiLabel                      m_diskCheckLabels[5];
+    DxuiLabel                      m_diskAddressMarksLabel;
+    DxuiLabel                      m_diskDataMarksLabel;
+    DxuiLabel                      m_diskCheckLabels[6];
+    DxuiInfoTip                    m_eventTip;
+    DxuiInfoTip                    m_choiceTip;
     DxuiTextInput                  m_diskTrack;
     DxuiTextInput                  m_diskSector;
     DxuiTextInput                  m_diskNumber;
@@ -217,7 +257,9 @@ private:
     DxuiCheckbox                   m_diskWrongTrack;
     DxuiCheckbox                   m_diskBump;
     DxuiCheckbox                   m_diskEvery;
-    DxuiTextInput                  m_diskAdvanced;
+    DxuiCheckbox                   m_diskThirteen;
+    DxuiTextInput                  m_diskAddressMarks;
+    DxuiTextInput                  m_diskDataMarks;
     int                            m_diskFieldSetEvent  = -1;
     BreakpointDialogPanel        * m_body               = nullptr;
 };

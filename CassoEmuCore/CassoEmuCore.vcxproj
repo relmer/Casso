@@ -197,6 +197,7 @@
     <ClCompile Include="Debugger\CpuManagerRunDriver.cpp" />
     <ClCompile Include="Debugger\DebuggerController.cpp" />
     <ClCompile Include="Ui\Debugger\BreakpointColumns.cpp" />
+    <ClCompile Include="Ui\Debugger\BreakpointDefinitionCheck.cpp" />
     <ClCompile Include="Ui\Debugger\DebugViewBuilder.cpp" />
     <ClCompile Include="Ui\Debugger\DebugViewPublisher.cpp" />
     <ClCompile Include="Ui\Debugger\DebuggerViewState.cpp" />
@@ -832,6 +833,7 @@
     <ClInclude Include="Debugger\CpuManagerRunDriver.h" />
     <ClInclude Include="Debugger\DebuggerController.h" />
     <ClInclude Include="Ui\Debugger\BreakpointColumns.h" />
+    <ClInclude Include="Ui\Debugger\BreakpointDefinitionCheck.h" />
     <ClInclude Include="Ui\Debugger\DebugViewBuilder.h" />
     <ClInclude Include="Ui\Debugger\DebugViewPublisher.h" />
     <ClInclude Include="Ui\Debugger\DebuggerViewState.h" />

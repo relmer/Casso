@@ -94,6 +94,7 @@ private:
     void                             ApplyRows      ();
     void                             SetBarMenus    ();
     void                             NewBreakpoint  (BreakpointDialog::Type type);
+    BreakpointDialog::Validator      MakeValidator  (std::optional<int> editedId);
     void                             RunStep        (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
 
