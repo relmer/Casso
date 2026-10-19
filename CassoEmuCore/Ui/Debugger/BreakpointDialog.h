@@ -101,6 +101,48 @@ public:
 
     static VisibleFields  GetVisibleFields (Type type);
 
+    //  A disk breakpoint's fields: a track, or for HEAD and WRITE a range
+    //  such as 10:12; a sector; ADDRESS's volume or BLOCK's and DRIVER's
+    //  block; the event's drop-down; its checks; and the custom marks and
+    //  field length, as BPDISK writes them after ADDR, DATA and SECTORS.
+    struct DiskFields
+    {
+        std::string  track;
+        std::string  sector;
+        std::string  number;
+        int          choice        = 0;
+        bool         isPassed      = false;
+        bool         isBadChecksum = false;
+        bool         isWrongTrack  = false;
+        bool         isBump        = false;
+        bool         isEvery       = false;
+        std::string  advanced;
+    };
+
+    //  Which disk fields an event has, and their labels; a null label is a
+    //  field the event does not have.
+    struct DiskFieldSet
+    {
+        const wchar_t              * trackLabel    = nullptr;
+        const wchar_t              * sectorLabel   = nullptr;
+        const wchar_t              * numberLabel   = nullptr;
+        const wchar_t              * choiceLabel   = nullptr;
+        std::vector<std::wstring>    choices;
+        bool                         isPassed      = false;
+        bool                         isBadChecksum = false;
+        bool                         isWrongTrack  = false;
+        bool                         isBump        = false;
+        bool                         isEvery       = false;
+        bool                         isAdvanced    = false;
+        bool                         isRange       = false;   // the track field takes a range
+    };
+
+    //  By the event's index into DiskBreakSpecText::GetEventWords. The
+    //  arguments are what BPDISK takes after the event word.
+    static DiskFieldSet    GetDiskFieldSet       (int event);
+    static std::string  MakeDiskArguments  (int event, const DiskFields & fields);
+    static DiskFields   ParseDiskArguments (int event, const std::string & arguments);
+
     //  The definition for a type and its fields, as BPEDIT takes it.
     static std::string  MakeDefinition (const Fields & fields);
 
@@ -122,30 +164,49 @@ protected:
     void  OnCreate() override;
 
 private:
-    void  ShowFieldsForType ();
-    Type  GetSelectedType   () const;
+    void        ShowFieldsForType ();
+    void        ShowDiskFields    (bool isDisk);
+    Type        GetSelectedType   () const;
+    DiskFields  ReadDiskFields    () const;
 
     static Fields  GetDiskFields (const BreakpointInfo & info, Fields fields);
 
-    const IDxuiTheme            * m_theme          = nullptr;
-    BreakpointInfo                m_info;
-    std::optional<Type>           m_presetType;
-    std::optional<std::wstring>   m_newAddress;
-    std::optional<std::string>    m_definition;
-    DxuiLabel                     m_typeLabel;
-    DxuiLabel                     m_modeLabel;
-    DxuiLabel                     m_addressLabel;
-    DxuiLabel                     m_valueLabel;
-    DxuiLabel                     m_conditionLabel;
-    DxuiLabel                     m_eventLabel;
-    DxuiLabel                     m_driveLabel;
-    DxuiComboBox                  m_type;
-    DxuiComboBox                  m_mode;
-    DxuiComboBox                  m_event;
-    DxuiComboBox                  m_drive;
-    DxuiTextInput                 m_address;
-    DxuiTextInput                 m_value;
-    DxuiTextInput                 m_condition;
-    DxuiInfoTip                   m_conditionTip;
-    BreakpointDialogPanel       * m_body           = nullptr;
+    const IDxuiTheme             * m_theme              = nullptr;
+    BreakpointInfo                 m_info;
+    std::optional<Type>            m_presetType;
+    std::optional<std::wstring>    m_newAddress;
+    std::optional<std::string>     m_definition;
+    DxuiLabel                      m_typeLabel;
+    DxuiLabel                      m_modeLabel;
+    DxuiLabel                      m_addressLabel;
+    DxuiLabel                      m_valueLabel;
+    DxuiLabel                      m_conditionLabel;
+    DxuiLabel                      m_eventLabel;
+    DxuiLabel                      m_driveLabel;
+    DxuiComboBox                   m_type;
+    DxuiComboBox                   m_mode;
+    DxuiComboBox                   m_event;
+    DxuiComboBox                   m_drive;
+    DxuiTextInput                  m_address;
+    DxuiTextInput                  m_value;
+    DxuiTextInput                  m_condition;
+    DxuiInfoTip                    m_conditionTip;
+    DxuiLabel                      m_diskTrackLabel;
+    DxuiLabel                      m_diskSectorLabel;
+    DxuiLabel                      m_diskNumberLabel;
+    DxuiLabel                      m_diskChoiceLabel;
+    DxuiLabel                      m_diskAdvancedLabel;
+    DxuiLabel                      m_diskCheckLabels[5];
+    DxuiTextInput                  m_diskTrack;
+    DxuiTextInput                  m_diskSector;
+    DxuiTextInput                  m_diskNumber;
+    DxuiComboBox                   m_diskChoice;
+    DxuiCheckbox                   m_diskPassed;
+    DxuiCheckbox                   m_diskBadChecksum;
+    DxuiCheckbox                   m_diskWrongTrack;
+    DxuiCheckbox                   m_diskBump;
+    DxuiCheckbox                   m_diskEvery;
+    DxuiTextInput                  m_diskAdvanced;
+    int                            m_diskFieldSetEvent  = -1;
+    BreakpointDialogPanel        * m_body               = nullptr;
 };

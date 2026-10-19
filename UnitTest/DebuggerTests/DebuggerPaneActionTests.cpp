@@ -2,6 +2,7 @@
 
 #include "ControllerRig.h"
 #include "Debugger/AppleWinParser.h"
+#include "Debugger/DiskBreakSpecText.h"
 #include "Ui/Debugger/BreakpointDialog.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -180,11 +181,70 @@ public:
         Assert::IsTrue  (reg.condition);
         Assert::IsFalse (reg.address || reg.value);
 
-        Assert::IsTrue  (disk.event && disk.drive && disk.address && disk.condition);
-        Assert::IsFalse (disk.value || disk.mode);
+        Assert::IsTrue  (disk.event && disk.drive && disk.condition);
+        Assert::IsFalse (disk.value || disk.mode || disk.address, L"a disk event's arguments are its own fields");
 
         Assert::IsFalse (brk.address || brk.value || brk.condition, L"BRK ON takes nothing");
         Assert::IsTrue  (BreakpointDialog::GetVisibleFields (Type::Read).mode, L"a data breakpoint stops before or after");
+    }
+
+
+
+    //  A disk event's fields make the arguments BPDISK takes, which read back
+    //  into the same fields, and each definition is one the console runs.
+    TEST_METHOD (ADiskEventsFieldsMakeArgumentsThatReadBack)
+    {
+        using DiskFields = BreakpointDialog::DiskFields;
+
+        struct Case
+        {
+            const char  * event;
+            DiskFields    fields;
+            const char  * arguments;
+        };
+
+        const Case  cases[] =
+        {
+            { "READ",    { "11", "0F", "", 0, true },                                   "11 0F PASSED"                },
+            { "READ",    { "11", "0F", "", 0, false, false, false, false, false, "ADDR D5 AA 97" }, "11 0F ADDR D5 AA 97" },
+            { "ADDRESS", { "11", "", "", 0, false, true, true },                        "11 BADSUM WRONGTRACK"        },
+            { "HEAD",    { "10:12", "", "", 1, false, false, false, true },             "T 10:12 BUMP"                },
+            { "HEAD",    { "", "", "", 3 },                                             "HALF"                        },
+            { "WRITE",   { "11", "05", "", 1 },                                         "11 05"                       },
+            { "WRITE",   { "", "", "", 4 },                                             "BLOCKED"                     },
+            { "DOS",     { "11", "0F" },                                                "11 0F"                       },
+            { "BLOCK",   { "", "", "2A", 0, true },                                     "2A PASSED"                   },
+            { "RWTS",    { "11", "", "", 2 },                                           "11 WRITE"                    },
+            { "DRIVER",  { "", "", "2A", 1 },                                           "BLOCK 2A READ"               },
+            { "MOTOR",   { "", "", "", 3 },                                             "STOPPED"                     },
+            { "SELECT",  { "", "", "", 0, false, false, false, false, true },           "EVERY"                       },
+            { "INSERT",  {},                                                            ""                            },
+        };
+
+
+
+        for (const Case & each : cases)
+        {
+            int                     event     = 0;
+            ControllerRig           rig;
+            std::string             arguments;
+            std::string             line;
+            DiskFields              back;
+
+            while (std::string (DiskBreakSpecText::GetEventWords()[(size_t) event].word) != each.event)
+            {
+                event++;
+            }
+
+            arguments = BreakpointDialog::MakeDiskArguments (event, each.fields);
+            back      = BreakpointDialog::ParseDiskArguments (event, arguments);
+            line      = std::string ("BPDISK ") + each.event + (arguments.empty() ? "" : " " + arguments);
+
+            Assert::AreEqual (std::string (each.arguments), arguments, TextEncoding::NarrowToWide (each.event).c_str());
+            Assert::AreEqual (arguments, BreakpointDialog::MakeDiskArguments (event, back), L"the fields read back differently");
+
+            Assert::IsTrue (AppleWinParser::Parse (line, rig.controller.GetSession()).status == ParseStatus::Ok, TextEncoding::NarrowToWide (line).c_str());
+        }
     }
 
 
