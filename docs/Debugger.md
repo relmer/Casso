@@ -382,6 +382,20 @@ first hit.
 `BPMV addr value` stops after a write leaves `addr` holding `value`, and on no
 other write.
 
+`BPR IF expr` stops before any instruction at which the expression is true,
+wherever the PC is; the breakpoint dialog's Condition type sets it.
+
+An expression has `+ - * / %`, `& | ^ ~`, `! && ||`, the comparisons `== != <
+> <= >=`, and parentheses. Numbers are hex; `0n10` is decimal. A register is
+`A`, `X`, `Y`, `P`, `S` or `PC`, and a symbol is its address; `*addr` is the
+byte at an address, and `<` and `>` before a value are its low and high byte.
+`P.C`, `P.Z`, `P.I`, `P.D`, `P.B`, `P.V` and `P.N` are the flags, each 0 or 1:
+
+```text
+BPR IF P.C && A >= 80
+BP COUT IF *FB == 0
+```
+
 ## Breakpoint name
 
 After `BPNAME 3 "Loop top"`, breakpoint or data breakpoint #3 has that name, and
@@ -775,7 +789,10 @@ into stops on the handler's first instruction.
 made, with symbols. `HISTORY OFF` stops recording and keeps what it has.
 
 While history recording is on (Tools > Options), the trace starts where history
-starts, `HISTORY ON` or not: older instructions are rebuilt from
+starts, `HISTORY ON` or not, and the window's Trace switch is unavailable: the
+window turns the live ring on only while the trace pane is on screen and the
+machine runs at 1x, the only time the newest instructions are watched as they
+come. Older instructions are rebuilt from
 history by replaying it, at once while the machine is stopped and in the
 background while it runs, and the 100,000 newest are a cache that makes the
 newest quick to list. While the machine runs, the trace ends at history's
@@ -804,6 +821,14 @@ each branch the way the current flags send it and ending at one an earlier
 instruction may have changed the flags for.
 
 ## Profiling
+
+`PROFILE HISTORY seconds` builds the profile of the last that many seconds of
+history, and `PROFILE HISTORY ALL` of all of it: the history is
+replayed on a scratch machine in the background, so the machine does not slow
+down, and the finished counts become the profile the lists below read. The
+Profiler pane's **Show profile** drop-down runs it for the last 10 seconds,
+60 seconds, 5 minutes or since history began, with a progress bar while the
+profile builds.
 
 `PROFILE ON` counts every instruction the machine executes, in a run the
 debugger starts or one the machine makes on its own, and `PROFILE OFF` stops.
@@ -1093,17 +1118,34 @@ rows when it is among them:
 A drag selects text across the columns; a Ctrl+drag selects only in the
 column it began in.
 
-The Breakpoints pane's **New** drop-down also has **Read of memory never
-written...**, **Video line...**, **Beam position...** and **Execute and
-watch...**, which run `BRKUNINIT ON`, `BPV`, `BPBEAM` and `BPA`. The first
-three are stops of the session, not rows of the pane, so the console's reply
-is the only sign of them; `BPA` adds a breakpoint and a data breakpoint, each a row.
+The Breakpoints pane's **New breakpoint...** button opens the breakpoint
+dialog on Execute at the PC. Its Type list is grouped: Code (Execute,
+Condition, Opcode, BRK, BRK on interrupt), Memory (Read, Write, Read or write,
+Memory value, Reading uninitialized memory), BASIC, and Hardware (Disk event,
+Video line, Beam position). The Address field takes an address, a symbol or a
+range, as `300:3FF` or `300,100`. Reading uninitialized memory, Video line and
+Beam position run `BRKUNINIT ON`, `BPV` and `BPBEAM`; they are stops of the
+session, not rows of the pane. A Disk event has a field for each of its
+arguments, and the custom marks and field length in **Advanced**. The info
+tip beside Condition has examples.
 
-Each row of the Watches pane has a check box, which runs `WE` or `WD`. Under
-**Zero-page pointers** the pane lists the zero-page pointers: each zero-page
-address, then the address its two bytes form and the first four bytes there,
-as `$0800: 00 00 00 00`, with a check box running `ZPE` or `ZPD` and Remove on
-its menu running `ZPC`. **Add zero-page pointer...** on the pane's menu, and
+The Watches pane has an ID column: **Auto** for what the instruction at the
+PC and the one just run touch, the watch's number for a watch, and ZPn for a
+zero-page pointer, with the check box that enables or disables it. What is
+typed in the add row is watched as what it is, resolved once: a register's
+value, the word at a symbol (followed to wherever the symbol moves), the byte
+at `*expr`, or an expression's value, each read again at every stop. An entry
+that is none of these stays in the edit box with the reason above the list.
+The console's `W` remains AppleWin's address watch, and `W EXPR text` is the
+typed form. Under **Zero-page pointers** the pane lists the zero-page
+pointers: each zero-page address, then the address its two bytes form and the
+first four bytes there, as `$0800: 00 00 00 00`, with Remove on its menu
+running `ZPC`.
+
+An action taken in the window prints nothing in the console unless it fails,
+or unless its reply is what it produces, as a search's matches are. **Show UI
+actions as commands** on the console output's context menu prints each action
+as the command that does the same, with its reply. **Add zero-page pointer...** on the pane's menu, and
 **Add as pointer watch** on a Memory pane's menu over a byte in zero page,
 run `ZP`.
 
