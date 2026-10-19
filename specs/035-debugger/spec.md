@@ -248,6 +248,17 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Can a drop-down's tooltip stay up over its open menu? -> A: No: it hides when the menu opens and is not shown while the menu is open (FR-283).
 - Q: How are small regions in the MMU panel made visible? -> A: Every run of pages is at least one text line tall, taken from the larger runs, so each region is visible and its label readable. A tip has only the source and the range, such as "Aux RAM  $0000-$01FF" (FR-284, amending FR-265).
 
+### Session 2026-10-19 (owner review of the Phase 45 build)
+
+- Q: Is a watch of a name no symbol has yet an error? -> A: No. It is added with an ID, and its Value cell has why it has no value, in the error color and not editable, until symbols that define it are loaded, when it reads as the symbol. Only text that does not parse stays in the edit box, with the reason in the add row's Value cell rather than a line above the list (FR-285, amending FR-272).
+- Q: What do Enter and Tab do in the add row? -> A: An empty name takes neither. Enter on a name adds the watch, ends the edit, and a new add row follows; Tab adds it and moves the edit to the new watch's value, which starts as the value now (FR-286).
+- Q: What case is a watch that matched a symbol written in? -> A: The symbol's own, as a register is written in capitals (FR-287).
+- Q: How is the breakpoint dialog's type chosen? -> A: From the breakpoints bar's New drop-down, which is back, with the types under headings: Execution (Address, Condition, Opcode, BRK, BRK on interrupt), Memory (Address, with Read and Write checks; Value; Reading uninitialized memory), BASIC, and Hardware. The dialog makes only the type chosen and has no Type field (FR-288, replacing FR-276's New breakpoint button and grouped Type list).
+- Q: Where is the condition's info tip? -> A: After the Condition label, and hovering or clicking it opens its tip (FR-289).
+- Q: Can a toolbar button's tip stay up over a dialog the button opened? -> A: No: a press hides it (FR-290).
+- Q: Can two identical execution breakpoints be set? -> A: No: a second at the same address with the same condition is an error whose message has the first one's number (FR-291).
+- Q: Why does the debugger window not come back where it was left? -> A: Its placements were inside the prefs' "window" object, which a build without the debugger rewrites from its own fields. They are a top-level key now, which such a build passes through; the old place is read too (FR-292).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3323,6 +3334,30 @@ run something, switch back to the //e: it is where it was left.
   line tall, the height taken from the larger runs, so every region is
   visible and its label readable. A tip MUST have only the source and the
   range, such as "Aux RAM  $0000-$01FF".
+- **FR-285**: A watch of a name no symbol has yet MUST be added, with an ID;
+  its Value cell MUST have why it has no value, in the error color and not
+  editable, and once symbols that define the name are loaded it MUST read
+  as the symbol. Only text that does not parse MUST stay in the edit box,
+  with the reason in the add row's Value cell.
+- **FR-286**: In the watch grid's add row, an empty name MUST take neither
+  Enter nor Tab. Enter on a name MUST add the watch, end the edit and add
+  a new add row; Tab MUST add it and move the edit to the new watch's
+  value, which starts as the value now.
+- **FR-287**: A watch that matched a symbol MUST be in the symbol's case.
+- **FR-288**: The breakpoints bar MUST have a New drop-down with the types
+  under headings: Execution (Address, Condition, Opcode, BRK, BRK on
+  interrupt); Memory (Address, with Read and Write checks; Value; Reading
+  uninitialized memory); BASIC (Line, Variable change, Error); and Hardware
+  (Disk event, Video line, Beam position). The dialog MUST make only the
+  type chosen, with no Type field; an edit of a breakpoint does not change its type.
+- **FR-289**: The condition's info tip MUST be after the Condition label,
+  and hovering or clicking it MUST open its tip.
+- **FR-290**: A press on a toolbar button MUST hide the button's tip.
+- **FR-291**: An execution breakpoint at the same address with the same
+  condition as one already set MUST be an error whose message has the first one's number.
+- **FR-292**: The debugger window's placements MUST be stored under a
+  top-level key of the preferences, and placements stored inside "window"
+  by earlier builds MUST be read.
 
 ### Key Entities
 
