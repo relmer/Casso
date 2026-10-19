@@ -74,6 +74,17 @@ public:
     //  default. Set before the columns.
     void  SetRowsMovable (bool isMovable)            { m_isMovable = isMovable; }
 
+    //  A hint row whose first field is the whole row: Enter on it adds the
+    //  row and ends the edit, Tab adds it too, an empty field takes neither,
+    //  and when the add callback returns false the edit stays where it is.
+    //  IsTabCommit is true while the add callback runs for a Tab.
+    void  SetAddsOnFirstField (bool isFirst)         { m_isAddOnFirst = isFirst; }
+    bool  IsTabCommit         () const               { return m_isTabCommit; }
+
+    //  Text in the hint row's cell in a column, in a color of its own, as
+    //  the reason the add callback returned false; empty text clears it.
+    void  SetAddRowNote (int column, const std::wstring & text, uint32_t argb);
+
     void  SetOnValidate   (ValidateFn fn)  { m_validate = std::move (fn); }
     void  SetOnCommitCell (CommitFn fn)    { m_commit   = std::move (fn); }
     void  SetOnAddRow     (AddFn fn)       { m_add      = std::move (fn); }
@@ -153,6 +164,11 @@ private:
     std::vector<GridRow>       m_rows;
     std::vector<std::wstring>  m_pending;
     std::vector<bool>          m_missing;
+    int                        m_noteColumn   = -1;
+    std::wstring               m_noteText;
+    uint32_t                   m_noteArgb     = 0;
+    bool                       m_isAddOnFirst = false;
+    bool                       m_isTabCommit  = false;
     std::wstring               m_addRowText;
     DxuiTextInput              m_editor;
     DxuiDpiScaler              m_gridScaler;
@@ -163,12 +179,12 @@ private:
     DeleteFn                   m_delete;
     ErrorFn                    m_error;
     BeginFn                    m_begin;
-    int                        m_editRow     = -1;
-    int                        m_editColumn  = -1;
-    int                        m_pressRow    = -1;
-    int                        m_pressColumn = -1;
-    int                        m_dragRow     = -1;
-    int                        m_dropRow     = -1;
-    bool                       m_isEnding    = false;
-    bool                       m_isMovable   = true;
+    int                        m_editRow      = -1;
+    int                        m_editColumn   = -1;
+    int                        m_pressRow     = -1;
+    int                        m_pressColumn  = -1;
+    int                        m_dragRow      = -1;
+    int                        m_dropRow      = -1;
+    bool                       m_isEnding     = false;
+    bool                       m_isMovable    = true;
 };

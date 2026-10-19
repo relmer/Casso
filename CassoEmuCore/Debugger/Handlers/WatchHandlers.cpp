@@ -247,9 +247,11 @@ void WatchHandlers::Add (DebugSession & session, const DebugCommand & command, W
 //  WatchHandlers::TryResolveTyped
 //
 //  The kind of watch the typed text is, resolved here once: a BASIC
-//  variable; a symbol, before a register of the same name, as in an
-//  expression; a register; a hex number, an address; or else an expression,
-//  which must evaluate now. A name is never read again as something else.
+//  variable; a symbol, in the symbol's own case, before a register of the
+//  same name, as in an expression; a register; a hex number, an address; a
+//  name that is none of these, a symbol not yet loaded, which reads as one
+//  once symbols define it; or else an expression, which must parse. A name
+//  is never read again as something else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,9 +262,10 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
     std::string                    upper;
     std::string                    name;
     Expression                     parsed;
+    SymbolInfo                     symbol;
     Word                           address      = 0;
-    int32_t                        value        = 0;
     HRESULT                        hr           = S_OK;
+    bool                           isName       = false;
 
 
 
@@ -287,7 +290,7 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
     if (session.TryResolveSymbol (trimmed, address))
     {
         item.kind       = WatchItem::Kind::Symbol;
-        item.expression = trimmed;
+        item.expression = session.GetSymbols().TryFindSymbol (trimmed, symbol) ? symbol.name : trimmed;
         item.address    = address;
         return true;
     }
@@ -306,12 +309,17 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
         return true;
     }
 
-    hr = DebugExpressionEvaluator::Parse (trimmed, parsed, error);
+    isName = (std::isalpha ((unsigned char) trimmed[0]) || trimmed[0] == '_') &&
+             trimmed.find_first_not_of ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.") == std::string::npos;
 
-    if (SUCCEEDED (hr))
+    if (isName)
     {
-        hr = DebugExpressionEvaluator::Evaluate (parsed, session, value, error, EvaluationMode::Check);
+        item.kind       = WatchItem::Kind::Symbol;
+        item.expression = trimmed;
+        return true;
     }
+
+    hr = DebugExpressionEvaluator::Parse (trimmed, parsed, error);
 
     if (FAILED (hr))
     {
@@ -332,8 +340,9 @@ bool WatchHandlers::TryResolveTyped (DebugSession & session, const std::string &
 //  WatchHandlers::ReadTyped
 //
 //  A register's value, two hex digits or four for PC; a symbol's word at
-//  wherever it now is; an expression's value, two digits for a byte read
-//  through *, else four. A name no longer known reads as nothing.
+//  wherever it now is, in the symbol's own case; an expression's value, two
+//  digits for a byte read through *, else four. A symbol not loaded, or an
+//  expression that does not evaluate, has why as its error.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -343,6 +352,7 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
     Word         reg     = 0;
     int32_t      value   = 0;
     std::string  error;
+    SymbolInfo   symbol;
     HRESULT      hr      = S_OK;
 
 
@@ -352,12 +362,16 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
     switch (item.kind)
     {
     case WatchItem::Kind::Symbol:
-        if (session.TryResolveSymbol (item.expression, address))
+        if (!session.TryResolveSymbol (item.expression, address))
         {
-            entry.address = address;
-            entry.value   = PeekWord (session, address, WatchListKind::Watch);
+            entry.error           = std::format ("{} is not a symbol.", item.expression);
+            entry.isValueEditable = false;
+            break;
         }
 
+        entry.address    = address;
+        entry.value      = PeekWord (session, address, WatchListKind::Watch);
+        entry.expression = session.GetSymbols().TryFindSymbol (item.expression, symbol) ? symbol.name : item.expression;
         break;
 
     case WatchItem::Kind::Register:
@@ -371,11 +385,13 @@ void WatchHandlers::ReadTyped (DebugSession & session, const WatchItem & item, W
     case WatchItem::Kind::Expression:
         hr = DebugExpressionEvaluator::ParseAndEvaluate (item.expression, session, value, error);
 
-        if (SUCCEEDED (hr))
+        if (FAILED (hr))
         {
-            entry.valueText = item.expression.starts_with ("*") ? std::format ("{:02X}", value & 0xFF) : std::format ("{:04X}", value & 0xFFFF);
+            entry.error = error;
+            break;
         }
 
+        entry.valueText = item.expression.starts_with ("*") ? std::format ("{:02X}", value & 0xFF) : std::format ("{:04X}", value & 0xFFFF);
         break;
 
     default:

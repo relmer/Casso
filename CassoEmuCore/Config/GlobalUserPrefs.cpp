@@ -1238,7 +1238,7 @@ JsonValue GlobalUserPrefs::ToJson() const
 
     //  The debugger window's placements are a key of their own, outside
     //  "window": a build without the debugger writes "window" from its own
-    //  fields only, and passes an unknown top-level key through unchanged.
+    //  fields only, and writes an unknown top-level key back as it read it.
     root.emplace_back ("debuggerPlacements", PlacementsToJson (window.debuggerPlacements));
 
     // monitorTilt: radians by monitor name. Written only for monitors the

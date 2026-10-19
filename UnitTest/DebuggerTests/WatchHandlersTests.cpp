@@ -83,8 +83,12 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("#0 X = $20"),     rig.RunOk ("WL").text.at (0), L"the register is read again");
             Assert::AreEqual (std::string ("#1 COUNT = $5678"), rig.RunOk ("WL").text.at (1), L"the symbol is followed to where it is now");
 
-            rig.RunFails ("W EXPR ASDF", "invalid arguments");
-            Assert::AreEqual (std::string ("#3 $0020 = $0000"), rig.RunOk ("W X").text.at (0), L"W alone is an address watch");
+            Assert::AreEqual (std::string ("#3 ASDF = -- (ASDF is not a symbol.)"), rig.RunOk ("W EXPR ASDF").text.at (0), L"a name no symbol has is watched");
+            rig.session.GetSymbols().Add (SymbolTableId::User, "ASDF", 0x0300);
+            Assert::AreEqual (std::string ("#3 ASDF = $1234"), rig.RunOk ("WL").text.at (3), L"the name reads as the symbol once it is loaded");
+            rig.RunFails ("W EXPR 1+", "invalid arguments");
+            Assert::AreEqual (std::string ("#4 COUNT = $5678"), rig.RunOk ("W EXPR count").text.at (0), L"a symbol typed in another case is in its own");
+            Assert::AreEqual (std::string ("#5 $0020 = $0000"), rig.RunOk ("W X").text.at (0), L"W alone is an address watch");
             Assert::IsTrue   (WatchHandlers::MakeScript (rig.session, WatchListKind::Watch).find ("WA EXPR *FB") != std::string::npos, L"a typed watch saves as typed");
         }
 

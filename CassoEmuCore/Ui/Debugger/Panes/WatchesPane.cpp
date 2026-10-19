@@ -90,6 +90,7 @@ void WatchesPane::Configure()
                               { { L"Value", 0, true,  DxuiTextHAlign::Left }, true,  false } });
 
     m_grid->SetAddRowText      (L"Add new watch");
+    m_grid->SetAddsOnFirstField (true);
     m_grid->SetEditorHwnd      (m_host.GetOwnerHwnd());
     m_grid->SetEditorMaxLength (kEditMaxChars);
     m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring & outError) { return CommitCell (row, column - kFirstFieldColumn, text, outError); });
@@ -117,9 +118,6 @@ DxuiListView * WatchesPane::CreateList()
     m_grid = m_host.GetControlParent().CreateChild<DxuiEditableGrid>();
     m_grid->SetRowsMovable (false);
 
-    m_error = m_host.GetControlParent().CreateChild<DxuiLabel>();
-    m_error->SetTextRole  (DxuiTextRole::Error);
-    m_error->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     return m_grid;
 }
@@ -136,7 +134,7 @@ DxuiListView * WatchesPane::CreateList()
 
 std::vector<IDxuiControl *> WatchesPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_error, m_list, m_bar.GetBar() };
+    return { m_bar.GetSlot(), m_list, m_bar.GetBar() };
 }
 
 
@@ -156,6 +154,49 @@ void WatchesPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     ApplyRows (snapshot);
     m_history.OnSnapshot (snapshot);
+    EditAddedValue (snapshot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::EditAddedValue
+//
+//  After a Tab added a watch, its value is edited once a snapshot lists it:
+//  the watch whose id was not there before the add.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WatchesPane::EditAddedValue (const DebuggerViewSnapshot & snapshot)
+{
+    if (!m_isValueEditAfterAdd)
+    {
+        return;
+    }
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
+    {
+        if (std::ranges::find (m_idsBeforeAdd, watch.id) != m_idsBeforeAdd.end())
+        {
+            continue;
+        }
+
+        m_isValueEditAfterAdd = false;
+
+        for (size_t row = 0; row < m_rows.size(); row++)
+        {
+            if (m_rows[row].kind == RowKind::Manual && m_rows[row].index == watch.id)
+            {
+                BeginEdit ((int) row, 1);
+                break;
+            }
+        }
+
+        return;
+    }
 }
 
 
@@ -250,6 +291,14 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
             value.argb = changed;
         }
 
+        //  A symbol not yet loaded, or an expression that does not evaluate,
+        //  has why in place of a value.
+        if (!watch.error.empty())
+        {
+            value.text = TextEncoding::NarrowToWide (watch.error);
+            value.argb = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
+        }
+
         value.tip = ColorLegend::JoinLines ({ watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch),
                                               value.argb == 0 ? L"" : ColorLegend::GetText (ColorLegend::Meaning::Changed) });
 
@@ -262,7 +311,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
                             : !watch.expression.empty() ? TextEncoding::NarrowToWide (watch.expression)
                             :                             std::format (L"{:04X}", watch.address),
                             TextEncoding::NarrowToWide (watch.value) },
-                          false, { true, false, !watch.basicName.empty() || !watch.isValueEditable } });
+                          false, { true, false, !watch.basicName.empty() || !watch.isValueEditable || !watch.error.empty() } });
         m_rows.push_back ({ RowKind::Manual, watch.id });
     }
 
@@ -557,6 +606,16 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
         return false;
     }
 
+    //  A Tab goes on to the new watch's value once a snapshot lists it.
+    m_idsBeforeAdd.clear();
+
+    for (const DebuggerViewSnapshot::WatchLine & watch : (snapshot != nullptr) ? snapshot->watches : std::vector<DebuggerViewSnapshot::WatchLine>())
+    {
+        m_idsBeforeAdd.push_back (watch.id);
+    }
+
+    m_isValueEditAfterAdd = m_grid->IsTabCommit();
+    SetError ({});
     m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
     return true;
 }
@@ -567,48 +626,19 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WatchesPane::AddMiddleParts
-//
-//  The reason an entry cannot be watched, above the list while there is
-//  one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void WatchesPane::AddMiddleParts (DebuggerPaneFrame & frame)
-{
-    frame.AddPart (m_error, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kErrorDip); },
-                   [this] { return m_error != nullptr && !m_error->GetText().empty(); });
-    frame.SetPartTextAligned (m_error);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  WatchesPane::SetError
+//
+//  The reason an entry cannot be watched, in the add row's Value cell.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WatchesPane::SetError (const std::wstring & text)
 {
-    bool  wasShown = m_error != nullptr && !m_error->GetText().empty();
+    uint32_t  error = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
 
 
 
-    if (m_error == nullptr)
-    {
-        return;
-    }
-
-    m_error->SetText (text);
-
-    if (wasShown != !text.empty() && m_frame != nullptr)
-    {
-        m_frame->Relayout();
-    }
-
+    m_grid->SetAddRowNote (kFirstFieldColumn + 1, text, error);
     m_host.Repaint();
 }
 

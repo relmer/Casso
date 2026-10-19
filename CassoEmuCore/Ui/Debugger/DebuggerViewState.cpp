@@ -35,57 +35,6 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SnapshotExpressionContext
-//
-//  The snapshot's symbols, for a check that each identifier in an
-//  expression is known; every register is, and memory reads as zero, since
-//  a check reads only the identifiers.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class SnapshotExpressionContext : public IDebugExpressionContext
-{
-public:
-    explicit SnapshotExpressionContext (const DebuggerViewSnapshot & snapshot) : m_snapshot (snapshot) {}
-
-    bool  TryGetRegister (const std::string &, Word & value) const override { value = 0; return true; }
-    bool  TryPeek        (Word, Byte & value) const override               { value = 0; return true; }
-
-    bool  TryResolveSymbol (const std::string & name, Word & address) const override
-    {
-        if (_strnicmp (name.c_str(), "DISK.", 5) == 0 || _strnicmp (name.c_str(), "P.", 2) == 0)
-        {
-            address = 0;
-            return true;
-        }
-
-        if (m_snapshot.symbols == nullptr)
-        {
-            return false;
-        }
-
-        for (const SymbolInfo & symbol : m_snapshot.symbols->symbols)
-        {
-            if (_stricmp (symbol.name.c_str(), name.c_str()) == 0)
-            {
-                address = symbol.address;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-private:
-    const DebuggerViewSnapshot  & m_snapshot;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerViewState::IsBuildDue
 //
 //  A change between running and paused is due at once: a breakpoint that just
@@ -275,7 +224,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
                            :                               std::string ("--");
 
         snapshot.watches.push_back ({ entry.id, entry.address, value, entry.enabled, entry.basicName, entry.expression,
-                                      entry.isValueEditable });
+                                      entry.isValueEditable, entry.error });
     }
 
     for (const WatchEntry & entry : pointers.entries)
@@ -1924,8 +1873,9 @@ std::string DebuggerViewState::GetPokeLine (Word address, Byte value)
 //  DebuggerViewState::GetWatchError
 //
 //  A BASIC variable, and anything once the machine is stopped in a program,
-//  is left to the session; otherwise the text must parse, and each
-//  identifier in it must be a register or one of the snapshot's symbols.
+//  is left to the session; otherwise the text must parse. A name no symbol
+//  has yet is a watch all the same, which reads as the symbol once symbols
+//  define it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1936,9 +1886,7 @@ std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snaps
     std::string                        error;
     BasicReference                     reference;
     Expression                         parsed;
-    int32_t                            value   = 0;
     HRESULT                            hr      = S_OK;
-    SnapshotExpressionContext          context (snapshot);
 
 
 
@@ -1962,12 +1910,6 @@ std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snaps
     }
 
     hr = DebugExpressionEvaluator::Parse (text, parsed, error);
-
-    if (SUCCEEDED (hr))
-    {
-        hr = DebugExpressionEvaluator::Evaluate (parsed, context, value, error, EvaluationMode::Check);
-    }
-
     return FAILED (hr) ? error : std::string();
 }
 

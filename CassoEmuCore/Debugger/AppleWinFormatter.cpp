@@ -606,7 +606,7 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
         }
         else if (!entry.expression.empty() && !entry.value.has_value())
         {
-            text += " = --";
+            text += entry.error.empty() ? std::string (" = --") : " = -- (" + entry.error + ")";
         }
         else if (entry.value.has_value() && data.kind == WatchListKind::ZeroPage)
         {

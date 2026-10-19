@@ -135,6 +135,14 @@ void DxuiEditableGrid::RebuildRows()
         addRow[c + 1].text = m_pending[c];
     }
 
+    if (!m_noteText.empty() && m_noteColumn >= 0 && m_noteColumn < (int) m_columns.size() &&
+        ((size_t) m_noteColumn >= m_pending.size() || m_pending[(size_t) m_noteColumn].empty()))
+    {
+        addRow[(size_t) m_noteColumn + 1].text = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].argb = m_noteArgb;
+        addRow[(size_t) m_noteColumn + 1].tip  = m_noteText;
+    }
+
     if (!isTyped && first >= 0)
     {
         Cell  & hint = addRow[(size_t) first + 1];
@@ -706,6 +714,24 @@ int DxuiEditableGrid::GetNextEmptyColumn (int column) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiEditableGrid::SetAddRowNote
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::SetAddRowNote (int column, const std::wstring & text, uint32_t argb)
+{
+    m_noteColumn = column;
+    m_noteText   = text;
+    m_noteArgb   = argb;
+    RebuildRows();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiEditableGrid::ReportError
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1113,6 +1139,22 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
 
     if (IsEditing())
     {
+        //  A one-field hint row adds on Enter or Tab, and an empty field
+        //  takes neither.
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_TAB) && !ev.shift && m_isAddOnFirst && IsAddRow (m_editRow))
+        {
+            std::wstring  text = m_editor.GetText();
+
+            if (text.find_first_not_of (L" \t") != std::wstring::npos)
+            {
+                m_isTabCommit = ev.vk == VK_TAB;
+                (void) CommitAddRow (text, -1);
+                m_isTabCommit = false;
+            }
+
+            return true;
+        }
+
         if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN)
         {
             if (IsAddRow (m_editRow))

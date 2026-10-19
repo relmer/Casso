@@ -1163,6 +1163,7 @@ JsonValue ReplyJson::MakeWatchList (const WatchListData & data)
         {
             members.emplace_back ("expression", MakeString (entry.expression));
             members.emplace_back ("valueText",  entry.valueText.has_value() ? MakeString (*entry.valueText) : JsonValue (nullptr));
+            members.emplace_back ("error",      entry.error.empty() ? JsonValue (nullptr) : MakeString (entry.error));
         }
 
         entries.push_back (JsonValue (std::move (members)));

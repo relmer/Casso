@@ -202,6 +202,7 @@ struct WatchEntry
     std::string                 expression;
     std::optional<std::string>  valueText;
     bool                        isValueEditable = true;
+    std::string                 error;      // why a typed watch has no value
 };
 
 struct WatchListData

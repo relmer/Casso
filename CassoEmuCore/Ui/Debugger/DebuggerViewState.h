@@ -160,6 +160,7 @@ struct DebuggerViewSnapshot
         std::string  basicName;
         std::string  expression;
         bool         isValueEditable = true;
+        std::string  error;
     };
 
     //  One thing the instruction at the PC, or the one just executed, reads or
@@ -666,10 +667,9 @@ public:
                                                              std::optional<int> watchId, std::optional<int> autoIndex,
                                                              int column, const std::string & typed, CommandMode mode);
 
-    //  Why text typed as a watch cannot be one, against the snapshot's
-    //  symbols, or empty when it can. The session checks it again when the
-    //  watch is added; with this check, a typing mistake stays in the edit
-    //  box.
+    //  Why text typed as a watch cannot be one, or empty when it can. The
+    //  session checks it again when the watch is added; with this check, a
+    //  typing mistake stays in the edit box.
     static std::string  GetWatchError (const DebuggerViewSnapshot & snapshot, const std::string & typed);
 
     //  What puts a watch edit back (FR-097), from the snapshot as it stood

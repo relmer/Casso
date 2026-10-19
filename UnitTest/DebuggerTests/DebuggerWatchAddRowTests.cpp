@@ -92,6 +92,13 @@ namespace DebuggerWatchAddRowTests
         using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::TakeSnapshot;
 
+        void  Press (WPARAM vk)
+        {
+            DxuiKeyEvent  down = { DxuiKeyEventKind::Down, vk, false, false, false, false };
+
+            (void) (OnKey (down) || RouteMappedKey (down));
+        }
+
         void  Type (const std::wstring & text)
         {
             for (wchar_t ch : text)
@@ -164,35 +171,115 @@ namespace DebuggerWatchAddRowTests
         }
 
 
-        //  An entry that is nothing known stays in the edit, with the reason
-        //  above the list, and nothing runs.
-        TEST_METHOD (AnEntryThatCannotBeWatchedStaysInTheEditWithItsError)
+        //  A window with an empty watch grid whose columns have widths, as after a
+        //  paint, and its add row's edit begun.
+        static DxuiEditableGrid * BeginAdd (WatchWindow & window, DxuiDpiScaler & scaler)
         {
-            CassoTheme                          theme    = CassoTheme::MakeSkeuomorphic();
-            QuietDebuggerHost                   host;
-            WatchWindow                         window   (theme, host);
-            DxuiDpiScaler                       scaler;
-            auto                                snapshot = std::make_shared<DebuggerViewSnapshot>();
-            int                                 last     = 0;
+            DxuiEditableGrid  * grid = nullptr;
 
 
 
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot>());
+
+            grid = static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList());
+            grid->SetGridColumns ({ { { L"ID",    40, false, DxuiTextHAlign::Left }, false, false },
+                                    { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
+                                    { { L"Value", 200, false, DxuiTextHAlign::Left }, true, false } });
+
+            window.GetWatchesPane().BeginEdit (grid->GetRowCount() - 1, 0);
+            return grid;
+        }
+
+
+        //  Text that does not parse stays in the edit, with the reason in the
+        //  add row's Value cell, and nothing runs.
+        TEST_METHOD (TextThatDoesNotParseStaysInTheEditWithItsReasonInTheValueCell)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            WatchWindow         window (theme, host);
+            DxuiDpiScaler       scaler;
+            DxuiEditableGrid  * grid   = BeginAdd (window, scaler);
+
+
+
+            window.Type  (L"1+");
+            window.Press (VK_RETURN);
+
+            Assert::IsTrue   (host.commands.empty(), L"a watch was added");
+            Assert::IsTrue   (grid->IsEditing(), L"the edit closed");
+            Assert::AreEqual (1, grid->GetEditColumn(), L"the edit moved off the name");
+            Assert::IsFalse  (grid->GetCellsOfRow (grid->GetDataRowCount())[3].text.empty(), L"no reason in the Value cell");
+        }
+
+
+        //  A name no symbol has yet is watched all the same: Enter adds it and
+        //  ends the edit.
+        TEST_METHOD (EnterOnANameAddsTheWatchAndEndsTheEdit)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            WatchWindow         window (theme, host);
+            DxuiDpiScaler       scaler;
+            DxuiEditableGrid  * grid   = BeginAdd (window, scaler);
+
+
+
+            window.Type  (L"asdf");
+            window.Press (VK_RETURN);
+
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"the watch was not added");
+            Assert::IsTrue   (host.commands.front().find ("asdf") != std::string::npos);
+            Assert::IsFalse  (grid->IsEditing(), L"the edit is still open");
+        }
+
+
+        //  An empty name takes neither Enter nor Tab.
+        TEST_METHOD (AnEmptyNameTakesNeitherEnterNorTab)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            WatchWindow         window (theme, host);
+            DxuiDpiScaler       scaler;
+            DxuiEditableGrid  * grid   = BeginAdd (window, scaler);
+
+
+
+            window.Press (VK_TAB);
+            window.Press (VK_RETURN);
+
+            Assert::IsTrue   (host.commands.empty());
+            Assert::IsTrue   (grid->IsEditing(), L"the edit closed");
+            Assert::AreEqual (1, grid->GetEditColumn(), L"Tab moved to the value");
+        }
+
+
+        //  Tab on a name adds the watch, and its value is edited once a
+        //  snapshot lists it.
+        TEST_METHOD (TabOnANameAddsTheWatchAndEditsItsValue)
+        {
+            CassoTheme                        theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                 host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            DxuiEditableGrid                * grid     = BeginAdd (window, scaler);
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            window.Type  (L"kbd");
+            window.Press (VK_TAB);
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"the watch was not added");
+
+            snapshot->watches = { { 0, 0xC000, "0000", true, "", "KBD" } };
             window.TakeSnapshot (snapshot);
-            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"ID",    40, false, DxuiTextHAlign::Left }, false, false },
-                                                                                    { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
-                                                                                    { { L"Value", 120, false, DxuiTextHAlign::Left }, true, false } });
 
-            last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
-            window.GetWatchesPane().BeginEdit (last, 0);
-            window.Type (L"asdf");
-            window.GetWatchesPane().EndEdit (true);
-
-            Assert::IsTrue   (host.commands.empty(), L"a watch of nothing was added");
-            Assert::IsTrue   (static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->IsEditing(), L"the edit closed");
-            Assert::IsFalse  (window.GetWatchesPane().GetError().empty(), L"no reason shown");
+            Assert::IsTrue   (grid->IsEditing(), L"the value is not edited");
+            Assert::AreEqual (0, grid->GetEditRow());
+            Assert::AreEqual (2, grid->GetEditColumn(), L"not the value");
         }
 
 
