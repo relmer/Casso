@@ -259,6 +259,26 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Can two identical execution breakpoints be set? -> A: No: a second at the same address with the same condition is an error whose message has the first one's number (FR-291).
 - Q: Why does the debugger window not come back where it was left? -> A: Its placements were inside the prefs' "window" object, which a build without the debugger rewrites from its own fields. They are a top-level key now, which such a build passes through; the old place is read too (FR-292).
 
+### Session 2026-10-19 (second review of the day)
+
+- Q: How is the breakpoint dialog sized and checked? -> A: To the rows its type has, growing and shrinking as a disk event's fields change. Every check runs in the dialog before it closes, a duplicate and a condition that does not parse among them, with the reason in the dialog; none goes to the console (FR-293).
+- Q: How is the New drop-down arranged? -> A: Execution's types at the top level with no heading; Memory, BASIC and Hardware as cascading submenus. BRK, BRK on interrupt and Reading uninitialized memory have no fields, so they are set at once from the menu, with a check while on, and no dialog opens (FR-294).
+- Q: Where is the condition's info tip and how long does it stay? -> A: Just after the end of the label's text, its focus ring clear of the field. Opened by the pointer it stays while the pointer is over the icon or the tip; opened by the keys it stays while the icon has the focus. Its text states that the condition must be true for the breakpoint to stop, what it can use, and two or three interesting examples (FR-295).
+- Q: Which breakpoints take a condition? -> A: Every type that is a row of the table (FR-296).
+- Q: How do Memory > Address and Value lay out and work? -> A: Read and Write on one line; Value takes a range and stops when any byte in it becomes the value (FR-297).
+- Q: How do placeholders read? -> A: In italics everywhere, without "such as": "A hex track number. Optional." The Address field's placeholder fits (FR-298).
+- Q: What else changes in the disk event fields? -> A: Volume is decimal, as DOS displays it; the prologue marks are labeled fields for the address and data prologues and a 13-sector check, present only for the events that use them, in place of the Advanced box (FR-299).
+- Q: Are the session's own stops listed? -> A: Yes: reading uninitialized memory, a video line and a beam position are rows of the Breakpoints pane, and each stops the machine (FR-300).
+- Q: Which window is active after the breakpoint dialog closes? -> A: The debugger window, whatever was active while the dialog was open (FR-301).
+- Q: What is the BASIC error breakpoint called? -> A: "BASIC errors" (FR-302).
+- Q: What changes in the watch grid? -> A: Selected text in an edit stays inside the box; Up and Down move between rows, and Tab moves to the next editable cell, a register's value among them (FR-303).
+- Q: What changes in the heat map ranges? -> A: The delete question reads "Delete the range set X?" with Delete and Cancel buttons that have accelerators; Reset counts is a glyph; the tips of the view and Leave out drop-downs state plainly what each does; and a new row is checked only when its edit moves off the row, with a plain message when it has no end (FR-304).
+- Q: How is heat drawn in the disassembly and elsewhere? -> A: As color, not blocks (FR-305).
+- Q: What changes in the Profiler pane? -> A: An opcode with no operand has a blank mode; the progress bar is drawn over the pane, centered, moving nothing; Reset and Save are glyphs; the totals are a line above the list, not a row of it, with the span the profile covers; the cycles column is as wide as its numbers; and the label reads "Show:" (FR-306).
+- Q: What does Escape do while a menu is open? -> A: It closes the menu, in every pane (FR-307).
+- Q: What does a click on the history timeline do? -> A: It moves the machine there, stopped (FR-308).
+- Q: What changes in the MMU panel? -> A: Every run is labeled, I/O and Not written included; the strips are wider and the list sits further right; and each soft switch has a tip with what it does (FR-309).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3358,6 +3378,44 @@ run something, switch back to the //e: it is where it was left.
 - **FR-292**: The debugger window's placements MUST be stored under a
   top-level key of the preferences, and placements stored inside "window"
   by earlier builds MUST be read.
+- **FR-293**: The breakpoint dialog MUST be sized to the rows its type has,
+  and every check MUST run in the dialog before it closes, with the reason
+  there and nothing in the console.
+- **FR-294**: The New drop-down MUST list Execution's types at its top level
+  and Memory, BASIC and Hardware as cascading submenus. BRK, BRK on
+  interrupt and Reading uninitialized memory MUST be set from the menu at
+  once, with a check while on.
+- **FR-295**: The condition's info tip MUST follow the label's text, and MUST
+  stay open while the pointer is over the icon or the tip, or while the icon
+  has the focus when the keys opened it.
+- **FR-296**: Every breakpoint type that is a row of the table MUST take a
+  condition.
+- **FR-297**: Memory > Address MUST have Read and Write on one line, and a
+  value breakpoint MUST take a range.
+- **FR-298**: Placeholders MUST be in italics and MUST fit their fields.
+- **FR-299**: A disk event's volume MUST be decimal, and its prologue marks
+  MUST be labeled fields present only for the events that use them.
+- **FR-300**: Reading uninitialized memory, a video line and a beam position
+  MUST be rows of the Breakpoints pane, and each MUST stop the machine.
+- **FR-301**: Closing the breakpoint dialog MUST activate the debugger window.
+- **FR-302**: The BASIC error breakpoint MUST be called "BASIC errors".
+- **FR-303**: In the watch grid, selected text MUST stay inside the edit box,
+  Up and Down MUST move between rows, and Tab MUST move to the next editable
+  cell.
+- **FR-304**: The heat map range set's delete question MUST have Delete and
+  Cancel buttons with accelerators; Reset counts MUST be a glyph; and a new
+  range row MUST be checked only when its edit moves off the row.
+- **FR-305**: Heat MUST be drawn as color, not blocks.
+- **FR-306**: In the Profiler pane, an opcode with no operand MUST have a
+  blank mode; the progress bar MUST be drawn over the pane without moving
+  its content; Reset and Save MUST be glyphs; the totals and the span the
+  profile covers MUST be a line above the list; and the label MUST read
+  "Show:".
+- **FR-307**: Escape MUST close an open menu in any pane.
+- **FR-308**: After a click on the history timeline, the machine MUST be
+  stopped where it moved.
+- **FR-309**: The MMU panel MUST label every run, and each soft switch MUST
+  have a tip with what it does.
 
 ### Key Entities
 
