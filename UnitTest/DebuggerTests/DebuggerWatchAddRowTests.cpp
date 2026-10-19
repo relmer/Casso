@@ -147,12 +147,13 @@ namespace DebuggerWatchAddRowTests
 
             //  The window sizes the Watch column to its text as it draws; with
             //  nothing drawn here it is given a width so its cell has a place.
-            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
+            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"ID",    40, false, DxuiTextHAlign::Left }, false, false },
+                                                                                    { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
                                                                                     { { L"Value", 120, false, DxuiTextHAlign::Left }, true, false } });
 
             Assert::AreEqual (2, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, then the add row");
             last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
-            Assert::AreEqual (std::wstring (L"Add new watch"), window.GetWatchesPane().GetList()->GetCellsOfRow (last)[1].text);
+            Assert::AreEqual (std::wstring (L"Add new watch"), window.GetWatchesPane().GetList()->GetCellsOfRow (last)[2].text);
 
             window.GetWatchesPane().BeginEdit (last, 0);
             window.Type (L"400");
@@ -184,11 +185,12 @@ namespace DebuggerWatchAddRowTests
             window.TakeSnapshot (snapshot);
 
             grid = static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList());
-            grid->SetGridColumns ({ { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
+            grid->SetGridColumns ({ { { L"ID",    40, false, DxuiTextHAlign::Left }, false, false },
+                                    { { L"Watch", 120, false, DxuiTextHAlign::Left }, true, true },
                                     { { L"Value", 120, false, DxuiTextHAlign::Left }, true, false } });
 
             last = grid->GetDataRowCount();
-            Assert::IsTrue (grid->GetCellTextRectPx (last, 1, cell), L"the add row's cell is in view");
+            Assert::IsTrue (grid->GetCellTextRectPx (last, 2, cell), L"the add row's cell is in view");
 
             click.button      = DxuiMouseButton::Left;
             click.positionDip = { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
@@ -223,13 +225,16 @@ namespace DebuggerWatchAddRowTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
             window.TakeSnapshot (snapshot);
-            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"Watch", 160, false, DxuiTextHAlign::Left }, true, true },
+            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"ID",    40, false, DxuiTextHAlign::Left }, false, false },
+                                                                                    { { L"Watch", 160, false, DxuiTextHAlign::Left }, true, true },
                                                                                     { { L"Value", 200, false, DxuiTextHAlign::Left }, true, false } });
 
             Assert::AreEqual (4, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
             Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check.value_or (false), L"the watch is on");
-            Assert::AreEqual (std::wstring (L"ZP1 $06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
-            Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[2].text);
+            Assert::AreEqual (std::wstring (L"0"),   window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].text, L"the watch's number is its ID");
+            Assert::AreEqual (std::wstring (L"ZP1"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
+            Assert::AreEqual (std::wstring (L"$06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[2].text);
+            Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[3].text);
             Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check.value_or (true), L"the pointer is off");
 
             Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (0, 1, check), L"the watch's check is in view");

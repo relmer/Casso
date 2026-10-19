@@ -44,11 +44,11 @@ WatchesPane::~WatchesPane() = default;
 //
 //  WatchesPane::Configure
 //
-//  A click on a watch's cell edits it in place: the expression on the left,
-//  the value on the right. A watch's or a zero-page pointer's check enables
-//  or disables it. The value runs to the pane's edge, as Visual Studio's
-//  does, so the Automatic and Watches headings span the pane rather than the
-//  columns. A double-click on the BASIC variables heading expands or
+//  The ID column has "Auto" for what the instruction touches, a watch's
+//  number, or ZPn for a zero-page pointer, with the check that enables or
+//  disables a watch or pointer. A click on a watch's cell edits it in place:
+//  the expression, then the value, which runs to the pane's edge, as Visual
+//  Studio's does. A double-click on the BASIC variables heading expands or
 //  collapses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,14 +85,15 @@ void WatchesPane::Configure()
         }
     });
 
-    m_grid->SetGridColumns ({ { { L"Watch", 0, false, DxuiTextHAlign::Left }, true, true },
-                              { { L"Value", 0, true,  DxuiTextHAlign::Left }, true, false } });
+    m_grid->SetGridColumns ({ { { L"ID",    0, false, DxuiTextHAlign::Left }, false, false },
+                              { { L"Watch", 0, false, DxuiTextHAlign::Left }, true,  true  },
+                              { { L"Value", 0, true,  DxuiTextHAlign::Left }, true,  false } });
 
     m_grid->SetAddRowText      (L"Add new watch");
     m_grid->SetEditorHwnd      (m_host.GetOwnerHwnd());
     m_grid->SetEditorMaxLength (kEditMaxChars);
-    m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring &) { return CommitCell (row, column, text); });
-    m_grid->SetOnAddRow        ([this] (const std::vector<std::wstring> & texts, std::wstring &) { return AddWatch (texts[0]); });
+    m_grid->SetOnCommitCell    ([this] (int row, int column, const std::wstring & text, std::wstring &) { return CommitCell (row, column - kFirstFieldColumn, text); });
+    m_grid->SetOnAddRow        ([this] (const std::vector<std::wstring> & texts, std::wstring &) { return AddWatch (texts[kFirstFieldColumn]); });
     m_grid->SetOnDeleteRow     ([this] (int) { RemoveSelected(); });
     m_grid->SetOnBeginEdit     ([this] (int row, int) { NoteEditBegun (row); });
 }
@@ -180,9 +181,6 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
     if (!snapshot.autoWatches.empty() || !basicAutos.empty())
     {
-        rows.push_back ({ MakeHeading (L"Automatic"), {}, true });
-        m_rows.push_back ({ RowKind::Heading, 0 });
-
         for (size_t i = 0; i < snapshot.autoWatches.size(); i++)
         {
             const DebuggerViewSnapshot::AutoWatchLine & line  = snapshot.autoWatches[i];
@@ -210,29 +208,28 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
             //  What the instruction touches is not the user's to change, so
             //  only the value edits.
-            rows.push_back ({ { name, value }, {}, false, { true, false } });
+            rows.push_back ({ { MakeIdCell (L"Auto"), name, value }, {}, false, { true, true, false } });
             m_rows.push_back ({ RowKind::Automatic, (int) i });
         }
 
         //  The BASIC variables the statement being run uses.
         for (const BasicWatches::Item & item : basicAutos)
         {
-            rows.push_back ({ { BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
+            rows.push_back ({ { MakeIdCell (L"Auto"), BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
             m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
-
-        rows.push_back ({ MakeHeading (L"Watches"), {}, true });
-        m_rows.push_back ({ RowKind::Heading, 0 });
     }
 
     for (const DebuggerViewSnapshot::WatchLine & watch : snapshot.watches)
     {
-        DxuiListView::Cell  name  = watch.basicName.empty() ? DxuiListView::Cell { std::format (L"#{} ${:04X}", watch.id, watch.address) }
+        DxuiListView::Cell  id    = MakeIdCell (std::to_wstring (watch.id));
+        DxuiListView::Cell  name  = watch.basicName.empty() ? DxuiListView::Cell { std::format (L"${:04X}", watch.address) }
                                                             : BasicWatches::MakeNameCell (watch.basicName);
         DxuiListView::Cell  value = { TextEncoding::NarrowToWide (watch.value) };
 
         //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
         //  one's address is in the color the code pane draws addresses in.
+        id.dim    = !watch.enabled;
         name.dim  = !watch.enabled;
         value.dim = !watch.enabled;
         name.tip  = watch.enabled ? L"" : ColorLegend::GetText (ColorLegend::Meaning::DisabledWatch);
@@ -240,9 +237,6 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
         if (watch.enabled && watch.basicName.empty())
         {
             name.colorRanges = DebuggerTextColors::GetOperandRanges (name.text, m_host.GetTextColors());
-
-            //  The #n before it is the watch's number, not an immediate.
-            std::erase_if (name.colorRanges, [&name] (const auto & range) { return std::get<0> (range) < (int) name.text.find (L' '); });
         }
 
         if (changes.IsChanged (std::format ("W:{}", watch.id)))
@@ -255,11 +249,11 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         //  The expression edits as its address or BASIC name; a BASIC watch's
         //  value is the program's to change.
-        name.check = watch.enabled;
-        rows.push_back ({ { name, value },
-                          { watch.basicName.empty() ? std::format (L"{:04X}", watch.address) : TextEncoding::NarrowToWide (watch.basicName),
+        id.check = watch.enabled;
+        rows.push_back ({ { id, name, value },
+                          { std::wstring(), watch.basicName.empty() ? std::format (L"{:04X}", watch.address) : TextEncoding::NarrowToWide (watch.basicName),
                             TextEncoding::NarrowToWide (watch.value) },
-                          false, { false, !watch.basicName.empty() } });
+                          false, { true, false, !watch.basicName.empty() } });
         m_rows.push_back ({ RowKind::Manual, watch.id });
     }
 
@@ -272,13 +266,15 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         for (const DebuggerViewSnapshot::WatchLine & pointer : snapshot.zeroPagePointers)
         {
-            DxuiListView::Cell  name  = { std::format (L"ZP{} ${:02X}", pointer.id, pointer.address) };
+            DxuiListView::Cell  id    = MakeIdCell (std::format (L"ZP{}", pointer.id));
+            DxuiListView::Cell  name  = { std::format (L"${:02X}", pointer.address) };
             DxuiListView::Cell  value = { TextEncoding::NarrowToWide (pointer.value) };
 
-            name.check = pointer.enabled;
-            name.dim   = !pointer.enabled;
-            value.dim  = !pointer.enabled;
-            rows.push_back ({ { name, value }, {}, true });
+            id.check  = pointer.enabled;
+            id.dim    = !pointer.enabled;
+            name.dim  = !pointer.enabled;
+            value.dim = !pointer.enabled;
+            rows.push_back ({ { id, name, value }, {}, true });
             m_rows.push_back ({ RowKind::ZeroPage, pointer.id });
         }
     }
@@ -292,7 +288,7 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         for (const BasicWatches::Item & item : m_isBasicVariablesExpanded ? BasicWatches::GetAllItems (*snapshot.basic) : std::vector<BasicWatches::Item>())
         {
-            rows.push_back ({ { BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
+            rows.push_back ({ { DxuiListView::Cell { L"" }, BasicWatches::MakeNameCell (item.name), { TextEncoding::NarrowToWide (item.value) } }, {}, true });
             m_rows.push_back ({ RowKind::BasicItem, 0 });
         }
     }
@@ -330,9 +326,32 @@ std::vector<DxuiListView::Cell> WatchesPane::MakeHeading (const std::wstring & t
     label.argb       = theme->HeadingForeground();
     label.face       = DxuiTheme::kBodyFace;
     label.background = fill;
+    label.spansRow   = true;
     blank.background = fill;
 
-    return { label, blank };
+    return { label, blank, blank };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchesPane::MakeIdCell
+//
+//  The ID column's text in the muted color, so the watch itself reads first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Cell WatchesPane::MakeIdCell (const std::wstring & text) const
+{
+    DxuiListView::Cell  cell = { text };
+
+
+
+    cell.argb = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ForegroundMuted() : 0;
+    return cell;
 }
 
 
@@ -354,7 +373,7 @@ void WatchesPane::BeginEdit (int row, int column)
         column = 0;
     }
 
-    if (m_grid->BeginEdit (row, column))
+    if (m_grid->BeginEdit (row, column + kFirstFieldColumn))
     {
         m_host.FocusControl (m_grid);
     }

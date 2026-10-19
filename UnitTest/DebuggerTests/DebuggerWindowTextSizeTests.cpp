@@ -830,8 +830,8 @@ namespace DebuggerTests
             Build (window);
             window.TakeSnapshot (before);
 
-            //  Row 0 is the heading; row 1 is register A.
-            window.GetWatchesPane().BeginEdit (1, 1);
+            //  Row 0 is register A.
+            window.GetWatchesPane().BeginEdit (0, 1);
             window.TakeSnapshot (after);
             window.Type (L"42");
             window.GetWatchesPane().EndEdit (true);

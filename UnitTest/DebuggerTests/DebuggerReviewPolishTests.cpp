@@ -516,18 +516,21 @@ namespace DebuggerReviewPolishTests
             line.label = "A";
             line.value = "00";
             line.key   = "A";
-            snapshot->autoWatches = { line };
+            snapshot->autoWatches      = { line };
+            snapshot->zeroPagePointers = { { 1, 0x0006, "$0300: A9 41 8D 00", true } };
 
             window.Build();
             window.TakeSnapshot (snapshot);
 
-            const DxuiListView::Cell & heading = window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1];
+            Assert::AreEqual (std::wstring (L"Auto"), window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].text, L"an automatic watch has no heading, but Auto as its ID");
+
+            const DxuiListView::Cell & heading = window.GetWatchesPane().GetList()->GetCellsOfRow (1)[1];
 
             last = window.GetWatchesPane().GetList()->GetRowCount() - 1;
 
-            const DxuiListView::Cell & add = window.GetWatchesPane().GetList()->GetCellsOfRow (last)[1];
+            const DxuiListView::Cell & add = window.GetWatchesPane().GetList()->GetCellsOfRow (last)[2];
 
-            Assert::AreEqual (std::wstring (L"Automatic"), heading.text);
+            Assert::AreEqual (std::wstring (L"Zero-page pointers"), heading.text);
             Assert::IsTrue   (heading.face != nullptr && std::wstring (heading.face) == DxuiTheme::kBodyFace, L"the heading in the body face");
             Assert::AreNotEqual ((uint32_t) theme.HoverBackground(), heading.background, L"not the strong hover band");
             Assert::IsTrue   (DxuiColor::ComputeContrastRatio (heading.background, theme.ContentBackground()) <

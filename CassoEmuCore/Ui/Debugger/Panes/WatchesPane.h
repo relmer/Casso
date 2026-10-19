@@ -72,9 +72,11 @@ private:
         bool         isOpen = false;
     };
 
-    static constexpr int  kEditMaxChars = 64;
+    static constexpr int  kEditMaxChars     = 64;
+    static constexpr int  kFirstFieldColumn = 1;      // the ID column comes before the watch's cells
 
     std::vector<DxuiListView::Cell>  MakeHeading    (const std::wstring & title) const;
+    DxuiListView::Cell               MakeIdCell     (const std::wstring & text) const;
     void                             ApplyRows      (const DebuggerViewSnapshot & snapshot);
     void                             RemoveSelected ();
 
