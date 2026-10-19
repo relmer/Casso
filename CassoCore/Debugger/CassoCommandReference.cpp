@@ -31,7 +31,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "FRAME",       H::RunningAndStepping, "FRAME [count]",                                  "Run one video frame, or count of them"                                                   },
     { "G",           H::RunningAndStepping, "G [addr [skip[,len|:last]]]",                    "Run, stopping at addr or when PC leaves the skip range"                                  },
     { "GG",          H::RunningAndStepping, "GG [addr [skip[,len|:last]]]",                   "Run at full speed, stopping as G does"                                                   },
-    { "G-",          H::RunningAndStepping, "G-",                                             "Run backward through the recorded history to the latest breakpoint or watchpoint"        },
+    { "G-",          H::RunningAndStepping, "G-",                                             "Run backward through the recorded history to the latest breakpoint"                      },
     { "GU-",         H::RunningAndStepping, "GU-",                                            "Step back out to the JSR that called the current subroutine"                             },
     { "HISTORY",     H::RunningAndStepping, "HISTORY [ON|OFF|SAVE file|cycle [n]]",           "List the instruction trace, turn it on or off, or save it"                               },
     { "JSR",         H::RunningAndStepping, "JSR addr",                                       "Call a subroutine and run until it returns"                                              },
@@ -52,7 +52,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "TF",          H::RunningAndStepping, "TF [ON|OFF] [file] [V]",                         "Turn tracing to a file on or off, or with ON or OFF set it; V adds the video position"    },
 
     { "BP",          H::Breakpoints,        "BP addr[,len|:last]|file:line [IF expr]",        "Set an execution breakpoint, or one on PC with < > = !"                                  },
-    { "BPA",         H::Breakpoints,        "BPA addr[,len|:last]",                           "Set an execution breakpoint and a memory watchpoint"                                     },
+    { "BPA",         H::Breakpoints,        "BPA addr[,len|:last]",                           "Set an execution breakpoint and a data breakpoint"                                       },
     { "BPBASIC",     H::Breakpoints,        "BPBASIC line",                                   "Stop as an Applesoft line begins"                                                        },
     { "BPBASICVAR",  H::Breakpoints,        "BPBASICVAR name",                                "Stop after the Applesoft statement that changes a variable or array element"             },
     { "BPBEAM",      H::Breakpoints,        "BPBEAM line cycle|VBL",                          "Stop when the beam reaches a scanline and cycle, or vertical blank"                      },

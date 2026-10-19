@@ -195,8 +195,8 @@ const wchar_t * ColorLegend::GetText (Meaning meaning)
     case Meaning::HeatPc:             return L"PC";
     case Meaning::HeatStack:          return L"Stack pointer";
     case Meaning::HeatBreakpoint:     return L"Breakpoint";
-    case Meaning::HeatReadWatch:      return L"Read watchpoint, or the read half of a read and write one";
-    case Meaning::HeatWriteWatch:     return L"Write watchpoint, or the write half of a read and write one";
+    case Meaning::HeatReadWatch:      return L"Read data breakpoint, or the read half of a read and write one";
+    case Meaning::HeatWriteWatch:     return L"Write data breakpoint, or the write half of a read and write one";
     case Meaning::HeadMotorOff:       return L"Head, with the motor off";
     case Meaning::HeadMoving:         return L"Head stepping to a track";
     case Meaning::HeadSettled:        return L"Head settled on its track";

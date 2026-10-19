@@ -280,7 +280,7 @@ namespace DebuggerTests
 
             rig.target.Stop (MakeStop (StopReason::Watchpoint, 0x0313));
             Assert::AreEqual (std::string ("VALUE = 7"), rig.sink.stops.at (0).condition);
-            Assert::AreEqual (std::string ("Watchpoint #0: Write $07 to $0400 by $0310 (was $06), IF VALUE = 7 is $1"),
+            Assert::AreEqual (std::string ("Data breakpoint #0: Write $07 to $0400 by $0310 (was $06), IF VALUE = 7 is $1"),
                               AppleWinFormatter::FormatStop (rig.sink.stops[0]));
         }
 

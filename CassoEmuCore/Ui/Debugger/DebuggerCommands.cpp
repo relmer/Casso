@@ -50,7 +50,7 @@ const std::vector<DebuggerCommands::Row> & DebuggerCommands::GetRows()
         { kStepBackInto,    L"Step back into",   s_kGlyphDrawn,       L"Go back one instruction, into a call",                 DxuiToolbar::Kind::Command, 2, false, true  },
         { kStepBackOver,    L"Step back over",   s_kGlyphDrawn,       L"Go back one instruction, over a call",                 DxuiToolbar::Kind::Command, 2, false, true  },
         { kStepBackOut,     L"Step back out",    s_kGlyphDrawn,       L"Go back to the call that entered the current routine", DxuiToolbar::Kind::Command, 2, false, true  },
-        { kReverseContinue, L"Reverse continue", s_kGlyphDrawn,       L"Run backward to the latest breakpoint or watchpoint",  DxuiToolbar::Kind::Command, 2, false, true  },
+        { kReverseContinue, L"Reverse continue", s_kGlyphDrawn,       L"Run backward to the latest breakpoint",                 DxuiToolbar::Kind::Command, 2, false, true  },
         { kShowNext,        L"Show next",        s_kGlyphShowNext,    L"Bring the code panes to the next statement",           DxuiToolbar::Kind::Command, 3, false, true  },
         { kTrace,           L"Trace",            s_kGlyphTrace,       L"Record every instruction the machine runs",            DxuiToolbar::Kind::Toggle,  3, true,  false },
         { kLoadFile,        L"Load file into memory", s_kGlyphLoadFile, L"Load a file into memory, as BLOAD does",            DxuiToolbar::Kind::Command, 4, false, true  },

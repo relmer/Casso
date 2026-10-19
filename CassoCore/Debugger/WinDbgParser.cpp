@@ -982,7 +982,7 @@ bool WinDbgParser::TryBuildWatchpoint (
 
         if (command.text != "BEFORE" && command.text != "AFTER")
         {
-            build.error = "A watchpoint's mode is BEFORE or AFTER.";
+            build.error = "A data breakpoint's mode is BEFORE or AFTER.";
             return false;
         }
     }

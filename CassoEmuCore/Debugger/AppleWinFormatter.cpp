@@ -49,7 +49,7 @@ void AppleWinFormatter::Format (Reply & reply)
 
 std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 {
-    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint",
+    static constexpr const char * kReasons[] = { "Breakpoint", "Data breakpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint",
                                                  "BASIC step", "BASIC error" };
     std::string                   text;
 
@@ -68,12 +68,12 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 
         if (hit.mode == WatchMode::Before)
         {
-            text = std::format ("Watchpoint #{}: {} of ${:04X} by ${:04X}, before the access",
+            text = std::format ("Data breakpoint #{}: {} of ${:04X} by ${:04X}, before the access",
                                 hit.id, hit.access == WatchAccess::Read ? "read" : "write", hit.address, hit.accessPc);
         }
         else
         {
-            text = std::format ("Watchpoint #{}: {} ${:02X} {} ${:04X} by ${:04X}",
+            text = std::format ("Data breakpoint #{}: {} ${:02X} {} ${:04X} by ${:04X}",
                                 hit.id,
                                 hit.access == WatchAccess::Read ? "Read" : "Write",
                                 hit.value,

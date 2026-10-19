@@ -61,7 +61,7 @@ reaches everything the Monitor has no command for:
 | `addr: b b ...`, `set addr b b ...` | deposit bytes |
 | `move first.last dest` | copy a range |
 | `l addr`, `addrl`, `l` | disassemble from an address, or continue |
-| `bp addr`, `bp first.last`, `bp` | set an execution breakpoint, or list the breakpoints and watchpoints |
+| `bp addr`, `bp first.last`, `bp` | set an execution breakpoint, or list the breakpoints and data breakpoints |
 | `bpd addr r\|w\|rw`, `bpi addr r\|w\|rw` | stop on a read, a write or either; `bpi` takes an I/O address, $C000-$C0FF |
 | `nobp id`, `nobp addr` | clear a breakpoint by id, or the execution breakpoint at an address |
 | `watch addr`, `watch first.last`, `watch`, `nowatch id` | add, list and clear watches; a range adds one watch per address |
@@ -374,7 +374,7 @@ BPMW 400 BEFORE IF Y = 2
 
 The expression is evaluated only when the address or the access hits. A false
 one neither stops the machine nor counts a hit; a true one stops, and the stop
-line shows the expression and its value. On a watchpoint, `ACCESS` and `VALUE`
+line shows the expression and its value. On a data breakpoint, `ACCESS` and `VALUE`
 are the address and byte of the access. An expression is checked as it is set,
 so an unknown symbol or a read of an I/O address is an error then, not at the
 first hit.
@@ -384,7 +384,7 @@ other write.
 
 ## Breakpoint name
 
-After `BPNAME 3 "Loop top"`, breakpoint or watchpoint #3 has that name, and
+After `BPNAME 3 "Loop top"`, breakpoint or data breakpoint #3 has that name, and
 `BPL`, the Breakpoints pane's Name column and the channel use it in place of
 the default; `BPNAME 3` with no name returns it to the default. In the pane,
 F2, a double-click on the Name cell or Rename on the row's menu edits the name
@@ -409,7 +409,7 @@ A debug project, one for each program, has the debugger's configuration:
 - the disassembly options, the heat map's options and range sets, and the
   Disk II and input logs' filters and columns.
 
-Each breakpoint, watchpoint, watch and bookmark comes back under the number it
+Each breakpoint, data breakpoint, watch and bookmark comes back under the number it
 had, and the next one you add takes the number it would have taken before.
 The key scheme, the theme, the text size and the history settings are yours
 rather than a program's, and are the same for every project. The program is
@@ -492,7 +492,7 @@ a disk breakpoint as they treat any other, and the Breakpoints pane has "Disk
 event..." on its New menu.
 
 **The stop.** A disk breakpoint stops at the instruction boundary after the event,
-as a watchpoint does; an RWTS or driver breakpoint stops before the routine
+as a data breakpoint does; an RWTS or driver breakpoint stops before the routine
 runs. The report has the event, the track, sector and volume of the field, the
 address and data checksums as stored and as computed, the three nibbles after
 the data field, the head's position, the motor, and the addresses of the
@@ -505,7 +505,7 @@ Disk breakpoint #3: sector read, track $11 (17) sector $00 volume $FE, drive 1, 
   head on track 17 (quarter track $44), motor on; read by $B925, address field found by $B94F, data field by $B8E1
 ```
 
-A breakpoint or watchpoint that stops at the same boundary has its own reason,
+A breakpoint or data breakpoint that stops at the same boundary has its own reason,
 with the disk report after its line.
 
 **Which reads count.** RWTS and the boot ROM search for a sector by reading every
@@ -1097,7 +1097,7 @@ The Breakpoints pane's **New** drop-down also has **Read of memory never
 written...**, **Video line...**, **Beam position...** and **Execute and
 watch...**, which run `BRKUNINIT ON`, `BPV`, `BPBEAM` and `BPA`. The first
 three are stops of the session, not rows of the pane, so the console's reply
-is the only sign of them; `BPA` adds a breakpoint and a watchpoint, each a row.
+is the only sign of them; `BPA` adds a breakpoint and a data breakpoint, each a row.
 
 Each row of the Watches pane has a check box, which runs `WE` or `WD`. Under
 **Zero-page pointers** the pane lists the zero-page pointers: each zero-page
@@ -1177,12 +1177,12 @@ pointer's byte on page $01 in cyan; in a bank's view each is outlined only
 when that bank holds it, so aux RAM's view marks the stack only while the
 zero page and stack are switched to aux. Every enabled breakpoint is
 outlined: one on an address in the disassembly's breakpoint red, a read
-watchpoint in green and a write watchpoint in orange, a watchpoint on both
+data breakpoint in green and a write data breakpoint in orange, a data breakpoint on both
 with both rings. An address with a symbol is tinted toward the symbol color.
 Each outline lies around the cell like the hover frame, and a second one on
 the same cell sits inside the first. The tip lists what marks the cell: "PC",
-"Stack pointer", "Breakpoint #2", "Read watchpoint #3", "Write watchpoint
-#4", "Read and write watchpoint #5" and "Symbol COUT". Breakpoints and
+"Stack pointer", "Breakpoint #2", "Read data breakpoint #3", "Write data breakpoint
+#4", "Read and write data breakpoint #5" and "Symbol COUT". Breakpoints and
 symbols are on the CPU's addresses, so in a RAM bank's view a breakpoint at
 $D100 marks both language card banks.
 
@@ -1373,7 +1373,7 @@ the next power cycle; a power cycle with the pane open (or with
 before anything writes them, such as the power-up byte at $03F4, and a
 program may probe memory the same way.
 
-`BRKUNINIT ON` stops the machine after such a read, as a watchpoint does:
+`BRKUNINIT ON` stops the machine after such a read, as a data breakpoint does:
 "Read before written: $00 from $2000 by $0300" gives the value, the
 address read and the instruction that read it. `BRKUNINIT OFF` turns it
 off, and `BRKUNINIT` alone reports the setting, whether the map is tracking
@@ -1527,8 +1527,8 @@ The debugger has no Help menu.
   dimmer, reads in green and writes in red; with Blend on, magenta for
   self-modifying code; a cell tinted toward the symbol color for an address
   with a symbol; outlines in the PC's yellow for the PC, cyan for the stack
-  pointer, the breakpoint red for a breakpoint, green for a read watchpoint
-  and orange for a write watchpoint; violet for a read before written, and
+  pointer, the breakpoint red for a breakpoint, green for a read data breakpoint
+  and orange for a write data breakpoint; violet for a read before written, and
   rose for a write that changed a value in the **Changed** view.
 - **Disk head**: the head muted while the motor is off, flashing as it steps,
   and settling to the accent on its track; a lamp lit while its phase magnet

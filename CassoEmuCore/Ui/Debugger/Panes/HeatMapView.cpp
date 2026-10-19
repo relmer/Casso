@@ -1943,9 +1943,9 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
         switch (breakpoint.kind)
         {
         case BreakKind::Execute: text += std::format (L"\nBreakpoint #{}",                breakpoint.id); break;
-        case BreakKind::Read:    text += std::format (L"\nRead watchpoint #{}",           breakpoint.id); break;
-        case BreakKind::Write:   text += std::format (L"\nWrite watchpoint #{}",          breakpoint.id); break;
-        default:                 text += std::format (L"\nRead and write watchpoint #{}", breakpoint.id); break;
+        case BreakKind::Read:    text += std::format (L"\nRead data breakpoint #{}",           breakpoint.id); break;
+        case BreakKind::Write:   text += std::format (L"\nWrite data breakpoint #{}",          breakpoint.id); break;
+        default:                 text += std::format (L"\nRead and write data breakpoint #{}", breakpoint.id); break;
         }
     }
 

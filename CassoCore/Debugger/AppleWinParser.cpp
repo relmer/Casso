@@ -961,7 +961,7 @@ bool AppleWinParser::TryParseWatchpointArguments (const Arguments & args, DebugC
 
         if (command.text != "BEFORE" && command.text != "AFTER")
         {
-            error = "A watchpoint's mode is BEFORE or AFTER.";
+            error = "A data breakpoint's mode is BEFORE or AFTER.";
             return false;
         }
     }
