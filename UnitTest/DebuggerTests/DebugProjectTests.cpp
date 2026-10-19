@@ -107,6 +107,24 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, second.rig.session.GetSymbolLoads().size());
         }
 
+        //  A project saved with the same breakpoint twice restores it once,
+        //  and the second is no failure.
+        TEST_METHOD (ASavedDuplicateBreakpointRestoresOnce)
+        {
+            std::unique_ptr<SessionRig>    rigHeap  = std::make_unique<SessionRig>();
+            SessionRig                   & session  = *rigHeap;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+
+
+
+            project.engineScript = { "BPC *", "BP C283", "BP C283" };
+            project.ApplyEngine (session.rig.session, failures);
+
+            Assert::IsTrue   (failures.empty(), failures.empty() ? L"" : TextEncoding::NarrowToWide (failures.front()).c_str());
+            Assert::AreEqual ((size_t) 1, session.rig.session.GetBreakpoints().GetAll().size());
+        }
+
         //  The session's other state comes back too: a symbol table turned
         //  off, the CD directory, the stopwatch, the profiler, the command
         //  mode and the trip count's mark; and the window's states by name.

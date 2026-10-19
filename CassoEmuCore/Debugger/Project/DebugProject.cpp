@@ -151,7 +151,9 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
 
 
 
-        if (reply.status != CommandStatus::Ok)
+        //  A project saved before a duplicate was an error may list the same
+        //  breakpoint twice; the second is dropped quietly.
+        if (reply.status != CommandStatus::Ok && reply.error.label != "breakpoint already set")
         {
             failures.push_back (std::format ("{}: {}", line, reply.error.detail.empty() ? reply.error.label : reply.error.detail));
         }
