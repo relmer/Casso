@@ -95,6 +95,7 @@ private:
 
 public:
     const DebugHandlerSet &  GetHandlers () const { return m_handlers; }
+    DebugHandlerSet &        GetHandlers ()       { return m_handlers; }
 
 private:
     ReverseStopTest        m_reverseStopTest { m_session };

@@ -41,7 +41,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "P",           H::RunningAndStepping, "P [count]",                                      "Step over"                                                                               },
     { "P-",          H::RunningAndStepping, "P-",                                             "Step back over, taking a whole subroutine call as one step"                              },
     { "PAUSE",       H::RunningAndStepping, "PAUSE",                                          "Stop the running machine"                                                                },
-    { "PROFILE",     H::RunningAndStepping, "PROFILE [ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]]", "Profile where execution goes, by routine or by address"                                  },
+    { "PROFILE",     H::RunningAndStepping, "PROFILE [ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY [seconds|ALL]]", "Profile where execution goes, by routine or by address; HISTORY builds it from recorded history" },
     { "RCC",         H::RunningAndStepping, "RCC",                                            "Reset the cycle counter that CYCLES PART reads"                                          },
     { "RTS",         H::RunningAndStepping, "RTS [count]",                                    "Step out of the current subroutine"                                                      },
     { "SKIP",        H::RunningAndStepping, "SKIP [CLEAR|[-]name|addr[.last]]",               "Show or change the routines stepping goes over"                                          },

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
@@ -862,8 +863,9 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
 //
 //  ExecutionHandlers::Profile
 //
-//  PROFILE ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]. A bare PROFILE
-//  lists.
+//  PROFILE ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY
+//  [seconds|ALL]. A bare PROFILE lists. HISTORY builds the profile of the
+//  last seconds of history, or of all of it, in the background.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -916,6 +918,10 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
         m_profilePending.reset();
         reply.data = MessageData { { "Profile reset." } };
     }
+    else if (verb == "HISTORY" && extra.empty())
+    {
+        BuildProfileFromHistory (session, argument, reply);
+    }
     else if ((verb.empty() || verb == "LIST") && extra.empty() && TryGetProfileList (argument, list))
     {
         BuildProfile (session, list, data);
@@ -923,8 +929,82 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     }
     else
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR|ROUTINES|TREE] or SAVE [file].");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR|ROUTINES|TREE], SAVE [file] or HISTORY [seconds|ALL].");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::BuildProfileFromHistory
+//
+//  The seconds are decimal, counted back from the machine's position at the
+//  machine's own clock; ALL or none is all of history.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BuildProfileFromHistory (DebugSession & session, const std::string & argument, Reply & reply)
+{
+    uint64_t     now       = session.GetTarget().GetCycleCount();
+    uint64_t     from      = 0;
+    uint64_t     seconds   = 0;
+    std::string  error;
+    HRESULT      hr        = S_OK;
+    bool         isAll     = argument.empty() || SymbolTable::ToUpper (argument) == "ALL";
+
+
+
+    if (!m_historyProfiler)
+    {
+        reply.SetError (CommandStatus::NotAvailable, "no history", "This session has no history to profile.");
+        return;
+    }
+
+    if (!isAll && (argument.find_first_not_of ("0123456789") != std::string::npos ||
+                   std::from_chars (argument.data(), argument.data() + argument.size(), seconds).ec != std::errc()))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} is not a number of seconds.", argument));
+        return;
+    }
+
+    from = isAll ? 0 : now - std::min (now, (uint64_t) ((double) seconds * HistoryStatus::kCyclesPerSecond));
+    hr   = m_historyProfiler (from, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "no profile", error);
+        return;
+    }
+
+    reply.data = MessageData { { isAll ? std::string ("Profiling all of history.") : std::format ("Profiling the last {} seconds of history.", seconds) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::InstallProfile
+//
+//  The counts as they came from history; whether profiling is on is the
+//  profile's own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::InstallProfile (const ProfileCounts & counts)
+{
+    bool  isOn = m_profile.IsOn();
+
+
+
+    m_profile  = counts.table;
+    m_routines = counts.routines;
+    m_profile.SetOn (isOn);
+    m_profilePending.reset();
 }
 
 

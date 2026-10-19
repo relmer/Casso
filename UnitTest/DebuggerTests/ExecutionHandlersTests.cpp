@@ -2,6 +2,7 @@
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 #include "HandlerTestRig.h"
 #include "Core/TextEncoding.h"
 
@@ -42,6 +43,33 @@ namespace DebuggerTests
             }
 
             return lines;
+        }
+
+
+
+        //  PROFILE HISTORY calls the shell's build from the cycle that many
+        //  seconds back, at the machine's clock, or from the start for ALL;
+        //  with no shell history it is not available.
+        TEST_METHOD (ProfileHistory_AsksForABuildFromTheCycleTheSecondsGoBack)
+        {
+            Rig                       rig;
+            std::optional<uint64_t>   from;
+
+
+
+            Assert::IsTrue   (rig.Run ("PROFILE HISTORY 10").status == CommandStatus::NotAvailable, L"a build with no shell history");
+
+            rig.target.cycleCount = 20'000'000;
+            rig.handlers.SetHistoryProfiler ([&from] (uint64_t fromCycle, std::string &) { from = fromCycle; return S_OK; });
+
+            rig.RunOk ("PROFILE HISTORY 10");
+            Assert::IsTrue   (from.has_value());
+            Assert::AreEqual ((uint64_t) (20'000'000 - 10 * HistoryStatus::kCyclesPerSecond), *from);
+
+            rig.RunOk ("PROFILE HISTORY ALL");
+            Assert::AreEqual ((uint64_t) 0, *from, L"ALL is from the start");
+
+            rig.RunFails ("PROFILE HISTORY TEN", "invalid arguments");
         }
 
 

@@ -2084,7 +2084,8 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
     live.history     = GetHistoryStatus();
     live.dataBlocks  = session.GetDataBlocks().GetAll();
     live.stepFilters = session.GetStepFilter().GetEntries();
-    live.isProfiling = m_debugController->GetHandlers().GetExecution().IsProfiling();
+    live.isProfiling     = m_debugController->GetHandlers().GetExecution().IsProfiling();
+    live.profileProgress = m_eventLogs.GetProfileHistory().GetProgress();
 
     //  The profile is the execution handlers', and a real in it is written by
     //  the ROM's own routine, so it is read only while the machine is paused.
@@ -2407,6 +2408,11 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     //  The trace's older instructions are history's, rebuilt at once while
     //  the machine is stopped and in the background while it runs.
     m_eventLogs.GetTraceHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
+    m_eventLogs.GetProfileHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
+    m_debugController->GetHandlers().GetExecution().SetHistoryProfiler ([this] (uint64_t fromCycle, std::string & error)
+    {
+        return m_eventLogs.GetProfileHistory().Build (fromCycle, error);
+    });
     m_debugController->GetTarget().GetTrace().SetHistory (&m_eventLogs.GetTraceHistory());
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
 
@@ -2595,6 +2601,20 @@ void ShellDebugger::ServiceEventLogs()
     if (m_eventLogs.Pump())
     {
         m_isDebugViewDirty = true;
+    }
+
+    //  A profile built from history takes the place of the profile; while one
+    //  builds, each snapshot has how far it is.
+    {
+        ProfileCountsPtr  counts;
+
+        if (m_eventLogs.GetProfileHistory().Pump (counts) && m_debugController != nullptr)
+        {
+            m_debugController->GetHandlers().GetExecution().InstallProfile (*counts);
+            m_isDebugViewDirty = true;
+        }
+
+        m_isDebugViewDirty = m_isDebugViewDirty || m_eventLogs.GetProfileHistory().GetProgress().has_value();
     }
 
     isDisk  = m_eventLogs.TakeDelta (disk);

@@ -86,6 +86,7 @@ void DebugEventLogs::Start (ReverseController * controller)
     m_video.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_sound.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_trace.Start (controller);
+    m_profile.Start (controller);
 
     m_feed.AttachToCaches (m_machine,
                            { &m_disk.cache, &m_input.cache, &m_video.cache, &m_sound.cache },
@@ -142,6 +143,7 @@ void DebugEventLogs::Stop()
     m_input.wantedBefore = 0;
 
     m_trace.Stop();
+    m_profile.Stop();
 
     m_controller = nullptr;
     m_history.Attach (nullptr);

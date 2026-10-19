@@ -321,6 +321,10 @@ struct DebuggerViewSnapshot
     //  step filter's entries.
     std::optional<ProfileData>            profile;
     std::optional<ProfileData>            profileByAddress;
+
+    //  How much of a profile built from history is done, 0 to 1, while one
+    //  builds.
+    std::optional<double>                 profileProgress;
     bool                                  isProfiling = false;
     std::vector<DataBlockEntry>           dataBlocks;
     std::vector<StepFilterEntry>          stepFilters;
