@@ -87,6 +87,7 @@ namespace DebuggerCommandTipTests
         using DebuggerWindow::GetCommandBar;
         using DebuggerWindow::GetMenuBar;
         using DebuggerWindow::GetTooltip;
+        using DebuggerWindow::TickTooltip;
     };
 
 
@@ -186,6 +187,35 @@ namespace DebuggerCommandTipTests
             Move (window, GetCenter (brk));
 
             Assert::IsFalse (window.GetTooltip().WantsTick(), L"a tip started while the menu is open");
+        }
+
+
+        //  A menu opened by a press the window did not route, as a pane bar's
+        //  drop-down is, has no tip over it once the tip's delay runs out.
+        TEST_METHOD (ATipDueWhileAMenuIsOpenNeverAppears)
+        {
+            CassoTheme       theme = CassoTheme::MakeSkeuomorphic();
+            TipHost          host;
+            TipWindow        window (theme, host);
+            DxuiDpiScaler    scaler;
+            RECT             brk   = {};
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, kWidth, kHeight }, scaler);
+
+            Assert::IsTrue (window.GetCommandBar()->TryGetEntryRect (DebuggerCommands::kPause, brk));
+
+            Move (window, GetCenter (brk));
+            Assert::IsTrue (window.GetTooltip().WantsTick(), L"no tip pending over Break");
+
+            window.GetMenuBar()->Open (0, false);
+            (void) window.TickTooltip ((int64_t) GetTickCount64() + 10000);
+
+            Assert::IsTrue  (window.GetMenuBar()->IsOpen(), L"File did not open");
+            Assert::IsFalse (window.GetTooltip().IsVisible(), L"the tip appeared over the open menu");
         }
     };
 }

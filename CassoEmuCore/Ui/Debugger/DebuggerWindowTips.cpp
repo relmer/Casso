@@ -120,6 +120,37 @@ bool DebuggerWindow::IsAnyMenuOpen() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::TickTooltip
+//
+//  A tip requested before a press opened a drop-down's menu would otherwise
+//  appear over the menu once its delay ran out, so it is hidden while any
+//  menu is open. True while the tip is fading or waiting to appear.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::TickTooltip (int64_t now)
+{
+    if (IsAnyMenuOpen())
+    {
+        m_tooltip.HideImmediate();
+        return false;
+    }
+
+    if (!m_tooltip.WantsTick())
+    {
+        return false;
+    }
+
+    m_tooltip.Tick (now);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::UpdateTooltip
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -1076,11 +1076,7 @@ void DebuggerWindow::RenderFrame()
         isAnimating = true;
     }
 
-    if (m_tooltip.WantsTick())
-    {
-        m_tooltip.Tick (now);
-        isAnimating = true;
-    }
+    isAnimating = TickTooltip (now) || isAnimating;
 
     m_operandTips->FollowPointer();
     m_floating->Tick (now);

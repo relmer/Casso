@@ -617,7 +617,8 @@ void FloatingPanes::InvalidateAll()
 
 void FloatingPanes::Tick (int64_t now)
 {
-    RECT  client = {};
+    RECT  client     = {};
+    bool  isMenuOpen = IsAnyMenuOpen();
 
 
 
@@ -642,7 +643,11 @@ void FloatingPanes::Tick (int64_t now)
             tip->SetViewportSize (client.right - client.left, client.bottom - client.top);
         }
 
-        if (tip->WantsTick())
+        if (isMenuOpen)
+        {
+            tip->HideImmediate();
+        }
+        else if (tip->WantsTick())
         {
             tip->Tick (now);
         }

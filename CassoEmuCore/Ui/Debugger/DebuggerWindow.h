@@ -305,8 +305,10 @@ protected:
     //  and that none shows while a menu is open.
     const DxuiTooltip &  GetTooltip    () const { return m_tooltip; }
 
-    //  Protected so a test can see whether a menu is open.
+    //  Protected so a test can see whether a menu is open, and run the tip's
+    //  timer as a frame does.
     bool                 IsAnyMenuOpen () const override;
+    bool                 TickTooltip   (int64_t now);
 
     //  Protected so a test can read the status bar as a frame leaves it, and
     //  work its zoom popup as a click does.
