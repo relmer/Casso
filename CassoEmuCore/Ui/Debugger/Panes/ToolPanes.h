@@ -6,7 +6,9 @@
 
 class DebuggerPaneFrame;
 class FlameGraphView;
+class ProfileProgress;
 class ProfileTimeline;
+class ToolbarLabelEntry;
 
 
 
@@ -164,6 +166,16 @@ public:
 
     static constexpr int  kViewCount = 5;
 
+    //  The periods in the Show profile drop-down: the words PROFILE HISTORY
+    //  takes, and the drop-down's.
+    struct Period
+    {
+        const char     * words;
+        const wchar_t  * label;
+    };
+
+    static const std::vector<Period> &  GetPeriods ();
+
     explicit ProfilerPane (IDebuggerPaneHost & host);
     ~ProfilerPane() override;
 
@@ -171,6 +183,12 @@ public:
     bool                                IsOn       () const { return m_isOn; }
     const std::optional<ProfileData> &  GetProfile () const { return m_byOpcode; }
     void                                SetView    (View view);
+
+    //  A choice in the Show profile drop-down, by its index in GetPeriods,
+    //  which runs PROFILE HISTORY for it; and whether a profile is building,
+    //  with the progress bar up.
+    void                                ShowPeriod (size_t period);
+    bool                                IsBuilding () const { return m_isBuilding; }
 
     //  The bar's commands, as last built.
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetCommands () const { return m_commands; }
@@ -206,6 +224,10 @@ private:
 
     PaneBarSlot                                  m_bar;
     ProfileTimeline                            * m_timeline    = nullptr;
+    ProfileProgress                            * m_progress    = nullptr;
+    std::unique_ptr<ToolbarLabelEntry>           m_showLabel;
+    size_t                                       m_period      = 1;
+    bool                                         m_isBuilding  = false;
     FlameGraphView                             * m_flameGraph  = nullptr;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
     View                                         m_view        = View::Opcodes;

@@ -193,7 +193,7 @@ namespace DebuggerToolPanesTests
 
             cells = ProfilerPane::GetCells (std::nullopt, ProfilerPane::View::Opcodes, false);
             Assert::AreEqual ((size_t) 1, cells.size());
-            Assert::IsTrue   (cells[0][0].text.starts_with (L"Profiling is off."), L"how to start, while off");
+            Assert::IsTrue   (cells[0][0].text.starts_with (L"Choose a period"), L"how to build one");
             Assert::IsTrue   (ProfilerPane::GetCells (std::nullopt, ProfilerPane::View::Opcodes, true)[0][0].text.starts_with (L"Pause"), L"pause to read it, while on");
 
             profile.isOn         = true;
@@ -244,16 +244,18 @@ namespace DebuggerToolPanesTests
 
 
 
-        //  Profile on the bar turns profiling on, and off once the snapshot
-        //  has it on; the drop-down's label follows the view.
-        TEST_METHOD (TheProfilerBarTurnsProfilingOnAndOff)
+        //  A choice in the Show profile drop-down runs PROFILE HISTORY for its
+        //  period; the drop-down reads the period, and the progress bar is up while
+        //  the snapshot has the build under way. The view drop-down's label
+        //  follows the view.
+        TEST_METHOD (ShowProfileBuildsTheProfileOfAPeriodFromHistory)
         {
             CassoTheme                    theme    = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost             host;
             ToolWindow                    window   (theme, host);
             DxuiDpiScaler                 scaler;
             auto                          snapshot = std::make_shared<DebuggerViewSnapshot>();
-            std::shared_ptr<DxuiCommand>  profile;
+            std::shared_ptr<DxuiCommand>  period;
             std::shared_ptr<DxuiCommand>  view;
 
 
@@ -265,25 +267,29 @@ namespace DebuggerToolPanesTests
 
             for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerPane().GetCommands())
             {
-                if (command->label == L"Profile")   { profile = command; }
-                if (command->label == L"Opcodes")   { view    = command; }
+                if (command->label == L"Last 60 s") { period = command; }
+                if (command->label == L"Opcodes")   { view   = command; }
+                Assert::AreNotEqual (std::wstring (L"Profile"), command->label, L"a Profile switch");
             }
 
-            Assert::IsNotNull (profile.get());
+            Assert::IsNotNull (period.get());
             Assert::IsNotNull (view.get());
-            Assert::IsFalse   (profile->isChecked());
 
-            profile->dispatch();
-            Assert::IsTrue (host.commands == std::vector<std::string> { "PROFILE ON" });
+            window.GetProfilerPane().ShowPeriod (0);
+            Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE HISTORY 10" });
+            Assert::AreEqual (std::wstring (L"Last 10 s"), period->labelText());
 
-            snapshot              = std::make_shared<DebuggerViewSnapshot>();
-            snapshot->isProfiling = true;
+            snapshot                  = std::make_shared<DebuggerViewSnapshot>();
+            snapshot->profileProgress = 0.5;
             window.TakeSnapshot (snapshot);
+            Assert::IsTrue (window.GetProfilerPane().IsBuilding(), L"no progress bar while it builds");
 
-            Assert::IsTrue (profile->isChecked());
-            profile->dispatch();
-            Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE ON", "PROFILE OFF" });
-            Assert::AreEqual (std::wstring (L"Opcodes"), view->labelText());
+            snapshot = std::make_shared<DebuggerViewSnapshot>();
+            window.TakeSnapshot (snapshot);
+            Assert::IsFalse (window.GetProfilerPane().IsBuilding(), L"the progress bar outlasted the build");
+
+            window.GetProfilerPane().SetView (ProfilerPane::View::Routines);
+            Assert::AreEqual (std::wstring (L"Routines"), view->labelText());
         }
 
 

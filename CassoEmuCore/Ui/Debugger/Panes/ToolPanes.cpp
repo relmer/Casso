@@ -8,17 +8,19 @@
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/FlameGraphView.h"
+#include "Ui/Debugger/Panes/ProfileProgress.h"
 #include "Ui/Debugger/Panes/ProfileTimeline.h"
+#include "Ui/Debugger/ToolbarLabelEntry.h"
 
 
 
 
 
 //  The profiler bar's entries.
-static constexpr int  s_kProfileOn    = 1;
-static constexpr int  s_kProfileReset = 2;
-static constexpr int  s_kProfileSave  = 3;
-static constexpr int  s_kProfileView  = 4;
+static constexpr int  s_kProfileReset  = 2;
+static constexpr int  s_kProfileSave   = 3;
+static constexpr int  s_kProfileView   = 4;
+static constexpr int  s_kProfilePeriod = 5;
 
 
 
@@ -673,6 +675,7 @@ void ProfilerPane::CreateControls()
     ToolListPane::CreateControls();
 
     m_timeline   = m_host.GetControlParent().CreateChild<ProfileTimeline>();
+    m_progress   = m_host.GetControlParent().CreateChild<ProfileProgress>();
     m_flameGraph = m_host.GetControlParent().CreateChild<FlameGraphView>();
     m_bar.Create();
 
@@ -734,7 +737,10 @@ void ProfilerPane::AddToDock (DxuiDockSite & dock)
 
     m_frame = std::make_unique<DebuggerPaneFrame> (m_title);
     m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
+    m_frame->AddPart (m_progress,      [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (ProfileProgress::kHeightDip); },
+                      [this] { return m_isBuilding; });
     m_frame->AddPart (m_timeline,      [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (ProfileTimeline::kHeightDip); });
+    m_frame->SetPartInsetDip (m_progress, 4);
     m_frame->AddPart (m_list,          nullptr, [isFlame] { return !isFlame(); });
     m_frame->AddPart (m_flameGraph,    nullptr, isFlame);
     m_frame->SetPartInsetDip (m_timeline,   4);
@@ -755,7 +761,7 @@ void ProfilerPane::AddToDock (DxuiDockSite & dock)
 
 std::vector<IDxuiControl *> ProfilerPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_timeline, m_list, m_flameGraph, m_bar.GetBar() };
+    return { m_bar.GetSlot(), m_progress, m_timeline, m_list, m_flameGraph, m_bar.GetBar() };
 }
 
 
@@ -904,6 +910,20 @@ std::optional<Word> ProfilerPane::GetRowAddress (const std::optional<ProfileData
 
 void ProfilerPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
+    //  The progress bar comes and goes with a build, so the pane is laid out
+    //  again.
+    if (snapshot.profileProgress.has_value() != m_isBuilding)
+    {
+        m_isBuilding = snapshot.profileProgress.has_value();
+
+        if (m_frame != nullptr)
+        {
+            m_frame->Relayout();
+        }
+    }
+
+    m_progress->SetShare (snapshot.profileProgress.value_or (0.0));
+
     if (snapshot.profile.has_value() || snapshot.isProfiling != m_isOn)
     {
         m_isOn = snapshot.isProfiling;
@@ -1015,11 +1035,19 @@ void ProfilerPane::SetBarEntries()
 
     m_commands.clear();
 
-    command            = add (s_kProfileOn, L"Profile", L"Count each instruction and its cycles as the machine runs", DxuiToolbar::Kind::Toggle, 0, [this]
+    m_showLabel = std::make_unique<ToolbarLabelEntry> (L"Show profile:");
+
     {
-        RunProfile (m_isOn ? "OFF" : "ON");
-    });
-    command->isChecked = [this] { return m_isOn; };
+        DxuiToolbar::Entry  label;
+
+        label.command       = m_showLabel->GetCommand();
+        label.custom        = m_showLabel.get();
+        label.neverOverflow = true;
+        entries.push_back (std::move (label));
+    }
+
+    command            = add (s_kProfilePeriod, L"Last 60 s", L"Build the profile of a period of history", DxuiToolbar::Kind::DropDown, 0, [] {});
+    command->labelText = [this] { return std::wstring (GetPeriods()[m_period].label); };
 
     add (s_kProfileReset, L"Reset",   L"Start the counts over",            DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); });
     add (s_kProfileSave,  L"Save...", L"Save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { Save(); });
@@ -1056,6 +1084,61 @@ void ProfilerPane::SetViewMenu()
     }
 
     m_bar.GetBar()->SetDropDownItems (s_kProfileView, std::move (views));
+
+    views.clear();
+
+    for (size_t period = 0; period < GetPeriods().size(); period++)
+    {
+        views.push_back (DxuiPopupMenuItem::ForCommand (DebuggerMenuCommand::Make (GetPeriods()[period].label, m_period == period,
+                                                                                  [this, period] { ShowPeriod (period); })));
+    }
+
+    m_bar.GetBar()->SetDropDownItems (s_kProfilePeriod, std::move (views));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetPeriods
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<ProfilerPane::Period> & ProfilerPane::GetPeriods()
+{
+    static const std::vector<Period>  periods =
+    {
+        { "HISTORY 10",  L"Last 10 s"           },
+        { "HISTORY 60",  L"Last 60 s"           },
+        { "HISTORY 300", L"Last 5 min"          },
+        { "HISTORY ALL", L"Since history start" },
+    };
+
+
+
+    return periods;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::ShowPeriod
+//
+//  The profile of the period, built from history in the background; the
+//  progress bar is up until it is in.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::ShowPeriod (size_t period)
+{
+    m_period = std::min (period, GetPeriods().size() - 1);
+    RunProfile (GetPeriods()[m_period].words);
+    m_host.Repaint();
 }
 
 
@@ -1168,13 +1251,12 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
     if (!profile.has_value())
     {
         cells.push_back (MakeNote (isOn ? L"Pause the machine to read the profile."
-                                        : L"Profiling is off. Turn on Profile to count each instruction as the machine runs."));
+                                        : L"Choose a period in Show profile to build a profile from history."));
         return cells;
     }
 
-    cells.push_back (MakeNote (std::format (L"Profiling {}: {} instructions, {} cycles, {} page crossings, {} branches taken.",
-                                            profile->isOn ? L"on" : L"off", profile->instructions, profile->cycles,
-                                            profile->pageCross, profile->branchTaken)));
+    cells.push_back (MakeNote (std::format (L"{} instructions, {} cycles, {} page crossings, {} branches taken.",
+                                            profile->instructions, profile->cycles, profile->pageCross, profile->branchTaken)));
 
     if (view == View::Addresses)
     {
