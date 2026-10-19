@@ -904,7 +904,8 @@ bool AppleWinParser::IsMnemonicToken (const std::string & token)
 //
 //  AppleWinParser::TryParseValueBreakpoint
 //
-//  BPMV addr value: stop when a write leaves addr holding value.
+//  BPMV addr[,len|:last] value: stop after a write sets a byte of the range to
+//  value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -917,12 +918,18 @@ bool AppleWinParser::TryParseValueBreakpoint (const Arguments & args, DebugComma
 
     if (args.tokens.size() != 2)
     {
-        error = "BPMV needs an address and a byte value.";
+        error = "BPMV needs an address or a range, and a byte value.";
         return false;
     }
 
-    if (!TryEvaluate (args.tokens[0], *args.context, command.a1, error) || !TryEvaluate (args.tokens[1], *args.context, value, error))
+    if (!TryParseRange (args.tokens[0], *args.context, command, error) || !TryEvaluate (args.tokens[1], *args.context, value, error))
     {
+        return false;
+    }
+
+    if (command.hasA2 && command.a2 < command.a1)
+    {
+        error = "The range ends before it starts or runs past $FFFF, so nothing could ever match it.";
         return false;
     }
 

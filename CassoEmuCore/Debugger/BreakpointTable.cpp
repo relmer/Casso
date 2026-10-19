@@ -53,19 +53,19 @@ int BreakpointTable::AddAddress (Word first, Word last, const Expression & condi
 //  BreakpointTable::AddMemoryValue
 //
 //  Matched on the bus's write path, through the watchpoint table, which
-//  watches the address's page while the entry is enabled.
+//  watches the range's pages while the entry is enabled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int BreakpointTable::AddMemoryValue (Word address, Byte value, const Expression & condition)
+int BreakpointTable::AddMemoryValue (Word first, Word last, Byte value, const Expression & condition)
 {
     Breakpoint  entry;
 
 
 
     entry.kind      = BreakpointKind::MemoryValue;
-    entry.first     = address;
-    entry.last      = address;
+    entry.first     = first;
+    entry.last      = last;
     entry.value     = value;
     entry.condition = condition;
     return Add (entry);
@@ -894,7 +894,7 @@ bool BreakpointTable::TryMatchWrite (
 
     for (Breakpoint & entry : m_entries)
     {
-        bool  isTarget = entry.enabled && entry.kind == BreakpointKind::MemoryValue && entry.first == address && entry.value == value;
+        bool  isTarget = entry.enabled && entry.kind == BreakpointKind::MemoryValue && address >= entry.first && address <= entry.last && entry.value == value;
 
 
 
@@ -978,7 +978,8 @@ bool BreakpointTable::IsStopOnWrite (
 
     for (const Breakpoint & entry : m_entries)
     {
-        bool  isTarget = entry.enabled && entry.stops && entry.kind == BreakpointKind::MemoryValue && entry.first == address && entry.value == value;
+        bool  isTarget = entry.enabled && entry.stops && entry.kind == BreakpointKind::MemoryValue && address >= entry.first && address <= entry.last &&
+                         entry.value == value;
 
 
 

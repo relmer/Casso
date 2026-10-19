@@ -598,9 +598,14 @@ WatchedPages WatchpointTable::GetWatchedPages() const
 
     for (const Breakpoint & entry : m_valueBreakpoints->GetAll())
     {
-        if (entry.enabled && entry.kind == BreakpointKind::MemoryValue)
+        if (!entry.enabled || entry.kind != BreakpointKind::MemoryValue)
         {
-            pages[entry.first >> kPageShift] = true;
+            continue;
+        }
+
+        for (int page = entry.first >> kPageShift; page <= (entry.last >> kPageShift); ++page)
+        {
+            pages[page] = true;
         }
     }
 

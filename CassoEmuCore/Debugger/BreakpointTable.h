@@ -76,7 +76,7 @@ public:
     explicit BreakpointTable (int & nextId);
 
     int   AddAddress       (Word first, Word last, const Expression & condition = {});
-    int   AddMemoryValue   (Word address, Byte value, const Expression & condition = {});
+    int   AddMemoryValue   (Word first, Word last, Byte value, const Expression & condition = {});
     int   AddOpcode        (Byte opcode);
     int   AddCondition     (const Expression & condition);
     int   AddBrk           ();

@@ -66,7 +66,7 @@ static constexpr CassoCommandReference::Entry  s_kEntries[] =
     { "BPL",         H::Breakpoints,        "BPL",                                            "List the breakpoints"                                                                    },
     { "BPM",         H::Breakpoints,        "BPM addr[,len|:last] [BEFORE|AFTER] [IF expr]",  "Stop on a read or write of memory"                                                       },
     { "BPMR",        H::Breakpoints,        "BPMR addr[,len|:last] [BEFORE|AFTER] [IF expr]", "Stop on a read of memory"                                                                },
-    { "BPMV",        H::Breakpoints,        "BPMV addr byte [IF expr]",                       "Stop when a write leaves addr holding byte"                                              },
+    { "BPMV",        H::Breakpoints,        "BPMV addr[,len|:last] byte [IF expr]",           "Stop when a write sets a byte of the range to byte"                                      },
     { "BPMW",        H::Breakpoints,        "BPMW addr[,len|:last] [BEFORE|AFTER] [IF expr]", "Stop on a write to memory"                                                               },
     { "BPR",         H::Breakpoints,        "BPR reg [op] value",                             "Stop when a register meets a condition"                                                  },
     { "BPSAVE",      H::Breakpoints,        "BPSAVE file",                                    "Save the breakpoints as a script"                                                        },

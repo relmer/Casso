@@ -251,7 +251,7 @@ namespace DebuggerTests
 
 
             table.Add (WatchAccess::Write, 0x0400, 0x0400, WatchMode::Before);
-            value = values.AddMemoryValue (0x0400, 0x41);
+            value = values.AddMemoryValue (0x0400, 0x0400, 0x41);
             table.SetValueBreakpoints (&values);
             table.SetContext (&context);
 

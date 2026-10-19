@@ -192,7 +192,7 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
     case BreakpointKind::Opcode:        return std::format ("BRKOP {:02X}", info.opcode) + clause;
     case BreakpointKind::Brk:           return "BRK ON" + clause;
     case BreakpointKind::Interrupt:     return "BRKINT ON" + clause;
-    case BreakpointKind::MemoryValue:   return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
+    case BreakpointKind::MemoryValue:   return std::format ("BPMV {} {:02X}", range, info.value.value_or (0)) + clause;
     case BreakpointKind::Disk:          return "BPDISK " + DiskBreakSpecText::FormatArguments (info.disk.value_or (DiskBreakSpec {})) + clause;
     case BreakpointKind::BasicLine:     return std::format ("BPBASIC {}", info.address) + clause;
     case BreakpointKind::BasicVariable: return "BPBASICVAR " + info.basicName + clause;
@@ -281,7 +281,7 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
     case BreakpointKind::Opcode:        return std::format ("opcode {:02X}", info.opcode);
     case BreakpointKind::Brk:           return "BRK";
     case BreakpointKind::Interrupt:     return "interrupt";
-    case BreakpointKind::MemoryValue:   return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
+    case BreakpointKind::MemoryValue:   return std::format ("write {}={:02X}", range, info.value.value_or (0));
     case BreakpointKind::Disk:          return "disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
     case BreakpointKind::BasicLine:     return std::format ("BASIC line {}", info.address);
     case BreakpointKind::BasicVariable: return "BASIC variable " + info.basicName;
@@ -520,8 +520,8 @@ void BreakpointHandlers::SetWatchpoint (DebugSession & session, const DebugComma
 //
 //  BreakpointHandlers::SetValue
 //
-//  BPMV addr value: a value breakpoint, which stops after a write that leaves
-//  addr holding value, reported as a watchpoint hit is.
+//  BPMV addr[,len|:last] value: a value breakpoint, which stops after a write
+//  sets a byte of the range to value, reported as a watchpoint hit is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -538,7 +538,7 @@ void BreakpointHandlers::SetValue (DebugSession & session, const DebugCommand & 
         return;
     }
 
-    id = session.GetBreakpoints().AddMemoryValue (command.a1, value, command.expression);
+    id = session.GetBreakpoints().AddMemoryValue (command.a1, command.hasA2 ? command.a2 : command.a1, value, command.expression);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
@@ -1523,7 +1523,7 @@ bool BreakpointHandlers::TryMakeEntry (
     case DebugVerb::SetValueBreakpoint:
         breakpoint.kind      = BreakpointKind::MemoryValue;
         breakpoint.first     = definition.a1;
-        breakpoint.last      = definition.a1;
+        breakpoint.last      = last;
         breakpoint.value     = definition.values.empty() ? (Byte) 0 : definition.values[0];
         breakpoint.condition = definition.expression;
         return true;

@@ -1305,7 +1305,8 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::Brk:       text = "on BRK";                                                                              break;
     case BreakpointKind::Interrupt: text = "on interrupt";                                                                        break;
     case BreakpointKind::MemoryValue:
-        text = std::format ("when ${:04X} becomes ${:02X}", breakpoint.address, breakpoint.value.value_or (0));
+        text = std::format ("when {}{} becomes ${:02X}", (breakpoint.last > breakpoint.address) ? "a byte of " : "", FormatAddress (breakpoint),
+                            breakpoint.value.value_or (0));
         break;
     case BreakpointKind::Disk:
         text = "on disk " + DescribeDisk (breakpoint);
