@@ -1737,12 +1737,12 @@ The owner's review of the Phase 44 build. Each task is a commit that builds and 
 ## Phase 46: Owner review, 2026-10-19 (FR-285 to FR-292)
 
 - [X] T948 Store the debugger window's placements under a top-level preferences key, reading the old place inside "window" too (CassoEmuCore/Config/GlobalUserPrefs.cpp, UnitTest/UiTests/GlobalUserPrefsTests.cpp), FR-292
-- [ ] T949 Add a watch of an unknown name with an ID and its reason in the Value cell, read-only, resolving once symbols define it; leave only a parse error in the edit box, with its reason in the add row's Value cell (Debugger/Handlers/WatchHandlers.cpp, Panes/WatchesPane.cpp, DebuggerViewState::GetWatchError, Dxui/Widgets/DxuiEditableGrid.cpp), FR-285
-- [ ] T950 Make Enter on an add-row name add the watch and end the edit, Tab add it and edit the new watch's value, and an empty name take neither (Dxui/Widgets/DxuiEditableGrid.cpp, Panes/WatchesPane.cpp), FR-286
-- [ ] T951 [P] Write a watch that matched a symbol in the symbol's case (Debugger/Handlers/WatchHandlers.cpp), FR-287
-- [ ] T952 Check the add row's edit box corners on screen and fix the clipping (Dxui/Widgets/DxuiEditableGrid.cpp)
-- [ ] T953 Put the breakpoints bar's New drop-down back with the types under Execution, Memory, BASIC and Hardware headings; one Memory Address type with Read and Write checks; the dialog without a Type field, making only the type chosen (Panes/BreakpointsPane.cpp, BreakpointDialog.cpp, BreakpointBarCommands.cpp), FR-288
-- [ ] T954 Move the condition's info tip after its label and make it open on hover and click in the dialog (BreakpointDialog.cpp, Dxui dialog tick and mouse routing), FR-289
-- [ ] T955 [P] Hide a toolbar button's tip on a press (DebuggerWindow input, PaneBarSlot), FR-290
-- [ ] T956 [P] Make a duplicate execution breakpoint an error whose message has the first one's number (Debugger/Handlers/BreakpointHandlers.cpp), FR-291
+- [X] T949 Add a watch of an unknown name with an ID and its reason in the Value cell, read-only, resolving once symbols define it; leave only a parse error in the edit box, with its reason in the add row's Value cell (Debugger/Handlers/WatchHandlers.cpp, Panes/WatchesPane.cpp, DebuggerViewState::GetWatchError, Dxui/Widgets/DxuiEditableGrid.cpp), FR-285
+- [X] T950 Make Enter on an add-row name add the watch and end the edit, Tab add it and edit the new watch's value, and an empty name take neither (Dxui/Widgets/DxuiEditableGrid.cpp, Panes/WatchesPane.cpp), FR-286
+- [X] T951 [P] Write a watch that matched a symbol in the symbol's case (Debugger/Handlers/WatchHandlers.cpp), FR-287
+- [X] T952 Check the add row's edit box corners on screen and fix the clipping (Dxui/Widgets/DxuiEditableGrid.cpp)
+- [X] T953 Put the breakpoints bar's New drop-down back with the types under Execution, Memory, BASIC and Hardware headings; one Memory Address type with Read and Write checks; the dialog without a Type field, making only the type chosen (Panes/BreakpointsPane.cpp, BreakpointDialog.cpp, BreakpointBarCommands.cpp), FR-288
+- [X] T954 Move the condition's info tip after its label and make it open on hover and click in the dialog (BreakpointDialog.cpp, Dxui dialog tick and mouse routing), FR-289
+- [X] T955 [P] Hide a toolbar button's tip on a press (DebuggerWindow input, PaneBarSlot), FR-290
+- [X] T956 [P] Make a duplicate execution breakpoint an error whose message has the first one's number (Debugger/Handlers/BreakpointHandlers.cpp), FR-291
 - [ ] T957 Launch a build for the owner, and remind the owner to validate the heat map, profiler, trace, MMU panel and tooltips
