@@ -87,8 +87,9 @@ private:
         bool  isSetName = false;
     };
 
-    static constexpr int  kEditMaxChars = 64;
-    static constexpr int  kErrorDip     = 20;
+    static constexpr int  kEditMaxChars     = 64;
+    static constexpr int  kErrorDip         = 20;
+    static constexpr int  kFirstFieldColumn = 1;      // the Include column comes before the range's fields
 
     void                     LoadSets        ();
     std::wstring             GetBarLabel     (int id) const;

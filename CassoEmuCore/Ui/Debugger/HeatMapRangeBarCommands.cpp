@@ -8,8 +8,8 @@
 
 
 //  Chosen from a rendered sheet of Segoe MDL2 Assets.
-static constexpr const wchar_t *  s_kGlyphEdit   = s_kpszMdl2Rename;   // A in a text box
-static constexpr const wchar_t *  s_kGlyphRemove = s_kpszMdl2Delete;   // trash can
+static constexpr const wchar_t *  s_kGlyphRename = s_kpszMdl2Rename;   // A in a text box
+static constexpr const wchar_t *  s_kGlyphDelete = s_kpszMdl2Delete;   // trash can
 static constexpr const wchar_t *  s_kGlyphUp     = s_kpszMdl2Up;       // arrow up
 static constexpr const wchar_t *  s_kGlyphDown   = s_kpszMdl2Down;     // arrow down
 
@@ -29,14 +29,11 @@ const std::vector<HeatMapRangeBarCommands::Row> & HeatMapRangeBarCommands::GetRo
 {
     static const std::vector<Row>  rows =
     {
-        { kSet,       L"Set",        nullptr,        L"The set of ranges this pane edits",                       DxuiToolbar::Kind::DropDown, 0, false },
-        { kNewSet,    L"New",        nullptr,        L"Make a set, starting with every built-in range left out", DxuiToolbar::Kind::Command,  0, false },
-        { kRenameSet, L"Rename",     nullptr,        L"Rename this set",                                         DxuiToolbar::Kind::Command,  0, false },
-        { kDeleteSet, L"Delete",     nullptr,        L"Delete this set and its ranges",                          DxuiToolbar::Kind::Command,  0, false },
-        { kEdit,      L"Edit",       s_kGlyphEdit,   L"Edit the selected range",                                 DxuiToolbar::Kind::Command,  1, true  },
-        { kRemove,    L"Remove",     s_kGlyphRemove, L"Remove the selected range",                               DxuiToolbar::Kind::Command,  1, true  },
-        { kUp,        L"Move up",    s_kGlyphUp,     L"Move the selected range up the map",                      DxuiToolbar::Kind::Command,  2, true  },
-        { kDown,      L"Move down",  s_kGlyphDown,   L"Move the selected range down the map",                    DxuiToolbar::Kind::Command,  2, true  },
+        { kSet,       L"Set",        nullptr,        L"The set of ranges this pane edits",    DxuiToolbar::Kind::DropDown, 0, false },
+        { kRenameSet, L"Rename",     s_kGlyphRename, L"Rename this set",                      DxuiToolbar::Kind::Command,  0, true  },
+        { kDeleteSet, L"Delete",     s_kGlyphDelete, L"Delete this set and its ranges",       DxuiToolbar::Kind::Command,  0, true  },
+        { kUp,        L"Move up",    s_kGlyphUp,     L"Move the selected range up the map",   DxuiToolbar::Kind::Command,  1, true  },
+        { kDown,      L"Move down",  s_kGlyphDown,   L"Move the selected range down the map", DxuiToolbar::Kind::Command,  1, true  },
     };
 
 
@@ -158,7 +155,7 @@ std::shared_ptr<DxuiCommand> HeatMapRangeBarCommands::Find (int id) const
 
 std::wstring HeatMapRangeBarCommands::GetSetLabel (const std::wstring & name)
 {
-    return name.empty() ? std::wstring (L"No sets") : L"Set: " + name;
+    return name.empty() ? std::wstring (L"No sets") : name;
 }
 
 

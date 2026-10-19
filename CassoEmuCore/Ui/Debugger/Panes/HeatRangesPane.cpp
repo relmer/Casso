@@ -112,6 +112,7 @@ void HeatRangesPane::Configure()
     HeatMapRangeBarCommands::Handlers                  handlers;
     std::vector<DxuiEditableGrid::GridColumn>          columns =
     {
+        { { L"Include",  0 }, false },
         { { L"Name",     0 } },
         { { L"Start",    0 }, true, true },
         { { L"End",      0 } },
@@ -455,6 +456,15 @@ void HeatRangesPane::SetMenus()
         edited.push_back (DxuiPopupMenuItem::ForCommand (command));
     }
 
+    m_editedSetCommands.push_back (DebuggerMenuCommand::Make (L"New set...", false, [this] { RunBarEntry (HeatMapRangeBarCommands::kNewSet); }));
+
+    if (!edited.empty())
+    {
+        edited.push_back (DxuiPopupMenuItem::ForSeparator());
+    }
+
+    edited.push_back (DxuiPopupMenuItem::ForCommand (m_editedSetCommands.back()));
+
     m_heatMap.GetViewBar()->SetDropDownItems (HeatMapBarCommands::kRangeSet,  std::move (shown));
     m_bar.GetBar()->SetDropDownItems (HeatMapRangeBarCommands::kSet,  std::move (edited));
 }
@@ -506,7 +516,7 @@ bool HeatRangesPane::IsBarEnabled (int id) const
 
     switch (id)
     {
-    case HeatMapRangeBarCommands::kSet:        return !m_sets.sets.empty();
+    case HeatMapRangeBarCommands::kSet:        return true;
     case HeatMapRangeBarCommands::kRenameSet:  return set != nullptr;
     case HeatMapRangeBarCommands::kDeleteSet:  return set != nullptr;
     case HeatMapRangeBarCommands::kEdit:       return isOwn;
@@ -611,7 +621,7 @@ bool HeatRangesPane::AddRange (const std::vector<std::wstring> & texts, std::wst
     HeatMapRangeSet  * set   = GetEditedSet();
     HeatMapRange       range;
     std::string        error;
-    auto               field = [&texts] (HeatMapRangeSets::Field which) { return TextEncoding::WideToUtf8 (texts[(size_t) which]); };
+    auto               field = [&texts] (HeatMapRangeSets::Field which) { return TextEncoding::WideToUtf8 (texts[(size_t) which + kFirstFieldColumn]); };
 
 
 
@@ -655,7 +665,7 @@ bool HeatRangesPane::CommitCell (int row, int column, const std::wstring & text,
 
 
     if (set == nullptr || row < 0 || row >= (int) m_rows.size() ||
-        !HeatMapRangeSets::TryEditRange (*set, m_rows[(size_t) row], (HeatMapRangeSets::Field) column, TextEncoding::WideToUtf8 (text),
+        !HeatMapRangeSets::TryEditRange (*set, m_rows[(size_t) row], (HeatMapRangeSets::Field) (column - kFirstFieldColumn), TextEncoding::WideToUtf8 (text),
                                         GetSymbols(), error))
     {
         outError = TextEncoding::Utf8ToWide (error);
@@ -779,7 +789,7 @@ void HeatRangesPane::MoveRow (int row, int to)
 
 void HeatRangesPane::BeginEdit (int row, HeatMapRangeSets::Field field)
 {
-    if (m_list->BeginEdit (row, (int) field))
+    if (m_list->BeginEdit (row, (int) field + kFirstFieldColumn))
     {
         m_host.FocusControl (m_list);
     }
@@ -1013,7 +1023,7 @@ void HeatRangesPane::ApplyRanges()
 
 void HeatRangesPane::ApplyRows()
 {
-    constexpr size_t                                kColumns  = 5;
+    constexpr size_t                                kColumns  = 6;
     const HeatMapRangeSet                         * set       = GetEditedSet();
     const HeatMapSymbols                          & symbols   = GetSymbols();
     uint32_t                                        error     = (m_host.GetTheme() != nullptr) ? m_host.GetTheme()->ErrorForeground() : 0;
@@ -1043,25 +1053,25 @@ void HeatRangesPane::ApplyRows()
         isRead = HeatMapRangeSets::TryResolve (range, symbols, first, last, reason);
 
         cells[0].check = range.included;
-        cells[0].text  = TextEncoding::Utf8ToWide (HeatMapRangeSets::GetName (range));
-        cells[0].dim   = !HeatMapRangeSets::IsBuiltIn (range) && range.name.empty();
-        cells[4].text  = HeatMapRangeSets::IsBuiltIn (range) ? L"Yes" : L"";
+        cells[1].text  = TextEncoding::Utf8ToWide (HeatMapRangeSets::GetName (range));
+        cells[1].dim   = !HeatMapRangeSets::IsBuiltIn (range) && range.name.empty();
+        cells[5].text  = HeatMapRangeSets::IsBuiltIn (range) ? L"Yes" : L"";
 
         if (!isRead)
         {
-            cells[1].text     = TextEncoding::Utf8ToWide (range.start);
-            cells[2].text     = TextEncoding::Utf8ToWide (reason);
-            cells[2].argb     = error;
-            cells[2].spansRow = true;
-            cells[2].tip      = cells[2].text;
+            cells[2].text     = TextEncoding::Utf8ToWide (range.start);
+            cells[3].text     = TextEncoding::Utf8ToWide (reason);
+            cells[3].argb     = error;
+            cells[3].spansRow = true;
+            cells[3].tip      = cells[3].text;
         }
         else
         {
-            cells[1].text = std::format (L"${:04X}", first);
-            cells[2].text = std::format (L"${:04X}", last);
-            cells[3].text = std::format (L"${:04X}", (uint32_t) last - first + 1);
+            cells[2].text = std::format (L"${:04X}", first);
+            cells[3].text = std::format (L"${:04X}", last);
+            cells[4].text = std::format (L"${:04X}", (uint32_t) last - first + 1);
 
-            for (const auto & [cell, typed] : { std::pair { &cells[1], range.start }, std::pair { &cells[2], range.end } })
+            for (const auto & [cell, typed] : { std::pair { &cells[2], range.start }, std::pair { &cells[3], range.end } })
             {
                 if (!typed.empty() && !HeatMapRangeSets::IsHexNumber (typed))
                 {
@@ -1077,7 +1087,7 @@ void HeatRangesPane::ApplyRows()
 
         m_rows.push_back (i);
         rows.push_back ({ std::move (cells),
-                          { TextEncoding::Utf8ToWide (range.name), TextEncoding::Utf8ToWide (range.start), TextEncoding::Utf8ToWide (range.end),
+                          { std::wstring(), TextEncoding::Utf8ToWide (range.name), TextEncoding::Utf8ToWide (range.start), TextEncoding::Utf8ToWide (range.end),
                             TextEncoding::Utf8ToWide (range.end.starts_with ('+') ? range.end.substr (1) : std::string()) },
                           HeatMapRangeSets::IsBuiltIn (range) });
     }

@@ -206,7 +206,7 @@ namespace HeatMapRangesPaneTests
 
             for (int row = 0; row < list->GetDataRowCount(); row++)
             {
-                if (list->GetCellsOfRow (row)[1].text == name)
+                if (list->GetCellsOfRow (row)[2].text == name)
                 {
                     return row;
                 }
@@ -217,7 +217,7 @@ namespace HeatMapRangesPaneTests
 
         static std::wstring GetCell (RangesWindow & window, int row, size_t column)
         {
-            return window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[column + 1].text;
+            return window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[column + 2].text;
         }
 
 
@@ -643,10 +643,36 @@ namespace HeatMapRangesPaneTests
             Assert::IsTrue   (row >= 0);
             Assert::IsTrue   (window.GetHeatRangesPane().GetList()->GetCellsOfRow (row)[1].check.value_or (false), L"included");
             Assert::IsTrue   (window.GetHeatRangesPane().GetList()->IsAddRow (window.GetHeatRangesPane().GetList()->GetDataRowCount()));
-            Assert::AreEqual (std::wstring (L"Add new range"), window.GetHeatRangesPane().GetList()->GetCellsOfRow (window.GetHeatRangesPane().GetList()->GetDataRowCount())[1].text);
+            Assert::AreEqual (std::wstring (L"Add new range"), window.GetHeatRangesPane().GetList()->GetCellsOfRow (window.GetHeatRangesPane().GetList()->GetDataRowCount())[2].text);
 
             AddRange (window, L"$6000-$95FF");
             Assert::IsTrue   (FindRow (window, L"$6000..$95FF") >= 0, window.GetHeatRangesPane().GetError().c_str());
+        }
+
+
+        //  The bar has the set's name alone, glyphs to rename and delete it,
+        //  and no entries for a range: the grid adds, edits and removes them.
+        //  A range's check is a column of its own, headed Include.
+        TEST_METHOD (TheBarHasTheSetsNameAndItsGlyphsAndTheCheckItsOwnColumn)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            RangesHost     host;
+            RangesWindow   window (theme, host);
+            RECT           entry = {};
+
+
+
+            Build (window);
+            window.ShowPane (DebuggerLayout::kHeatRanges);
+            Relayout (window);
+
+            Assert::AreEqual (std::wstring (L"Default"), HeatMapRangeBarCommands::GetSetLabel (L"Default"));
+            Assert::IsTrue   (window.GetHeatRangesPane().GetBar()->TryGetEntryRect (HeatMapRangeBarCommands::kRenameSet, entry), L"no Rename");
+            Assert::IsTrue   (window.GetHeatRangesPane().GetBar()->TryGetEntryRect (HeatMapRangeBarCommands::kDeleteSet, entry), L"no Delete");
+            Assert::IsFalse  (window.GetHeatRangesPane().GetBar()->TryGetEntryRect (HeatMapRangeBarCommands::kNewSet,    entry), L"New set is a button");
+            Assert::IsFalse  (window.GetHeatRangesPane().GetBar()->TryGetEntryRect (HeatMapRangeBarCommands::kEdit,      entry), L"an Edit button");
+            Assert::IsFalse  (window.GetHeatRangesPane().GetBar()->TryGetEntryRect (HeatMapRangeBarCommands::kRemove,    entry), L"a Delete row button");
+            Assert::AreEqual (std::wstring (L"Include"), window.GetHeatRangesPane().GetList()->GetColumnAt (1).title);
         }
     };
 }

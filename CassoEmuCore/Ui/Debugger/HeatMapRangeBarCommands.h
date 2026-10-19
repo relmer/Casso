@@ -11,9 +11,11 @@
 //  HeatMapRangeBarCommands
 //
 //  What the heat map ranges pane's bar shows, as Visual Studio lays out a
-//  tool window's strip: the set being edited as a drop-down with New set,
-//  Rename set and Delete set beside it, then New, Edit and Remove for its
-//  ranges and Move up and Move down for their order.
+//  tool window's strip: the set being edited as a drop-down, whose last item
+//  is New set..., with Rename and Delete glyphs for the set beside it, then
+//  Move up and Move down for its ranges' order. New set, Edit and Remove
+//  have ids with no entry: the drop-down, the grid and the context menu run
+//  them.
 //
 //  The window owns the behavior: it hands over one dispatch, one enabled
 //  test and one label, each taking an id.
@@ -44,7 +46,7 @@ public:
     std::vector<DxuiToolbar::Entry>  BuildEntries () const;
     std::shared_ptr<DxuiCommand>     Find         (int id) const;
 
-    //  The set drop-down's label: "Set: Game", or "No sets" with none made.
+    //  The set drop-down's label: the set's name, or "No sets" with none made.
     static std::wstring  GetSetLabel (const std::wstring & name);
 
 private:
