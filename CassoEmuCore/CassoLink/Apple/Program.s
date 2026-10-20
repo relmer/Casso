@@ -1420,7 +1420,14 @@ rthit:  lda #0
         beq rtdone
 rtnext: dec tries
         bne rtloop
-rtnone: lda #ERRNOTFND
+rtnone: ldx #0                  ; the first sector not read, for the error
+rtfind: lda PENDING,x
+        bne rtfound
+        inx
+        cpx #15
+        bne rtfind
+rtfound: stx sector
+        lda #ERRNOTFND
         sta err
         sec
         rts
@@ -1587,10 +1594,13 @@ putstream: sty savex
         inc ptr+1
 psdone: rts
 
-; buildformat: FSTREAM, a whole track of 25 pages: 288 self-sync bytes, then
+; buildformat: FSTREAM, a whole track of 25 pages: 352 self-sync bytes, then
 ; for each sector 0 to 15 its address field, 5 self-sync bytes, a data field
-; and 14 self-sync bytes. The data fields are zeros, or with fdata set, the
-; sectors in ENCBUF.
+; and 10 self-sync bytes. The data fields are zeros, or with fdata set, the
+; sectors in ENCBUF. The stream takes about 211,300 cycles to write, longer
+; than a revolution, so its end lands in the first gap: a revolution at 300
+; rpm is about 204,100 cycles at the //c's speed, and the sectors take about
+; 196,100, so a drive up to about 4% fast keeps every address field.
 buildformat: ldy #0
         lda #0
 bfzero: sta SECBUF,y
@@ -1601,12 +1611,12 @@ bfzero: sta SECBUF,y
         sta ptr
         lda #>FSTREAM
         sta ptr+1
-        ldx #0                  ; 288: past a revolution, so the stream's end
+        ldx #0                  ; 352: past a revolution, so the stream's end
 bfgap1: lda #0                  ; overwrites only this gap
         jsr putstream
         dex
         bne bfgap1
-        ldx #32
+        ldx #96
 bfgap1b: lda #0
         jsr putstream
         dex
@@ -1645,7 +1655,7 @@ bfgap2: lda #0
         beq bfdata
         jsr encpage
 bfdata: jsr putdata
-        ldx #14
+        ldx #10
 bfgap3: lda #0
         jsr putstream
         dex
