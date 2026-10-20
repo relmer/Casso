@@ -405,8 +405,9 @@ wrbad:  lda #ERRVERIFY
         sta err
         jmp opdone
 
-; Format track: 16 sectors of zeros, numbered 0 to 15 in order round the
-; track, under the given volume.
+; Format track: 16 sectors of zeros, numbered 0 to 15 in order around the
+; track, under the given volume; then the track read back, so a format that
+; did not take ends with the first sector that does not read.
 doformat: lda PKTBUF+2
         sta volume
         lda #0
@@ -421,6 +422,8 @@ doformat: lda PKTBUF+2
         ldy #0
         ldx #FPAGES
         jsr play
+        jsr readall
+        bcs fmtdone
         lda #1
         sta count
         sta index
@@ -488,15 +491,21 @@ encpage: lda sector
         adc #>ENCBUF
         rts
 
+; readall: all 16 sectors of the track read into RAWBUF. The carry is set,
+; with err and sector, at the first that does not read.
+readall: lda #16
+        sta count
+        ldx #15
+ralist: txa
+        sta PKTBUF+3,x
+        dex
+        bpl ralist
+        jmp readtrack
+
 ; verifytrack: the track read back, and each sector's 6-and-2 values compared
 ; with those in ENCBUF. The carry is set, with err and sector, at the first
 ; that differs.
-verifytrack: ldx #15
-vtlist: txa
-        sta PKTBUF+3,x
-        dex
-        bpl vtlist
-        jsr readtrack
+verifytrack: jsr readall
         bcs vtfail
         lda #0
         sta sector
@@ -1682,16 +1691,16 @@ put44:  sta tmp
 ; play: the stream from page A, offset Y, through the end of the X-th page,
 ; written by the drive. A 0 in the stream is a self-sync byte.
 ;
-; The stores are indexed, as in Apple's RWTS: on the //c's IWM, an absolute
-; store to Q6H leaves the disk unwritten. An indexed store reads its address
-; before it writes it.
+; The stores are indexed, as in Apple's RWTS: an indexed store reads its
+; address in the cycle before it writes it, and the first access starts the
+; controller's write loop, so the second is taken as data. The controller
+; then takes data only every fourth cycle. An absolute store is a cycle out
+; of step, and nothing is written (Sather, Understanding the Apple IIe).
 ;
-; Cycles from one store to the next: data to data 32; data to sync, sync to
-; sync 40; sync to data 32; 8 more where the stream crosses a page. Each is a
-; whole number of 4-cycle bit cells: on the IWM, a store partway through a
-; cell shifts the bits after it, and the nibbles that follow do not read.
-; The extra time puts zero bits between nibbles, which the read hardware
-; skips.
+; Cycles from one store to the next, each a whole number of 4-cycle bit
+; cells: data to data 32; data to sync, sync to sync 40; sync to data 32;
+; 8 more where the stream crosses a page. The extra time puts zero bits
+; between nibbles, which the read hardware skips.
 play:   sta plda+2
         stx pagecnt
         ldx diskx

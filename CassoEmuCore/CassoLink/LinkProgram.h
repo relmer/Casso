@@ -24,8 +24,8 @@
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 36;
-    static constexpr Byte    kShimVersion       = 2;
+    static constexpr Word    kProgramVersion    = 37;
+    static constexpr Byte    kShimVersion       = 3;
     static constexpr Word    kShimAddress       = 0x3D00;
     static constexpr Word    kProgramAddress    = 0x0800;
     static constexpr size_t  kShimLimit         = 0x300;   // $3D00-$3FFF, below the program's tables

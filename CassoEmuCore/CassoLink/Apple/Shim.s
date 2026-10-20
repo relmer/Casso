@@ -61,6 +61,8 @@ quot     = $13                  ; the percentage
 num      = $14                  ; putdec: the value left
 digit    = $15
 lead     = $16                  ; putdec: nonzero once a digit is drawn
+tmolo    = $17                  ; getbto: polls left, and $18
+tmohi    = $18
 
         .org $3D00
 
@@ -125,24 +127,31 @@ loadpg: jsr getenv
         bcs ready
         cmp #CMDDATA
         bne ready
-        jsr getb                ; the page number
+        jsr getbto              ; the page number
+        bcs badpg
         sta page
-        adc #>PROGRAM-1         ; the carry is set from the compare
+        clc
+        adc #>PROGRAM
         sta ptr+1
-        jsr getb                ; the sector field, not used
+        jsr getbto              ; the sector field, not used
+        bcs badpg
         ldy #0
         sty ptr
         sty crclo
         sty crchi
-data:   jsr getb                ; stored as it arrives: at 115,200 baud a byte
-        sta (ptr),y             ; comes every 89 cycles, too few for the CRC
+data:   jsr getbto              ; stored as it arrives: at 115,200 baud a byte
+        bcs badpg               ; comes every 89 cycles, too few for the CRC
+        sta (ptr),y
         iny
         bne data
-        jsr getb
+        jsr getbto
+        bcs badpg
         sta gotlo
-        jsr getb
+        jsr getbto
+        bcs badpg
         sta gothi
-        jsr getb                ; the payload's EOR; the CRC checks the page
+        jsr getbto              ; the payload's EOR; the CRC checks the page
+        bcs badpg
 pagecrc: lda (ptr),y              ; the CRC, once the page is in
         jsr crcbyte
         iny
@@ -167,6 +176,9 @@ pagecrc: lda (ptr),y              ; the CRC, once the page is in
         jsr putdec
         jmp PROGRAM
 
+; A page cut short, by a byte lost on the line, ends in a timeout rather than
+; a wait for good; the NAK has the host send it again, and the shim takes it
+; from its envelope.
 badpg:  lda #NAK                ; the host sends the page again
         jsr putb
         jmp loadpg
@@ -329,6 +341,24 @@ getb:   lda ACIASTAT
         and #RDRF
         beq getb
         lda ACIADATA
+        rts
+
+; getbto: getb with a time limit of about a second: 65,536 polls of 16
+; cycles. The carry is set when no byte comes.
+getbto: lda #0
+        sta tmolo
+        sta tmohi
+gtwait: lda ACIASTAT
+        and #RDRF
+        bne gtgot
+        inc tmolo
+        bne gtwait
+        inc tmohi
+        bne gtwait
+        sec
+        rts
+gtgot:  lda ACIADATA
+        clc
         rts
 
 putb:   pha
