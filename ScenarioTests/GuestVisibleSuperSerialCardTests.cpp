@@ -39,7 +39,7 @@ TEST_CLASS (GuestVisibleSuperSerialCardTests)
 {
 public:
 
-    //  Printer mode, 9,600 baud, 40 characters with the Apple screen on: the
+    //  Printer mode, 9,600 baud, 40 characters echoed to the screen: the
     //  listing is written to the file on the connector and to the screen.
     TEST_METHOD (ListingInPrinterModeIsWrittenToTheFileAndTheScreen)
     {
@@ -79,7 +79,7 @@ public:
 
 
     //  Printer mode at the switch settings it ships with: 80 characters with
-    //  the Apple screen off, and a quarter second after each carriage return.
+    //  no echo to the screen, and a quarter second after each carriage return.
     //  The listing is written to the file, after the delays, and not to the
     //  screen.
     TEST_METHOD (ListingInPrinterModeWithTheScreenOffIsWrittenOnlyToTheFile)
@@ -229,7 +229,7 @@ private:
     static constexpr const char *  kCommunications300Sw1 = "on off off on on on on";
 
     //  In printer mode: no delay after a carriage return (SW2-2 off), 40
-    //  characters with the Apple screen on (SW2-3 and SW2-4 on).
+    //  characters echoed to the screen (SW2-3 and SW2-4 on).
     static constexpr const char *  kPrinterScreenOnSw2 = "on off on on off off off";
 
     //  A program and a line returning input to the keyboard, sent into the

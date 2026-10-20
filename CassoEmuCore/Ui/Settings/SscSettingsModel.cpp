@@ -71,10 +71,10 @@ static constexpr SettingDef  s_kSettings[] =
 
     { SscSetting::LineWidth, L"Line width",
       2, { { SscBank::Sw2, 3 }, { SscBank::Sw2, 4 } },
-      4, { { L"40 characters, Apple screen on",   { 1, 1 } },
-           { L"72 characters, Apple screen off",  { 1, 0 } },
-           { L"80 characters, Apple screen off",  { 0, 1 } },
-           { L"132 characters, Apple screen off", { 0, 0 } } } },
+      4, { { L"40 characters, echoed to the screen", { 1, 1 } },
+           { L"72 characters",                       { 1, 0 } },
+           { L"80 characters",                       { 0, 1 } },
+           { L"132 characters",                      { 0, 0 } } } },
 
     { SscSetting::LineFeed, L"Line feed after carriage return",
       1, { { SscBank::Sw2, 5 } },
