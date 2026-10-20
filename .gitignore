@@ -394,6 +394,11 @@ UnitTest/rockwell65c02/
 /Disks/Apple/dos33-master.dsk
 /Disks/Apple/prodos-users.dsk
 
+# Third-party network software for the Uthernet II scenario cases, fetched by
+# scripts/FetchNetworkDisks.ps1.
+/Disks/Network/ip65.dsk
+/Disks/Network/contiki-apple2-3.dsk
+
 # Cross-platform/editor artifacts
 .vscode/
 .idea/
