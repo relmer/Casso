@@ -176,6 +176,7 @@
     <ClCompile Include="GuestVisibleApple2cSerialTests.cpp" />
     <ClCompile Include="GuestVisibleSuperSerialCardTests.cpp" />
     <ClCompile Include="GuestVisibleKermitTests.cpp" />
+    <ClCompile Include="GuestVisibleTextScreenTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />

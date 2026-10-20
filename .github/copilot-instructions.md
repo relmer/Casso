@@ -616,10 +616,11 @@ Two specific practices fall out of this:
   (`-Filter Merlin`); anything containing filter grammar passes through to
   vstest's `/TestCaseFilter:` verbatim. A filtered run prints a loud banner
   saying it is not the suite; never report a filtered pass as a suite pass.
-- Debug and Release differ enormously: the Debug suite runs ~15 minutes, Release
-  ~2. They also run **different test sets**, assertion-behavior tests verify
-  nothing in Release, so Release is not a drop-in substitute for the pre-merge
-  gate.
+- Debug and Release differ: the Debug unit suite runs about 1:40, Release about
+  0:20, and the scenario suite about 1:00 and 0:12 (measured 2026-10-17; the
+  AddressSanitizer timings are in `docs/testing.md`). They also run **different
+  test sets**, assertion-behavior tests verify nothing in Release, so Release is
+  not a drop-in substitute for the pre-merge gate.
 - **Restoring a file from a backup copy defeats the incremental build.**
   `Copy-Item` stamps the restored file with the *backup's* mtime, which is older
   than the object built from the version you are replacing, so MSBuild skips the
@@ -743,6 +744,11 @@ branch to `master`** (and re-run after resolving merge conflicts).
 - Every commit that lands on `master` must leave the codebase compilable and tests-passing
 - **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis` to verify.
   It compiles on the x86-hosted compiler, as CI does; the x64-hosted one misses C6011s CI reports
+- **The AddressSanitizer scenario run MUST pass** before pushing to master:
+  `scripts\RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`,
+  under a minute once built. CI does not run it. A use-after-free that reads
+  plausible stale memory passes every plain build and is reported here; see
+  `docs/testing.md`
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
 - **NEVER** add a changelog entry for a `docs` commit. The changelog records
   code changes -- what the software now does differently. Checking in a spec,
