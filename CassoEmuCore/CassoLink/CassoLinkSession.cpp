@@ -82,6 +82,7 @@ HRESULT CassoLinkSession::Start (const CassoLinkSettings & settings)
 
     m_settings = settings;
     m_port     = TextEncoding::NarrowToWide (settings.port);
+    m_stopping = false;
     m_thread   = std::jthread ([this] (std::stop_token stop) { Run (stop); });
 
 Error:
@@ -102,6 +103,7 @@ void CassoLinkSession::Stop()
 {
     if (m_thread.joinable())
     {
+        m_stopping = true;
         m_thread.request_stop();
         m_wake.notify_all();
 
@@ -1299,7 +1301,9 @@ void CassoLinkSession::SetState (LinkState state)
     }
     else if (state == LinkState::Disconnected && (before == LinkState::Ready || before == LinkState::Busy))
     {
-        m_sink.OnActivity (m_lostReason.empty() ? std::string ("The Apple stopped answering") : "The Apple stopped answering: " + m_lostReason);
+        m_sink.OnActivity (m_stopping           ? std::string ("Disconnected")
+                         : m_lostReason.empty() ? std::string ("The Apple stopped answering")
+                                                : "The Apple stopped answering: " + m_lostReason);
     }
 
     m_lostReason.clear();

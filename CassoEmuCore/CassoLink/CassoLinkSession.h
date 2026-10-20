@@ -309,6 +309,7 @@ private:
     std::atomic<LinkState>                        m_state    { LinkState::Closed };
     std::atomic<Byte>                             m_driveMap { 0 };
     std::atomic<bool>                             m_adtPro   { false };
+    std::atomic<bool>                             m_stopping { false };   // Stop closed the line
     mutable std::mutex                          m_lock;
     std::condition_variable_any                 m_wake;
     std::deque<std::shared_ptr<LinkOperation>>  m_queue;

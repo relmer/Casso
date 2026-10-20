@@ -42,6 +42,14 @@ public:
         std::condition_variable                       changed;
         std::vector<LinkState>                        states;
         std::vector<std::shared_ptr<LinkOperation>>   done;
+        std::vector<std::string>                      activities;
+
+        void  OnActivity (const std::string & text) override
+        {
+            std::lock_guard<std::mutex>  guard (lock);
+
+            activities.push_back (text);
+        }
 
         void  OnStateChanged (LinkState state) override
         {
@@ -211,6 +219,26 @@ public:
         rig.Start();
 
         Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready), L"Idle drew the shim's Ready");
+    }
+
+
+
+
+    //  A session stopped on purpose is disconnected, not an Apple that
+    //  stopped answering.
+    TEST_METHOD (Stop_IsReportedAsDisconnected)
+    {
+        Rig  rig;
+
+        rig.Start();
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+
+        rig.session->Stop();
+
+        std::lock_guard<std::mutex>  guard (rig.sink.lock);
+
+        Assert::IsFalse (rig.sink.activities.empty());
+        Assert::AreEqual (std::string ("Disconnected"), rig.sink.activities.back());
     }
 
 
