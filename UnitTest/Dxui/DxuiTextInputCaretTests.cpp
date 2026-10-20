@@ -36,6 +36,26 @@ public:
     }
 
 
+    //  SetOnFocusLost's callback runs when the focus moves off the field, and
+    //  not when it arrives.
+    TEST_METHOD (LosingTheFocusCallsTheFocusLostCallback)
+    {
+        DxuiTextInput  input;
+        int            calls = 0;
+
+
+
+        input.SetOnFocusLost ([&calls] { calls++; });
+
+        input.OnFocusChanged (true);
+        Assert::AreEqual (0, calls);
+
+        input.OnFocusChanged (false);
+        Assert::AreEqual (1, calls);
+    }
+
+
+
     TEST_METHOD (AFocusedFieldInAnActiveWindowDrawsItsCaret)
     {
         DxuiTextInput          input;

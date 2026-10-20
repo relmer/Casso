@@ -1265,6 +1265,7 @@ void BreakpointDialog::OnCreate()
         box->SetTheme        (m_theme);
         box->SetHwnd         (GetHwnd());
         box->SetTextRenderer (GetTextRenderer());
+        box->SetOnFocusLost  ([this] { m_isCheckDue = true; });
     }
 
     m_address.SetText   (SourcePathList::Utf8ToWide ((fields.type == Type::Disk) ? std::string() : fields.address));
@@ -1335,22 +1336,10 @@ void BreakpointDialog::OnCreate()
 
 void BreakpointDialog::Confirm()
 {
-    Fields       edited;
-    std::string  definition;
-    std::string  reason;
+    std::string  definition = MakeEditedDefinition();
+    std::string  reason     = m_validator ? m_validator (definition) : std::string();
 
 
-
-    edited.type      = GetSelectedType();
-    edited.mode      = (WatchMode) m_mode.GetSelectedIndex();
-    edited.address   = SourcePathList::WideToUtf8 (m_address.GetText());
-    edited.value     = SourcePathList::WideToUtf8 (m_value.GetText());
-    edited.condition = SourcePathList::WideToUtf8 (m_condition.GetText());
-    edited.event     = m_event.GetSelectedIndex();
-    edited.drive     = m_drive.GetSelectedIndex();
-    edited.arguments = MakeDiskArguments (edited.event, ReadDiskFields());
-    definition       = MakeDefinition (edited);
-    reason           = m_validator ? m_validator (definition) : std::string();
 
     m_error.SetMessage (SourcePathList::Utf8ToWide (reason));
 
@@ -1362,6 +1351,60 @@ void BreakpointDialog::Confirm()
 
     m_definition = definition;
     EndDialog (IDOK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::MakeEditedDefinition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string BreakpointDialog::MakeEditedDefinition() const
+{
+    Fields  edited;
+
+
+
+    edited.type      = GetSelectedType();
+    edited.mode      = (WatchMode) m_mode.GetSelectedIndex();
+    edited.address   = SourcePathList::WideToUtf8 (m_address.GetText());
+    edited.value     = SourcePathList::WideToUtf8 (m_value.GetText());
+    edited.condition = SourcePathList::WideToUtf8 (m_condition.GetText());
+    edited.event     = m_event.GetSelectedIndex();
+    edited.drive     = m_drive.GetSelectedIndex();
+    edited.arguments = MakeDiskArguments (edited.event, ReadDiskFields());
+
+    return MakeDefinition (edited);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointDialog::CheckFields
+//
+//  The check OK makes, after the focus moves off a field: its reason under the
+//  fields, or none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BreakpointDialog::CheckFields()
+{
+    std::wstring  reason = m_validator ? SourcePathList::Utf8ToWide (m_validator (MakeEditedDefinition())) : std::wstring();
+
+
+
+    if (reason != m_error.GetMessage())
+    {
+        m_error.SetMessage (reason);
+        Resize();
+    }
 }
 
 
@@ -1496,17 +1539,26 @@ std::optional<std::string> BreakpointDialog::RunNew (HWND owner, const IDxuiThem
 //  BreakpointDialog::OnDialogTick
 //
 //  The info tips appear after their dwell and fade on the dialog's ticks, as
-//  nothing else ticks a dialog's controls.
+//  nothing else ticks a dialog's controls. A field the focus moved off is
+//  checked here once no mouse button is down, so a press on OK or Cancel is
+//  not moved by the dialog growing under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointDialog::OnDialogTick()
 {
-    int64_t  nowMs = (int64_t) GetTickCount64();
+    int64_t  nowMs     = (int64_t) GetTickCount64();
+    bool     isPressed = (GetAsyncKeyState (VK_LBUTTON) & 0x8000) != 0 || (GetAsyncKeyState (VK_RBUTTON) & 0x8000) != 0;
 
 
 
     m_conditionTip.Tick (nowMs);
     m_eventTip.Tick     (nowMs);
     m_choiceTip.Tick    (nowMs);
+
+    if (m_isCheckDue && !isPressed)
+    {
+        m_isCheckDue = false;
+        CheckFields();
+    }
 }

@@ -207,6 +207,8 @@ private:
     void        ShowDiskFields    (bool isDisk);
     void        Resize            ();
     void        Confirm           ();
+    std::string MakeEditedDefinition () const;
+    void        CheckFields       ();
     Type        GetSelectedType   () const;
     DiskFields  ReadDiskFields    () const;
 
@@ -221,6 +223,7 @@ private:
     std::optional<std::wstring>    m_newAddress;
     std::optional<std::string>     m_definition;
     Validator                      m_validator;
+    bool                           m_isCheckDue         = false;   // the focus moved off a field
     DxuiFieldError                 m_error;
     DxuiLabel                      m_accessLabel;
     DxuiLabel                      m_modeLabel;

@@ -73,6 +73,9 @@ public:
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
     void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
 
+    //  Called when the focus moves off the field.
+    void  SetOnFocusLost (std::function<void()> fn)   { m_focusLost = std::move (fn); }
+
     // Non-owning measurement hook (DxuiWindow::GetTextRenderer()). With it,
     // clicks place the caret under the cursor and dragging selects;
     // without it, clicking parks the caret at the end.
@@ -144,7 +147,7 @@ public:
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand     (DxuiStandardCommand command) override;
-    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); if (!focused && m_focusLost) { m_focusLost(); } }
     LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
@@ -207,6 +210,7 @@ private:
     HWND                 m_hwnd              = nullptr;
     IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
     ChangeFn             m_change;
+    std::function<void()>  m_focusLost;
     DxuiDpiScaler        m_scaler;
 
     // The text and selection before each edit, for undo, and the ones undo
