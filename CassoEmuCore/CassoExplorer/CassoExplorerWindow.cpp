@@ -6986,7 +6986,9 @@ void CassoExplorerWindow::ShowListContextMenu (int x, int y, int group)
         }
     }
 
-    if (background && shown.kind == Location::Kind::Root && shown.path == TreeModel::kCassoLinkRootId)
+    //  The open drive's whole disk, from the background of its list, as a
+    //  disk with no catalog has no rows to right-click.
+    if (background && ((shown.kind == Location::Kind::Root && shown.path == TreeModel::kCassoLinkRootId) || (shown.kind == Location::Kind::AppleDrive && shown.innerPath.empty())))
     {
         AddLinkRows (items, true, shown);
         items.push_back (DxuiPopupMenuItem::ForSeparator());
