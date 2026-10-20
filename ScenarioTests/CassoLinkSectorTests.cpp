@@ -248,6 +248,38 @@ public:
 
 
 
+    //  Set speed's status fits its row whatever values zero page has at the
+    //  start, so nothing is drawn in the history below it.
+    TEST_METHOD (SetSpeed_StatusStaysOnItsRow)
+    {
+        Rig  rig;
+
+        rig.machine.GetCpu()->WriteByte (0xE3, 200);     // the sector
+        rig.machine.GetCpu()->WriteByte (0x07, 200);     // the percentage
+        rig.machine.GetCpu()->WriteByte (0x08, 200);
+
+        rig.Connect();
+
+        for (const std::string & screen : rig.screens)
+        {
+            std::vector<std::string>  rows;
+            size_t                    start = 0;
+
+            for (size_t end = screen.find ('\n'); end != std::string::npos; start = end + 1, end = screen.find ('\n', start))
+            {
+                rows.push_back (screen.substr (start, end - start));
+            }
+
+            for (size_t row = 11; row < rows.size(); row++)
+            {
+                Assert::AreEqual (std::string::npos, rows[row].find_first_not_of (' '), std::format (L"row {} is blank", row).c_str());
+            }
+        }
+    }
+
+
+
+
     //  Time drive sends a marker each time sector 0 passes, then the Status.
     TEST_METHOD (TimeDrive_SendsAMarkerEachRevolution)
     {

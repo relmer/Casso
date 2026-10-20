@@ -217,6 +217,9 @@ slotok: clc
         sta drive
         lda #0
         sta track
+        sta sector
+        sta plo
+        sta phi
         sta index
         sta count
         sta pcflag
@@ -2057,10 +2060,13 @@ pttext: lda (ptr),y
 ptdone: ldy tmp
         rts
 
-; putch: A into the field at Y, and Y on.
-putch:  ora #$80
+; putch: A into the field at Y, and Y on. Nothing is drawn at a Y of 40 or
+; more, so a text from a row's start is never drawn on the row below it.
+putch:  cpy #40
+        bcs pcnext
+        ora #$80
         sta (scr),y
-        iny
+pcnext: iny
         rts
 
 ; putdec: A in decimal, without leading zeros, into the field from Y.
@@ -2154,8 +2160,8 @@ speedend:
 
 ; showstatus: the status row: the operation, and while one runs its drive,
 ; track and sector and how much of the request is done, as
-; STATUS: READING D2, T17, S5 (45%). The other labels are the points that
-; update it.
+; STATUS: READING D2, T17, S5 (45%). Set speed has no drive. The other
+; labels are the points that update it.
 showop:
 showdrive:
 showtrack:
@@ -2179,8 +2185,10 @@ showstatus: jsr percent
         sta ptr+1
         jsr puttext
         lda op
+        beq stdone
+        cmp #OPSPEED
         bne strun
-        rts
+stdone: rts
 strun:  lda #<stdrive
         sta ptr
         lda #>stdrive
