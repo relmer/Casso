@@ -300,18 +300,34 @@ wrong; the record of the reversal follows.
 - **Why the emulator missed it:** emulated sessions are short; nothing runs
   for four minutes with the PC silent.
 
-### 24. A stray `)` under the history (open)
+### 24. A stray `)` under the history
 
 - **Symptom:** after a disconnect and reconnect from Casso Explorer, the
   program's screen had two history lines (`12:17 PC CONNECTED`, `12:16 PC
-  CONNECTED`), a blank row, then `)` in column 0 of the row after.
-- **Evidence:** every text the program draws fits its 40 columns, including
-  the status and label rows, whose next 40 bytes in memory are rows 13 and
-  14. The same screen in the emulator, after two drives were listed, has no
-  stray character.
-- **Cause:** not yet known.
-- **Next:** read the //c's text page over the link when it appears, to find
-  the byte's row and the operation before it.
+  CONNECTED`), a blank row, then `)` in column 0 of the row after. After a
+  fresh bootstrap, with one history line (`14:01 PC CONNECTED`), the `)` was
+  at the same place, row 14, under two blank rows.
+- **Cause:** Set speed's status row ran past column 39. The status is
+  `STATUS: SETTING SPEED D1, T0, S5 (0%)`, with the drive, track, sector and
+  percentage of the last disk operation, and the sector and the percentage's
+  bounds (`sector`, `plo`, `phi`) were never set at the program's start, so
+  the first Set speed's status contained the values BASIC or the monitor had
+  left in those zero page bytes. The text is 33 characters plus its digits; at 41, the
+  closing `)` lands in column 40 of row 5 (`$0680`), which is `$06A8`,
+  column 0 of row 13, the history's third line. The next log line scrolls
+  the history down a row and moves the `)` to row 14. On a reconnect, after
+  the drive probe's last read (drive 2, track 17, a two-digit sector, 100%),
+  the text is exactly 41 characters: `STATUS: SETTING SPEED D2, T17, S12
+  (100%)`.
+- **Fix:** the status of Set speed is the operation alone; the program sets
+  `sector`, `plo` and `phi` to 0 at its start; and `putch` draws nothing at a
+  column of 40 or more, so no text is drawn on the row below it. Program
+  version 41. `SetSpeed_StatusStaysOnItsRow` sets the sector and the
+  percentage to 200 before the connection and checks every frame's history
+  rows: the old program puts `%)` at row 13.
+- **Why the emulator missed it:** an Emulated link starts at the link's
+  speed, so Casso Explorer never sends it Set speed; the scenario tests that
+  do send it started with the sector and percentage short enough to fit.
 
 ### 25. A lost request hung the host for good
 
