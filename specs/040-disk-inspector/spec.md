@@ -1897,9 +1897,9 @@ legend, and tilt the platter and back.
   Its width MUST be a share of the selection's shorter side, so its angle
   reads the same in a short strip as in a tall cell, and it MUST cross with
   no visible steps at any zoom. Sweeps MUST be a second apart. On the
-  platter, between sweeps the selection's outline MUST be drawn; during a sweep
-  the outline MUST NOT be drawn, and the band MUST cover the outline's area
-  as well as the selection. Where the selected file's marching outline would
+  platter, the selection's outline MUST fade from its color to mid gray as a
+  sweep starts and back as it ends, so the band is plain to see against
+  it. Where the selected file's marching outline would
   lie on the selection's border, it MUST be drawn just outside the border
   instead, so the two never coincide. On a new track, the
   strip MUST keep the same fraction of the turn in view unless the new
