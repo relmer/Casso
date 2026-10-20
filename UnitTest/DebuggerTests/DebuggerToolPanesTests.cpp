@@ -101,6 +101,7 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::IsPaneShown;
         using DebuggerWindow::GetProfilerPane;
         using DebuggerWindow::GetPaneHostForTest;
+        using DebuggerWindow::ShowPane;
 
         std::optional<std::vector<std::wstring>> RunStepFiltersDialog (const std::vector<std::wstring> & shown,
                                                                        std::function<bool (const std::wstring &, std::wstring &)> check) override
@@ -254,6 +255,41 @@ namespace DebuggerToolPanesTests
         //  period; the drop-down reads the period, and the progress bar is up while
         //  the snapshot has the build under way. The view drop-down's label
         //  follows the view.
+        //  Open on a stopped machine with history, the pane builds the chosen
+        //  period's profile once for each stop, with no period chosen again.
+        TEST_METHOD (TheOpenPaneBuildsTheProfileAtEachStop)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            ToolWindow         window   (theme, host);
+            DxuiDpiScaler      scaler;
+            auto               snapshot = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ShowPane (DebuggerLayout::kProfiler);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            snapshot->isPaused           = true;
+            snapshot->history.hasHistory = true;
+            snapshot->history.cycle      = 100;
+            window.TakeSnapshot (snapshot);
+            Assert::IsTrue (host.commands == std::vector<std::string> { "PROFILE HISTORY 60" }, L"the chosen period, built at the stop");
+
+            window.TakeSnapshot (snapshot);
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"once for the stop");
+
+            snapshot                = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            snapshot->history.cycle = 200;
+            window.TakeSnapshot (snapshot);
+            Assert::AreEqual ((size_t) 2, host.commands.size(), L"and again at the next");
+        }
+
+
+
         TEST_METHOD (ShowProfileBuildsTheProfileOfAPeriodFromHistory)
         {
             CassoTheme                    theme    = CassoTheme::MakeSkeuomorphic();

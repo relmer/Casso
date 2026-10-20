@@ -201,7 +201,7 @@ public:
     std::vector<IDxuiControl *>  GetControls       () const override;
     std::vector<DxuiToolbar *>   GetBars           () const override { return { m_bar.GetBar() }; }
     void                         Apply             (const DebuggerViewSnapshot & snapshot) override;
-    void                         PlaceBar          () override { m_bar.Place(); }
+    void                         PlaceBar          () override { m_bar.Place(); BuildIfDue(); }
     bool                         RouteBarMouse     (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
     bool                         RouteContentMouse (const DxuiMouseEvent & ev) override;
     const wchar_t              * GetBarTip         (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
@@ -223,6 +223,7 @@ public:
 
 private:
     void  Refresh        ();
+    void  BuildIfDue     ();
     void  SetBarEntries  ();
     void  SetViewMenu    ();
     void  RunProfile     (const char * words);
@@ -235,6 +236,9 @@ private:
     std::unique_ptr<ToolbarLabelEntry>           m_showLabel;
     size_t                                       m_period      = 1;
     bool                                         m_isBuilding  = false;
+    bool                                         m_isPaused    = false;
+    std::optional<uint64_t>                      m_stopCycle;            // where the machine is stopped, with history
+    std::optional<uint64_t>                      m_builtCycle;           // the stop the last profile was requested at
     FlameGraphView                             * m_flameGraph  = nullptr;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
     View                                         m_view        = View::Opcodes;

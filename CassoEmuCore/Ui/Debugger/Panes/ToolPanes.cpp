@@ -948,6 +948,38 @@ void ProfilerPane::Apply (const DebuggerViewSnapshot & snapshot)
 
     m_timeline->SetData   (m_byOpcode);
     m_flameGraph->SetData (m_byOpcode);
+
+    m_isPaused  = snapshot.isPaused;
+    m_stopCycle = snapshot.history.hasHistory ? std::optional<uint64_t> (snapshot.history.cycle) : std::nullopt;
+    BuildIfDue();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::BuildIfDue
+//
+//  The chosen period's profile, built once for each stop while the pane is
+//  open on a stopped machine with history, so the profile appears without the
+//  period being chosen again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::BuildIfDue()
+{
+    bool  isOpen = m_frame != nullptr && m_frame->IsVisible();
+
+
+
+    if (!isOpen || !m_isPaused || m_isBuilding || !m_stopCycle.has_value() || m_builtCycle == m_stopCycle)
+    {
+        return;
+    }
+
+    ShowPeriod (m_period);
 }
 
 
@@ -1159,7 +1191,8 @@ const std::vector<ProfilerPane::Period> & ProfilerPane::GetPeriods()
 
 void ProfilerPane::ShowPeriod (size_t period)
 {
-    m_period = std::min (period, GetPeriods().size() - 1);
+    m_period     = std::min (period, GetPeriods().size() - 1);
+    m_builtCycle = m_stopCycle;
     RunProfile (GetPeriods()[m_period].words);
     m_host.Repaint();
 }
