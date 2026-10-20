@@ -15,9 +15,10 @@
 //  Find, docked under the inspector's toolbar (FR-056): the pattern, the
 //  kind of search, Whole disk and Any bit offset, the selected hit's place
 //  among the hits, steps to the previous and next hit, a button for the
-//  Find results tab, and a close button. The line under the pattern has an
-//  example of the chosen kind of pattern, or the reason the last pattern
-//  could not be read. Enter searches for a new query and steps to the next hit of
+//  Find results tab, and a close button. An info tip after the kind of
+//  search has the format of that kind of pattern, with an example; a
+//  pattern that cannot be read gets its reason in red after the options.
+//  Enter searches for a new query and steps to the next hit of
 //  the same one; Shift+Enter steps back; Escape closes the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,8 +30,7 @@ public:
     using StepFn   = std::function<void (int step)>;
     using ActionFn = std::function<void ()>;
 
-    static constexpr int  kRowDip  = 34;
-    static constexpr int  kHintDip = 20;
+    static constexpr int  kRowDip = 38;
 
     FindBar();
 
@@ -53,9 +53,9 @@ public:
     void  SetInputFocused (bool isFocused);
     bool  IsInputFocused  () const;
 
-    static int  GetHeightPx (const DxuiDpiScaler & scaler) { return scaler.ToPx (kRowDip + kHintDip); }
+    static int  GetHeightPx (const DxuiDpiScaler & scaler) { return scaler.ToPx (kRowDip); }
 
-    //  The line under the pattern for each kind of search.
+    //  The format of each kind of pattern, for the info tip.
     static std::wstring  GetHint (SearchKind kind);
 
     //  Whether two queries find the same hits.
@@ -80,7 +80,8 @@ private:
     DxuiButton     * m_next        = nullptr;
     DxuiButton     * m_listButton  = nullptr;
     DxuiButton     * m_closeButton = nullptr;
-    DxuiLabel      * m_hint        = nullptr;
+    DxuiInfoTip    * m_hintTip     = nullptr;
+    DxuiLabel      * m_error       = nullptr;
     SearchFn         m_search;
     StepFn           m_step;
     ActionFn         m_list;

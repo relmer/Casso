@@ -42,7 +42,7 @@
 
 static constexpr LPCWSTR  s_kpszWindowTitle = L"Disk inspector";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
-static constexpr LPCWSTR  s_kpszFindBadHex  = L"Enter pairs of hex digits, such as D5 AA 96. ? matches any digit, and + after a nibble for extra zero cells.";
+static constexpr LPCWSTR  s_kpszFindBadHex  = L"Enter pairs of hex digits, such as D5 AA 96.";
 static constexpr LPCWSTR  s_kpszFindBadText = L"Enter the text to find, in plain ASCII.";
 
 //  A command added to the system menu: below SC_SIZE, low four bits clear.
@@ -354,6 +354,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_tracksTab->Tick   (static_cast<int64_t> (GetTickCount64()));
     m_findingsTab->Tick (static_cast<int64_t> (GetTickCount64()));
     m_fieldsTab->Tick   (static_cast<int64_t> (GetTickCount64()));
+    m_findBar->Tick     (static_cast<int64_t> (GetTickCount64()));
     Invalidate();
 
 Error:

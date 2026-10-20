@@ -14,6 +14,7 @@ static constexpr int      s_kGapDip          = 8;
 static constexpr int      s_kLabelDip        = 40;
 static constexpr int      s_kInputDip        = 240;
 static constexpr int      s_kKindDip         = 120;
+static constexpr int      s_kTipDip          = 28;
 static constexpr int      s_kWholeDiskDip    = 112;
 static constexpr int      s_kAnyBitDip       = 136;
 static constexpr int      s_kCountDip        = 96;
@@ -38,6 +39,7 @@ FindBar::FindBar()
     m_label       = CreateChild<DxuiLabel>    (L"Find", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_input       = CreateChild<DxuiTextInput>();
     m_kind        = CreateChild<DxuiComboBox>();
+    m_hintTip     = CreateChild<DxuiInfoTip>();
     m_wholeDisk   = CreateChild<DxuiCheckbox> (L"Whole disk", true);
     m_anyBit      = CreateChild<DxuiCheckbox> (L"Any bit offset");
     m_count       = CreateChild<DxuiLabel>    (L"", DxuiTextRole::Body, DxuiTextHAlign::Right);
@@ -45,13 +47,13 @@ FindBar::FindBar()
     m_next        = CreateChild<DxuiButton>   (s_kpszTriangleDown);
     m_listButton  = CreateChild<DxuiButton>   (L"List");
     m_closeButton = CreateChild<DxuiButton>   (s_kpszMultiplyX);
-    m_hint        = CreateChild<DxuiLabel>    (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left);
+    m_error       = CreateChild<DxuiLabel>    (L"", DxuiTextRole::Error, DxuiTextHAlign::Left);
 
     m_kind->SetItems    ({ L"Nibbles", L"Sector hex", L"Sector text" });
     m_kind->SetSelected (0);
     m_input->SetMaxLength (s_kMaxPatternChars);
 
-    m_input->SetOnChange      ([this] (const std::wstring &) { m_isError = false; ShowHint(); });
+    m_input->SetOnChange      ([this] (const std::wstring &) { SetError (L""); });
     m_kind->SetSelect         ([this] (int) { m_anyBit->SetEnabled (GetQuery().kind == SearchKind::Nibbles); ShowHint(); Submit (0); });
     m_wholeDisk->SetOnChange  ([this] (bool) { Submit (0); });
     m_anyBit->SetOnChange     ([this] (bool) { Submit (0); });
@@ -80,6 +82,7 @@ void FindBar::Init (HWND hwnd, IDxuiTextRenderer * text, DxuiHwndSource * popupH
     m_input->SetTextRenderer (text);
     m_input->SetTheme        (theme);
     m_kind->SetPopupHost     (popupHost);
+    m_hintTip->SetPopupHost  (popupHost);
 }
 
 
@@ -170,16 +173,7 @@ void FindBar::SetResult (int index, int count)
 void FindBar::SetError (const std::wstring & message)
 {
     m_isError = !message.empty();
-
-    if (m_isError)
-    {
-        m_hint->SetTextRole (DxuiTextRole::Error);
-        m_hint->SetText     (message);
-    }
-    else
-    {
-        ShowHint();
-    }
+    m_error->SetText (message);
 }
 
 
@@ -297,11 +291,7 @@ void FindBar::Submit (int step)
 
 void FindBar::ShowHint()
 {
-    if (!m_isError)
-    {
-        m_hint->SetTextRole (DxuiTextRole::Muted);
-        m_hint->SetText     (GetHint (GetQuery().kind));
-    }
+    m_hintTip->SetText (GetHint (GetQuery().kind));
 }
 
 
@@ -312,9 +302,9 @@ void FindBar::ShowHint()
 //
 //  FindBar::Layout
 //
-//  One row: the label, the pattern, the kind and the two options from the
-//  left, and the close button, List, the steps and the count from the
-//  right. The hint runs under the pattern to the right edge.
+//  One row: the label, the pattern, the kind, its info tip, the two options
+//  and any error from the left, and the close button, List, the steps and
+//  the count from the right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -323,10 +313,9 @@ void FindBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     int  inset  = scaler.ToPx (s_kInsetDip);
     int  gap    = scaler.ToPx (s_kGapDip);
     int  top    = boundsPx.top + inset;
-    int  bottom = boundsPx.top + scaler.ToPx (kRowDip) - inset;
+    int  bottom = boundsPx.bottom - inset;
     int  x      = boundsPx.left + scaler.ToPx (s_kPadDip);
     int  r      = boundsPx.right - scaler.ToPx (s_kPadDip);
-    int  input  = 0;
     int  step   = scaler.ToPx (s_kStepDip);
 
 
@@ -335,14 +324,16 @@ void FindBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 
     m_label->Layout ({ x, top, x + scaler.ToPx (s_kLabelDip), bottom }, scaler);
     x    += scaler.ToPx (s_kLabelDip);
-    input = x;
     m_input->Layout ({ x, top, x + scaler.ToPx (s_kInputDip), bottom }, scaler);
     x    += scaler.ToPx (s_kInputDip) + gap;
     m_kind->Layout ({ x, top, x + scaler.ToPx (s_kKindDip), bottom }, scaler);
-    x    += scaler.ToPx (s_kKindDip) + gap;
+    x    += scaler.ToPx (s_kKindDip);
+    m_hintTip->Layout ({ x, top, x + scaler.ToPx (s_kTipDip), bottom }, scaler);
+    x    += scaler.ToPx (s_kTipDip) + gap;
     m_wholeDisk->Layout ({ x, top, x + scaler.ToPx (s_kWholeDiskDip), bottom }, scaler);
     x    += scaler.ToPx (s_kWholeDiskDip);
     m_anyBit->Layout ({ x, top, x + scaler.ToPx (s_kAnyBitDip), bottom }, scaler);
+    x    += scaler.ToPx (s_kAnyBitDip) + gap;
 
     m_closeButton->Layout ({ r - step, top, r, bottom }, scaler);
     r -= step + gap;
@@ -353,8 +344,8 @@ void FindBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     m_prev->Layout ({ r - step, top, r, bottom }, scaler);
     r -= step + gap;
     m_count->Layout ({ r - scaler.ToPx (s_kCountDip), top, r, bottom }, scaler);
-
-    m_hint->Layout ({ input, bottom, boundsPx.right - scaler.ToPx (s_kPadDip), boundsPx.bottom - inset / 2 }, scaler);
+    r -= scaler.ToPx (s_kCountDip) + gap;
+    m_error->Layout ({ x, top, std::max (x, r), bottom }, scaler);
 }
 
 
