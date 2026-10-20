@@ -119,7 +119,8 @@ int FindingsTab::GetTopHeightPx() const
 //  FindingsTab::PaintTop
 //
 //  A toggle per category that has findings, with its count; one filtered
-//  out is drawn without its fill. With no findings, a line says so.
+//  out is drawn without its fill. With no findings, the list has a line
+//  to that effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,12 +156,7 @@ void FindingsTab::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
     }
 
-    if (total == 0 && m_context.hasDisk)
-    {
-        text.DrawString (L"No findings", static_cast<float> (top.left), static_cast<float> (top.top), static_cast<float> (top.right - top.left),
-                         static_cast<float> (top.bottom - top.top), theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace,
-                         DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-    }
+    SetEmptyText ((total == 0 && m_context.hasDisk) ? L"No findings" : L"");
 }
 
 

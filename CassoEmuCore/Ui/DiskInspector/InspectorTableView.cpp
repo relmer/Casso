@@ -7,6 +7,12 @@
 
 
 
+static constexpr float  s_kEmptyPadDip = 8.0f;
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InspectorTableView::InspectorTableView
@@ -198,6 +204,18 @@ void InspectorTableView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
 
     m_list.SetTheme (&theme);
     m_list.Paint (painter, text, theme);
+
+    //  An empty list has its line where its first row would be.
+    if (m_rows.empty() && !m_emptyText.empty())
+    {
+        RECT   list = m_list.GetBounds();
+        float  pad  = m_scaler.ToPxf (s_kEmptyPadDip);
+        float  top  = static_cast<float> (list.top + m_list.GetHeaderHeightPx()) + pad;
+
+        text.DrawString (m_emptyText.c_str(), static_cast<float> (list.left) + pad, top, static_cast<float> (list.right - list.left) - 2 * pad,
+                         static_cast<float> (list.bottom) - top, theme.ForegroundMuted(), m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace,
+                         DxuiTextHAlign::Left, DxuiTextVAlign::Top, DxuiFontWeight::Normal, true);
+    }
 }
 
 

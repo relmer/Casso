@@ -33,6 +33,9 @@ public:
     void  SetColumns  (const vector<std::wstring> & titles);
     void  SetRows     (vector<TableRow> rows);
     void  SetCaption  (const std::wstring & caption) { m_caption = caption; }
+
+    //  A line inside the list, under its header, while it has no rows.
+    void  SetEmptyText (const std::wstring & text) { m_emptyText = text; }
     void  SetOnSelect (SelectFn select) { m_select = std::move (select); }
     void  SetOnSort   (SortFn sort);
     void  SetSortIndicator (int column, bool isDescending) { m_list.SetSortIndicator (column, isDescending); }
@@ -58,6 +61,7 @@ protected:
     vector<TableRow>      m_rows;
     vector<std::wstring>  m_titles;
     std::wstring          m_caption;
+    std::wstring          m_emptyText;
     SelectFn              m_select;
     bool                  m_isSelecting = false;
 };
