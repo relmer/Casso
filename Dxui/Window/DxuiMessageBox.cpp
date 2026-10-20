@@ -74,8 +74,9 @@ public:
 
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
     {
-        HRESULT  hr    = S_OK;
-        RECT     tr    = m_bounds;
+        HRESULT  hr      = S_OK;
+        RECT     tr      = m_bounds;
+        bool     laidOut = false;
 
         UNREFERENCED_PARAMETER (painter);
 
@@ -107,6 +108,10 @@ public:
             tr.left += iconColPx + m_scaler.ToPx (s_kIconTextGapDip);
         }
 
+        //  A paint before the first layout has an empty box and draws no text.
+        laidOut = tr.right > tr.left && tr.bottom > tr.top;
+
+        if (laidOut)
         {
             DxuiFontHandle   bf      = theme.BodyFont();
             float            fullW   = 0.0f;
@@ -325,6 +330,113 @@ static int GetMaxHeightDip (HWND owner)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTextHeightDip
+//
+//  The text's real wrap at the content width of a client area that wide,
+//  where the theme's font is known; the estimate runs short on long words.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int GetTextHeightDip (const std::wstring & body, DxuiMessageSeverity severity, const IDxuiTheme * theme, int clientWidthDip)
+{
+    HRESULT  hr       = S_OK;
+    bool     hasGlyph = severity != DxuiMessageSeverity::None;
+    int      textDip  = DxuiMessageBoxWindow::EstimateTextHeightDip (body, hasGlyph);
+
+
+
+    if (theme != nullptr)
+    {
+        DxuiFontHandle  font     = theme->BodyFont();
+        float           widthDip = (float) (clientWidthDip - 2 * DxuiButtonRow::kEdgePadDip - (hasGlyph ? s_kIconColDip + s_kIconTextGapDip : 0));
+        float           measured = 0.0f;
+
+        hr = DxuiTextRenderer::MeasureWrappedDip (body.c_str(), font.sizeDip, font.face, font.weight, widthDip, measured);
+
+        if (SUCCEEDED (hr))
+        {
+            textDip = (int) std::ceil (measured);
+        }
+    }
+
+    return textDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBoxHeightDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static int GetBoxHeightDip (HWND owner, DxuiMessageSeverity severity, int textDip)
+{
+    int  contentDip = (std::max) (textDip, (severity != DxuiMessageSeverity::None) ? s_kGlyphRowDip : 0);
+
+
+
+    return std::clamp (s_kChromeHeightDip + contentDip, s_kMinHeightDip, GetMaxHeightDip (owner));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FitToClient
+//
+//  The box is created at an outer size, and its frame takes width and
+//  height from the client area the text is drawn in. The text is measured
+//  again at the client's real width, where it can wrap to more lines than
+//  at the outer width, and the frame's height is added, so no line is cut
+//  off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT FitToClient (HWND hwnd, HWND owner, const std::wstring & body, DxuiMessageSeverity severity, const IDxuiTheme * theme)
+{
+    HRESULT  hr        = S_OK;
+    RECT     window    = {};
+    RECT     client    = {};
+    UINT     dpi       = 0;
+    BOOL     placed    = FALSE;
+    int      textDip   = 0;
+    int      heightPx  = 0;
+
+
+
+    CBRAEx (hwnd != nullptr, E_INVALIDARG);
+
+    dpi = GetDpiForWindow (hwnd);
+    CBR (dpi != 0);
+
+    placed = GetWindowRect (hwnd, &window);
+    CWRA (placed);
+
+    placed = GetClientRect (hwnd, &client);
+    CWRA (placed);
+
+    textDip  = GetTextHeightDip (body, severity, theme, MulDiv (client.right, USER_DEFAULT_SCREEN_DPI, (int) dpi));
+    heightPx = MulDiv (GetBoxHeightDip (owner, severity, textDip), (int) dpi, USER_DEFAULT_SCREEN_DPI)
+             + (window.bottom - window.top) - client.bottom;
+
+    placed = SetWindowPos (hwnd, nullptr, 0, 0, window.right - window.left, heightPx, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    CWRA (placed);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMessageBox
 //
 //  A themed replacement for the Win32 MessageBox, matching its signature.
@@ -407,28 +519,8 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     default:                 break;
     }
 
-    textDip = DxuiMessageBoxWindow::EstimateTextHeightDip (body, severity != DxuiMessageSeverity::None);
-
-    //  The text's real wrap where the theme's font is known; the estimate
-    //  runs short on long words, and the last lines were cut off.
-    if (theme != nullptr)
-    {
-        DxuiFontHandle  font     = theme->BodyFont();
-        float           widthDip = (float) (s_kWidthDip - 2 * DxuiButtonRow::kEdgePadDip
-                                            - ((severity != DxuiMessageSeverity::None) ? s_kIconColDip + s_kIconTextGapDip : 0));
-        float           measured = 0.0f;
-
-        hr = DxuiTextRenderer::MeasureWrappedDip (body.c_str(), font.sizeDip, font.face, font.weight, widthDip, measured);
-
-        if (SUCCEEDED (hr))
-        {
-            textDip = (int) std::ceil (measured);
-        }
-    }
-
-    heightDip = std::clamp (s_kChromeHeightDip + (std::max) (textDip, (severity != DxuiMessageSeverity::None) ? s_kGlyphRowDip : 0),
-                            s_kMinHeightDip,
-                            GetMaxHeightDip (owner));
+    textDip   = GetTextHeightDip (body, severity, theme, s_kWidthDip);
+    heightDip = GetBoxHeightDip (owner, severity, textDip);
 
     hInst = (owner != nullptr)
                 ? reinterpret_cast<HINSTANCE> (GetWindowLongPtrW (owner, GWLP_HINSTANCE))
@@ -455,6 +547,9 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     else
     {
         dlg.SetTheme (theme);
+
+        hr = FitToClient (dlg.GetHwnd(), owner, body, severity, theme);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         // Center the box on its owner (Win32 MessageBox centers on the owner too),
         // clamped to the owner's monitor work area so it never lands off-screen. The
