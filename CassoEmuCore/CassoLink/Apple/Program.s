@@ -615,9 +615,10 @@ ridnext: eor readyrom,x
         rts
 
 ; probe: drive 2 into readymap. A drive at the port reads nibbles from a
-; disk, and noise with none, so its data latch has bit 7 set many times a
-; revolution; with no drive at the port, the latch never has. Drive 1 is
-; always there: the //c's own drive, or the first on a card.
+; disk, and noise with none, so its data latch changes many times a
+; revolution. With no drive at the //c's port the latch is $80 throughout,
+; as measured on a //c. Drive 1 is always there: the //c's own drive, or the
+; first on a card.
 probe:  ldx diskx
         lda DRIVE2,x
         lda MOTORON,x
@@ -627,13 +628,17 @@ probe:  ldx diskx
         jsr delayms
         lda #0
         sta tmp                 ; 64 * 256 reads, about a quarter second
-        sta pagecnt             ; the reads with bit 7 set
+        sta pagecnt             ; the reads that differ from the one before
         lda #64
         sta tmp2
         lda #$01
         sta readymap
+        lda Q6L,x
+        sta acky                ; sendack's byte, free here: the read before
 prloop: lda Q6L,x
-        bpl prnext
+        cmp acky
+        beq prnext
+        sta acky
         inc pagecnt
         lda pagecnt
         cmp #16
