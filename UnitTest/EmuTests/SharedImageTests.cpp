@@ -375,6 +375,52 @@ public:
 
 
 
+    //  A failed remount empties the bay, so it drops the watch and the
+    //  identity as an eject does.
+    TEST_METHOD (AFailedRemountDropsTheWatchAndTheIdentity)
+    {
+        Rig                rig;
+        std::vector<Byte>  junk (0x10, 0);
+        HRESULT            hrMount = S_OK;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        hrMount = rig.store.MountFromBytes (kSlot, kDrive, "junk.dsk", DiskFormat::Dsk, junk);
+
+        Assert::IsTrue  (FAILED (hrMount));
+        Assert::AreEqual ((size_t) 0, rig.watcher.watched.size());
+        Assert::AreEqual ((size_t) 1, rig.watcher.unwatched.size());
+        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity().recorded);
+    }
+
+
+
+    //  A disk from another folder mounted over the bay's disk moves the watch
+    //  to the new folder.
+    TEST_METHOD (ARemountFromAnotherFolderMovesTheWatch)
+    {
+        Rig          rig;
+        std::string  other = "C:\\other\\Data.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        rig.WriteImage (other,      0x22);
+
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, other));
+
+        Assert::AreEqual ((size_t) 1, rig.watcher.watched.size());
+        Assert::IsTrue (rig.watcher.watched[0] == std::string ("C:\\other"), L"only the new folder is watched");
+        Assert::AreEqual ((size_t) 1, rig.watcher.unwatched.size());
+        Assert::IsTrue (rig.watcher.unwatched[0] == std::string (kDirectory), L"the old folder's watch is dropped");
+    }
+
+
+
     TEST_METHOD (AWatchIsKeptWhileAnotherBayStillNeedsItsDirectory)
     {
         Rig          rig;
