@@ -1077,6 +1077,7 @@ void SettingsSheet::OnDialogTick()
 //  While the Controllers page is shown the sheet ticks at its live rate, so
 //  the stick and the lights follow the controller at display rate; on any
 //  other page it drops back to the default, and the page stops reading.
+//  The Serial card tab's sparkle ticks at frame rate while it runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1089,6 +1090,15 @@ void SettingsSheet::UpdateTickInterval()
     if (m_controllersPage != nullptr && m_controllersPage->GetPollIntervalMs() > 0)
     {
         wanted = m_controllersPage->GetPollIntervalMs();
+    }
+
+    if (GetSerialSparkleProgress().has_value())
+    {
+        wanted = std::min (wanted, kSparkleTickMs);
+    }
+    else
+    {
+        m_serialSparkleStartMs.reset();
     }
 
     if (wanted != m_tickMs)
@@ -1563,6 +1573,132 @@ void SettingsSheet::UpdateSerialTabVisibility()
     {
         m_serialPage->Rebuild();
     }
+
+    if (turnedOn && DxuiSystemSettings::Instance().AreAnimationsEnabled())
+    {
+        m_serialSparkleStartMs = (int64_t) GetTickCount64();
+        UpdateTickInterval();
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSerialSparkleProgress
+//
+//  The Serial card tab's sparkle, 0 to 1, or nothing once it has run.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<float> SettingsSheet::GetSerialSparkleProgress() const
+{
+    std::optional<float>  progress;
+    int64_t               elapsed  = 0;
+
+
+
+    if (m_serialSparkleStartMs.has_value())
+    {
+        elapsed = (int64_t) GetTickCount64() - *m_serialSparkleStartMs;
+
+        if (elapsed < DxuiShimmer::kSweepMs)
+        {
+            progress = (float) elapsed / (float) DxuiShimmer::kSweepMs;
+        }
+    }
+
+    return progress;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint
+//
+//  The sheet, then the Serial card tab's sparkle over its label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    std::optional<float>  progress = GetSerialSparkleProgress();
+
+
+
+    DxuiPropertySheet::Paint (painter, text, theme);
+
+    if (progress.has_value())
+    {
+        PaintSerialSparkle (text, *progress);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintSerialSparkle
+//
+//  DxuiShimmer over the tab's label, drawn where and as the tab strip draws
+//  it; the glints span only the label text's width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::PaintSerialSparkle (IDxuiTextRenderer & text, float progress)
+{
+    constexpr float  kGlintDip = 2.5f;
+
+
+
+    HRESULT                    hr      = S_OK;
+    const DxuiTabStrip::Tab *  tab     = FindTabOfPage (m_serialPageIndex);
+    DxuiDpiScaler              scaler;
+    float                      fontPx  = 0.0f;
+    float                      padX    = 0.0f;
+    float                      x       = 0.0f;
+    float                      y       = 0.0f;
+    float                      w       = 0.0f;
+    float                      h       = 0.0f;
+    float                      labelW  = 0.0f;
+    float                      labelH  = 0.0f;
+
+
+
+    BAIL_OUT_IF (tab == nullptr, S_OK);
+
+    scaler.SetDpi (GetDpi());
+    fontPx = scaler.ToPxf (DxuiTabStrip::kLabelFontDip);
+    padX   = scaler.ToPxf (DxuiTabStrip::kLabelPadXDip);
+    x      = (float) tab->rect.left + padX;
+    y      = (float) tab->rect.top;
+    w      = (float) (tab->rect.right - tab->rect.left) - padX * 2.0f;
+    h      = (float) (tab->rect.bottom - tab->rect.top);
+
+    hr = text.MeasureString (tab->label.c_str(), fontPx, DxuiTheme::kBodyFace, labelW, labelH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    labelW = std::min (labelW, w);
+
+    DxuiShimmer::Paint (text, x, y, w, h, x + (w - labelW) * 0.5f, labelW, fontPx, scaler.ToPxf (kGlintDip), progress, m_serialSparkleGlints,
+                        [&] (uint32_t argb)
+                        {
+                            HRESULT  drawHr = S_OK;
+
+                            drawHr = text.DrawString (tab->label.c_str(), x, y, w, h, argb, fontPx, DxuiTheme::kBodyFace,
+                                                      DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+                            IGNORE_RETURN_VALUE (drawHr, S_OK);
+                        });
 
 Error:
     return;

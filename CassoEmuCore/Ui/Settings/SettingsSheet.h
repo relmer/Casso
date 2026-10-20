@@ -118,6 +118,7 @@ protected:
     //  open, preserving the bespoke look (no separate popup HWND). Layout keeps
     //  it centered in the current sheet bounds.
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasModalOverlay   () const override;
     void     PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     OnOverlayMouse    (const DxuiMouseEvent & ev) override;
@@ -301,6 +302,17 @@ private:
     bool           m_serialDownloadAwaited   = false;
     bool           m_serialEnableOnDownload  = false;
     uint32_t       m_serialDownloadCount     = 0;
+
+    // A tab appearing among the others is easy to miss, so the Serial card
+    // tab's label shimmers once, as the update indicator's text does,
+    // when turning the card on adds it. Not with animations turned off.
+    static constexpr UINT  kSparkleTickMs = 16;
+
+    std::optional<int64_t>  m_serialSparkleStartMs;
+    DxuiSweepGlints         m_serialSparkleGlints = DxuiShimmer::MakeEvenSweepGlints();
+
+    std::optional<float>  GetSerialSparkleProgress () const;
+    void                  PaintSerialSparkle       (IDxuiTextRenderer & text, float progress);
 
     // The dialog tick last asked for: the Controllers page's live rate while
     // it is shown, the default otherwise.
