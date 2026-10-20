@@ -146,7 +146,8 @@ ENCT0    = $9000                ; encode: a byte's low two bits, swapped, for
 ENCT1    = $9100                ; the first third of a sector, shifted for the
 ENCT2    = $9200                ; second, and for the third
 FPAGES   = 26                   ; the format stream, whatever its gaps
-WSTART   = 512 - 354            ; the sector stream ends at its second page's end
+WSTART   = 512 - 355            ; the sector stream and its end mark end at its second page's end
+PEND     = $01                  ; the end of a write stream
 
 ; Zero page.
 slotx    = $06                  ; as the shim set it
@@ -314,10 +315,6 @@ exitlink: sei
         ldx slotx
         lda #$0A                ; DTR off, as the shim set it otherwise
         sta ACIACMD,x
-        lda #0                  ; with nothing saved, at least BASIC's output
-        sta $F3                 ; is plain: FLASHBIT off, INVFLG normal
-        lda #$FF
-        sta $32
         lda SHIMSAVED           ; 1 once the shim saved them; an older shim
         cmp #1                  ; has code there, which is left alone
         bne lvbasic
@@ -334,7 +331,11 @@ lvzp:   lda ZPSAVE,x
         sta $03F4
         lda #0
         sta SHIMSAVED
-lvbasic: lda #0
+lvbasic: lda #0                 ; text output plain, whatever was saved:
+        sta $F3                 ; FLASHBIT off and INVFLG normal, as a zero
+        lda #$FF                ; INVFLG prints every character as @
+        sta $32
+        lda #0
         sta $0800
         sta $0801
         sta $0802
@@ -554,7 +555,6 @@ doformat: lda PKTBUF+2
         jsr buildformat
         lda #>FSTREAM
         ldy #0
-        ldx #FPAGES
         jsr play
         jsr readall
         bcs fmtdone
@@ -612,7 +612,6 @@ wtgot:  jsr encpage
         sta fdata
         lda #>FSTREAM
         ldy #0
-        ldx #FPAGES
         jsr play
         jsr verifytrack
         jsr showprog
@@ -1613,7 +1612,6 @@ writesector: jsr encode
         bcs wsfail
         lda #>WSTREAM
         ldy #<WSTART
-        ldx #2
         jsr play
         clc
         rts
@@ -1650,7 +1648,8 @@ enprist: sta WRPRI,x
         bne enpri
         rts
 ; buildwrite: WSTREAM from WSTART: five self-sync bytes, the data prologue,
-; the 343 data nibbles and the epilogue, ending at the second page's end.
+; the 343 data nibbles, the epilogue and the end mark, ending at the second
+; page's end.
 buildwrite: lda #<(WSTREAM+WSTART)
         sta ptr
         lda #>(WSTREAM+WSTART)
@@ -1661,7 +1660,9 @@ bwsync: lda #0
         dex
         bne bwsync
         lda #>WRAUX
-        jmp putdata
+        jsr putdata
+        lda #PEND
+        jmp putstream
 
 ; putdata: a data field into the stream: D5 AA AD, the 342 nibbles of the
 ; 86 groups on page A and the 256 values on the page after it, each the EOR
@@ -1831,7 +1832,8 @@ bfgap3: lda #0
         lda sector
         cmp #16
         bne bfsec
-        rts
+        lda #PEND               ; the end mark, after the stream's 26 pages
+        jmp putstream
 
 gap1lo: .byte 0                 ; buildformat: the first gap's count
 gap1hi: .byte 0
@@ -1849,8 +1851,9 @@ put44:  sta tmp
 ; page, which costs a cycle more; it starts a page of its own.
         .align 256
 
-; play: the stream from page A, offset Y, through the end of the X-th page,
-; written by the drive. A 0 in the stream is a self-sync byte.
+; play: the stream from page A, offset Y, up to its end mark, PEND, written
+; by the drive. A 0 in the stream is a self-sync byte; every nibble has bit 7
+; set, so one bpl finds both a sync and the end.
 ;
 ; The stores are indexed, as in Apple's RWTS: an indexed store reads its
 ; address in the cycle before it writes it, and the first access starts the
@@ -1859,55 +1862,55 @@ put44:  sta tmp
 ; of step, and nothing is written (Sather, Understanding the Apple IIe).
 ;
 ; Cycles from one store to the next, each a whole number of 4-cycle bit
-; cells: data to data 32; data to sync, sync to sync 40; sync to data 32;
-; 8 more where the stream crosses a page. The extra time puts zero bits
-; between nibbles, which the read hardware skips.
+; cells: data to data 32; data to sync, sync to sync 40; sync to data 32.
+; Every path from a store back to plda is 21 cycles, the one that steps the
+; page as well, so a page crossing adds no time. Extra time there would put
+; zero bits between two nibbles, three or more in a row, which Apple's own
+; disks never have and which a weak drive can read as a 1.
 play:   sta plda+2
-        stx pagecnt
         ldx diskx
         lda Q6H,x
         lda Q7L,x
         lda #$FF
         sta Q7H,x               ; write mode, a self-sync byte loaded
-        ora Q6L,x
-        jsr dly12               ; the first store comes 40 cycles on
-        nop
-        jmp plda
+        ora Q6L,x               ; 4
+        jsr dly12               ; 12
+        nop                     ; 2
+        jmp plda                ; 3: 21 from the store
 plda:   lda WSTREAM,y           ; 4   (the page is set above)
-        beq psync               ; 2 / 3
-        sta Q6H,x               ; 5
+        bpl pspec               ; 2 / 3
+        sta Q6H,x               ; 5: a data byte 11 after plda
         ora Q6L,x               ; 4   at once, or the latch loads twice
-pnext:  iny                     ; 2
-        bne ppad                ; 3 / 2
-        bit $00                 ; 3
-pcross: inc plda+2              ; 6
-        dec pagecnt             ; 5
-        beq pdone               ; 2 / 3
-        nop                     ; 2
-        jmp plda                ; 3   8 more than through ppad
-ppad:   nop                     ; 2
+        iny                     ; 2
+        beq pcross              ; 2 / 3
         nop                     ; 2
         nop                     ; 2
-        bit $00                 ; 3
-        jmp plda                ; 3
-psync:  nop                     ; 2
+        nop                     ; 2
+        nop                     ; 2
+        nop                     ; 2
+        jmp plda                ; 3: 21 from the store
+pspec:  bne pdone               ; 2 / 3   the end mark
         bit $00                 ; 3
         lda #$FF                ; 2
-        sta Q6H,x               ; 5
+        sta Q6H,x               ; 5: a self-sync byte 19 after plda
         ora Q6L,x               ; 4
         iny                     ; 2
-        bne ppad                ; 3 / 2
-        jmp pcross              ; 3
-; Two self-sync bytes follow the stream's last nibble before the write is
+        beq pcross              ; 2 / 3
+        nop                     ; 2
+        nop                     ; 2
+        nop                     ; 2
+        nop                     ; 2
+        nop                     ; 2
+        jmp plda                ; 3: 21 from the store
+pcross: inc plda+2              ; 6
+        bit $00                 ; 3
+        jmp plda                ; 3: 21 from the store, as without a crossing; Two self-sync bytes follow the stream's last nibble before the write is
 ; turned off. The //c's IWM writes a stored byte only after the byte before
 ; it, so a write turned off just after the last store loses the end of the
 ; stream: a sector's epilogue, and so the sector. The first sync is stored
 ; 40 cycles after the last nibble, the second 40 after it, and the wait after
 ; them is past both being written.
-pdone:  nop                     ; 25 cycles to here from the last store
-        nop
-        nop
-        nop
+pdone:  nop                     ; 31 cycles to here from the last store
         lda #$FF                ; 2
         sta Q6H,x               ; 5: 40 after the last store
         ora Q6L,x               ; 4

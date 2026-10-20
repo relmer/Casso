@@ -194,6 +194,107 @@ public:
 
 
 
+    //  Zero page and the reset vector as the machine had them before the
+    //  shim ran, for CassoLink's exit to put back.
+    static void  MarkMachineState (Rig & rig)
+    {
+        for (Word at = 0xE0; at <= 0xFF; at++)
+        {
+            rig.machine.GetCpu()->WriteByte (at, (Byte) (0x40 + at - 0xE0));
+        }
+
+        for (Word at = 0x06; at <= 0x1F; at++)
+        {
+            rig.machine.GetCpu()->WriteByte (at, (Byte) (0x80 + at));
+        }
+
+        rig.machine.GetCpu()->WriteByte (0x03F2, 0x69);
+        rig.machine.GetCpu()->WriteByte (0x03F3, 0xFF);
+        rig.machine.GetCpu()->WriteByte (0x03F4, 0xFF ^ 0xA5);
+    }
+
+    //  CassoLink ended: the marks back, BASIC's program empty, and with no
+    //  DOS in memory, the monitor's prompt.
+    static void  AssertMachinePutBack (Rig & rig)
+    {
+        std::string  screen;
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        //  FLASHBIT, at $F3, is set off rather than put back.
+        for (Word at = 0xE0; at <= 0xFF; at++)
+        {
+            Assert::AreEqual<int> (at == 0xF3 ? 0 : 0x40 + at - 0xE0, rig.machine.GetCpu()->ReadByte (at), std::format (L"zero page ${:02X}", at).c_str());
+        }
+
+        for (Word at = 0x06; at <= 0x1F; at++)
+        {
+            Assert::AreEqual<int> (0x80 + at, rig.machine.GetCpu()->ReadByte (at), std::format (L"zero page ${:02X}", at).c_str());
+        }
+
+        Assert::AreEqual<int> (0x69, rig.machine.GetCpu()->ReadByte (0x03F2), L"the reset vector");
+        Assert::AreEqual<int> (0xFF, rig.machine.GetCpu()->ReadByte (0x03F3));
+        Assert::AreEqual<int> (0x00, rig.machine.GetCpu()->ReadByte (0x0800), L"BASIC's program is empty");
+        Assert::AreEqual<int> (0x00, rig.machine.GetCpu()->ReadByte (0x0801));
+        Assert::AreEqual<int> (0x00, rig.machine.GetCpu()->ReadByte (0x0802));
+
+        screen = rig.Screen();
+        Assert::IsTrue (screen.find ('*') != std::string::npos, L"the monitor's prompt");
+    }
+
+
+
+
+    //  Time drive sends a marker each time sector 0 passes, then the Status.
+    TEST_METHOD (TimeDrive_SendsAMarkerEachRevolution)
+    {
+        Rig              rig;
+        CassoLinkStatus  status;
+        double           revolution = 0.0;
+
+        rig.Connect();
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->TimeDrive (1, 17, 5, revolution, status); }));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+        Assert::IsTrue (revolution > 0.0, L"a time between the markers");
+    }
+
+
+
+
+    //  The PC's Exit ends CassoLink, and the machine's state is put back.
+    TEST_METHOD (Exit_PutsTheMachineBack)
+    {
+        Rig  rig;
+
+        MarkMachineState (rig);
+        rig.Connect();
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->Exit(); }));
+        AssertMachinePutBack (rig);
+    }
+
+
+
+
+    //  Control-Reset ends CassoLink the same way.
+    TEST_METHOD (ControlReset_PutsTheMachineBack)
+    {
+        Rig  rig;
+
+        MarkMachineState (rig);
+        rig.Connect();
+
+        rig.machine.SoftReset();
+        AssertMachinePutBack (rig);
+    }
+
+
+
+
     TEST_METHOD (ReadSectors_MatchBothImages)
     {
         Rig                rig;
