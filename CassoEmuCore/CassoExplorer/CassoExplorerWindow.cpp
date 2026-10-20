@@ -4115,6 +4115,24 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  The list's button under its message. It is given every move, so its
+    //  hover ends as the pointer leaves it, and the presses inside it.
+    if (m_listAction->IsVisible())
+    {
+        bool  inside = Contains (m_listAction->GetBounds(), point);
+
+        if (ev.kind == DxuiMouseEventKind::Move || inside)
+        {
+            m_listAction->OnMouse (ev);
+            Invalidate();
+        }
+
+        if (inside)
+        {
+            return true;
+        }
+    }
+
     //  An empty image or folder shows a message in the list's place; a right-
     //  click there still opens the menu the list's empty space has.
     if (!m_list->IsVisible() && m_listMessage->IsVisible() && press && ev.button == DxuiMouseButton::Right &&
