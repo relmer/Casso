@@ -102,7 +102,9 @@ namespace SscSettingsModelTestNs
         }
 
 
-        TEST_METHOD (UndefinedBaudSettingIsCustom)
+        //  All four baud switches on, which Apple's tables list as undefined, is
+        //  baud code 0: the 6551's external clock divided by 16, 115,200 baud.
+        TEST_METHOD (AllBaudSwitchesOnIs115200)
         {
             SscSwitches  sw;
 
@@ -113,7 +115,34 @@ namespace SscSettingsModelTestNs
                 sw.SetOn (SscBank::Sw1, n, true);
             }
 
-            Assert::AreEqual (SscSettingsModel::kCustom, SscSettingsModel::GetChoiceIndex (SscSetting::BaudRate, sw));
+            Assert::AreEqual (15, SscSettingsModel::GetChoiceIndex (SscSetting::BaudRate, sw));
+            Assert::AreEqual (0,  sw.GetBaudCode());
+            Assert::IsTrue   (SscSettingsModel::GetChoices (SscSetting::BaudRate)[15].starts_with (L"115,200"));
+        }
+
+
+        TEST_METHOD (EveryModeHasANote)
+        {
+            SscSwitches  sw = SscSwitches::MakeDefault();
+
+
+
+            for (int c = 0; c < 4; ++c)
+            {
+                SscSettingsModel::ApplyChoice (SscSetting::Mode, c, sw);
+                Assert::IsFalse (SscSettingsModel::GetNote (SscSetting::Mode, sw).empty(),
+                                 SscSettingsModel::GetChoices (SscSetting::Mode)[c].c_str());
+            }
+
+            Assert::IsTrue (SscSettingsModel::GetNote (SscSetting::BaudRate, sw).empty(), L"no note for the baud rate");
+        }
+
+
+        TEST_METHOD (LineFeedAndInterruptsHaveInfoTips)
+        {
+            Assert::IsFalse (SscSettingsModel::GetInfoTip (SscSetting::LineFeed).empty());
+            Assert::IsFalse (SscSettingsModel::GetInfoTip (SscSetting::Interrupts).empty());
+            Assert::IsTrue  (SscSettingsModel::GetInfoTip (SscSetting::BaudRate).empty(), L"no info tip for the baud rate");
         }
 
 

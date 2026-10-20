@@ -22,14 +22,14 @@ static constexpr SettingDef  s_kSettings[] =
 {
     { SscSetting::Mode, L"Mode",
       2, { { SscBank::Sw1, 5 }, { SscBank::Sw1, 6 } },
-      4, { { L"Communications",       { 1, 1 } },
-           { L"Printer",              { 0, 1 } },
-           { L"SIC P8 emulation",     { 1, 0 } },
-           { L"SIC P8A emulation",    { 0, 0 } } } },
+      4, { { L"Communications (bidirectional)",                      { 1, 1 } },
+           { L"Printer (output only)",                                { 0, 1 } },
+           { L"Emulate Apple II Serial Interface Card P8 firmware",  { 1, 0 } },
+           { L"Emulate Apple II Serial Interface Card P8A firmware", { 0, 0 } } } },
 
     { SscSetting::BaudRate, L"Baud rate",
       4, { { SscBank::Sw1, 1 }, { SscBank::Sw1, 2 }, { SscBank::Sw1, 3 }, { SscBank::Sw1, 4 } },
-      15, { { L"50",     { 1, 1, 1, 0 } },
+      16, { { L"50",     { 1, 1, 1, 0 } },
             { L"75",     { 1, 1, 0, 1 } },
             { L"110",    { 1, 1, 0, 0 } },
             { L"135",    { 1, 0, 1, 1 } },
@@ -43,7 +43,8 @@ static constexpr SettingDef  s_kSettings[] =
             { L"4,800",  { 0, 0, 1, 1 } },
             { L"7,200",  { 0, 0, 1, 0 } },
             { L"9,600",  { 0, 0, 0, 1 } },
-            { L"19,200", { 0, 0, 0, 0 } } } },
+            { L"19,200", { 0, 0, 0, 0 } },
+            { L"115,200 (not in Apple's manual)", { 1, 1, 1, 1 } } } },
 
     { SscSetting::DataFormat, L"Data format",
       2, { { SscBank::Sw2, 1 }, { SscBank::Sw2, 2 } },
@@ -258,6 +259,89 @@ wstring SscSettingsModel::GetReadout (const SscSwitches & switches, SscBank bank
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNote
+//
+//  From Apple's SSC manuals: what each mode is for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring SscSettingsModel::GetNote (SscSetting setting, const SscSwitches & switches)
+{
+    wstring  note;
+
+
+
+    if (setting == SscSetting::Mode)
+    {
+        switch (switches.GetMode())
+        {
+        case SscMode::Communications:
+            note = L"A two-way line to a modem or terminal. PR#2 sends, IN#2 receives, "
+                   L"and Ctrl-A starts a firmware command.";
+            break;
+
+        case SscMode::Printer:
+            note = L"Output to a serial printer, broken into lines of the width below. "
+                   L"Ctrl-I starts a firmware command.";
+            break;
+
+        case SscMode::SicP8:
+            note = L"For programs written for Apple's earlier Serial Interface Card that PEEK "
+                   L"and POKE its memory locations. Apple recommends Printer otherwise.";
+            break;
+
+        case SscMode::SicP8A:
+            note = L"As P8, with the P8A firmware's ETX/ACK handshaking. Apple recommends "
+                   L"Printer otherwise.";
+            break;
+        }
+    }
+
+    return note;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetInfoTip
+//
+//  From Apple's SSC manuals.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring SscSettingsModel::GetInfoTip (SscSetting setting)
+{
+    wstring  tip;
+
+
+
+    if (setting == SscSetting::LineFeed)
+    {
+        tip = L"Yes sends a line feed after each carriage return, in every mode. Use it for a "
+              L"printer or terminal that does not move to a new line on a carriage return "
+              L"alone. Apple recommends No in communications mode unless the other end is "
+              L"such a printer.";
+    }
+    else if (setting == SscSetting::Interrupts)
+    {
+        tip = L"On lets the card interrupt the processor when a byte arrives, so a program can "
+              L"receive in the background while it does other work. Turn it on only for a "
+              L"program written to use interrupts, such as Kermit; other programs can crash "
+              L"with it on.";
+    }
+
+    return tip;
 }
 
 

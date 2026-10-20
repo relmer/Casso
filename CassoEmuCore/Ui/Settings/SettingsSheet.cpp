@@ -1617,7 +1617,7 @@ bool SettingsSheet::IsSerialFirmwareMissing() const
 
 std::wstring SettingsSheet::GetSerialFirmwareStatus() const
 {
-    std::wstring  text    = L"Apple's Super Serial Card firmware is installed.";
+    std::wstring  text    = L"The Super Serial Card firmware is installed.";
     bool          missing = IsSerialFirmwareMissing();
 
 
@@ -1626,7 +1626,7 @@ std::wstring SettingsSheet::GetSerialFirmwareStatus() const
     {
         if (missing && slot.device == kpszSuperSerialCardDevice)
         {
-            text = L"Apple's Super Serial Card firmware is not installed. Programs that drive the card's 6551 "
+            text = L"The Super Serial Card firmware is not installed. Programs that drive the card's 6551 "
                    L"work without it; PR# and IN# do not. Casso looked for "
                    + TextEncoding::NarrowToWide (slot.firmwarePath) + L".";
         }
@@ -1686,7 +1686,7 @@ void SettingsSheet::StartSerialFirmwareDownload (bool enableOnSuccess)
     m_serialDownloadCount    = serial.GetCompletedDownloadCount();
 
     serial.StartFirmwareDownload (false);
-    m_serialPage->SetFirmwareStatus (L"Downloading Apple's Super Serial Card firmware.", false);
+    m_serialPage->SetFirmwareStatus (L"Downloading the Super Serial Card firmware.", false);
 }
 
 

@@ -457,7 +457,9 @@
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
     <ClCompile Include="Ui\Settings\PrintingPage.cpp" />
     <ClCompile Include="Ui\Settings\SerialCardPage.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsInfoTip.cpp" />
     <ClCompile Include="Ui\Settings\SscSettingsModel.cpp" />
+    <ClCompile Include="Ui\Settings\SscSwitchesView.cpp" />
     <ClCompile Include="Ui\Settings\ScreenshotsPage.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
@@ -890,7 +892,9 @@
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
     <ClInclude Include="Ui\Settings\PrintingPage.h" />
     <ClInclude Include="Ui\Settings\SerialCardPage.h" />
+    <ClInclude Include="Ui\Settings\SettingsInfoTip.h" />
     <ClInclude Include="Ui\Settings\SscSettingsModel.h" />
+    <ClInclude Include="Ui\Settings\SscSwitchesView.h" />
     <ClInclude Include="Ui\Settings\ScreenshotsPage.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Ui\UiShell.h" />

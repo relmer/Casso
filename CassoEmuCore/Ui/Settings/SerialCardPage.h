@@ -4,6 +4,7 @@
 
 #include "Machines/Apple2/Common/SscSwitches.h"
 #include "Ui/Settings/SscSettingsModel.h"
+#include "Ui/Settings/SscSwitchesView.h"
 
 class DxuiHwndSource;
 class SettingsPanelState;
@@ -17,9 +18,10 @@ class SettingsPanelState;
 //  SerialCardPage
 //
 //  Settings > Serial card: the Super Serial Card's firmware status, its DIP
-//  switches as the settings they select (SscSettingsModel), and what is
-//  plugged into its serial connector. Present only while the staged hardware
-//  has the card turned on, as the Storage page follows the disk controller.
+//  switches as the settings they select (SscSettingsModel) and as a drawing
+//  of the switches themselves, and what is plugged into its serial
+//  connector. Present only while the staged hardware has the card turned on,
+//  as the Storage page follows the disk controller.
 //
 //  Edits are staged in SettingsPanelState. On OK the switches are applied to the
 //  running card without a reset; a change of attachment rebuilds the
@@ -37,6 +39,7 @@ public:
 
     // What a connector attachment choice is, in drop-down order.
     static constexpr const char *  kAttachmentDevices[] = { "", "serial-loopback", "serial-file-out", "serial-file-in" };
+    static constexpr int           kLoopbackChoice      = 1;
     static constexpr int           kFileOutChoice       = 2;
     static constexpr int           kFileInChoice        = 3;
 
@@ -59,21 +62,31 @@ public:
     SscSetting            GetRowSetting     (int row) const { return m_rowSettings[static_cast<size_t> (row)]; }
     DxuiComboBox        & GetRowDropdown    (int row) { return m_rowCombos[row]; }
     DxuiComboBox        & GetAttachDropdown ()        { return m_attach; }
-    const std::wstring  & GetReadoutText    (SscBank bank) const;
+    SscSwitchesView     & GetSwitchesView   ()        { return m_switchesView; }
+    const std::wstring  & GetRowNote        (int row) const { return m_rowNoteText[row]; }
+    const std::wstring  & GetAttachNote     () const  { return m_attachNoteText; }
+    DxuiInfoTip         & GetRowInfoTip     (int row) { return m_rowTips[row]; }
 
 private:
-    static RECT  MakeRect (int l, int t, int w, int h);
+    static RECT          MakeRect          (int l, int t, int w, int h);
+    static std::wstring  GetAttachmentNote (int choice);
+
+    IDxuiTextRenderer  * GetMeasuringRenderer () const;
+    int                  GetLabelColumnPx     (const DxuiDpiScaler & scaler) const;
+    int                  GetDropdownWidthPx   (const DxuiDpiScaler & scaler, int maxPx) const;
 
     SscSwitches  ReadStagedSwitches () const;
     void         StageSwitches      (const SscSwitches & switches);
     void         StageAttachment    (int choice, const std::string & path);
-    void         SyncReadout        (const SscSwitches & switches);
+    void         SyncSwitches       (const SscSwitches & switches);
     void         Relayout           ();
     void         OnRowPicked        (int row, int choice);
     void         OnAttachPicked     (int choice);
     void         OnBrowse           ();
+    void         OnSwitchToggled    (SscBank bank, int number);
 
-    SettingsPanelState *     m_state = nullptr;
+    SettingsPanelState *     m_state     = nullptr;
+    DxuiHwndSource *         m_popupHost = nullptr;
     std::function<void()>    m_onDownload;
     BrowseFn                 m_onBrowse;
 
@@ -84,14 +97,16 @@ private:
     DxuiLabel                m_switchesHeading;
     DxuiLabel                m_rowLabels[kMaxRows];
     DxuiComboBox             m_rowCombos[kMaxRows];
+    DxuiInfoTip              m_rowTips[kMaxRows];
     std::vector<SscSetting>  m_rowSettings;
-    DxuiLabel                m_readoutSw1;
-    DxuiLabel                m_readoutSw2;
-    std::wstring             m_readoutTextSw1;
-    std::wstring             m_readoutTextSw2;
+    DxuiLabel                m_rowNotes[kMaxRows];
+    std::wstring             m_rowNoteText[kMaxRows];
+    SscSwitchesView          m_switchesView;
 
     DxuiLabel                m_attachLabel;
     DxuiComboBox             m_attach;
+    DxuiLabel                m_attachNote;
+    std::wstring             m_attachNoteText;
     DxuiLabel                m_pathLabel;
     DxuiLabel                m_pathValue;
     DxuiButton               m_browse;

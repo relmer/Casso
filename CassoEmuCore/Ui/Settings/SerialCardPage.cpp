@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SerialCardPage.h"
+#include "Ui/Settings/SettingsInfoTip.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Core/TextEncoding.h"
 
@@ -15,13 +16,15 @@ static constexpr int    s_kButtonWidthDp   = 130;
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kRowGapDp        = 8;
 static constexpr int    s_kPagePadDp       = 16;
+static constexpr int    s_kNoteHeightDp    = 36;     // two lines of note text
+static constexpr float  s_kNoteFontDp      = 12.0f;
 
 static constexpr const wchar_t *  s_kAttachmentLabels[] =
 {
-    L"Nothing",
-    L"Loopback plug",
-    L"File (receives what the card sends)",
-    L"File (sent into the card)",
+    L"None",
+    L"Loopback (TX to RX)",
+    L"Write output to file",
+    L"Read input from file",
 };
 
 
@@ -66,6 +69,7 @@ SerialCardPage::SerialCardPage (std::wstring title)
     for (int i = 0; i < kMaxRows; ++i)
     {
         Adopt (m_rowLabels[i]);
+        Adopt (m_rowTips[i]);
         Adopt (m_rowCombos[i]);
 
         // Wired once, by row: Rebuild changes the setting in a row but never
@@ -73,10 +77,21 @@ SerialCardPage::SerialCardPage (std::wstring title)
         m_rowCombos[i].SetSelect ([this, i] (int picked) { OnRowPicked (i, picked); });
     }
 
-    Adopt (m_readoutSw1);
-    Adopt (m_readoutSw2);
+    for (int i = 0; i < kMaxRows; ++i)
+    {
+        Adopt (m_rowNotes[i]);
+        m_rowNotes[i].SetTextRole   (DxuiTextRole::Muted);
+        m_rowNotes[i].SetFontSizeDip (s_kNoteFontDp);
+    }
+
+    Adopt (m_switchesView);
     Adopt (m_attachLabel);
     Adopt (m_attach);
+    Adopt (m_attachNote);
+
+    m_attachNote.SetTextRole    (DxuiTextRole::Muted);
+    m_attachNote.SetFontSizeDip (s_kNoteFontDp);
+    m_switchesView.SetOnToggle  ([this] (SscBank bank, int number) { OnSwitchToggled (bank, number); });
     Adopt (m_pathLabel);
     Adopt (m_pathValue);
     Adopt (m_browse);
@@ -117,13 +132,18 @@ void SerialCardPage::SetState (SettingsPanelState * state)
 //
 //  SerialCardPage::SetPopupHost
 //
+//  Layout measures the labels with the host's renderer.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void SerialCardPage::SetPopupHost (DxuiHwndSource * host)
 {
+    m_popupHost = host;
+
     for (int i = 0; i < kMaxRows; ++i)
     {
         m_rowCombos[i].SetPopupHost (host);
+        m_rowTips[i].SetPopupHost   (host);
     }
 
     m_attach.SetPopupHost (host);
@@ -154,26 +174,12 @@ void SerialCardPage::SetFirmwareStatus (const std::wstring & text, bool offerDow
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SerialCardPage::GetReadoutText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const std::wstring & SerialCardPage::GetReadoutText (SscBank bank) const
-{
-    return (bank == SscBank::Sw1) ? m_readoutTextSw1 : m_readoutTextSw2;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SerialCardPage::Layout
 //
 //  The firmware banner first, since its height follows its text; then the
-//  switch settings for the selected mode, the switch readout, and the serial
-//  connector. Rows the mode does not use are hidden.
+//  switch settings for the selected mode, each followed by its note when it
+//  has one, the drawing of the switches, and the serial connector with its
+//  note. Rows the mode does not use are hidden.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,14 +188,16 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     UINT  dpi          = scaler.GetDpi();
     int   pad          = scaler.ToPx (s_kPagePadDp);
     int   rowHeight    = scaler.ToPx (s_kRowHeightDp);
-    int   labelWidth   = scaler.ToPx (s_kLabelWidthDp);
-    int   dropWidth    = scaler.ToPx (s_kDropdownWidthDp);
+    int   labelWidth   = GetLabelColumnPx (scaler);
     int   buttonWidth  = scaler.ToPx (s_kButtonWidthDp);
     int   sectionGap   = scaler.ToPx (s_kSectionGapDp);
     int   rowGap       = scaler.ToPx (s_kRowGapDp);
+    int   noteHeight   = scaler.ToPx (s_kNoteHeightDp);
     int   x            = rect.left + pad;
     int   y            = rect.top  + pad;
     int   controlsX    = x + labelWidth;
+    int   dropWidth    = GetDropdownWidthPx (scaler, rect.right - pad - controlsX);
+    int   noteWidth    = std::max (dropWidth, scaler.ToPx (s_kDropdownWidthDp) + rowGap + buttonWidth);
     int   bannerWidth  = (rect.right - rect.left) - pad * 2;
     int   bannerHeight = static_cast<int> (std::ceil (m_firmwareBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
     int   fileChoice   = m_attach.GetSelectedIndex();
@@ -224,29 +232,40 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     for (int i = 0; i < kMaxRows; ++i)
     {
-        bool  used = i < GetRowCount();
+        bool          used    = i < GetRowCount();
+        bool          hasNote = used && !m_rowNoteText[i].empty();
+        std::wstring  tip     = used ? SscSettingsModel::GetInfoTip (m_rowSettings[static_cast<size_t> (i)]) : std::wstring();
 
         m_rowLabels[i].SetVisible (used);
         m_rowCombos[i].SetVisible (used);
+        m_rowNotes[i].SetVisible  (hasNote);
+        m_rowTips[i].SetVisible   (!tip.empty());
 
         if (used)
         {
             m_rowLabels[i].SetText (SscSettingsModel::GetLabel (m_rowSettings[static_cast<size_t> (i)]) + L":");
             m_rowLabels[i].SetRect (MakeRect (x, y, labelWidth, rowHeight));
+            m_rowTips[i].SetText   (tip);
+            m_rowTips[i].SetRect   (SettingsInfoTip::GetRect (m_rowLabels[i], scaler, GetMeasuringRenderer()));
             m_rowCombos[i].SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
             y += rowHeight + rowGap;
         }
 
+        if (hasNote)
+        {
+            m_rowNotes[i].SetText (m_rowNoteText[i]);
+            m_rowNotes[i].SetRect (MakeRect (controlsX, y, noteWidth, noteHeight));
+            y += noteHeight;
+        }
+
         m_rowLabels[i].SetDpi (dpi);
+        m_rowTips[i].SetDpi   (dpi);
         m_rowCombos[i].SetDpi (dpi);
+        m_rowNotes[i].SetDpi  (dpi);
     }
 
-    m_readoutSw1.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_readoutSw1.SetDpi  (dpi);
-    y += rowHeight;
-    m_readoutSw2.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_readoutSw2.SetDpi  (dpi);
-    y += rowHeight + sectionGap;
+    m_switchesView.Layout (MakeRect (controlsX, y, scaler.ToPx (SscSwitchesView::kWidthDip), scaler.ToPx (SscSwitchesView::kHeightDip)), scaler);
+    y += scaler.ToPx (SscSwitchesView::kHeightDip) + sectionGap;
 
     m_attachLabel.SetText (L"Serial connector:");
     m_attachLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
@@ -254,6 +273,17 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_attach.SetRect      (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_attach.SetDpi       (dpi);
     y += rowHeight + rowGap;
+
+    m_attachNoteText = GetAttachmentNote (fileChoice);
+    m_attachNote.SetVisible (!m_attachNoteText.empty());
+    m_attachNote.SetText    (m_attachNoteText);
+    m_attachNote.SetRect    (MakeRect (controlsX, y, noteWidth, noteHeight));
+    m_attachNote.SetDpi     (dpi);
+
+    if (!m_attachNoteText.empty())
+    {
+        y += noteHeight;
+    }
 
     m_pathLabel.SetVisible (showPath);
     m_pathValue.SetVisible (showPath);
@@ -270,6 +300,138 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     DxuiPanel::SetBounds (rect);
     SetContentHeightPx (GetLowestChildBottomPx() + pad - rect.top);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::GetAttachmentNote
+//
+//  What each attachment does with the card's serial lines.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SerialCardPage::GetAttachmentNote (int choice)
+{
+    std::wstring  note;
+
+
+
+    if (choice == kLoopbackChoice)
+    {
+        note = L"TX is wired back to RX, RTS to CTS, and DTR to DSR and DCD, so what the "
+               L"card sends comes back into it.";
+    }
+    else if (choice == kFileOutChoice)
+    {
+        note = L"Each byte the card sends is added to the end of the file.";
+    }
+    else if (choice == kFileInChoice)
+    {
+        note = L"The file's bytes are sent into the card at its baud rate, once a program "
+               L"turns the card's receiver on.";
+    }
+
+    return note;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::GetMeasuringRenderer
+//
+//  The popup host's renderer, fetched on every call because the host
+//  rebuilds it after a device loss. Null before the host creates one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiTextRenderer * SerialCardPage::GetMeasuringRenderer() const
+{
+    return (m_popupHost != nullptr) ? m_popupHost->GetTextRenderer() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::GetLabelColumnPx
+//
+//  Wide enough that no row's label wraps, with its info tip after it where
+//  it has one, and then the gap before the controls. Never narrower than the
+//  design width, so the page lines up with the Printing page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SerialCardPage::GetLabelColumnPx (const DxuiDpiScaler & scaler) const
+{
+    constexpr int  kLabelGapDp = 12;
+
+
+
+    IDxuiTextRenderer  * text     = GetMeasuringRenderer();
+    int                  tipReach = scaler.ToPx (SettingsInfoTip::kGapDp) + (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
+    int                  widest   = 0;
+    DxuiLabel            probe;
+
+
+
+    for (SscSetting setting : m_rowSettings)
+    {
+        int  width = 0;
+
+        probe.SetText (SscSettingsModel::GetLabel (setting) + L":");
+        width = SettingsInfoTip::MeasureLabelPx (probe, scaler, text);
+
+        if (!SscSettingsModel::GetInfoTip (setting).empty())
+        {
+            width += tipReach;
+        }
+
+        widest = std::max (widest, width);
+    }
+
+    return std::max (scaler.ToPx (s_kLabelWidthDp), widest + scaler.ToPx (kLabelGapDp));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::GetDropdownWidthPx
+//
+//  One width for every drop-down, so they line up: wide enough for the
+//  longest item any of them lists, and never past `maxPx`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SerialCardPage::GetDropdownWidthPx (const DxuiDpiScaler & scaler, int maxPx) const
+{
+    IDxuiTextRenderer  * text  = GetMeasuringRenderer();
+    int                  width = scaler.ToPx (s_kDropdownWidthDp);
+
+
+
+    for (int i = 0; text != nullptr && i < GetRowCount(); ++i)
+    {
+        width = std::max (width, (int) std::ceil (m_rowCombos[i].GetFitWidthPx (*text)));
+    }
+
+    if (text != nullptr)
+    {
+        width = std::max (width, (int) std::ceil (m_attach.GetFitWidthPx (*text)));
+    }
+
+    return std::min (width, std::max (maxPx, scaler.ToPx (s_kDropdownWidthDp)));
 }
 
 
@@ -309,9 +471,15 @@ void SerialCardPage::Rebuild()
 
         m_rowCombos[i].SetItems    (items);
         m_rowCombos[i].SetSelected (choice);
+        m_rowNoteText[i] = SscSettingsModel::GetNote (setting, switches);
     }
 
-    SyncReadout (switches);
+    for (int i = GetRowCount(); i < kMaxRows; ++i)
+    {
+        m_rowNoteText[i].clear();
+    }
+
+    SyncSwitches (switches);
 
     if (index >= 0)
     {
@@ -418,6 +586,32 @@ void SerialCardPage::OnBrowse()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SerialCardPage::OnSwitchToggled
+//
+//  A switch flipped on the drawing is staged like a choice, and the settings
+//  are synced to it; a flipped mode switch changes the settings offered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SerialCardPage::OnSwitchToggled (SscBank bank, int number)
+{
+    SscSwitches  updated = ReadStagedSwitches();
+
+
+
+    updated.SetOn (bank, number, !updated.IsOn (bank, number));
+    StageSwitches (updated);
+    Rebuild();
+    Relayout();
+    MarkDirty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SerialCardPage::ReadStagedSwitches
 //
 //  The staged entry's switches, or the card's default for a bank the entry
@@ -469,7 +663,7 @@ void SerialCardPage::StageSwitches (const SscSwitches & switches)
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    SyncReadout (switches);
+    SyncSwitches (switches);
 }
 
 
@@ -507,17 +701,13 @@ void SerialCardPage::StageAttachment (int choice, const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SerialCardPage::SyncReadout
+//  SerialCardPage::SyncSwitches
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SerialCardPage::SyncReadout (const SscSwitches & switches)
+void SerialCardPage::SyncSwitches (const SscSwitches & switches)
 {
-    m_readoutTextSw1 = SscSettingsModel::GetReadout (switches, SscBank::Sw1);
-    m_readoutTextSw2 = SscSettingsModel::GetReadout (switches, SscBank::Sw2);
-
-    m_readoutSw1.SetText (m_readoutTextSw1);
-    m_readoutSw2.SetText (m_readoutTextSw2);
+    m_switchesView.SetSwitches (switches);
 }
 
 

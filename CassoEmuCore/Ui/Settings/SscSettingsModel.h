@@ -45,9 +45,10 @@ enum class SscSetting
 //  each choice sets.
 //
 //  A setting writes only its own switches, so changing one never disturbs
-//  another. A combination of switches no choice produces (the undefined
-//  all-ON baud setting, for one) has no choice index, and the page lists it
-//  as Custom; the readout lists every position.
+//  another. A combination of switches no choice produces has no choice
+//  index, and the page lists it as Custom. The all-ON baud setting, which
+//  Apple's tables list as undefined, is offered as 115,200 baud: it selects
+//  the 6551's external clock divided by 16.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,7 +56,7 @@ class SscSettingsModel
 {
 public:
     static constexpr int  kMaxSwitches = 4;
-    static constexpr int  kMaxChoices  = 15;
+    static constexpr int  kMaxChoices  = 16;
     static constexpr int  kCustom      = -1;
 
     // A switch a setting writes. In a choice, `on` is 1 for ON, 0 for OFF, and
@@ -94,6 +95,14 @@ public:
 
     // "SW1: OFF OFF OFF ON ON ON ON", one line per bank.
     static wstring             GetReadout     (const SscSwitches & switches, SscBank bank);
+
+    // The explanation under a setting for the choice the switches
+    // select; empty for a setting that has none.
+    static wstring             GetNote        (SscSetting setting, const SscSwitches & switches);
+
+    // The text of the info tip after a setting's label; empty for a setting
+    // that has none.
+    static wstring             GetInfoTip     (SscSetting setting);
 
 private:
     static const SettingDef *  FindSetting    (SscSetting setting);
