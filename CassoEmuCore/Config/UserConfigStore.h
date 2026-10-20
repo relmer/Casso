@@ -211,7 +211,17 @@ private:
     static JsonValue  BuildObjectWithOverrides (
         const JsonValue & src,
         bool              enabled,
-        const JsonValue * ports);
+        const JsonValue * ports,
+        const JsonValue * network);
+    static bool  IsSameCard (
+        const JsonValue & entry,
+        const JsonValue & defaultArr,
+        int               defIdx);
+    static int  FindMovedCard (
+        const JsonValue          & defEntry,
+        const JsonValue          & defaultArr,
+        const JsonValue          & userArr,
+        const std::vector<bool>  & userMatched);
 
     static JsonValue  BuildUiPrefsDefaults ();
 
