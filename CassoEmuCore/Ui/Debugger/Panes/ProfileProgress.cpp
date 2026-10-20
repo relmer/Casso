@@ -14,7 +14,7 @@
 
 std::wstring ProfileProgress::GetText (double share)
 {
-    return std::format (L"Building the profile from history: {}%", (int) (std::clamp (share, 0.0, 1.0) * 100.0));
+    return std::format (L"Loading profile... ({}%)", (int) (std::clamp (share, 0.0, 1.0) * 100.0));
 }
 
 

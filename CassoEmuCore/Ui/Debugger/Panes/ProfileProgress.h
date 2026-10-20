@@ -26,7 +26,7 @@ public:
     void    SetShare (double share) { m_share = std::clamp (share, 0.0, 1.0); }
     double  GetShare () const       { return m_share; }
 
-    //  The text over the track, "Building the profile from history: 42%".
+    //  The text over the track, "Loading profile... (42%)".
     static std::wstring  GetText (double share);
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
