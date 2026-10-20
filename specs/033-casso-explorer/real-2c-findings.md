@@ -288,17 +288,58 @@ wrong; the record of the reversal follows.
 - **Why the emulator missed it:** no byte is ever dropped on the emulated
   serial link. The noisy test stream under "Follow-up ideas" would cover it.
 
-### 23. The Apple's "no reply" timer stops at 255 and the PC stays connected (open)
+### 23. The Apple's "no reply" timer stops at 255 and the PC stays connected
 
 - **Symptom:** the program's status screen counted the seconds since the
   PC's last reply up to 255 and stopped there, and it went on showing the PC
   as connected.
 - **Cause:** the count is one byte (`silent`), and the connected state
   (`pcflag`) is set by the first reply and never cleared.
-- **Fix:** pending. After the host's own silence limit (`kSilenceMs`), show
-  the PC as gone and wait for it again; show longer silences in minutes.
+- **Fix:** the host ends its session after 3 seconds with no packet
+  (`CassoLinkSession::kSilenceMs`), so after `PCGONE` (5) seconds with no
+  reply the program treats the PC as gone: `pcflag` and `silent` go back to
+  0, the PC's line reads `PC: WAITING`, and no silence is counted until the
+  next reply, which starts a new connection. Program version 42.
 - **Why the emulator missed it:** emulated sessions are short; nothing runs
   for four minutes with the PC silent.
+
+### 31. The label of an operation stayed after the PC stopped
+
+- **Symptom:** the status row read `STATUS: WAITING FOR A COMMAND` with
+  `READING THE CATALOG OF D2` on the label row under it, long after the
+  catalog read.
+- **Cause:** the program clears the label row only on an Idle reply to its
+  Ready. A session that ends right after an operation (a closed
+  Casso Explorer, a Disconnect, or a probe that stops) never sends that
+  Idle, so the label stays until the next connection's first operation.
+- **Fix:** when the PC is gone (finding 23), the label row is cleared too.
+  It is not cleared on the first second with no reply: a slow PC between a
+  whole-disk copy's requests would clear the label of a running operation, and
+  the label is sent once per operation. `APcThatStopsAnswering_ClearsItsLabel_AndIsWaitedForAgain`
+  sends a label, runs the machine for seven seconds with no host, and checks
+  the label row and the PC's line.
+- **Why the emulator missed it:** the scenario tests check the screen while
+  the host runs, and Casso Explorer's emulated links stay connected.
+
+### 32. A disk with no catalog was reported as unreadable
+
+- **Symptom:** both drives listed with no volume, and opening either one,
+  or its preview, read "This drive could not be read."
+- **Evidence:** a session probe on the //c returned `0x800703ED`
+  (`ERROR_UNRECOGNIZED_VOLUME`) for both catalogs, with no message. A dump
+  of tracks 0 and 17 read every sector of both drives with good checksums;
+  the data is the pseudo-random image of the round-trip tests (finding 26),
+  so neither disk has a catalog left.
+- **Cause:** the session attaches no message to an unrecognized volume, and
+  the browser's fallback text for any failure with no message is "could not
+  be read."
+- **Fix:** with `CassoExplorerBrowser::FormatLinkError`, an unrecognized
+  volume has the same sentence as an image with no file system: "The disk in
+  this drive can't be previewed because it doesn't have a recognized file
+  system." For other failures with no message, the text is "This drive could not be read."
+- **Why the emulator missed it:** the emulated drive with the same result
+  (drive 1, the CassoLink boot disk) has no catalog either, so its bare
+  label looked right, and its message was never compared with the disk.
 
 ### 24. A stray `)` under the history
 
