@@ -25,8 +25,10 @@ public:
     static constexpr float  kDashDip     = 4.0f;
     static constexpr int    kStepMs      = 80;
     //  The time the shimmer's band takes to cross any object, small or
-    //  large, from its top left to its bottom right.
+    //  large, from its top left to its bottom right, and the rest between
+    //  one sweep and the next.
     static constexpr int    kSweepMs     = 2000;
+    static constexpr int    kRestMs      = 1000;
 
     //  The shimmer: its peak alpha; the share of it the glow outside the band
     //  has; the band's width along (x + y), a share of the object's shorter
@@ -80,6 +82,10 @@ public:
     static double  GetBandPx     (const RECT & boxPx);
     static double  GetBandCenter (double nowMs, const RECT & boxPx);
     static double  GetBand       (double distance, const RECT & boxPx);
+
+    //  Whether the band is crossing objects at the moment, rather than
+    //  resting between sweeps.
+    static bool    IsSweeping    (double nowMs);
 
     //  A clock in milliseconds fine enough that the shimmer moves a little
     //  every frame; GetTickCount64 advances only every 15.6 ms or so.

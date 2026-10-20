@@ -152,7 +152,8 @@ double InspectorMarquee::GetBandPx (const RECT & boxPx)
 //  InspectorMarquee::GetBandCenter
 //
 //  Where the band's center is along the box's diagonal, in pixels of
-//  (x + y) from its top left.
+//  (x + y) from its top left; between sweeps, far enough past the box's
+//  bottom right that none of the band touches it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,10 +161,26 @@ double InspectorMarquee::GetBandCenter (double nowMs, const RECT & boxPx)
 {
     double  span    = std::max (1.0, static_cast<double> ((boxPx.right - boxPx.left) + (boxPx.bottom - boxPx.top)));
     double  overrun = kShimmerReach * GetBandPx (boxPx);
+    double  t       = std::fmod (nowMs, static_cast<double> (kSweepMs + kRestMs));
 
 
 
-    return std::fmod (nowMs / kSweepMs, 1.0) * (span + 2 * overrun) - overrun;
+    return (t < kSweepMs) ? t / kSweepMs * (span + 2 * overrun) - overrun : span + 4 * overrun;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorMarquee::IsSweeping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InspectorMarquee::IsSweeping (double nowMs)
+{
+    return std::fmod (nowMs, static_cast<double> (kSweepMs + kRestMs)) < kSweepMs;
 }
 
 
