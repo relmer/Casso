@@ -288,6 +288,8 @@ struct DebuggerViewSnapshot
 
     //  Whether the breakpoints pane has a step to undo or redo (FR-120).
     bool                                  canUndoBreakpoints = false;
+    std::wstring                          undoBreakpointsText;        // the step Undo would act on, as "delete breakpoint #3"
+    std::wstring                          redoBreakpointsText;
     bool                                  canRedoBreakpoints = false;
     std::vector<WatchLine>                watches;
 

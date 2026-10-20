@@ -134,8 +134,10 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.showPaneSerial = m_showPaneSerial;
     snapshot.suggestion       = m_suggestion;
     snapshot.suggestionSerial = m_suggestionSerial;
-    snapshot.canUndoBreakpoints = m_breakpointHistory.CanUndo();
-    snapshot.canRedoBreakpoints = m_breakpointHistory.CanRedo();
+    snapshot.canUndoBreakpoints  = m_breakpointHistory.CanUndo();
+    snapshot.canRedoBreakpoints  = m_breakpointHistory.CanRedo();
+    snapshot.undoBreakpointsText = m_breakpointHistory.GetUndoText();
+    snapshot.redoBreakpointsText = m_breakpointHistory.GetRedoText();
     snapshot.machine        = session.GetTarget().GetMachineInfo().name;
     snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
     snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());

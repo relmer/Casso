@@ -51,6 +51,11 @@ public:
     bool  CanUndo () const { return !m_undo.empty(); }
     bool  CanRedo () const { return !m_redo.empty(); }
 
+    //  The step Undo or Redo would act on, as "delete breakpoint #3" or
+    //  "disable 2 breakpoints"; empty for none.
+    std::wstring  GetUndoText () const { return m_undo.empty() ? std::wstring() : DescribeStep (m_undo.back()); }
+    std::wstring  GetRedoText () const { return m_redo.empty() ? std::wstring() : DescribeStep (m_redo.back()); }
+
     //  The history as a debug project saves it: each handle's id, then the
     //  steps to undo and to redo, each breakpoint's state on either side as
     //  its definition, its flags and its name. FromText adds each definition
@@ -102,6 +107,7 @@ private:
     static std::map<int, BreakpointInfo>  ListById    (DebugSession & session);
     static std::map<int, Saved>           SaveAll     (DebugSession & session);
     static std::vector<std::string>       Describe    (const std::vector<Outcome> & outcomes);
+    static std::wstring                   DescribeStep (const Step & step);
     static bool                           IsSame      (const BreakpointInfo & left, const BreakpointInfo & right);
     static bool                           HasSameFlags (const BreakpointInfo & left, const BreakpointInfo & right);
     static std::string                    FormatSide   (const std::optional<BreakpointInfo> & info);

@@ -45,6 +45,9 @@ public:
 
         //  The red of the cross on Delete all's icon: the breakpoint mark's.
         std::function<uint32_t ()>    crossArgb;
+
+        //  An entry's tip in place of its own, or empty for its own.
+        std::function<std::wstring (int id)>  getTip;
     };
 
     explicit BreakpointBarCommands (Handlers handlers);

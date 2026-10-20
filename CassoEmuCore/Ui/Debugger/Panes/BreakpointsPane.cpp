@@ -5,6 +5,7 @@
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/BreakpointBarCommands.h"
 #include "Ui/Debugger/BreakpointDefinitionCheck.h"
+#include "Ui/Debugger/UndoText.h"
 #include "Ui/Debugger/ColorLegend.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
@@ -110,6 +111,16 @@ void BreakpointsPane::Configure()
     handlers.dispatch  = [this] (int id) { RunBarEntry (id); };
     handlers.isEnabled = [this] (int id) { return IsBarEntryEnabled (id); };
     handlers.crossArgb = [this]          { return m_host.GetBreakpointArgb(); };
+    handlers.getTip    = [this] (int id)
+    {
+        const DebuggerViewSnapshot  * snapshot = m_host.GetLatestSnapshot();
+        bool                          isRedo   = id == BreakpointBarCommands::kRedo;
+        std::wstring                  text     = (snapshot == nullptr) ? std::wstring() : isRedo ? snapshot->redoBreakpointsText : snapshot->undoBreakpointsText;
+
+
+
+        return ((id == BreakpointBarCommands::kUndo || isRedo) && !text.empty()) ? UndoText::GetLabel (isRedo, text) : std::wstring();
+    };
 
     m_commands = std::make_unique<BreakpointBarCommands> (std::move (handlers));
 

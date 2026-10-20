@@ -135,7 +135,7 @@ public:
     std::string   GetHistoryText () const;
     void          SetHistoryText (const std::string & text);
 
-    //  The newest edit Undo or Redo would act on, as "changed 2 bytes at $0300".
+    //  The newest edit Undo or Redo would act on, as "change 2 bytes at $0300".
     std::wstring  GetUndoText () const;
     std::wstring  GetRedoText () const;
 

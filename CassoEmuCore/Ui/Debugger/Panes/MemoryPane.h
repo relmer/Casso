@@ -128,7 +128,7 @@ public:
         return std::pair<Word, Word> { m_model.GetAddressOf (m_view->GetSelectionFirst()), m_model.GetAddressOf (m_view->GetSelectionLast()) };
     }
 
-    //  What Undo and Redo would take back or make again, as "changed 2 bytes
+    //  What Undo and Redo would take back or make again, as "change 2 bytes
     //  at $0300", or empty when there is nothing.
     std::wstring  GetUndoText () const { return CanUndo() ? m_model.GetUndoText() : std::wstring(); }
     std::wstring  GetRedoText () const { return CanRedo() ? m_model.GetRedoText() : std::wstring(); }

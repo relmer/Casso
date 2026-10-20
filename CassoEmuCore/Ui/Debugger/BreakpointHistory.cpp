@@ -200,6 +200,60 @@ std::vector<std::string> BreakpointHistory::Describe (const std::vector<Outcome>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHistory::DescribeStep
+//
+//  What the step did, for Undo's and Redo's tips: the breakpoints it
+//  deleted, added, enabled, disabled, renamed or changed, one by its number
+//  or several by their count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BreakpointHistory::DescribeStep (const Step & step)
+{
+    size_t        removed  = 0;
+    size_t        added    = 0;
+    size_t        enabled  = 0;
+    size_t        disabled = 0;
+    size_t        renamed  = 0;
+    size_t        changed  = 0;
+    int           id       = -1;
+    auto          what     = [&id] (const wchar_t * verb, size_t count)
+    {
+        return (count == 1) ? std::format (L"{} breakpoint #{}", verb, id) : std::format (L"{} {} breakpoints", verb, count);
+    };
+
+
+
+    for (const Entry & entry : step)
+    {
+        bool  isFlags = entry.before.has_value() && entry.after.has_value() && entry.before->enabled != entry.after->enabled;
+        bool  isName  = entry.before.has_value() && entry.after.has_value() && entry.before->name != entry.after->name;
+
+        id = entry.after.has_value() ? entry.after->id : entry.before.has_value() ? entry.before->id : id;
+
+        if      (entry.before.has_value() && !entry.after.has_value()) { removed++; }
+        else if (!entry.before.has_value() && entry.after.has_value()) { added++; }
+        else if (isFlags && entry.after->enabled)                      { enabled++; }
+        else if (isFlags)                                              { disabled++; }
+        else if (isName)                                               { renamed++; }
+        else                                                           { changed++; }
+    }
+
+    if (removed == step.size()) { return what (L"delete", removed); }
+    if (added == step.size())   { return what (L"add", added); }
+    if (enabled == step.size()) { return what (L"enable", enabled); }
+    if (disabled == step.size()) { return what (L"disable", disabled); }
+    if (renamed == step.size()) { return what (L"rename", renamed); }
+
+    return (step.size() == 1) ? what (L"edit", 1) : what (L"change", step.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHistory::Apply
 //
 //  Takes one breakpoint from `from` to `to` straight from the table entry

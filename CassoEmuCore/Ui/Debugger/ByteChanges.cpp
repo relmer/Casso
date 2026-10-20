@@ -85,7 +85,7 @@ void ByteChanges::Clear()
 
 std::wstring ByteChanges::GetEditText (Word address, size_t count)
 {
-    return std::format (L"changed {} {} at ${:04X}", count, (count == 1) ? L"byte" : L"bytes", address);
+    return std::format (L"change {} {} at ${:04X}", count, (count == 1) ? L"byte" : L"bytes", address);
 }
 
 

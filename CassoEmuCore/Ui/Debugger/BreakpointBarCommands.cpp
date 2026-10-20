@@ -85,6 +85,13 @@ BreakpointBarCommands::BreakpointBarCommands (Handlers handlers)
             return m_handlers.isEnabled ? m_handlers.isEnabled (id) : true;
         };
 
+        command->tipText = [this, id, tip = std::wstring (row.tip)]
+        {
+            std::wstring  text = m_handlers.getTip ? m_handlers.getTip (id) : std::wstring();
+
+            return text.empty() ? tip : text;
+        };
+
         m_commands.push_back (std::move (command));
     }
 }

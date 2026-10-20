@@ -208,7 +208,7 @@ void RegisterHistory::FromText (const std::string & text)
 
 std::wstring RegisterHistory::GetUndoText() const
 {
-    return m_undo.empty() ? std::wstring() : L"changed register " + TextEncoding::NarrowToWide (m_undo.back().name);
+    return m_undo.empty() ? std::wstring() : L"change register " + TextEncoding::NarrowToWide (m_undo.back().name);
 }
 
 
@@ -223,5 +223,5 @@ std::wstring RegisterHistory::GetUndoText() const
 
 std::wstring RegisterHistory::GetRedoText() const
 {
-    return m_redo.empty() ? std::wstring() : L"changed register " + TextEncoding::NarrowToWide (m_redo.back().name);
+    return m_redo.empty() ? std::wstring() : L"change register " + TextEncoding::NarrowToWide (m_redo.back().name);
 }

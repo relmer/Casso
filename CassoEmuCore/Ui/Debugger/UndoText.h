@@ -17,7 +17,7 @@
 class UndoText
 {
 public:
-    //  An Undo or Redo item and tip, quoting the edit: Undo "changed 2 bytes
+    //  An Undo or Redo item and tip, with the edit: Undo change 2 bytes
     //  at $0300", or the bare verb when there is nothing to quote.
     static std::wstring              GetLabel    (bool redo, const std::wstring & text);
 

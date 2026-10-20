@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Ui/Debugger/UndoText.h"
 
 #include "ControllerRig.h"
 #include "Core/TextEncoding.h"
@@ -100,6 +101,35 @@ namespace BreakpointHistoryTests
             rig.Do (BreakpointStep::Kind::Redo);
             Assert::AreEqual ((size_t) 0, rig.List().size(), L"redo deletes it again");
         }
+
+
+        //  The snapshot has the step Undo and Redo would act on, as their tips
+        //  read it.
+        TEST_METHOD (UndoAndRedoTextsNameTheStep)
+        {
+            HistoryRig            rig;
+            CommandMode           aw = CommandMode::AppleWin;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 300", aw) });
+            Assert::AreEqual (std::wstring (L"add breakpoint #0"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 301", aw) });
+            rig.Step ({ DebuggerActions::GetEnableAllBreakpoints (false, aw) });
+            Assert::AreEqual (std::wstring (L"disable 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
+
+            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (aw) });
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual (std::wstring (L"delete 2 breakpoints"), snapshot.undoBreakpointsText);
+            Assert::AreEqual (std::wstring(), snapshot.redoBreakpointsText);
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            Assert::AreEqual (std::wstring (L"delete 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).redoBreakpointsText);
+            Assert::AreEqual (std::wstring (L"Undo delete 2 breakpoints"), UndoText::GetLabel (false, L"delete 2 breakpoints"));
+        }
+
 
 
         TEST_METHOD (DisableAllIsOneStep)

@@ -40,7 +40,7 @@ public:
     bool  CanUndo () const { return !m_undo.empty(); }
     bool  CanRedo () const { return !m_redo.empty(); }
 
-    //  The newest step Undo or Redo would act on, as "changed register S",
+    //  The newest step Undo or Redo would act on, as "change register S",
     //  or empty when there is none.
     std::wstring  GetUndoText () const;
     std::wstring  GetRedoText () const;

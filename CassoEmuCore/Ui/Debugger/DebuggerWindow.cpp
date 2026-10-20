@@ -1565,7 +1565,7 @@ std::wstring DebuggerWindow::GetUndoLabel (bool redo, const std::wstring & text)
 
 
 
-    return text.empty() ? verb : verb + L" \"" + text + L"\"";
+    return text.empty() ? verb : verb + L" " + text;
 }
 
 

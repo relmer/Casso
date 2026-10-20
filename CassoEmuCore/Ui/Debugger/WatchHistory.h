@@ -40,7 +40,7 @@ public:
     bool  CanUndo () const { return !m_undo.empty(); }
     bool  CanRedo () const { return !m_redo.empty(); }
 
-    //  The newest step Undo or Redo would act on, as "changed watch 3", or
+    //  The newest step Undo or Redo would act on, as "change watch 3", or
     //  empty when there is none.
     std::wstring  GetUndoText () const { return m_undo.empty() ? std::wstring() : m_undo.back().text; }
     std::wstring  GetRedoText () const { return m_redo.empty() ? std::wstring() : m_redo.back().text; }

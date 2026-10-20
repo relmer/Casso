@@ -36,7 +36,7 @@ public:
     void  Clear     ();
 
     //  An edit of `count` bytes from `address`, as an undo item or tip gives
-    //  it: "changed 2 bytes at $0300".
+    //  it: "change 2 bytes at $0300".
     static std::wstring  GetEditText (Word address, size_t count);
 
     //  A disassembly row's bytes, written "A9 05" with "--" for one that could
