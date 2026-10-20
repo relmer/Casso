@@ -33,6 +33,8 @@ public:
 
     void  ConfigureDownload (std::unique_ptr<DxuiPanel> content, bool requiresRoms, unsigned tickMs);
 
+    // The cancel button's label, "Exit" unless set before Create.
+    void  SetCancelLabel     (std::wstring label)       { m_cancelLabel     = std::move (label); }
     void  SetOnDownloadClick (std::function<void()> fn) { m_onDownloadClick = std::move (fn); }
     void  SetOnPoll          (std::function<void()> fn) { m_onPoll          = std::move (fn); }
 
@@ -48,6 +50,7 @@ private:
     std::unique_ptr<DxuiPanel>  m_pendingContent;
     bool                        m_requiresRoms    = false;
     unsigned                    m_tickMs          = 100;
+    std::wstring                m_cancelLabel     = L"Exit";
     std::function<void()>       m_onDownloadClick;
     std::function<void()>       m_onPoll;
     DxuiButton  *               m_downloadBtn     = nullptr;

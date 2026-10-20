@@ -21,6 +21,12 @@
 
 using MediaFilter = bool (*) (const std::wstring & path);
 
+class IDxuiTheme;
+
+
+
+
+
 struct MediaPickerKind
 {
     std::wstring  title;
@@ -273,6 +279,18 @@ public:
     static HRESULT   DownloadOptionalRom   (string_view   cassoName,
                                             fs::path    & outPath,
                                             string      & outError);
+
+    // The startup download dialog for that ROM, with `title` and `intro` in
+    // place of the startup wording and Cancel in place of Exit. Modal on
+    // `owner`. `outDownloaded` is true when the ROM was written; a failed
+    // download sets `outError` and returns S_OK, as Cancel does without it.
+    static HRESULT   OfferOptionalRomDownload (HWND                 owner,
+                                               const IDxuiTheme   * theme,
+                                               string_view          cassoName,
+                                               const wstring      & title,
+                                               const wstring      & intro,
+                                               bool               & outDownloaded,
+                                               string             & outError);
 
     // Whether that ROM is in its device folder under the asset base, at the
     // size the catalog lists.

@@ -292,16 +292,11 @@ private:
     std::wstring   GetSerialFirmwareStatus   () const;
 
     // The card is turned on only with Apple's firmware installed. Turning it
-    // on without the firmware turns it off again and offers the download;
-    // the card is turned on when the download succeeds.
-    void           OfferSerialFirmwareDownload ();
-    void           StartSerialFirmwareDownload (bool enableOnSuccess);
-    void           PollSerialFirmwareDownload  ();
-    void           SetSerialCardEnabled        (bool enabled);
-
-    bool           m_serialDownloadAwaited   = false;
-    bool           m_serialEnableOnDownload  = false;
-    uint32_t       m_serialDownloadCount     = 0;
+    // on without the firmware turns it off again and opens the download
+    // dialog; the card is turned on when the download succeeds.
+    // DownloadSerialFirmware returns true when the firmware was written.
+    bool           DownloadSerialFirmware (const std::wstring & intro);
+    void           SetSerialCardEnabled   (bool enabled);
 
     // A tab appearing among the others is easy to miss, so when turning a
     // card on adds its tab, StartTabSparkle makes the tab's label shimmer as

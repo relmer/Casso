@@ -629,7 +629,10 @@ HRESULT SettingsSheet::OpenModeless (
     m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
     m_serialPage->SetOnDownload ([this] ()
     {
-        StartSerialFirmwareDownload (false);
+        bool  downloaded = DownloadSerialFirmware (L"The Super Serial Card firmware is not installed. "
+                                                   L"Click Download to fetch it, or Cancel to close this window.");
+
+        IGNORE_RETURN_VALUE (downloaded, false);
     });
     m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
     {
@@ -1013,7 +1016,6 @@ void SettingsSheet::OnDialogTick()
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
     UpdateSerialTabVisibility();
-    PollSerialFirmwareDownload();
     UpdateTabSparkles();
     UpdateTickInterval();
 
@@ -1546,6 +1548,7 @@ void SettingsSheet::UpdateSerialTabVisibility()
     bool     turnedOn = want && !m_serialTabVisible;
     bool     settled  = m_serialPageIndex < 0 || want == m_serialTabVisible;
     bool     missing  = false;
+    bool     fetched  = false;
 
 
 
@@ -1555,13 +1558,21 @@ void SettingsSheet::UpdateSerialTabVisibility()
 
     if (missing)
     {
-        // Not without its firmware: off again, before the tab appears, and
-        // the download offered.
+        // Not without its firmware: off before the tab appears, and on again
+        // only once the download has written it.
         SetSerialCardEnabled (false);
-        OfferSerialFirmwareDownload();
+
+        fetched = DownloadSerialFirmware (L"The Super Serial Card runs Apple's firmware, a 2 KB ROM that is not "
+                                          L"installed. Click Download to fetch it and turn the card on, or Cancel "
+                                          L"to leave the card off.");
+
+        if (fetched)
+        {
+            SetSerialCardEnabled (true);
+        }
     }
 
-    BAIL_OUT_IF (missing, S_OK);
+    BAIL_OUT_IF (missing && !fetched, S_OK);
 
     m_serialTabVisible = want;
     SetPageVisible (m_serialPageIndex, want);
@@ -1569,6 +1580,13 @@ void SettingsSheet::UpdateSerialTabVisibility()
     if (turnedOn)
     {
         m_serialPage->Rebuild();
+    }
+
+    // The user turned this card on a moment ago and waited for its download,
+    // so its tab is opened, not just marked.
+    if (fetched)
+    {
+        SetActivePage (m_serialPageIndex);
     }
 
     if (turnedOn)
@@ -1846,105 +1864,36 @@ std::wstring SettingsSheet::GetSerialFirmwareStatus() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OfferSerialFirmwareDownload
+//  DownloadSerialFirmware
+//
+//  The startup download dialog, for the card's firmware alone, with `intro`
+//  above it. A failed download is reported here; Cancel is not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::OfferSerialFirmwareDownload()
+bool SettingsSheet::DownloadSerialFirmware (const std::wstring & intro)
 {
-    int  answer = DxuiMessageBox (GetHwnd(),
-                                  &m_emuShell->GetChrome().GetTheme(),
-                                  L"The Super Serial Card runs Apple's firmware, a 2 KB ROM that Casso downloads "
-                                  L"from the Apple II Documentation Project. Download it and turn the card on?",
-                                  L"Super Serial Card",
-                                  MB_YESNO | MB_ICONQUESTION);
+    HRESULT       hr         = S_OK;
+    bool          downloaded = false;
+    std::string   error;
+    std::wstring  message;
 
 
 
-    if (answer == IDYES)
+    hr = AssetBootstrap::OfferOptionalRomDownload (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), "SSC.rom",
+                                                   L"Super Serial Card firmware", intro, downloaded, error);
+
+    if (FAILED (hr) || !error.empty())
     {
-        StartSerialFirmwareDownload (true);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StartSerialFirmwareDownload
-//
-//  The download runs on the shell's queue; PollSerialFirmwareDownload picks
-//  up the result on a later tick.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::StartSerialFirmwareDownload (bool enableOnSuccess)
-{
-    ShellSerialCard &  serial = m_emuShell->GetSerialCard();
-
-
-
-    m_serialDownloadAwaited  = true;
-    m_serialEnableOnDownload = enableOnSuccess;
-    m_serialDownloadCount    = serial.GetCompletedDownloadCount();
-
-    serial.StartFirmwareDownload (false);
-    m_serialPage->SetFirmwareStatus (L"Downloading the Super Serial Card firmware.", false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PollSerialFirmwareDownload
-//
-//  On success the card is turned on, if the download was started by turning
-//  it on, and its tab is opened. On failure the card stays as it was.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::PollSerialFirmwareDownload()
-{
-    ShellSerialCard &  serial   = m_emuShell->GetSerialCard();
-    bool               finished = m_serialDownloadAwaited &&
-                                  serial.GetCompletedDownloadCount() != m_serialDownloadCount;
-    std::wstring       message;
-    HRESULT            hr       = S_OK;
-
-
-
-    BAIL_OUT_IF (!finished, S_OK);
-
-    m_serialDownloadAwaited = false;
-
-    if (serial.DidLastDownloadSucceed())
-    {
-        m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
-
-        if (m_serialEnableOnDownload)
-        {
-            SetSerialCardEnabled (true);
-            UpdateSerialTabVisibility();
-            SetActivePage (m_serialPageIndex);
-        }
-    }
-    else
-    {
-        message = L"The Super Serial Card firmware could not be downloaded, so the card stays off. "
-                + TextEncoding::NarrowToWide (serial.GetLastDownloadError());
+        message = L"The Super Serial Card firmware could not be downloaded. " + TextEncoding::NarrowToWide (error);
 
         DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), message.c_str(),
                         L"Super Serial Card", MB_OK | MB_ICONWARNING);
-
-        m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
     }
 
-Error:
-    return;
+    m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
+
+    return downloaded;
 }
 
 

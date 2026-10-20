@@ -3465,6 +3465,163 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeRomDownloadFn
+//
+//  The fetch a ROM row of the download dialog runs: from the ROM's own host
+//  when the catalog lists one, from AppleWin's resource folder otherwise,
+//  with the dialog's progress and cancel flags wired into the transfer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static StartupAssetEntry::DownloadFn MakeRomDownloadFn (const RomSpec * spec, fs::path destPath)
+{
+    return [spec, destPath] (
+        std::atomic<std::uint64_t> & bytesDone,
+        std::atomic<bool>          & cancel,
+        std::string                & err) -> HRESULT
+    {
+        HRESULT       hr      = S_OK;
+        HINTERNET     hSes    = nullptr;
+        vector<Byte>  payload;
+        error_code    ecLocal;
+
+        // Default AppleWin source, or the ROM's explicit alternate host
+        // (e.g. the //c ROM on the apple2.org.za mirror).
+        bool          useAlt  = !spec->altHost.empty();
+        wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
+        wstring       wPath   = useAlt
+                                ? AsciiToWide (spec->altUrlPath)
+                                : (wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName));
+
+        hSes = WinHttpOpen (s_kpszUserAgent,
+                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                            WINHTTP_NO_PROXY_NAME,
+                            WINHTTP_NO_PROXY_BYPASS,
+                            0);
+        CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+        hr = DownloadHttp (hSes,
+                           wHost.c_str(),
+                           wPath.c_str(),
+                           spec->expectedSize,
+                           spec->cassoName,
+                           payload,
+                           err,
+                           &bytesDone,
+                           &cancel);
+        CHR (hr);
+
+        fs::create_directories (destPath.parent_path(), ecLocal);
+        hr = WriteFileBytes (destPath, payload);
+        CHRF (hr, err = format ("Cannot write {}", destPath.string()));
+
+    Error:
+        if (hSes != nullptr)
+        {
+            WinHttpCloseHandle (hSes);
+        }
+
+        return hr;
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferOptionalRomDownload
+//
+//  The startup download dialog, opened for one catalog ROM that no machine
+//  config requires: `title` and `intro` in place of the startup wording,
+//  Cancel in place of Exit, and centered on `owner`. The row is locked on,
+//  so the only choices are Download and Cancel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::OfferOptionalRomDownload (
+    HWND                 owner,
+    const IDxuiTheme   * theme,
+    string_view          cassoName,
+    const wstring      & title,
+    const wstring      & intro,
+    bool               & outDownloaded,
+    string             & outError)
+{
+    HRESULT                  hr        = S_OK;
+    const RomSpec          * spec      = FindRomSpec ("", cassoName);
+    bool                           hasSource = (spec != nullptr) && !spec->altHost.empty();
+    auto                           failure   = std::make_shared<string>();
+    HINSTANCE                      hInst     = GetModuleHandleW (nullptr);
+    StartupDownloadSet             set;
+    StartupAssetEntry              entry;
+    StartupDownloadPrompt          prompt;
+    StartupDownloadResult          result    = StartupDownloadResult::Exit;
+    StartupAssetEntry::DownloadFn  fetch;
+
+
+
+    outDownloaded = false;
+    outError.clear();
+
+    CBRF (hasSource,
+          outError = format ("Casso has no download source for {}.", cassoName));
+
+    entry.kind          = StartupAssetKind::Rom;
+    entry.groupLabel    = L"Firmware";
+    entry.displayName   = AsciiToWide (spec->description);
+    entry.kindLabel     = L"ROM";
+    entry.source        = AsciiToWide (spec->sourceLabel);
+    entry.selectable    = false;
+    entry.selected      = true;
+    entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+    entry.destPaths.push_back (GetAssetBaseDirectory() / string (spec->localRelDir) / string (spec->cassoName));
+
+    // The dialog reports a failed row only as "Failed", so the reason is
+    // copied out for the caller.
+    fetch            = MakeRomDownloadFn (spec, entry.destPaths.front());
+    entry.downloadFn = [fetch, failure] (
+        std::atomic<std::uint64_t> & bytesDone,
+        std::atomic<bool>          & cancel,
+        std::string                & err) -> HRESULT
+    {
+        HRESULT  hrFetch = fetch (bytesDone, cancel, err);
+
+
+
+        if (FAILED (hrFetch))
+        {
+            *failure = err;
+        }
+
+        return hrFetch;
+    };
+
+    set.entries.push_back (std::move (entry));
+
+    prompt.title = title;
+    prompt.intro = intro;
+    prompt.theme = theme;
+
+    result        = StartupDownloadDialog::Show (hInst, owner, "", L"", set, &prompt);
+    outDownloaded = result == StartupDownloadResult::AllDone;
+
+    if (result == StartupDownloadResult::PartialDone)
+    {
+        outError = failure->empty() ? string ("The download failed.") : *failure;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunStartupDownloader
 //
 //  Unified entry point: scans for every missing ROM and every missing
@@ -3550,54 +3707,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
         entry.expectedBytes = (std::uint64_t) spec->expectedSize;
-        entry.downloadFn    = [spec, destPath = entry.destPaths.front()] (
-            std::atomic<std::uint64_t> & bytesDone,
-            std::atomic<bool>          & cancel,
-            std::string                & err) -> HRESULT
-        {
-            HRESULT       hr      = S_OK;
-            HINTERNET     hSes    = nullptr;
-            vector<Byte>  payload;
-            error_code    ecLocal;
-
-            // Default AppleWin source, or the ROM's explicit alternate host
-            // (e.g. the //c ROM on the apple2.org.za mirror).
-            bool          useAlt  = !spec->altHost.empty();
-            wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
-            wstring       wPath   = useAlt
-                                    ? AsciiToWide (spec->altUrlPath)
-                                    : (wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName));
-
-            hSes = WinHttpOpen (s_kpszUserAgent,
-                                WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                                WINHTTP_NO_PROXY_NAME,
-                                WINHTTP_NO_PROXY_BYPASS,
-                                0);
-            CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
-
-            hr = DownloadHttp (hSes,
-                                    wHost.c_str(),
-                                    wPath.c_str(),
-                                    spec->expectedSize,
-                                    spec->cassoName,
-                                    payload,
-                                    err,
-                                    &bytesDone,
-                                    &cancel);
-            CHR (hr);
-
-            fs::create_directories (destPath.parent_path(), ecLocal);
-            hr = WriteFileBytes (destPath, payload);
-            CHRF (hr, err = format ("Cannot write {}", destPath.string()));
-
-        Error:
-            if (hSes != nullptr)
-            {
-                WinHttpCloseHandle (hSes);
-            }
-
-            return hr;
-        };
+        entry.downloadFn    = MakeRomDownloadFn (spec, entry.destPaths.front());
 
         set.entries.push_back (std::move (entry));
     }
