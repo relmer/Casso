@@ -809,6 +809,7 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
     Byte                control  = 0;
     Byte                driveMap = 0;
     bool                ready    = false;
+    std::wstring        model;
 
 
 
@@ -871,13 +872,24 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
     hr = m_host->SetSpeed (control);
     CHR (hr);
 
+    //  A port opened again at the link's speed has a new host, and the link
+    //  is ready once the program's Ready arrives on it. The program sends
+    //  Ready again after each second with no reply, so no Idle is sent.
     if (m_settings.transport == LinkTransport::Serial && opened != m_settings.baud)
     {
         hr = OpenStream (m_settings.baud);
         CHR (hr);
+
+        m_prompted = true;
+
+        hr = AwaitProgram (stop, m_connectTimeoutMs, ready);
+        CHR (hr);
+
+        CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
     }
 
     driveMap = m_host->GetClient().driveMap;
+    model    = m_host->GetClient().GetModelName();
 
     if (driveMap != m_driveMap)
     {
@@ -893,7 +905,7 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
     {
         std::lock_guard<std::mutex>  lock (m_lock);
 
-        m_modelName = m_host->GetClient().GetModelName();
+        m_modelName = model;
     }
 
     SetState (LinkState::Ready);
@@ -1065,6 +1077,11 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud)
         m_host->SetActivitySink ([this] (const std::string & text) { m_sink.OnActivity (text); });
         m_openBaud = baud;
         m_prompted = false;
+
+        //  DSR is judged on each line from its own first on: a USB serial
+        //  adapter just opened reports DSR off until its driver polls it,
+        //  which on a line opened again would read as the Apple gone.
+        m_peerSeen = false;
     }
 
 Error:

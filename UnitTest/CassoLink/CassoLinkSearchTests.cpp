@@ -222,6 +222,30 @@ public:
 
 
 
+    TEST_METHOD (ASpeedChange_KeepsTheLinkAndItsDrives_ThroughAPortOpenedAgain)
+    {
+        Rig                rig;
+        CassoLinkSettings  settings;
+
+        rig.factory.comPorts     = { { L"COM3", Port::Apple } };
+        rig.factory.peerReady    = 1;
+        rig.factory.peerLagReads = 3;
+
+        settings.name      = "Test";
+        settings.transport = LinkTransport::Serial;
+        settings.port      = "COM3";
+
+        AssertSucceeded (rig.session->Start (settings));
+        Assert::IsTrue   (rig.sink.WaitForState (LinkState::Ready));
+        Assert::IsTrue   (rig.factory.comBauds == std::vector<DWORD> { 9600, 115200 }, L"connected at the bootstrap speed, then opened again at the link's");
+        Assert::AreEqual ((int) Byte (0x03), (int) rig.session->GetDriveMap(), L"the drives of the Ready before the port was opened again");
+
+        Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 1000), L"DSR off on the port just opened is not the Apple gone");
+    }
+
+
+
+
     TEST_METHOD (ABootstrapWithNoPort_UsesThePCsOnlyComPort)
     {
         Rig                             rig;
