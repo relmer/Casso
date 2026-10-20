@@ -125,9 +125,9 @@ machine:
 | Scenario | 0:12    | 0:55         | 0:59  | 1:50       |
 
 Release ASan with the scenario suite is the cheap pass: under a minute, over
-the code paths where real guests drive the devices. Run it before merging a
-change to device, disk or object-lifetime code; run Debug ASan over both
-suites before a release.
+the code paths where real guests drive the devices. It is a merge-to-master
+gate (see `.github/copilot-instructions.md`); run Debug ASan over both suites
+before a release.
 ## The generated cycle reference
 
 `docs/cycle-reference.md` is not written, it is generated: `CycleReference` in
