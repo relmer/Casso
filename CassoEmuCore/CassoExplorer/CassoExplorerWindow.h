@@ -637,7 +637,7 @@ private:
     bool  TryGetAppleDropDrive (int tag, POINT screen, Location & outDrive);
     void  WriteImageToDisk  ();
     void  SaveLinkToDisk    ();
-    void  FormatAppleDisk   ();
+    void  FormatAppleDisk   (const Location & location);
     void  SaveLinkDiskImage (const std::string & name);
     void  FillStatus();
     void  SetFocusPane (Pane pane);

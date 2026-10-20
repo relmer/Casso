@@ -3536,15 +3536,10 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
 
 CassoExplorerActions::Outcome CassoExplorerActions::FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder)
 {
-    Outcome                         outcome;
-    DiskOperations::NewDiskRequest  disk     = request;
-    std::string                     link;
-    std::string                     directory;
-    int                             drive    = 0;
-    bool                            prodos   = request.formatName == "prodos";
-    std::string                     path;
-    std::vector<Byte>               blank (NibblizationLayer::kImageByteSize, 0);
-    HRESULT                         hr       = S_OK;
+    Outcome      outcome;
+    std::string  link;
+    std::string  directory;
+    int          drive = 0;
 
 
 
@@ -3554,6 +3549,30 @@ CassoExplorerActions::Outcome CassoExplorerActions::FormatAppleDrive (const Disk
         outcome.message = L"Open a drive of a CassoLink connection first.";
         return outcome;
     }
+
+    return FormatAppleDrive (link, drive, request, tempFolder);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::FormatAppleDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::FormatAppleDrive (const std::string & link, int drive, const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder)
+{
+    Outcome                         outcome;
+    DiskOperations::NewDiskRequest  disk     = request;
+    bool                            prodos   = request.formatName == "prodos";
+    std::string                     path;
+    std::vector<Byte>               blank (NibblizationLayer::kImageByteSize, 0);
+    HRESULT                         hr       = S_OK;
+
+
 
     if (request.formatName != "dos33" && !prodos)
     {

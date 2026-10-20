@@ -2097,7 +2097,8 @@ spquiet: lda #<pcnone
         jmp putch
 
 ; pcok: a reply arrived. The line is drawn again only when it changes, as a
-; command's reply follows.
+; command's reply follows. A first reply, or one after a silence, is a new
+; connection, which starts with no error.
 pcok:   lda pcflag
         beq pcnew
         lda silent
@@ -2106,6 +2107,8 @@ pcnew:  lda #1
         sta pcflag
         lda #0
         sta silent
+        sta err
+        jsr showerr
         jmp showpc
 pcsame: rts
 

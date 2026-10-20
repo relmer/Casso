@@ -2733,14 +2733,18 @@ void CassoExplorerWindow::SaveLinkToDisk()
 //
 //  CassoExplorerWindow::FormatAppleDisk
 //
-//  The open Apple drive's disk formatted, from the format dialog's choices,
-//  once the user confirms that everything on it is erased.
+//  A linked drive's disk formatted, from the format dialog's choices, once
+//  the user confirms that everything on it is erased. The list stays where
+//  it is; the drive's row shows the new disk when the write finishes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::FormatAppleDisk()
+void CassoExplorerWindow::FormatAppleDisk (const Location & location)
 {
     wchar_t                              temp[MAX_PATH] = {};
+    std::wstring                         link;
+    int                                  slot           = 0;
+    int                                  number         = 0;
     std::wstring                         drive;
     std::wstring                         message;
     CassoExplorerNewDiskDialog::Outcome  choice;
@@ -2748,12 +2752,12 @@ void CassoExplorerWindow::FormatAppleDisk()
 
 
 
-    if (!m_browser.IsAppleDriveOpen() || GetTempPathW (MAX_PATH, temp) == 0)
+    if (!TreeModel::TryParseLinkId (location.path, link, slot, number) || number == 0 || GetTempPathW (MAX_PATH, temp) == 0)
     {
         return;
     }
 
-    drive  = m_actions.DescribeAppleDrive();
+    drive  = m_browser.GetTreeModel().GetLinkDriveTitle (location.path);
     choice = CassoExplorerNewDiskDialog::Ask (GetHwnd(), m_theme, true, {}, CassoExplorerNewDiskChoices::kFormatDos33, drive);
 
     if (!choice.confirmed)
@@ -2768,7 +2772,7 @@ void CassoExplorerWindow::FormatAppleDisk()
         return;
     }
 
-    outcome = m_actions.FormatAppleDrive (choice.request, std::wstring (temp).substr (0, wcslen (temp) - 1));
+    outcome = m_actions.FormatAppleDrive (TextEncoding::WideToNarrow (link), number, choice.request, std::wstring (temp).substr (0, wcslen (temp) - 1));
 
     if (!outcome.Succeeded())
     {
@@ -10819,7 +10823,7 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
         AddMenuCommand (items, std::format (L"Create &image from {}...", title).c_str(), [this, location]() { GoToLocation (location); ReadDiskToImage(); });
         AddMenuCommand (items, std::format (L"&Write image to {}...", title).c_str(), [this, location]() { GoToLocation (location); WriteImageToDisk(); });
         AddMenuCommand (items, L"Write &CassoLink to disk...", [this, location]() { GoToLocation (location); SaveLinkToDisk(); });
-        AddMenuCommand (items, L"&Format disk...",            [this, location]() { GoToLocation (location); FormatAppleDisk(); });
+        AddMenuCommand (items, L"&Format disk...",            [this, location]() { FormatAppleDisk (location); });
     }
 
     if (m_context.links != nullptr && hasLocation && location.kind == Location::Kind::Root && location.path == TreeModel::kCassoLinkRootId)

@@ -9,7 +9,9 @@
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
@@ -348,6 +350,28 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), write->result);
         Assert::AreEqual (std::string ("ERROR: WRITE-PROTECTED DISK IN D1"), rig.Row (kRow8), L"the disk's drive, not a track");
+    }
+
+
+
+    //  Format disk on a floppy never formatted: a nibble image of sync bytes
+    //  alone, with no address fields, written with a new DOS 3.3 disk as Format
+    //  builds one, then listed.
+    TEST_METHOD (WriteDisk_FormatsAnUnformattedDisk)
+    {
+        Rig                rig (true, 115200);
+        std::vector<Byte>  blank (35 * 6656, 0xFF);
+        std::vector<Byte>  disk (NibblizationLayer::kImageByteSize, 0);
+
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Nib, blank));
+        AssertSucceeded (Dos33Skeleton::Write (disk, 254));
+        rig.fileIo.files["new.dsk"] = disk;
+
+        auto  write = rig.Finish (rig.session->WriteDisk (1, "new.dsk"));
+
+        Logger::WriteMessage (std::format ("Write: 0x{:08X} {}", (uint32_t) write->result, write->message).c_str());
+        AssertSucceeded (write->result);
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
     }
 
 
