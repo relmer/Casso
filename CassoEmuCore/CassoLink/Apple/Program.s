@@ -39,8 +39,7 @@
 ; arm is stepped by its phases, sectors are found by their address fields,
 ; and data fields are read and written in 6-and-2. Writes go through one
 ; cycle-counted loop, the player, which writes a prepared stream of nibbles
-; 32 cycles apart and each self-sync byte 40 or more cycles after the one
-; before it.
+; 32 cycles apart and each self-sync byte 40 cycles after the one before it.
 ;
 ; NMOS 6502 code throughout.
 
@@ -70,12 +69,6 @@ Q6L      = $C08C
 Q6H      = $C08D
 Q7L      = $C08E
 Q7H      = $C08F
-; The player's stores, absolute for slot 6. An indexed store puts a false byte
-; on the IWM a cycle before the real one, as the //c's own ROM notes for the
-; IWM's mode register; the drive does not take the real byte after it.
-W6Q6L    = $C0EC
-W6Q6H    = $C0ED
-W6Q7H    = $C0EF
 
 ; Commands.
 CMDREADY  = $D2
@@ -1604,10 +1597,10 @@ psdone: rts
 ; buildformat: FSTREAM, a whole track of 25 pages: 352 self-sync bytes, then
 ; for each sector 0 to 15 its address field, 5 self-sync bytes, a data field
 ; and 10 self-sync bytes. The data fields are zeros, or with fdata set, the
-; sectors in ENCBUF. The stream takes about 211,300 cycles to write, longer
+; sectors in ENCBUF. The stream takes about 209,700 cycles to write, longer
 ; than a revolution, so its end lands in the first gap: a revolution at 300
 ; rpm is about 204,100 cycles at the //c's speed, and the sectors take about
-; 196,100, so a drive up to about 4% fast keeps every address field.
+; 195,600, so a drive up to about 4% fast keeps every address field.
 buildformat: ldy #0
         lda #0
 bfzero: sta SECBUF,y
@@ -1689,58 +1682,72 @@ put44:  sta tmp
 ; play: the stream from page A, offset Y, through the end of the X-th page,
 ; written by the drive. A 0 in the stream is a self-sync byte.
 ;
-; Cycles from one store to the next: data to data 32; data to sync 40; sync
-; to sync 43; sync to data 35; 3 more where the stream crosses a page. The
-; extra time puts zero bits between nibbles, which the read hardware skips.
+; The stores are indexed, as in Apple's RWTS: on the //c's IWM, an absolute
+; store to Q6H leaves the disk unwritten. An indexed store reads its address
+; before it writes it.
+;
+; Cycles from one store to the next: data to data 32; data to sync, sync to
+; sync 40; sync to data 32; 8 more where the stream crosses a page. Each is a
+; whole number of 4-cycle bit cells: on the IWM, a store partway through a
+; cell shifts the bits after it, and the nibbles that follow do not read.
+; The extra time puts zero bits between nibbles, which the read hardware
+; skips.
 play:   sta plda+2
         stx pagecnt
         ldx diskx
         lda Q6H,x
         lda Q7L,x
         lda #$FF
-        sta W6Q7H               ; write mode, a self-sync byte loaded
-        ora W6Q6L
+        sta Q7H,x               ; write mode, a self-sync byte loaded
+        ora Q6L,x
         jsr dly12               ; the first store comes 40 cycles on
         nop
         jmp plda
 plda:   lda WSTREAM,y           ; 4   (the page is set above)
         beq psync               ; 2 / 3
-        sta W6Q6H               ; 4
-        ora W6Q6L               ; 4   at once, or the latch loads twice
+        sta Q6H,x               ; 5
+        ora Q6L,x               ; 4   at once, or the latch loads twice
 pnext:  iny                     ; 2
         bne ppad                ; 3 / 2
-        inc plda+2              ; 6
+        bit $00                 ; 3
+pcross: inc plda+2              ; 6
         dec pagecnt             ; 5
         beq pdone               ; 2 / 3
-        jmp plda                ; 3
+        nop                     ; 2
+        jmp plda                ; 3   8 more than through ppad
 ppad:   nop                     ; 2
         nop                     ; 2
         nop                     ; 2
-        bit $0100               ; 4   absolute, for the cycle the store saves
+        bit $00                 ; 3
         jmp plda                ; 3
 psync:  nop                     ; 2
         bit $00                 ; 3
         lda #$FF                ; 2
-        sta W6Q6H               ; 4
-        ora W6Q6L               ; 4
-        jmp pnext               ; 3
+        sta Q6H,x               ; 5
+        ora Q6L,x               ; 4
+        iny                     ; 2
+        bne ppad                ; 3 / 2
+        jmp pcross              ; 3
 ; Two self-sync bytes follow the stream's last nibble before the write is
-; turned off. The //c's IWM holds a stored byte until the one before it has
-; been written, so a write turned off just after the last store loses the
-; end of the stream: a sector's epilogue, and so the sector. The first sync
-; is stored 40 cycles after the last nibble, the second 40 after it, and
-; the wait after them is past both being written.
-pdone:  jsr dly12               ; 22 cycles to here from the last store
+; turned off. The //c's IWM writes a stored byte only after the byte before
+; it, so a write turned off just after the last store loses the end of the
+; stream: a sector's epilogue, and so the sector. The first sync is stored
+; 40 cycles after the last nibble, the second 40 after it, and the wait after
+; them is past both being written.
+pdone:  nop                     ; 25 cycles to here from the last store
+        nop
+        nop
+        nop
         lda #$FF                ; 2
-        sta W6Q6H               ; 4: 40 after the last store
-        ora W6Q6L               ; 4
+        sta Q6H,x               ; 5: 40 after the last store
+        ora Q6L,x               ; 4
         jsr dly12               ; 12
         jsr dly12               ; 12
         nop                     ; 2
-        bit $0100               ; 4
+        bit $00                 ; 3
         lda #$FF                ; 2
-        sta W6Q6H               ; 4: 40 after the first
-        ora W6Q6L               ; 4
+        sta Q6H,x               ; 5: 40 after the first
+        ora Q6L,x               ; 4
         jsr dly12               ; 96 cycles: both out of the IWM
         jsr dly12
         jsr dly12

@@ -24,7 +24,7 @@
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 20;
+    static constexpr Word    kProgramVersion    = 36;
     static constexpr Byte    kShimVersion       = 2;
     static constexpr Word    kShimAddress       = 0x3D00;
     static constexpr Word    kProgramAddress    = 0x0800;
