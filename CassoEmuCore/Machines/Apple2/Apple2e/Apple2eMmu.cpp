@@ -367,8 +367,8 @@ void Apple2eMmu::OnPowerCycle (Prng & prng)
 //
 //  RebindPageTable
 //
-//  Re-resolves every region that the MMU controls. Called once on
-//  Initialize and on full resets.
+//  Re-resolves every region that the MMU controls. Called on Initialize, on
+//  full resets, on a load, and once the CPU's default mapping is in place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

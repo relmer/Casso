@@ -1106,6 +1106,11 @@ void MachineBuilder::WireBankedRom()
 //  mapping; the IIe may later swap pages to aux RAM via 80STORE /
 //  PAGE2 banking.
 //
+//  On a machine with an MMU, the MMU's mapping replaces the baseline at
+//  once. Main RAM there is the first RAM device, and a load maps every page
+//  to it, so a read of a page mapped to memory[] until its switch changed
+//  would return other bytes once a snapshot was loaded.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineBuilder::WirePageTable()
@@ -1138,6 +1143,11 @@ void MachineBuilder::WirePageTable()
 
     // Initial state
     RebuildBankingPages();
+
+    if (m_host.GetMmu() != nullptr)
+    {
+        m_host.GetMmu()->RebindPageTable();
+    }
 }
 
 
@@ -1579,6 +1589,13 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
     }
 
     m_host.GetCpu()->InitForEmulation(*m_host.GetPrng());
+
+    // On a machine with an MMU, main RAM is the first RAM device, so it is
+    // filled with the power-on pattern too.
+    if (m_host.GetMmu() != nullptr && m_host.GetRefs().mainRamDev != nullptr)
+    {
+        m_host.GetRefs().mainRamDev->PowerCycle (*m_host.GetPrng());
+    }
 
     // Connect speaker to CPU cycle counter for audio timestamps
     if (m_host.GetRefs().speaker != nullptr)

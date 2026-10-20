@@ -181,7 +181,7 @@ void MachineDebugTarget::ConfigureBankMap (
     bankMap.Clear();
     bankMap.SetBus (&host.GetMemoryBus());
 
-    if (cpu != nullptr)
+    if (cpu != nullptr && mmu == nullptr)
     {
         bankMap.AddRegion (cpu->GetMemory(), kLowRamSize, HeatSpace::Main, 0);
     }

@@ -99,11 +99,14 @@ public:
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
+    //  Points every page of $0000-$BFFF at main or aux RAM by the switches'
+    //  settings, replacing whatever mapping the page table had.
+    void     RebindPageTable ();
+
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('M', 'M', 'U', ' ');
     static constexpr uint16_t  kStateVersion = 1;
 
 private:
-    void   RebindPageTable       ();
     void   RebindCxxxInternalRom ();
     void   ResolveZeroPage     ();
     void   ResolveMain02_BF    ();
