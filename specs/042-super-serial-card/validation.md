@@ -103,6 +103,7 @@ machine's config and autosave, and `SSC.rom` backed up and restored.
 | 2. Printer mode, 40 characters with the screen on, file out with a path | Pass: the page's settings and the SW1 and SW2 readout follow each change; the path is chosen in the Save As dialog |
 | 3. `PR#2`, `LIST`, `PR#0` after OK (reboot) | Pass after the fix below: the listing is in the chosen file |
 | 4. Communications mode, loopback plug, after OK (reboot); Ctrl+Reset, `IN#2`, `PRINT 6*7` (2026-10-19) | Pass: the typed line comes back through the plug and prints 42. With `PR#2` as well, as the step first read, everything printed comes back in as input and the lines are garbled; the step now uses `IN#2` alone |
+| 1-3, 5 and 6 again on 2026-10-20, after the Settings changes: the download dialog, printer mode, "Write output to file" with Browse, `PR#2` and `LIST`, the infobar, and a //c | Pass: the download wrote `SSC.rom` (2,048 bytes), turned the card on and opened its tab; the path came back from the Save As dialog; the file contains the listing; the infobar reports the missing firmware with Download and Dismiss; with no firmware, the line after `PR#2` arrived without its first character, and Ctrl+Reset recovered; a //c's Machine page lists no Super Serial Card and has no Serial card tab |
 | 5. The infobar after `SSC.rom` is removed | Pass: it reports the missing firmware with Download and Dismiss; Download installs it and offers Restart, which rebuilds the machine and clears it |
 
 Two bugs found and fixed (`fix(ssc): Save the Super Serial Card's switches

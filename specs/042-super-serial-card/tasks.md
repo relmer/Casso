@@ -146,7 +146,7 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 - [X] T048 `CHANGELOG.md` `[Unreleased]` entries (Added: Super Serial Card; Changed: //c serial ports paced at their baud rate) and `README.md` feature list, drafted and approved by the owner before commit
 - [X] T049 Run `scripts/RunTests.ps1 -Build` in Debug and Release x64, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, ARM64 build, and `git add -A` + `scripts/CheckStyle.ps1 -Mode Tree`
 - [X] T050 Prose check on every new comment block and commit message (`Check-Prose.ps1`); the empty-paren and American-English greps from the instructions
-- [ ] T051 Launch the build for the owner with `--title`, validate the manual steps 1-6 in quickstart.md, capture screenshots of the Serial card page and the infobar
+- [X] T051 Launch the build for the owner with `--title`, validate the manual steps 1-6 in quickstart.md, capture screenshots of the Serial card page and the infobar
 
 ---
 
