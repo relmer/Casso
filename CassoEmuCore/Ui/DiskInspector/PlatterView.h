@@ -85,6 +85,9 @@ private:
     vector<std::pair<double, double>>  GetVisibleParts (const PlatterPlacement & view, double a, double b) const;
     bool           IsBandVisible  (const PlatterPlacement & view, double r0, double r1) const;
     void           DrawMarqueeArc (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
+    void           DrawMarqueeClear (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
+    double         GetClearTurn     (const PlatterPlacement & view, double turn, double inner, double outer) const;
+    bool           GetSelectionBorder (const PlatterPlacement & view, double & outStart, double & outEnd, double & outR0, double & outR1) const;
     static void    ShadeArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     bool           IsSelectedNibble (int quarterTrack, int nibble) const;
     static void    DrawRadial     (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);

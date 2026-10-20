@@ -808,26 +808,29 @@ void PlatterView::PaintMarquee (IDxuiPainter & painter, const PlatterPlacement &
 
         for (const std::pair<double, double> & span : subtract (set, sets[static_cast<size_t> (t)]))
         {
-            DrawMarqueeArc (marquee, painter, view, span.first, span.second, outer);
+            DrawMarqueeClear (marquee, painter, view, span.first, span.second, outer);
         }
 
         for (const std::pair<double, double> & span : subtract (set, sets[static_cast<size_t> (t) + 2]))
         {
-            DrawMarqueeArc (marquee, painter, view, span.first, span.second, inner);
+            DrawMarqueeClear (marquee, painter, view, span.first, span.second, inner);
         }
 
         //  Across the track at each end, except at the index where a stretch
         //  continues past it.
         for (const std::pair<double, double> & span : set)
         {
+            double  first = GetClearTurn (view, span.first,  inner, outer);
+            double  last  = GetClearTurn (view, span.second, inner, outer);
+
             if (span.first > kJoin || set.back().second < 1.0 - kJoin)
             {
-                s = marquee.DrawLine (painter, getX (span.first, inner), getY (span.first, inner), getX (span.first, outer), getY (span.first, outer), 0);
+                s = marquee.DrawLine (painter, getX (first, inner), getY (first, inner), getX (first, outer), getY (first, outer), 0);
             }
 
             if (span.second < 1.0 - kJoin || set.front().first > kJoin)
             {
-                s = marquee.DrawLine (painter, getX (span.second, outer), getY (span.second, outer), getX (span.second, inner), getY (span.second, inner), s);
+                s = marquee.DrawLine (painter, getX (last, outer), getY (last, outer), getX (last, inner), getY (last, inner), s);
             }
         }
     }
@@ -1148,6 +1151,139 @@ bool PlatterView::IsOverSelection (const PlatterPlacement & view, POINT pointPx)
     }
 
     return isOver;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetSelectionBorder
+//
+//  The selection's mark on the platter: its turns, the end past the start,
+//  and the radii of its border's two arcs; false with nothing selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::GetSelectionBorder (const PlatterPlacement & view, double & outStart, double & outEnd, double & outR0, double & outR1) const
+{
+    outStart = m_context.model->GetSelectionTurn (outEnd);
+
+    if (outStart >= 0)
+    {
+        outEnd = (outEnd <= outStart) ? outEnd + 1.0 : outEnd;
+        GetMarkBand (view, m_context.model->GetQuarterTrack(), outR0, outR1);
+    }
+
+    return outStart >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::DrawMarqueeClear
+//
+//  A marquee arc as DrawMarqueeArc draws it, except where it lies on the
+//  selection's border: there the arc moves just outside the border, outward
+//  from its outer arc and inward from its inner one, with a short step
+//  across the ring at each end of the moved part.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::DrawMarqueeClear (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const
+{
+    double                              start  = 0;
+    double                              end    = 0;
+    double                              r0     = 0;
+    double                              r1     = 0;
+    double                              apart  = (m_scaler.ToPxf (s_kSelectOutlineDip) + 2.0) / 2.0 + 1.0;
+    double                              clear  = r;
+    double                              pad    = apart / (s_kTwoPi * std::max (r, 1.0));
+    double                              cursor = a;
+    bool                                isOn   = GetSelectionBorder (view, start, end, r0, r1) && (std::abs (r - r1) <= apart || std::abs (r - r0) <= apart);
+    vector<std::pair<double, double>>   moved;
+    auto                                step   = [&] (double turn, double from, double to)
+    {
+        marquee.DrawLine (painter, static_cast<float> (view.centerXPx + from * std::sin ((turn + view.rotation) * s_kTwoPi)),
+                          static_cast<float> (view.centerYPx - from * std::cos ((turn + view.rotation) * s_kTwoPi)),
+                          static_cast<float> (view.centerXPx + to * std::sin ((turn + view.rotation) * s_kTwoPi)),
+                          static_cast<float> (view.centerYPx - to * std::cos ((turn + view.rotation) * s_kTwoPi)), 0);
+    };
+
+
+
+    //  The parts of the arc within the selection's turns, a turn either way
+    //  included, as the arc and the selection can each pass the index.
+    for (double k = -1.0; isOn && k <= 1.0; k += 1.0)
+    {
+        if (std::max (a, start - pad + k) < std::min (b, end + pad + k))
+        {
+            moved.push_back ({ std::max (a, start - pad + k), std::min (b, end + pad + k) });
+        }
+    }
+
+    clear = (std::abs (r - r1) <= apart) ? r1 + apart : r0 - apart;
+
+    for (const std::pair<double, double> & part : moved)
+    {
+        if (part.first > cursor)
+        {
+            DrawMarqueeArc (marquee, painter, view, cursor, part.first, r);
+        }
+
+        step (part.first, r, clear);
+        DrawMarqueeArc (marquee, painter, view, part.first, part.second, clear);
+        step (part.second, clear, r);
+        cursor = part.second;
+    }
+
+    if (cursor < b)
+    {
+        DrawMarqueeArc (marquee, painter, view, cursor, b, r);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetClearTurn
+//
+//  Where a marquee line across the ring from `inner` to `outer` is drawn: at
+//  its turn, or just outside the selection's border where it lies on one of
+//  the border's ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double PlatterView::GetClearTurn (const PlatterPlacement & view, double turn, double inner, double outer) const
+{
+    double  start  = 0;
+    double  end    = 0;
+    double  r0     = 0;
+    double  r1     = 0;
+    double  apart  = (m_scaler.ToPxf (s_kSelectOutlineDip) + 2.0) / 2.0 + 1.0;
+    double  pad    = 0;
+    double  toEnd  = 0;
+    double  toHead = 0;
+    bool    isOn   = GetSelectionBorder (view, start, end, r0, r1) && std::max (inner, outer) >= r0 - apart && std::min (inner, outer) <= r1 + apart;
+
+
+
+    if (isOn)
+    {
+        pad    = apart / (s_kTwoPi * std::max ((r0 + r1) / 2, 1.0));
+        toHead = turn - start - std::round (turn - start);
+        toEnd  = turn - end   - std::round (turn - end);
+        turn   = (std::abs (toHead) <= pad) ? start - pad : (std::abs (toEnd) <= pad) ? end + pad : turn;
+    }
+
+    return turn;
 }
 
 
