@@ -2088,10 +2088,22 @@ legend, and tilt the platter and back.
   hex bytes in decoded sector data, where ? matches any hex digit; or for
   text in sector data; on the selected track or the whole disk, with an "Any
   bit offset" option that also finds nibble patterns not aligned to the
-  nibbles as framed. Results MUST be listed with their locations, "Find next"
-  and "Find previous" MUST step through them, and a search with no match MUST
-  show "No matches". In Casso, results on a track the drive writes MUST be
-  marked out of date until Find runs again.
+  nibbles as framed, offered only for nibble patterns. Find MUST be a bar
+  docked under the toolbar, not a dialog, so the platter, strip and tabs
+  stay in view and respond while it is open; Ctrl+F and the toolbar's Find
+  open it and focus the pattern, and Escape or its close button closes it.
+  The bar MUST have the pattern, the kind of search, "Whole disk" (on by
+  default) and "Any bit offset", the selected hit's place as "3 of 16",
+  previous and next buttons, and a "List" button; a line under the pattern
+  MUST contain an example of the chosen kind of pattern, or the reason the
+  pattern could not be read. Enter MUST search for a new query and step to
+  the next hit of the same one, Shift+Enter and F3 / Shift+F3 MUST step, and
+  changing the kind or an option MUST search again. The hits MUST be listed
+  in a "Find results" disk tab, present only while there are hits, with the
+  track, sector, field (address, data or gap), place (nibble or byte
+  offset) and owning file of each; selecting a row MUST select its hit. For a
+  search with no match, the bar MUST display "No matches". In Casso, results
+  on a track the drive writes MUST be marked out of date until Find runs again.
 - **FR-057**: In the Sector data tab, Copy MUST put the selection on the
   clipboard as hex digits from the hex column and as characters from the
   text column, with one Copy command, as 033's hex view does (its FR-012f),
