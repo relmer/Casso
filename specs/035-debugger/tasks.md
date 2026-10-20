@@ -1782,5 +1782,5 @@ The owner's review of the Phase 44 build. Each task is a commit that builds and 
 - [X] T981 New's tip "New breakpoint"; confirm Delete all with Delete and Cancel (BreakpointBarCommands.cpp, Panes/BreakpointsPane.cpp), FR-317, FR-318
 - [X] T982 Undo and Redo tips that state the operation (BreakpointHistory.cpp, WatchHistory.cpp, PaneUndoHistory.cpp), FR-319
 - [X] T983 Check a breakpoint dialog field when the focus moves off it (BreakpointDialog.cpp), FR-320
-- [ ] T984 Launch a build for the owner
+- [X] T984 Launch a build for the owner
 - [X] T985 Map a //e's main RAM through its MMU from the build, so a keyframe from before the first ALTZP, RAMRD or RAMWRT change replays the same as the run it came from; found while checking T979's block counts (Shell/MachineBuilder.cpp, Apple2eMmu.h, MachineDebugTarget.cpp)
