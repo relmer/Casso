@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/ToolPanes.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 #include "Core/UnicodeSymbols.h"
 #include "Debugger/SymbolTable.h"
 #include "Ui/Debugger/DebuggerLayout.h"
@@ -1301,6 +1302,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
     {
         return std::format (L"{:.1f}%", 100.0 * (double) cycles / (double) std::max<uint64_t> (profile->cycles, 1));
     };
+    auto                                          count = [] (uint64_t value) { return DebuggerStatusText::FormatCount (value); };
 
 
 
@@ -1315,16 +1317,16 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
     {
         for (const ProfileAddressEntry & entry : profile->addresses)
         {
-            cells.push_back ({ { std::format (L"${:04X}", entry.address) }, { TextEncoding::NarrowToWide (entry.symbol) }, { std::to_wstring (entry.cycles) } });
+            cells.push_back ({ { std::format (L"${:04X}", entry.address) }, { TextEncoding::NarrowToWide (entry.symbol) }, { count (entry.cycles) } });
         }
     }
     else if (view == View::Routines)
     {
         for (const ProfileRoutineEntry & entry : profile->routines)
         {
-            cells.push_back ({ { TextEncoding::NarrowToWide (entry.GetName()) }, { std::to_wstring (entry.self) }, { share (entry.self) },
-                               { std::to_wstring (entry.total) }, { share (entry.total) }, { std::to_wstring (entry.calls) },
-                               { (entry.calls != 0) ? std::to_wstring (entry.total / entry.calls) : std::wstring (L"-") } });
+            cells.push_back ({ { TextEncoding::NarrowToWide (entry.GetName()) }, { count (entry.self) }, { share (entry.self) },
+                               { count (entry.total) }, { share (entry.total) }, { count (entry.calls) },
+                               { (entry.calls != 0) ? count (entry.total / entry.calls) : std::wstring (L"-") } });
         }
     }
     else if (view == View::Tree)
@@ -1332,7 +1334,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
         for (const ProfileTreeEntry & entry : profile->tree)
         {
             cells.push_back ({ { std::wstring ((size_t) entry.depth * 2, L' ') + TextEncoding::NarrowToWide (profile->routines[entry.routine].GetName()) },
-                               { std::to_wstring (entry.self) }, { std::to_wstring (entry.total) }, { share (entry.total) }, { std::to_wstring (entry.calls) } });
+                               { count (entry.self) }, { count (entry.total) }, { share (entry.total) }, { count (entry.calls) } });
         }
     }
     else if (view == View::Opcodes)
@@ -1340,7 +1342,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
         for (const ProfileEntry & entry : profile->opcodes)
         {
             cells.push_back ({ { TextEncoding::NarrowToWide (entry.mnemonic) }, { (entry.mode == "[No Operand]") ? std::wstring() : TextEncoding::NarrowToWide (entry.mode) },
-                               { std::to_wstring (entry.count) }, { std::to_wstring (entry.cycles) } });
+                               { count (entry.count) }, { count (entry.cycles) } });
         }
     }
 
@@ -1372,8 +1374,31 @@ std::wstring ProfilerPane::GetTotalsText (const std::optional<ProfileData> & pro
         return std::wstring();
     }
 
-    return std::format (L"{:.1f} s of running: {} instructions, {} cycles, {} page crossings, {} branches taken",
-                        (double) profile->cycles / kCyclesPerSecond, profile->instructions, profile->cycles, profile->pageCross, profile->branchTaken);
+    return std::format (L"{} s of running: {} instructions, {} cycles, {} page crossings, {} branches taken",
+                        FormatSeconds ((double) profile->cycles / kCyclesPerSecond), DebuggerStatusText::FormatCount (profile->instructions),
+                        DebuggerStatusText::FormatCount (profile->cycles), DebuggerStatusText::FormatCount (profile->pageCross),
+                        DebuggerStatusText::FormatCount (profile->branchTaken));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::FormatSeconds
+//
+//  Tenths of a second, the whole seconds grouped as a count is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ProfilerPane::FormatSeconds (double seconds)
+{
+    uint64_t  tenths = (uint64_t) std::llround (std::max (seconds, 0.0) * 10.0);
+
+
+
+    return std::format (L"{}.{}", DebuggerStatusText::FormatCount (tenths / 10), tenths % 10);
 }
 
 

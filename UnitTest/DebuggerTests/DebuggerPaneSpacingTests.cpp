@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/IDiagnosticsProvider.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/HistoryBand.h"
 #include "Ui/Debugger/KeyHintLine.h"
@@ -479,12 +480,12 @@ namespace DebuggerTests
                 text.Reset();
                 list.Paint  (painter, text, theme);
 
-                for (const wchar_t * first : { L"Cycles", L"9", L"12345678", L"next" })
+                for (const std::wstring & first : { std::wstring (L"Cycles"), std::wstring (L"9"), DebuggerStatusText::FormatCount (12345678), std::wstring (L"next") })
                 {
                     found = FindText (text, first);
 
-                    Assert::IsNotNull (found, (std::wstring (first) + L" is drawn " + at).c_str());
-                    Assert::AreEqual  (title, GetFirstInkX (text, *found), 0.01f, (std::wstring (first) + L" starts where the title does " + at).c_str());
+                    Assert::IsNotNull (found, (first + L" is drawn " + at).c_str());
+                    Assert::AreEqual  (title, GetFirstInkX (text, *found), 0.01f, (first + L" starts where the title does " + at).c_str());
                 }
             }
         }

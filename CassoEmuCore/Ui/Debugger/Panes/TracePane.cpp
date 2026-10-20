@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 #include "Debugger/AppleWinFormatter.h"
 #include "Core/TextEncoding.h"
@@ -204,7 +205,7 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
     bytes = AppleWinFormatter::FormatTraceBytes (*record);
 
-    out[0].text = std::format (L"{}", record->cycles);
+    out[0].text = DebuggerStatusText::FormatCount (record->cycles);
     out[1].text = std::format (L"{:04X}", record->pc);
     out[2].text = TextEncoding::NarrowToWide (bytes);
     out[3].text = TextEncoding::NarrowToWide (record->symbol);

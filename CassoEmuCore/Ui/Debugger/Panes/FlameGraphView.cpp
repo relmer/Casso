@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -220,7 +221,8 @@ bool FlameGraphView::TryGetTipAt (POINT point, std::wstring & text) const
 
     text = std::format (L"{}\nSelf: {} cycles ({:.1f}%)\nTotal: {} cycles ({:.1f}%)\nCalls: {}",
                         TextEncoding::NarrowToWide (m_routines[node->routine].GetName()),
-                        node->self, 100.0 * (double) node->self / all, node->total, 100.0 * (double) node->total / all, node->calls);
+                        DebuggerStatusText::FormatCount (node->self), 100.0 * (double) node->self / all,
+                        DebuggerStatusText::FormatCount (node->total), 100.0 * (double) node->total / all, DebuggerStatusText::FormatCount (node->calls));
     return true;
 }
 

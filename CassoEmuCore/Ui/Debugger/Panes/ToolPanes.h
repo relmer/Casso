@@ -216,6 +216,7 @@ public:
     //  The line above the list: the profile's totals and the time its cycles
     //  span; empty with no profile.
     static std::wstring  GetTotalsText (const std::optional<ProfileData> & profile);
+    static std::wstring  FormatSeconds (double seconds);
 
     //  The address a row's activation moves the disassembly to: an address
     //  row's, or a routine's start other than Top level's.

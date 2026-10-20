@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/EventLogText.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -10,28 +11,13 @@
 //
 //  FormatCycle
 //
+//  With the locale's thousands separators.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring EventLogText::FormatCycle (uint64_t cycle)
 {
-    constexpr size_t  kGroup  = 3;
-    std::wstring      digits  = std::format (L"{}", cycle);
-    std::wstring      grouped;
-    size_t            i       = 0;
-
-
-
-    for (i = 0; i < digits.size(); i++)
-    {
-        if (i > 0 && (digits.size() - i) % kGroup == 0)
-        {
-            grouped.push_back (L',');
-        }
-
-        grouped.push_back (digits[i]);
-    }
-
-    return grouped;
+    return DebuggerStatusText::FormatCount (cycle);
 }
 
 

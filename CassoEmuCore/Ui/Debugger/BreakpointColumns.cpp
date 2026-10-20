@@ -3,6 +3,8 @@
 #include "Ui/Debugger/BreakpointColumns.h"
 
 #include "Debugger/DiskBreakSpecText.h"
+#include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -57,7 +59,7 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 
     cells[(size_t) Column::Name]      = info.name.empty() ? GetName (bp, sourceLine) : info.name;
     cells[(size_t) Column::Condition] = (info.kind == BreakpointKind::Register) ? std::string() : info.condition;
-    cells[(size_t) Column::HitCount]  = info.stops ? std::to_string (info.hits) : std::format ("{} (count only)", info.hits);
+    cells[(size_t) Column::HitCount]  = TextEncoding::WideToNarrow (DebuggerStatusText::FormatCount (info.hits)) + (info.stops ? "" : " (count only)");
     cells[(size_t) Column::Kind]      = GetKindText    (GetRowKind (info));
     cells[(size_t) Column::Trigger]   = GetTriggerText (GetRowKind (info));
     cells[(size_t) Column::Symbol]    = HasRoutine (info) ? bp.label : !HasAddress (info) ? std::string() : (info.symbol.empty() ? bp.label : info.symbol);

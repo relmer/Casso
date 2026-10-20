@@ -4,6 +4,7 @@
 #include "Core/TextEncoding.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 #include "Ui/Debugger/Panes/ProfileTimeline.h"
@@ -415,10 +416,13 @@ namespace DebuggerToolPanesTests
         {
             ProfileData   profile = MakeRoutineProfile();
             std::wstring  tip     = ProfileTimeline::GetFrameTip (profile.frames[0], profile.routines);
+            std::wstring  head    = std::format (L"Frame 9: {} cycles\nPLOT: {} cycles (74.4%)\nTop level: {} cycles", DebuggerStatusText::FormatCount (4030),
+                                                 DebuggerStatusText::FormatCount (3000), DebuggerStatusText::FormatCount (1000));
 
 
 
-            Assert::IsTrue (tip.starts_with (L"Frame 9: 4030 cycles\nPLOT: 3000 cycles (74.4%)\nTop level: 1000 cycles"), tip.c_str());
+            //  The counts have the locale's thousands separators.
+            Assert::IsTrue (tip.starts_with (head), tip.c_str());
             Assert::IsTrue (tip.ends_with   (L"Other routines: 30 cycles"), tip.c_str());
         }
 
