@@ -1767,3 +1767,19 @@ The owner's review of the Phase 44 build. Each task is a commit that builds and 
 - [X] T971 Stop the machine where a click on the history timeline moves it (HistoryTimelineClick.cpp, DebuggerWindowTimeline.cpp), FR-308
 - [X] T972 MMU: label every run, widen the strips, move the list right, and add a tip to each soft switch (Panes/MemoryMapBar.cpp, DiagnosticsPane.cpp), FR-309
 - [X] T973 Launch a build for the owner
+
+
+
+## Phase 48: Owner review, 2026-10-20 (FR-310 to FR-320)
+
+- [ ] T974 Remove the watch grid's enable check box (Panes/WatchesPane.cpp), FR-310
+- [ ] T975 Read a byte or a word for a `.b` or `.w` watch suffix (Handlers/WatchHandlers.cpp, DebuggerViewState.cpp), FR-311
+- [ ] T976 Build the chosen period's profile when the Profiler pane is open on a stopped machine with none (Panes/ToolPanes.cpp), FR-312
+- [ ] T977 Read the progress as "Loading profile... (xx%)" (Panes/ProfileProgress.cpp), FR-313
+- [ ] T978 Cover the profile's period in the frame timeline (Debugger/ProfileHistory.cpp, Panes/ProfileTimeline.cpp), FR-314
+- [ ] T979 Replay a profile's history stretches in parallel and reuse each stretch's counts (Debugger/ProfileHistory.cpp), FR-315
+- [ ] T980 Write the debugger window's decimal numbers with the locale's thousands separators (Ui/Debugger), FR-316
+- [ ] T981 New's tip "New breakpoint"; confirm Delete all with Delete and Cancel (BreakpointBarCommands.cpp, Panes/BreakpointsPane.cpp), FR-317, FR-318
+- [ ] T982 Undo and Redo tips that state the operation (BreakpointHistory.cpp, WatchHistory.cpp, PaneUndoHistory.cpp), FR-319
+- [ ] T983 Check a breakpoint dialog field when the focus moves off it (BreakpointDialog.cpp), FR-320
+- [ ] T984 Launch a build for the owner

@@ -279,6 +279,20 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: What does a click on the history timeline do? -> A: It moves the machine there, stopped (FR-308).
 - Q: What changes in the MMU panel? -> A: Every run is labeled, I/O and Not written included; the strips are wider and the list sits further right; and each soft switch has a tip with what it does (FR-309).
 
+### Session 2026-10-20 (owner review of the Phase 47 build)
+
+- Q: What is a disabled watch for? -> A: Nothing worth a control: updating a watch costs nothing perceptible, so the watch grid has no check box (FR-310).
+- Q: How is a watch's width chosen? -> A: A `.b` or `.w` suffix reads a byte or a word at the address, symbol or expression before it; `$` only marks hex and has no bearing on width, and with no suffix an address or symbol reads a word (FR-311).
+- Q: When does the Profiler pane build its profile? -> A: As soon as the pane is open with the machine stopped and no profile of the chosen period, without the period being chosen again (FR-312).
+- Q: How does the profile's progress read? -> A: "Loading profile... (xx%)" (FR-313).
+- Q: What does the frame timeline cover? -> A: The period the profile covers, its frames grouped into as many bars as fit, not the last 600 frames whatever the period (FR-314).
+- Q: How is a profile of a long period built faster? -> A: The history's stretches between keyframes are replayed in parallel and their counts added up; each stretch's counts are saved, so a period built again replays only what it has not counted (FR-315).
+- Q: How are large numbers written? -> A: Every decimal number of 1,000 or more the debugger window draws has the user's locale's thousands separators (FR-316).
+- Q: What does the Breakpoints pane's New button's tip read? -> A: "New breakpoint" (FR-317).
+- Q: Is Delete all confirmed first? -> A: Yes, by a question with Delete and Cancel buttons that have accelerators; Cancel is the default (FR-318).
+- Q: What do Undo and Redo tips read? -> A: Exactly what they would undo or redo, in every pane that has them: "Undo delete all breakpoints" (FR-319).
+- Q: When does the breakpoint dialog check a field? -> A: As soon as the focus moves off it, with the reason under the fields; OK checks the whole breakpoint again (FR-320).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3416,6 +3430,24 @@ run something, switch back to the //e: it is where it was left.
   stopped where it moved.
 - **FR-309**: The MMU panel MUST label every run, and each soft switch MUST
   have a tip with what it does.
+- **FR-310**: The watch grid MUST have no enable check box.
+- **FR-311**: A watch MUST read a byte for a `.b` suffix and a word for a
+  `.w` suffix, and `$` MUST mark only hex.
+- **FR-312**: The Profiler pane MUST build the chosen period's profile when it
+  is open, the machine is stopped and that profile has not been built.
+- **FR-313**: The profile's progress MUST read "Loading profile... (xx%)".
+- **FR-314**: The frame timeline MUST cover the profile's period.
+- **FR-315**: A profile of history MUST replay its stretches in parallel and
+  MUST reuse the counts of stretches already replayed.
+- **FR-316**: Every decimal number of 1,000 or more in the debugger window MUST
+  have the locale's thousands separators.
+- **FR-317**: The New button's tip MUST read "New breakpoint".
+- **FR-318**: Delete all breakpoints MUST be confirmed first, with Delete and
+  Cancel.
+- **FR-319**: Every Undo and Redo tip MUST state the operation it would undo
+  or redo.
+- **FR-320**: The breakpoint dialog MUST check a field when the focus moves off
+  it.
 
 ### Key Entities
 
