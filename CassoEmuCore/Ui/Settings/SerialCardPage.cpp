@@ -22,7 +22,7 @@ static constexpr float  s_kNoteFontDp      = 12.0f;
 static constexpr const wchar_t *  s_kAttachmentLabels[] =
 {
     L"None",
-    L"Loopback (TX to RX)",
+    L"Loopback plug",
     L"Write output to file",
     L"Read input from file",
 };
@@ -255,7 +255,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
         {
             m_rowNotes[i].SetText (m_rowNoteText[i]);
             m_rowNotes[i].SetRect (MakeRect (controlsX, y, noteWidth, noteHeight));
-            y += noteHeight;
+            y += noteHeight + sectionGap;
         }
 
         m_rowLabels[i].SetDpi (dpi);
@@ -282,7 +282,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     if (!m_attachNoteText.empty())
     {
-        y += noteHeight;
+        y += noteHeight + sectionGap;
     }
 
     m_pathLabel.SetVisible (showPath);

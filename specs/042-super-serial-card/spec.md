@@ -57,10 +57,10 @@ The 6551's baud code 0 selects 16 times the external clock. The SSC clocks its 6
 ### Session 2026-10-19
 
 - Q: How do the card's DIP switches look in Settings? → A: The drop-downs stay, and the text readout below them is replaced by a drawing of the card's two DIP switch banks, SW1 and SW2. Clicking a switch flips it, and the drop-downs follow. This supersedes the 2026-10-14 answer (FR-009).
-- Q: What does the Mode list offer, and where is each mode covered? → A: "Communications (bidirectional)", "Printer (output only)", "Emulate Apple II Serial Interface Card P8 firmware" and "Emulate Apple II Serial Interface Card P8A firmware". A note under Mode covers what the selected mode is for (FR-009).
+- Q: What does the Mode list offer, and where is each mode covered? → A: "Communications", "Printer", "Emulate Apple II Serial Interface Card P8 firmware" and "Emulate Apple II Serial Interface Card P8A firmware". A note under Mode covers what the selected mode is for (FR-009).
 - Q: Is the all-ON baud setting offered? → A: Yes, as 115,200 baud (FR-013).
 - Q: Where are line feed after carriage return and interrupts covered? → A: In info tips after their labels. Line feed applies in every mode; interrupts are for programs written to use them, such as Kermit (FR-009).
-- Q: What does the connector drop-down call its attachments? → A: "None", "Loopback (TX to RX)", "Write output to file" and "Read input from file", with a note under the drop-down for each; the loopback note lists its wiring (FR-015).
+- Q: What does the connector drop-down call its attachments? → A: "None", "Loopback plug", "Write output to file" and "Read input from file", with a note under the drop-down for each; the loopback note lists its wiring (FR-015).
 - Q: How does the user notice the Serial card tab when turning the card on adds it? → A: Its label shimmers once, as the update indicator's text does, unless animations are turned off (FR-020).
 
 ## User Scenarios & Testing *(mandatory)*
@@ -85,7 +85,7 @@ A user opens Settings on an Apple ][, ][+ or //e, turns on the Super Serial Card
 
 ### User Story 2 - Print and type through Apple's firmware (Priority: P1)
 
-A user with the card in slot 2 types `PR#2` and `LIST` in Applesoft, and the listing goes out the card's serial connector. With the connector looped back, `IN#2` takes input from the same connector, and the firmware's commands (Ctrl-A for communications mode, Ctrl-I for printer mode) change the baud rate, data format and the other settings for the session, as Apple's manual documents.
+A user with the card in slot 2 types `PR#2` and `LIST` in Applesoft, and the listing goes out the card's serial connector. With the connector looped back, `IN#2` takes input from the same connector, and the firmware's commands (Ctrl+A for communications mode, Ctrl+I for printer mode) change the baud rate, data format and the other settings for the session, as Apple's manual documents.
 
 **Why this priority**: Apple's firmware is how BASIC, DOS and most software use the card. A card that only works for programs that program the 6551 themselves is not an SSC.
 

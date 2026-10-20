@@ -19,7 +19,7 @@ GuestVisibleSuperSerialCardTests`.
 | The same at the printer settings the card ships with: 80 characters, screen off, 1/4 second after each carriage return | 3 | Pass: the listing is in the file, after the delays, and not on the screen |
 | `IN#2` in communications mode with the loopback plug, then `PRINT 6*7`; //e and ][+ | 4 | Pass: the typed line comes back through the plug and prints 42 |
 | `IN#2` in communications mode at 300 baud, file in: two program lines and `IN#0` | none | Pass: the program is entered from the file and runs |
-| The firmware's commands from Applesoft: Ctrl-I in printer mode and Ctrl-A in communications mode, then `6B`, `1D` and `3P`; //e and ][+ | none | Pass: 300 baud, 7 data bits and even parity are written to the 6551 |
+| The firmware's commands from Applesoft: Ctrl+I in printer mode and Ctrl+A in communications mode, then `6B`, `1D` and `3P`; //e and ][+ | none | Pass: 300 baud, 7 data bits and even parity are written to the 6551 |
 
 ## Findings
 

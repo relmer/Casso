@@ -172,7 +172,7 @@ public:
 
 
     //  The firmware's own commands, sent from Applesoft through PR#2: the
-    //  command character (Ctrl-I in printer mode, Ctrl-A in communications
+    //  command character (Ctrl+I in printer mode, Ctrl+A in communications
     //  mode), then a number and a letter. B sets the baud rate, D the data
     //  format and P the parity, in the 6551's control and command registers.
     TEST_METHOD (FirmwareCommandsSetTheBaudRateDataFormatAndParity)

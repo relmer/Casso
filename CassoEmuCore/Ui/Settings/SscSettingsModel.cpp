@@ -22,29 +22,29 @@ static constexpr SettingDef  s_kSettings[] =
 {
     { SscSetting::Mode, L"Mode",
       2, { { SscBank::Sw1, 5 }, { SscBank::Sw1, 6 } },
-      4, { { L"Communications (bidirectional)",                      { 1, 1 } },
-           { L"Printer (output only)",                                { 0, 1 } },
+      4, { { L"Communications",                                      { 1, 1 } },
+           { L"Printer",                                             { 0, 1 } },
            { L"Emulate Apple II Serial Interface Card P8 firmware",  { 1, 0 } },
            { L"Emulate Apple II Serial Interface Card P8A firmware", { 0, 0 } } } },
 
     { SscSetting::BaudRate, L"Baud rate",
       4, { { SscBank::Sw1, 1 }, { SscBank::Sw1, 2 }, { SscBank::Sw1, 3 }, { SscBank::Sw1, 4 } },
-      16, { { L"50",     { 1, 1, 1, 0 } },
-            { L"75",     { 1, 1, 0, 1 } },
-            { L"110",    { 1, 1, 0, 0 } },
-            { L"135",    { 1, 0, 1, 1 } },
-            { L"150",    { 1, 0, 1, 0 } },
-            { L"300",    { 1, 0, 0, 1 } },
-            { L"600",    { 1, 0, 0, 0 } },
-            { L"1,200",  { 0, 1, 1, 1 } },
-            { L"1,800",  { 0, 1, 1, 0 } },
-            { L"2,400",  { 0, 1, 0, 1 } },
-            { L"3,600",  { 0, 1, 0, 0 } },
-            { L"4,800",  { 0, 0, 1, 1 } },
-            { L"7,200",  { 0, 0, 1, 0 } },
-            { L"9,600",  { 0, 0, 0, 1 } },
-            { L"19,200", { 0, 0, 0, 0 } },
-            { L"115,200 (not in Apple's manual)", { 1, 1, 1, 1 } } } },
+      16, { { L"50",      { 1, 1, 1, 0 } },
+            { L"75",      { 1, 1, 0, 1 } },
+            { L"110",     { 1, 1, 0, 0 } },
+            { L"135",     { 1, 0, 1, 1 } },
+            { L"150",     { 1, 0, 1, 0 } },
+            { L"300",     { 1, 0, 0, 1 } },
+            { L"600",     { 1, 0, 0, 0 } },
+            { L"1,200",   { 0, 1, 1, 1 } },
+            { L"1,800",   { 0, 1, 1, 0 } },
+            { L"2,400",   { 0, 1, 0, 1 } },
+            { L"3,600",   { 0, 1, 0, 0 } },
+            { L"4,800",   { 0, 0, 1, 1 } },
+            { L"7,200",   { 0, 0, 1, 0 } },
+            { L"9,600",   { 0, 0, 0, 1 } },
+            { L"19,200",  { 0, 0, 0, 0 } },
+            { L"115,200", { 1, 1, 1, 1 } } } },
 
     { SscSetting::DataFormat, L"Data format",
       2, { { SscBank::Sw2, 1 }, { SscBank::Sw2, 2 } },
@@ -285,12 +285,12 @@ wstring SscSettingsModel::GetNote (SscSetting setting, const SscSwitches & switc
         {
         case SscMode::Communications:
             note = L"A two-way line to a modem or terminal. PR#2 sends, IN#2 receives, "
-                   L"and Ctrl-A starts a firmware command.";
+                   L"and Ctrl+A starts a firmware command.";
             break;
 
         case SscMode::Printer:
             note = L"Output to a serial printer, broken into lines of the width below. "
-                   L"Ctrl-I starts a firmware command.";
+                   L"Ctrl+I starts a firmware command.";
             break;
 
         case SscMode::SicP8:
