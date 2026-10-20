@@ -1014,6 +1014,7 @@ void SettingsSheet::OnDialogTick()
     UpdateDiskTabVisibility();
     UpdateSerialTabVisibility();
     PollSerialFirmwareDownload();
+    UpdateSerialSparkle();
     UpdateTickInterval();
 
 
@@ -1077,7 +1078,7 @@ void SettingsSheet::OnDialogTick()
 //  While the Controllers page is shown the sheet ticks at its live rate, so
 //  the stick and the lights follow the controller at display rate; on any
 //  other page it drops back to the default, and the page stops reading.
-//  The Serial card tab's sparkle ticks at frame rate while it runs.
+//  The Serial card tab's sparkle ticks at frame rate during each sweep.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1095,10 +1096,6 @@ void SettingsSheet::UpdateTickInterval()
     if (GetSerialSparkleProgress().has_value())
     {
         wanted = std::min (wanted, kSparkleTickMs);
-    }
-    else
-    {
-        m_serialSparkleStartMs.reset();
     }
 
     if (wanted != m_tickMs)
@@ -1592,28 +1589,52 @@ Error:
 //
 //  GetSerialSparkleProgress
 //
-//  The Serial card tab's sparkle, 0 to 1, or nothing once it has run.
+//  The current sweep's progress over the Serial card tab, 0 to 1, or nothing
+//  between sweeps, once the tab has been opened, or while it is hidden.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<float> SettingsSheet::GetSerialSparkleProgress() const
 {
     std::optional<float>  progress;
-    int64_t               elapsed  = 0;
+    int64_t               phase    = 0;
+    bool                  running  = m_serialSparkleStartMs.has_value() && m_serialTabVisible &&
+                                     GetActiveIndex() != m_serialPageIndex;
 
 
 
-    if (m_serialSparkleStartMs.has_value())
+    if (running)
     {
-        elapsed = (int64_t) GetTickCount64() - *m_serialSparkleStartMs;
+        phase = ((int64_t) GetTickCount64() - *m_serialSparkleStartMs) % kSparklePeriodMs;
 
-        if (elapsed < DxuiShimmer::kSweepMs)
+        if (phase < DxuiShimmer::kSweepMs)
         {
-            progress = (float) elapsed / (float) DxuiShimmer::kSweepMs;
+            progress = (float) phase / (float) DxuiShimmer::kSweepMs;
         }
     }
 
     return progress;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateSerialSparkle
+//
+//  Opening the Serial card tab ends its sparkle for good, as does turning
+//  the card off again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateSerialSparkle()
+{
+    if (!m_serialTabVisible || GetActiveIndex() == m_serialPageIndex)
+    {
+        m_serialSparkleStartMs.reset();
+    }
 }
 
 

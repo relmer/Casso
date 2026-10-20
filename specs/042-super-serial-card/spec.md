@@ -61,7 +61,7 @@ The 6551's baud code 0 selects 16 times the external clock. The SSC clocks its 6
 - Q: Is the all-ON baud setting offered? → A: Yes, as 115,200 baud (FR-013).
 - Q: Where are line feed after carriage return and interrupts covered? → A: In info tips after their labels. Line feed applies in every mode; interrupts are for programs written to use them, such as Kermit (FR-009).
 - Q: What does the connector drop-down call its attachments? → A: "None", "Loopback plug", "Write output to file" and "Read input from file", with a note under the drop-down for each; the loopback note lists its wiring (FR-015).
-- Q: How does the user notice the Serial card tab when turning the card on adds it? → A: Its label shimmers once, as the update indicator's text does, unless animations are turned off (FR-020).
+- Q: How does the user notice the Serial card tab when turning the card on adds it? → A: Its label shimmers as the update indicator's text does, one sweep every five seconds until the user opens the tab, unless animations are turned off (FR-020).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -206,7 +206,7 @@ In the card's settings the user chooses what is plugged into its serial connecto
 - **FR-017**: Ctrl-Reset and power-on MUST reset the card as the hardware's reset line resets it.
 - **FR-018**: The emulation MUST be written from the 6551 datasheet and Apple's published SSC manuals only, never from the source of another emulator.
 - **FR-019**: The shipped Apple ][, ][+, //e and enhanced //e configs MUST list a Super Serial Card in slot 2, off by default and turned on from its checkbox on the Hardware tab, and existing configs MUST be migrated to list it. The migration MUST NOT replace a card already in slot 2. A card in another slot is configured by editing a custom machine config.
-- **FR-020**: When turning the card on in Settings adds the Serial card tab, the tab's label MUST shimmer once, as the update indicator's text does, unless the system's animations are turned off.
+- **FR-020**: When turning the card on in Settings adds the Serial card tab, the tab's label MUST shimmer as the update indicator's text does, repeating until the user opens the tab, unless the system's animations are turned off.
 
 ### Key Entities
 

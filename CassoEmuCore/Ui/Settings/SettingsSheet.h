@@ -303,15 +303,20 @@ private:
     bool           m_serialEnableOnDownload  = false;
     uint32_t       m_serialDownloadCount     = 0;
 
-    // A tab appearing among the others is easy to miss, so the Serial card
-    // tab's label shimmers once, as the update indicator's text does,
-    // when turning the card on adds it. Not with animations turned off.
-    static constexpr UINT  kSparkleTickMs = 16;
+    // A tab appearing among the others is easy to miss, so when turning the
+    // card on adds the Serial card tab, its label shimmers as the update
+    // indicator's text does, one sweep every kSparklePeriodMs, until the tab
+    // is opened. Not with animations turned off.
+    static constexpr UINT     kSparkleTickMs   = 16;
+    static constexpr int64_t  kSparklePeriodMs = 5000;
+
+    static_assert (DxuiShimmer::kSweepMs < kSparklePeriodMs, "a sweep ends before the next starts");
 
     std::optional<int64_t>  m_serialSparkleStartMs;
     DxuiSweepGlints         m_serialSparkleGlints = DxuiShimmer::MakeEvenSweepGlints();
 
     std::optional<float>  GetSerialSparkleProgress () const;
+    void                  UpdateSerialSparkle      ();
     void                  PaintSerialSparkle       (IDxuiTextRenderer & text, float progress);
 
     // The dialog tick last asked for: the Controllers page's live rate while

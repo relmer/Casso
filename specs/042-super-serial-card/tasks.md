@@ -113,7 +113,7 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 - [X] T042 [US4] Turning the card on in the Hardware tab with no firmware offers the download at once (`HardwarePage.cpp` or the apply controller), using `DownloadOptionalRom`
 - [X] T052 [US4] Replace the readout with `SscSwitchesView` in `CassoEmuCore/Ui/Settings/SscSwitchesView.h/.cpp`: SW1 and SW2 drawn as the card's DIP switch banks, a click flips a switch and the drop-downs follow
 - [X] T053 [US4] The SIC emulations in full in the Mode list, 115,200 baud for all four baud switches on, a note under Mode, info tips on line feed after carriage return and interrupts (`SscSettingsModel::GetNote`, `GetInfoTip`, `SettingsInfoTip`); tests in `SscSettingsModelTests.cpp`
-- [X] T054 [US4] Move the update indicator's shimmer into `Dxui/Widgets/DxuiShimmer.h/.cpp` and run one sweep over the Serial card tab's label when turning the card on adds it (`SettingsSheet::PaintSerialSparkle`); tests in `UnitTest/Dxui/DxuiShimmerTests.cpp`
+- [X] T054 [US4] Move the update indicator's shimmer into `Dxui/Widgets/DxuiShimmer.h/.cpp` and sweep it over the Serial card tab's label every five seconds from when turning the card on adds the tab until the tab is opened (`SettingsSheet::PaintSerialSparkle`); tests in `UnitTest/Dxui/DxuiShimmerTests.cpp`
 
 ---
 
