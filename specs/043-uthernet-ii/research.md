@@ -116,13 +116,13 @@ Bind failure for LISTEN (port in use): SOCK_CLOSED + TIMEOUT (spec edge case). S
              "portForwards": [ { "protocol": "tcp", "hostPort": 6502, "guestPort": 6502 } ] }
 ```
 
-A user array replaces the default's wholesale, so a user who saved hardware settings before this feature has no card entry. Enabling the card on the Network page adds one (slot 3 or the lowest free slot) rather than a migration doing it at load.
+Loading merges the shipped slot entries with the user's by slot number, so a user file saved before this feature gets the card's shipped entry, turned off, with no migration.
 
 **Rationale**: A migration would rewrite every existing user configuration that has a `slots` array, including ones with nothing else to migrate, for a card that ships disabled. The settings page is the only place an entry is needed.
 
 ## R13. Settings UI
 
-**Decision**: A new Settings page, "Network": an enable toggle, a slot drop-down limited to free slots, a MAC address text field (validated as six hex pairs, unicast), a "Allow connections from other computers" checkbox (LAN access), and a port forward list with add and remove. The Hardware page tree lists the card like any optional slot device. Enabling the card when it has no MAC generates one from the OS random source. All edits follow the sheet's Apply/Cancel model. Turning the card on or off or moving it takes effect at the next machine build, which `RequiresReset` triggers; LAN access and port forwards apply to the running card through the CPU thread's command queue (`IDM_NETWORK_CONFIGURE`): open TCP connections stay open, UDP flows close, and the forwards reopen. The MAC address has no effect inside the chip, so a change to it is saved and nothing more.
+**Decision**: The card follows the same model as the other slot cards and the Super Serial Card (042): the machine configuration places it in slot 3 and the Machine tab's device list turns it on or off. A new Settings page, "Network", present only while the card is on (as the Storage page follows the disk controller), has a MAC address text field (validated as six hex pairs, unicast), a "Allow connections from other computers" checkbox (LAN access), and a port forward list with add and remove. Turning the card on when it has no MAC generates one from the OS random source. All edits follow the sheet's Apply/Cancel model. Turning the card on or off takes effect at the next machine build, which `RequiresReset` triggers; LAN access and port forwards apply to the running card through the CPU thread's command queue (`IDM_NETWORK_CONFIGURE`): open TCP connections stay open, UDP flows close, and the forwards reopen. The MAC address has no effect inside the chip, so a change to it is saved and nothing more.
 
 ## R14. Windows Firewall
 

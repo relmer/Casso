@@ -188,9 +188,6 @@ struct SettingsMachineInfo
     // Annunciator outputs on the game socket, so the Controllers page offers
     // the Joyport. False on the //c.
     bool                                 supportsGamePortAdapter = false;
-    // The document has a `slots` array, so a card can be added; false on the
-    // //c, whose peripherals are built in.
-    bool                                 supportsSlots = false;
 };
 
 
@@ -351,20 +348,14 @@ public:
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
-    // Moves a slot entry to `slot`, which must be 1-7 and not taken by another
-    // enabled slot entry.
-    HRESULT          SetHardwareSlot (size_t index, int slot);
-    std::vector<int> GetFreeSlots    (size_t index) const;
-
-    // The Uthernet II. Enabling it on a machine whose slot list has no entry
-    // for it adds one, at slot 3 or the lowest free slot, and an enabled card
-    // with no MAC address gets a random locally administered one.
+    // The Uthernet II. The machine's slot list places it and the Machine tab
+    // turns it on; turned on with no MAC address, it gets a random locally
+    // administered one.
     static constexpr const char *  kpszNetworkCardDevice = "uthernet2";
     static constexpr const char *  kpszNetworkCardName   = "Uthernet II (Ethernet)";
 
     const HardwareEntry *  GetNetworkCard        () const;
-    HRESULT                SetNetworkCardEnabled (bool enabled);
-    HRESULT                SetNetworkCardSlot    (int slot);
+    bool                   HasEnabledNetworkCard () const;
     HRESULT                SetNetworkCardMac     (const std::string & text, std::string & outError);
     void                   SetNetworkLanAccess   (bool lanAccess);
     HRESULT                AddPortForward        (const PortForward & forward, std::string & outError);
@@ -482,16 +473,9 @@ private:
     // only description of it there is.
     static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
 
-    static constexpr int  kMinSlot          = 1;
-    static constexpr int  kMaxSlot          = 7;
-    static constexpr int  kNetworkCardSlot  = 3;
-
-    int   FindNetworkCard      () const;
-    bool  IsSlotTaken          (int slot, size_t exceptIndex) const;
-    int   ChooseNetworkCardSlot() const;
+    int   FindNetworkCard () const;
 
     static MacAddress  MakeRandomMac ();
-    static JsonValue   MakeAddedSlotJson (const HardwareEntry & entry);
 
 
     std::string          m_machineName;

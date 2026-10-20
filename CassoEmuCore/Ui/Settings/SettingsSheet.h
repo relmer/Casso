@@ -277,8 +277,14 @@ private:
     // dynamic tab when the controller-present state actually flips.
     bool           m_diskTabVisible = true;
 
-    // Refresh the Disk tab's presence from the staged hardware config.
-    void  UpdateDiskTabVisibility ();
+    // The same pair for the Network tab, which follows the Uthernet II.
+    int            m_networkPageIndex  = -1;
+    bool           m_networkTabVisible = true;
+
+    // Refresh the Disk and Network tabs' presence from the staged hardware
+    // config.
+    void  UpdateDiskTabVisibility    ();
+    void  UpdateNetworkTabVisibility ();
 
     // The dialog tick last asked for: the Controllers page's live rate while
     // it is shown, the default otherwise.

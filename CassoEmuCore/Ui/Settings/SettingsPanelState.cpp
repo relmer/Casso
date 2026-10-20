@@ -599,9 +599,9 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  Per FR-010: a reset is required iff a card is turned on or off or
-//  moved to another slot. Speed / color / sound / mechanism /
-//  write-protect and the Uthernet II's settings are all live-applicable.
+//  Per FR-010: a reset is required iff the hardware-enable bits
+//  changed. Speed / color / sound / mechanism / write-protect and the
+//  Uthernet II's settings are all live-applicable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -614,8 +614,7 @@ bool SettingsPanelState::RequiresReset() const
 
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled
-               || m_original.hardware[i].slot    != m_current.hardware[i].slot;
+        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
     }
 
     return changed;
@@ -1064,6 +1063,15 @@ HRESULT SettingsPanelState::SetHardwareEnabled (size_t index, bool enabled)
 
     m_current.hardware[index].enabled = enabled;
 
+    // A network card turned on with no MAC address gets one, as a card
+    // comes with an address on its label.
+    if (enabled
+        && m_current.hardware[index].type == kpszNetworkCardDevice
+        && !m_current.hardware[index].network.mac.IsSet())
+    {
+        m_current.hardware[index].network.mac = MakeRandomMac();
+    }
+
 Error:
     return hr;
 }
@@ -1193,7 +1201,7 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
 
     // The Uthernet II's LAN access and port forwards apply to the running
-    // card. Turning the card on or off, or moving it, takes the reset below.
+    // card. Turning the card on or off takes the reset below.
     network = FindNetworkCard();
 
     if (network >= 0 && !RequiresReset()
@@ -1596,12 +1604,6 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     outInfo.supportsGamePortAdapter = MachineDefinitions::Find (machineId) != nullptr &&
                                       MachineDefinitions::Find (machineId)->hasAnnunciators;
 
-    // A card can be added only where the document has a slot list.
-    {
-        const JsonValue  * slotList = nullptr;
-
-        outInfo.supportsSlots = mergedJson.HasArray ("slots", slotList);
-    }
 
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
@@ -2086,12 +2088,6 @@ JsonValue SettingsPanelState::BuildJson (
                             continue;
                         }
 
-                        // The slot number is staged; a moved card writes its new one.
-                        if (srcEntry.first == "slot" && staged != nullptr)
-                        {
-                            rebuilt.emplace_back ("slot", JsonValue ((double) staged->slot));
-                            continue;
-                        }
 
                         if (srcEntry.first == NetworkCardSettings::kpszJsonKey && staged != nullptr)
                         {
@@ -2139,15 +2135,6 @@ JsonValue SettingsPanelState::BuildJson (
                 slotArr.emplace_back (JsonValue (std::move (rebuilt)));
             }
 
-            // Entries the panel added, such as a network card on a machine
-            // whose saved slot list predates it.
-            for (const HardwareEntry & hwEntry : hw)
-            {
-                if (hwEntry.kind == HardwareEntryKind::Slot && hwEntry.jsonIndex < 0)
-                {
-                    slotArr.push_back (MakeAddedSlotJson (hwEntry));
-                }
-            }
         }
     }
 
@@ -2375,114 +2362,6 @@ bool SettingsPanelState::AreHardwareEqual (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsSlotTaken
-//
-//  Another enabled slot entry already has `slot`. Disabled entries do not
-//  count: the machine builder installs nothing for them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SettingsPanelState::IsSlotTaken (
-    int     slot,
-    size_t  exceptIndex) const
-{
-    size_t  i = 0;
-
-
-
-    for (i = 0; i < m_current.hardware.size(); ++i)
-    {
-        const HardwareEntry  & entry = m_current.hardware[i];
-
-        if (i != exceptIndex && entry.kind == HardwareEntryKind::Slot && entry.enabled && entry.slot == slot)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetFreeSlots
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<int> SettingsPanelState::GetFreeSlots (size_t index) const
-{
-    std::vector<int>  slots;
-    int               slot  = 0;
-
-
-
-    for (slot = kMinSlot; slot <= kMaxSlot; ++slot)
-    {
-        if (!IsSlotTaken (slot, index))
-        {
-            slots.push_back (slot);
-        }
-    }
-
-    return slots;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetHardwareSlot
-//
-//  User input, so a taken or out-of-range slot fails without asserting.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT SettingsPanelState::SetHardwareSlot (
-    size_t  index,
-    int     slot)
-{
-    HRESULT          hr            = S_OK;
-    size_t           hardwareCount = m_current.hardware.size();
-    bool             inRange       = slot >= kMinSlot && slot <= kMaxSlot;
-    bool             taken         = false;
-    HardwareEntry  * entry         = nullptr;
-    size_t           separator     = 0;
-
-
-
-    CBREx (index < hardwareCount, E_INVALIDARG);
-
-    entry = &m_current.hardware[index];
-    CBREx (entry->kind == HardwareEntryKind::Slot, E_INVALIDARG);
-    CBREx (inRange, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    taken = IsSlotTaken (slot, index);
-    CBREx (!taken, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-
-    entry->slot = slot;
-    separator   = entry->displayName.find (": ");
-
-    if (separator != std::string::npos)
-    {
-        entry->displayName = std::format ("Slot {}{}", slot, entry->displayName.substr (separator));
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  FindNetworkCard
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2529,128 +2408,20 @@ const HardwareEntry * SettingsPanelState::GetNetworkCard() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ChooseNetworkCardSlot
+//  HasEnabledNetworkCard
 //
-//  Slot 3, the card's usual slot and the first in its manual's probe order,
-//  when it is free; otherwise the lowest free slot; 0 when none is free.
+//  The Network tab is present only while this is true, as the Storage tab
+//  follows the disk controller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SettingsPanelState::ChooseNetworkCardSlot() const
+bool SettingsPanelState::HasEnabledNetworkCard() const
 {
-    int     index  = FindNetworkCard();
-    size_t  except = (index < 0) ? SIZE_MAX : (size_t) index;
-    int     slot   = 0;
+    const HardwareEntry *  card = GetNetworkCard();
 
 
 
-    if (!IsSlotTaken (kNetworkCardSlot, except))
-    {
-        return kNetworkCardSlot;
-    }
-
-    for (slot = kMinSlot; slot <= kMaxSlot; ++slot)
-    {
-        if (!IsSlotTaken (slot, except))
-        {
-            return slot;
-        }
-    }
-
-    return 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetNetworkCardEnabled
-//
-//  Enabling adds the card's slot entry when the machine's slot list has
-//  none, moves it when another card has since taken its slot, and assigns
-//  it a MAC address when it has none.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT SettingsPanelState::SetNetworkCardEnabled (bool enabled)
-{
-    HRESULT          hr    = S_OK;
-    int              index = FindNetworkCard();
-    int              slot  = 0;
-    HardwareEntry  * card  = nullptr;
-    HardwareEntry    added;
-
-
-
-    BAIL_OUT_IF (index < 0 && !enabled, S_OK);
-
-    if (index < 0)
-    {
-        CBR (m_machineInfo.supportsSlots);
-
-        slot = ChooseNetworkCardSlot();
-        CBR (slot != 0);
-
-        added.kind        = HardwareEntryKind::Slot;
-        added.jsonIndex   = -1;
-        added.slot        = slot;
-        added.type        = kpszNetworkCardDevice;
-        added.displayName = std::format ("Slot {}: {}", slot, kpszNetworkCardName);
-        added.capability  = CapabilityFlag::Optional;
-        added.enabled     = false;
-
-        m_current.hardware.push_back (std::move (added));
-        index = (int) m_current.hardware.size() - 1;
-    }
-
-    card = &m_current.hardware[(size_t) index];
-
-    if (enabled && IsSlotTaken (card->slot, (size_t) index))
-    {
-        slot = ChooseNetworkCardSlot();
-        CBR (slot != 0);
-
-        hr = SetHardwareSlot ((size_t) index, slot);
-        CHR (hr);
-    }
-
-    card->enabled = enabled;
-
-    if (enabled && !card->network.mac.IsSet())
-    {
-        card->network.mac = MakeRandomMac();
-    }
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetNetworkCardSlot
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT SettingsPanelState::SetNetworkCardSlot (int slot)
-{
-    HRESULT  hr    = S_OK;
-    int      index = FindNetworkCard();
-
-
-
-    CBR (index >= 0);
-
-    hr = SetHardwareSlot ((size_t) index, slot);
-    CHR (hr);
-
-Error:
-    return hr;
+    return card != nullptr && card->enabled;
 }
 
 
@@ -2809,33 +2580,4 @@ MacAddress SettingsPanelState::MakeRandomMac()
     }
 
     return MacAddress::MakeRandomLocal (octets);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MakeAddedSlotJson
-//
-////////////////////////////////////////////////////////////////////////////////
-
-JsonValue SettingsPanelState::MakeAddedSlotJson (const HardwareEntry & entry)
-{
-    std::vector<std::pair<std::string, JsonValue>>  object;
-
-
-
-    object.emplace_back ("slot",           JsonValue ((double) entry.slot));
-    object.emplace_back ("device",         JsonValue (entry.type));
-    object.emplace_back ("capabilityFlag", JsonValue (std::string ("optional")));
-    object.emplace_back ("enabled",        JsonValue (entry.enabled));
-
-    if (!(entry.network == NetworkCardSettings {}))
-    {
-        object.emplace_back (NetworkCardSettings::kpszJsonKey, entry.network.ToJson());
-    }
-
-    return JsonValue (std::move (object));
 }

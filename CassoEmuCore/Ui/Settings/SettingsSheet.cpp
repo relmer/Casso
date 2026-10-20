@@ -271,6 +271,10 @@ HRESULT SettingsSheet::OpenModeless (
     // an enabled Disk ][ controller. Remember its page index for the toggle.
     m_diskPageIndex = IndexOfPage (m_diskPage);
 
+    // The Network tab likewise exists only while the staged config has the
+    // Uthernet II turned on.
+    m_networkPageIndex = IndexOfPage (m_networkPage);
+
     // Wire the pages against a fresh SettingsPanelState + machine/theme
     // catalog (the same objects the legacy SettingsPanel owns).
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
@@ -972,6 +976,7 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+    UpdateNetworkTabVisibility();
     UpdateTickInterval();
 
     // The Machine tab's tree, a machine switch and Cancel all change the
@@ -1480,6 +1485,35 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
     m_diskTabVisible = want;
     SetPageVisible (m_diskPageIndex, want);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateNetworkTabVisibility
+//
+//  The Network tab is present only while the staged hardware config has the
+//  Uthernet II turned on, which the Machine tab's tree sets, as the Disk tab
+//  follows the Disk ][ controller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateNetworkTabVisibility()
+{
+    bool  want = m_state.HasEnabledNetworkCard();
+
+
+
+    if (m_networkPageIndex < 0 || want == m_networkTabVisible)
+    {
+        return;
+    }
+
+    m_networkTabVisible = want;
+    SetPageVisible (m_networkPageIndex, want);
 }
 
 

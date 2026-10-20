@@ -11,7 +11,6 @@
 // Layout metrics (DIP).
 static constexpr int  s_kRowHeightDp     = 28;
 static constexpr int  s_kLabelWidthDp    = 130;
-static constexpr int  s_kSlotWidthDp     = 120;
 static constexpr int  s_kMacWidthDp      = 220;
 static constexpr int  s_kListWidthDp     = 380;
 static constexpr int  s_kListHeightDp    = 150;
@@ -24,13 +23,9 @@ static constexpr int  s_kSectionGapDp    = 14;
 static constexpr int  s_kPagePadDp       = 16;
 
 static constexpr const wchar_t *  s_kpszCardBanner =
-    L"The Uthernet II is an Ethernet card. Software that uses its raw Ethernet mode, "
-    L"such as ADTPro, receives the address 10.0.65.15 from the virtual network; the "
-    L"gateway address 10.0.65.1 is this PC. Turning the card on or off, or moving it to "
-    L"another slot, takes effect when the machine restarts.";
-
-static constexpr const wchar_t *  s_kpszNoSlotsBanner =
-    L"This machine has no slots, so it cannot take an Uthernet II.";
+    L"The Uthernet II in slot {} is an Ethernet card. Software that uses its raw Ethernet "
+    L"mode, such as ADTPro, receives the address 10.0.65.15 from the virtual network; the "
+    L"gateway address 10.0.65.1 is this PC.";
 
 
 
@@ -50,7 +45,7 @@ NetworkPage::NetworkPage (std::wstring title)
 
 
     for (IDxuiControl * control : std::initializer_list<IDxuiControl *> {
-             &m_banner, &m_enableLabel, &m_enable, &m_slotLabel, &m_slot, &m_macLabel, &m_mac,
+             &m_banner, &m_macLabel, &m_mac,
              &m_lan, &m_forwardsLabel, &m_forwards, &m_protocol, &m_hostPortLabel, &m_hostPort,
              &m_guestPortLabel, &m_guestPort, &m_add, &m_remove, &m_error })
     {
@@ -100,7 +95,6 @@ void NetworkPage::SetState (SettingsPanelState * state)
 
 void NetworkPage::SetPopupHost (DxuiHwndSource * host)
 {
-    m_slot.SetPopupHost     (host);
     m_protocol.SetPopupHost (host);
 }
 
@@ -182,8 +176,7 @@ void NetworkPage::Layout (
 //
 //  NetworkPage::LayoutCardRows
 //
-//  The toggle, slot, MAC address and LAN access rows; returns the y below
-//  them.
+//  The MAC address and LAN access rows; returns the y below them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,16 +192,6 @@ int NetworkPage::LayoutCardRows (
     int  controlsX  = x + labelWidth;
 
 
-
-    m_enableLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_enableLabel.SetText (L"Uthernet II:");
-    m_enable.SetRect      (MakeRect (controlsX, y, scaler.ToPx (s_kMacWidthDp), rowHeight));
-    y += rowHeight + gap;
-
-    m_slotLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_slotLabel.SetText (L"Slot:");
-    m_slot.SetRect      (MakeRect (controlsX, y, scaler.ToPx (s_kSlotWidthDp), rowHeight));
-    y += rowHeight + gap;
 
     m_macLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_macLabel.SetText (L"MAC address:");
@@ -292,10 +275,6 @@ void NetworkPage::ApplyDpi (UINT dpi)
 {
     m_banner.SetDpi         (dpi);
     m_error.SetDpi          (dpi);
-    m_enableLabel.SetDpi    (dpi);
-    m_enable.SetDpi         (dpi);
-    m_slotLabel.SetDpi      (dpi);
-    m_slot.SetDpi           (dpi);
     m_macLabel.SetDpi       (dpi);
     m_mac.SetDpi            (dpi);
     m_lan.SetDpi            (dpi);
@@ -343,8 +322,6 @@ void NetworkPage::Relayout()
 
 void NetworkPage::WireCallbacks()
 {
-    m_enable.SetOnChange    ([this] (bool on)                    { OnEnableChanged (on); });
-    m_slot.SetSelect        ([this] (int index)                  { OnSlotSelected (index); });
     m_mac.SetOnChange       ([this] (const std::wstring & text)  { OnMacChanged (text); });
     m_lan.SetOnChange       ([this] (bool on)                    { OnLanChanged (on); });
     m_add.SetOnClick        ([this] ()                           { OnAddForward(); });
@@ -373,13 +350,10 @@ NetworkPage::CardView NetworkPage::ReadCard() const
         return view;
     }
 
-    card         = m_state->GetNetworkCard();
-    view.offered = m_state->GetMachineInfo().supportsSlots;
-    view.present = card != nullptr;
+    card = m_state->GetNetworkCard();
 
     if (card != nullptr)
     {
-        view.enabled = card->enabled;
         view.slot    = card->slot;
         view.network = card->network;
     }
@@ -401,7 +375,7 @@ void NetworkPage::Rebuild()
 {
     m_view = ReadCard();
 
-    m_banner.SetText (m_view.offered ? s_kpszCardBanner : s_kpszNoSlotsBanner);
+    m_banner.SetText (std::vformat (s_kpszCardBanner, std::make_wformat_args (m_view.slot)));
     ShowError ("");
     SyncWidgets();
     Relayout();
@@ -437,61 +411,16 @@ void NetworkPage::Sync()
 
 void NetworkPage::SyncWidgets()
 {
-    m_enable.SetChecked (m_view.present && m_view.enabled);
-    m_mac.SetText       (m_view.network.mac.IsSet() ? TextEncoding::NarrowToWide (m_view.network.mac.Format()) : L"");
-    m_lan.SetChecked    (m_view.network.lanAccess);
+    m_mac.SetText    (m_view.network.mac.IsSet() ? TextEncoding::NarrowToWide (m_view.network.mac.Format()) : L"");
+    m_lan.SetChecked (m_view.network.lanAccess);
 
     if (m_protocol.GetSelectedIndex() < 0)
     {
         m_protocol.SetSelected (0);
     }
 
-    SyncSlotItems();
     SyncForwardList();
     ApplyEnabledState();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NetworkPage::SyncSlotItems
-//
-//  Slots 1-7, with the ones another enabled card has taken disabled.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void NetworkPage::SyncSlotItems()
-{
-    constexpr int                kSlotCount = 7;
-    std::vector<std::wstring>    items;
-    std::vector<bool>            enabled (kSlotCount, true);
-    std::vector<int>             free;
-    const HardwareEntry        * card       = (m_state != nullptr) ? m_state->GetNetworkCard() : nullptr;
-    int                          slot       = 0;
-
-
-
-    for (slot = 1; slot <= kSlotCount; ++slot)
-    {
-        items.push_back (std::format (L"Slot {}", slot));
-    }
-
-    if (card != nullptr)
-    {
-        free = m_state->GetFreeSlots ((size_t) (card - m_state->GetHardware().data()));
-
-        for (slot = 1; slot <= kSlotCount; ++slot)
-        {
-            enabled[(size_t) slot - 1] = std::find (free.begin(), free.end(), slot) != free.end();
-        }
-    }
-
-    m_slot.SetItems        (items);
-    m_slot.SetItemsEnabled (enabled);
-    m_slot.SetSelected     (m_view.slot - 1);
 }
 
 
@@ -529,35 +458,13 @@ void NetworkPage::SyncForwardList()
 //
 //  NetworkPage::ApplyEnabledState
 //
-//  Everything but the toggle follows the card being in; nothing is live on
-//  a machine with no slots.
+//  Remove applies to the selected forward, so it is off while there is none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void NetworkPage::ApplyEnabledState()
 {
-    bool          live = m_view.present && m_view.enabled;
-    DxuiTextRole  role = live ? DxuiTextRole::Body : DxuiTextRole::Disabled;
-
-
-
-    m_enable.SetEnabled    (m_view.offered);
-    m_slot.SetEnabled      (live);
-    m_mac.SetEnabled       (live);
-    m_lan.SetEnabled       (live);
-    m_forwards.SetEnabled  (live);
-    m_protocol.SetEnabled  (live);
-    m_hostPort.SetEnabled  (live);
-    m_guestPort.SetEnabled (live);
-    m_add.SetEnabled       (live);
-    m_remove.SetEnabled    (live && !m_view.network.portForwards.empty());
-
-    m_enableLabel.SetTextRole    (m_view.offered ? DxuiTextRole::Body : DxuiTextRole::Disabled);
-    m_slotLabel.SetTextRole      (role);
-    m_macLabel.SetTextRole       (role);
-    m_forwardsLabel.SetTextRole  (role);
-    m_hostPortLabel.SetTextRole  (role);
-    m_guestPortLabel.SetTextRole (role);
+    m_remove.SetEnabled (!m_view.network.portForwards.empty());
 }
 
 
@@ -581,68 +488,6 @@ void NetworkPage::ShowError (const std::string & error)
     m_error.SetText    (TextEncoding::NarrowToWide (error));
     m_error.SetVisible (visible);
     Relayout();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NetworkPage::OnEnableChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void NetworkPage::OnEnableChanged (bool enabled)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    CBR (m_state != nullptr);
-
-    hr = m_state->SetNetworkCardEnabled (enabled);
-
-    if (FAILED (hr))
-    {
-        ShowError ("Error: no free slot\nEvery slot from 1 to 7 has a card, so there is no room for an Uthernet II.");
-    }
-
-    m_view = ReadCard();
-    SyncWidgets();
-    MarkDirty();
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NetworkPage::OnSlotSelected
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void NetworkPage::OnSlotSelected (int index)
-{
-    HRESULT  hr = S_OK;
-
-
-
-    CBR (m_state != nullptr);
-
-    hr = m_state->SetNetworkCardSlot (index + 1);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    m_view = ReadCard();
-    SyncSlotItems();
-    MarkDirty();
-
-Error:
-    return;
 }
 
 

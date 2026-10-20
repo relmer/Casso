@@ -16,9 +16,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  NetworkSettingsTests
 //
-//  The Uthernet II in the Settings sheet's model: enabling it (adding its
-//  slot entry when the saved slot list predates it), choosing its slot, its
-//  MAC address, LAN access and port forwards, and what a save writes.
+//  The Uthernet II in the Settings sheet's model: turning it on in the
+//  Machine tab, its MAC address, LAN access and port forwards, what a save
+//  writes, and what applies to the running card.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,32 +33,6 @@ namespace NetworkSettingsTests
         ]
     })JSON";
 
-    // A user file saved before the card existed: its slot list replaces the
-    // shipped one and has no card entry.
-    static constexpr const char *  s_kpszOldUser = R"JSON({
-        "name": "Apple //e",
-        "slots": [
-            { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
-            { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
-        ]
-    })JSON";
-
-    static constexpr const char *  s_kpszFullSlots = R"JSON({
-        "name": "Full",
-        "slots": [
-            { "slot": 1, "device": "parallel-printer" },
-            { "slot": 2, "device": "parallel-printer" },
-            { "slot": 3, "device": "parallel-printer" },
-            { "slot": 4, "device": "mockingboard" },
-            { "slot": 5, "device": "parallel-printer" },
-            { "slot": 6, "device": "disk-ii" },
-            { "slot": 7, "device": "parallel-printer" }
-        ]
-    })JSON";
-
-    static constexpr const char *  s_kpszNoSlots = R"JSON({
-        "name": "No slots"
-    })JSON";
 
 
     static constexpr const char *  s_kpszEnabled = R"JSON({
@@ -132,6 +106,16 @@ namespace NetworkSettingsTests
     }
 
 
+    // Turns the card on as the Machine tab's tree does.
+    static void TurnCardOn (SettingsPanelState & state, bool enabled = true)
+    {
+        const HardwareEntry  * card = state.GetNetworkCard();
+
+        Assert::IsNotNull (card);
+        AssertSucceeded (state.SetHardwareEnabled ((size_t) (card - state.GetHardware().data()), enabled));
+    }
+
+
 
 
 
@@ -180,25 +164,6 @@ namespace NetworkSettingsTests
         }
 
 
-        TEST_METHOD (MovingTheCardResetsTheMachineInsteadOfReconfiguring)
-        {
-            SettingsPanelState  state;
-            NetworkSink         sink;
-            JsonValue           saved;
-
-            Load (state, s_kpszEnabled);
-
-            state.SetNetworkLanAccess (true);
-            AssertSucceeded (state.SetNetworkCardSlot (4));
-
-            Assert::IsTrue (state.RequiresReset());
-
-            AssertSucceeded (state.Apply (sink, saved));
-
-            Assert::AreEqual (0, sink.applied);
-            Assert::AreEqual (1, sink.resets);
-        }
-
         TEST_METHOD (ShippedEntryIsFoundDisabled)
         {
             SettingsPanelState  state;
@@ -211,15 +176,18 @@ namespace NetworkSettingsTests
         }
 
 
-        TEST_METHOD (EnablingGeneratesALocalUnicastMacAndRequiresAReset)
+        TEST_METHOD (TurningTheCardOnGeneratesALocalUnicastMacAndRequiresAReset)
         {
             SettingsPanelState  state;
 
             Load (state, s_kpszShipped);
-            AssertSucceeded (state.SetNetworkCardEnabled (true));
+            Assert::IsFalse (state.HasEnabledNetworkCard());
+
+            TurnCardOn (state);
 
             const MacAddress  & mac = state.GetNetworkCard()->network.mac;
 
+            Assert::IsTrue (state.HasEnabledNetworkCard());
             Assert::IsTrue (mac.IsSet());
             Assert::IsTrue (mac.IsUnicast());
             Assert::AreEqual ((Byte) 0x02, (Byte) (mac.GetOctets()[0] & 0x02), L"locally administered");
@@ -228,66 +196,20 @@ namespace NetworkSettingsTests
         }
 
 
-        TEST_METHOD (EnablingAddsTheEntryWhenTheSavedListPredatesIt)
+        TEST_METHOD (TurningTheCardOffAndOnKeepsItsMac)
         {
             SettingsPanelState  state;
-            std::string         saved;
-
-            Load (state, s_kpszOldUser);
-            Assert::IsNull (state.GetNetworkCard());
-
-            AssertSucceeded (state.SetNetworkCardEnabled (true));
-
-            Assert::IsNotNull (state.GetNetworkCard());
-            Assert::AreEqual (3, state.GetNetworkCard()->slot);
-            Assert::IsTrue (state.RequiresReset());
-
-            saved = Write (state.BuildCurrentJson());
-            Assert::IsTrue (saved.find ("\"device\":\"uthernet2\"") != std::string::npos, TextEncoding::NarrowToWide (saved).c_str());
-            Assert::IsTrue (saved.find ("\"network\"") != std::string::npos);
-        }
-
-
-        TEST_METHOD (EnablingWithEverySlotTakenFails)
-        {
-            SettingsPanelState  state;
-
-            Load (state, s_kpszFullSlots);
-
-            Assert::IsTrue (Fails (state.SetNetworkCardEnabled (true)));
-            Assert::IsNull (state.GetNetworkCard());
-        }
-
-
-        TEST_METHOD (TheCardIsNotOfferedWithoutASlotList)
-        {
-            SettingsPanelState  state;
-
-            Load (state, s_kpszNoSlots);
-
-            Assert::IsFalse (state.GetMachineInfo().supportsSlots);
-            Assert::IsTrue (Fails (state.SetNetworkCardEnabled (true)));
-        }
-
-
-        TEST_METHOD (SlotMovesOnlyToAFreeSlot)
-        {
-            SettingsPanelState  state;
-            std::vector<int>    free;
+            MacAddress          first;
 
             Load (state, s_kpszShipped);
-            AssertSucceeded (state.SetNetworkCardEnabled (true));
+            TurnCardOn (state);
+            first = state.GetNetworkCard()->network.mac;
 
-            Assert::IsTrue (Fails (state.SetNetworkCardSlot (6)), L"slot 6 has the Disk II");
-            Assert::IsTrue (Fails (state.SetNetworkCardSlot (0)));
-            Assert::IsTrue (Fails (state.SetNetworkCardSlot (8)));
+            TurnCardOn (state, false);
+            Assert::IsFalse (state.HasEnabledNetworkCard());
 
-            AssertSucceeded (state.SetNetworkCardSlot (5));
-            Assert::AreEqual (5, state.GetNetworkCard()->slot);
-            Assert::AreEqual (std::string ("Slot 5: Uthernet II (Ethernet)"), state.GetNetworkCard()->displayName);
-
-            free = state.GetFreeSlots ((size_t) (state.GetNetworkCard() - state.GetHardware().data()));
-            Assert::IsTrue (free == std::vector<int> { 2, 3, 4, 5, 7 });
+            TurnCardOn (state);
+            Assert::IsTrue (state.GetNetworkCard()->network.mac == first);
         }
 
 
@@ -298,7 +220,7 @@ namespace NetworkSettingsTests
             MacAddress          before;
 
             Load (state, s_kpszShipped);
-            AssertSucceeded (state.SetNetworkCardEnabled (true));
+            TurnCardOn (state);
             before = state.GetNetworkCard()->network.mac;
 
             for (const char * bad : { "02:CA:55:12:34", "02:CA:55:12:34:ZZ", "01:00:5E:00:00:01", "02:CA-55:12:34:56" })
@@ -321,7 +243,7 @@ namespace NetworkSettingsTests
             std::string         saved;
 
             Load (state, s_kpszShipped);
-            AssertSucceeded (state.SetNetworkCardEnabled (true));
+            TurnCardOn (state);
 
             state.SetNetworkLanAccess (true);
             AssertSucceeded (state.AddPortForward ({ PortForwardProtocol::Tcp, 8080, 80 }, error));
@@ -360,13 +282,14 @@ namespace NetworkSettingsTests
             SettingsPanelState  state;
             std::string         error;
 
-            Load (state, s_kpszOldUser);
-            AssertSucceeded (state.SetNetworkCardEnabled (true));
+            Load (state, s_kpszShipped);
+            TurnCardOn (state);
             AssertSucceeded (state.AddPortForward ({ PortForwardProtocol::Tcp, 2323, 23 }, error));
 
             state.Cancel();
 
-            Assert::IsNull (state.GetNetworkCard());
+            Assert::IsFalse (state.HasEnabledNetworkCard());
+            Assert::IsTrue (state.GetNetworkCard()->network.portForwards.empty());
             Assert::IsFalse (state.IsDirty());
         }
 
@@ -379,7 +302,7 @@ namespace NetworkSettingsTests
             std::string         saved;
 
             Load (first, s_kpszShipped);
-            AssertSucceeded (first.SetNetworkCardEnabled (true));
+            TurnCardOn (first);
             AssertSucceeded (first.SetNetworkCardMac ("02:CA:55:00:00:42", error));
             AssertSucceeded (first.AddPortForward ({ PortForwardProtocol::Tcp, 2323, 23 }, error));
 

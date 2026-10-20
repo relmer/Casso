@@ -32,7 +32,7 @@ Loading rules:
 
 ## Existing user configurations
 
-A user `slots` array replaces the shipped one wholesale, so a user who saved hardware settings before this feature has no `uthernet2` entry. No migration adds one: enabling the card on the Network page adds the entry to the user array, at slot 3 when it is free and otherwise at the lowest free slot from 1 to 7. A machine with no `slots` key (the //c) does not offer the card.
+Loading merges the shipped slot entries with the user's by slot number, so a user file saved before this feature gets the card's shipped entry, turned off, with no migration. The user file contains only what differs from the shipped entry: `enabled`, and the `network` object once it differs from the defaults. A card moved to a slot with no shipped entry (by editing the user file) is saved whole and replaces the shipped entry when loaded. The //c has no `slots` key and no card.
 
 ## Device registry
 

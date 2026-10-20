@@ -155,8 +155,10 @@ description: "Task list for the Uthernet II Ethernet card"
 - [X] T053 [P] Write a real-Winsock loopback test: `Win32HostNetwork` TCP and UDP round trips through the bridge against a peer socket in the test, `127.0.0.1` only, in ScenarioTests/UthernetLoopbackTests.cpp
 - [X] T054 [P] Measure SC-005: idle card overhead on a //e `TestMachine` (cycles per wall second with and without the card) and record the result in specs/043-uthernet-ii/quickstart.md
 - [X] T055 Verify each new test fails without its code (stub or revert the covered function, confirm red, restore and touch the file)
-- [ ] T056 Validate the Network page on screen: launch the build in the background with `--title`, open Settings > Network, capture it, check layout and sentence case
+- [X] T056 Validate the Network page on screen: launch the build in the background with `--title`, open Settings > Network, capture it, check layout and sentence case
 - [ ] T057 [P] Add a CHANGELOG.md `[Unreleased]` entry and a README.md feature and test-count update, after the owner has tested
+- [X] T059 Save the card's `network` object and a card moved to a slot with no shipped entry through `UserConfigStore::SaveDelta`, with save-and-load round-trip tests, in CassoEmuCore/Config/UserConfigStore.h/.cpp and UnitTest/UiTests/UserConfigStoreTests.cpp
+- [X] T060 Turn the card on in the Machine tab only (FR-026): remove the Network page's toggle and slot drop-down, make the Network tab present only while the card is on, and generate the MAC in `SettingsPanelState::SetHardwareEnabled`, in CassoEmuCore/Ui/Settings/NetworkPage.h/.cpp, SettingsSheet.h/.cpp and SettingsPanelState.h/.cpp
 - [X] T058 Run the merge gate: `scripts/RunTests.ps1 -Build` (Debug and Release), `scripts/RunTests.ps1 -Build -Scenario`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, `git add -A` then `scripts/CheckStyle.ps1 -Mode Tree`
 
 ---

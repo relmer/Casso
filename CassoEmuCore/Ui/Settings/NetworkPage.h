@@ -14,12 +14,11 @@ class SettingsPanelState;
 //
 //  NetworkPage
 //
-//  Settings > Network: the Uthernet II Ethernet card. Every edit goes into
-//  the sheet's SettingsPanelState, so OK saves it with the machine and Cancel
-//  restores it; the card picks the settings up when the machine restarts.
+//  Settings > Network: the Uthernet II Ethernet card's settings. The tab is
+//  present only while the card is turned on in the Machine tab. Every edit
+//  goes into the sheet's SettingsPanelState, so OK saves it with the machine
+//  and applies it to the running card, and Cancel discards it.
 //
-//      * Uthernet II           (DxuiToggle: card in or out)
-//      * Slot                  (DxuiComboBox: slots 1-7, taken ones disabled)
 //      * MAC address           (DxuiTextInput, applied once it parses)
 //      * LAN access            (DxuiCheckbox)
 //      * Port forwards         (DxuiListView, with protocol, ports, Add and Remove)
@@ -46,8 +45,6 @@ public:
     void  Sync         ();
 
     // Accessors for tests and wiring.
-    DxuiToggle     & GetEnableToggle () { return m_enable;  }
-    DxuiComboBox   & GetSlotCombo    () { return m_slot;    }
     DxuiTextInput  & GetMacInput     () { return m_mac;     }
     DxuiCheckbox   & GetLanCheckbox  () { return m_lan;     }
     DxuiListView   & GetForwardList  () { return m_forwards; }
@@ -62,9 +59,6 @@ private:
 
     struct CardView
     {
-        bool                 offered = false;
-        bool                 present = false;
-        bool                 enabled = false;
         int                  slot    = 0;
         NetworkCardSettings  network;
 
@@ -80,14 +74,11 @@ private:
     CardView  ReadCard            () const;
     void      SyncWidgets         ();
     void      SyncForwardList     ();
-    void      SyncSlotItems       ();
     void      ApplyEnabledState   ();
     void      ShowError           (const std::string & error);
     void      Relayout            ();
     void      WireCallbacks       ();
 
-    void      OnEnableChanged     (bool enabled);
-    void      OnSlotSelected      (int index);
     void      OnMacChanged        (const std::wstring & text);
     void      OnLanChanged        (bool lanAccess);
     void      OnAddForward        ();
@@ -100,10 +91,6 @@ private:
     bool                  m_hasLayout   = false;
 
     DxuiInfoBanner  m_banner;
-    DxuiLabel       m_enableLabel;
-    DxuiToggle      m_enable;
-    DxuiLabel       m_slotLabel;
-    DxuiComboBox    m_slot;
     DxuiLabel       m_macLabel;
     DxuiTextInput   m_mac;
     DxuiCheckbox    m_lan;

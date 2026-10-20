@@ -16,8 +16,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  NetworkPageTests
 //
 //  The Network page against a real SettingsPanelState: layout inside the
-//  sheet width with no overlapping controls, what is live with the card out
-//  and in, and edits applied to the staged state.
+//  sheet width with no overlapping controls, the staged card's settings, and
+//  edits applied to the staged state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,12 +27,17 @@ namespace NetworkPageTests
         "name": "Apple //e",
         "slots": [
             { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
-            { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false },
+            { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": true },
             { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
         ]
     })JSON";
 
-    static constexpr const char *  s_kpszNoSlots = R"JSON({ "name": "Apple //c" })JSON";
+    static constexpr const char *  s_kpszCardOff = R"JSON({
+        "name": "Apple //e",
+        "slots": [
+            { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false }
+        ]
+    })JSON";
 
     static constexpr RECT  s_kPageRect = { 0, 0, 760, 900 };
 
@@ -62,15 +67,6 @@ namespace NetworkPageTests
     }
 
 
-    static void PressSpace (IDxuiControl & control)
-    {
-        DxuiKeyEvent  key = {};
-
-        key.vk = VK_SPACE;
-        control.OnFocusChanged (true);
-        control.OnKey (key);
-    }
-
 
 
 
@@ -88,8 +84,7 @@ namespace NetworkPageTests
             page.SetState (&state);
             LayOut (page);
 
-            std::vector<RECT>  rects = { page.GetEnableToggle().GetBounds(),  page.GetSlotCombo().GetBounds(),
-                                         page.GetMacInput().GetBounds(),      page.GetLanCheckbox().GetBounds(),
+            std::vector<RECT>  rects = { page.GetMacInput().GetBounds(),      page.GetLanCheckbox().GetBounds(),
                                          page.GetForwardList().GetBounds(),   page.GetProtocolCombo().GetBounds(),
                                          page.GetHostPortInput().GetBounds(), page.GetGuestPortInput().GetBounds(),
                                          page.GetAddButton().GetBounds(),     page.GetRemoveButton().GetBounds() };
@@ -123,49 +118,21 @@ namespace NetworkPageTests
         }
 
 
-        TEST_METHOD (OnlyTheToggleIsLiveWhileTheCardIsOut)
+        TEST_METHOD (ACardTurnedOnInTheMachineTabShowsItsMac)
         {
             SettingsPanelState  state;
             NetworkPage         page;
 
-            Load (state, s_kpszMachine);
-            page.SetState (&state);
-
-            Assert::IsTrue  (page.GetEnableToggle().IsEnabled());
-            Assert::IsFalse (page.GetEnableToggle().IsChecked());
-            Assert::IsFalse (page.GetSlotCombo().IsEnabled());
-            Assert::IsFalse (page.GetMacInput().IsEnabled());
-            Assert::IsFalse (page.GetAddButton().IsEnabled());
-        }
-
-
-        TEST_METHOD (TurningTheCardOnStagesItWithAMac)
-        {
-            SettingsPanelState  state;
-            NetworkPage         page;
-
-            Load (state, s_kpszMachine);
+            Load (state, s_kpszCardOff);
             page.SetState (&state);
             LayOut (page);
 
-            PressSpace (page.GetEnableToggle());
+            Assert::IsTrue (page.GetMacInput().GetText().empty());
 
-            Assert::IsTrue (state.GetNetworkCard()->enabled);
-            Assert::IsTrue (page.GetMacInput().IsEnabled());
+            AssertSucceeded (state.SetHardwareEnabled ((size_t) (state.GetNetworkCard() - state.GetHardware().data()), true));
+            page.Sync();
+
             Assert::AreEqual ((size_t) 17, page.GetMacInput().GetText().size(), L"the generated MAC is shown");
-            Assert::AreEqual (2, page.GetSlotCombo().GetSelectedIndex(), L"slot 3");
-        }
-
-
-        TEST_METHOD (MachineWithoutSlotsOffersNothing)
-        {
-            SettingsPanelState  state;
-            NetworkPage         page;
-
-            Load (state, s_kpszNoSlots);
-            page.SetState (&state);
-
-            Assert::IsFalse (page.GetEnableToggle().IsEnabled());
         }
 
 
@@ -178,7 +145,6 @@ namespace NetworkPageTests
             Load (state, s_kpszMachine);
             page.SetState (&state);
             LayOut (page);
-            PressSpace (page.GetEnableToggle());
             before = state.GetNetworkCard()->network.mac;
 
             page.GetMacInput().SetFocused (true);
@@ -207,7 +173,6 @@ namespace NetworkPageTests
             Load (state, s_kpszMachine);
             page.SetState (&state);
             LayOut (page);
-            PressSpace (page.GetEnableToggle());
 
             page.GetHostPortInput().SetText  (L"8080");
             page.GetGuestPortInput().SetText (L"80");
@@ -238,7 +203,6 @@ namespace NetworkPageTests
             Load (state, s_kpszMachine);
             page.SetState (&state);
             LayOut (page);
-            PressSpace (page.GetEnableToggle());
 
             page.GetHostPortInput().SetText  (L"70000");
             page.GetGuestPortInput().SetText (L"80");
@@ -260,10 +224,10 @@ namespace NetworkPageTests
             Load (state, s_kpszMachine);
             page.SetState (&state);
 
-            AssertSucceeded (state.SetNetworkCardEnabled (true));
+            state.SetNetworkLanAccess (true);
             page.Sync();
 
-            Assert::IsTrue (page.GetEnableToggle().IsChecked(), L"the Machine tab's toggle shows here");
+            Assert::IsTrue (page.GetLanCheckbox().IsChecked(), L"a staged change made elsewhere shows here");
         }
     };
 }

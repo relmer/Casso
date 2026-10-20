@@ -44,6 +44,10 @@ The W5100 has no DHCP client. DHCP is guest software sending UDP broadcasts from
 
 ## Clarifications
 
+### Session 2026-10-19
+
+- Q: Where does the user turn the card on and choose its slot? -> A: The card follows the same model as the other slot cards, including the Super Serial Card (042): the machine configuration places it in slot 3, the Machine tab's device list turns it on or off, and the Network tab is present only while the card is on. A slot chooser, if added, goes on the Machine tab for every optional card, as a change of its own (FR-026).
+
 ### Session 2026-10-14
 
 - Q: How much MACRAW support should Casso provide? -> A: A virtual network inside Casso for socket 0's MACRAW frames: ARP, a DHCP server, ICMP echo, DNS, and UDP and TCP relayed onto host sockets (NAT). UDP alone would run shipped ADTPro and little else; most IP65 and Contiki programs (telnet, wget, IRC, the web browser) use TCP. Npcap bridging was ruled out because it requires a third-party driver and administrator rights (FR-024 to FR-024f).
@@ -56,7 +60,7 @@ The W5100 has no DHCP client. DHCP is guest software sending UDP broadcasts from
 
 ### User Story 1 - Install the card (Priority: P1)
 
-A user opens the settings for an Apple ][, ][+, //e or enhanced //e, turns on the Uthernet II, picks its slot and restarts the machine. Apple II software that probes for the card finds it in that slot.
+A user opens the settings for an Apple ][, ][+, //e or enhanced //e, turns on the Uthernet II in the Machine tab and restarts the machine. Apple II software that probes for the card finds it in slot 3.
 
 **Why this priority**: Nothing else in the feature is reachable until the card is on the bus.
 
@@ -190,10 +194,10 @@ A user sets the card's MAC address, whether the LAN can connect to the guest, an
 #### Settings and configuration
 
 - **FR-025**: The card's presence, slot and settings MUST be stored in the machine configuration and survive restarts; an existing configuration from before this feature MUST load with the card absent.
-- **FR-026**: The settings UI MUST let the user enable or disable the card and choose its slot among the free ones, following the settings sheet's Apply/Cancel model.
+- **FR-026**: The settings UI MUST let the user turn the card on or off in the Machine tab's device list, at the slot set in the machine configuration (slot 3 in the shipped configurations), following the settings sheet's Apply/Cancel model. The card's settings MUST appear on a Network tab that is present only while the card is on.
 - **FR-027**: The card MUST have a user-editable MAC address, defaulting to a randomly generated, locally administered unicast address generated once and stored. It is the card's label value for entry into guest software; it MUST NOT be written into SHAR, which resets to `$00`.
 - **FR-027a**: The card MUST have a LAN access setting, off by default, that controls FR-019a.
-- **FR-027b**: The card settings MUST include an editable list of port forwards (protocol, host port, guest port), empty by default; a host port already in use MUST produce a visible error when the machine starts, not a silent failure.
+- **FR-027b**: The card settings MUST include an editable list of port forwards (protocol, host port, guest port), empty by default; a host port already in use MUST produce a visible error when the forwards open, at machine start or when OK applies them, not a silent failure.
 - **FR-028**: An invalid MAC address MUST produce an error in the fixed error format, and the stored value MUST stay in effect.
 
 #### Clean room

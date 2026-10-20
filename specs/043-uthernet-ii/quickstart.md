@@ -16,7 +16,7 @@ What they cover: [contracts/w5100-guest-interface.md](contracts/w5100-guest-inte
 
 ## In Casso
 
-1. Launch a fresh build, open Settings > Network on an Apple //e, turn on Uthernet II with slot 3, click OK. The machine restarts.
+1. Launch a fresh build, open Settings > Machine on an Apple //e, check "Slot 3: Uthernet II (Ethernet)". The Network tab appears. Click OK; the machine restarts.
 2. In the Monitor (`CALL -151`): `C0B4:80`, `C0B4:03`, then `C0B4` prints `C0B4- 03` (manual's card test). `C0C4` (slot 4) does not.
 3. Note the MAC address on the Network page; it stays the same after closing and reopening Casso.
 4. Turn on "Allow connections from other computers", click OK. The Windows Firewall prompt appears the first time a guest program listens.
