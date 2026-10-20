@@ -546,7 +546,8 @@ std::shared_ptr<LinkOperation> CassoLinkSession::Queue (LinkOperationKind kind, 
 
 void CassoLinkSession::Run (std::stop_token stop)
 {
-    HRESULT                         hr = S_OK;
+    HRESULT                         hr     = S_OK;
+    HRESULT                         logged = S_OK;
     std::shared_ptr<LinkOperation>  operation;
 
 
@@ -644,6 +645,12 @@ void CassoLinkSession::Run (std::stop_token stop)
                             : hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED)  ? LinkOperationState::Canceled
                                                                           : LinkOperationState::Failed;
         m_sink.OnDone (operation);
+
+        if (!IsLineLost (hr) && operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
+        {
+            logged = LogOnApple (std::format ("{} {}", SUCCEEDED (hr) ? "OK " : "ERR", DescribeOperation (*operation)));
+            IGNORE_RETURN_VALUE (logged, S_OK);
+        }
 
         if (IsLineLost (hr))
         {
@@ -817,6 +824,7 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
     Byte                driveMap = 0;
     bool                ready    = false;
     std::wstring        model;
+    HRESULT             logged   = S_OK;
 
 
 
@@ -917,6 +925,9 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
 
     SetState (LinkState::Ready);
 
+    logged = LogOnApple ("PC CONNECTED");
+    IGNORE_RETURN_VALUE (logged, S_OK);
+
 Error:
     //  With no Apple on it, the line stays open, and the wait before the
     //  next attempt serves it. After a load that stopped partway, the
@@ -931,6 +942,32 @@ Error:
         Disconnect();
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::LogOnApple
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkSession::LogOnApple (const std::string & text)
+{
+    HRESULT     hr  = S_OK;
+    SYSTEMTIME  now = {};
+
+
+
+    GetLocalTime (&now);
+
+    hr = m_host->SendLog (now.wHour, now.wMinute, text);
+    CHR (hr);
+
+Error:
     return hr;
 }
 

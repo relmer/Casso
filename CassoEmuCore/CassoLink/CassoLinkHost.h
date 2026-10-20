@@ -213,6 +213,11 @@ public:
     //  sends Ready, which the next operation takes.
     HRESULT  SendLabel    (const std::string & text);
 
+    //  A line for the program's history, newest at the top: the PC's time,
+    //  as the Apple may have no clock, then the text, as SendLabel cuts it,
+    //  to CassoLinkCodec::kLogLength.
+    HRESULT  SendLog      (int hour, int minute, const std::string & text);
+
     //  Idle, sent unprompted. A shim or program whose Ready went out before
     //  the host connected is in its receive loop; Idle ends that loop, and
     //  Ready is sent again.

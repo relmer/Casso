@@ -1623,6 +1623,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::SendLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::SendLog (int hour, int minute, const std::string & text)
+{
+    HRESULT            hr   = S_OK;
+    std::vector<Byte>  line = { (Byte) hour, (Byte) minute };
+
+
+
+    for (char ch : text)
+    {
+        if (line.size() == 2 + CassoLinkCodec::kLogLength)
+        {
+            break;
+        }
+
+        line.push_back ((ch >= ' ' && ch <= '~') ? (Byte) toupper ((unsigned char) ch) : (Byte) '?');
+    }
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kLog, line);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::Cancel
 //
 ////////////////////////////////////////////////////////////////////////////////

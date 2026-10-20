@@ -10,6 +10,7 @@
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
 
@@ -3512,6 +3513,74 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
         AppendMessage (outcome, hr, L"The CassoLink disk could not be made.");
         return outcome;
     }
+
+    SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::FormatAppleDrive
+//
+//  The disk is built as a 140 KB image of the format's own sector order and
+//  formatted there, with the stock system files when it is to be bootable,
+//  then written to the drive track by track. A disk with no file system has
+//  nothing for the write to check its tracks against, so it is not offered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder)
+{
+    Outcome                         outcome;
+    DiskOperations::NewDiskRequest  disk     = request;
+    std::string                     link;
+    std::string                     directory;
+    int                             drive    = 0;
+    bool                            prodos   = request.formatName == "prodos";
+    std::string                     path;
+    std::vector<Byte>               blank (NibblizationLayer::kImageByteSize, 0);
+    HRESULT                         hr       = S_OK;
+
+
+
+    if (!TryGetAppleDrive (link, drive, directory))
+    {
+        outcome.hr      = E_INVALIDARG;
+        outcome.message = L"Open a drive of a CassoLink connection first.";
+        return outcome;
+    }
+
+    if (request.formatName != "dos33" && !prodos)
+    {
+        outcome.hr      = E_INVALIDARG;
+        outcome.message = L"A disk on the Apple can be formatted as DOS 3.3 or ProDOS.";
+        return outcome;
+    }
+
+    disk.containerType = prodos ? "po" : "dsk";
+    path               = TextEncoding::WideToNarrow (std::format (L"{}\\casso-format-{}.{}", tempFolder, drive, prodos ? L"po" : L"dsk"));
+
+    hr = m_browser.GetOperations().GetFileIo().WriteAllBytes (path, blank);
+
+    if (FAILED (hr))
+    {
+        AppendMessage (outcome, hr, L"The new disk could not be made.");
+        return outcome;
+    }
+
+    Append (outcome, m_browser.GetOperations().Init (path, disk));
+
+    if (!outcome.Succeeded())
+    {
+        return outcome;
+    }
+
+    outcome.written = 0;
 
     SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
 

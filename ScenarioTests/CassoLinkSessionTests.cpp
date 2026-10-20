@@ -211,6 +211,9 @@ public:
     static constexpr Word  kRow8  = 0x0428;
     static constexpr Word  kRow5  = 0x0680;
     static constexpr Word  kRow6  = 0x0700;
+    static constexpr Word  kRow10 = 0x0528;
+    static constexpr Word  kRow11 = 0x05A8;
+    static constexpr Word  kRow12 = 0x0628;
     static constexpr int   kField = 12;
 
     static std::vector<std::string>  Names (const VolumeListing & listing)
@@ -345,6 +348,31 @@ public:
 
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_WRITE_PROTECT), write->result);
         Assert::AreEqual (std::string ("ERROR: WRITE-PROTECTED DISK IN D1"), rig.Row (kRow8), L"the disk's drive, not a track");
+    }
+
+
+
+    //  Each line is the PC's time, then the result and the operation; the
+    //  newest is on top, under the HISTORY row.
+    TEST_METHOD (TheHistory_HasEachOperation_NewestOnTop)
+    {
+        Rig                rig;
+        static const std::regex  s_kLine ("[0-2][0-9]:[0-5][0-9] (.*)");
+        std::smatch        match;
+        std::string        top;
+        std::string        next;
+
+        AssertSucceeded (rig.Finish (rig.session->WriteFile (1, FilePath::Parse ("FROMPC"), Binary (Dos33Volume::kTypeBinary, 300, 4)))->result);
+        rig.machine.RunCycles (kFrame * 30);
+
+        top  = rig.Row (kRow11);
+        next = rig.Row (kRow12);
+
+        Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRow10));
+        Assert::IsTrue   (std::regex_match (top, match, s_kLine), L"the newest line has the time");
+        Assert::AreEqual (std::string ("OK  COPYING FROMPC TO D1"), match[1].str());
+        Assert::IsTrue   (std::regex_match (next, match, s_kLine));
+        Assert::AreEqual (std::string ("PC CONNECTED"), match[1].str(), L"the connection, before the copy");
     }
 
 

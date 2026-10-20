@@ -453,6 +453,53 @@ public:
 
 
 
+    TEST_METHOD (FormatAppleDrive_WritesANewEmptyDisk_InEitherFormat)
+    {
+        Rig                             rig;
+        DiskOperations::NewDiskRequest  prodos;
+        DiskOperations::NewDiskRequest  dos;
+
+        prodos.formatName = "prodos";
+        prodos.volumeName = "BLANK";
+        dos.formatName    = "dos33";
+        dos.volumeName    = "100";
+
+        rig.Open (1);
+        AssertSucceeded (rig.actions->FormatAppleDrive (prodos, L"C:\\Temp").hr);
+        Assert::IsTrue   (rig.Finish().empty());
+        Assert::IsTrue   (rig.browser->GetRows().empty(), L"no files on the new disk");
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/BLANK)"), rig.actions->DescribeAppleDrive());
+
+        rig.Open (2);
+        AssertSucceeded (rig.actions->FormatAppleDrive (dos, L"C:\\Temp").hr);
+        Assert::IsTrue   (rig.Finish().empty());
+        Assert::IsTrue   (rig.browser->GetRows().empty());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (DOS 3.3 volume 100)"), rig.actions->DescribeAppleDrive());
+    }
+
+
+
+
+    TEST_METHOD (FormatAppleDrive_RefusesAnUnformattedDisk)
+    {
+        Rig                             rig;
+        DiskOperations::NewDiskRequest  none;
+        std::vector<Byte>               before;
+        HRESULT                         result = S_OK;
+
+        none.formatName = "none";
+
+        rig.Open (1);
+        before = rig.Drive (1);
+
+        result = rig.actions->FormatAppleDrive (none, L"C:\\Temp").hr;
+        Assert::IsTrue (FAILED (result));
+        Assert::IsTrue (rig.Drive (1) == before, L"the disk is untouched");
+    }
+
+
+
+
     TEST_METHOD (SaveLinkDiskImage_WritesTheImageOnThePc)
     {
         Rig                rig;

@@ -261,6 +261,7 @@ private:
     HRESULT  OpenStream    (DWORD baud);
     void     ServeUntilRetry (std::stop_token stop);
     bool     IsLineOpen    () const;
+    HRESULT  LogOnApple    (const std::string & text);
     HRESULT  AwaitProgram  (std::stop_token stop, DWORD timeoutMs, bool & outReady);
     void     Disconnect    ();
     bool     IsPeerGone    ();

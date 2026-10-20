@@ -86,9 +86,13 @@ public:
     static constexpr Byte  kStatus       = 0xD4;
     static constexpr Byte  kCancel       = 0xD1;
     static constexpr Byte  kLabel        = 0xDC;
+    static constexpr Byte  kLog          = 0xDD;
 
     //  The longest Label text the program draws.
     static constexpr size_t  kLabelLength = 38;
+
+    //  The longest Log text the program draws, after the time.
+    static constexpr size_t  kLogLength   = 34;
 
     // Acknowledgement kinds.
     static constexpr Byte  kAck          = 0x06;

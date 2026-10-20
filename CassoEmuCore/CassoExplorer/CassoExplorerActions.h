@@ -289,6 +289,10 @@ public:
     //  link's speed (FR-091).
     Outcome  SaveLinkToDisk   (const std::wstring & tempFolder);
 
+    //  The open Apple drive formatted as DOS 3.3 or ProDOS, bootable or not,
+    //  by writing it a new disk built in tempFolder from the request.
+    Outcome  FormatAppleDrive (const DiskOperations::NewDiskRequest & request, const std::wstring & tempFolder);
+
     //  The same boot disk as an image file on the PC, for an emulator or to
     //  write to a disk some other way. A Wi-Fi modem link's disk dials this
     //  PC before its first Ready.

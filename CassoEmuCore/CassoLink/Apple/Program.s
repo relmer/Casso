@@ -15,6 +15,8 @@
 ;                   with their data in one revolution, read back and compared
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
+;   Log             the PC's hour and minute, then text: a history line,
+;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
 ;
 ; Read sectors, Write sectors, Format track and Write track end with two
@@ -28,8 +30,9 @@
 ;
 ; The status screen on the text page has the connection; the PC, connected
 ; or how long since its last reply; the drive, the track, the operation and
-; the progress; the last error, until an operation succeeds; and the last
-; Label. Ready is sent again after each second with no reply.
+; the progress; the last error, until an operation succeeds; the last
+; Label; and the history, the host's Log lines with the newest at the top.
+; Ready is sent again after each second with no reply.
 ;
 ; The disk routines are Casso's own, from Apple's published description of
 ; the Disk II and the 6-and-2 encoding Casso's NibblizationLayer writes: the
@@ -82,6 +85,7 @@ CMDSTATUS = $D4
 CMDCANCEL = $D1
 CMDLOAD   = $CF
 CMDLABEL  = $DC
+CMDLOG    = $DD
 SHIM      = $3D00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
@@ -254,7 +258,10 @@ notformat: cmp #CMDWTRACK
 notwtrack: cmp #CMDLABEL
         bne notlabel
         jmp dolabel
-notlabel: cmp #CMDLOAD
+notlabel: cmp #CMDLOG
+        bne notlog
+        jmp dolog
+notlog: cmp #CMDLOAD
         bne tomain
         jmp doload
 tomain: jmp main
@@ -1736,6 +1743,8 @@ ROW3 = $0580                    ; the PC
 ROWST = $0680                   ; row 5: the status, after a blank row
 ROWLB = $0700                   ; row 6: the label of the user's operation
 ROWER = $0428                   ; row 8: the last error, when there is one
+ROWHIST = $0528                 ; row 10: the history's title, its lines below
+LOGROWS = 13                    ; the history's lines
 FIELD = 12
 FIELDLEN = 20
 scr = $13                       ; and $14: the field being drawn
@@ -1791,6 +1800,9 @@ labels: .byte <ROW0, >ROW0
         .byte $3A, 0
         .byte <ROW3, >ROW3
         .text "PC"
+        .byte $3A, 0
+        .byte <ROWHIST, >ROWHIST
+        .text "HISTORY"
         .byte $3A, 0
         .byte 0
         .byte 0, 0
@@ -2211,3 +2223,62 @@ lbclear: sta ROWLB,y
         bpl lbclear
         iny
         rts
+
+; dolog: the history moved down a row, its last line dropped, and the PC's
+; line at its top: the time as HH:MM, then the text. Then Ready again.
+dolog:  ldx #LOGROWS-1
+lgscroll: lda logrowlo-1,x
+        sta ptr
+        lda logrowhi-1,x
+        sta ptr+1
+        lda logrowlo,x
+        sta scr
+        lda logrowhi,x
+        sta scr+1
+        ldy #39
+lgcopy: lda (ptr),y
+        sta (scr),y
+        dey
+        bpl lgcopy
+        dex
+        bne lgscroll
+        ldx logrowlo
+        lda logrowhi
+        jsr fullrow
+        lda PKTBUF
+        jsr put2
+        lda #':'
+        jsr putch
+        lda PKTBUF+1
+        jsr put2
+        lda #' '
+        jsr putch
+        ldx #2
+lgtext: cpx lenlo
+        beq lgdone
+        cpy #40
+        beq lgdone
+        lda PKTBUF,x
+        jsr putch
+        inx
+        bne lgtext
+lgdone: jmp main
+
+; put2: A, 0 to 99, as two digits from Y. X is overwritten.
+put2:   ldx #0
+p2tens: cmp #10
+        bcc p2ones
+        sbc #10
+        inx
+        bne p2tens
+p2ones: sta tmp2
+        txa
+        ora #'0'
+        jsr putch
+        lda tmp2
+        ora #'0'
+        jmp putch
+
+; The history's lines, rows 11 to 23 of the text page.
+logrowlo: .byte $A8, $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50, $D0
+logrowhi: .byte $05, $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07, $07
