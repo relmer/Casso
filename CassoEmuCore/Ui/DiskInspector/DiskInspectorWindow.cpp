@@ -860,7 +860,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_stripOut->Layout     ({ x,              y, x + button,     y + row }, scaler);
     m_stripIn->Layout      ({ x + button,     y, x + 2 * button, y + row }, scaler);
     m_stripWhole->Layout   ({ x + 2 * button, y, x + 2 * button + scaler.ToPx (s_kWholeTrackDip), y + row }, scaler);
-    m_stripReadout->Layout ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip) + margin, y, x + 2 * button + scaler.ToPx (s_kWholeTrackDip + s_kReadoutDip), y + row }, scaler);
+    m_stripReadout->Layout ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip) + margin, y, boundsDip.right - margin, y + row }, scaler);
     m_stripHint->Layout    ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip + s_kReadoutDip) + margin, y, boundsDip.right - margin, y + row }, scaler);
 
     m_stripAreaPx = { boundsDip.left, bandTop, boundsDip.right, boundsDip.bottom };
