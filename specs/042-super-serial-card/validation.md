@@ -1,6 +1,7 @@
 # Validation: Apple's firmware (T032)
 
-2026-10-18, on a //e and a ][+, with Apple's Super Serial Card firmware 341-0065-A
+2026-10-18, on a //e and a ][+, and 2026-10-19 on the original ][ and the
+//c's own ports, with Apple's Super Serial Card firmware 341-0065-A
 (2,048 bytes, SHA-1 `6DAB633470C6BC4CB3E81D09FDA46597CAF8EE57`) from the
 mirror in the asset catalog. Its $Cn05, $Cn07, $Cn0B and $Cn0C bytes read
 $38, $18, $01 and $31, the Pascal 1.1 serial card ID.
@@ -8,18 +9,23 @@ $38, $18, $01 and $31, the Pascal 1.1 serial card ID.
 ## Automated with the real firmware
 
 `ScenarioTests/GuestVisibleSuperSerialCardTests.cpp` boots the DOS 3.3 master
-on a //e or ][+ whose slot 2 entry turns the card on with this firmware, sets its
-switches and attaches its connector, so `MachineBuilder` loads and wires them
-as it does for Casso. Run with `scripts\RunTests.ps1 -Build -Scenario -Filter
-GuestVisibleSuperSerialCardTests`.
+on a //e, ][+ or ][ whose slot 2 entry turns the card on with this firmware,
+sets its switches and attaches its connector, so `MachineBuilder` loads and
+wires them as it does for Casso. On the ][, DOS 3.3 runs Integer BASIC: the
+tests match its `>` prompt and its listing format, and type the firmware's
+command character inside the quotes, since Integer BASIC has no `CHR$`.
+`ScenarioTests/GuestVisibleApple2cSerialTests.cpp` drives the //c's printer
+port. Run with `scripts\RunTests.ps1 -Build -Scenario -Filter GuestVisible`.
 
 | Case | Quickstart step | Result |
 |---|---|---|
-| `PR#2`, `LIST`, `PR#0` in printer mode, 40 characters with the screen on, file out; //e and ][+ | 2, 3 | Pass: the listing is in the file and on the screen |
+| `PR#2`, `LIST`, `PR#0` in printer mode, 40 characters echoed to the screen, file out; //e, ][+ and ][ | 2, 3 | Pass: the listing is in the file and on the screen |
 | The same at the printer settings the card ships with: 80 characters, screen off, 1/4 second after each carriage return | 3 | Pass: the listing is in the file, after the delays, and not on the screen |
-| `IN#2` in communications mode with the loopback plug, then `PRINT 6*7`; //e and ][+ | 4 | Pass: the typed line comes back through the plug and prints 42 |
-| `IN#2` in communications mode at 300 baud, file in: two program lines and `IN#0` | none | Pass: the program is entered from the file and runs |
-| The firmware's commands from Applesoft: Ctrl+I in printer mode and Ctrl+A in communications mode, then `6B`, `1D` and `3P`; //e and ][+ | none | Pass: 300 baud, 7 data bits and even parity are written to the 6551 |
+| `IN#2` in communications mode with the loopback plug, then `PRINT 6*7`; //e, ][+ and ][ | 4 | Pass: the typed line comes back through the plug and prints 42 |
+| `IN#2` in communications mode at 300 baud, file in: two program lines and `IN#0`; //e, ][+ and ][ | none | Pass: the program is entered from the file and runs |
+| The firmware's commands from BASIC: Ctrl+I in printer mode and Ctrl+A in communications mode, then `6B`, `1D` and `3P`; //e, ][+ and ][ | none | Pass: 300 baud, 7 data bits and even parity are written to the 6551 |
+| A //c booted from its own reset: `PR#1`, `LIST`, `PR#0`, with the printer port's bytes timed as they finish sending | 6 | Pass: the whole listing is transmitted (51 bytes). The //c firmware sets 9,600 baud, 8 data bits and 2 stop bits (control $9E), 1,171.9 cycles a character, and no two bytes finish closer than 1,167 cycles apart, one instruction short of that |
+| A //c's config | 6 | Pass: no slot lists the card, so Settings offers none, and the machine has its two built-in 6551s (`SuperSerialCardMachineTests`) |
 
 ## Findings
 
@@ -39,6 +45,16 @@ GuestVisibleSuperSerialCardTests`.
   data register. In WDC's W65C51N datasheet, an overrun is flagged when the
   next byte is transferred to the receive data register before the previous
   one is read.
+- The original ][ does not boot a disk at power-on: its monitor (RESET at
+  $FF59) waits at its * prompt for C600G. GuestSession's boot jumps straight
+  to the controller ROM, which on the ][ skipped RESET, so the inverse mask
+  at $32 was whatever power-on left in RAM and every character was written to
+  the screen as an inverse @. Applesoft sets up its own text flags; Integer BASIC does not.
+  GuestSession now runs that monitor's RESET first.
+- Casso attaches a loopback plug to both of the //c's serial ports and has no
+  printer on them yet, so serial printing from a //c prints nothing; quickstart
+  step 6 now checks the pacing instead. With CTS off, the 6551 does not
+  transmit, as with nothing on the line, so the test drives CTS on.
 - In printer mode the firmware echoes output to the screen only at the
   40-character line width. Apple's 1985 manual (page 15) adds "or up to 80
   characters if you have an 80-column card installed", but ROM 341-0065-A
@@ -97,13 +113,13 @@ and connector when Settings applies`):
   `enabled` and `ports`, so the switches were never saved. Both now include
   `switches` too.
 
-The download prompt's text overruns its 500 by 230 dialog: it starts under
-the title bar and runs into the buttons.
+The download prompt's text overran its 500 by 230 dialog: it started under
+the title bar and ran into the buttons. Fixed: every dialog's height now comes
+from its text as the window's renderer measures it, and turning the card on
+without the firmware opens the startup download dialog.
+
 ## Not yet checked
 
 - Step 4 through the UI; the scenario tests cover it through the same build
   path.
-- Step 6: the //c's paced serial printing.
-- The ][: GuestSession recognizes only the ] prompt, and the ][ boots to
-  Integer BASIC.
 - ADTPro with its host, which arrives with the host connection in spec 033.
