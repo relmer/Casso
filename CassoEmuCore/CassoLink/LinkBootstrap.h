@@ -31,6 +31,7 @@ class LinkBootstrap
 public:
     static constexpr DWORD   kLinePauseMs  = 250;
     static constexpr size_t  kBytesPerLine = 8;
+    static constexpr DWORD   kCharPauseUs  = 3000;
 
     //  Ctrl-X, which GETLN takes as cancel line, in Applesoft and the monitor.
     static constexpr const char *  kCancelLine = "\x18";
@@ -39,8 +40,12 @@ public:
     //  at the given speed.
     static HRESULT  BuildLines (DWORD baud, std::vector<std::string> & outLines);
 
-    //  Types the lines into the stream, pausing after each. Stops early, with
-    //  ERROR_CANCELLED, when `canceled` returns true.
+    //  Types the lines into the stream a character at a time, waiting
+    //  charPauseUs after each character and pauseMs after each line. Stops
+    //  early, with ERROR_CANCELLED, when `canceled` returns true.
     static HRESULT  Send (IByteStream & stream, const std::vector<std::string> & lines, DWORD pauseMs,
-                          const std::function<bool()> & canceled = {});
+                          const std::function<bool()> & canceled = {}, DWORD charPauseUs = 0);
+
+private:
+    static void     WaitMicroseconds (DWORD microseconds);
 };

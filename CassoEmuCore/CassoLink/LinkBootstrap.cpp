@@ -57,7 +57,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkBootstrap::Send (IByteStream & stream, const std::vector<std::string> & lines, DWORD pauseMs, const std::function<bool()> & canceled)
+HRESULT LinkBootstrap::Send (IByteStream & stream, const std::vector<std::string> & lines, DWORD pauseMs, const std::function<bool()> & canceled, DWORD charPauseUs)
 {
     HRESULT  hr    = S_OK;
     bool     going = true;
@@ -69,12 +69,46 @@ HRESULT LinkBootstrap::Send (IByteStream & stream, const std::vector<std::string
         going = !canceled || !canceled();
         CBREx (going, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
-        hr = stream.Write (reinterpret_cast<const Byte *> (line.data()), line.size());
-        CHR (hr);
+        //  A character at a time, with a wait after each, as nothing on the
+        //  line paces it: the Apple takes each one from a 6551 that holds one
+        //  byte, and with DOS's input hook in the way it falls behind
+        //  characters sent back to back.
+        for (size_t at = 0; at < line.size(); at++)
+        {
+            hr = stream.Write (reinterpret_cast<const Byte *> (line.data() + at), 1);
+            CHR (hr);
+
+            WaitMicroseconds (charPauseUs);
+        }
 
         std::this_thread::sleep_for (std::chrono::milliseconds (pauseMs));
     }
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkBootstrap::WaitMicroseconds
+//
+//  A sleep is as coarse as the system timer, about 15 ms, so a wait this
+//  short spins.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LinkBootstrap::WaitMicroseconds (DWORD microseconds)
+{
+    auto  until = std::chrono::steady_clock::now() + std::chrono::microseconds (microseconds);
+
+
+
+    while (std::chrono::steady_clock::now() < until)
+    {
+        YieldProcessor();
+    }
 }

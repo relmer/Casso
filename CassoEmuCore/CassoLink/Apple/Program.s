@@ -70,6 +70,12 @@ Q6L      = $C08C
 Q6H      = $C08D
 Q7L      = $C08E
 Q7H      = $C08F
+; The player's stores, absolute for slot 6. An indexed store puts a false byte
+; on the IWM a cycle before the real one, as the //c's own ROM notes for the
+; IWM's mode register; the drive does not take the real byte after it.
+W6Q6L    = $C0EC
+W6Q6H    = $C0ED
+W6Q7H    = $C0EF
 
 ; Commands.
 CMDREADY  = $D2
@@ -1692,15 +1698,15 @@ play:   sta plda+2
         lda Q6H,x
         lda Q7L,x
         lda #$FF
-        sta Q7H,x               ; write mode, a self-sync byte loaded
-        ora Q6L,x
+        sta W6Q7H               ; write mode, a self-sync byte loaded
+        ora W6Q6L
         jsr dly12               ; the first store comes 40 cycles on
         nop
         jmp plda
 plda:   lda WSTREAM,y           ; 4   (the page is set above)
         beq psync               ; 2 / 3
-        sta Q6H,x               ; 5
-        ora Q6L,x               ; 4   at once, or the latch loads twice
+        sta W6Q6H               ; 4
+        ora W6Q6L               ; 4   at once, or the latch loads twice
 pnext:  iny                     ; 2
         bne ppad                ; 3 / 2
         inc plda+2              ; 6
@@ -1710,20 +1716,42 @@ pnext:  iny                     ; 2
 ppad:   nop                     ; 2
         nop                     ; 2
         nop                     ; 2
-        bit $00                 ; 3
+        bit $0100               ; 4   absolute, for the cycle the store saves
         jmp plda                ; 3
 psync:  nop                     ; 2
         bit $00                 ; 3
         lda #$FF                ; 2
-        sta Q6H,x               ; 5
-        ora Q6L,x               ; 4
+        sta W6Q6H               ; 4
+        ora W6Q6L               ; 4
         jmp pnext               ; 3
-pdone:  jsr dly12               ; the last nibble shifts out
+; Two self-sync bytes follow the stream's last nibble before the write is
+; turned off. The //c's IWM holds a stored byte until the one before it has
+; been written, so a write turned off just after the last store loses the
+; end of the stream: a sector's epilogue, and so the sector. The first sync
+; is stored 40 cycles after the last nibble, the second 40 after it, and
+; the wait after them is past both being written.
+pdone:  jsr dly12               ; 22 cycles to here from the last store
+        lda #$FF                ; 2
+        sta W6Q6H               ; 4: 40 after the last store
+        ora W6Q6L               ; 4
+        jsr dly12               ; 12
+        jsr dly12               ; 12
+        nop                     ; 2
+        bit $0100               ; 4
+        lda #$FF                ; 2
+        sta W6Q6H               ; 4: 40 after the first
+        ora W6Q6L               ; 4
+        jsr dly12               ; 96 cycles: both out of the IWM
+        jsr dly12
+        jsr dly12
+        jsr dly12
+        jsr dly12
+        jsr dly12
+        jsr dly12
         jsr dly12
         lda Q7L,x               ; read mode
         lda Q6L,x
         rts
-
 dly12:  rts                     ; jsr and rts: 12 cycles
 
 
