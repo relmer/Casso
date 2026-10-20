@@ -24,7 +24,7 @@
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 42;
+    static constexpr Word    kProgramVersion    = 43;
     static constexpr Byte    kShimVersion       = 4;
     static constexpr Word    kShimAddress       = 0x3D00;
     static constexpr Word    kZeroPageSave      = 0x3C00;   // the shim's copy of the machine's zero page, below it

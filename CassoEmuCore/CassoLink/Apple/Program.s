@@ -668,6 +668,7 @@ vtpri:  cmp ENCBUF+256,y
         lda sector
         cmp #16
         bne vtsec
+        dec sector              ; the status ends on the last sector, 15
         clc
         rts
 vtbad:  lda #ERRVERIFY
@@ -1835,6 +1836,7 @@ bfgap3: lda #0
         lda sector
         cmp #16
         bne bfsec
+        dec sector              ; the status ends on the last sector, 15
         lda #PEND               ; the end mark, after the stream's 26 pages
         jmp putstream
 

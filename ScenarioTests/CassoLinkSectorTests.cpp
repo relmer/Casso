@@ -443,6 +443,29 @@ public:
 
 
 
+    TEST_METHOD (WriteTrack_WritesEverySector_AndItsStatusEndsOnTheLast)
+    {
+        Rig                rig;
+        std::vector<Byte>  pattern = Pattern (16 * 256, 7);
+        std::vector<Byte>  data;
+        CassoLinkStatus    status;
+
+        rig.Connect();
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->WriteTrack (1, 30, 254, pattern, status); }));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+
+        //  The status's sector, at $E3, is the one shown until the next
+        //  operation: on a real line, while the next track arrives.
+        Assert::AreEqual<int> (15, rig.machine.GetCpu()->ReadByte (0xE3), L"the status ends on sector 15");
+
+        data = rig.Read (1, 30, AllSectors());
+        Assert::IsTrue (data == pattern, L"every sector reads back as written");
+    }
+
+
+
+
     TEST_METHOD (WriteSectors_AWriteProtectedImageEndsWithItsError)
     {
         Rig                rig;
