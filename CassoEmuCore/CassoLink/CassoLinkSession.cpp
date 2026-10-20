@@ -638,7 +638,7 @@ void CassoLinkSession::Run (std::stop_token stop)
 
         if (operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
-            m_sink.OnActivity (std::format ("{}{}", DescribeOperation (*operation), SUCCEEDED (hr) ? "" : ": failed"));
+            m_sink.OnActivity (std::format ("{}: {}", DescribeOperation (*operation), SUCCEEDED (hr) ? "done" : "failed"));
         }
 
         operation->state    = SUCCEEDED (hr)                              ? LinkOperationState::Done

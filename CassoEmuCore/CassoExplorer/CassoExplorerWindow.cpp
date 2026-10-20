@@ -2758,7 +2758,7 @@ void CassoExplorerWindow::FormatAppleDisk (const Location & location)
     }
 
     drive  = m_browser.GetTreeModel().GetLinkDriveTitle (location.path);
-    choice = CassoExplorerNewDiskDialog::Ask (GetHwnd(), m_theme, true, {}, CassoExplorerNewDiskChoices::kFormatDos33, drive);
+    choice = CassoExplorerNewDiskDialog::Ask (GetHwnd(), m_theme, true, {}, CassoExplorerNewDiskChoices::kFormatDos33, drive, true);
 
     if (!choice.confirmed)
     {

@@ -186,9 +186,10 @@ public:
     using ExistsFn = std::function<bool (const std::wstring & fileName)>;
 
     //  Runs the dialog modally over `owner`, the format list starting at
-    //  `formatIndex`.
+    //  `formatIndex`. With `appleDrive`, the target is a linked Apple's drive
+    //  rather than an image file.
     static Outcome  Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists = {},
-                         int formatIndex = CassoExplorerNewDiskChoices::kFormatDos33, const std::wstring & target = {});
+                         int formatIndex = CassoExplorerNewDiskChoices::kFormatDos33, const std::wstring & target = {}, bool appleDrive = false);
 
 protected:
     void  OnCreate     () override;
@@ -210,6 +211,7 @@ private:
 
     const IDxuiTheme    * m_theme          = nullptr;
     bool                  m_formatMode     = false;
+    bool                  m_appleDrive     = false;
     int                   m_formatIndex    = CassoExplorerNewDiskChoices::kFormatDos33;
     std::wstring          m_target;
     bool                  m_fitted         = false;

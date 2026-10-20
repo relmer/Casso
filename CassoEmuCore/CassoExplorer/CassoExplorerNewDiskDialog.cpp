@@ -572,7 +572,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
     m_containerLabel.SetText (L"Image type:");
     m_formatLabel.SetText    (L"Format:");
     m_volumeLabel.SetText    (L"Volume:");
-    m_fileLabel.SetText      (L"File:");
+    m_fileLabel.SetText      (m_appleDrive ? L"Drive:" : L"File:");
     m_fileName.SetText       (m_target);
 
     for (DxuiTextInput * input : { &m_name, &m_volume })
@@ -711,7 +711,7 @@ void CassoExplorerNewDiskDialog::OnCreate()
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner, const IDxuiTheme * theme, bool formatMode, const ExistsFn & exists,
-                                                                     int formatIndex, const std::wstring & target)
+                                                                     int formatIndex, const std::wstring & target, bool appleDrive)
 {
     HRESULT                     hr     = S_OK;
     CassoExplorerNewDiskDialog  dialog;
@@ -725,8 +725,9 @@ CassoExplorerNewDiskDialog::Outcome CassoExplorerNewDiskDialog::Ask (HWND owner,
     dialog.m_exists     = exists;
     dialog.m_formatIndex = formatIndex;
     dialog.m_target      = target;
+    dialog.m_appleDrive  = appleDrive;
 
-    params.title                    = formatMode ? L"Format disk image" : L"New disk image";
+    params.title                    = appleDrive ? L"Format disk" : formatMode ? L"Format disk image" : L"New disk image";
     params.hInstance                = GetModuleHandleW (nullptr);
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { 460, 130 + rows * (CassoExplorerNewDiskPanel::kRowHeightDip + CassoExplorerNewDiskPanel::kRowGapDip) };
