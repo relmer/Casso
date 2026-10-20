@@ -484,6 +484,31 @@ it, and a DOS disk in drive 1.
   disconnected link now stays stopped, with "... is disconnected." and a
   Connect button in the list and Connect on its menu. A serial link whose
   Apple is not replying has a Bootstrap the Apple button in the list.
+- **Disconnect's status text:** the status bar read "The Apple stopped
+  answering: the line failed with 0x8007006D" after a Disconnect, because
+  `CassoLinkSession::Stop` closes the line and the session's read then
+  fails like a dropped one. `CassoLinkSession::m_stopping` is set first, and
+  a session stopped on purpose reports "Disconnected"
+  (`Stop_IsReportedAsDisconnected`).
+- **The Connect button:** the list's button drew but did not respond to a
+  click, as Casso Explorer routes mouse input to each control explicitly
+  and the button had no route. It is given every move and the presses
+  inside it. Verified with clicks on the emulated and the serial link.
+
+### 33. Write track's status ended on sector 16
+
+- **Symptom:** while a whole-disk write ran, the status read `S16`, a
+  sector that does not exist.
+- **Cause:** `verifytrack` and `buildformat` count `sector` from 0 to 16,
+  and the status is drawn after the loop. On the //c the status stays on
+  the screen while the next track's data comes over the line.
+- **Fix:** both loops step `sector` back to 15, the last sector handled.
+  Program version 43. `WriteTrack_WritesEverySector_AndItsStatusEndsOnTheLast`
+  checks the sector after a Write track, and that the track reads back as
+  written; with the old program the sector is 16.
+- **Why the emulator missed it:** in-process, the next request arrives at
+  once and the status is redrawn before a frame is captured; and no
+  scenario test ran Write track.
 
 ## Link errors
 
