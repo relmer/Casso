@@ -167,15 +167,85 @@ the drive turns at exactly 300 rpm.
 - **Why the emulator missed it:** an emulated motor left on has no visible or
   audible cost unless the drive sound is enabled.
 
+## Link errors
+
+The cable's noise so far has been on the control lines (item 8). No data
+CRC failure has been seen, but none is counted (item 18), so that is not
+proof there were none. The link's handling of data errors, from the code:
+
+- Every packet's envelope has a check byte, and its data a CRC-16/XMODEM.
+- Sector data to the Apple (Write sectors, Write track): the Apple checks
+  each sector's CRC and sends NAK for another copy, up to 8 times, then
+  reports `ERRLINK`.
+- Program load: the shim sends ACK or NAK per page; the host resends a
+  page up to `kMaxResends` (5) times.
+- ADTPro image transfers: the host NAKs a bad block and accepts up to 5
+  resends.
+- A dropped line: the host disconnects after a time with no packet, or after
+  DSR is off for 500 ms, and connects again.
+
+### 14. Sector data from the Apple is never resent
+
+- **Cause:** in `CassoLinkHost::ReadSectors`, a Sector data packet that fails
+  its CRC fails the whole request; the host sends no NAK. A whole-disk read
+  reads failing tracks again sector by sector, which may cover a link error;
+  whether it treats a link error as a disk error is not yet checked.
+- **Fix:** pending. NAK a bad sector; the Apple sends it again from its
+  buffer.
+
+### 15. A damaged request is lost without a resend
+
+- **Cause:** the Apple drops a request whose envelope or CRC fails. The host
+  waits for the reply until the operation timeout and fails the request. A
+  damaged Status reply also fails the request.
+- **Fix:** pending. Send the request again when no reply arrives. Every
+  operation can be repeated safely: a sector written twice with the same
+  data, or a track formatted twice, ends the same.
+
+### 16. The typed bootstrap has no checksum
+
+- **Cause:** item 7's pacing stops dropped characters, but a character
+  damaged on the line goes unnoticed.
+- **Fix:** pending.
+
+### 17. The 6551's error bits are not checked (to verify)
+
+- Whether the Apple's receive routine reads the 6551's overrun, framing and
+  parity bits is not yet checked.
+
+### 18. Link errors are not counted
+
+- **Cause:** CRC failures, resends and overruns are not counted, so a noisy
+  cable is invisible until a transfer fails.
+- **Fix:** pending. Count them per session; display the counts in Casso Explorer's
+  link status and in the Apple's history.
+
 ## Tooling
 
-### 13. A program that fails to assemble breaks the link silently
+### 19. A program that fails to assemble breaks the link silently
 
 - **Symptom:** every request timed out, including the first read.
 - **Cause:** the host assembles `Program.s` when it loads the program. An
   out-of-range branch in a diagnostic build failed assembly, and the load returned
   no error to the caller.
 - **Fix:** pending. Report the assembly error from the load.
+
+## Follow-up ideas
+
+For the spec, after the real //c works; not part of the current fixes.
+
+- **Measure each drive's speed on the Apple.** Count CPU cycles per
+  revolution between two passes of one address field, on each connect and
+  disk change. Size a format's gaps to fit the measured revolution, and
+  report rpm and cycles per revolution to Casso Explorer, with a warning
+  outside about +/-1.5% of 300 rpm. On a blank disk, write one address field first and time that.
+- **A per-drive speed setting in the emulator**, about 285 to 315 rpm, so
+  item 3 and the speed measurement can be tested without hardware.
+- **A noisy test stream**: bit flips, dropped bytes and control-line glitches
+  injected over `InProcessByteStream`, for items 8 and 14 to 18.
+- **Other hardware:** the owner's Disk II on the //c's external port, as
+  drive 2, is a second mechanism on the same IWM; a //e with a Disk II card
+  would test the Disk II controller path.
 
 ## Probe method
 
