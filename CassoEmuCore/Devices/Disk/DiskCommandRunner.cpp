@@ -18,6 +18,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "IntegerBasicDetokenizer.h"
 #include "Utils.h"
 
 
@@ -889,9 +890,13 @@ HRESULT DiskCommandRunner::ApplyEncoding (
     FilePayload              &  payload,
     DiskCommandResult        &  result)
 {
-    HRESULT                hr = S_OK;
-    std::string            hostText;
-    ApplesoftListingError  listingError;
+    static constexpr Byte     s_kProDosIntegerType = 0xFA;
+    HRESULT                   hr                   = S_OK;
+    std::string               hostText;
+    ApplesoftListingError     listingError;
+    IntegerBasicListingError  integerError;
+    char                      note[200]            = {};
+    bool                      integer              = payload.type == Dos33Volume::kTypeInteger || payload.type == s_kProDosIntegerType;
 
 
 
@@ -917,6 +922,26 @@ HRESULT DiskCommandRunner::ApplyEncoding (
             break;
 
         case CommandLineOptions::DiskOptions::Encoding::Basic:
+            //  An Integer BASIC program lists through its own tokens, as its
+            //  preview does.
+            if (integer)
+            {
+                hr = IntegerBasicDetokenizer::Detokenize (payload.bytes, hostText, integerError);
+
+                if (FAILED (hr))
+                {
+                    snprintf (note, sizeof (note), "byte %u: %s\n", (unsigned) integerError.offset, integerError.reason.c_str());
+
+                    result.diagnostics += DiskHelpPage::ApplyPrefixes ("%Lbasic cannot read this file as an Integer BASIC program: ", options.flagPrefix) + note;
+                    result.exitStatus   = DiskCommandResult::kNoOutput;
+                    break;
+                }
+
+                payload.bytes.assign (hostText.begin(), hostText.end());
+                payload.encoding = PayloadEncoding::HostText;
+                break;
+            }
+
             hr = ApplesoftTokenizer::Detokenize (payload.bytes, hostText, listingError);
 
             if (FAILED (hr))
