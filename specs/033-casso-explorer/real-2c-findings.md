@@ -182,9 +182,20 @@ the drive turns at exactly 300 rpm.
   at `$0800` also overlaps Applesoft's program area, so `LIST` decodes
   machine code as BASIC.
 - **Workaround:** boot again (`PR#6`), or `POKE 243,0` for readable text.
-- **Fix:** pending. Save the zero page CassoLink uses on entry and restore
-  it on exit, or move the program's variables to locations Applesoft and
-  DOS do not use, and clear Applesoft's program pointers on exit.
+- **Fix:** pending, after item 4. One cleanup routine for both ways out:
+  - **Clean exit:** an Exit command from the PC, and Escape on the Apple.
+  - **Control-Reset:** on entry, save the reset vector at `$3F2`/`$3F3`,
+    point it at the cleanup routine and set the power-up byte at `$3F4` to
+    match. Control-OpenApple-Reset reboots the //c as a last resort.
+  - **The routine:** stop the motor and turn off DTR; restore the zero page
+    saved on entry; clear Applesoft's program area as `NEW` does; set the
+    input and output hooks to the keyboard and screen and have DOS connect
+    its hooks again; put the original reset vector back; return to DOS's
+    warm start. When DOS is missing or damaged, boot from the disk instead.
+  - Move the program's variables to zero page locations that Applesoft, DOS
+    and the monitor do not use, to reduce damage from a reset in the middle
+    of a disk operation.
+  - **Test:** exit both ways on the //c, then `LIST`, `NEW` and `CATALOG`.
 - **Why the emulator missed it:** not an emulator gap. Emulated sessions end
   by resetting the machine or closing Casso, never by returning to BASIC.
 
