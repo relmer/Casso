@@ -1118,6 +1118,17 @@ public:
     }
 
 
+    TEST_METHOD (LinkError_DiffersForAnUnrecognizedDiskAndAnUnreadableOne)
+    {
+        Assert::AreEqual (std::wstring (L"The disk in this drive can't be previewed because it doesn't have a recognized file system."),
+                          CassoExplorerBrowser::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), std::string()));
+        Assert::AreEqual (std::wstring (L"This drive could not be read."),
+                          CassoExplorerBrowser::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_CRC), std::string()));
+        Assert::AreEqual (std::wstring (L"The connection is disconnected."),
+                          CassoExplorerBrowser::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_NOT_CONNECTED), "The connection is disconnected."), L"A message is shown as it is");
+    }
+
+
     TEST_METHOD (ShortenPaths_CutsEachPathToItsName)
     {
         Assert::AreEqual (std::wstring (L"broken.dsk: is 26 bytes but should be 143,360 bytes"),

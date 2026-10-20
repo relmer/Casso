@@ -1124,7 +1124,7 @@ HRESULT CassoExplorerBrowser::LoadAppleDrive (const Location & location)
 
     if (FAILED (hr))
     {
-        m_listError = message.empty() ? L"This drive could not be read." : TextEncoding::NarrowToWide (message);
+        m_listError = FormatLinkError (hr, message);
         return hr;
     }
 
@@ -1175,7 +1175,7 @@ bool CassoExplorerBrowser::PreviewAppleDrive (const CatalogRow & row)
     }
     else if (FAILED (result))
     {
-        m_preview.message = message.empty() ? L"This drive could not be read." : TextEncoding::NarrowToWide (message);
+        m_preview.message = FormatLinkError (result, message);
     }
     else
     {
@@ -3288,6 +3288,35 @@ std::wstring CassoExplorerBrowser::ShortenPaths (const std::wstring & message)
     }
 
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::FormatLinkError
+//
+//  A disk whose sectors read but whose data is no DOS 3.3 or ProDOS volume
+//  gets the same sentence as an image with no file system; any other failure
+//  with no message is a drive that could not be read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerBrowser::FormatLinkError (HRESULT result, const std::string & message)
+{
+    if (!message.empty())
+    {
+        return TextEncoding::NarrowToWide (message);
+    }
+
+    if (result == HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME))
+    {
+        return std::wstring (L"The disk in this drive ") + TreeModel::kNoFilesystemText;
+    }
+
+    return L"This drive could not be read.";
 }
 
 

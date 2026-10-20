@@ -414,6 +414,10 @@ public:
     //  An image's refusal as the list shows it: the file's name, then why.
     static std::wstring  FormatImageError (const std::wstring & imagePath, const std::string & message);
 
+    //  The list's and the preview's text for a linked Apple's drive whose
+    //  listing failed: the operation's message when there is one.
+    static std::wstring  FormatLinkError (HRESULT result, const std::string & message);
+
     //  What the disk runner says of a whole disk it finds no file system on.
     static constexpr const char *  s_kNoFileSystem = "does not have a DOS or ProDOS file system";
 
