@@ -606,7 +606,12 @@ void CassoLinkSession::Run (std::stop_token stop)
         {
             hr = m_host->ServeOne (kIdlePollMs);
 
-            if (FAILED (hr) || m_host->GetSilenceMs() > kSilenceMs || IsPeerGone())
+            m_lostReason = FAILED (hr)                          ? std::format ("the line failed with 0x{:08X}", (uint32_t) hr)
+                         : (m_host->GetSilenceMs() > kSilenceMs) ? std::format ("no packet in {} seconds", kSilenceMs / 1000)
+                         : IsPeerGone()                          ? std::string ("DSR went off, the Apple's DTR on most cables")
+                                                                 : std::string();
+
+            if (!m_lostReason.empty())
             {
                 Disconnect();
                 hr = S_OK;
@@ -642,6 +647,8 @@ void CassoLinkSession::Run (std::stop_token stop)
 
         if (IsLineLost (hr))
         {
+            m_lostReason = std::format ("{}: {}", DescribeOperation (*operation),
+                                        (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT)) ? "no reply" : "the line closed");
             Disconnect();
             hr = S_OK;
         }
@@ -1235,8 +1242,10 @@ void CassoLinkSession::SetState (LinkState state)
     }
     else if (state == LinkState::Disconnected && (before == LinkState::Ready || before == LinkState::Busy))
     {
-        m_sink.OnActivity ("The Apple stopped answering");
+        m_sink.OnActivity (m_lostReason.empty() ? std::string ("The Apple stopped answering") : "The Apple stopped answering: " + m_lostReason);
     }
+
+    m_lostReason.clear();
 
     m_sink.OnStateChanged (state);
 }

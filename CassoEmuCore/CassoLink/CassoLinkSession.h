@@ -303,6 +303,10 @@ private:
     bool                                        m_peerSeen         = false;
     DWORD                                       m_openBaud         = 0;
     bool                                        m_prompted         = false;
+
+    //  Why the line was dropped, for the activity text; the session's thread
+    //  sets it just before Disconnect.
+    std::string                                 m_lostReason;
     std::wstring                                m_modelName;
     std::shared_ptr<LinkOperation>              m_bootstrap;
     uint64_t                                    m_commitTag        = 1;
