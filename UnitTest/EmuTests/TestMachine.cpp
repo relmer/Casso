@@ -78,6 +78,41 @@ TestMachine::TestMachine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TestMachine::TestMachine (video, configure)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string                         & machineId,
+    Video                                       video,
+    const std::function<void (MachineConfig &)> & configure)
+    : m_builder (*this, m_nothingListening)
+{
+    MachineConfig  config;
+
+
+
+    if (video == Video::Timed)
+    {
+        SetVideoTiming (std::make_unique<VideoTiming>());
+    }
+
+    LoadConfig (machineId, config);
+
+    if (configure)
+    {
+        configure (config);
+    }
+
+    BuildFrom (machineId, config);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TestMachine::BuildFrom
 //
 ////////////////////////////////////////////////////////////////////////////////

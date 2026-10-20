@@ -393,6 +393,7 @@ UnitTest/rockwell65c02/
 # this path, so both must be ignored or a run leaves an untracked file behind.
 /Disks/Apple/dos33-master.dsk
 /Disks/Apple/prodos-users.dsk
+/Disks/ThirdParty/kermit-65.dsk
 
 # Cross-platform/editor artifacts
 .vscode/

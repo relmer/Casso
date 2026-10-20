@@ -223,6 +223,35 @@ std::vector<Byte> GuestSession::RequireProDosUsersDisk()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestSession::RequireKermitDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<Byte> GuestSession::RequireKermitDisk()
+{
+    std::vector<Byte>  bytes = FindInRepo (kpszKermitRepoPath);
+
+
+
+    Assert::IsFalse (bytes.empty(),
+        L"the Kermit-65 3.87 disk is REQUIRED by this gate and was not found as "
+        L"Disks/ThirdParty/kermit-65.dsk in a parent of the working directory. To get "
+        L"it, run scripts/FetchStockDisks.ps1, which RunTests.ps1 -Scenario also runs. "
+        L"This case fails rather than skipping: a guest-visible gate that never started "
+        L"a guest has checked nothing");
+
+    Assert::AreEqual (kImageBytes, bytes.size(),
+        L"and it must be a whole 5.25-inch sector image");
+
+    return bytes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GuestSession::TrimTrailingBlanks
 //
 ////////////////////////////////////////////////////////////////////////////////
