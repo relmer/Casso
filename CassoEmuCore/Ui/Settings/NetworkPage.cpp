@@ -61,7 +61,10 @@ NetworkPage::NetworkPage (std::wstring title)
     columns[1].title   = L"Host port";
     columns[2].title   = L"Guest port";
     columns[2].stretch = true;
-    m_forwards.SetColumns (std::move (columns));
+    m_forwards.SetColumns            (std::move (columns));
+    m_forwards.SetShowHeader         (true);
+    m_forwards.SetPreciseAutoFit     (true);
+    m_forwards.SetAlwaysShowSelection (true);
 
     m_error.SetSeverity (DxuiInfoBanner::Severity::Warning);
     m_error.SetVisible  (false);
@@ -515,6 +518,7 @@ void NetworkPage::SyncForwardList()
     }
 
     m_forwards.SetRows (std::move (rows));
+    m_forwards.UpdateAutoFitFromRows();
 }
 
 
