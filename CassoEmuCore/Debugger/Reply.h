@@ -388,6 +388,7 @@ struct ProfileFrameEntry
     uint64_t                                  index = 0;
     std::vector<std::pair<size_t, uint64_t>>  shares;
     uint64_t                                  other = 0;
+    uint64_t                                  count = 1;     // the frames the bar covers
 };
 
 // The table PROFILE LIST prints: by opcode, by address (ADDR), by routine

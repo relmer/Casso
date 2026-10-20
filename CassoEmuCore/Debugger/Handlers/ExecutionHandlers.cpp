@@ -780,6 +780,7 @@ void ExecutionHandlers::BuildRoutines (DebugSession & session, ProfileData & dat
 
         entry.index = frame.index;
         entry.other = frame.other;
+        entry.count = frame.count;
 
         for (const RoutineProfile::Share & share : frame.shares)
         {

@@ -37,7 +37,9 @@ enum class RoutineKind : Byte
 //  routine called from two places has two nodes.
 //
 //  The last kFrameCount video frames have their cycles by routine, a few
-//  routines each and the rest together.
+//  routines each and the rest together; or, with SetFramesCoverAll, every
+//  frame since the reset, in at most kFrameCount bars, two bars becoming one
+//  each time there are too many.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,9 +68,10 @@ public:
 
     struct Frame
     {
-        uint64_t            index  = 0;
+        uint64_t            index  = 0;     // the first frame of the bar
         std::vector<Share>  shares;
         uint64_t            other  = 0;
+        uint64_t            count  = 1;     // the frames the bar covers
     };
 
     //  A frame is an NTSC frame: 65 cycles a scanline, 262 scanlines.
@@ -91,6 +94,14 @@ public:
     void  OnInterrupt ();
 
     void  Reset       ();
+
+    //  Every frame since the reset is in a bar, of more than one frame once
+    //  there are too many, in place of only the last kFrameCount.
+    void  SetFramesCoverAll (bool isAll) { m_isAllFrames = isAll; }
+
+    //  A profile of what ran after this one's added to it: its routines, its
+    //  call tree, joined by each node's chain of callers, and its frames.
+    void  Merge       (const RoutineProfile & later);
 
     const std::vector<Routine> &  GetRoutines () const { return m_routines; }
     const std::vector<Node> &     GetNodes    () const { return m_nodes; }
@@ -126,6 +137,10 @@ private:
     //  modulo the page: a frame uses far less than half the stack.
     static bool  HasReturned (Byte returnSp, Byte sp);
 
+    //  The frames joined into bars of bucket frames each, in order.
+    static void  Rebucket    (std::deque<Frame> & frames, uint64_t bucket);
+    static void  AddShares   (Frame & into, const Frame & from, const std::vector<size_t> & routines);
+
     std::vector<Routine>                    m_routines;
     std::unordered_map<uint32_t, size_t>    m_routineIndex;
     std::vector<Node>                       m_nodes;
@@ -133,5 +148,7 @@ private:
     std::vector<Active>                     m_stack;
     std::optional<Pending>                  m_pending;
     std::deque<Frame>                       m_frames;
-    Byte                                    m_lastSp = 0xFF;
+    Byte                                    m_lastSp      = 0xFF;
+    bool                                    m_isAllFrames = false;
+    uint64_t                                m_bucket      = 1;      // frames a bar covers, with m_isAllFrames
 };

@@ -110,7 +110,9 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
 
     std::stable_sort (shares.begin(), shares.end(), [] (const auto & a, const auto & b) { return a.second > b.second; });
 
-    text = std::format (L"Frame {}: {} cycles", DebuggerStatusText::FormatCount (frame.index), DebuggerStatusText::FormatCount (total));
+    text = (frame.count > 1) ? std::format (L"Frames {} to {}: {} cycles", DebuggerStatusText::FormatCount (frame.index),
+                                            DebuggerStatusText::FormatCount (frame.index + frame.count - 1), DebuggerStatusText::FormatCount (total))
+                             : std::format (L"Frame {}: {} cycles", DebuggerStatusText::FormatCount (frame.index), DebuggerStatusText::FormatCount (total));
 
     for (size_t i = 0; i < shares.size(); i++)
     {

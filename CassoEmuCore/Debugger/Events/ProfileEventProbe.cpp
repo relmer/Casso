@@ -12,7 +12,8 @@
 //
 //  ProfileEventProbe::ProfileEventProbe
 //
-//  Every opcode is watched, so every fetch is billed.
+//  Every opcode is watched, so every fetch is billed, and the frames cover
+//  the whole stretch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,6 +21,7 @@ ProfileEventProbe::ProfileEventProbe()
 {
     m_opcodes.fill (true);
     m_counts.table.SetOn (true);
+    m_counts.routines.SetFramesCoverAll (true);
 }
 
 
@@ -51,7 +53,7 @@ void ProfileEventProbe::Begin (uint64_t fromCycle, uint64_t toCycle)
 //  ProfileEventProbe::Attach
 //
 //  A stretch starts at a keyframe, with nothing of the stretch before it
-//  pending.
+//  pending and none of its counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +69,8 @@ HRESULT ProfileEventProbe::Attach (MachineHost & machine, std::vector<DebugEvent
     m_machine = &machine;
     m_entries = &entries;
     m_pending.reset();
+    m_counts.table.Reset();
+    m_counts.routines.Reset();
     machine.SetOpcodeWatch (m_opcodes.data(), this);
 
 Error:

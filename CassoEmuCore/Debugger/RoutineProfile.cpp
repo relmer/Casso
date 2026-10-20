@@ -41,6 +41,7 @@ void RoutineProfile::Reset()
     m_frames.clear();
     m_pending.reset();
     m_lastSp = 0xFF;
+    m_bucket = 1;
 
     (void) FindRoutine (0, RoutineKind::Top);
     m_nodes.push_back (Node());
@@ -181,6 +182,147 @@ bool RoutineProfile::HasReturned (Byte returnSp, Byte sp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RoutineProfile::Merge
+//
+//  Each of the later profile's routines is found or added here, then each of
+//  its nodes, parents before children, under the node its parent became;
+//  then the frames are added, in bars as wide as the wider profile's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::Merge (const RoutineProfile & later)
+{
+    std::vector<size_t>  routines (later.m_routines.size(), 0);
+    std::vector<int>     nodes    (later.m_nodes.size(), 0);
+    std::deque<Frame>    frames   = later.m_frames;
+
+
+
+    for (size_t i = 0; i < later.m_routines.size(); i++)
+    {
+        routines[i] = FindRoutine (later.m_routines[i].address, later.m_routines[i].kind);
+    }
+
+    for (size_t i = 0; i < later.m_nodes.size(); i++)
+    {
+        const Node  & node  = later.m_nodes[i];
+        int           index = (node.parent < 0) ? 0 : FindChild (nodes[(size_t) node.parent], routines[node.routine]);
+
+        nodes[i]                     = index;
+        m_nodes[(size_t) index].self  += node.self;
+        m_nodes[(size_t) index].calls += node.calls;
+    }
+
+    m_bucket = std::max (m_bucket, later.m_bucket);
+    Rebucket (m_frames, m_bucket);
+    Rebucket (frames,   m_bucket);
+
+    for (Frame & frame : frames)
+    {
+        Frame  mapped { frame.index, {}, 0, frame.count };
+
+        AddShares (mapped, frame, routines);
+
+        if (!m_frames.empty() && m_frames.back().index == mapped.index)
+        {
+            AddShares (m_frames.back(), mapped, {});
+        }
+        else
+        {
+            m_frames.push_back (std::move (mapped));
+        }
+    }
+
+    while (m_frames.size() > kFrameCount && m_isAllFrames)
+    {
+        m_bucket *= 2;
+        Rebucket (m_frames, m_bucket);
+    }
+
+    while (m_frames.size() > kFrameCount)
+    {
+        m_frames.pop_front();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RoutineProfile::Rebucket
+//
+//  Each frame moves into the bar its first frame falls in, bucket frames
+//  wide; frames already in that bar are joined.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::Rebucket (std::deque<Frame> & frames, uint64_t bucket)
+{
+    std::deque<Frame>  joined;
+
+
+
+    for (const Frame & frame : frames)
+    {
+        uint64_t  index = frame.index - frame.index % bucket;
+
+        if (joined.empty() || joined.back().index != index)
+        {
+            joined.push_back (Frame { index, {}, 0, bucket });
+        }
+
+        AddShares (joined.back(), frame, {});
+    }
+
+    frames = std::move (joined);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RoutineProfile::AddShares
+//
+//  from's cycles by routine added to into's, each routine mapped through
+//  routines when it is given; past kSharesPerFrame a routine's cycles are
+//  into's other cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::AddShares (Frame & into, const Frame & from, const std::vector<size_t> & routines)
+{
+    into.other += from.other;
+
+    for (const Share & share : from.shares)
+    {
+        size_t  routine = routines.empty() ? share.routine : routines[share.routine];
+        auto    found   = std::ranges::find_if (into.shares, [routine] (const Share & each) { return each.routine == routine; });
+
+        if (found != into.shares.end())
+        {
+            found->cycles += share.cycles;
+        }
+        else if (into.shares.size() < kSharesPerFrame)
+        {
+            into.shares.push_back (Share { routine, share.cycles });
+        }
+        else
+        {
+            into.other += share.cycles;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RoutineProfile::FindRoutine
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,13 +406,21 @@ void RoutineProfile::AddToFrame (size_t routine, uint64_t cycles, uint64_t start
 
 
 
+    index -= index % m_bucket;
+
     if (m_frames.empty() || m_frames.back().index != index)
     {
-        m_frames.push_back (Frame { index, {}, 0 });
+        m_frames.push_back (Frame { index, {}, 0, m_bucket });
 
-        if (m_frames.size() > kFrameCount)
+        if (m_frames.size() > kFrameCount && !m_isAllFrames)
         {
             m_frames.pop_front();
+        }
+
+        while (m_frames.size() > kFrameCount)
+        {
+            m_bucket *= 2;
+            Rebucket (m_frames, m_bucket);
         }
     }
 

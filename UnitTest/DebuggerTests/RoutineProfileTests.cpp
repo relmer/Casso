@@ -217,5 +217,75 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 0, feed.profile.GetFrames().size());
             Assert::AreEqual ((size_t) 1, feed.profile.GetNodes().size(), L"Top level alone");
         }
+
+
+
+        //  Covering every frame, the profile has the first frame too, in no
+        //  more than kFrameCount bars, each of the same number of frames.
+        TEST_METHOD (FramesCoveringAllJoinIntoWiderBars)
+        {
+            constexpr size_t  kFrames = RoutineProfile::kFrameCount * 3;
+            Feed              feed;
+            uint64_t          cycles  = 0;
+
+
+
+            feed.profile.SetFramesCoverAll (true);
+
+            for (size_t i = 0; i < kFrames; i++)
+            {
+                feed.profile.Record (0x0300, kLda, 2, 0xFF, (uint64_t) i * kFrame, kFrame);
+            }
+
+            Assert::IsTrue   (feed.profile.GetFrames().size() <= RoutineProfile::kFrameCount);
+            Assert::AreEqual ((uint64_t) 0, feed.profile.GetFrames().front().index, L"the first frame is in the first bar");
+            Assert::AreEqual ((uint64_t) 4, feed.profile.GetFrames().front().count, L"two halvings of 1,800 frames");
+
+            for (const RoutineProfile::Frame & frame : feed.profile.GetFrames())
+            {
+                cycles += frame.other;
+
+                for (const RoutineProfile::Share & share : frame.shares)
+                {
+                    cycles += share.cycles;
+                }
+            }
+
+            Assert::AreEqual ((uint64_t) kFrames * 2, cycles, L"every instruction's cycles are in a bar");
+        }
+
+
+
+        //  A later profile's routines, nodes and frames merge into the
+        //  earlier's: a routine in both is one routine, its node's cycles and
+        //  calls are added, and the frames run on in order.
+        TEST_METHOD (MergeAddsALaterProfile)
+        {
+            Feed  first;
+            Feed  later;
+            int   node = 0;
+
+
+
+            first.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            first.Run (0x0400, kRts, 6, 0xFF);
+
+            later.clock = kFrame * 10;
+            later.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            later.Run (0x0400, kLda, 2, 0xFD);
+            later.Run (0x0402, kRts, 6, 0xFF);
+            later.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            later.Run (0x0500, kRts, 6, 0xFF);
+
+            first.profile.Merge (later.profile);
+
+            node = FindNode (first.profile, 0x0400);
+            Assert::AreEqual ((size_t) 3, first.profile.GetRoutines().size(), L"Top level, $0400 and $0500");
+            Assert::AreEqual ((uint64_t) 14, first.profile.GetNodes()[(size_t) node].self, L"6 here and 8 later");
+            Assert::AreEqual ((uint64_t) 2,  first.profile.GetNodes()[(size_t) node].calls);
+            Assert::IsTrue   (FindNode (first.profile, 0x0500) > 0);
+            Assert::AreEqual ((size_t) 2,  first.profile.GetFrames().size(), L"frame 0 and frame 10");
+            Assert::AreEqual ((uint64_t) 10, first.profile.GetFrames().back().index);
+        }
     };
 }

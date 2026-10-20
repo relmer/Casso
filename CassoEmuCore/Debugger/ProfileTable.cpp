@@ -76,3 +76,33 @@ void ProfileTable::Reset()
     m_totalCycles  = 0;
     m_instructions = 0;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTable::Add
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfileTable::Add (const ProfileTable & other)
+{
+    for (size_t i = 0; i < kOpcodeCount; i++)
+    {
+        m_byOpcode[i].count  += other.m_byOpcode[i].count;
+        m_byOpcode[i].cycles += other.m_byOpcode[i].cycles;
+    }
+
+    for (const auto & [address, cycles] : other.m_byAddress)
+    {
+        m_byAddress[address] += cycles;
+    }
+
+    m_penalties.pageCross   += other.m_penalties.pageCross;
+    m_penalties.branchTaken += other.m_penalties.branchTaken;
+    m_penalties.branchCross += other.m_penalties.branchCross;
+    m_totalCycles           += other.m_totalCycles;
+    m_instructions          += other.m_instructions;
+}

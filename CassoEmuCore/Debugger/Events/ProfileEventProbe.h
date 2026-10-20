@@ -42,9 +42,8 @@ using ProfileCountsPtr = std::shared_ptr<const ProfileCounts>;
 //  bills the instruction before it, as the live profiler does: its cycles
 //  are the count at this fetch less the count at its own, and the stack
 //  pointer after it is this fetch's. Only an instruction that starts within
-//  the period counts. The counts add up across a job's stretches, and each
-//  stretch's result is one entry with the counts so far, so the last entry
-//  of a job has them all.
+//  the period counts. Each stretch's result is one entry with that
+//  stretch's counts.
 //
 //  The share of the period replayed so far can be read from any thread.
 //

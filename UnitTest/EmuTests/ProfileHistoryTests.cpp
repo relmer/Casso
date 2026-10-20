@@ -147,6 +147,45 @@ namespace ProfileHistoryTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  BlocksAddUpAndAreReused
+        //
+        //  Cut into many blocks, replayed at once, the history's counts add up
+        //  to the whole run's, the frames begin at its start, and a second
+        //  build replays only the blocks not in the cache, to the same counts.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (BlocksAddUpAndAreReused)
+        {
+            ProfileRig                          rig;
+            std::vector<ProfileHistory::Block>  blocks;
+            ProfileCountsPtr                    counts;
+            ProfileCountsPtr                    again;
+            uint64_t                            first  = rig.controller.GetKeyframes().GetInfo (0).cycle;
+            uint64_t                            span   = rig.machine.GetCpu()->GetTotalCycles() - first;
+
+
+
+            rig.logs.GetProfileHistory().SetBlockPositions (100'000);
+            rig.logs.GetProfileHistory().GetBlocks (0, blocks);
+            Assert::IsTrue (blocks.size() > 2, std::format (L"{} blocks", blocks.size()).c_str());
+
+            counts = rig.BuildFrom (0);
+            Assert::IsTrue (counts->table.GetTotalCycles() + 8 >= span && counts->table.GetTotalCycles() <= span + 8, std::format (L"{} cycles counted of {}", counts->table.GetTotalCycles(), span).c_str());
+            Assert::IsTrue (counts->routines.GetFrames().front().index <= first / RoutineProfile::kCyclesPerFrame + 1, L"the frames begin at history's start");
+
+            again = rig.BuildFrom (0);
+            Assert::IsTrue   (rig.logs.GetProfileHistory().GetReusedCount() > 0, L"no block was cached");
+            Assert::AreEqual (counts->table.GetTotalCycles(),      again->table.GetTotalCycles());
+            Assert::AreEqual (counts->table.GetInstructionCount(), again->table.GetInstructionCount());
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  NoHistoryIsAnError
         //
         ////////////////////////////////////////////////////////////////////////////////
