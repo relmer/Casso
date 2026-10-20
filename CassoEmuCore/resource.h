@@ -103,7 +103,7 @@
 
 // Apply the Uthernet II's LAN access and port forwards to the running card.
 // The payload is the card's settings as JSON.
-#define IDM_NETWORK_CONFIGURE       40089
+#define IDM_NETWORK_CONFIGURE       40300
 
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).
