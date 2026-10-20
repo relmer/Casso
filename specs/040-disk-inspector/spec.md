@@ -2094,9 +2094,10 @@ legend, and tilt the platter and back.
   open it and focus the pattern, and Escape or its close button closes it.
   The bar MUST have the pattern, the kind of search, "Whole disk" (on by
   default) and "Any bit offset", the selected hit's place as "3 of 16",
-  previous and next buttons, and a "List" button; a line under the pattern
-  MUST contain an example of the chosen kind of pattern, or the reason the
-  pattern could not be read. Enter MUST search for a new query and step to
+  previous and next buttons, and a "List" button. An info tip after the
+  kind of search MUST contain the format of that kind of pattern with an
+  example, and a pattern that cannot be read MUST get its reason in the
+  bar's row. Enter MUST search for a new query and step to
   the next hit of the same one, Shift+Enter and F3 / Shift+F3 MUST step, and
   changing the kind or an option MUST search again. The hits MUST be listed
   in a "Find results" disk tab, present only while there are hits, with the
