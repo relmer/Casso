@@ -356,6 +356,7 @@ HRESULT Win32PackagedCommands::ReadManifest (IStream * stream, const wchar_t * f
 
         hr = reader->GetLocalName (&local, nullptr);
         CHR (hr);
+        CBR (local != nullptr);
 
         element   = node == XmlNodeType_Element;
         inAppName = element && inProperties && wcscmp (local, L"DisplayName") == 0;
@@ -556,6 +557,7 @@ HRESULT Win32PackagedCommands::GetAttribute (IXmlReader * reader, const wchar_t 
 
     hr = reader->GetValue (&value, nullptr);
     CHR (hr);
+    CBR (value != nullptr);
 
     outValue = value;
 

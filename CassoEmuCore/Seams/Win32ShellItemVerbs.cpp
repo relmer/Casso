@@ -1572,7 +1572,7 @@ HRESULT Win32ShellItemVerbs::DescribeShellItem (IShellItem * item, ShellFolderIt
 
     hrItem = item->GetDisplayName (SIGDN_NORMALDISPLAY, &text);
 
-    if (SUCCEEDED (hrItem))
+    if (SUCCEEDED (hrItem) && text != nullptr)
     {
         outEntry.name = text;
         CoTaskMemFree (text);
@@ -1583,7 +1583,7 @@ HRESULT Win32ShellItemVerbs::DescribeShellItem (IShellItem * item, ShellFolderIt
 
     hrItem = item2->GetString (s_kTypeText, &text);
 
-    if (SUCCEEDED (hrItem))
+    if (SUCCEEDED (hrItem) && text != nullptr)
     {
         outEntry.typeText = text;
         CoTaskMemFree (text);

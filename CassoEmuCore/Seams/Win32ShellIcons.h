@@ -107,6 +107,7 @@ private:
     static std::shared_ptr<DxuiIconImage>  Rasterize         (HICON icon, int sizePx, UINT dpi = 0);
     static HICON                           LoadForKind       (Kind kind, UINT sizeFlag);
     static HICON                           CropToCorner      (HICON icon, bool & outCropped);
+    static void                            DeleteIconBitmaps (const ICONINFO & info);
     static bool                            RunsElevated      (const std::wstring & path);
     static void                            AddShield         (DxuiIconImage & image);
     static void                            AddOverlay        (DxuiIconImage & image, int overlay);

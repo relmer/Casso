@@ -295,7 +295,7 @@ void Win32ShellIcons::AddShield (DxuiIconImage & image)
 
 
 
-    if (FAILED (hr) || side <= 0)
+    if (FAILED (hr) || side <= 0 || info.hIcon == nullptr)
     {
         return;
     }
@@ -356,8 +356,7 @@ void Win32ShellIcons::AddOverlay (DxuiIconImage & image, int overlay)
         GetObjectW (info.hbmColor, sizeof (art), &art);
     }
 
-    DeleteObject (info.hbmColor);
-    DeleteObject (info.hbmMask);
+    DeleteIconBitmaps (info);
     CBR (art.bmWidth > 0);
 
     hr = DxuiIconImage::FromHicon (icon, art.bmWidth, badge);
@@ -893,6 +892,32 @@ HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDire
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellIcons::DeleteIconBitmaps
+//
+//  The color and mask bitmaps GetIconInfo makes, each deleted when present:
+//  a monochrome icon has no color bitmap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellIcons::DeleteIconBitmaps (const ICONINFO & info)
+{
+    if (info.hbmColor != nullptr)
+    {
+        DeleteObject (info.hbmColor);
+    }
+
+    if (info.hbmMask != nullptr)
+    {
+        DeleteObject (info.hbmMask);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellIcons::CropToCorner
 //
 //  A type with no image at a list's size gets a smaller one in the image's
@@ -989,10 +1014,8 @@ HICON Win32ShellIcons::CropToCorner (HICON icon, bool & outCropped)
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
-    DeleteObject (cropped.hbmColor);
-    DeleteObject (cropped.hbmMask);
-    DeleteObject (info.hbmColor);
-    DeleteObject (info.hbmMask);
+    DeleteIconBitmaps (cropped);
+    DeleteIconBitmaps (info);
     ReleaseDC (nullptr, dc);
 
     return result;
@@ -1361,8 +1384,7 @@ std::shared_ptr<DxuiIconImage> Win32ShellIcons::Rasterize (HICON icon, int sizeP
             artPx = (int) art.bmWidth;
         }
 
-        DeleteObject (info.hbmColor);
-        DeleteObject (info.hbmMask);
+        DeleteIconBitmaps (info);
     }
 
     //  An icon smaller than the requested size is drawn at its own pixel

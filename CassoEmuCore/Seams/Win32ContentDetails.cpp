@@ -257,7 +257,7 @@ Win32ContentDetails::Slots Win32ContentDetails::Read (const std::wstring & path)
             hrSlot = description->GetCanonicalName (&canonical);
         }
 
-        if (SUCCEEDED (hrSlot) && _wcsicmp (canonical, s_kPlaceHolder) != 0)
+        if (SUCCEEDED (hrSlot) && canonical != nullptr && _wcsicmp (canonical, s_kPlaceHolder) != 0)
         {
             hrSlot = description->GetPropertyKey (&key);
 

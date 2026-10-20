@@ -11107,7 +11107,9 @@ void CassoExplorerWindow::StartLinksForAdtPro()
 
 
 
-    for (const CassoLinkSettings & settings : (m_context.links != nullptr && m_prefs.emulateAdtPro) ? m_context.links->GetLinks() : std::vector<CassoLinkSettings>())
+    BAIL_OUT_IF (m_context.links == nullptr || !m_prefs.emulateAdtPro, S_OK);
+
+    for (const CassoLinkSettings & settings : m_context.links->GetLinks())
     {
         bool  addressed = settings.transport != LinkTransport::Serial || !settings.port.empty();
 
@@ -11117,6 +11119,9 @@ void CassoExplorerWindow::StartLinksForAdtPro()
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
