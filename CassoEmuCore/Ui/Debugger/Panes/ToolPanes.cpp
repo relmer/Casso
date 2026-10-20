@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/ToolPanes.h"
 
 #include "Core/TextEncoding.h"
+#include "Core/UnicodeSymbols.h"
 #include "Debugger/SymbolTable.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
@@ -665,8 +666,8 @@ ProfilerPane::~ProfilerPane() = default;
 //
 //  ProfilerPane::CreateControls
 //
-//  The list, the timeline and the flame graph, then the bar, which paints over
-//  them.
+//  The list, the timeline, the totals and the flame graph, then the progress
+//  bar over them, then the bar, which paints over them all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -675,9 +676,13 @@ void ProfilerPane::CreateControls()
     ToolListPane::CreateControls();
 
     m_timeline   = m_host.GetControlParent().CreateChild<ProfileTimeline>();
-    m_progress   = m_host.GetControlParent().CreateChild<ProfileProgress>();
+    m_totals     = m_host.GetControlParent().CreateChild<DxuiLabel>();
     m_flameGraph = m_host.GetControlParent().CreateChild<FlameGraphView>();
+    m_progress   = m_host.GetControlParent().CreateChild<ProfileProgress>();
     m_bar.Create();
+
+    m_totals->SetTextRole  (DxuiTextRole::Muted);
+    m_totals->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
     m_flameGraph->SetOnActivate ([this] (Word address) { m_host.GoToCode (address); });
 }
@@ -724,8 +729,10 @@ void ProfilerPane::Configure()
 //
 //  ProfilerPane::AddToDock
 //
-//  Its bar, in a place the bar is laid out over, over its timeline, over its
-//  list or, in the flame graph view, its flame graph.
+//  Its bar, in a place the bar is laid out over, over its timeline, over the
+//  totals line, over its list or, in the flame graph view, its flame graph.
+//  The progress bar is drawn centered over the list or the flame graph while
+//  a profile is built, and moves nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -737,12 +744,14 @@ void ProfilerPane::AddToDock (DxuiDockSite & dock)
 
     m_frame = std::make_unique<DebuggerPaneFrame> (m_title);
     m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
-    m_frame->AddPart (m_progress,      [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (ProfileProgress::kHeightDip); },
-                      [this] { return m_isBuilding; });
     m_frame->AddPart (m_timeline,      [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (ProfileTimeline::kHeightDip); });
-    m_frame->SetPartInsetDip (m_progress, 4);
+    m_frame->AddPart (m_totals,        [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (kTotalsHeightDip); },
+                      [this] { return !m_totals->GetText().empty(); });
     m_frame->AddPart (m_list,          nullptr, [isFlame] { return !isFlame(); });
     m_frame->AddPart (m_flameGraph,    nullptr, isFlame);
+    m_frame->AddOverlay (m_progress, kProgressWidthDip, [] (int, const DxuiDpiScaler & scaler) { return scaler.ToPx (ProfileProgress::kHeightDip); },
+                         [this] { return m_isBuilding; });
+    m_frame->SetPartTextAligned (m_totals);
     m_frame->SetPartInsetDip (m_timeline,   4);
     m_frame->SetPartInsetDip (m_flameGraph, 4);
 
@@ -761,7 +770,7 @@ void ProfilerPane::AddToDock (DxuiDockSite & dock)
 
 std::vector<IDxuiControl *> ProfilerPane::GetControls() const
 {
-    return { m_bar.GetSlot(), m_progress, m_timeline, m_list, m_flameGraph, m_bar.GetBar() };
+    return { m_bar.GetSlot(), m_timeline, m_totals, m_list, m_flameGraph, m_progress, m_bar.GetBar() };
 }
 
 
@@ -793,7 +802,7 @@ void ProfilerPane::SetView (View view)
     case View::Addresses:
         m_list->SetColumns ({ { L"Address", 0, false, DxuiTextHAlign::Left },
                               { L"Symbol",  0, false, DxuiTextHAlign::Left },
-                              { L"Cycles",  0, true,  DxuiTextHAlign::Right } });
+                              { L"Cycles",  0, false, DxuiTextHAlign::Right } });
         break;
 
     case View::Routines:
@@ -803,7 +812,7 @@ void ProfilerPane::SetView (View view)
                               { L"Total",    0, false, DxuiTextHAlign::Right },
                               { L"Percent",  0, false, DxuiTextHAlign::Right },
                               { L"Calls",    0, false, DxuiTextHAlign::Right },
-                              { L"Per call", 0, true,  DxuiTextHAlign::Right } });
+                              { L"Per call", 0, false, DxuiTextHAlign::Right } });
         break;
 
     case View::Tree:
@@ -811,7 +820,7 @@ void ProfilerPane::SetView (View view)
                               { L"Self",    0, false, DxuiTextHAlign::Right },
                               { L"Total",   0, false, DxuiTextHAlign::Right },
                               { L"Percent", 0, false, DxuiTextHAlign::Right },
-                              { L"Calls",   0, true,  DxuiTextHAlign::Right } });
+                              { L"Calls",   0, false, DxuiTextHAlign::Right } });
         break;
 
     case View::Flame:
@@ -821,7 +830,7 @@ void ProfilerPane::SetView (View view)
         m_list->SetColumns ({ { L"Opcode", 0, false, DxuiTextHAlign::Left },
                               { L"Mode",   0, false, DxuiTextHAlign::Left },
                               { L"Count",  0, false, DxuiTextHAlign::Right },
-                              { L"Cycles", 0, true,  DxuiTextHAlign::Right } });
+                              { L"Cycles", 0, false, DxuiTextHAlign::Right } });
         break;
     }
 
@@ -858,18 +867,18 @@ const wchar_t * ProfilerPane::GetViewLabel (View view)
 //
 //  ProfilerPane::GetRowAddress
 //
-//  The first row has the totals; each row after it is one entry.
+//  Each row is one entry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<Word> ProfilerPane::GetRowAddress (const std::optional<ProfileData> & profile, View view, int row)
 {
-    size_t                       entry   = (size_t) (row - 1);
+    size_t                       entry   = (size_t) row;
     const ProfileRoutineEntry  * routine = nullptr;
 
 
 
-    if (!profile.has_value() || row < 1)
+    if (!profile.has_value() || row < 0)
     {
         return std::nullopt;
     }
@@ -910,8 +919,8 @@ std::optional<Word> ProfilerPane::GetRowAddress (const std::optional<ProfileData
 
 void ProfilerPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
-    //  The progress bar comes and goes with a build, so the pane is laid out
-    //  again.
+    //  The progress bar comes and goes with a build; it is laid out again
+    //  over the list.
     if (snapshot.profileProgress.has_value() != m_isBuilding)
     {
         m_isBuilding = snapshot.profileProgress.has_value();
@@ -953,7 +962,17 @@ void ProfilerPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 void ProfilerPane::Refresh()
 {
+    bool  wasShown = !m_totals->GetText().empty();
+
+
+
     m_list->SetRows (GetCells ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, m_isOn));
+    m_totals->SetText (GetTotalsText (m_byOpcode));
+
+    if (wasShown != !m_totals->GetText().empty() && m_frame != nullptr)
+    {
+        m_frame->Relayout();
+    }
 }
 
 
@@ -1001,16 +1020,18 @@ void ProfilerPane::Save()
 //
 //  ProfilerPane::SetBarEntries
 //
-//  Profile turns profiling on and off, Reset starts the counts over, Save...
-//  writes them to a text file, and the view drop-down chooses opcodes,
-//  addresses, routines, the call tree or the flame graph.
+//  The period drop-down builds the profile of a period of history, Reset
+//  starts the counts over, Save writes them to a text file, and the view
+//  drop-down chooses opcodes, addresses, routines, the call tree or the
+//  flame graph. Reset and Save are glyphs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProfilerPane::SetBarEntries()
 {
     std::vector<DxuiToolbar::Entry>  entries;
-    auto                             add = [this, &entries] (int id, const wchar_t * label, const wchar_t * tip, DxuiToolbar::Kind kind, int group, std::function<void()> dispatch)
+    auto                             add = [this, &entries] (int id, const wchar_t * label, const wchar_t * tip, DxuiToolbar::Kind kind, int group, std::function<void()> dispatch,
+                                                             const wchar_t * glyph = nullptr)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         DxuiToolbar::Entry            entry;
@@ -1018,11 +1039,13 @@ void ProfilerPane::SetBarEntries()
         command->id       = id;
         command->label    = label;
         command->tip      = tip;
+        command->glyph    = glyph;
         command->dispatch = std::move (dispatch);
 
-        entry.command = command;
-        entry.kind    = kind;
-        entry.group   = group;
+        entry.command  = command;
+        entry.kind     = kind;
+        entry.group    = group;
+        entry.iconOnly = glyph != nullptr;
 
         m_commands.push_back (command);
         entries.push_back (std::move (entry));
@@ -1035,7 +1058,7 @@ void ProfilerPane::SetBarEntries()
 
     m_commands.clear();
 
-    m_showLabel = std::make_unique<ToolbarLabelEntry> (L"Show profile:");
+    m_showLabel = std::make_unique<ToolbarLabelEntry> (L"Show:");
 
     {
         DxuiToolbar::Entry  label;
@@ -1049,8 +1072,8 @@ void ProfilerPane::SetBarEntries()
     command            = add (s_kProfilePeriod, L"Last 60 s", L"Build the profile of a period of history", DxuiToolbar::Kind::DropDown, 0, [] {});
     command->labelText = [this] { return std::wstring (GetPeriods()[m_period].label); };
 
-    add (s_kProfileReset, L"Reset",   L"Start the counts over",            DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); });
-    add (s_kProfileSave,  L"Save...", L"Save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { Save(); });
+    add (s_kProfileReset, L"Reset",   L"Reset: start the counts over",           DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); }, s_kpszMdl2Refresh);
+    add (s_kProfileSave,  L"Save...", L"Save...: save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { Save(); },            s_kpszMdl2Save);
 
     command            = add (s_kProfileView, L"Opcodes", L"Choose the profile's view: opcodes, addresses, routines, the call tree or a flame graph", DxuiToolbar::Kind::DropDown, 1, [] {});
     command->labelText = [this] { return std::wstring (GetViewLabel (m_view)); };
@@ -1231,10 +1254,10 @@ bool ProfilerPane::AddMenuItems (DxuiListView * list, int, PaneMenuItems & items
 //
 //  ProfilerPane::GetCells
 //
-//  The totals across the first row, then a row an opcode, an address, a
-//  routine or a node of the call tree.
-//  With no profile read yet, a note: how to start profiling while it is
-//  off, and that the machine must be paused while it is on.
+//  A row an opcode, an address, a routine or a node of the call tree; an
+//  opcode with no operand has a blank mode. With no profile read yet, a
+//  note: how to build one while profiling is off, and that the machine must
+//  be paused while it is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1251,12 +1274,9 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
     if (!profile.has_value())
     {
         cells.push_back (MakeNote (isOn ? L"Pause the machine to read the profile."
-                                        : L"Choose a period in Show profile to build a profile from history."));
+                                        : L"Choose a period in Show to build a profile from history."));
         return cells;
     }
-
-    cells.push_back (MakeNote (std::format (L"{} instructions, {} cycles, {} page crossings, {} branches taken.",
-                                            profile->instructions, profile->cycles, profile->pageCross, profile->branchTaken)));
 
     if (view == View::Addresses)
     {
@@ -1286,12 +1306,41 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
     {
         for (const ProfileEntry & entry : profile->opcodes)
         {
-            cells.push_back ({ { TextEncoding::NarrowToWide (entry.mnemonic) }, { TextEncoding::NarrowToWide (entry.mode) },
+            cells.push_back ({ { TextEncoding::NarrowToWide (entry.mnemonic) }, { (entry.mode == "[No Operand]") ? std::wstring() : TextEncoding::NarrowToWide (entry.mode) },
                                { std::to_wstring (entry.count) }, { std::to_wstring (entry.cycles) } });
         }
     }
 
     return cells;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetTotalsText
+//
+//  The span is the cycles at the machine's clock, about 1.02 MHz, so a
+//  profile of a longer period than history covers reads as the shorter one
+//  it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ProfilerPane::GetTotalsText (const std::optional<ProfileData> & profile)
+{
+    constexpr double  kCyclesPerSecond = 1020484.0;
+
+
+
+    if (!profile.has_value())
+    {
+        return std::wstring();
+    }
+
+    return std::format (L"{:.1f} s of running: {} instructions, {} cycles, {} page crossings, {} branches taken",
+                        (double) profile->cycles / kCyclesPerSecond, profile->instructions, profile->cycles, profile->pageCross, profile->branchTaken);
 }
 
 

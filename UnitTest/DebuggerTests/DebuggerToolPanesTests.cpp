@@ -198,13 +198,19 @@ namespace DebuggerToolPanesTests
 
             profile.isOn         = true;
             profile.instructions = 10;
-            profile.opcodes      = { { "LDA", "#", 4, 8 } };
+            profile.cycles       = 2040968;
+            profile.opcodes      = { { "LDA", "#", 4, 8 }, { "RTS", "[No Operand]", 1, 6 } };
             profile.addresses    = { { 0x0300, "LOOP", 20 } };
 
+            //  The totals are a line of their own, with the span the cycles
+            //  cover, and an opcode with no operand has a blank mode.
             cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Opcodes, true);
             Assert::AreEqual ((size_t) 2, cells.size());
-            Assert::AreEqual (std::wstring (L"LDA"), cells[1][0].text);
-            Assert::AreEqual (std::wstring (L"$0300"), ProfilerPane::GetCells (profile, ProfilerPane::View::Addresses, true)[1][0].text);
+            Assert::AreEqual (std::wstring (L"LDA"), cells[0][0].text);
+            Assert::AreEqual (std::wstring(), cells[1][1].text);
+            Assert::AreEqual (std::wstring (L"$0300"), ProfilerPane::GetCells (profile, ProfilerPane::View::Addresses, true)[0][0].text);
+            Assert::IsTrue   (ProfilerPane::GetTotalsText (profile).starts_with (L"2.0 s of running: 10 instructions"), ProfilerPane::GetTotalsText (profile).c_str());
+            Assert::AreEqual (std::wstring(), ProfilerPane::GetTotalsText (std::nullopt));
 
             cells = DataBlocksPane::GetCells ({ { "TABLE", 0x0800, 0x080F, DataBlockKind::Words } });
             Assert::AreEqual (std::wstring (L"$0800-$080F"), cells[0][1].text);
@@ -322,21 +328,21 @@ namespace DebuggerToolPanesTests
 
 
             cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Routines, true);
-            Assert::AreEqual ((size_t) 5, cells.size());
-            Assert::AreEqual (std::wstring (L"PLOT"),  cells[1][0].text);
-            Assert::AreEqual (std::wstring (L"40.0%"), cells[1][2].text);
-            Assert::AreEqual (std::wstring (L"5"),     cells[1][6].text, L"40 cycles over 8 calls");
-            Assert::AreEqual (std::wstring (L"-"),     cells[3][6].text, L"Top level is never called");
+            Assert::AreEqual ((size_t) 4, cells.size());
+            Assert::AreEqual (std::wstring (L"PLOT"),  cells[0][0].text);
+            Assert::AreEqual (std::wstring (L"40.0%"), cells[0][2].text);
+            Assert::AreEqual (std::wstring (L"5"),     cells[0][6].text, L"40 cycles over 8 calls");
+            Assert::AreEqual (std::wstring (L"-"),     cells[2][6].text, L"Top level is never called");
 
             cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Tree, true);
-            Assert::AreEqual (std::wstring (L"Top level"),  cells[1][0].text);
-            Assert::AreEqual (std::wstring (L"    PLOT"),   cells[3][0].text, L"two levels in");
-            Assert::AreEqual (std::wstring (L"70.0%"),      cells[2][3].text);
+            Assert::AreEqual (std::wstring (L"Top level"),  cells[0][0].text);
+            Assert::AreEqual (std::wstring (L"    PLOT"),   cells[2][0].text, L"two levels in");
+            Assert::AreEqual (std::wstring (L"70.0%"),      cells[1][3].text);
 
-            Assert::AreEqual ((Word) 0x6000, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 1).value_or (0));
-            Assert::AreEqual ((Word) 0x6200, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 2).value_or (0));
-            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 1).has_value(), L"Top level has no code to go to");
-            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 0).has_value(), L"the totals row");
+            Assert::AreEqual ((Word) 0x6000, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 0).value_or (0));
+            Assert::AreEqual ((Word) 0x6200, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 1).value_or (0));
+            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 0).has_value(), L"Top level has no code to go to");
+            Assert::IsFalse  (ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 9).has_value(), L"past the last row");
         }
 
 

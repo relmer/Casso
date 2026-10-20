@@ -56,6 +56,10 @@ public:
     //  returns for that height.
     void  SetPartBeside (IDxuiControl * control, IDxuiControl * beside, WidthFn width);
 
+    //  A part centered over the visible part that fills, at most widthDip wide
+    //  and the height its function returns, which moves no other part.
+    void  AddOverlay (IDxuiControl * control, int widthDip, HeightFn height, ShownFn shown);
+
     //  Lays the parts out again, for a part whose height or shown state
     //  changed while the frame kept its bounds.
     void  Relayout ();
@@ -85,9 +89,11 @@ private:
         int             innerPadDip = 0;
         IDxuiControl  * beside      = nullptr;
         WidthFn         width;
+        int             overlayDip  = 0;        // above zero: centered over the part that fills, this wide at most
     };
 
-    bool  IsPartShown (const Part & part) const;
+    bool  IsPartShown    (const Part & part) const;
+    void  LayOutOverlays (const RECT & filled, const DxuiDpiScaler & scaler);
 
     //  The visible fixed parts' heights at a width, each part's in heights,
     //  with the count of visible parts and whether one of them fills.

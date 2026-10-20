@@ -164,7 +164,9 @@ public:
         Flame,
     };
 
-    static constexpr int  kViewCount = 5;
+    static constexpr int  kViewCount        = 5;
+    static constexpr int  kTotalsHeightDip  = 22;
+    static constexpr int  kProgressWidthDip = 280;
 
     //  The periods in the Show profile drop-down: the words PROFILE HISTORY
     //  takes, and the drop-down's.
@@ -211,6 +213,10 @@ public:
 
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn);
 
+    //  The line above the list: the profile's totals and the time its cycles
+    //  span; empty with no profile.
+    static std::wstring  GetTotalsText (const std::optional<ProfileData> & profile);
+
     //  The address a row's activation moves the disassembly to: an address
     //  row's, or a routine's start other than Top level's.
     static std::optional<Word>  GetRowAddress (const std::optional<ProfileData> & profile, View view, int row);
@@ -225,6 +231,7 @@ private:
     PaneBarSlot                                  m_bar;
     ProfileTimeline                            * m_timeline    = nullptr;
     ProfileProgress                            * m_progress    = nullptr;
+    DxuiLabel                                  * m_totals      = nullptr;
     std::unique_ptr<ToolbarLabelEntry>           m_showLabel;
     size_t                                       m_period      = 1;
     bool                                         m_isBuilding  = false;

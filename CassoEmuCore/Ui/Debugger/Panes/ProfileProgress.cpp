@@ -42,7 +42,9 @@ void ProfileProgress::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 //  ProfileProgress::Paint
 //
 //  The text is in the body color over the track and over the fill alike, so
-//  the fill is a lighter tint of the accent.
+//  the fill is a lighter tint of the accent. The fills go through the text
+//  renderer, which draws after every painter fill, so the bar covers the text
+//  of the list it is drawn over.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +65,14 @@ void ProfileProgress::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         return;
     }
 
-    painter.FillRect    (left, top, width, height, theme.Divider());
-    painter.FillRect    (left, top, width * (float) m_share, height, DxuiColor::Mix (theme.ContentBackground(), theme.Accent(), kTint));
-    painter.OutlineRect (left, top, width, height, 1.0f, theme.Divider());
+    (void) painter;
+
+    text.FillRect (left, top, width, height, theme.ContentBackground() | 0xFF000000u);
+    text.FillRect (left, top, width * (float) m_share, height, DxuiColor::Mix (theme.ContentBackground(), theme.Accent(), kTint) | 0xFF000000u);
+    text.FillRect (left, top, width, 1.0f, theme.Divider());
+    text.FillRect (left, top + height - 1.0f, width, 1.0f, theme.Divider());
+    text.FillRect (left, top, 1.0f, height, theme.Divider());
+    text.FillRect (left + width - 1.0f, top, 1.0f, height, theme.Divider());
 
     hr = text.DrawString (GetText (m_share).c_str(), left, top, width, height, theme.Foreground(), m_scaler.ToPxf (font.sizeDip), font.face,
                           DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
