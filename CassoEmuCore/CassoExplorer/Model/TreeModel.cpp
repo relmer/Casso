@@ -1115,6 +1115,25 @@ bool TreeModel::GetLinkStatus (const std::wstring & name, std::wstring & outStat
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TreeModel::IsLinkReplying
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TreeModel::IsLinkReplying (const std::wstring & name) const
+{
+    auto  found = std::find_if (m_links.begin(), m_links.end(), [&name] (const LinkTreeEntry & link) { return link.name == name; });
+
+
+
+    return found != m_links.end() && found->replying;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TreeModel::ListLink
 //
 //  A link's drives once its Apple replies, and nothing before; the list has

@@ -309,6 +309,26 @@ void CassoExplorerWindow::OnCreate()
     m_tree            = tree;
     m_list            = list;
     m_listMessage     = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_listAction      = CreateChild<DxuiButton> (L"Bootstrap the Apple");
+    m_listAction->SetVisible (false);
+    m_listAction->SetOnClick ([this] ()
+    {
+        std::string  link = m_listActionLink;
+
+        if (link.empty())
+        {
+            return;
+        }
+
+        if (m_listActionConnects)
+        {
+            ConnectLink (link);
+        }
+        else
+        {
+            BootstrapLink (link);
+        }
+    });
     previewList       = CreateChild<CassoExplorerNamedControl<DxuiListView>>();
     picture           = CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
     hexView           = CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
@@ -1264,6 +1284,7 @@ void CassoExplorerWindow::RecomputeLayout()
 
         m_list->Layout           (listRect,    m_scaler);
         m_listMessage->Layout    (GetListMessageRect(),         m_scaler);
+        m_listAction->Layout     (GetListActionRect(),          m_scaler);
         m_previewList->Layout    (previewRect, m_scaler);
 
         m_previewContent = previewRect;
@@ -1292,6 +1313,7 @@ void CassoExplorerWindow::RecomputeLayout()
         m_previewToolbar->SetVisible (false);
         m_list->Layout        (right, m_scaler);
         m_listMessage->Layout (GetListMessageRect(), m_scaler);
+        m_listAction->Layout  (GetListActionRect(), m_scaler);
     }
 
     LayoutStatusFields();
@@ -1809,6 +1831,8 @@ void CassoExplorerWindow::FillList()
     m_listMessage->SetText (message);
     m_listMessage->SetVisible (!message.empty());
     m_list->SetVisible (message.empty());
+
+    FillListAction (!message.empty());
 
     FillTabs();
     FillAddress();
@@ -5457,6 +5481,103 @@ RECT CassoExplorerWindow::GetListMessageRect() const
     }
 
     return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetListActionRect
+//
+//  Centered under the list's message, which is centered in the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoExplorerWindow::GetListActionRect() const
+{
+    RECT  message = GetListMessageRect();
+    int   width   = m_scaler.ToPx (kListActionWidthDip);
+    int   height  = m_scaler.ToPx (kListActionHeightDip);
+    int   left    = (message.left + message.right - width) / 2;
+    int   top     = (message.top + message.bottom) / 2 + m_scaler.ToPx (kListActionOffsetDip);
+
+
+
+    return RECT { left, top, left + width, top + height };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FillListAction
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::FillListAction (bool hasMessage)
+{
+    std::wstring  name;
+    int           slot  = 0;
+    int           drive = 0;
+    std::string   disconnected;
+
+
+
+    if (hasMessage && m_context.links != nullptr && TreeModel::TryParseLinkId (m_browser.GetLocation().path, name, slot, drive) && drive == 0
+        && m_context.links->IsHeld (TextEncoding::WideToNarrow (name)))
+    {
+        disconnected = TextEncoding::WideToNarrow (name);
+    }
+
+    m_listActionConnects = !disconnected.empty();
+    m_listActionLink     = m_listActionConnects ? disconnected : hasMessage ? GetBootstrapLink() : std::string();
+
+    m_listAction->SetLabel   (m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
+    m_listAction->Layout     (GetListActionRect(), m_scaler);
+    m_listAction->SetVisible (!m_listActionLink.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetBootstrapLink
+//
+//  The serial link the list has, when its Apple is not replying and no
+//  bootstrap is under way; empty otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoExplorerWindow::GetBootstrapLink() const
+{
+    std::wstring        name;
+    int                 slot    = 0;
+    int                 drive   = 0;
+    std::string         link;
+    CassoLinkSession  * session = nullptr;
+    LinkState           state   = LinkState::Closed;
+    bool                waiting = false;
+
+
+
+    if (m_context.links == nullptr || !TreeModel::TryParseLinkId (m_browser.GetLocation().path, name, slot, drive) || drive != 0)
+    {
+        return std::string();
+    }
+
+    link    = TextEncoding::WideToNarrow (name);
+    session = m_context.links->GetSession (link);
+    state   = (session != nullptr) ? session->GetState() : LinkState::Closed;
+    waiting = IsSerialLink (link) && !m_browser.GetTreeModel().IsLinkReplying (name)
+              && state != LinkState::Bootstrapping && state != LinkState::LoadingProgram;
+
+    return waiting ? link : std::string();
 }
 
 
@@ -10609,7 +10730,7 @@ void CassoExplorerWindow::RemoveLink (const std::string & name)
 
 void CassoExplorerWindow::DisconnectLink (const std::string & name)
 {
-    m_context.links->Stop (name);
+    m_context.links->Disconnect (name);
     OnLinkChanged();
 }
 
@@ -10744,6 +10865,26 @@ void CassoExplorerWindow::ReleaseIdleLinks()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::ConnectLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ConnectLink (const std::string & name)
+{
+    HRESULT  hr = m_context.links->Start (name);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    OnLinkChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::IsSerialLink
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -10796,6 +10937,10 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
         if (m_context.links->IsStarted (name))
         {
             AddMenuCommand (items, L"&Disconnect", [this, name]() { DisconnectLink (name); });
+        }
+        else
+        {
+            AddMenuCommand (items, L"&Connect", [this, name]() { ConnectLink (name); });
         }
 
         if (IsSerialLink (name))

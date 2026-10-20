@@ -226,6 +226,12 @@ public:
     //  measured at 150% as 27 pixels.
     static constexpr int     kSearchMessageTopDip = 18;
 
+    //  The list's Bootstrap button: its size, and how far below the middle of
+    //  the list's message it starts, past two lines of text.
+    static constexpr int     kListActionWidthDip  = 160;
+    static constexpr int     kListActionHeightDip = 32;
+    static constexpr int     kListActionOffsetDip = 36;
+
     //  How far each level of the tree sits in from its parent: File
     //  Explorer's, measured at 125% as 10 pixels.
     static constexpr int     kTreeIndentDip   = 8;
@@ -731,6 +737,7 @@ private:
     void  EditLink            (const std::string & name);
     void  RemoveLink          (const std::string & name);
     void  DisconnectLink      (const std::string & name);
+    void  ConnectLink         (const std::string & name);
     void  SearchLink          (const std::string & name);
     void  BootstrapLink       (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
@@ -812,6 +819,13 @@ private:
     //  The part of a pane a message wraps within.
     RECT  GetMessageRect (const RECT & pane) const;
     RECT  GetListMessageRect() const;
+
+    //  The list's button under its message: Connect for a link the user
+    //  disconnected, or Bootstrap the Apple for a serial link whose Apple is
+    //  not replying.
+    RECT         GetListActionRect () const;
+    std::string  GetBootstrapLink  () const;
+    void         FillListAction    (bool hasMessage);
 
 
     //  The archive files selected in the preview, by the shell's names for
@@ -1025,6 +1039,9 @@ private:
     std::wstring           m_renameTreeId;
     DxuiLabel            * m_listMessage     = nullptr;
     bool                   m_listMessageTop  = false;
+    DxuiButton           * m_listAction      = nullptr;
+    std::string            m_listActionLink;
+    bool                   m_listActionConnects = false;
     DxuiSplitter         * m_previewSplitter = nullptr;
     DxuiListView         * m_previewList     = nullptr;
     DxuiTextView         * m_textView        = nullptr;

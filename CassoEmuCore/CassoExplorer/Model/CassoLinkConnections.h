@@ -69,6 +69,12 @@ public:
     void     Stop      (const std::string & name);
     bool     IsStarted (const std::string & name) const;
 
+    //  Stops a link the user disconnected; it stays stopped until Start or
+    //  Bootstrap. Opening its root or a listing request does not start it
+    //  again, and its root has that it is disconnected.
+    void     Disconnect (const std::string & name);
+    bool     IsHeld     (const std::string & name) const;
+
     //  The session of a started link, or null.
     CassoLinkSession *  GetSession (const std::string & name);
 
@@ -204,6 +210,7 @@ private:
     std::vector<RunningCasso>            m_running;
     std::vector<CassoLinkSettings>       m_links;
     std::map<std::string, std::wstring>  m_unusable;
+    std::set<std::string>                m_held;
     std::vector<std::unique_ptr<Link>>   m_started;
 
     struct Job

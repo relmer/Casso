@@ -696,9 +696,11 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
 
 
 
-    //  Opening a link's root starts it; until Casso's program runs on the
-    //  Apple, the list has the link's state in place of drives.
-    if (m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && !m_links->IsStarted (TextEncoding::WideToNarrow (link)))
+    //  Opening a link's root starts it, unless the user disconnected it;
+    //  until Casso's program runs on the Apple, the list has the link's
+    //  state in place of drives.
+    if (m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && !m_links->IsStarted (TextEncoding::WideToNarrow (link))
+        && !m_links->IsHeld (TextEncoding::WideToNarrow (link)))
     {
         hr = m_links->Start (TextEncoding::WideToNarrow (link));
         IGNORE_RETURN_VALUE (hr, S_OK);

@@ -167,6 +167,9 @@ public:
     //  A link's state while its Apple is not replying, for the list in place
     //  of its drives; false once it replies.
     bool  GetLinkStatus      (const std::wstring & name, std::wstring & outStatus) const;
+
+    //  Whether the link's Apple is replying to Casso's program.
+    bool  IsLinkReplying     (const std::wstring & name) const;
     const std::vector<LinkTreeEntry> &  GetLinks () const { return m_links; }
     bool  IsNavRootShown     (NavRoot root) const;
 

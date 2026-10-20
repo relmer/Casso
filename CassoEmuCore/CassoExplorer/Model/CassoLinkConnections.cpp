@@ -283,6 +283,12 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
 
 
 
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_held.erase (name);
+    }
+
     BAIL_OUT_IF (IsStarted (name), S_OK);
     CBREx (known, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
     CBREx (usable, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
@@ -366,6 +372,47 @@ void CassoLinkConnections::Stop (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::Disconnect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::Disconnect (const std::string & name)
+{
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_held.insert (name);
+    }
+
+    Stop (name);
+    Notify();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsHeld
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsHeld (const std::string & name) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    return m_held.contains (name);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::IsStarted
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -433,7 +480,8 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
 
         if (found == m_started.end())
         {
-            entry.status = DescribeState (LinkState::Closed, false, settings, GetPcName());
+            entry.status = m_held.contains (settings.name) ? std::format (L"{} is disconnected.", entry.name)
+                                                           : DescribeState (LinkState::Closed, false, settings, GetPcName());
         }
         else
         {
@@ -1254,6 +1302,14 @@ bool CassoLinkConnections::TryGetResult (const std::string & name, int drive, co
     bool      arrived = false;
 
 
+
+    if (IsHeld (name))
+    {
+        outOperation          = std::make_shared<LinkOperation>();
+        outOperation->result  = HRESULT_FROM_WIN32 (ERROR_NOT_CONNECTED);
+        outOperation->message = "The connection is disconnected.";
+        return true;
+    }
 
     if (!IsStarted (name))
     {
