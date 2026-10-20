@@ -2102,7 +2102,13 @@ legend, and tilt the platter and back.
   changing the kind or an option MUST search again. The hits MUST be listed
   in a "Find results" disk tab, present only while there are hits, with the
   track, sector, field (address, data or gap), place (nibble or byte
-  offset) and owning file of each; selecting a row MUST select its hit. For a
+  offset) and owning file of each; selecting a row MUST select its hit, and
+  selecting a hit MUST zoom to it. While the bar is open, every hit MUST be
+  marked in a color used only for find: as a stretch of its ring on the
+  platter, a few pixels long at least so it is visible at fit; outlined on
+  the track strip; as a dot on each sector button with hits; tinted in the
+  Sector data and Nibbles tabs; along the top of each file map cell with
+  hits; and counted in a Hits column of the Tracks tab. For a
   search with no match, the bar MUST display "No matches". In Casso, results
   on a track the drive writes MUST be marked out of date until Find runs again.
 - **FR-057**: In the Sector data tab, Copy MUST put the selection on the
