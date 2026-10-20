@@ -35,7 +35,7 @@ The firmware is Apple part 341-0065-A, 2 KB.
 | ON, OFF | SIC P8 emulation |
 | OFF, OFF | SIC P8A emulation |
 
-SW1-1 to SW1-4 select the baud rate as a 4-bit value, OFF reading as 1 and SW1-1 the high bit: all OFF is 19,200 baud, OFF OFF OFF ON is 9,600, ON OFF OFF ON is 300. The value matches the 6551's own baud-rate code, which is also what the firmware's `<n>B` command takes; all ON is undefined on the switches. SW1-7 and SW2-7 choose which RS-232 pin drives the 6551's DCD input (the reference card lists them as normal or secondary clear to send).
+SW1-1 to SW1-4 select the baud rate as a 4-bit value, OFF reading as 1 and SW1-1 the high bit: all OFF is 19,200 baud, OFF OFF OFF ON is 9,600, ON OFF OFF ON is 300. The value matches the 6551's own baud-rate code, which is also what the firmware's `<n>B` command takes; all ON is undefined in Apple's tables, and Casso offers it as 115,200 baud, the speed baud code 0 runs at on the card (FR-013). SW1-7 and SW2-7 choose which RS-232 pin drives the 6551's DCD input (the reference card lists them as normal or secondary clear to send).
 
 In communications mode SW2-1 and SW2-2 set the data format (8 or 7 data bits, 1 or 2 stop bits), SW2-3 and SW2-4 the parity, SW2-5 a line feed after each carriage return sent, and SW2-6 interrupts on or off. In printer mode SW2-1 sets the stop bits, SW2-2 a delay after carriage return, SW2-3 and SW2-4 the line width and whether the Apple's screen echoes the output, and SW2-5 and SW2-6 are as in communications mode.
 
@@ -53,6 +53,15 @@ The 6551's baud code 0 selects 16 times the external clock. The SSC clocks its 6
 ### Session 2026-10-17
 
 - Q: Can the card be turned on in Settings without its firmware? → A: No. Turning it on with the firmware missing turns it off again and offers to download Apple's ROM; on success the card is turned on and its Serial card tab opens, and after a declined or failed download the card stays off. The infobar remains for a config edited outside Settings or a firmware file removed after the card was turned on (FR-006, FR-007).
+
+### Session 2026-10-19
+
+- Q: How do the card's DIP switches look in Settings? → A: The drop-downs stay, and the text readout below them is replaced by a drawing of the card's two DIP switch banks, SW1 and SW2. Clicking a switch flips it, and the drop-downs follow. This supersedes the 2026-10-14 answer (FR-009).
+- Q: What does the Mode list offer, and where is each mode covered? → A: "Communications (bidirectional)", "Printer (output only)", "Emulate Apple II Serial Interface Card P8 firmware" and "Emulate Apple II Serial Interface Card P8A firmware". A note under Mode covers what the selected mode is for (FR-009).
+- Q: Is the all-ON baud setting offered? → A: Yes, as 115,200 baud (FR-013).
+- Q: Where are line feed after carriage return and interrupts covered? → A: In info tips after their labels. Line feed applies in every mode; interrupts are for programs written to use them, such as Kermit (FR-009).
+- Q: What does the connector drop-down call its attachments? → A: "None", "Loopback (TX to RX)", "Write output to file" and "Read input from file", with a note under the drop-down for each; the loopback note lists its wiring (FR-015).
+- Q: How does the user notice the Serial card tab when turning the card on adds it? → A: Its label shimmers once, as the update indicator's text does, unless animations are turned off (FR-020).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -118,9 +127,9 @@ A user opens the card's settings and sets its switches: mode, baud rate, data fo
 
 **Acceptance Scenarios**:
 
-1. **Given** the card's settings, **When** the user opens them, **Then** the page lists the switch settings for the selected mode with their current values, and the SW1 and SW2 positions they produce.
+1. **Given** the card's settings, **When** the user opens them, **Then** the page lists the switch settings for the selected mode with their current values, and draws the SW1 and SW2 positions they produce.
 2. **Given** the user changes the baud rate switches, **When** a program next reads `$C0n1`, **Then** it reads the new positions, without a reset.
-3. **Given** the user changes the mode, **When** the user views the settings, **Then** the page offers the settings that apply in the new mode, and the readout lists the SW2 positions they produce.
+3. **Given** the user changes the mode, **When** the user views the settings, **Then** the page offers the settings that apply in the new mode, and the drawing has the SW2 positions they produce.
 4. **Given** an Applesoft program running on the card, **When** the user changes a switch, **Then** the change takes effect where the hardware would apply it: the firmware reads the switches when it starts, so a running session continues with the settings it started with until the next `PR#n`, `IN#n` or reset.
 
 ---
@@ -186,17 +195,18 @@ In the card's settings the user chooses what is plugged into its serial connecto
 - **FR-006**: The firmware MUST be supplied by the user as a file, found the way Casso's other ROMs are. Settings MUST NOT turn the card on without it: turning the card on while the firmware is absent MUST offer to download it, and the card MUST be turned on only once the download succeeds; after a declined or failed download the card MUST stay off. Its absence MUST NOT stop or delay the machine's start, and the startup download dialog MUST NOT open for it.
 - **FR-007**: When the card is on and its firmware is missing or invalid, which only a config edited outside Settings or a firmware file removed later can cause, Casso MUST display an infobar each time the machine starts, with the file Casso looked for and a Download button. A successful download MUST install the firmware for the next reset.
 - **FR-008**: Without the firmware, the 6551, the switches and the interrupt MUST work as with it, and the ROM space MUST read as an empty ROM socket reads.
-- **FR-009**: The user MUST be able to set the card's DIP switches from Settings as the settings they select (mode, baud rate, data format, parity, line feed after carriage return, interrupts, and the printer-mode options), each offered only in the modes where its switches have that meaning, with a readout of the resulting SW1 and SW2 positions. The settings MUST be saved per machine and MUST take effect in the switch registers without a reset.
+- **FR-009**: The user MUST be able to set the card's DIP switches from Settings as the settings they select (mode, baud rate, data format, parity, line feed after carriage return, interrupts, and the printer-mode options), each offered only in the modes where its switches have that meaning, with a drawing of SW1 and SW2 at the resulting positions. Clicking a switch in the drawing MUST flip it and update the settings. A note under Mode MUST state what the selected mode is for, and info tips after the line feed after carriage return and interrupts labels MUST state what those settings do. The settings MUST be saved per machine and MUST take effect in the switch registers without a reset.
 - **FR-010**: The default switch settings MUST be communications mode, 9,600 baud, 8 data bits, 1 stop bit, no parity, no line feed after carriage return, and interrupts off.
 - **FR-011**: The 6551 MUST transmit each byte over one character time at the baud rate, word length, parity and stop bits set in its registers, with its transmit-register-empty flag and transmitter interrupt following that timing, wherever the 6551 is emulated, the //c's ports included.
 - **FR-012**: The 6551 MUST deliver received bytes from a host connection no closer together than one character time at the format set in its registers, with a single receive data register and overrun reported as the datasheet specifies. The host side MUST be able to queue bytes ahead of delivery without loss.
 - **FR-013**: Baud code 0 MUST run at 115,200 baud on the SSC, as its 1.8432 MHz crystal clocks it.
 - **FR-014**: The 6551's modem lines MUST be visible to a host connection: DTR and RTS from the command register out, and DSR, DCD and CTS in, with CTS gating the transmitter and DCD and DSR read in the status register as the datasheet specifies.
-- **FR-015**: The card's serial connector MUST accept an attachment chosen in Settings: nothing, a loopback plug, a file that receives transmitted bytes, or a file whose bytes are sent into the card one character time apart. The attachment interface MUST let spec 033 add Casso Explorer, a TCP port and a COM port without changing the card.
+- **FR-015**: The card's serial connector MUST accept an attachment chosen in Settings: none, a loopback plug, a file that receives transmitted bytes, or a file whose bytes are sent into the card one character time apart, each with a note under the drop-down. The attachment interface MUST let spec 033 add Casso Explorer, a TCP port and a COM port without changing the card.
 - **FR-016**: The card's pacing MUST be measured in emulated CPU cycles, so it is the same at any emulation speed and pauses with the machine.
 - **FR-017**: Ctrl-Reset and power-on MUST reset the card as the hardware's reset line resets it.
 - **FR-018**: The emulation MUST be written from the 6551 datasheet and Apple's published SSC manuals only, never from the source of another emulator.
 - **FR-019**: The shipped Apple ][, ][+, //e and enhanced //e configs MUST list a Super Serial Card in slot 2, off by default and turned on from its checkbox on the Hardware tab, and existing configs MUST be migrated to list it. The migration MUST NOT replace a card already in slot 2. A card in another slot is configured by editing a custom machine config.
+- **FR-020**: When turning the card on in Settings adds the Serial card tab, the tab's label MUST shimmer once, as the update indicator's text does, unless the system's animations are turned off.
 
 ### Key Entities
 

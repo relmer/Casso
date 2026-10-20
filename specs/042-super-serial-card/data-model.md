@@ -36,7 +36,7 @@ The Settings page's view of `SscSwitches`: a list of settings for the current mo
 | Interrupts | all | SW2-6 |
 | Clear to send | all | SW1-7, SW2-7 |
 
-The SIC P8 and P8A emulation modes list the printer-mode settings. A setting whose choice the current switches do not produce exactly (for example the undefined all-ON baud code) is listed as "Custom", and the readout lists the positions.
+The SIC P8 and P8A emulation modes list the printer-mode settings. A setting whose choice the current switches do not produce exactly is listed as "Custom", and the drawing of the switches has the positions. The all-ON baud code, undefined in Apple's tables, is listed as 115,200 baud.
 
 ## Acia6551 state
 
