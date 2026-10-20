@@ -323,54 +323,33 @@ namespace DebuggerWatchAddRowTests
         }
 
 
-        //  Each watch and zero-page pointer has a check that enables or
-        //  disables it; a pointer's row has where it points and the bytes there.
-        TEST_METHOD (WatchesAndPointersHaveChecksAndPointersTheirTargets)
+        //  A watch and a zero-page pointer have no check box; a pointer's row
+        //  has where it points and the bytes there.
+        TEST_METHOD (WatchesAndPointersHaveNoChecksAndPointersTheirTargets)
         {
             CassoTheme                          theme    = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost                   host;
             WatchWindow                         window   (theme, host);
             DxuiDpiScaler                       scaler;
             auto                                snapshot = std::make_shared<DebuggerViewSnapshot>();
-            RECT                                check    = {};
-            DxuiMouseEvent                      press;
 
 
 
             snapshot->watches          = { { 0, 0x0300, "0000", true } };
-            snapshot->zeroPagePointers = { { 1, 0x0006, "$0300: A9 41 8D 00", false } };
+            snapshot->zeroPagePointers = { { 1, 0x0006, "$0300: A9 41 8D 00", true } };
 
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
             window.TakeSnapshot (snapshot);
-            static_cast<DxuiEditableGrid *> (window.GetWatchesPane().GetList())->SetGridColumns ({ { { L"ID",    40, false, DxuiTextHAlign::Left }, false, false },
-                                                                                    { { L"Watch", 160, false, DxuiTextHAlign::Left }, true, true },
-                                                                                    { { L"Value", 200, false, DxuiTextHAlign::Left }, true, false } });
 
             Assert::AreEqual (4, window.GetWatchesPane().GetList()->GetRowCount(), L"the watch, the pointers' heading, the pointer, the add row");
-            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check.value_or (false), L"the watch is on");
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].check.has_value(), L"no check box on the watch");
             Assert::AreEqual (std::wstring (L"0"),   window.GetWatchesPane().GetList()->GetCellsOfRow (0)[1].text, L"the watch's number is its ID");
             Assert::AreEqual (std::wstring (L"ZP1"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].text);
             Assert::AreEqual (std::wstring (L"$06"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[2].text);
             Assert::AreEqual (std::wstring (L"$0300: A9 41 8D 00"), window.GetWatchesPane().GetList()->GetCellsOfRow (2)[3].text);
-            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check.value_or (true), L"the pointer is off");
-
-            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (0, 1, check), L"the watch's check is in view");
-            press.kind        = DxuiMouseEventKind::Down;
-            press.button      = DxuiMouseButton::Left;
-            press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
-            (void) window.GetWatchesPane().GetList()->OnMouse (press);
-
-            Assert::AreEqual ((size_t) 1, host.commands.size());
-            Assert::IsTrue   (host.commands.back().starts_with ("WD 0"), L"its check disables the watch");
-
-            window.GetWatchesPane().GetList()->EnsureVisible (2);
-            Assert::IsTrue   (window.GetWatchesPane().GetList()->GetCheckRectPx (2, 1, check), L"the pointer's check is in view");
-            press.positionDip = { (check.left + check.right) / 2, (check.top + check.bottom) / 2 };
-            (void) window.GetWatchesPane().GetList()->OnMouse (press);
-
-            Assert::IsTrue   (host.commands.back().starts_with ("ZPE 1"), L"and the pointer's enables it");
+            Assert::IsFalse  (window.GetWatchesPane().GetList()->GetCellsOfRow (2)[1].check.has_value(), L"nor on the pointer");
         }
     };
 }

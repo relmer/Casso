@@ -68,23 +68,6 @@ void WatchesPane::Configure()
         }
     });
 
-    m_list->SetOnCheckToggled ([this] (int row, size_t, bool checked)
-    {
-        if (row < 0 || row >= (int) m_rows.size())
-        {
-            return;
-        }
-
-        if (m_rows[(size_t) row].kind == RowKind::Manual)
-        {
-            m_host.RunAction (DebuggerActions::GetEnableWatch (m_rows[(size_t) row].index, checked, m_host.GetMode()));
-        }
-        else if (m_rows[(size_t) row].kind == RowKind::ZeroPage)
-        {
-            m_host.RunAction (DebuggerActions::GetEnableZeroPagePointer (m_rows[(size_t) row].index, checked, m_host.GetMode()));
-        }
-    });
-
     m_grid->SetGridColumns ({ { { L"ID",    0, false, DxuiTextHAlign::Left }, false, false },
                               { { L"Watch", 0, false, DxuiTextHAlign::Left }, true,  true  },
                               { { L"Value", 0, true,  DxuiTextHAlign::Left }, true,  false } });
@@ -274,8 +257,10 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
                                   :                             DxuiListView::Cell { std::format (L"${:04X}", watch.address) };
         DxuiListView::Cell  value = { TextEncoding::NarrowToWide (watch.value) };
 
-        //  A disabled watch is dimmed, as a disabled breakpoint is; an enabled
-        //  one's address is in the color the code pane draws addresses in.
+        //  A watch the console disabled is dimmed, as a disabled breakpoint
+        //  is; an enabled one's address is in the color the code pane draws
+        //  addresses in. The grid has no check box: a watch costs nothing
+        //  noticeable to update.
         id.dim    = !watch.enabled;
         name.dim  = !watch.enabled;
         value.dim = !watch.enabled;
@@ -304,7 +289,6 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
 
         //  The expression edits as its address or BASIC name; a BASIC watch's
         //  value is the program's to change.
-        id.check = watch.enabled;
         rows.push_back ({ { id, name, value },
                           { std::wstring(),
                             !watch.basicName.empty()  ? TextEncoding::NarrowToWide (watch.basicName)
@@ -328,7 +312,6 @@ void WatchesPane::ApplyRows (const DebuggerViewSnapshot & snapshot)
             DxuiListView::Cell  name  = { std::format (L"${:02X}", pointer.address) };
             DxuiListView::Cell  value = { TextEncoding::NarrowToWide (pointer.value) };
 
-            id.check  = pointer.enabled;
             id.dim    = !pointer.enabled;
             name.dim  = !pointer.enabled;
             value.dim = !pointer.enabled;
