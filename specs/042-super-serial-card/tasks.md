@@ -82,7 +82,7 @@ Every new `.h`/`.cpp` is added to `CassoEmuCore/CassoEmuCore.vcxproj` and its `.
 
 - [X] T030 [US2] Build the connector attachment from `ports[0]` in `CassoEmuCore/Shell/MachineBuilder.cpp`: `""` none, `serial-loopback` `AciaLoopbackEndpoint`, `serial-file-out` `AciaFileEndpoint` opened at `path` (a file that fails to open results in no attachment, reported through the same status as the infobar); owned by the host and closed on teardown
 - [X] T031 [US2] Whole-machine test in `UnitTest/EmuTests/SuperSerialCardMachineTests.cpp` with a synthetic firmware whose `$Cs00` entry selects the card, jumps into `$C800` code and writes a character through the ACIA: guest `JSR $C200` delivers the byte to a recording endpoint one character time after the write, at the baud set by the switches
-- [ ] T032 [US2] Manual validation with Apple's firmware per quickstart steps 1-4, written up in `specs/042-super-serial-card/validation.md`
+- [X] T032 [US2] Manual validation with Apple's firmware per quickstart steps 1-4, written up in `specs/042-super-serial-card/validation.md`
 
 ---
 

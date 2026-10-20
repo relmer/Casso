@@ -100,6 +100,7 @@ machine's config and autosave, and `SSC.rom` backed up and restored.
 | 1. Turn the card on under Settings > Machine with the firmware missing | Pass: the checkbox stays off, the download is offered, Yes downloads `SSC.rom` (the same SHA-1), turns the card on and opens the Serial card tab |
 | 2. Printer mode, 40 characters with the screen on, file out with a path | Pass: the page's settings and the SW1 and SW2 readout follow each change; the path is chosen in the Save As dialog |
 | 3. `PR#2`, `LIST`, `PR#0` after OK (reboot) | Pass after the fix below: the listing is in the chosen file |
+| 4. Communications mode, loopback plug, after OK (reboot); Ctrl+Reset, `IN#2`, `PRINT 6*7` (2026-10-19) | Pass: the typed line comes back through the plug and prints 42. With `PR#2` as well, as the step first read, everything printed comes back in as input and the lines are garbled; the step now uses `IN#2` alone |
 | 5. The infobar after `SSC.rom` is removed | Pass: it reports the missing firmware with Download and Dismiss; Download installs it and offers Restart, which rebuilds the machine and clears it |
 
 Two bugs found and fixed (`fix(ssc): Save the Super Serial Card's switches
@@ -120,6 +121,4 @@ without the firmware opens the startup download dialog.
 
 ## Not yet checked
 
-- Step 4 through the UI; the scenario tests cover it through the same build
-  path.
 - ADTPro with its host, which arrives with the host connection in spec 033.

@@ -37,6 +37,6 @@ Launch with `--title` per the workspace rules.
 1. Settings > Hardware on a //e: turn on "Super Serial Card" in slot 2. With no firmware, the download offer appears; accept it. Confirm the reset.
 2. Settings > Serial card: set printer mode, 9,600 baud, attachment "File (receive what the card sends)" with a path in your temp folder.
 3. In Applesoft, type a short program, then `PR#2`, `LIST`, `PR#0`. The file contains the listing (SC-001).
-4. Switch the attachment to loopback and the mode to communications. `IN#2` and `PR#2`, type a line: it comes back.
+4. Switch the attachment to the loopback plug and the mode to communications. `IN#2`, then type `PRINT 6*7`: the line comes back through the plug and prints 42. Not `PR#2` as well: with both, everything printed comes back in as input.
 5. Delete or rename `SSC.rom`, restart: the infobar reports the missing firmware with a Download button, and the machine runs. `PR#2` now hangs, as it would with an empty ROM socket; Ctrl-Reset recovers.
 6. A //c: Settings offers no Super Serial Card. `PR#1` sends to the printer port one character time apart at the baud rate the //c firmware sets. Both //c ports have a loopback plug attached and no printer, so nothing prints.
