@@ -29,6 +29,7 @@ public:
     //  one sweep and the next.
     static constexpr int    kSweepMs     = 2000;
     static constexpr int    kRestMs      = 1000;
+    static constexpr int    kFadeMs      = 200;
 
     //  The shimmer: its peak alpha; the share of it the glow outside the band
     //  has; the band's width along (x + y), a share of the object's shorter
@@ -83,9 +84,10 @@ public:
     static double  GetBandCenter (double nowMs, const RECT & boxPx);
     static double  GetBand       (double distance, const RECT & boxPx);
 
-    //  Whether the band is crossing objects at the moment, rather than
-    //  resting between sweeps.
-    static bool    IsSweeping    (double nowMs);
+    //  How far into a sweep the moment is, from 0 at rest to 1 within it,
+    //  rising over the sweep's first kFadeMs and falling over its last, for
+    //  a change that follows the sweep without a jump.
+    static double  GetSweepWeight (double nowMs);
 
     //  A clock in milliseconds fine enough that the shimmer moves a little
     //  every frame; GetTickCount64 advances only every 15.6 ms or so.

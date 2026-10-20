@@ -35,6 +35,7 @@ static constexpr int      s_kMaxPieces      = 4096;
 static constexpr int      s_kMaxRings       = 256;
 static constexpr int      s_kMaxQuads       = 32768;
 static constexpr double   s_kShimmerSteps   = 16.0;
+static constexpr uint32_t s_kSweepLineArgb  = 0xFF808080u;
 static constexpr float    s_kMinMarkDip     = 8.0f;
 static constexpr float    s_kShimmerStepDip = 3.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
@@ -890,10 +891,10 @@ void PlatterView::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & t
 //
 //  A stretch of a ring marked across a band at least s_kMinMarkDip wide, so
 //  the mark is plain at fit. The selection is outlined in the selection
-//  color over a contrasting edge between the shimmer's sweeps. While the
-//  band sweeps, the outline is not drawn and the fill covers its area, so
-//  the band crosses the whole mark plain to see, lighting the outline's
-//  area as it passes (FR-038). The hovered sector is lit faintly and outlined thinly.
+//  color over a contrasting edge, the selection color dimmed to mid gray
+//  while the shimmer's band sweeps so the band is plain to see against it
+//  (FR-038).
+//  The hovered sector is lit faintly and outlined thinly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -904,9 +905,6 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
     double    r1     = 0;
     int       rings  = 1;
     RECT      box    = {};
-    bool      isLit  = false;
-    double    out    = 0;
-    double    pad    = 0;
     double    step   = 0;
     double    fill0  = 0;
     double    fill1  = 0;
@@ -951,11 +949,8 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
 
     end    = (end <= start) ? end + 1.0 : end;
     box    = GetArcBox (view, start, end, r0, r1);
-    isLit  = isSelected && InspectorMarquee::IsSweeping (now);
-    out    = isLit ? thick + 2.0 : 0.0;
-    pad    = out / (s_kTwoPi * r1);
     step   = isSelected ? std::max (1.0, InspectorMarquee::GetBandPx (box) / s_kShimmerSteps) : m_scaler.ToPxf (s_kShimmerStepDip);
-    GetVisibleRadii (view, r0 - out, r1 + out, fill0, fill1);
+    GetVisibleRadii (view, r0, r1, fill0, fill1);
     rings  = isSelected ? std::clamp (static_cast<int> (std::ceil ((fill1 - fill0) / step)), 1, s_kMaxRings) : 1;
     fill0  = isSelected ? fill0 : r0;
     fill1  = isSelected ? fill1 : r1;
@@ -963,7 +958,7 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
     //  The fill in pieces a share of the band wide, along the ring and
     //  across it, so the band crosses the whole mark at 45 degrees with no
     //  steps to see.
-    for (const std::pair<double, double> & part : GetVisibleParts (view, start - pad, end + pad))
+    for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
     {
         pieces = std::clamp (static_cast<int> (std::ceil ((part.second - part.first) * s_kTwoPi * fill1 / step)), 1, std::max (1, s_kMaxQuads / rings));
 
@@ -984,19 +979,16 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
         }
     }
 
-    //  The outline: none while the band sweeps, the fill then covering its
-    //  area; otherwise, for the selection, the edge wider than the line, then
-    //  the selection color. Lines of partial alpha overlap at the joints
-    //  between their pieces, which adds up to a dot at each joint.
-    if (isSelected && !isLit)
+    //  The outline: for the selection, the edge wider than the line, then
+    //  the selection color, dimmed to mid gray while the band sweeps so the
+    //  band is plain to see against it.
+    if (isSelected)
     {
+        ink = DxuiColor::Lerp (ink, s_kSweepLineArgb, static_cast<float> (InspectorMarquee::GetSweepWeight (now)));
         drawOutline (thick + 2.0f, [&] (float, float) { return edge; });
     }
 
-    if (!isLit)
-    {
-        drawOutline (thick, [&] (float, float) { return ink; });
-    }
+    drawOutline (thick, [&] (float, float) { return ink; });
 }
 
 

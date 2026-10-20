@@ -174,13 +174,17 @@ double InspectorMarquee::GetBandCenter (double nowMs, const RECT & boxPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InspectorMarquee::IsSweeping
+//  InspectorMarquee::GetSweepWeight
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InspectorMarquee::IsSweeping (double nowMs)
+double InspectorMarquee::GetSweepWeight (double nowMs)
 {
-    return std::fmod (nowMs, static_cast<double> (kSweepMs + kRestMs)) < kSweepMs;
+    double  t = std::fmod (nowMs, static_cast<double> (kSweepMs + kRestMs));
+
+
+
+    return (t < kSweepMs) ? std::clamp (std::min (t, kSweepMs - t) / kFadeMs, 0.0, 1.0) : 0.0;
 }
 
 
