@@ -35,6 +35,10 @@ class IDxuiTheme;
 //  "Overwrite" and "Cancel" for MB_OKCANCEL, say -- and each still returns
 //  the id its place in the set does.
 //
+//  `text` may mark runs as semibold between pairs of `**`, as for text the
+//  user types: "1. Type **IN#2** and press Return". A line with a mark is
+//  drawn on one line, unwrapped; a line without one wraps.
+//
 //  The one departure from MessageBox is the required `theme`: a Dxui window
 //  needs a theme to render. `owner` supplies the modal parent (disabled while
 //  the box is up) and the HINSTANCE (falling back to the process module when
@@ -48,3 +52,37 @@ int  DxuiMessageBox (HWND                                 owner,
                      const wchar_t                      * caption,
                      UINT                                 uType,
                      const std::vector<const wchar_t *> & buttonLabels = {});
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextRun
+//
+//  A piece of a message box's line in one weight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiTextRun
+{
+    std::wstring  text;
+    bool          semiBold = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiParseTextRuns
+//
+//  The text's lines, split at each newline, each as its runs between `**`
+//  marks; the marks are dropped. An unpaired mark sets the rest of its line
+//  semibold. A line with no marks is one run, and an empty line has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void  DxuiParseTextRuns (const std::wstring & text, std::vector<std::vector<DxuiTextRun>> & outLines);

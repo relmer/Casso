@@ -111,7 +111,11 @@ public:
         //  A paint before the first layout has an empty box and draws no text.
         laidOut = tr.right > tr.left && tr.bottom > tr.top;
 
-        if (laidOut)
+        if (laidOut && m_text.find (L"**") != std::wstring::npos)
+        {
+            PaintRuns (text, theme, tr);
+        }
+        else if (laidOut)
         {
             DxuiFontHandle   bf      = theme.BodyFont();
             float            fullW   = 0.0f;
@@ -149,6 +153,78 @@ true);
     }
 
 private:
+    //  Text with semibold runs, a line at a time: a line of one regular run
+    //  wraps, and a line with semibold runs is drawn run after run on one
+    //  line. The lines are measured first, so the block is centered as a
+    //  whole when it fits.
+    void  PaintRuns (IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & tr)
+    {
+        HRESULT                                 hr      = S_OK;
+        DxuiFontHandle                          bf      = theme.BodyFont();
+        float                                   sizePx  = m_scaler.ToPxf (bf.sizeDip);
+        float                                   widthPx = (float) (tr.right - tr.left);
+        float                                   lineH   = 0.0f;
+        float                                   ignored = 0.0f;
+        float                                   total   = 0.0f;
+        float                                   y       = (float) tr.top;
+        std::vector<std::vector<DxuiTextRun>>   lines;
+        std::vector<float>                      heights;
+
+
+
+        DxuiParseTextRuns (m_text, lines);
+
+        hr = text.MeasureStringWeighted (L"Ag", sizePx, bf.face, bf.weight, ignored, lineH);
+        lineH = SUCCEEDED (hr) ? lineH : m_scaler.ToPxf ((float) s_kLineHeightDip);
+
+        for (const std::vector<DxuiTextRun> & line : lines)
+        {
+            float  h = lineH;
+
+            if (line.size() == 1 && !line[0].semiBold)
+            {
+                hr = text.MeasureStringWrapped (line[0].text.c_str(), sizePx, bf.face, widthPx, ignored, h);
+                h  = SUCCEEDED (hr) ? h : lineH;
+            }
+
+            heights.push_back (h);
+            total += h;
+        }
+
+        if (total < (float) (tr.bottom - tr.top))
+        {
+            y += ((float) (tr.bottom - tr.top) - total) * 0.5f;
+        }
+
+        hr = text.PushClipRect ((float) tr.left, (float) tr.top, widthPx, (float) (tr.bottom - tr.top));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        for (size_t i = 0; i < lines.size(); i++)
+        {
+            float  x    = (float) tr.left;
+            bool   wrap = lines[i].size() == 1 && !lines[i][0].semiBold;
+
+            for (const DxuiTextRun & run : lines[i])
+            {
+                DxuiFontWeight  weight = run.semiBold ? DxuiFontWeight::SemiBold : bf.weight;
+                float           runW   = 0.0f;
+
+                hr = text.DrawString (run.text.c_str(), x, y, (float) tr.right - x, heights[i],
+                                      theme.TextColor (DxuiTextRole::Body), sizePx, bf.face,
+                                      DxuiTextHAlign::Left, DxuiTextVAlign::Top, weight, wrap);
+                IGNORE_RETURN_VALUE (hr, S_OK);
+
+                hr = text.MeasureStringWeighted (run.text.c_str(), sizePx, bf.face, weight, runW, ignored);
+                x += SUCCEEDED (hr) ? runW : 0.0f;
+            }
+
+            y += heights[i];
+        }
+
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     std::wstring         m_text;
     DxuiMessageSeverity  m_severity = DxuiMessageSeverity::None;
     RECT                 m_bounds   = {};
@@ -437,6 +513,41 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StripRunMarks
+//
+//  The text without its `**` marks, for sizing the box and for the system
+//  box it falls back to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::wstring StripRunMarks (const std::wstring & text)
+{
+    std::vector<std::vector<DxuiTextRun>>  lines;
+    std::wstring                           plain;
+
+
+
+    DxuiParseTextRuns (text, lines);
+
+    for (size_t i = 0; i < lines.size(); i++)
+    {
+        for (const DxuiTextRun & run : lines[i])
+        {
+            plain += run.text;
+        }
+
+        plain += (i + 1 < lines.size()) ? L"\n" : L"";
+    }
+
+    return plain;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMessageBox
 //
 //  A themed replacement for the Win32 MessageBox, matching its signature.
@@ -479,6 +590,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
 
     std::vector<ButtonSpec>   buttons;
     std::wstring              body       = (text != nullptr) ? text : L"";
+    std::wstring              plain      = StripRunMarks (body);
     defaultCmd = IDOK;
     choice = IDOK;
 
@@ -519,7 +631,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     default:                 break;
     }
 
-    textDip   = GetTextHeightDip (body, severity, theme, s_kWidthDip);
+    textDip   = GetTextHeightDip (plain, severity, theme, s_kWidthDip);
     heightDip = GetBoxHeightDip (owner, severity, textDip);
 
     hInst = (owner != nullptr)
@@ -542,13 +654,13 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     {
         // The Dxui backend could not be created -- fall back to the system box
         // so the caller still gets a decision rather than a silent default.
-        choice = MessageBoxW (owner, text, caption, uType);
+        choice = MessageBoxW (owner, plain.c_str(), caption, uType);
     }
     else
     {
         dlg.SetTheme (theme);
 
-        hr = FitToClient (dlg.GetHwnd(), owner, body, severity, theme);
+        hr = FitToClient (dlg.GetHwnd(), owner, plain, severity, theme);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         // Center the box on its owner (Win32 MessageBox centers on the owner too),
@@ -584,4 +696,54 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     }
 
     return choice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiParseTextRuns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiParseTextRuns (const std::wstring & text, std::vector<std::vector<DxuiTextRun>> & outLines)
+{
+    size_t  pos = 0;
+
+
+
+    outLines.clear();
+
+    for (;;)
+    {
+        size_t                    nl       = text.find (L'\n', pos);
+        size_t                    end      = (nl == std::wstring::npos) ? text.size() : nl;
+        bool                      semiBold = false;
+        std::vector<DxuiTextRun>  line;
+
+        while (pos < end)
+        {
+            size_t  mark = text.find (L"**", pos);
+            size_t  stop = (mark == std::wstring::npos || mark > end) ? end : mark;
+
+            if (stop > pos)
+            {
+                line.push_back ({ text.substr (pos, stop - pos), semiBold });
+            }
+
+            semiBold = (stop == mark) ? !semiBold : semiBold;
+            pos      = (stop == mark) ? stop + 2 : stop;
+        }
+
+        outLines.push_back (std::move (line));
+
+        if (nl == std::wstring::npos)
+        {
+            break;
+        }
+
+        pos = nl + 1;
+    }
 }
