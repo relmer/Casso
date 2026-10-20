@@ -350,6 +350,21 @@ Defects found and fixed:
   files came from is no drop.
 - A disk changed by Casso Explorer was reported as `CassoCli modified`.
 - The load address prompt's title was in title case.
+### Follow-up checks on x64 Release, 2026-10-19
+
+The build of commit `ea371969`, driven with real input.
+
+| Check | Result |
+|---|---|
+| New, Disk image with `plain.txt` selected | `NEWD.woz` created empty: 496 sectors free of 560 |
+| The delete prompt | `Delete PLAIN from a.dsk?`, and with two entries selected, `Delete these 2 items from a.dsk?` |
+| The load address prompt | Titled `Load address`, with `$2000` filled in |
+| A folder renamed in the tree, then Ctrl+Z | `out` became `out2` and then `out` again |
+| `CassoCli disk put` with no `--as` | `NEWPIC.Binary.$2000.bin` stored as NEWPIC, B at $2000, and `NEWHI.Applesoft BASIC.txt` as NEWHI, an Applesoft program, on a DOS 3.3 and a ProDOS image; both read back with `fc /b` no differences. `MEMO.txt` stored as `MEMO.TXT` |
+| A soft reset during SAVE | On a //e with a copy of the DOS 3.3 System Master: SAVE T, SAVE U interrupted by Reset, SAVE V, then Casso closed. No prompt and no spare copy; T and V in the catalog. The file was not written at the reset, so this pass did not catch a write in flight; the unit test `ASoftResetFlushesADirtyDiskThroughTheStore` covers that case |
+
+Not checked: the two §5 steps for when no Casso is running, as two Cassos
+of other sessions were running, and §6 Windows dark mode.
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
