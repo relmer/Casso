@@ -957,7 +957,9 @@ std::wstring TreeModel::GetLinkDriveLabel (const LinkTreeEntry::Drive & drive)
 
     if (drive.empty)
     {
-        label += L" (empty)";
+        //  No address field was found: no disk, or one never formatted, which
+        //  the drive reads alike.
+        label += L" (no disk or unformatted)";
     }
     else if (!drive.volume.empty())
     {
