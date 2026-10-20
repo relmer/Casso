@@ -1088,7 +1088,8 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud)
         //  DSR is judged on each line from its own first on: a USB serial
         //  adapter just opened reports DSR off until its driver polls it,
         //  which on a line opened again would read as the Apple gone.
-        m_peerSeen = false;
+        m_peerSeen       = false;
+        m_peerOffSinceMs = 0;
     }
 
 Error:
@@ -1168,22 +1169,34 @@ Error:
 //  CassoLinkSession::IsPeerGone
 //
 //  A serial line whose DSR was on, as the Apple's DTR is while its 6551 is
-//  set up, and is now off: the Apple was reset or turned off. A cable that
-//  does not wire the line has it off throughout, and only silence
-//  counts.
+//  set up, and has been off for kPeerOffMs: the Apple was reset or turned
+//  off. A USB serial adapter can report DSR off for a millisecond at a time
+//  on a line that is up, many times a second, so one reading off does not
+//  count. A cable that does not wire the line has it off throughout, and
+//  only silence counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkSession::IsPeerGone()
 {
-    bool  ready = false;
-    bool  known = m_stream && m_stream->TryGetPeerReady (ready);
+    bool      ready = false;
+    bool      known = m_stream && m_stream->TryGetPeerReady (ready);
+    uint64_t  now   = GetTickCount64();
 
 
 
     m_peerSeen = m_peerSeen || (known && ready);
 
-    return known && m_peerSeen && !ready;
+    if (!known || ready)
+    {
+        m_peerOffSinceMs = 0;
+    }
+    else if (m_peerOffSinceMs == 0)
+    {
+        m_peerOffSinceMs = now;
+    }
+
+    return m_peerSeen && m_peerOffSinceMs != 0 && now - m_peerOffSinceMs >= kPeerOffMs;
 }
 
 
@@ -1198,7 +1211,8 @@ bool CassoLinkSession::IsPeerGone()
 
 void CassoLinkSession::Disconnect()
 {
-    m_peerSeen = false;
+    m_peerSeen       = false;
+    m_peerOffSinceMs = 0;
 
     {
         std::lock_guard<std::mutex>  lock (m_lock);

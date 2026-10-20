@@ -433,6 +433,34 @@ public:
 
 
 
+
+    TEST_METHOD (DsrOffForAMillisecondAtATime_KeepsTheLink)
+    {
+        Rig  rig;
+
+        rig.factory.peerReady = 1;
+        rig.Start();
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready));
+
+        //  DSR glitches, as a USB serial adapter on a //c cable reports them.
+        {
+            std::jthread  glitches ([&rig] (std::stop_token stop)
+            {
+                while (!stop.stop_requested())
+                {
+                    rig.factory.peerReady = 0;
+                    std::this_thread::sleep_for (std::chrono::milliseconds (1));
+                    rig.factory.peerReady = 1;
+                    std::this_thread::sleep_for (std::chrono::milliseconds (15));
+                }
+            });
+
+            Assert::IsFalse (rig.sink.WaitForState (LinkState::Disconnected, 2000), L"a DSR glitch is not the Apple gone");
+        }
+    }
+
+
+
     TEST_METHOD (ReadDisk_WritesTheImage_InEachFormat)
     {
         Rig  rig;

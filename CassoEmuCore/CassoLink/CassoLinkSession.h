@@ -159,6 +159,7 @@ public:
     //  The program sends Ready every 100 ms while idle; this long with no
     //  byte from it is an Apple that was reset, turned off or unplugged.
     static constexpr DWORD  kSilenceMs        = 3000;
+    static constexpr DWORD  kPeerOffMs        = 500;
     static constexpr int    kDriveCount       = 2;
 
     //  The folder is the one ADTPro's own clients are served from, between
@@ -301,6 +302,7 @@ private:
     DWORD                                       m_bootstrapPauseMs = LinkBootstrap::kLinePauseMs;
     DWORD                                       m_retryMs          = kRetryMs;
     bool                                        m_peerSeen         = false;
+    uint64_t                                    m_peerOffSinceMs   = 0;
     DWORD                                       m_openBaud         = 0;
     bool                                        m_prompted         = false;
 
