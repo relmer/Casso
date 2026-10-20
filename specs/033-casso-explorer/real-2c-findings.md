@@ -33,14 +33,26 @@ wrong; the record of the reversal follows.
   - DOS's RWTS, called from inside CassoLink: written and read back exactly.
   - Indexed stores with every spacing a whole number of bit cells (item 21):
     written and read back exactly; a format then read all 16 sectors.
-- **Cause** *(the mechanism is a hypothesis)*: an indexed store reads its
-  address in the cycle before it writes it. On the IWM, that read of `Q6H`
-  sets Q6 before the write, so the write loads the data register; an
-  absolute store sets Q6 and writes in the same cycle, and the byte is not
-  loaded. Apple's RWTS, ProDOS's driver and ADTPro's formatter all use
-  indexed stores. The //c ROM listing's note on a false byte from indexed
-  stores is about the IWM's mode register, written with the motor off, not
-  about data.
+- **Cause:** documented in Sather, *Understanding the Apple IIe*, in the
+  chapter on the disk controller, for the Disk II card: `STA $C08F,X` makes
+  a double access to `$C0EF`. The first access starts the logic state
+  sequencer's write loop, and the second stores the data. The controller
+  accepts data only on the clock pulse after the one that started the
+  sequencer, and on every fourth clock pulse after that. Sather warns
+  against replacing RWTS's `STA $C08F,X` (at `$B83F` in DOS 3.3) with
+  `STA $C0EF`: the absolute store starts the software loop one clock out of
+  step with the sequencer, and the controller does not accept the write
+  data. `STA $C0EF,X` with X = 0, or `STA (zp),Y` with no page crossing, also
+  works.
+- **The //c's 65C02 makes the double access too:** the //c Technical
+  Reference (2nd edition) lists the NCR 65C02's one change to the extra
+  cycle of indexed addressing: across a page boundary, it reads the last
+  instruction byte instead of an invalid address. `$C08D + $60` crosses no
+  page, so the first access is a read of `$C0ED`, as on the 6502.
+- **The ROM note:** the //c ROM listing's comment on a false byte from
+  indexed stores is about the IWM's mode register, written with the motor
+  off, where the byte on the bus during the first access is taken. It does
+  not apply to data.
 - **Why sector writes seemed to verify after `3b869585d`:** most likely the
   sectors already had the pattern from an earlier build with indexed stores,
   so the verify compared old data. Every verify since uses a disk freshly
@@ -49,7 +61,8 @@ wrong; the record of the reversal follows.
   timing.
 - **Why the emulator missed it** *(unverified)*: the emulated controller loads
   the data register from any store to `Q6H` in write mode, absolute or
-  indexed, so both work there.
+  indexed, so both work there. Per Sather this is a Disk II rule, not an IWM
+  one, so the gap is in `Disk2NibbleEngine` for every machine.
 
 ### 2. The end of a written stream was lost
 
@@ -150,9 +163,10 @@ wrong; the record of the reversal follows.
   bytes, 32 from a sync byte to a data byte, and 8 more at a page crossing:
   two whole cells, which put two zero bits between nibbles.
 - **Why the emulator missed it** *(unverified)*: the emulated logic state
-  sequencer runs in whole CPU cycles and loads a byte at the store wherever
-  it falls, which matches a Disk II card; a Disk II tolerates a store
-  partway through a cell. The IWM's behavior there is not modeled.
+  sequencer loads a byte at the store wherever it falls. Sather documents
+  that the Disk II controller accepts data only on every fourth clock pulse
+  after the write loop starts (item 1), so this timing fails on a real Disk II
+  card too; the gap is in `Disk2NibbleEngine` for every machine.
 
 ## Bootstrap and link
 
