@@ -498,7 +498,7 @@ public:
         Assert::AreEqual (std::wstring (L"link:Apple II (COM3)|6,1"), drives[0].id);
         Assert::IsTrue   (drives[0].location == Location::MakeAppleDrive (L"link:Apple II (COM3)|6,1", std::string()));
         Assert::AreEqual (std::wstring (L"Slot 6, Drive 2 (no disk or unformatted)"), drives[1].label);
-        Assert::IsTrue   (drives[1].missing, L"an empty drive is drawn dimmed");
+        Assert::IsFalse  (drives[1].missing, L"a drive with no readable disk can be formatted, so it is not dimmed");
     }
 
 

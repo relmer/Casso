@@ -1141,7 +1141,6 @@ HRESULT TreeModel::ListLink (const std::wstring & name, std::vector<TreeNode> & 
         node.label     = GetLinkDriveLabel (drive);
         node.location  = Location::MakeAppleDrive (node.id, std::string());
         node.canExpand = !drive.folders.empty();
-        node.missing   = drive.empty;
 
         outNodes.push_back (node);
     }
