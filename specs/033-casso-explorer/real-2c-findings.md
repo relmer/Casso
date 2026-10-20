@@ -288,6 +288,18 @@ wrong; the record of the reversal follows.
 - **Why the emulator missed it:** no byte is ever dropped on the emulated
   serial link. The noisy test stream under "Follow-up ideas" would cover it.
 
+### 23. The Apple's "no reply" timer stops at 255 and the PC stays connected (open)
+
+- **Symptom:** the program's status screen counted the seconds since the
+  PC's last reply up to 255 and stopped there, and it went on showing the PC
+  as connected.
+- **Cause:** the count is one byte (`silent`), and the connected state
+  (`pcflag`) is set by the first reply and never cleared.
+- **Fix:** pending. After the host's own silence limit (`kSilenceMs`), show
+  the PC as gone and wait for it again; show longer silences in minutes.
+- **Why the emulator missed it:** emulated sessions are short; nothing runs
+  for four minutes with the PC silent.
+
 ## Link errors
 
 The cable's noise so far has been on the control lines (item 8). No data
