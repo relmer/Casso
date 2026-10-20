@@ -169,6 +169,25 @@ the drive turns at exactly 300 rpm.
 - **Why the emulator missed it:** an emulated motor left on has no visible or
   audible cost unless the drive sound is enabled.
 
+### 20. Leaving CassoLink breaks BASIC
+
+- **Symptom:** after Control-Reset out of CassoLink, `LIST` printed a screen
+  of `< = > ? [ \ ] ^ _ | ~`, and `NEW` beeped with an error message in the
+  same characters. The `]` prompt and the typed command looked normal.
+- **Cause:** every character BASIC printed was ORed with `$1C`. Applesoft
+  ORs each character it prints with `FLASHBIT` at `$F3`; CassoLink stores an
+  address field's track at `$F3` (`atrk`), and the last operation was on
+  track 28, `$1C`. CassoLink also uses `$06`-`$23` and `$E0`-`$FF`, much of
+  which Applesoft and the monitor use, and does not restore it. Its program
+  at `$0800` also overlaps Applesoft's program area, so `LIST` decodes
+  machine code as BASIC.
+- **Workaround:** boot again (`PR#6`), or `POKE 243,0` for readable text.
+- **Fix:** pending. Save the zero page CassoLink uses on entry and restore
+  it on exit, or move the program's variables to locations Applesoft and
+  DOS do not use, and clear Applesoft's program pointers on exit.
+- **Why the emulator missed it:** not an emulator gap. Emulated sessions end
+  by resetting the machine or closing Casso, never by returning to BASIC.
+
 ## Link errors
 
 The cable's noise so far has been on the control lines (item 8). No data
