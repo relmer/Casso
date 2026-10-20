@@ -232,10 +232,10 @@ private:
     //  fixture's startup program is a five-page slideshow.
     static constexpr int  kMaxPages = 12;
 
-    //  A bare prompt row is the prompt glyph plus, on the frames it is lit, the
-    //  cursor.
-    static constexpr size_t  kPromptRowLength = 2;
-    static constexpr char    kPromptGlyph     = ']';
+    //  A bare prompt row is a prompt glyph plus, on the frames it is lit, the
+    //  cursor: Applesoft's `]`, or Integer BASIC's `>` on the original ][.
+    static constexpr size_t          kPromptRowLength = 2;
+    static constexpr const char *    kPromptGlyphs    = "]>";
 
     //  What the controller ROM reads, in the decoded buffer's own terms.
     static constexpr int  kBootTrack  = 0;
@@ -243,6 +243,16 @@ private:
 
     static constexpr Word  kBootRomEntry = 0xC600;
     static constexpr Word  kIntCxRomOff  = 0xC006;
+
+    //  The original ][ monitor's RESET entry, the value of its reset vector
+    //  at $FFFC; the Autostart ROM's is elsewhere. That monitor does not boot
+    //  a disk: it sets up the screen and the text flags, then waits at its *
+    //  prompt for the user to type C600G. kMonitorResetCycles covers that.
+    static constexpr Word      kResetVector        = 0xFFFC;
+    static constexpr Word      kOldMonitorReset    = 0xFF59;
+    static constexpr uint64_t  kMonitorResetCycles = 2'000'000ULL;
+
+    static void  RunOldMonitorReset (MachineHost & host);
 
     static constexpr int  kSlot6  = 6;
     static constexpr int  kDrive1 = 0;

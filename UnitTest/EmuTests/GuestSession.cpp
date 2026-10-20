@@ -451,7 +451,7 @@ bool GuestSession::IsAtBarePrompt (MachineHost & host)
 
         if (!row.empty())
         {
-            return row.size() <= kPromptRowLength && row[0] == kPromptGlyph;
+            return row.size() <= kPromptRowLength && std::strchr (kPromptGlyphs, row[0]) != nullptr;
         }
     }
 
@@ -655,8 +655,42 @@ void GuestSession::Mount (MachineHost              & host,
     AssertTheDrivePresentsWhatWasMounted (*image, bytes, L"the image this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,        L"the image this gate mounts");
 
+    RunOldMonitorReset (host);
+
     host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
     host.GetCpu()->SetPC (kBootRomEntry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestSession::RunOldMonitorReset
+//
+//  The boot starts at the controller ROM straight from power-on, which skips
+//  the monitor's RESET. The Autostart ROM's BASIC sets up its own text flags,
+//  but Integer BASIC on the original ][ does not, and without RESET the
+//  inverse mask at $32 is whatever power-on left in RAM; every character is
+//  then written to the screen as an inverse @. So on that machine RESET runs
+//  to the * prompt first, as it does before a user types C600G.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GuestSession::RunOldMonitorReset (MachineHost & host)
+{
+    MemoryBus &  bus    = host.GetMemoryBus();
+    Word         vector = static_cast<Word> (bus.ReadByte (kResetVector) | (bus.ReadByte (kResetVector + 1) << 8));
+    uint64_t     ran    = 0;
+
+
+
+    if (vector == kOldMonitorReset)
+    {
+        ran = MachineIdle::RunUntilIdle (host, kMonitorResetCycles);
+        IGNORE_RETURN_VALUE (ran, 0);
+    }
 }
 
 
@@ -735,6 +769,8 @@ void GuestSession::MountWoz (MachineHost              & host,
 
     AssertTheDrivePresentsWhatWasMounted (*image, expectedSectors, L"the WOZ this gate mounts");
     AssertTheDriveCanReadTheBootSector   (*image,                  L"the WOZ this gate mounts");
+
+    RunOldMonitorReset (host);
 
     host.GetMemoryBus().WriteByte (kIntCxRomOff, 0);
     host.GetCpu()->SetPC (kBootRomEntry);
