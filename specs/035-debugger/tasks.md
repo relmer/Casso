@@ -1766,4 +1766,4 @@ The owner's review of the Phase 44 build. Each task is a commit that builds and 
 - [X] T970 Close an open menu on Escape in any pane (DebuggerWindowInput.cpp), FR-307
 - [X] T971 Stop the machine where a click on the history timeline moves it (HistoryTimelineClick.cpp, DebuggerWindowTimeline.cpp), FR-308
 - [X] T972 MMU: label every run, widen the strips, move the list right, and add a tip to each soft switch (Panes/MemoryMapBar.cpp, DiagnosticsPane.cpp), FR-309
-- [ ] T973 Launch a build for the owner
+- [X] T973 Launch a build for the owner
