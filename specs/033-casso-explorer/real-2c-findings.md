@@ -495,6 +495,23 @@ it, and a DOS disk in drive 1.
   and the button had no route. It is given every move and the presses
   inside it. Verified with clicks on the emulated and the serial link.
 
+### 34. A 10 KB file takes 31 seconds to write (open)
+
+- **Symptom:** a 10 KB binary written to drive 1 took 31.0 s; SC-028's limit is
+  5 s. Read back from a new session, the same file took 3.2 s.
+- **Cause:** Write sectors handles one sector at a time: the program
+  requests its data from the host with an Acknowledge, the sector is
+  written when it next passes the head, then read back when it passes
+  again a revolution later, and only then is the next sector requested.
+  Each sector costs more than a revolution, about 200 ms at the //c's
+  speed, in whatever order the sectors come; DOS 3.3's skew makes the
+  order worse, as each next physical sector is two behind the last.
+- **Fix:** pending, the owner's decision. Under 5 s takes the request's
+  sectors received first, written in one pass as they come under the
+  head, and the track verified once at the end.
+- **Why the emulator missed it:** the scenario tests check what is
+  written, not how long it takes; in-process, the line costs nothing.
+
 ### 33. Write track's status ended on sector 16
 
 - **Symptom:** while a whole-disk write ran, the status read `S16`, a

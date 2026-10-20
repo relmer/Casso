@@ -277,6 +277,36 @@ Defects found and fixed in the walk:
 - The tree did not open to a CassoLink connection or drive open in the list, and
   highlighted `Documents\ADTPro` for a tab in the ADTPro folder.
 
+### Quickstart 5 and 6, the steps left from 2026-10-18, on 2026-10-20
+
+x64 Release after commit `dbdbdd85`, driven with posted clicks. No Casso was
+running.
+
+| Check | Result |
+|---|---|
+| §5: a single-drive default machine | With drive 2 of the Apple //e Enhanced detached in the user's prefs, `dos33.dsk`'s menu has Insert into drive 2 disabled. Before the fix in `dbdbdd85` it was enabled: the drive count was read from the shipped machine file without the user's changes |
+| §5: no Casso running | Insert into drive 1 started a Casso, the Apple //e Enhanced with its one drive, with `dos33.dsk` in drive 1 |
+| §6: Follow system | Windows' app mode set to light and back: the window was light within a second and dark again within a second, with no restart |
+
+### Quickstart 7b steps 5 to 7 on the owner's //c, 2026-10-20
+
+The owner's //c, ROM 4, on COM3 through a null modem cable, with a Disk II on
+its external port as drive 2; program version 43, shim version 4. The
+timings come from a session on the same code as Casso Explorer's, driven by
+a probe outside the suite. The hardware findings are in
+`real-2c-findings.md`.
+
+| Check | Result |
+|---|---|
+| SC-033: bootstrap | Bootstrapped from Casso Explorer several times with `IN#2` and Ctrl+A `14B` typed on the //c; the status screen each time, after the loader's typing of about 40 s |
+| Drive speeds | Drive 1 at 293.2 rpm (2.3% slow), drive 2 at 298.4 rpm; each format's gap fits its drive |
+| Write image to disk | The DOS 3.3 System Master to drive 1, 65.9 s including the drive's timing; every track verified |
+| SC-027: disk to image | Drive 1 into an image at 115,200 baud in 27.6 s, byte for byte the System Master image written to it. Not yet compared with ADTPro's image of the same disk, which takes ADTPro's client on the //c and the owner at its keyboard |
+| SC-028: file from the //c | A 10 KB binary, T10K, in 3.2 s from a new session after its catalog (7.1 s, the first listing of the drive), equal to the original |
+| SC-028: file onto the //c | **Not met:** T10K written in 31.0 s, equal when read back. Each sector is written and then read back a revolution later before the next is asked for, so each takes more than a revolution. Under 5 s takes a track's sectors written in one pass and verified once |
+| Step 5: Save link to disk, boot it | Not yet done on the //c |
+| Step 7: booting a written image | Not yet done; a `.woz` with a non-standard track is refused with the track listed, in the scenario tests |
+
 ### File Explorer's menus beside Casso Explorer's, 2026-10-18
 
 x64 Debug, the working tree after commit `0ff8f5ff`. Each menu was opened with a
