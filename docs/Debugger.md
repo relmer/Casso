@@ -230,9 +230,10 @@ watches (`W`, `WL`, `WC`) and the rest of AppleWin's commands are listed by
 | `BPBEAM line cycle` | stops when the beam reaches that scanline and cycle |
 | `BPBEAM VBL` | stops where vertical blank starts, scanline `C0` |
 | `BPV line[,len]` | stops when the beam enters a scanline |
+| `BPBEAM OFF`, `BPV OFF` | clear the beam position or scanline breakpoint |
 | `FRAME [n]` | runs until the beam comes back to where it is, `n` times |
 
-An instruction takes several cycles, so `BPBEAM` stops at the first instruction at or past the place it was given. It fires once and then clears, as `BPV` does, and `BPC *` clears it. `FRAME` stops early when anything else stops the machine first, and its frame break goes with that stop.
+An instruction takes several cycles, so `BPBEAM` stops at the first instruction at or past the place it was given. It fires once and then clears, as `BPV` does, and `BPC *` clears it. The Breakpoints pane lists each as a row after the table's breakpoints. `FRAME` stops early when anything else stops the machine first, and its frame break goes with that stop.
 
 **Debug > Run one frame**, or F6 in every key scheme, runs `FRAME` in Casso mode whatever the console's mode. **Debug > Show beam on screen** marks the beam on the emulator's screen while the machine is stopped: its scanline is a red line across the picture, and the cycle it is on a bar across that line. A beam in horizontal blank is marked at the left edge, and one in vertical blank along the bottom edge.
 
@@ -363,9 +364,10 @@ Casso; see [DebugChannel.md](DebugChannel.md#from-the-command-line).
 
 ## Conditional and value breakpoints
 
-`BP`, `BPX`, `BPM`, `BPMR`, `BPMW`, `BPMV` and `BP file:line` take a trailing
-`IF` and an expression over registers, symbols and memory, where `*addr` reads
-a byte:
+`BP`, `BPX`, `BPM`, `BPMR`, `BPMW`, `BPMV`, `BP file:line`, `BRKOP`, `BRK ON`,
+`BRKINT ON`, `BPDISK`, `BPBASIC`, `BPBASICVAR` and `BRKBASIC ON` take a
+trailing `IF` and an expression over registers, flags, symbols and memory,
+where `*addr` reads a byte:
 
 ```text
 BP Loop IF X == 3 & *PTR != 0
@@ -379,8 +381,8 @@ are the address and byte of the access. An expression is checked as it is set,
 so an unknown symbol or a read of an I/O address is an error then, not at the
 first hit.
 
-`BPMV addr value` stops after a write leaves `addr` holding `value`, and on no
-other write.
+`BPMV addr[,len|:last] value` stops after a write sets a byte of the range to
+`value`, and on no other write.
 
 `BPR IF expr` stops before any instruction at which the expression is true,
 wherever the PC is; the breakpoint dialog's Condition type sets it.
@@ -826,7 +828,7 @@ instruction may have changed the flags for.
 history, and `PROFILE HISTORY ALL` of all of it: the history is
 replayed on a scratch machine in the background, so the machine does not slow
 down, and the finished counts become the profile the lists below read. The
-Profiler pane's **Show profile** drop-down runs it for the last 10 seconds,
+Profiler pane's **Show** drop-down runs it for the last 10 seconds,
 60 seconds, 5 minutes or since history began, with a progress bar while the
 profile builds.
 
@@ -1001,9 +1003,10 @@ few a second and only while the timeline can be seen, so an empty cell fills
 in shortly; while the machine runs, the points stay put until the live end
 has moved on by a whole point. Resting the pointer on a picture shows it full
 size beside the timeline. Clicking one moves the machine to that point in
-history, stopping the machine first if it is running; clicking the live end
-goes live. The timeline docks, floats and keeps its place like the command
-bar. Floating, it keeps its length, and dragging either end resizes it.
+history, stopping the machine first if it is running, and the machine stays
+stopped there; clicking the live end goes live, also stopped. The timeline
+docks and floats, and its place is restored, as the command bar's is.
+Floating, it is as long as it was docked, and dragging either end resizes it.
 
 ### The status bar
 
@@ -1069,10 +1072,13 @@ menu also opens these, which stay closed until first opened:
   disassembly line, and Ctrl+K, N and Ctrl+K, P go to the next and the
   previous bookmark.
 - **Profiler**, the profile as `PROFILE` lists it, read while the machine
-  is paused. Its bar turns profiling on and off with **Profile**, starts the
-  counts over with **Reset**, writes them to a text file with **Save...**, and
-  chooses **Opcodes**, **Addresses**, **Routines**, **Call tree** or **Flame
-  graph**. A timeline of the last 600 frames runs across the top, each frame a
+  is paused. Its bar builds the profile of a period of history with **Show**,
+  starts the counts over with the Reset glyph, writes them to a text file with
+  the Save glyph, and chooses **Opcodes**, **Addresses**, **Routines**, **Call
+  tree** or **Flame graph**. A line above the list has the totals and the time
+  the profile's cycles cover, so a period longer than the history reads as
+  the shorter time there is; while a profile builds, its progress bar is drawn
+  over the list. A timeline of the last 600 frames runs across the top, each frame a
   bar of its cycles by routine, the eight hottest in color and the rest in
   gray; resting the pointer on a frame lists its routines. The flame graph
   draws Top level across the top and each routine under its caller, as wide as
@@ -1118,16 +1124,28 @@ rows when it is among them:
 A drag selects text across the columns; a Ctrl+drag selects only in the
 column it began in.
 
-The Breakpoints pane's **New breakpoint...** button opens the breakpoint
-dialog on Execute at the PC. Its Type list is grouped: Code (Execute,
-Condition, Opcode, BRK, BRK on interrupt), Memory (Read, Write, Read or write,
-Memory value, Reading uninitialized memory), BASIC, and Hardware (Disk event,
-Video line, Beam position). The Address field takes an address, a symbol or a
-range, as `300:3FF` or `300,100`. Reading uninitialized memory, Video line and
-Beam position run `BRKUNINIT ON`, `BPV` and `BPBEAM`; they are stops of the
-session, not rows of the pane. A Disk event has a field for each of its
-arguments, and the custom marks and field length in **Advanced**. The info
-tip beside Condition has examples.
+The Breakpoints pane's **New** drop-down lists Execution's types (Address,
+Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
+submenus. A type with fields opens the breakpoint dialog on it, sized to those
+fields; BRK, BRK on interrupt, Reading uninitialized memory and BASIC errors
+have none, so they are set or cleared at once and checked while on, and
+**Edit...** on the row adds a condition. Every type that is a row of the table
+takes a condition, and the info tip after the Condition label lists what it
+can use, with examples; it stays open while the pointer is over it or its tip,
+or while it has the focus. OK checks the breakpoint first, against the symbols
+and breakpoints the debugger has: a definition that does not parse, a number
+out of range, an unknown name in the condition, or an execution breakpoint
+already set is reported under the fields, and the dialog stays open. The
+Address field takes an address, a symbol or a range, as `300:3FF` or
+`300,100`; Memory's Address has Read and Write on one line, and Value takes a
+range. A Disk event has a field for each of its arguments, the volume in
+decimal, and the address and data prologues and the 13-sector format for the
+events that read or write a field; the info tips after Disk event and Stops
+at list the events and the positions. Reading uninitialized memory, a
+video line and a beam position are rows of the pane after the table's
+breakpoints; unchecking or removing one runs `BRKUNINIT OFF`, `BPV OFF` or
+`BPBEAM OFF`, and a read before written is listed as counting from the next
+power cycle until the heat map tracks writes.
 
 The Watches pane has an ID column: **Auto** for what the instruction at the
 PC and the one just run touch, the watch's number for a watch, and ZPn for a
@@ -1182,8 +1200,8 @@ access is gone after the fade time, 10 seconds of machine time unless the
 few times longer to dim away. **Cumulative** keeps everything: nothing fades,
 and each address's brightness is its total count on a logarithmic scale
 against the busiest address, so a few hot loops do not wash out the rest.
-**Reset counts** starts the totals over. The choice and the fade time are kept
-between sessions.
+The Reset counts glyph starts the totals over. The choice and the fade time
+are saved between sessions.
 
 The mouse wheel over the map scrolls it up and down, and Shift with the wheel
 scrolls it across when the rows are wider than the pane; scrollbars show along
@@ -1426,7 +1444,7 @@ opening another machine or loading a machine state turns it off. A reverse
 run does not stop on it.
 
 To leave known reads out, put their ranges in a set (see "Ranges" above)
-and choose the set from the bar's **Leave out** drop-down: reads before
+and choose it in the bar's **Uninitialized reads** drop-down: reads before
 written in its included ranges neither stop the machine nor show on the map
 nor count in what `BRKUNINIT` reports, though the map still counts them. A
 range given in a bank's view is matched at the address the CPU reaches the
@@ -1459,14 +1477,14 @@ the keyframes where any of them changed, it packs to about 64 bytes each.
 
 ### Heat columns
 
-**Show heat** on a disassembly view's bar adds a column after the margin with
-a block for each byte of the line, in the heat map's colors: a byte run as
-code is a block in the code color, and a byte read or written as data more
-than it is run is `r` or `w` in the read or write color. With **Show heat**
-on, the source view has the same strip ahead of each line's number, over the
-first range of bytes the line assembled to, and the BASIC program pane has a
-**Heat** column over each line's tokens, where the interpreter's reads of them
-count as the line running. **Heat** on a memory window's bar tints each byte
+**Show heat** on a disassembly view's bar adds a column after the margin,
+filled with the heat map's color for the line's hottest byte: the code color
+for a byte run, the read or write color for one read or written as data more
+than it is run. With **Show heat** on, the source view fills a space for each
+byte, up to four, ahead of each line's number, over the first range of bytes
+the line assembled to, and the BASIC program pane has a **Heat** column over
+each line's tokens, where the interpreter's reads of them count as the line
+running. **Heat** on a memory window's bar tints each byte
 by its heat. The columns follow the heat map's fade or cumulative choice and
 read the CPU's address space, and the heat is counted while any of them is
 on, as it is while the heat map is shown.

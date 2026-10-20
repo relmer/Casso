@@ -1751,19 +1751,19 @@ The owner's review of the Phase 44 build. Each task is a commit that builds and 
 
 ## Phase 47: Second owner review, 2026-10-19 (FR-293 to FR-309)
 
-- [ ] T958 Size the breakpoint dialog to its type's rows, and check a definition in the dialog before it closes, a duplicate and a bad condition among them, with the reason in the dialog (BreakpointDialog.cpp, Panes/BreakpointsPane.cpp), FR-293
-- [ ] T959 Make the New drop-down Execution's types at the top and Memory, BASIC and Hardware submenus; set BRK, BRK on interrupt and Reading uninitialized memory from the menu with a check (Panes/BreakpointsPane.cpp), FR-294
-- [ ] T960 Put the condition's info tip after the label's text, open it while hovered or focused until the pointer or focus moves off, and rewrite its text (BreakpointDialog.cpp, Dxui/Widgets/DxuiInfoTip.cpp), FR-295
-- [ ] T961 Let every table breakpoint type take a condition (CassoCore/Debugger/AppleWinParser.cpp, Handlers/BreakpointHandlers.cpp, BreakpointDialog.cpp), FR-296
-- [ ] T962 Put Read and Write on one line, and let a value breakpoint take a range (BreakpointDialog.cpp, Debugger/WatchpointTable or BreakpointTable, AppleWinParser.cpp), FR-297
-- [ ] T963 Italicize placeholders and fit and reword them; volume decimal; prologue fields in place of Advanced; "BASIC errors" (Dxui/Widgets/DxuiTextInput.cpp, BreakpointDialog.cpp, BreakpointColumns.cpp), FR-298, FR-299, FR-302
-- [ ] T964 List reading uninitialized memory, a video line and a beam position as Breakpoints pane rows, and check that each stops the machine (DebuggerViewState.cpp, Panes/BreakpointsPane.cpp), FR-300
-- [ ] T965 Activate the debugger window when the breakpoint dialog closes (BreakpointDialog.cpp, DxuiDialogWindow), FR-301
-- [ ] T966 Draw a watch edit's selection inside its box, and move between watch rows with Up and Down and between cells with Tab (Dxui/Widgets/DxuiTextInput.cpp, DxuiEditableGrid.cpp), FR-303
-- [ ] T967 Heat map ranges: the delete question's wording and buttons, a Reset glyph, the drop-downs' tips, and a new row checked only on leaving it (Panes/HeatRangesPane.cpp, HeatMapRangeSets.cpp, Panes/HeatMapPane.cpp), FR-304
-- [ ] T968 Draw heat as color in the disassembly, source and memory views (DisassemblyCells.cpp, HeatStrip.cpp), FR-305
-- [ ] T969 Profiler: blank mode for no operand, the progress bar over the pane, glyph buttons, the totals and span above the list, the cycles column's width, "Show:" (Panes/ToolPanes.cpp, ProfileProgress.cpp), FR-306
-- [ ] T970 Close an open menu on Escape in any pane (DebuggerWindowInput.cpp), FR-307
-- [ ] T971 Stop the machine where a click on the history timeline moves it (HistoryTimelineClick.cpp, DebuggerWindowTimeline.cpp), FR-308
-- [ ] T972 MMU: label every run, widen the strips, move the list right, and add a tip to each soft switch (Panes/MemoryMapBar.cpp, DiagnosticsPane.cpp), FR-309
+- [X] T958 Size the breakpoint dialog to its type's rows, and check a definition in the dialog before it closes, a duplicate and a bad condition among them, with the reason in the dialog (BreakpointDialog.cpp, Panes/BreakpointsPane.cpp), FR-293
+- [X] T959 Make the New drop-down Execution's types at the top and Memory, BASIC and Hardware submenus; set BRK, BRK on interrupt and Reading uninitialized memory from the menu with a check (Panes/BreakpointsPane.cpp), FR-294
+- [X] T960 Put the condition's info tip after the label's text, open it while hovered or focused until the pointer or focus moves off, and rewrite its text (BreakpointDialog.cpp, Dxui/Widgets/DxuiInfoTip.cpp), FR-295
+- [X] T961 Let every table breakpoint type take a condition (CassoCore/Debugger/AppleWinParser.cpp, Handlers/BreakpointHandlers.cpp, BreakpointDialog.cpp), FR-296
+- [X] T962 Put Read and Write on one line, and let a value breakpoint take a range (BreakpointDialog.cpp, Debugger/WatchpointTable or BreakpointTable, AppleWinParser.cpp), FR-297
+- [X] T963 Italicize placeholders and fit and reword them; volume decimal; prologue fields in place of Advanced; "BASIC errors" (Dxui/Widgets/DxuiTextInput.cpp, BreakpointDialog.cpp, BreakpointColumns.cpp), FR-298, FR-299, FR-302
+- [X] T964 List reading uninitialized memory, a video line and a beam position as Breakpoints pane rows, and check that each stops the machine (DebuggerViewState.cpp, Panes/BreakpointsPane.cpp), FR-300
+- [X] T965 Activate the debugger window when the breakpoint dialog closes (BreakpointDialog.cpp, DxuiDialogWindow), FR-301
+- [X] T966 Draw a watch edit's selection inside its box, and move between watch rows with Up and Down and between cells with Tab (Dxui/Widgets/DxuiTextInput.cpp, DxuiEditableGrid.cpp), FR-303
+- [X] T967 Heat map ranges: the delete question's wording and buttons, a Reset glyph, the drop-downs' tips, and a new row checked only on leaving it (Panes/HeatRangesPane.cpp, HeatMapRangeSets.cpp, Panes/HeatMapPane.cpp), FR-304
+- [X] T968 Draw heat as color in the disassembly, source and memory views (DisassemblyCells.cpp, HeatStrip.cpp), FR-305
+- [X] T969 Profiler: blank mode for no operand, the progress bar over the pane, glyph buttons, the totals and span above the list, the cycles column's width, "Show:" (Panes/ToolPanes.cpp, ProfileProgress.cpp), FR-306
+- [X] T970 Close an open menu on Escape in any pane (DebuggerWindowInput.cpp), FR-307
+- [X] T971 Stop the machine where a click on the history timeline moves it (HistoryTimelineClick.cpp, DebuggerWindowTimeline.cpp), FR-308
+- [X] T972 MMU: label every run, widen the strips, move the list right, and add a tip to each soft switch (Panes/MemoryMapBar.cpp, DiagnosticsPane.cpp), FR-309
 - [ ] T973 Launch a build for the owner
