@@ -1314,7 +1314,8 @@ void CassoLinkSession::SetState (LinkState state)
 //
 //  The Label text for an operation, as the program's screen draws it, or
 //  with `finished`, in the past tense for the history. A Write disk's label
-//  has its image's file name, or for a format, the new volume.
+//  has its image's file name, or for a format, the new volume, and the drive
+//  without the old disk's volume, which the write replaces.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1339,8 +1340,8 @@ std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation
         case LinkOperationKind::RemoveDirectory: text = std::format ("{} FOLDER {}", finished ? "DELETED" : "DELETING", path);              break;
         case LinkOperationKind::ReadDisk:        text = std::format ("{} {} TO PC", finished ? "SENT" : "SENDING", drive);                  break;
         case LinkOperationKind::WriteDisk:       text = !operation.formatted.empty()
-                                                          ? std::format ("{} {} IN {}", finished ? "FORMATTED" : "FORMATTING", operation.formatted, drive)
-                                                          : std::format ("{} IMAGE {} TO {}", finished ? "WROTE" : "WRITING", image, drive); break;
+                                                          ? std::format ("{} {} IN D{}", finished ? "FORMATTED" : "FORMATTING", operation.formatted, operation.drive)
+                                                          : std::format ("{} IMAGE {} TO D{}", finished ? "WROTE" : "WRITING", image, operation.drive); break;
         case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} THE DISK IN {}", finished ? "CHECKED" : "CHECKING", drive);        break;
         default:                                 text = "WORKING";                                                                          break;
     }

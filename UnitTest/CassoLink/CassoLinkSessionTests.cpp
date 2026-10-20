@@ -657,7 +657,7 @@ public:
         listing.volumeNumber    = 254;
         operation.kind          = LinkOperationKind::WriteDisk;
         operation.imagePath     = "C:\\Disks\\GAMES.DSK";
-        Assert::AreEqual (std::string ("WRITING IMAGE GAMES.DSK TO D2 (VOL 254)"), CassoLinkSession::DescribeOperation (operation, listing));
+        Assert::AreEqual (std::string ("WRITING IMAGE GAMES.DSK TO D2"), CassoLinkSession::DescribeOperation (operation, listing), L"not the volume the write replaces");
     }
 
 
