@@ -55,6 +55,10 @@ public:
     //  The stock ProDOS Users Disk, or a FAILED test, on the same grounds.
     static std::vector<Byte>  RequireProDosUsersDisk();
 
+    //  The Kermit-65 3.87 ProDOS disk, or a FAILED test, on the same grounds.
+    //  It contains Apple's ProDOS, so it is fetched rather than committed too.
+    static std::vector<Byte>  RequireKermitDisk();
+
     //  An image committed to the repo, such as a readout disk under
     //  Disks/Casso, found from the working directory up; or a FAILED test.
     static std::vector<Byte>  RequireRepoImage (const char * repoPath);
@@ -221,6 +225,7 @@ private:
     static constexpr const char *     kpszMasterRepoPath  = "Disks/Apple/dos33-master.dsk";
     static constexpr const wchar_t *  kpszProDosCacheName = L"ProDOS Users Disk.dsk";
     static constexpr const char *     kpszProDosRepoPath  = "Disks/Apple/prodos-users.dsk";
+    static constexpr const char *     kpszKermitRepoPath  = "Disks/ThirdParty/kermit-65.dsk";
 
     //  How far up from the working directory the repo-path search climbs. The
     //  test host's directory is not fixed, so the walk covers a binary run from

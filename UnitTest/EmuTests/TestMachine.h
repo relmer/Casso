@@ -89,6 +89,21 @@ public:
     TestMachine (const std::string                         & machineId,
                  const std::function<void (MachineConfig &)> & configure);
 
+    //  Whether the machine has a video scanner. Untimed is the default above:
+    //  $C019 then reads 0 on every read, so a guest loop on the vertical blank
+    //  never exits. Timed attaches the scanner before the build, so
+    //  MachineBuilder connects it to the CPU, the soft switches, the keyboard
+    //  and the //c mouse as it does for Casso itself.
+    enum class Video
+    {
+        Untimed,
+        Timed,
+    };
+
+    TestMachine (const std::string                         & machineId,
+                 Video                                       video,
+                 const std::function<void (MachineConfig &)> & configure = {});
+
     //  The builder that built this machine, for the accessors the shell reads
     //  through it.
     MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
