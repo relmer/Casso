@@ -4,6 +4,7 @@
 #include "Devices/Disk/Inspector/DiskAnalyzer.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Ui/DiskInspector/FindBar.h"
 #include "Ui/DiskInspector/InspectorTables.h"
 #include "InspectorTrackBuilder.h"
 
@@ -163,5 +164,92 @@ public:
 
         Assert::IsTrue   (rows[3].cells[9].starts_with (L"Not checked ($") && rows[3].cells[9].find (L", computed $") != std::wstring::npos, L"both values still show");
         Assert::IsTrue   (rows[3].cells[6].ends_with (L" good"), L"the address checksum is still checked");
+    }
+
+
+
+    TEST_METHOD (FindResultsListEachHitWithItsSectorAndField)
+    {
+        DiskAnalysis       analysis;
+        SearchQuery        query;
+        vector<SearchHit>  hits;
+        vector<TableRow>   rows;
+
+
+
+        AnalyzePlanted (analysis);
+
+        query.text = L"D5 AA 96";
+        hits       = InspectorSearch::Find (analysis, 20, query);
+        rows       = InspectorTables::BuildSearchHits (hits, &analysis, nullptr);
+
+        Assert::AreEqual (static_cast<size_t> (16), rows.size(), L"one address prolog per sector");
+        Assert::AreEqual (std::wstring (L"5"),       rows[3].cells[0]);
+        Assert::AreEqual (std::wstring (L"$3"),      rows[3].cells[1]);
+        Assert::AreEqual (std::wstring (L"Address"), rows[3].cells[2]);
+        Assert::IsTrue   (rows[3].cells[3].starts_with (L"Nibble $"));
+        Assert::AreEqual (3, rows[3].finding, L"a row indicates its hit's index");
+
+        query.text = L"D5 AA AD";
+        rows       = InspectorTables::BuildSearchHits (InspectorSearch::Find (analysis, 20, query), &analysis, nullptr);
+
+        Assert::AreEqual (static_cast<size_t> (16), rows.size());
+        Assert::AreEqual (std::wstring (L"Data"), rows[0].cells[2]);
+    }
+
+
+
+    TEST_METHOD (FindResultsPlaceASectorDataHitAtItsByte)
+    {
+        DiskAnalysis      analysis;
+        SearchHit         hit;
+        vector<TableRow>  rows;
+
+
+
+        AnalyzePlanted (analysis);
+
+        hit.quarterTrack = 20;
+        hit.track        = analysis.tracks[analysis.entries[20].slot].get();
+        hit.sectorIndex  = 2;
+        hit.offset       = 0x2C;
+        hit.length       = 3;
+        rows             = InspectorTables::BuildSearchHits ({ hit }, &analysis, nullptr);
+
+        Assert::AreEqual (std::wstring (L"$2"),        rows[0].cells[1]);
+        Assert::AreEqual (std::wstring (L"Data"),      rows[0].cells[2]);
+        Assert::AreEqual (std::wstring (L"Byte $2C"),  rows[0].cells[3]);
+    }
+
+
+
+    TEST_METHOD (FindBarQueriesDifferInEveryField)
+    {
+        SearchQuery  a;
+        SearchQuery  b;
+
+
+
+        a.text = L"D5 AA";
+        b      = a;
+        Assert::IsTrue (FindBar::IsSame (a, b));
+
+        b.kind = SearchKind::SectorHex;
+        Assert::IsFalse (FindBar::IsSame (a, b));
+
+        b = a;
+        b.isWholeDisk = !a.isWholeDisk;
+        Assert::IsFalse (FindBar::IsSame (a, b));
+
+        b = a;
+        b.isAnyBitOffset = !a.isAnyBitOffset;
+        Assert::IsFalse (FindBar::IsSame (a, b));
+
+        b = a;
+        b.text = L"D5 AB";
+        Assert::IsFalse (FindBar::IsSame (a, b));
+
+        Assert::IsTrue (FindBar::GetHint (SearchKind::Nibbles).find (L"D5 AA 96") != std::wstring::npos);
+        Assert::IsTrue (FindBar::GetHint (SearchKind::SectorText).find (L"high bit") != std::wstring::npos);
     }
 };

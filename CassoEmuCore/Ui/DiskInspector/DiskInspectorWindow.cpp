@@ -22,7 +22,7 @@
 #include "Ui/DiskInspector/ExportDialog.h"
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/FileMapText.h"
-#include "Ui/DiskInspector/FindPanel.h"
+#include "Ui/DiskInspector/FindBar.h"
 #include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Ui/DiskInspector/GoToDialog.h"
 #include "Ui/DiskInspector/NibblesTab.h"
@@ -42,6 +42,8 @@
 
 static constexpr LPCWSTR  s_kpszWindowTitle = L"Disk inspector";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
+static constexpr LPCWSTR  s_kpszFindBadHex  = L"Enter pairs of hex digits, such as D5 AA 96. ? matches any digit, and + after a nibble for extra zero cells.";
+static constexpr LPCWSTR  s_kpszFindBadText = L"Enter the text to find, in plain ASCII.";
 
 //  A command added to the system menu: below SC_SIZE, low four bits clear.
 static constexpr UINT     s_kDefaultSizeCommand = 0x0010;
@@ -136,6 +138,7 @@ enum DiskTab
     kTabFileMap,
     kTabImage,
     kTabDifferences,
+    kTabFindResults,
     kDiskTabCount,
 };
 
@@ -429,10 +432,12 @@ void DiskInspectorWindow::OnCreate()
     m_zoomControl  = CreateChild<DxuiZoomControl>();
     m_mapCopy     = CreateChild<DxuiButton> (L"Copy map");
     m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
+    m_findResults = CreateChild<InspectorTableView> (m_context);
+    m_findBar     = CreateChild<FindBar>();
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
     m_legendButton->SetOnClick ([this] () { if (m_isLegendPinned) { HideLegend(); } else if (static_cast<int64_t> (GetTickCount64()) - m_legendClosedMs > s_kLegendReopenMs) { ShowLegend (true); } });
-    m_tabs->SetOnChange      ([this] (int index) { if (index < kTrackTabCount) { ShowTrackTab (index); } else { ShowDiskTab (index - kTrackTabCount); } });
+    m_tabs->SetOnChange      ([this] (int index) { if (index < kTrackTabCount) { ShowTrackTab (index); } else { ShowDiskTab (GetShownDiskTabs()[static_cast<size_t> (index - kTrackTabCount)]); } });
     m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
     m_imageTab->SetColumns   (InspectorTables::GetImageColumns());
@@ -460,7 +465,16 @@ void DiskInspectorWindow::OnCreate()
     m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
     m_exportButton->SetOnClick ([this] () { OpenExport(); });
     m_goToButton->SetOnClick   ([this] () { OpenGoTo(); });
-    m_findButton->SetOnClick   ([this] () { OpenFind(); });
+    m_findButton->SetOnClick   ([this] () { OpenFindBar(); });
+    m_findResults->SetColumns  (InspectorTables::GetSearchHitColumns());
+    m_findResults->SetOnSelect ([this] (const TableRow & row) { if (row.finding >= 0 && row.finding < static_cast<int> (m_findHits.size())) { m_findIndex = row.finding; SelectHit (m_findHits[m_findIndex]); m_findBar->SetResult (m_findIndex, static_cast<int> (m_findHits.size())); } });
+    m_findBar->Init            (GetHwnd(), GetTextRenderer(), GetPopupHost(), m_theme);
+    m_findBar->SetOnSearch     ([this] (const SearchQuery & query) { RunFind (query); });
+    m_findBar->SetOnStep       ([this] (int step) { StepFind (step); });
+    m_findBar->SetOnList       ([this] () { ShowDiskTab (kTabFindResults); });
+    m_findBar->SetOnClose      ([this] () { CloseFindBar(); });
+    m_findBar->SetVisible      (false);
+    m_findQuery.isWholeDisk = true;
     m_copySector->SetOnClick   ([this] () { CopySector(); });
     m_compareButton->SetOnClick   ([this] () { OpenCompare(); });
     m_followCheck->SetOnChange    ([this] (bool isChecked) { SetFollowHead (isChecked); });
@@ -726,7 +740,8 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     vector<ToolItem>           items     = GetToolItems (scaler);
     int                        rows      = FlowToolItems (items, boundsDip.left + margin, nameLeft + scaler.ToPx (s_kMinFileNameDip) + margin, boundsDip.right - margin, boundsDip.top, toolbar, margin / 2);
     int                        bar       = m_comparison.IsComparing() ? scaler.ToPx (s_kBarDip) : 0;
-    int                        top       = boundsDip.top + rows * toolbar + bar;
+    int                        find      = m_isFindOpen ? FindBar::GetHeightPx (scaler) : 0;
+    int                        top       = boundsDip.top + rows * toolbar + bar + find;
     int                        ctlLeft   = static_cast<int> (boundsDip.right) - margin;
     int                        strip     = scaler.ToPx (s_kStripDip);
     int                        band      = 2 * margin + strip + (m_comparison.IsComparing() ? strip + margin / 2 : 0) + margin / 2 + row;
@@ -760,8 +775,9 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_tooltip.SetViewportSize (width, boundsDip.bottom - boundsDip.top);
     m_context.scenePx = boundsDip;
 
-    m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top - bar };
-    m_barPx      = { boundsDip.left, top - bar, boundsDip.right, top };
+    m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top - bar - find };
+    m_barPx      = { boundsDip.left, top - bar - find, boundsDip.right, top - find };
+    m_findBar->Layout ({ boundsDip.left, top - find, boundsDip.right, top }, scaler);
     m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
     right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, bandTop - margin / 2 };
 
@@ -823,7 +839,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     m_diskContentPx = { right.left, y, right.right, right.bottom };
 
-    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_byteView, m_nibblesTab, m_fieldsTab, m_fluxTab, m_tracksTab, m_findingsTab, m_imageTab, m_diffsTab })
+    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_byteView, m_nibblesTab, m_fieldsTab, m_fluxTab, m_tracksTab, m_findingsTab, m_imageTab, m_diffsTab, m_findResults })
     {
         content->Layout (m_diskContentPx, scaler);
     }
@@ -908,13 +924,13 @@ void DiskInspectorWindow::LayoutPlatterControls (const RECT & area, const DxuiDp
 int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & scaler)
 {
     static constexpr LPCWSTR  kpszTrackTabs[] = { L"Sector data", L"Nibbles", L"Fields", L"Flux timing" };
-    static constexpr LPCWSTR  kpszDiskTabs[]  = { L"Tracks", L"Findings", L"File map", L"Image", L"Differences" };
+    static constexpr LPCWSTR  kpszDiskTabs[]  = { L"Tracks", L"Findings", L"File map", L"Image", L"Differences", L"Find results" };
 
 
 
     int                        tabsH  = scaler.ToPx (s_kTabsDip);
     int                        margin = scaler.ToPx (s_kMarginDip);
-    int                        disks  = m_comparison.IsComparing() ? kDiskTabCount : kDiskTabCount - 1;
+    vector<int>                shown  = GetShownDiskTabs();
     int                        trackW = 0;
     int                        diskW  = 0;
     int                        x      = area.left;
@@ -929,7 +945,7 @@ int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & sc
         trackW += GetLabelWidthPx (label, s_kTabLabelPadDip, scaler);
     }
 
-    for (int i = 0; i < disks; i++)
+    for (int i : shown)
     {
         diskW += GetLabelWidthPx (kpszDiskTabs[i], s_kTabLabelPadDip, scaler);
     }
@@ -951,7 +967,7 @@ int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & sc
     x  = isOne ? x + 2 * margin : area.left;
     y += isOne ? 0 : tabsH;
 
-    for (int i = 0; i < disks; i++)
+    for (int i : shown)
     {
         int  w = GetLabelWidthPx (kpszDiskTabs[i], s_kTabLabelPadDip, scaler);
 
@@ -960,7 +976,7 @@ int DiskInspectorWindow::LayoutTabs (const RECT & area, const DxuiDpiScaler & sc
     }
 
     m_tabs->SetTabs     (std::move (tabs));
-    m_tabs->SetSelected (m_isDiskGroup ? kTrackTabCount + m_diskTab : m_trackTab);
+    m_tabs->SetSelected (GetTabIndex());
     m_tabs->Layout      ({ area.left, area.top, area.right, y + tabsH }, scaler);
 
     return y + tabsH + margin / 2;
@@ -1180,6 +1196,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     {
         m_keyTarget    = GetKeyTarget (p);
         m_isFocusShown = false;
+        m_findBar->SetInputFocused (m_keyTarget == KeyTarget::FindBar && m_findBar->IsInputFocused());
     }
 
     if (!isCovered && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && m_context.hasDisk &&
@@ -1263,9 +1280,15 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 
 
 
-    //  Ctrl with 0, + or - zooms the whole window (FR-154).
-    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && IsZoomKey (ev.vk))
+    //  Keys go to the find bar while it has the focus, all but the window's
+    //  zoom and its Ctrl+F and Ctrl+G.
+    if (m_isFindOpen && m_keyTarget == KeyTarget::FindBar && !(ev.ctrl && (IsZoomKey (ev.vk) || ev.vk == 'F' || ev.vk == 'G')) && m_findBar->OnKey (ev))
     {
+        isHandled = true;
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && IsZoomKey (ev.vk))
+    {
+        //  Ctrl with 0, + or - zooms the whole window (FR-154).
         SetZoom ((ev.vk == '0' || ev.vk == VK_NUMPAD0) ? 1.0 : DxuiZoomControl::StepZoom (m_zoom, (ev.vk == VK_OEM_PLUS || ev.vk == VK_ADD) ? 1 : -1));
         isHandled = true;
     }
@@ -1283,7 +1306,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_DOWN:  m_model.PanBy ({ 0.0, -s_kPanStep }); break;
                 case 'A':      SelectAll();                          break;
                 case 'C':      if (ev.shift) { CopySector(); } else { Copy(); } break;
-                case 'F':      OpenFind();                           break;
+                case 'F':      OpenFindBar();                        break;
                 case 'G':      OpenGoTo();                           break;
                 default:       isHandled = false;                    break;
             }
@@ -1479,6 +1502,12 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
         }
 
         m_isFilesDefaulted = false;
+
+        //  Hits point into the analysis they were found in.
+        m_findHits.clear();
+        m_findIndex = -1;
+        m_findBar->SetResult (-1, 0);
+        RefreshFindResults();
 
         //  The copy's own write counts are where the guest's writes start.
         m_writeCounts.clear();
@@ -1940,8 +1969,9 @@ void DiskInspectorWindow::ShowTabContent()
     m_findingsTab->SetVisible (!isTrack && m_diskTab == kTabFindings);
     m_imageTab->SetVisible    (!isTrack && m_diskTab == kTabImage);
     m_diffsTab->SetVisible    (!isTrack && m_diskTab == kTabDifferences);
+    m_findResults->SetVisible (!isTrack && m_diskTab == kTabFindResults);
     ShowFileMap (!isTrack && m_diskTab == kTabFileMap);
-    m_tabs->SetSelected (isTrack ? m_trackTab : kTrackTabCount + m_diskTab);
+    m_tabs->SetSelected (GetTabIndex());
 }
 
 
@@ -2194,50 +2224,164 @@ bool DiskInspectorWindow::IsStripKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::OpenFind
+//  DiskInspectorWindow::OpenFindBar
 //
-//  The panel opens on the last query and its hits; a hit chosen there is
-//  selected, and the hits stay for F3 either way.
+//  The find bar opens on the last query, with the focus in its pattern.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskInspectorWindow::OpenFind()
+void DiskInspectorWindow::OpenFindBar()
 {
-    HRESULT                   hr     = S_OK;
-    FindPanel                 panel;
-    DxuiWindow::CreateParams  params;
-
-
-
-    panel.Configure (m_theme, m_context, m_model.GetQuarterTrack(), m_findQuery, m_findHits);
-
-    params.title                    = L"Find";
-    params.hInstance                = GetModuleHandle (nullptr);
-    params.ownerHwnd                = GetHwnd();
-    params.initialSizeDip           = FindPanel::kSizeDip;
-    params.minSizeDip               = FindPanel::kSizeDip;
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
-
-    hr = panel.Create (params);
-    CHRA (hr);
-
-    panel.SetTheme (m_theme);
-    panel.ShowModalDialog (IDOK);
-
-    m_findQuery = panel.GetQuery();
-    m_findHits  = panel.GetHits();
-    m_findIndex = panel.GetChosen();
-
-    if (m_findIndex >= 0)
+    if (!m_isFindOpen)
     {
-        SelectHit (m_findHits[m_findIndex]);
+        m_isFindOpen = true;
+        m_findBar->SetQuery  (m_findQuery);
+        m_findBar->SetResult (m_findIndex, static_cast<int> (m_findHits.size()));
+        m_findBar->SetVisible (true);
+        Layout (m_boundsDip, m_hostScaler);
     }
 
-Error:
-    return;
+    m_keyTarget = KeyTarget::FindBar;
+    m_findBar->SetInputFocused (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::CloseFindBar
+//
+//  The hits stay for F3 and the Find results tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::CloseFindBar()
+{
+    m_isFindOpen = false;
+    m_findBar->SetInputFocused (false);
+    m_findBar->SetVisible (false);
+    m_keyTarget = KeyTarget::Platter;
+    Layout (m_boundsDip, m_hostScaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RunFind
+//
+//  The query's hits replace the last ones, and the first is selected. For a
+//  pattern that cannot be read, the hits are cleared and the bar displays
+//  an example of a valid pattern. The Find results tab is visible only
+//  while there are hits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RunFind (const SearchQuery & query)
+{
+    vector<SearchItem>  items;
+    bool                isRead = query.text.empty() || InspectorSearch::ParsePattern (query.text, query.kind, items);
+
+
+
+    m_findQuery = query;
+    m_findIndex = -1;
+    m_findHits.clear();
+    m_findBar->SetSearched (query);
+    m_findBar->SetError (isRead ? std::wstring() : (query.kind == SearchKind::SectorText ? std::wstring (s_kpszFindBadText) : std::wstring (s_kpszFindBadHex)));
+
+    if (isRead && !query.text.empty() && m_context.hasDisk)
+    {
+        m_findHits = InspectorSearch::Find (m_analysis, m_model.GetQuarterTrack(), query);
+    }
+
+    RefreshFindResults();
+    StepFind (1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RefreshFindResults
+//
+//  The Find results tab's rows for the hits; with none, a window showing
+//  the tab goes back to Tracks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RefreshFindResults()
+{
+    m_findResults->SetRows (InspectorTables::BuildSearchHits (m_findHits, m_context.hasDisk ? &m_analysis : nullptr, GetFileMap()));
+
+    if (m_findHits.empty() && m_isDiskGroup && m_diskTab == kTabFindResults)
+    {
+        ShowDiskTab (kTabTracks);
+    }
+    else if (m_scaler.GetDpi() != 0)
+    {
+        Layout (m_boundsDip, m_hostScaler);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetShownDiskTabs
+//
+//  The disk tabs in the strip, in order: Differences only while comparing,
+//  and Find results only with hits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<int> DiskInspectorWindow::GetShownDiskTabs() const
+{
+    vector<int>  shown = { kTabTracks, kTabFindings, kTabFileMap, kTabImage };
+
+
+
+    if (m_comparison.IsComparing())
+    {
+        shown.push_back (kTabDifferences);
+    }
+
+    if (!m_findHits.empty())
+    {
+        shown.push_back (kTabFindResults);
+    }
+
+    return shown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetTabIndex
+//
+//  The chosen tab's place in the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::GetTabIndex() const
+{
+    vector<int>  shown = GetShownDiskTabs();
+    auto         at    = std::find (shown.begin(), shown.end(), m_diskTab);
+
+
+
+    return !m_isDiskGroup ? m_trackTab : kTrackTabCount + static_cast<int> ((at != shown.end()) ? at - shown.begin() : 0);
 }
 
 
@@ -2322,7 +2466,10 @@ void DiskInspectorWindow::StepFind (int step)
     {
         m_findIndex = (m_findIndex < 0) ? (step > 0 ? 0 : count - 1) : (m_findIndex + step + count) % count;
         SelectHit (m_findHits[m_findIndex]);
+        m_findResults->SelectRowWhere ([this] (const TableRow & row) { return row.finding == m_findIndex; });
     }
+
+    m_findBar->SetResult (m_findIndex, count);
 }
 
 
@@ -2378,7 +2525,11 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
 
 
 
-    if (IsInside (m_stripView->GetBounds(), pointPx) || (m_stripB->IsVisible() && IsInside (m_stripB->GetBounds(), pointPx)) || IsInside (m_stripOut->GetBounds(), pointPx) || IsInside (m_stripIn->GetBounds(), pointPx) ||
+    if (m_isFindOpen && IsInside (m_findBar->GetBounds(), pointPx))
+    {
+        target = KeyTarget::FindBar;
+    }
+    else if (IsInside (m_stripView->GetBounds(), pointPx) || (m_stripB->IsVisible() && IsInside (m_stripB->GetBounds(), pointPx)) || IsInside (m_stripOut->GetBounds(), pointPx) || IsInside (m_stripIn->GetBounds(), pointPx) ||
         IsInside (m_stripWhole->GetBounds(), pointPx))
     {
         target = KeyTarget::Strip;
@@ -2422,6 +2573,10 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     else if (m_diffsTab->IsVisible() && IsInside (m_diffsTab->GetBounds(), pointPx))
     {
         target = KeyTarget::Differences;
+    }
+    else if (m_findResults->IsVisible() && IsInside (m_findResults->GetBounds(), pointPx))
+    {
+        target = KeyTarget::FindResults;
     }
 
     return target;
@@ -2524,6 +2679,7 @@ void DiskInspectorWindow::Copy()
         case KeyTarget::Image:      text = m_imageTab->GetSelectedText();    break;
         case KeyTarget::FileList:   text = m_fileList->GetSelectedText();    break;
         case KeyTarget::Differences: text = m_diffsTab->GetSelectedText();   break;
+        case KeyTarget::FindResults: text = m_findResults->GetSelectedText(); break;
         case KeyTarget::FluxTiming: text = m_fluxTab->GetHistogramText();    break;
 
         case KeyTarget::Strip:
@@ -2818,7 +2974,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
 void DiskInspectorWindow::StepKeyTarget (int step)
 {
-    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 10>  order =
+    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 11>  order =
     {{
         { KeyTarget::Platter,    m_platterView },
         { KeyTarget::Strip,      m_stripView },
@@ -2830,6 +2986,7 @@ void DiskInspectorWindow::StepKeyTarget (int step)
         { KeyTarget::Tracks,     m_tracksTab },
         { KeyTarget::Findings,   m_findingsTab },
         { KeyTarget::Differences, m_diffsTab },
+        { KeyTarget::FindResults, m_findResults },
     }};
 
 
@@ -2884,6 +3041,7 @@ RECT DiskInspectorWindow::GetKeyTargetBounds() const
         case KeyTarget::Tracks:     bounds = m_tracksTab->GetBounds();   break;
         case KeyTarget::Findings:   bounds = m_findingsTab->GetBounds(); break;
         case KeyTarget::Differences: bounds = m_diffsTab->GetBounds();   break;
+        case KeyTarget::FindResults: bounds = m_findResults->GetBounds(); break;
         default:                                                         break;
     }
 

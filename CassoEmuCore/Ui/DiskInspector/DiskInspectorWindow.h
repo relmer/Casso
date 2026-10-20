@@ -26,6 +26,7 @@ class PlatterLegendView;
 class FluxTimingTab;
 class FileMapGridView;
 class DifferencesTab;
+class FindBar;
 
 
 
@@ -46,6 +47,8 @@ enum class KeyTarget
     Image,
     FileList,
     Differences,
+    FindBar,
+    FindResults,
 };
 
 
@@ -162,7 +165,12 @@ private:
     void  ExtendSelection (WPARAM vk);
     void  Copy            ();
     void  CopySector      ();
-    void  OpenFind  ();
+    void  OpenFindBar        ();
+    void  CloseFindBar       ();
+    void  RunFind            (const SearchQuery & query);
+    void  RefreshFindResults ();
+    vector<int>  GetShownDiskTabs () const;
+    int          GetTabIndex      () const;
     void  OpenExport ();
     void  PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     bool  IsCovered  (POINT pointPx) const;
@@ -298,6 +306,9 @@ private:
     SearchQuery                             m_findQuery;
     vector<SearchHit>                       m_findHits;
     int                                     m_findIndex          = -1;
+    FindBar                               * m_findBar            = nullptr;
+    InspectorTableView                    * m_findResults        = nullptr;
+    bool                                    m_isFindOpen         = false;
     GoToKind                                m_goToKind           = GoToKind::Track;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     PlatterView                           * m_platterView        = nullptr;

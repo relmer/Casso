@@ -3,6 +3,8 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
+#include "Devices/Disk/Inspector/FileMap/FileMap.h"
+#include "Devices/Disk/Inspector/InspectorSearch.h"
 
 
 
@@ -50,11 +52,19 @@ public:
     static vector<std::wstring>  GetTrackColumns   ();
     static vector<std::wstring>  GetFieldColumns   ();
     static vector<std::wstring>  GetImageColumns   ();
+    static vector<std::wstring>  GetSearchHitColumns ();
 
     static vector<TableRow>  BuildFindings (const DiskAnalysis & analysis, uint32_t categoryMask, int sortColumn, bool isDescending);
     static vector<TableRow>  BuildTracks   (const DiskAnalysis & analysis);
     static vector<TableRow>  BuildFields   (const DiskAnalysis & analysis, int quarterTrack);
     static vector<TableRow>  BuildImage    (const ImageDetails & image);
+
+    //  Find's hits, a row each in order: the track, the sector and field a
+    //  hit lies in where it lies in one, its nibble or byte, and the file that
+    //  owns its sector on a mapped volume. A hit whose track has been analyzed
+    //  again since is marked out of date. Each row's finding is its hit's
+    //  index.
+    static vector<TableRow>  BuildSearchHits (const vector<SearchHit> & hits, const DiskAnalysis * analysis, const FileMap * map);
 
     static std::array<int, kCategoryCount>  CountCategories (const DiskAnalysis & analysis);
     static uint32_t                         GetAllCategories ();

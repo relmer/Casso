@@ -7,6 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
 
 
@@ -70,6 +71,101 @@ vector<std::wstring> InspectorTables::GetFieldColumns()
 {
     return { L"Cell", L"Angle", L"Sector", L"Volume", L"Track", L"Address marks", L"Address checksum", L"Gap",
              L"Data marks", L"Data checksum", L"Encoding", L"Sync before", L"Findings" };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::GetSearchHitColumns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<std::wstring> InspectorTables::GetSearchHitColumns()
+{
+    return { L"Track", L"Sector", L"Field", L"Place", L"File" };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::BuildSearchHits
+//
+//  A nibble hit lies in the address or data field whose nibbles contain its
+//  first one, or else in a gap; a hit in sector data lies in its sector's
+//  data field.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<TableRow> InspectorTables::BuildSearchHits (const vector<SearchHit> & hits, const DiskAnalysis * analysis, const FileMap * map)
+{
+    vector<TableRow>  rows;
+    size_t            i     = 0;
+    size_t            s     = 0;
+    int               half  = 0;
+    int               cell  = -1;
+    int               count = 0;
+
+
+
+    for (i = 0; i < hits.size(); i++)
+    {
+        const SearchHit &  hit   = hits[i];
+        TableRow           row;
+        std::wstring       field = L"Gap";
+        std::wstring       place = (hit.offset >= 0) ? std::format (L"Byte ${:02X}", hit.offset) : std::format (L"Nibble ${:X}", hit.firstNibble);
+        std::wstring       owner;
+
+        row.quarterTrack = hit.quarterTrack;
+        row.sectorIndex  = hit.sectorIndex;
+        row.finding      = static_cast<int> (i);
+
+        //  The sector whose address or data field contains a nibble hit.
+        for (s = 0; hit.track != nullptr && hit.offset < 0 && row.sectorIndex < 0 && s < hit.track->sectors.size(); s++)
+        {
+            for (int f : { hit.track->sectors[s].addressField, hit.track->sectors[s].dataField })
+            {
+                count = static_cast<int> (hit.track->framed.nibbles.size());
+
+                if (f >= 0 && count > 0 && (hit.firstNibble - hit.track->fields[f].firstNibble + count) % count < hit.track->fields[f].nibbleCount)
+                {
+                    row.sectorIndex = static_cast<int> (s);
+                    field           = (hit.track->fields[f].role == FieldRole::Address) ? L"Address" : L"Data";
+                }
+            }
+        }
+
+        field = (hit.offset >= 0) ? std::wstring (L"Data") : field;
+
+        if (map != nullptr && hit.track != nullptr && row.sectorIndex >= 0 && hit.quarterTrack % DiskImage::kQuarterTracksPerWholeTrack == 0)
+        {
+            cell  = map->GetCellOf (hit.quarterTrack / DiskImage::kQuarterTracksPerWholeTrack, hit.track->sectors[row.sectorIndex].sector, half);
+            owner = (cell >= 0 && !map->cells[cell].owners.empty()) ? FileMapText::FormatOwners (*map, cell) : std::wstring();
+        }
+
+        if (analysis != nullptr && InspectorSearch::IsOutOfDate (hit, *analysis))
+        {
+            place += L" (out of date)";
+        }
+
+        row.cells =
+        {
+            FormatQuarterTrackCell (hit.quarterTrack),
+            (hit.track != nullptr && row.sectorIndex >= 0) ? InspectorFormat::FormatSector (hit.track->sectors[row.sectorIndex].sector) : std::wstring (s_kpszNone),
+            field,
+            place,
+            owner,
+        };
+
+        rows.push_back (std::move (row));
+    }
+
+    return rows;
 }
 
 
