@@ -405,6 +405,63 @@ public:
     }
 
 
+    //  A program of another version is sent Load program and goes back to
+    //  the shim. The shim waits at the speed port 2 is at, the link's, and
+    //  not at the 9,600 it was typed in at, where the host is not.
+    TEST_METHOD (AnOlderProgram_ReloadsAtTheLinksSpeed)
+    {
+        Rig                   rig (true, 9600);
+        std::vector<Byte>     header = { 0xC1, 0x09, 0x00, CassoLinkCodec::kReady };
+        Word                  ready  = 0;
+        bool                  seen   = false;
+        uint64_t              spent  = 0;
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+        rig.session->Stop();
+
+        //  The Ready packet's version, and its check with it, as an older
+        //  program's.
+        for (Word at = 0x0800; at < 0x2000 && ready == 0; at++)
+        {
+            bool  match = true;
+
+            for (size_t i = 0; i < header.size(); i++)
+            {
+                match = match && rig.machine.GetCpu()->ReadByte ((Word) (at + i)) == header[i];
+            }
+
+            ready = match ? at : 0;
+        }
+
+        Assert::AreNotEqual ((Word) 0, ready, L"the program's Ready packet");
+
+        Byte  version = rig.machine.GetCpu()->ReadByte ((Word) (ready + 5));
+
+        rig.machine.GetCpu()->WriteByte ((Word) (ready + 5), (Byte) (version - 1));
+        rig.machine.GetCpu()->WriteByte ((Word) (ready + 14), (Byte) (rig.machine.GetCpu()->ReadByte ((Word) (ready + 14)) ^ version ^ (Byte) (version - 1)));
+
+        //  Stop closed the line; the next start has a new one.
+        InProcessByteStream::CreatePair (rig.machineEnd, rig.factory.pcEnd);
+        Assert::AreEqual (S_OK, rig.machine.AttachSerialStream (2, rig.machineEnd));
+
+        rig.Start();
+
+        auto  list = rig.session->Enumerate (1, FilePath());
+
+        while (!rig.sink.IsDone (list) && spent < kBudget)
+        {
+            rig.machine.RunCycles (kFrame);
+            spent += kFrame;
+            seen   = seen || rig.Row (kRow2) == "WAITING FOR THE PC ON PORT 2 AT 115200";
+        }
+
+        Assert::IsTrue  (rig.sink.IsDone (list));
+        AssertSucceeded (list->result);
+        Assert::IsTrue  (seen, L"the shim waited at the link's speed");
+    }
+
+
+
     TEST_METHOD (AShimAtTheLinksSpeed_Connects)
     {
         Rig  rig (true, 115200);

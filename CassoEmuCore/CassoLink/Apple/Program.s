@@ -83,6 +83,9 @@ CMDCANCEL = $D1
 CMDLOAD   = $CF
 CMDLABEL  = $DC
 SHIM      = $3D00
+SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
+SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
+SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
 ACK       = $06
 NAK       = $15
 
@@ -206,6 +209,7 @@ slotok: clc
         lda #3
         sta tmolen
         jsr mktables
+        jsr probe
         jsr readid
         jsr drawscreen
 
@@ -252,9 +256,44 @@ notwtrack: cmp #CMDLABEL
         jmp dolabel
 notlabel: cmp #CMDLOAD
         bne tomain
-        jmp SHIM
+        jmp doload
 tomain: jmp main
 
+; doload: back to the shim, at the speed the 6551 is at now, which is the
+; speed the host sends the program at; and with no dial command, as a modem
+; link is connected already.
+doload: ldx slotx
+        lda ACIACTL,x
+        sta SHIMSPEED
+        and #$0F
+        ldx #0
+dlfind: cmp speeds,x
+        beq dlfound
+        inx
+        inx
+        inx
+        cpx #speedend-speeds
+        bne dlfind
+dlfound: lda speeds+1,x
+        sta ptr
+        lda speeds+2,x
+        sta ptr+1
+        ldy #0
+dltext: lda (ptr),y
+        beq dlpad
+        sta SHIMTEXT,y
+        iny
+        cpy #6
+        bne dltext
+        beq dlgo
+dlpad:  lda #' '
+        sta SHIMTEXT,y
+        iny
+        cpy #6
+        bne dlpad
+dlgo:   lda #0
+        sta SHIMDIAL
+        jmp SHIM
 ; cancel: the operation stops where it is, and the loop starts again.
 cancel: jsr motoroff
         ldx #$FF
@@ -534,7 +573,8 @@ srloop: lda readypkt,x
         rts
 
 readypkt: .byte $C1, $09, $00, CMDREADY, $C1 ^ $09 ^ $00 ^ CMDREADY
-          .byte <PROGVER, >PROGVER, SHIMVER, $03
+          .byte <PROGVER, >PROGVER, SHIMVER
+readymap: .byte $03                ; probe sets it
 readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
 readychk: .byte 0
 readyend:
@@ -565,7 +605,8 @@ readid: lda $FBB3
         bcs ridsum
         lda #1
         sta readyrom+4
-ridsum: lda #<PROGVER ^ >PROGVER ^ SHIMVER ^ $03
+ridsum: lda #<PROGVER ^ >PROGVER ^ SHIMVER
+        eor readymap
         ldx #4
 ridnext: eor readyrom,x
         dex
@@ -573,6 +614,40 @@ ridnext: eor readyrom,x
         sta readychk
         rts
 
+; probe: drive 2 into readymap. A drive at the port reads nibbles from a
+; disk, and noise with none, so its data latch has bit 7 set many times a
+; revolution; with no drive at the port, the latch never has. Drive 1 is
+; always there: the //c's own drive, or the first on a card.
+probe:  ldx diskx
+        lda DRIVE2,x
+        lda MOTORON,x
+        lda Q6L,x
+        lda Q7L,x
+        lda #50                 ; the drive's electronics, powered with the motor
+        jsr delayms
+        lda #0
+        sta tmp                 ; 64 * 256 reads, about a quarter second
+        sta pagecnt             ; the reads with bit 7 set
+        lda #64
+        sta tmp2
+        lda #$01
+        sta readymap
+prloop: lda Q6L,x
+        bpl prnext
+        inc pagecnt
+        lda pagecnt
+        cmp #16
+        bcs prfound
+prnext: dec tmp
+        bne prloop
+        dec tmp2
+        bne prloop
+        beq prdone
+prfound: lda #$03
+        sta readymap
+prdone: lda MOTOROFF,x
+        lda DRIVE1,x
+        rts
 ; sendack: Acknowledge with the kind in A, then X and Y.
 sendack: sta tmp
         stx tmp2

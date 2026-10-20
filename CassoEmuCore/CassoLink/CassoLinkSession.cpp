@@ -919,8 +919,10 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
 
 Error:
     //  With no Apple on it, the line stays open, and the wait before the
-    //  next attempt serves it.
-    if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) && IsLineOpen())
+    //  next attempt serves it. After a load that stopped partway, the
+    //  Apple's shim can be at another speed, so the line is closed, and the
+    //  next attempt opens it at each speed again.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) && IsLineOpen() && m_state != LinkState::LoadingProgram)
     {
         SetState (LinkState::Disconnected);
     }
