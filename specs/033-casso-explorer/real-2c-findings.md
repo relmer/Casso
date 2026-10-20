@@ -313,6 +313,121 @@ wrong; the record of the reversal follows.
 - **Next:** read the //c's text page over the link when it appears, to find
   the byte's row and the operation before it.
 
+### 25. A lost request hung the host for good
+
+- **Symptom:** in a whole-disk copy to drive 2, the PC stopped with no
+  error for more than 10 minutes. The //c was idle in its main loop, sending
+  Ready every second.
+- **Cause:** `CassoLinkHost::ReadReply` skipped every Ready, on the grounds
+  that one can be sent before the operation. After a request lost on the
+  line, the program sends Ready every second, and each one restarted the
+  host's wait.
+- **Fix:** pending commit. `ReadReply` skips one Ready (the program's wait
+  for a reply can run out as the request arrives) and returns
+  `kLostRequest` on a second; Read sectors, Write sectors, Write track,
+  Format track and Time drive send the request again on that, up to
+  `kMaxResends` times (item 15).
+- **Why the emulator missed it:** no request is lost on the emulated link.
+
+### 26. Results on both drives, 2026-10-20
+
+The owner's Disk II on the //c's external port as drive 2, a blank disk in
+it, and a DOS disk in drive 1.
+
+- **Shim timeout (item 22):** page 2 of a load, sent 10 bytes short, was
+  met with NAK within 2.5 s; sent whole, with ACK, and the load
+  finished. Shim version 3.
+- **Drive 2 detected:** the program's drive map is `$03`.
+- **Drive 2, blank:** a read of T17 S0 ended in `ERRNOTFND`, as it should.
+- **Drive 2, format:** all 35 tracks formatted and read back (item 6's
+  verify).
+- **Drive 1, round trip:** a 140K pseudo-random image written by Write
+  track, every track verified, and read back with no sector different;
+  read a second time with no error.
+- **Drive 2, round trip (open):** the same with another image: tracks 9 and
+  11 failed their verify, and on reading back tracks 3 and 9 failed, 32
+  sectors in all. Zeros (the format) wrote correctly on every track, random
+  data did not on a few, and track 3 verified and later did not read.
+- **Drive speeds, by Time drive (item 27):** drive 1 at 293.16 rpm (204.667
+  to 204.670 ms over three runs of 20 revolutions), gap 27; drive 2 at
+  298.37 rpm (201.08 to 201.11 ms), gap 21. Drive 2 is 0.5% slow, inside the
+  usual setting, so its failures are not its speed.
+- **Drive 2 with its own gap:** written again with gap 21, tracks 3 and 8
+  failed their verify and track 8 did not read back: 16 sectors. The failing
+  tracks move from run to run. Next: the same disk written by DOS's RWTS,
+  to separate CassoLink's write loop from the drive and its disk.
+
+### 29. A page crossing put three zero bits in a row on the disk
+
+- **Symptom:** drive 2 (the Disk II) lost a few tracks to random data, and
+  the failing tracks moved from run to run; drive 1 never did.
+- **Evidence, 2026-10-20:** every logical sector of drive 2 written by DOS's
+  own RWTS, called from a diagnostic build: 12 write errors, every one
+  logical sector 8 (physical 14), on tracks 3, 4, 5, 7, 8, 14, 17, 24, 27,
+  28, 30 and 32; all other sectors read back exactly. The tracks had last
+  been laid out by CassoLink's Write track with a gap of 21, where sector
+  14's address field runs from stream byte 5878 to 5891 and the page at
+  5888 begins inside its checksum.
+- **Cause:** the player took 8 more cycles where the stream crossed a page,
+  two more bit cells with no flux change. After a nibble ending in a 0 bit,
+  that is three zero bits in a row, which disks written by Apple's routines
+  never have outside self-sync bytes; on a weaker drive the read amplifier
+  can turn the long gap into a false 1 bit. Drive 1 read them; drive 2, and
+  RWTS's stricter address check, did not always.
+- **Fix:** `69a25eb2e`. The stream ends with a mark, `PEND`, instead of a
+  page count, and every path from a store back to the next load is 21
+  cycles, the page-stepping one too, so a crossing adds no time.
+- **Result:** drive 2 written with gap 21 by the new player: 34 of 35
+  tracks written and verified. Track 3 ended in `ERRLINK` (item 30), not a
+  disk error.
+- **Why the emulator missed it:** the emulated drive reads any run of zero
+  bits back exactly; a real read amplifier does not.
+
+### 30. One track's sectors did not arrive over the line (open)
+
+- **Symptom:** in the write of drive 2 above, Write track for track 3 ended
+  with `ERRLINK`: one sector's data failed its CRC, or did not arrive, 8
+  times in a row.
+- **Evidence:** the COM port has no software flow control (in `ToDcb`, `fOutX`
+  and `fInX` are clear), so a `$13` byte cannot pause the line.
+- **Cause:** not yet known. Next: write track 3 again alone, with the
+  link's error counts (item 18) to see whether its sectors fail their CRC
+  or time out.
+
+### 27. Each drive's speed is timed, and the format fits it
+
+- **Before:** fixed gaps of 10 after each sector and a 352-byte first gap,
+  which fit a drive up to about 4% fast and any slower one (item 3).
+- **Now** (`ee1763358` and the commits before it): the program's Time drive
+  command sends a marker each time sector 0's address field passes; the PC
+  times 10 revolutions (`CassoLinkHost::TimeDrive`), logs the speed ("D1
+  turns at 293.2 rpm, 2.3% slow", with a note past 1.5%), and sends
+  `CassoLinkHost::ComputeFormatGap`'s gap with each Format and Write track:
+  as long as fits 16 sectors in the revolution with about a 1% margin, 4 to
+  40. The program builds the first gap to fill the rest of 26 pages. A drive
+  is timed once a connection, on track 0, which is formatted first with the
+  program's gap when it has no sector 0.
+- **Limit:** the PC times by its own clock, so only Serial and Wi-Fi modem
+  links are timed; an emulated Apple does not always run in real time, so
+  its milliseconds are not its cycles, and Emulated and TCP links use the
+  program's gap. Timing on the Apple in CPU cycles would serve every link,
+  and the emulator's per-drive speed setting (Follow-up ideas) would test
+  it.
+
+### 28. Leaving CassoLink, and a disconnected link
+
+- **Leaving (item 20's fix):** the shim saves the zero page at `$3C00` and
+  the reset vector on its first start; Control-Reset, Escape or the PC's
+  Exit run `exitlink`, which stops the drive, turns DTR off, puts both back,
+  empties BASIC's program, sets the keyboard and screen and ends at DOS's
+  warm start, or the monitor with no DOS. Shim version 4. Not yet tested on
+  the //c; that takes a bootstrap of shim 4.
+- **Disconnect:** Casso Explorer's list started a stopped link on every
+  refresh, so Disconnect was followed at once by a new connection. A
+  disconnected link now stays stopped, with "... is disconnected." and a
+  Connect button in the list and Connect on its menu. A serial link whose
+  Apple is not replying has a Bootstrap the Apple button in the list.
+
 ## Link errors
 
 The cable's noise so far has been on the control lines (item 8). No data
