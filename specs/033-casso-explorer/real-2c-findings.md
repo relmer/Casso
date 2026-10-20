@@ -143,7 +143,8 @@ wrong; the record of the reversal follows.
 - **Symptom:** a format reports success when nothing was written.
 - **Cause:** `doformat` writes the stream and returns without reading the
   track. Write track reads back and compares; format does not.
-- **Fix:** pending. Read the track back after a format and report the first
+- **Fix:** `doformat` reads all 16 sectors back after writing (`readall`,
+  shared with Write track's verify) and ends with `ERRNOTFND` and the first
   sector that does not read.
 - **Why the emulator missed it:** see item 5.
 
@@ -261,6 +262,32 @@ wrong; the record of the reversal follows.
 - **Why the emulator missed it:** not an emulator gap. Emulated sessions end
   by resetting the machine or closing Casso, never by returning to BASIC.
 
+### 22. The shim's program load can stop and not recover
+
+- **Symptom:** the shim's screen stopped at `LOADING PROGRAM 61%`, with the
+  PC's host waiting for the page's ACK. An Idle from the PC afterwards did
+  not get a Ready back, and the //c was reset and bootstrapped again. An
+  earlier load the same day (version 30) also timed out.
+- **Evidence, 2026-10-20:** COM3 had no traffic from the //c after the
+  host stopped. The host waits up to `kOperationTimeoutMs` (30 s) for each
+  page's ACK and sends a page up to 6 times.
+- **Cause:** most likely a byte lost on the line (see the logged load
+  below). Contributing: the shim waits for each byte of a page with no
+  timeout, so after a page cut short it waits for good, and
+  it sends Ready again only after an envelope it cannot use.
+- **Logged load, 2026-10-20:** a successful load after a fresh bootstrap had
+  15 pages, each ACKed within about 85 ms. In reply to a 5-byte Idle, the stuck
+  shim sent NAK: it was waiting for the last few bytes of a page, so
+  bytes had been lost. Not an overrun: the shim's per-byte loop takes about
+  35 of the 89 cycles a byte allows, and interrupts are off (`sei` at
+  `$3D00`). Most likely a byte lost on the line: noise on a start bit can
+  cost the 6551 its framing with bytes sent back to back.
+- **Fix:** `getbto` in the shim, a one-second limit on each byte of a page;
+  a timeout sends NAK, the host sends the page again, and the shim takes it
+  from its envelope. Shim version 3. Not yet tested on the //c.
+- **Why the emulator missed it:** no byte is ever dropped on the emulated
+  serial link. The noisy test stream under "Follow-up ideas" would cover it.
+
 ## Link errors
 
 The cable's noise so far has been on the control lines (item 8). No data
@@ -322,7 +349,10 @@ proof there were none. The link's handling of data errors, from the code:
 - **Cause:** the host assembles `Program.s` when it loads the program. An
   out-of-range branch in a diagnostic build failed assembly, and the load returned
   no error to the caller.
-- **Fix:** pending. Report the assembly error from the load.
+- **Fix:** the load reports the first assembly error, or that the program
+  does not fit below the shim, through the host's activity sink
+  (`CassoLinkHost::DescribeAssemblyFailure`), and drops the partial image so
+  the next load assembles again.
 
 ## What ADTPro does
 
