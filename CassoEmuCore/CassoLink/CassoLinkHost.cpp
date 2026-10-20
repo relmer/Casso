@@ -1908,6 +1908,31 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkHost::DescribeAssemblyFailure
+//
+//  The activity line for an Apple-side program that did not assemble: its
+//  first error, or, with no error text, that it does not fit below the shim.
+//  A load that fails this way ends in a timeout on the Apple's side, so this
+//  line is the only record of why.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkHost::DescribeAssemblyFailure (const std::string & errors)
+{
+    std::string  first = errors.substr (0, errors.find ('\n'));
+
+
+
+    return first.empty() ? std::string ("Casso's Apple program does not fit below the shim")
+                         : "Casso's Apple program did not assemble: " + first;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkHost::LoadProgram
 //
 //  Load program and the program's pages, each followed by the shim's bare
@@ -1935,6 +1960,17 @@ HRESULT CassoLinkHost::LoadProgram()
     if (m_program.empty())
     {
         hr = LinkProgram::AssembleProgram (m_program, errors);
+
+        if (FAILED (hr))
+        {
+            //  Assembled again next time, rather than a partial image sent.
+            m_program.clear();
+            if (m_activity)
+            {
+                m_activity (DescribeAssemblyFailure (errors));
+            }
+        }
+
         CHR (hr);
     }
 

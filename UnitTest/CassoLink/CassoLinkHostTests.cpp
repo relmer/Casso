@@ -779,4 +779,15 @@ public:
         Assert::IsTrue (blocks == file);
         Assert::IsFalse (CassoLinkHost::IsDosOrder ("BIG.DSK", 819200));
     }
+
+
+    //  A program that does not assemble is reported with its first error, or
+    //  as too large when there is no error text.
+    TEST_METHOD (AnAssemblyFailureIsDescribedByItsFirstError)
+    {
+        Assert::AreEqual (std::string ("Casso's Apple program did not assemble: Program.s(12): branch out of range"),
+                          CassoLinkHost::DescribeAssemblyFailure ("Program.s(12): branch out of range\nProgram.s(40): undefined label"));
+        Assert::AreEqual (std::string ("Casso's Apple program does not fit below the shim"),
+                          CassoLinkHost::DescribeAssemblyFailure (""));
+    }
 };

@@ -184,6 +184,9 @@ public:
     using ActivityFn = std::function<void (const std::string & text)>;
     void     SetActivitySink (ActivityFn sink) { m_activity = std::move (sink); }
 
+    //  The activity line sent when the Apple-side program does not assemble.
+    static std::string  DescribeAssemblyFailure (const std::string & errors);
+
     //  How the last request ended: S_OK, or why its transfer failed.
     HRESULT  GetLastResult () const { return m_lastResult; }
 
