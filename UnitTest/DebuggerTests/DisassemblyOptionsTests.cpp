@@ -367,8 +367,10 @@ namespace DisassemblyOptionsTests
 
             Assert::IsTrue   (host.isHeatShown, L"the heat map is on");
             Assert::IsTrue   (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kHeatColumn));
-            Assert::AreEqual (std::wstring (s_kpszHeatBlock) + L"r", window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].text, L"LDA #$41: run, and its operand read");
-            Assert::AreEqual (std::wstring (L"w"),                    window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kHeatColumn].text, L"RTS: written");
+            Assert::AreEqual (std::wstring (L"  "), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].text, L"LDA #$41: a fill a byte");
+            Assert::AreNotEqual (0u, window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].background, L"run");
+            Assert::AreNotEqual (window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].background,
+                                 window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kHeatColumn].background, L"RTS: written, in another color");
 
             window.GetCodeGroup().ToggleOption (Option::Heat);
             Assert::IsFalse  (host.isHeatShown);

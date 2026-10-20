@@ -43,10 +43,11 @@ public:
     //  A run of a cell's characters drawn in a color of their own.
     struct Span
     {
-        int       cell   = 0;
-        int       start  = 0;
-        int       length = 0;
-        uint32_t  argb   = 0;
+        int       cell       = 0;
+        int       start      = 0;
+        int       length     = 0;
+        uint32_t  argb       = 0;
+        uint32_t  background = 0;   // a fill behind the characters; with argb zero, their text color is the usual one
     };
 
     //  A row's fill spans the view's width on every line it takes; its icon

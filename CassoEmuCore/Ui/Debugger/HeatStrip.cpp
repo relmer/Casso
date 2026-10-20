@@ -2,8 +2,6 @@
 
 #include "Ui/Debugger/HeatStrip.h"
 
-#include "Core/UnicodeSymbols.h"
-
 
 
 
@@ -21,7 +19,8 @@ HeatStrip::Strip HeatStrip::Get (const DebuggerViewSnapshot::HeatColumnLevels & 
                                  const HeatMapView::Palette & palette, bool isTokens)
 {
     Strip   strip;
-    size_t  blocks = std::min (count, kMaxBlocks);
+    size_t  blocks  = std::min (count, kMaxBlocks);
+    int     hottest = -1;
 
 
 
@@ -36,7 +35,7 @@ HeatStrip::Strip HeatStrip::Get (const DebuggerViewSnapshot::HeatColumnLevels & 
         Byte      read    = 0;
         Byte      write   = 0;
         uint32_t  color   = 0;
-        wchar_t   glyph   = s_kpszHeatBlock[0];
+        int       level   = 0;
 
         for (size_t i = block * count / blocks; i < (block + 1) * count / blocks; i++)
         {
@@ -47,9 +46,10 @@ HeatStrip::Strip HeatStrip::Get (const DebuggerViewSnapshot::HeatColumnLevels & 
             write   = std::max (write,   levels.write[address]);
         }
 
+        level = isTokens ? std::max (read, write) : std::max ({ execute, read, write });
+
         if (isTokens && write > read)
         {
-            glyph = L'w';
             color = HeatMapView::GetColor (HeatMapView::Mode::Data, 0, 0, write, palette);
         }
         else if (isTokens)
@@ -62,17 +62,21 @@ HeatStrip::Strip HeatStrip::Get (const DebuggerViewSnapshot::HeatColumnLevels & 
         }
         else if (write >= read)
         {
-            glyph = L'w';
             color = HeatMapView::GetColor (HeatMapView::Mode::Data, 0, 0, write, palette);
         }
         else
         {
-            glyph = L'r';
             color = HeatMapView::GetColor (HeatMapView::Mode::Data, 0, read, 0, palette);
         }
 
+        if (level > hottest)
+        {
+            hottest       = level;
+            strip.hottest = color;
+        }
+
         strip.colors.push_back ({ (int) strip.text.size(), (int) strip.text.size() + 1, color });
-        strip.text += glyph;
+        strip.text += L' ';
     }
 
     return strip;
@@ -96,8 +100,8 @@ DxuiListView::Cell HeatStrip::GetCell (const DebuggerViewSnapshot::HeatColumnLev
 
 
 
-    cell.text        = std::move (strip.text);
-    cell.colorRanges = std::move (strip.colors);
+    cell.text       = std::move (strip.text);
+    cell.background = strip.hottest;
 
     return cell;
 }

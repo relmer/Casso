@@ -33,7 +33,7 @@ void DisassemblyCells::Configure (DxuiListView & list)
 
 
     columns.back().tip         = L"The values each instruction reads, then on the PC's line the registers, memory and flags it changes";
-    columns[kHeatColumn].tip   = L"How hot each byte of the line is in the heat map's colors: a block for a byte run as code, r or w for one read or written as data";
+    columns[kHeatColumn].tip   = L"How hot the line's bytes are, in the heat map's colors: the code color for bytes run, the read or write color for bytes read or written as data";
 
     list.SetColumns         (std::move (columns));
     list.SetGlyphCenterDip  (kGlyphCenterDip);

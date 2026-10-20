@@ -1737,6 +1737,16 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         }
     }
 
+    //  A span's fill, under the selection's.
+    for (const Span & span : row.spans)
+    {
+        if (line.first && span.background != 0 && span.cell < (int) row.cells.size())
+        {
+            painter.FillRect ((float) (left + (GetCellStart (row, span.cell) + span.start) * m_cellAdvance), (float) y,
+                              (float) (span.length * m_cellAdvance), (float) m_cellHeightPx, span.background);
+        }
+    }
+
     for (int c = 0; line.first && c < last; c++)
     {
         const std::wstring &  cell   = row.cells[(size_t) c];
@@ -1909,7 +1919,7 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
         int  base   = GetCellBase (row, span.cell);
         int  length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
 
-        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length; i++)
+        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length && span.argb != 0; i++)
         {
             colors[(size_t) (base + i)] = span.argb;
         }

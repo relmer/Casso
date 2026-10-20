@@ -59,11 +59,10 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (EachByteIsABlockOrALetterForData)
+        TEST_METHOD (EachByteIsFilledWithWhatTouchedItMost)
         {
             DebuggerViewSnapshot::HeatColumnLevels  levels = MakeLevels();
             HeatStrip::Strip                        strip;
-            std::wstring                            block  = s_kpszHeatBlock;
 
 
 
@@ -73,7 +72,8 @@ namespace DebuggerTests
 
             strip = HeatStrip::Get (levels, 0x0300, 4, MakePalette(), false);
 
-            Assert::AreEqual (block + L"rw" + block, strip.text, L"run, read, written, untouched");
+            Assert::AreEqual (std::wstring (L"    "), strip.text, L"run, read, written, untouched, as fills");
+            Assert::AreEqual (kExecute, strip.hottest, L"the first of the hottest");
             Assert::AreEqual ((size_t) 4, strip.colors.size());
             Assert::AreEqual (kExecute, std::get<2> (strip.colors[0]), L"the hottest is the hue itself");
             Assert::AreEqual (kRead,    std::get<2> (strip.colors[1]));
@@ -82,7 +82,8 @@ namespace DebuggerTests
 
             //  Code written once when it was loaded, then run, is code.
             levels.write[0x0300] = 10;
-            Assert::AreEqual (block, HeatStrip::Get (levels, 0x0300, 1, MakePalette(), false).text, L"run more than written");
+            Assert::AreEqual (kExecute, std::get<2> (HeatStrip::Get (levels, 0x0300, 1, MakePalette(), false).colors.at (0)), L"run more than written");
+            Assert::AreEqual (kExecute, HeatStrip::GetCell (levels, 0x0300, 1, MakePalette(), false).background, L"a cell's fill is the hottest");
         }
 
 
@@ -99,7 +100,7 @@ namespace DebuggerTests
             strip = HeatStrip::Get (levels, 0x2000, 16, MakePalette(), false);
 
             Assert::AreEqual ((size_t) HeatStrip::kMaxBlocks, strip.text.size());
-            Assert::AreEqual (L'w', strip.text[1], L"$2005 is in the second block of four bytes");
+            Assert::AreEqual (HeatMapView::GetColor (HeatMapView::Mode::Data, 0, 0, 10, MakePalette()), std::get<2> (strip.colors[1]), L"$2005 is in the second block of four bytes");
         }
 
 
@@ -120,9 +121,9 @@ namespace DebuggerTests
 
             SourcePane::AddHeatStrips (rows, 0, ranges, levels, MakePalette());
 
-            Assert::AreEqual (std::wstring (s_kpszHeatBlock) + L"r   1", rows[0].cells[1]);
-            Assert::AreEqual (std::wstring (L"     2"),                  rows[1].cells[1]);
-            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.cell == 1 && span.start == 1 && span.argb == kRead; }));
+            Assert::AreEqual (std::wstring (L"     1"), rows[0].cells[1]);
+            Assert::AreEqual (std::wstring (L"     2"), rows[1].cells[1]);
+            Assert::IsTrue   (std::ranges::any_of (rows[0].spans, [] (const DxuiTextView::Span & span) { return span.cell == 1 && span.start == 1 && span.background == kRead; }));
         }
 
 
@@ -158,7 +159,7 @@ namespace DebuggerTests
 
             strip = HeatStrip::Get (levels, 0x0801, 1, MakePalette(), true);
 
-            Assert::AreEqual (std::wstring (s_kpszHeatBlock), strip.text);
+            Assert::AreEqual (std::wstring (L" "), strip.text);
             Assert::AreEqual (kExecute, std::get<2> (strip.colors[0]));
             Assert::AreEqual ((size_t) 0, HeatStrip::Get (DebuggerViewSnapshot::HeatColumnLevels(), 0x0801, 1, MakePalette(), true).text.size(),
                               L"no levels, no strip");

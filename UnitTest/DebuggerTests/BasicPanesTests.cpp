@@ -125,9 +125,9 @@ namespace DebuggerTests
 
             cells = BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style(), &heat, &palette);
 
-            Assert::AreEqual ((size_t) 4, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"four bytes of tokens, a block each");
-            Assert::AreEqual (0xFF0000FFu, std::get<2> (cells[0][BasicProgramPane::kHeatColumn].colorRanges[0]), L"the token read is the line running");
-            Assert::AreEqual ((size_t) 4, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line: its first eight bytes in four blocks");
+            Assert::AreEqual ((size_t) 4, cells[0][BasicProgramPane::kHeatColumn].text.size(), L"four bytes of tokens, a fill each");
+            Assert::AreEqual (0xFF0000FFu, cells[0][BasicProgramPane::kHeatColumn].background, L"the token read is the line running");
+            Assert::AreEqual ((size_t) 4, cells[1][BasicProgramPane::kHeatColumn].text.size(), L"the last line: its first eight bytes in four fills");
             Assert::IsTrue   (BasicProgramPane::GetCells (state, rows, {}, BasicProgramPane::Style())[0][BasicProgramPane::kHeatColumn].text.empty(), L"no levels, no strip");
         }
 
