@@ -1898,9 +1898,10 @@ legend, and tilt the platter and back.
   reads the same in a short strip as in a tall cell, and it MUST cross with
   no visible steps at any zoom. Sweeps MUST be a second apart. On the
   platter, between sweeps the selection's outline MUST be drawn; during a sweep
-  the outline MUST NOT be drawn, the band MUST cover the outline's area as
-  well as the selection, and the outline's line MUST light only where the
-  band crosses it. On a new track, the
+  the outline MUST NOT be drawn, and the band MUST cover the outline's area
+  as well as the selection. Where the selected file's marching outline would
+  lie on the selection's border, it MUST be drawn just outside the border
+  instead, so the two never coincide. On a new track, the
   strip MUST keep the same fraction of the turn in view unless the new
   selection is outside it. If analyzing a
   track again removes the selected sector, the sector nearest the same cell
