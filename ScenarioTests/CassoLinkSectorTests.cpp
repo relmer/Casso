@@ -280,6 +280,31 @@ public:
 
 
 
+    //  With no reply for several seconds, the PC is gone: the label of its
+    //  operation is cleared, and the PC is waited for again.
+    TEST_METHOD (APcThatStopsAnswering_ClearsItsLabel_AndIsWaitedForAgain)
+    {
+        Rig                       rig;
+        std::vector<std::string>  rows;
+
+        rig.Connect();
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->SendLabel ("READING THE CATALOG OF D2"); }));
+
+        for (int frame = 0; frame < 60 * 7; frame++)
+        {
+            rig.machine.RunCycles (kFrame);
+        }
+
+        rows = TextScreenScraper::Scrape (rig.machine);
+
+        Assert::AreEqual (std::string::npos, rows[6].find_first_not_of (' '), L"the label row is blank");
+        Assert::AreNotEqual (std::string::npos, rows[3].find ("WAITING"), L"the PC is waited for");
+    }
+
+
+
+
     //  Time drive sends a marker each time sector 0 passes, then the Status.
     TEST_METHOD (TimeDrive_SendsAMarkerEachRevolution)
     {

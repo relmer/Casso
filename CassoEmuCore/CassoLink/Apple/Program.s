@@ -1967,6 +1967,7 @@ ROWLB = $0700                   ; row 6: the label of the user's operation
 ROWER = $0428                   ; row 8: the last error, when there is one
 ROWHIST = $0528                 ; row 10: the history's title, its lines below
 LOGROWS = 13                    ; the history's lines
+PCGONE = 5                      ; seconds with no reply before the PC is gone
 FIELD = 12
 FIELDLEN = 20
 scr = $13                       ; and $14: the field being drawn
@@ -2339,10 +2340,20 @@ pcnew:  lda #1
         jmp showpc
 pcsame: rts
 
-; nopc: a second with no reply.
-nopc:   inc silent
-        bne npdraw
-        dec silent              ; it stays at 255
+; nopc: a second with no reply. The host ends its session after a few
+; seconds with no packet, so after PCGONE of them the PC is gone: the label
+; of its operation is cleared, and the PC is waited for again. Before a
+; first reply there is no silence to count.
+nopc:   lda pcflag
+        beq npdraw
+        inc silent
+        lda silent
+        cmp #PCGONE
+        bcc npdraw
+        lda #0
+        sta pcflag
+        sta silent
+        jsr clrlabel
 npdraw: jmp showpc
 
 pcwait: .text "WAITING"
