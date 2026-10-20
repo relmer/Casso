@@ -73,8 +73,14 @@ public:
     CassoLinkSession *  GetSession (const std::string & name);
 
     //  The tree's entries for the links: a started link's drives, and for
-    //  any other its state and the reason.
+    //  any other its state and the reason. A drive is listed once its
+    //  catalog has been read, so no drive is drawn, selected or opened before
+    //  anything is known about its disk.
     std::vector<LinkTreeEntry>  BuildTreeEntries () const;
+
+    //  Each connected Apple's drives read as soon as it replies: a catalog
+    //  read is queued for each drive that has none.
+    void  ProbeDrives ();
 
     //  A directory's listing on a drive, or a file's contents, once read:
     //  false while it is being read, starting the read, and the link with it,

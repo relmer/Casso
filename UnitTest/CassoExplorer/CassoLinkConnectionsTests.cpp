@@ -150,6 +150,46 @@ public:
 
 
 
+    //  A connected Apple's drives are read without being opened, and a drive
+    //  is listed only once its catalog has arrived; until then the link has
+    //  that it is reading them.
+    TEST_METHOD (AConnectedApple_HasItsDrivesProbed_AndEachListedOnceRead)
+    {
+        Rig                         rig;
+        std::vector<LinkTreeEntry>  entries;
+        auto                        until = std::chrono::steady_clock::now() + std::chrono::seconds (20);
+
+        AssertSucceeded (rig.links->Start ("Test"));
+
+        do
+        {
+            entries = rig.links->BuildTreeEntries();
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+        while (!entries[0].replying && std::chrono::steady_clock::now() < until);
+
+        Assert::IsTrue  (entries[0].replying);
+        Assert::IsTrue  (entries[0].probing, L"no drive is listed before its catalog is read");
+        Assert::IsTrue  (entries[0].drives.empty());
+        Assert::IsTrue  (entries[0].status.starts_with (L"Reading the drives on"));
+
+        rig.links->ProbeDrives();
+
+        do
+        {
+            entries = rig.links->BuildTreeEntries();
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+        while (entries[0].drives.size() < 2 && std::chrono::steady_clock::now() < until);
+
+        Assert::AreEqual ((size_t) 2, entries[0].drives.size(), L"both drives, read with no listing requested");
+        Assert::IsFalse  (entries[0].probing);
+        Assert::AreEqual (std::wstring (L"DOS 3.3 volume 200"), entries[0].drives[0].volume);
+    }
+
+
+
+
     TEST_METHOD (Stop_ClosesTheLink_AndInvalidate_ReadsAgain)
     {
         Rig            rig;

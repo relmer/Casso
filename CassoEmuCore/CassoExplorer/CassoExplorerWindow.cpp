@@ -11404,6 +11404,7 @@ void CassoExplorerWindow::OnLinkChanged()
         FillStatus();
     }
 
+    m_context.links->ProbeDrives();
     m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
     m_status->SetText (kStatusFill, GetLatestActivity());
 

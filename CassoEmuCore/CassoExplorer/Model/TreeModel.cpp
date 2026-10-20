@@ -1100,7 +1100,7 @@ Error:
 bool TreeModel::GetLinkStatus (const std::wstring & name, std::wstring & outStatus) const
 {
     auto  found = std::find_if (m_links.begin(), m_links.end(), [&name] (const LinkTreeEntry & link) { return link.name == name; });
-    bool  waiting = found != m_links.end() && !found->replying;
+    bool  waiting = found != m_links.end() && (!found->replying || (found->probing && found->drives.empty()));
 
 
 

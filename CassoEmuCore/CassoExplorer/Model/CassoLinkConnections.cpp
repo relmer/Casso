@@ -465,7 +465,13 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             row.slot  = 6;
             row.drive = drive;
 
-            if (catalog != (*found)->requests.end() && catalog->second->state == LinkOperationState::Done)
+            if (catalog == (*found)->requests.end() || catalog->second->state == LinkOperationState::Queued || catalog->second->state == LinkOperationState::Running)
+            {
+                entry.probing = true;
+                continue;
+            }
+
+            if (catalog->second->state == LinkOperationState::Done)
             {
                 const VolumeListing  & listing = catalog->second->listing;
 
@@ -481,7 +487,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
                     }
                 }
             }
-            else if (catalog != (*found)->requests.end() && catalog->second->state == LinkOperationState::Failed)
+            else if (catalog->second->state == LinkOperationState::Failed)
             {
                 row.empty = catalog->second->result == HRESULT_FROM_WIN32 (ERROR_SECTOR_NOT_FOUND);
             }
@@ -489,10 +495,53 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             entry.drives.push_back (row);
         }
 
+        if (entry.probing && entry.drives.empty())
+        {
+            entry.status = std::format (L"Reading the drives on {}...", entry.model.empty() ? std::wstring (L"the Apple") : entry.model);
+        }
+
         entries.push_back (entry);
     }
 
     return entries;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::ProbeDrives
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::ProbeDrives()
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    for (const std::unique_ptr<Link> & link : m_started)
+    {
+        LinkState  state = link->session->GetState();
+        Byte       map   = link->session->GetDriveMap();
+
+        if (state != LinkState::Ready && state != LinkState::Busy)
+        {
+            continue;
+        }
+
+        for (int drive = 1; drive <= CassoLinkSession::kDriveCount; drive++)
+        {
+            std::string  key = MakeKey (drive, std::string(), false);
+
+            if ((map & (1 << (drive - 1))) != 0 && link->requests.find (key) == link->requests.end())
+            {
+                link->requests[key] = link->session->Enumerate (drive, FilePath());
+            }
+        }
+    }
 }
 
 
