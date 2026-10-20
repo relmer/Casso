@@ -480,6 +480,43 @@ public:
 
 
 
+    TEST_METHOD (FormatAppleDrive_FormatsADiskWhoseCatalogCannotBeRead)
+    {
+        Rig                             rig;
+        DiskOperations::NewDiskRequest  prodos;
+        auto                            until     = std::chrono::steady_clock::now() + std::chrono::seconds (20);
+        HRESULT                         refreshed = S_OK;
+
+        prodos.formatName = "prodos";
+        prodos.volumeName = "FRESH";
+
+        {
+            std::lock_guard<std::mutex>  guard (rig.apple.lock);
+
+            std::fill (rig.apple.drives[0].begin(), rig.apple.drives[0].end(), (Byte) 0);
+        }
+
+        rig.browser->NavigateToLocation (Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Test", 6, 1), std::string()));
+
+        do
+        {
+            refreshed = rig.browser->Refresh();
+            IGNORE_RETURN_VALUE (refreshed, S_OK);
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+        while (rig.browser->GetListError() == CassoExplorerBrowser::s_kWorkingText && std::chrono::steady_clock::now() < until);
+
+        Assert::IsFalse (rig.browser->IsAppleDriveLocation(), L"no catalog");
+        Assert::IsTrue  (rig.browser->IsAppleDriveOpen(), L"but the drive is open, for its whole-disk commands");
+
+        AssertSucceeded (rig.actions->FormatAppleDrive (prodos, L"C:\\Temp").hr);
+        Assert::IsTrue   (rig.Finish().empty());
+        Assert::AreEqual (std::wstring (L"Slot 6, Drive 1 (/FRESH)"), rig.actions->DescribeAppleDrive());
+    }
+
+
+
+
     TEST_METHOD (FormatAppleDrive_RefusesAnUnformattedDisk)
     {
         Rig                             rig;

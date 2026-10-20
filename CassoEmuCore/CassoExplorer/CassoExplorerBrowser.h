@@ -252,6 +252,10 @@ public:
     VolumeKind                       GetVolumeKind () const { return m_kind; }
     bool                             IsAppleDriveLocation () const { return m_isAppleDrive; }
 
+    //  An Apple drive is open, whether or not its catalog could be read, as
+    //  for a disk to format.
+    bool                             IsAppleDriveOpen () const { return GetLocation().kind == Location::Kind::AppleDrive; }
+
     //  An image or an Apple drive: a volume whose catalog is in the list.
     bool                             IsVolumeLocation () const { return m_isImage || m_isAppleDrive; }
     bool                             IsImageLocation () const { return m_isImage; }

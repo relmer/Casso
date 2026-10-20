@@ -2408,7 +2408,7 @@ void CassoExplorerWindow::ReadDiskToImage (bool blankUnreadable, const std::wstr
 
 
 
-    BAIL_OUT_IF (!m_browser.IsAppleDriveLocation(), S_OK);
+    BAIL_OUT_IF (!m_browser.IsAppleDriveOpen(), S_OK);
 
     spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
                               FileDialogFilter { L"All files (*.*)", L"*.*" } };
@@ -2480,7 +2480,7 @@ void CassoExplorerWindow::WriteImageToDisk()
 
 
 
-    BAIL_OUT_IF (!m_browser.IsAppleDriveLocation(), S_OK);
+    BAIL_OUT_IF (!m_browser.IsAppleDriveOpen(), S_OK);
 
     spec.filters    = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
                         FileDialogFilter { L"All files (*.*)", L"*.*" } };
@@ -2701,7 +2701,7 @@ void CassoExplorerWindow::SaveLinkToDisk()
 
 
 
-    if (!m_browser.IsAppleDriveLocation() || GetTempPathW (MAX_PATH, temp) == 0)
+    if (!m_browser.IsAppleDriveOpen() || GetTempPathW (MAX_PATH, temp) == 0)
     {
         return;
     }
@@ -2748,7 +2748,7 @@ void CassoExplorerWindow::FormatAppleDisk()
 
 
 
-    if (!m_browser.IsAppleDriveLocation() || GetTempPathW (MAX_PATH, temp) == 0)
+    if (!m_browser.IsAppleDriveOpen() || GetTempPathW (MAX_PATH, temp) == 0)
     {
         return;
     }
@@ -4718,8 +4718,8 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kShareItems:        return IsListVerbOffered (CassoExplorerActions::Verb::Share);
         case CassoExplorerCommands::kExtractAll:        return !m_browser.GetExtractTarget().empty();
         case CassoExplorerCommands::kReadDiskToImage:
-        case CassoExplorerCommands::kWriteImageToDisk:  return m_browser.IsAppleDriveLocation();
-        case CassoExplorerCommands::kCancelLinkOperation: return m_browser.IsAppleDriveLocation() && m_context.links != nullptr && !m_context.links->GetPendingJobs().empty();
+        case CassoExplorerCommands::kWriteImageToDisk:  return m_browser.IsAppleDriveOpen();
+        case CassoExplorerCommands::kCancelLinkOperation: return m_browser.IsAppleDriveOpen() && m_context.links != nullptr && !m_context.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_browser.GetLocation().kind == Location::Kind::RecycleBin && !m_browser.GetRows().empty();
@@ -9396,12 +9396,12 @@ std::wstring CassoExplorerWindow::GetCommandLabel (int id) const
     }
 
     //  A linked Apple's drive by its slot, drive and volume.
-    if (id == CassoExplorerCommands::kReadDiskToImage && m_browser.IsAppleDriveLocation())
+    if (id == CassoExplorerCommands::kReadDiskToImage && m_browser.IsAppleDriveOpen())
     {
         return std::format (L"Create image from {}...", m_actions.DescribeAppleDrive());
     }
 
-    if (id == CassoExplorerCommands::kWriteImageToDisk && m_browser.IsAppleDriveLocation())
+    if (id == CassoExplorerCommands::kWriteImageToDisk && m_browser.IsAppleDriveOpen())
     {
         return std::format (L"Write image to {}...", m_actions.DescribeAppleDrive());
     }
