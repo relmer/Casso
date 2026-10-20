@@ -26,6 +26,7 @@ HRESULT LinkBootstrap::BuildLines (DWORD baud, std::vector<std::string> & outLin
     hr = LinkProgram::BuildShim (baud, shim);
     CHR (hr);
 
+    outLines.push_back (kCancelLine);
     outLines.push_back ("CALL -151\r");
 
     for (size_t at = 0; at < shim.size(); at += kBytesPerLine)

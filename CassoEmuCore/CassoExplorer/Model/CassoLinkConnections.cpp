@@ -135,7 +135,7 @@ std::string CassoLinkConnections::DescribeConnection (const CassoLinkSettings & 
 
     switch (settings.transport)
     {
-        case LinkTransport::Serial:    return settings.port.empty() ? std::string ("Serial") : settings.port;
+        case LinkTransport::Serial:    return settings.port.empty() ? std::string ("Serial") : std::format ("Serial on {}", settings.port);
         case LinkTransport::Emulated:  return port.empty() ? std::string ("Casso") : std::format ("Casso on port {}", port);
         case LinkTransport::WifiModem: return port.empty() ? std::string ("Wi-Fi modem") : std::format ("Wi-Fi modem on port {}", port);
         default:                       return port.empty() ? std::format ("TCP {}", host) : std::format ("TCP {} port {}", host, port);

@@ -120,4 +120,24 @@ public:
         Assert::IsFalse (C::ValidateAddressFor (LinkTransport::WifiModem, L"70000").empty());
         Assert::IsFalse (C::ValidateAddressFor (LinkTransport::Emulated,  L"6400").empty(), L"an emulated machine's row is host and port");
     }
+
+
+
+    TEST_METHOD (TheLabel_IsTheKindOfConnection_WithATypedNameInParentheses)
+    {
+        using C = CassoExplorerLinkChoices;
+
+        CassoLinkSettings  typed   = C::MakeSettings (L" //c", C::GetTransportIndex (LinkTransport::Serial), L"COM3", L"", 0, 0, false);
+        CassoLinkSettings  unnamed = C::MakeSettings (L"",     C::GetTransportIndex (LinkTransport::Serial), L"",     L"", 0, 0, false);
+        CassoLinkSettings  older   = typed;
+
+        Assert::AreEqual (std::string ("Serial on COM3 (//c)"), typed.name);
+        Assert::AreEqual (std::string ("Serial"),               unnamed.name);
+
+        Assert::AreEqual (std::wstring (L"//c"), C::GetNameText (typed),   L"the Name box has the typed part");
+        Assert::AreEqual (std::wstring(),        C::GetNameText (unnamed));
+
+        older.name = "My //c";
+        Assert::AreEqual (std::wstring (L"My //c"), C::GetNameText (older), L"a label saved as a name alone");
+    }
 };

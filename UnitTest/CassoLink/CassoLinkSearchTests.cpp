@@ -218,4 +218,26 @@ public:
         Assert::AreEqual ((DWORD) 9600,   rig.factory.comBauds.front());
         Assert::AreEqual ((DWORD) 115200, rig.factory.comBauds.back());
     }
+
+
+
+
+    TEST_METHOD (ABootstrapWithNoPort_UsesThePCsOnlyComPort)
+    {
+        Rig                             rig;
+        CassoLinkSettings               settings;
+        std::shared_ptr<LinkOperation>  bootstrap;
+
+        rig.factory.comPorts = { { L"COM3", Port::Apple } };
+        rig.apple.startAsShim = true;
+
+        settings.name      = "Test";
+        settings.transport = LinkTransport::Serial;
+
+        rig.session->SetBootstrapPause (0);
+        AssertSucceeded (rig.session->StartWithBootstrap (settings, bootstrap));
+        Assert::IsTrue  (rig.sink.WaitForState (LinkState::Ready), L"connected after the bootstrap");
+        Assert::IsTrue  (rig.factory.comOpened.front() == L"COM3", L"the loader went to the only port, with no search");
+        Assert::AreEqual (0, rig.apple.shimIdles.load(), L"no Idle prompt, which would cross the new shim's Ready");
+    }
 };

@@ -43,6 +43,8 @@ public:
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  sectorsWritten { 0 };
     std::atomic<int>                  cancels        { 0 };
+    //  Idles received as a shim, before the program is loaded.
+    std::atomic<int>                  shimIdles      { 0 };
 
     //  Sectors the drive cannot read, as track and physical sector.
     std::set<std::pair<int, int>>     badSectors;
@@ -173,6 +175,7 @@ private:
             switch (packet.command)
             {
                 case CassoLinkCodec::kIdle:
+                    shimIdles += (version == 0) ? 1 : 0;
                     std::this_thread::sleep_for (std::chrono::milliseconds (2));
                     break;
 

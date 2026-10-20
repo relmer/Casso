@@ -77,6 +77,11 @@ public:
     static CassoLinkSettings  MakeSettings (const std::wstring & name, int transportIndex, const std::wstring & port, const std::wstring & address,
                                             int speedIndex, int bootstrapIndex, bool hardwareHandshake);
 
+    //  The Name box's text for a link: the part in parentheses after the kind
+    //  of connection, empty for none, or the whole label of one saved before
+    //  labels were the kind of connection.
+    static std::wstring       GetNameText  (const CassoLinkSettings & settings);
+
     static constexpr size_t  kMaxNameLength = 60;
 };
 

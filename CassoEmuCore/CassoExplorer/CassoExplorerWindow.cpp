@@ -10497,13 +10497,15 @@ void CassoExplorerWindow::EditLink (const std::string & name)
     if (found != m_prefs.links.end())
     {
         *found = outcome.settings;
-    }
-    else
-    {
-        m_prefs.links.push_back (outcome.settings);
+        ApplyLinks();
+        return;
     }
 
+    m_prefs.links.push_back (outcome.settings);
     ApplyLinks();
+
+    //  A new connection is selected in the tree, as a new folder is.
+    GoToLocation (Location::MakeRoot (TreeModel::MakeLinkId (TextEncoding::NarrowToWide (outcome.settings.name))));
 }
 
 

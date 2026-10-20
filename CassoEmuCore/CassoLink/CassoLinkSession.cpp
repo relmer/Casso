@@ -709,16 +709,19 @@ Error:
 //  CassoLinkSession::RunBootstrap
 //
 //  The loader is typed at the bootstrap speed, and the session then waits on
-//  the same line for the shim's Ready. A serial link must have its port set, as no
-//  Apple on any port replies before the loader runs.
+//  the same line for the shim's Ready. No Apple on any port replies before
+//  the loader runs, so a serial link with no port set cannot search: the
+//  loader goes to the PC's only COM port, and with none or several the user
+//  enters the port.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & operation)
 {
-    HRESULT                   hr      = S_OK;
-    std::vector<std::string>  lines;
-    bool                      hasPort = m_settings.transport != LinkTransport::Serial || !m_port.empty();
+    HRESULT                    hr      = S_OK;
+    std::vector<std::string>   lines;
+    std::vector<std::wstring>  ports;
+    bool                       hasPort = m_settings.transport != LinkTransport::Serial || !m_port.empty();
 
 
 
@@ -726,7 +729,24 @@ HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
 
     if (!hasPort)
     {
-        operation.message = "Choose the COM port CassoLink uses to bootstrap the Apple.";
+        hr = m_factory.ListComPorts (ports);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        hr = S_OK;
+
+        if (ports.size() == 1)
+        {
+            m_port  = ports[0];
+            hasPort = true;
+        }
+        else if (ports.empty())
+        {
+            operation.message = "No COM port was found to bootstrap the Apple on. Connect the serial adapter, then choose Bootstrap again.";
+        }
+        else
+        {
+            operation.message = "Enter the COM port the cable is on: choose Edit connection and type it in COM port, such as "
+                              + TextEncoding::WideToNarrow (ports[0]) + ".";
+        }
     }
 
     CBREx (hasPort, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
@@ -741,6 +761,12 @@ HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
 
     hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); });
     CHR (hr);
+
+    //  The shim starts on the open line and sends Ready unprompted. With an
+    //  Idle as well, the shim sends a second Ready in reply to the Idle while
+    //  the host's reply to the first arrives, and the 6551's one-byte buffer
+    //  overruns.
+    m_prompted = true;
 
     hr = Connect (stop, m_settings.bootstrapBaud);
     CHR (hr);

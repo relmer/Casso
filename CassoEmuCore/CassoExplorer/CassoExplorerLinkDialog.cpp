@@ -359,13 +359,49 @@ CassoLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & n
 
     settings.hardwareHandshake = UsesHandshake (settings.transport) && hardwareHandshake;
 
-    //  With no name, the connection is its own name.
+    //  The label is the kind of connection, with a name typed for it in
+    //  parentheses after it.
     if (settings.name.empty())
     {
         settings.name = CassoLinkConnections::DescribeConnection (settings);
     }
+    else
+    {
+        settings.name = std::format ("{} ({})", CassoLinkConnections::DescribeConnection (settings), settings.name);
+    }
 
     return settings;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetNameText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerLinkChoices::GetNameText (const CassoLinkSettings & settings)
+{
+    std::string  kind   = CassoLinkConnections::DescribeConnection (settings);
+    std::string  prefix = kind + " (";
+    std::string  text   = settings.name;
+    bool         typed  = settings.name.size() > prefix.size() && settings.name.starts_with (prefix) && settings.name.ends_with (")");
+
+
+
+    if (settings.name == kind)
+    {
+        text.clear();
+    }
+    else if (typed)
+    {
+        text = settings.name.substr (prefix.size(), settings.name.size() - prefix.size() - 1);
+    }
+
+    return TextEncoding::NarrowToWide (text);
 }
 
 
@@ -597,7 +633,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
     m_nameLabel.SetText      (L"Name (optional):");
     m_transportLabel.SetText (L"Connection:");
-    m_portLabel.SetText      (L"Port:");
+    m_portLabel.SetText      (L"COM port:");
     m_addressLabel.SetText   (L"Address:");
     m_speedLabel.SetText     (L"Speed:");
     m_bootstrapLabel.SetText (L"Bootstrap speed:");
@@ -611,11 +647,11 @@ void CassoExplorerLinkDialog::OnCreate()
     }
 
     m_name.SetMaxLength (CassoExplorerLinkChoices::kMaxNameLength);
-    m_name.SetText      (TextEncoding::NarrowToWide (m_initial.name));
+    m_name.SetText      (CassoExplorerLinkChoices::GetNameText (m_initial));
     m_name.SelectAll();
 
     m_port.SetText           (TextEncoding::NarrowToWide (m_initial.port));
-    m_port.SetPlaceholder    (L"Search");
+    m_port.SetPlaceholder    (L"Search all ports");
     m_address.SetText        (CassoExplorerLinkChoices::GetAddressText (m_initial));
     m_shownTransport = m_initial.transport;
 

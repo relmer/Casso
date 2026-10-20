@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  LinkBootstrapTests
 //
 //  The text typed into the Apple's monitor to start the link (FR-092, R23):
-//  CALL -151, the shim as lines of eight bytes from its address, and the
+//  Ctrl-X, CALL -151, the shim as lines of eight bytes from its address, and the
 //  command that runs it; and the typing itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,10 +35,11 @@ public:
         AssertSucceeded (LinkBootstrap::BuildLines (9600, lines));
         AssertSucceeded (LinkProgram::BuildShim (9600, shim));
 
-        Assert::AreEqual (std::string ("CALL -151\r"), lines.front());
+        Assert::AreEqual (std::string ("\x18"),        lines[0], L"Ctrl-X cancels a partial line from stray bytes");
+        Assert::AreEqual (std::string ("CALL -151\r"), lines[1]);
         Assert::AreEqual (std::string ("3D00G\r"),     lines.back());
 
-        for (size_t i = 1; i + 1 < lines.size(); i++)
+        for (size_t i = 2; i + 1 < lines.size(); i++)
         {
             const std::string  & line    = lines[i];
             Word                 address = (Word) std::stoul (line.substr (0, 4), nullptr, 16);
