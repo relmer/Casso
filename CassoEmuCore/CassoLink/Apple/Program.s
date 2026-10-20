@@ -227,6 +227,7 @@ main:   lda #OPIDLE
         lda #3                  ; and three for each byte of an operation
         sta tmolen
         bcc mreply
+        jsr motoroff            ; with no PC, the drive stops
         jsr nopc
         jmp main
 mreply: jsr getpayload
