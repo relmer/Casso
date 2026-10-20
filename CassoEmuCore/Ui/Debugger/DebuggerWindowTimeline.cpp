@@ -344,8 +344,8 @@ void DebuggerWindow::ApplyTimelineScrub (const HistoryTimelineScrubStep & step)
 //
 //  The plan comes from HistoryTimelineClick: a click while the machine runs
 //  stops it first and acts once it has; then the machine moves to the
-//  cycle clicked and runs on from there. The seek, the go live and the run
-//  all cross to the CPU thread through one queue, so they land in order.
+//  cycle clicked and stays stopped there. The seek and the go live cross to
+//  the CPU thread through one queue, so they land in order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -378,11 +378,6 @@ void DebuggerWindow::OnTimelineSeek (const HistoryThumbnailCell & cell)
     if (plan.goLive)
     {
         RunCommandBarEntry (DebuggerCommands::kGoLive);
-    }
-
-    if (plan.run)
-    {
-        RunCommandBarEntry (DebuggerCommands::kRun);
     }
 }
 

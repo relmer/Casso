@@ -29,7 +29,7 @@ TEST_CLASS (HistoryTimelineTests)
 {
 public:
 
-    TEST_METHOD (AClickOnThePastSeeksThereAndRunsOn)
+    TEST_METHOD (AClickOnThePastSeeksThereAndStaysStopped)
     {
         HistoryTimelineClickPlan  plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelinePast, s_kTimelineCycle, false), true, false);
 
@@ -39,10 +39,9 @@ public:
         Assert::IsTrue  (plan.seek, L"seeks");
         Assert::AreEqual<uint64_t> (s_kTimelineCycle, plan.cycle, L"to the exact cycle clicked, not a keyframe's position");
         Assert::IsFalse (plan.goLive, L"not live");
-        Assert::IsTrue  (plan.run, L"and runs on from there");
 
         plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelinePast, false), true, true);
-        Assert::IsTrue (plan.seek && plan.run, L"from behind live too");
+        Assert::IsTrue (plan.seek, L"from behind live too");
     }
 
 
@@ -53,14 +52,14 @@ public:
 
 
         Assert::IsTrue  (plan.pauseFirst, L"stops first");
-        Assert::IsFalse (plan.seek || plan.goLive || plan.run, L"and acts once it has");
+        Assert::IsFalse (plan.seek || plan.goLive, L"and acts once it has");
 
         plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelineLive, true), false, true);
         Assert::IsTrue (plan.pauseFirst, L"replaying, the live end stops the replay first");
     }
 
 
-    TEST_METHOD (AClickOnTheLiveEndGoesLiveAndRuns)
+    TEST_METHOD (AClickOnTheLiveEndGoesLive)
     {
         HistoryTimelineClickPlan  plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelineLive, true), true, true);
 
@@ -68,14 +67,12 @@ public:
 
         Assert::IsFalse (plan.seek, L"no seek");
         Assert::IsTrue  (plan.goLive, L"goes live");
-        Assert::IsTrue  (plan.run, L"and runs");
 
         plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelineLive, true), true, false);
-        Assert::IsFalse (plan.goLive, L"already live");
-        Assert::IsTrue  (plan.run, L"runs");
+        Assert::IsFalse (plan.pauseFirst || plan.seek || plan.goLive, L"stopped and live already: nothing to do");
 
         plan = HistoryTimelineClick::Plan (MakeCell (s_kTimelineLive, true), false, false);
-        Assert::IsFalse (plan.pauseFirst || plan.seek || plan.goLive || plan.run, L"running live already: nothing to do");
+        Assert::IsFalse (plan.pauseFirst || plan.seek || plan.goLive, L"running live already: nothing to do");
     }
 
 

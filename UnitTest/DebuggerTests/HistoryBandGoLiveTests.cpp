@@ -203,7 +203,7 @@ namespace HistoryBandGoLiveTests
 
 
 
-        TEST_METHOD (RunningBehindLive_TheLinkStopsTheMachineThenGoesLiveAndRunsOn)
+        TEST_METHOD (RunningBehindLive_TheLinkStopsTheMachineThenGoesLiveAndStaysStopped)
         {
             CassoTheme    theme  = CassoTheme::MakeSkeuomorphic();
             GoLiveHost    host;
@@ -222,13 +222,12 @@ namespace HistoryBandGoLiveTests
             window.TakeSnapshot (MakeBehindLive (true));
             window.MakePendingSeek();
 
-            Assert::AreEqual ((size_t) 2,           host.lines.size(), L"once stopped, the go live and the run");
+            Assert::AreEqual ((size_t) 1,           host.lines.size(), L"once stopped, the go live, and no run");
             Assert::AreEqual (std::string ("LIVE"), host.lines[0]);
-            Assert::AreEqual (std::string ("G"),    host.lines[1], L"and it runs on, as it was");
             Assert::AreEqual (1,                    host.pauses);
 
             window.MakePendingSeek();
-            Assert::AreEqual ((size_t) 2, host.lines.size(), L"made once");
+            Assert::AreEqual ((size_t) 1, host.lines.size(), L"made once");
         }
 
 
