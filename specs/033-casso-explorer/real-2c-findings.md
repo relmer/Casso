@@ -76,10 +76,16 @@ the drive turns at exactly 300 rpm.
   - The format stream built in the //c's memory, sent to the PC byte for byte,
     matches the stream computed on the PC exactly.
   - The write-protect sense reads "not protected" throughout.
-- **Cause:** not yet known. Since the committed program also fails, a physical
-  cause (the disk, its notch, its seating, or the drive's write circuit) is
-  the leading suspect. A DOS `SAVE` on the same disk separates a physical
-  cause from a program fault.
+- **Physical cause ruled out, 2026-10-20:** on the same disk in the same
+  drive, DOS 3.3's `INIT HELLO` succeeded and the disk then booted without
+  an error. Before that `INIT`, `CATALOG` worked but booting ended in
+  `I/O ERROR` with the head chattering: DOS loaded and its catalog on track
+  17 read, but HELLO's sectors, just past the catalog track and inside the
+  range CassoLink's experiments had overwritten, did not. So CassoLink's
+  writes did reach this disk at some point, and stopped.
+- **Cause:** not yet known; in CassoLink's write path. Next: compare a
+  sector write by the committed program, by a build with RWTS's indexed
+  stores, and by DOS's RWTS itself called from CassoLink.
 - **Why the emulator missed it:** to be determined with the cause.
 
 ### 5. Damage attributed to the format was on the old track
