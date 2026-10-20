@@ -391,6 +391,10 @@ public:
     //  Half of the largest luminance GetSourceColors weighs, 255 times 1000.
     static constexpr uint32_t              s_kDarkLumaLimit = 127500;
 
+    //  A machine's configuration with the user's changes to it from Casso's
+    //  prefs file merged in, as Casso merges them; the file is only read.
+    static HRESULT  MergeUserMachineDelta (const std::string & machine, IFileSystem & files, std::string & inoutJson);
+
 protected:
     void  OnCreate        () override;
     void  OnWindowClose   () override;

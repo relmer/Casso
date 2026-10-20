@@ -1,6 +1,11 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "../UiTests/InMemoryFileSystem.h"
+#include "AssetBootstrap.h"
+#include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/CassoTargeting.h"
+#include "Config/UserConfigStore.h"
+#include "Core/JsonParser.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -100,6 +105,47 @@ public:
         Assert::AreEqual (1, oneDrive.driveCount);
         Assert::AreEqual (2, twoDrive.driveCount);
         Assert::IsTrue   (twoDrive.kind == CassoTarget::Kind::Launch, L"a dead owner and nothing running means launch");
+    }
+
+
+
+    //  A drive detached in Casso's settings is a change saved in its prefs
+    //  file, so the default machine's drives are counted with it merged in.
+    TEST_METHOD (DefaultMachine_HasTheUsersDetachedDriveMergedIn)
+    {
+        InMemoryFileSystem         files;
+        UserConfigStore            store (AssetBootstrap::GetAssetBaseDirectory().wstring());
+        std::string                json  = R"({ "name": "Apple ][ plus", "slots": [ { "slot": 6, "device": "disk-ii", "ports": ["disk-ii-drive", "disk-ii-drive"] } ] })";
+        JsonValue                  merged;
+        JsonParseError             error;
+        const JsonValue          * slots = nullptr;
+        const JsonValue          * ports = nullptr;
+
+        AssertSucceeded (files.WriteAllText (store.GetUserPrefsFilePath(),
+                         R"({ "global": {}, "machines": { "Apple2Plus": { "slots": [ { "slot": 6, "device": "disk-ii", "ports": ["disk-ii-drive", ""] } ] } } })"));
+
+        AssertSucceeded (CassoExplorerWindow::MergeUserMachineDelta ("Apple2Plus", files, json));
+        AssertSucceeded (JsonParser::Parse (json, merged, error));
+
+        Assert::IsTrue (merged.HasArray ("slots", slots));
+        Assert::IsTrue (slots->GetArrayElement (0).HasArray ("ports", ports));
+        Assert::AreEqual (std::string(), ports->GetArrayElement (1).GetString(), L"drive 2 detached");
+        Assert::AreEqual (std::string ("disk-ii-drive"), ports->GetArrayElement (0).GetString());
+    }
+
+
+
+    TEST_METHOD (DefaultMachine_WithNoSavedChanges_IsAsShipped)
+    {
+        InMemoryFileSystem  files;
+        UserConfigStore     store (AssetBootstrap::GetAssetBaseDirectory().wstring());
+        std::string         json     = R"({ "name": "Apple ][ plus" })";
+        std::string         shipped  = json;
+
+        AssertSucceeded (files.WriteAllText (store.GetUserPrefsFilePath(), R"({ "global": {}, "machines": { "Apple2e": { "name": "other" } } })"));
+        AssertSucceeded (CassoExplorerWindow::MergeUserMachineDelta ("Apple2Plus", files, json));
+
+        Assert::AreEqual (shipped, json);
     }
 };
 

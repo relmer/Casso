@@ -22,7 +22,10 @@
 #include "Config/FileAssociations.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Seams/Win32UserClasses.h"
+#include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 #include "Core/MachineConfig.h"
 #include "Core/MachineScanner.h"
 #include "Core/PathResolver.h"
@@ -14997,6 +15000,9 @@ int CassoExplorerWindow::GetDefaultMachineDriveCount()
     hr = files.ReadAllText (configPath.wstring(), jsonText);
     CHR (hr);
 
+    hr = MergeUserMachineDelta (TextEncoding::WideToNarrow (machine), files, jsonText);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
     //  Only the slots are read here, never a ROM's bytes, so a ROM that is
     //  missing stands in as the config file itself rather than stopping the
     //  slots from being read; one that is there is found where Casso finds it.
@@ -15019,6 +15025,52 @@ int CassoExplorerWindow::GetDefaultMachineDriveCount()
 
 Error:
     return m_defaultDriveCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::MergeUserMachineDelta
+//
+//  The user's changes to the machine, such as a drive detached in Casso's
+//  settings, merged into its configuration as Casso merges them. The prefs
+//  file is only read: a delta Casso would migrate is merged as it is, which
+//  is also Casso's own fallback when a migration fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerWindow::MergeUserMachineDelta (const std::string & machine, IFileSystem & files, std::string & inoutJson)
+{
+    HRESULT            hr       = S_OK;
+    UserConfigStore    store (AssetBootstrap::GetAssetBaseDirectory().wstring());
+    std::string        prefsText;
+    JsonValue          base;
+    JsonValue          prefs;
+    JsonParseError     error;
+    const JsonValue  * machines = nullptr;
+    const JsonValue  * delta    = nullptr;
+
+
+
+    hr = files.ReadAllText (store.GetUserPrefsFilePath(), prefsText);
+    CHR (hr);
+
+    hr = JsonParser::Parse (prefsText, prefs, error);
+    CHR (hr);
+
+    hr = JsonParser::Parse (inoutJson, base, error);
+    CHR (hr);
+
+    BAIL_OUT_IF (!prefs.HasObject ("machines", machines), S_OK);
+    BAIL_OUT_IF (!machines->HasObject (machine, delta), S_OK);
+
+    inoutJson = JsonWriter::Write (UserConfigStore::MergeJson (base, *delta));
+
+Error:
+    return hr;
 }
 
 
