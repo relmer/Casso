@@ -66,6 +66,7 @@ public:
     const std::wstring  & GetRowNote        (int row) const { return m_rowNoteText[row]; }
     const std::wstring  & GetAttachNote     () const  { return m_attachNoteText; }
     DxuiInfoTip         & GetRowInfoTip     (int row) { return m_rowTips[row]; }
+    DxuiButton          & GetRestoreButton  ()        { return m_restore; }
 
 private:
     static RECT          MakeRect          (int l, int t, int w, int h);
@@ -84,6 +85,7 @@ private:
     void         OnAttachPicked     (int choice);
     void         OnBrowse           ();
     void         OnSwitchToggled    (SscBank bank, int number);
+    void         OnRestoreDefaults  ();
 
     SettingsPanelState *     m_state     = nullptr;
     DxuiHwndSource *         m_popupHost = nullptr;
@@ -111,6 +113,8 @@ private:
     DxuiLabel                m_pathValue;
     DxuiButton               m_browse;
     std::string              m_path;
+
+    DxuiButton               m_restore;
 
     bool                     m_hasLayout = false;
     RECT                     m_lastRect  = {};

@@ -299,8 +299,9 @@ wstring SscSettingsModel::GetNote (SscSetting setting, const SscSwitches & switc
             break;
 
         case SscMode::SicP8A:
-            note = L"As P8, with the P8A firmware's ETX/ACK handshaking. Apple recommends "
-                   L"Printer otherwise.";
+            note = L"For programs written for Apple's earlier Serial Interface Card with its P8A "
+                   L"ROM, for a printer that paces data with ETX/ACK: the card sends ETX and waits "
+                   L"for the printer's ACK before sending more. Apple recommends Printer otherwise.";
             break;
         }
     }

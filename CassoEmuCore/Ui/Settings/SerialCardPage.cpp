@@ -18,6 +18,7 @@ static constexpr int    s_kRowGapDp        = 8;
 static constexpr int    s_kPagePadDp       = 16;
 static constexpr int    s_kNoteHeightDp    = 36;     // two lines of note text
 static constexpr float  s_kNoteFontDp      = 12.0f;
+static constexpr int    s_kRestoreWidthDp  = 130;    // as the Storage page's Restore defaults
 
 static constexpr const wchar_t *  s_kAttachmentLabels[] =
 {
@@ -95,10 +96,12 @@ SerialCardPage::SerialCardPage (std::wstring title)
     Adopt (m_pathLabel);
     Adopt (m_pathValue);
     Adopt (m_browse);
+    Adopt (m_restore);
 
     m_attach.SetItems   ({ std::begin (s_kAttachmentLabels), std::end (s_kAttachmentLabels) });
     m_attach.SetSelect  ([this] (int picked) { OnAttachPicked (picked); });
-    m_browse.SetOnClick ([this] () { OnBrowse(); });
+    m_browse.SetOnClick  ([this] () { OnBrowse(); });
+    m_restore.SetOnClick ([this] () { OnRestoreDefaults(); });
     m_download.SetOnClick ([this] ()
     {
         if (m_onDownload)
@@ -292,11 +295,30 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_pathLabel.SetRect    (MakeRect (x, y, labelWidth, rowHeight));
     m_pathLabel.SetDpi     (dpi);
     m_pathValue.SetText    (m_path.empty() ? std::wstring (L"(none chosen)") : TextEncoding::NarrowToWide (m_path));
-    m_pathValue.SetRect    (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_pathValue.SetRect    (MakeRect (controlsX, y, noteWidth, rowHeight));
     m_pathValue.SetDpi     (dpi);
+
+    // Below the path, at the width of the sheet's OK and Cancel.
+    if (showPath)
+    {
+        y += rowHeight + rowGap;
+    }
+
     m_browse.SetLabel      (L"Browse...");
-    m_browse.Layout        (MakeRect (controlsX + dropWidth + rowGap, y, buttonWidth, rowHeight));
+    m_browse.Layout        (MakeRect (controlsX, y, scaler.ToPx (DxuiButtonRow::GetWidthForLabel (L"Browse...")), rowHeight));
     m_browse.SetDpi        (dpi);
+
+    if (showPath)
+    {
+        y += rowHeight;
+    }
+
+    y += sectionGap;
+
+    // Below everything, because it restores the whole page.
+    m_restore.SetLabel (L"Restore defaults");
+    m_restore.Layout   (MakeRect (controlsX, y, scaler.ToPx (s_kRestoreWidthDp), rowHeight));
+    m_restore.SetDpi   (dpi);
 
     DxuiPanel::SetBounds (rect);
     SetContentHeightPx (GetLowestChildBottomPx() + pad - rect.top);
@@ -327,12 +349,12 @@ std::wstring SerialCardPage::GetAttachmentNote (int choice)
     }
     else if (choice == kFileOutChoice)
     {
-        note = L"Each byte the card sends is added to the end of the file.";
+        note = L"All data the card sends is appended to the file below.";
     }
     else if (choice == kFileInChoice)
     {
-        note = L"The file's bytes are sent into the card at its baud rate, once a program "
-               L"turns the card's receiver on.";
+        note = L"The file below is sent to the card at its baud rate, once a program turns "
+               L"the card's receiver on.";
     }
 
     return note;
@@ -601,6 +623,28 @@ void SerialCardPage::OnSwitchToggled (SscBank bank, int number)
 
     updated.SetOn (bank, number, !updated.IsOn (bank, number));
     StageSwitches (updated);
+    Rebuild();
+    Relayout();
+    MarkDirty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::OnRestoreDefaults
+//
+//  The switches as the card ships and nothing on the connector, staged like
+//  any other change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SerialCardPage::OnRestoreDefaults()
+{
+    StageSwitches   (SscSwitches::MakeDefault());
+    StageAttachment (0, std::string());
     Rebuild();
     Relayout();
     MarkDirty();
