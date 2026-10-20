@@ -1895,7 +1895,12 @@ legend, and tilt the platter and back.
   selection, however large: a sector at fit on the platter, a cell of the
   File map grid, or a sector the strip's zoom makes as wide as the window.
   Its width MUST be a share of the selection's shorter side, so its angle
-  reads the same in a short strip as in a tall cell. On a new track, the
+  reads the same in a short strip as in a tall cell, and it MUST cross with
+  no visible steps at any zoom. Sweeps MUST be a second apart. On the
+  platter, between sweeps the selection's outline MUST be drawn; during a sweep
+  the outline MUST NOT be drawn, the band MUST cover the outline's area as
+  well as the selection, and the outline's line MUST light only where the
+  band crosses it. On a new track, the
   strip MUST keep the same fraction of the turn in view unless the new
   selection is outside it. If analyzing a
   track again removes the selected sector, the sector nearest the same cell
@@ -1990,7 +1995,8 @@ legend, and tilt the platter and back.
   is off, the tab MUST show a note that the original track alignment was not
   kept.
 - **FR-048**: The Findings tab MUST list every finding on the disk with its
-  track, sector and cell where they apply. Findings about what is recorded on
+  track, sector and cell where they apply; a disk with none MUST have "No
+  findings" inside the list, under its header. Findings about what is recorded on
   a track MUST be worded neutrally, without the words damage or protection,
   except the Protection findings of the later release (FR-131). Findings about
   the image file MUST describe the record or the file as damaged, with the
