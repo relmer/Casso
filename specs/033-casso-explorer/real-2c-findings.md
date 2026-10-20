@@ -300,6 +300,19 @@ wrong; the record of the reversal follows.
 - **Why the emulator missed it:** emulated sessions are short; nothing runs
   for four minutes with the PC silent.
 
+### 24. A stray `)` under the history (open)
+
+- **Symptom:** after a disconnect and reconnect from Casso Explorer, the
+  program's screen had two history lines (`12:17 PC CONNECTED`, `12:16 PC
+  CONNECTED`), a blank row, then `)` in column 0 of the row after.
+- **Evidence:** every text the program draws fits its 40 columns, including
+  the status and label rows, whose next 40 bytes in memory are rows 13 and
+  14. The same screen in the emulator, after two drives were listed, has no
+  stray character.
+- **Cause:** not yet known.
+- **Next:** read the //c's text page over the link when it appears, to find
+  the byte's row and the operation before it.
+
 ## Link errors
 
 The cable's noise so far has been on the control lines (item 8). No data
