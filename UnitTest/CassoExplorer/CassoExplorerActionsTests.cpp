@@ -6,6 +6,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/AppleSingleCodec.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 
@@ -446,6 +447,58 @@ public:
         Assert::AreEqual (2, outcome.written);
         Assert::IsTrue   (host.io.files.count ("C:\\Out\\HELLO.Applesoft BASIC.txt") == 1);
         Assert::IsTrue   (host.written.empty());
+    }
+
+
+    TEST_METHOD (ExtractImage_CopiesEveryFileIntoAFolderBesideTheImage)
+    {
+        Host          host;
+        std::wstring  folder;
+        std::wstring  second;
+
+        CassoExplorerActions::Outcome  outcome = host.actions.ExtractImage (L"C:\\Disks\\dos33.dsk", HostFileNaming::Style::Descriptive, folder);
+        std::string                    listing;
+
+        Assert::IsTrue   (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33"), folder);
+        Assert::IsTrue   (host.fs.DirectoryExists (folder));
+        Assert::IsTrue   (host.io.files.count ("C:\\Disks\\dos33\\HELLO.Applesoft BASIC.txt") == 1);
+        Assert::IsTrue   (host.io.files.count ("C:\\Disks\\dos33\\ODD.Binary.$0803.bin") == 1);
+        Assert::IsTrue   (host.io.files.count ("C:\\Disks\\dos33\\INTPROG.Integer BASIC.txt") == 1);
+
+        //  The Integer BASIC program comes out as its listing.
+        listing.assign (host.io.files["C:\\Disks\\dos33\\INTPROG.Integer BASIC.txt"].begin(), host.io.files["C:\\Disks\\dos33\\INTPROG.Integer BASIC.txt"].end());
+        Assert::IsTrue   (listing.find ("PRINT") != std::string::npos, TextEncoding::NarrowToWide (listing).c_str());
+
+        //  A second extraction goes into a folder of its own.
+        outcome = host.actions.ExtractImage (L"C:\\Disks\\dos33.dsk", HostFileNaming::Style::Descriptive, second);
+
+        Assert::IsTrue   (outcome.Succeeded());
+        Assert::AreEqual (std::wstring (L"C:\\Disks\\dos33 (2)"), second);
+        Assert::IsTrue   (host.io.files.count ("C:\\Disks\\dos33 (2)\\HELLO.Applesoft BASIC.txt") == 1);
+    }
+
+
+    TEST_METHOD (ExtractImage_MakesAFolderForEachProDosDirectory)
+    {
+        Host          host;
+        std::wstring  folder;
+        size_t        inside = 0;
+
+        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        host.SeedBytes (Bytes ("inner text\n"), L"C:\\In\\inner.txt");
+        Assert::IsTrue (host.browser.GetOperations().Put ("C:\\Disks\\prodos.po", "C:\\In\\inner.txt", "SUBDIR/INNER", "T", false, 0, DiskOperations::Encoding::Text).Succeeded());
+
+        CassoExplorerActions::Outcome  outcome = host.actions.ExtractImage (L"C:\\Disks\\prodos.po", HostFileNaming::Style::Descriptive, folder);
+
+        for (const auto & [path, bytes] : host.io.files)
+        {
+            inside += path.starts_with ("C:\\Disks\\prodos\\SUBDIR\\") ? 1 : 0;
+        }
+
+        Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
+        Assert::IsTrue (host.fs.DirectoryExists (L"C:\\Disks\\prodos\\SUBDIR"));
+        Assert::IsTrue (inside > 0, L"the directory's files are inside its folder");
     }
 
 

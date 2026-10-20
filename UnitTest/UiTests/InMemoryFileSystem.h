@@ -88,7 +88,17 @@ public:
             prefix += L'/';
         }
 
-        return std::any_of (m_files.begin(), m_files.end(), [&prefix] (const auto & kv) { return kv.first.compare (0, prefix.size(), prefix) == 0; });
+        return m_directories.contains (Normalize (path))
+            || std::any_of (m_files.begin(), m_files.end(), [&prefix] (const auto & kv) { return kv.first.compare (0, prefix.size(), prefix) == 0; });
+    }
+
+
+    HRESULT MakeDirectory        (const std::wstring & path) override
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+
+        m_directories.insert (Normalize (path));
+        return S_OK;
     }
 
 
@@ -387,4 +397,5 @@ private:
 
     std::mutex                     m_mutex;
     std::map<std::wstring, Entry>  m_files;
+    std::set<std::wstring>         m_directories;
 };

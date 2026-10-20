@@ -74,6 +74,10 @@ public:
     // True iff `path` exists and is a directory.
     virtual bool    DirectoryExists      (const std::wstring & path) = 0;
 
+    // Creates the directory `path`, whose parent exists. S_OK when it is
+    // there already.
+    virtual HRESULT MakeDirectory        (const std::wstring & path) = 0;
+
     // Deletes `path` if it exists.
     virtual HRESULT Delete               (const std::wstring & path) = 0;
 

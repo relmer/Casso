@@ -2324,6 +2324,43 @@ void CassoExplorerWindow::UpdateCommandBar()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::ExtractImageFiles
+//
+//  The image's files go into a folder beside it, which is then selected in
+//  the list when the list is on that folder's parent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ExtractImageFiles (const std::wstring & imagePath)
+{
+    std::wstring                   folder;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    if (imagePath.empty())
+    {
+        return;
+    }
+
+    outcome = m_actions.ExtractImage (imagePath, GetNamingStyle(), folder);
+
+    ReportOutcome (outcome, L"Extract all files");
+    RefreshAfterHostChange();
+
+    if (!folder.empty() && m_browser.GetLocation().kind == Location::Kind::HostFolder
+        && std::filesystem::path (m_browser.GetLocation().path) == std::filesystem::path (folder).parent_path())
+    {
+        SelectRowNamed (std::filesystem::path (folder).filename().wstring());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::ExtractAll
 //
 //  The archive's own Extract All: its wizard, for where the files go, then
@@ -6300,6 +6337,7 @@ const wchar_t * CassoExplorerWindow::GetVerbLabel (CassoExplorerActions::Verb ve
         case CassoExplorerActions::Verb::Restore:        return L"&Restore";
         case CassoExplorerActions::Verb::EmptyRecycleBin: return L"Empty Recycle &Bin";
         case CassoExplorerActions::Verb::ExtractAll:     return L"Extract A&ll...";
+        case CassoExplorerActions::Verb::ExtractFiles:   return L"E&xtract all files";
         default:                                   return L"";
     }
 }
@@ -6402,6 +6440,7 @@ const wchar_t * CassoExplorerWindow::GetVerbMenuSvgName (CassoExplorerActions::V
         case CassoExplorerActions::Verb::Restore:      return L"windows.recyclebin.restoreitems";
         case CassoExplorerActions::Verb::EmptyRecycleBin: return L"windows.recyclebin.empty";
         case CassoExplorerActions::Verb::ExtractAll:   return L"windows.compressedfile.extract";
+        case CassoExplorerActions::Verb::ExtractFiles: return L"windows.compressedfile.extract";
         default:                                       return nullptr;
     }
 }
@@ -9430,6 +9469,10 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
             ExtractAll();
             break;
 
+        case CassoExplorerActions::Verb::ExtractFiles:
+            ExtractImageFiles (GetSelectedImagePath());
+            break;
+
         case CassoExplorerActions::Verb::Paste:
             if (m_browser.IsVolumeLocation())
             {
@@ -9496,9 +9539,11 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                 message += L"\n" + line;
             }
 
-            answer = DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Delete", MB_YESNO | MB_ICONWARNING);
+            //  The buttons are labeled with their actions, as File Explorer's Delete File
+            //  dialog's are.
+            answer = DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Delete", MB_OKCANCEL | MB_ICONWARNING, { L"Delete", L"Cancel" });
 
-            if (answer == IDYES)
+            if (answer == IDOK)
             {
                 UndoStep  step { UndoStep::Kind::ImageDelete, m_browser.GetLocation() };
                 wchar_t   temp[MAX_PATH] = {};
@@ -9607,9 +9652,9 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                 answer = DxuiMessageBox (GetHwnd(), m_theme,
                                          (L"Format " + CassoExplorerActions::GetLeafName (m_actions.GetFormatTarget())
                                           + L"? Everything on it will be erased.").c_str(),
-                                         L"Format", MB_YESNO | MB_ICONWARNING);
+                                         L"Format", MB_OKCANCEL | MB_ICONWARNING, { L"Format", L"Cancel" });
 
-                if (answer == IDYES)
+                if (answer == IDOK)
                 {
                     ReportOutcome (m_actions.FormatImage (newDisk.request), L"Format");
                     FillList();
@@ -10187,6 +10232,8 @@ void CassoExplorerWindow::ShowTreeContextMenu (int x, int y, const std::wstring 
         AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::InsertDrive1),   [this, image]() { InsertIntoDrive (image, 1); });
         AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { InsertIntoDrive (image, 2); });
         AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { OpenInNewCasso (image); });
+        AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { ExtractImageFiles (image); });
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.compressedfile.extract");
     }
 
     if (hasFolder && m_browser.CanRemoveFromCasso (id))

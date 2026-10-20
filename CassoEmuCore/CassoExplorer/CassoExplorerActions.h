@@ -72,6 +72,9 @@ public:
 
         //  An archive's own Extract All, from the shell.
         ExtractAll,
+
+        //  Every file on a disk image, copied into a folder beside it.
+        ExtractFiles,
     };
 
     //  What a put does with the bytes. ByContent is the rule a left-drag
@@ -137,6 +140,11 @@ public:
     std::vector<Verb>  GetListVerbs() const;
 
     Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style);
+
+    //  Copy every file on the image into a new folder beside it, called after the
+    //  image without its extension, and its directories as folders inside.
+    //  `outFolder` is the folder made.
+    Outcome  ExtractImage   (const std::wstring & imagePath, HostFileNaming::Style style, std::wstring & outFolder);
 
     //  The list's Apple drive: its link, drive and directory. False when the
     //  list is not on one.
@@ -371,6 +379,9 @@ private:
                            int depth, Outcome & inOutOutcome);
 
     static constexpr int  kMaxCopyDepth = 16;
+    void  ExtractDirectory (const std::string & image, VolumeKind kind, const std::string & directory, const std::wstring & hostFolder,
+                            HostFileNaming::Style style, int depth, Outcome & inOutOutcome);
+    std::wstring  MakeFreeFolderPath (const std::wstring & parent, const std::wstring & name);
     bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);
     void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
                         const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Conversion conversion, Outcome & inOutOutcome);

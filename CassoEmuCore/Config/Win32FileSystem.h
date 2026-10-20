@@ -31,6 +31,7 @@ public:
                                   const std::string  & content) override;
     bool    Exists               (const std::wstring & path) override;
     bool    DirectoryExists      (const std::wstring & path) override;
+    HRESULT MakeDirectory        (const std::wstring & path) override;
     HRESULT Delete               (const std::wstring & path) override;
     HRESULT EnumerateFiles       (const std::wstring        & directory,
                                   std::vector<std::wstring> & outFilenames) override;

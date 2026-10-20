@@ -220,6 +220,27 @@ bool Win32FileSystem::DirectoryExists (const std::wstring & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::MakeDirectory (const std::wstring & path)
+{
+    BOOL   created = CreateDirectoryW (path.c_str(), nullptr);
+    DWORD  error   = created ? ERROR_SUCCESS : GetLastError();
+    bool   there   = created || (error == ERROR_ALREADY_EXISTS && DirectoryExists (path));
+
+
+
+    return there ? S_OK : HRESULT_FROM_WIN32 (error);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Delete
 //
 //  Idempotent — succeeds (S_OK) when the file is already absent.

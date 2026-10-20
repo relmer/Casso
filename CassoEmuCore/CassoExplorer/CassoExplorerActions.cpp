@@ -129,6 +129,7 @@ std::vector<CassoExplorerActions::Verb> CassoExplorerActions::GetListVerbs() con
         verbs.push_back (Verb::InsertDrive1);
         verbs.push_back (Verb::InsertDrive2);
         verbs.push_back (Verb::OpenInNewCasso);
+        verbs.push_back (Verb::ExtractFiles);
         verbs.push_back (Verb::Format);
     }
 
@@ -814,6 +815,166 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetSelected (const std::wstr
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ExtractImage
+//
+//  Each file takes the host name and conversion of a copy out of the image,
+//  in the host file style the Options dialog sets. A folder of that name that
+//  is there already is left alone, and the files go into "name (2)".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::ExtractImage (const std::wstring & imagePath, HostFileNaming::Style style, std::wstring & outFolder)
+{
+    Outcome                 outcome;
+    std::filesystem::path   path   = imagePath;
+    std::string             image  = TextEncoding::WideToNarrow (imagePath);
+    VolumeListing           listing;
+    VolumeKind              kind   = VolumeKind::Unknown;
+    DiskOperations::Result  listed = m_browser.GetOperations().List (image, listing, kind);
+    HRESULT                 hr     = S_OK;
+
+
+
+    outFolder.clear();
+
+    if (!listed.Succeeded())
+    {
+        Append (outcome, listed);
+        return outcome;
+    }
+
+    outFolder = MakeFreeFolderPath (path.parent_path().wstring(), path.stem().wstring());
+    hr        = m_fs.MakeDirectory (outFolder);
+
+    if (FAILED (hr))
+    {
+        AppendMessage (outcome, hr, GetLeafName (outFolder) + L" could not be created.");
+        return outcome;
+    }
+
+    ExtractDirectory (image, kind, std::string(), outFolder, style, 0, outcome);
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ExtractDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::ExtractDirectory (const std::string & image, VolumeKind kind, const std::string & directory, const std::wstring & hostFolder,
+                                             HostFileNaming::Style style, int depth, Outcome & inOutOutcome)
+{
+    VolumeListing           listing;
+    VolumeKind              listedKind = kind;
+    DiskOperations::Result  listed     = m_browser.GetOperations().List (image, directory, listing, listedKind);
+
+
+
+    if (!listed.Succeeded())
+    {
+        Append (inOutOutcome, listed);
+        return;
+    }
+
+    for (const FileEntry & entry : listing.entries)
+    {
+        std::string             catalogPath = directory.empty() ? entry.name : directory + "/" + entry.name;
+        bool                    altered     = false;
+        bool                    appleSingle = style == HostFileNaming::Style::AppleSingle;
+        std::wstring            hostName    = entry.isDirectory ? HostFileNaming::MakeHostLegal (entry.name, altered)
+                                                                : DragPayload::GetHostName (entry, kind, style, altered);
+        std::wstring            hostPath    = CassoExplorerBrowser::JoinPath (hostFolder, hostName);
+        DiskOperations::Result  result;
+        AppleSingleFile         single;
+        std::vector<Byte>       bytes;
+        HRESULT                 hr          = S_OK;
+
+        if (entry.isDirectory)
+        {
+            hr = m_fs.MakeDirectory (hostPath);
+
+            if (FAILED (hr))
+            {
+                AppendMessage (inOutOutcome, hr, hostName + L" could not be created.");
+            }
+            else if (depth < kMaxCopyDepth)
+            {
+                ExtractDirectory (image, kind, catalogPath, hostPath, style, depth + 1, inOutOutcome);
+            }
+
+            continue;
+        }
+
+        //  Written where a Copy writes it, through the same get.
+        if (!appleSingle)
+        {
+            Append (inOutOutcome, m_browser.GetOperations().Get (image, catalogPath, GetEncoding (entry, kind), TextEncoding::WideToNarrow (hostPath), entry.catalogIndex));
+            continue;
+        }
+
+        result = m_browser.GetOperations().Get (image, catalogPath, Encoding::Verbatim, "", entry.catalogIndex);
+
+        if (!result.Succeeded())
+        {
+            Append (inOutOutcome, result);
+            continue;
+        }
+
+        single      = DragPayload::MakeAppleSingle (entry, kind);
+        single.data = std::move (result.payload);
+        AppleSingleCodec::Encode (single, bytes);
+
+        hr = m_fs.WriteAllText (hostPath, std::string (bytes.begin(), bytes.end()));
+
+        if (FAILED (hr))
+        {
+            AppendMessage (inOutOutcome, hr, hostName + L" could not be written.");
+            continue;
+        }
+
+        inOutOutcome.written++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::MakeFreeFolderPath
+//
+//  `name` in `parent`, or "name (2)", "name (3)" and so on, the first that
+//  nothing is called.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerActions::MakeFreeFolderPath (const std::wstring & parent, const std::wstring & name)
+{
+    std::wstring  path = CassoExplorerBrowser::JoinPath (parent, name);
+
+
+
+    for (int copy = 2; m_fs.Exists (path) || m_fs.DirectoryExists (path); copy++)
+    {
+        path = CassoExplorerBrowser::JoinPath (parent, std::format (L"{} ({})", name, copy));
+    }
+
+    return path;
 }
 
 

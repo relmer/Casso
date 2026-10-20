@@ -865,6 +865,7 @@ private:
     void  EndRename           (bool commit);
     void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
     void  OpenInNewCasso      (const std::wstring & imagePath);
+    void  ExtractImageFiles   (const std::wstring & imagePath);
     void  OpenInNewWindow     (const std::wstring & path);
     void  RecordSession       ();
     HWND  FindCassoTarget     () const;
