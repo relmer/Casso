@@ -460,7 +460,14 @@ void BreakpointsPane::RunBarEntry (int id)
         RunStep (std::move (step));
         break;
 
-    case BreakpointBarCommands::kDeleteAll:  RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints  (mode) },              {} }); break;
+    case BreakpointBarCommands::kDeleteAll:
+        if (ConfirmDeleteAll())
+        {
+            RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetClearAllBreakpoints (mode) }, {} });
+        }
+
+        break;
+
     case BreakpointBarCommands::kDisableAll: RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableAllBreakpoints (!anyEnabled, mode) }, {} }); break;
     case BreakpointBarCommands::kUndo:       RunStep ({ BreakpointStep::Kind::Undo,    {}, {} });                                                      break;
     case BreakpointBarCommands::kRedo:       RunStep ({ BreakpointStep::Kind::Redo,    {}, {} });                                                      break;
@@ -483,6 +490,32 @@ void BreakpointsPane::RunBarEntry (int id)
         //  New is a drop-down; its rows act.
         break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::ConfirmDeleteAll
+//
+//  Every breakpoint goes only once the user presses Delete; Cancel is the
+//  default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointsPane::ConfirmDeleteAll()
+{
+    DxuiWindow  * window = m_host.GetPaneWindow (DebuggerLayout::kBreakpoints);
+    int           answer = IDCANCEL;
+
+
+
+    answer = m_host.ShowMessageBox ((window != nullptr) ? window->GetHwnd() : m_host.GetOwnerHwnd(), L"Delete all breakpoints?", L"Delete all breakpoints",
+                                    MB_ICONWARNING, { { L"&Delete", IDYES }, { L"&Cancel", IDCANCEL } }, IDCANCEL);
+
+    return answer == IDYES;
 }
 
 

@@ -86,6 +86,16 @@ namespace DebuggerBreakpointBarTests
 
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::ApplyBreakpoints;
+
+        //  Each question's text is added to questions, and `answer` is returned in place of a box.
+        int  ShowMessageBox (HWND, const std::wstring & text, const wchar_t *, UINT, const std::vector<DxuiMessageBoxButton> &, int) override
+        {
+            questions.push_back (text);
+            return answer;
+        }
+
+        int                        answer = IDCANCEL;
+        std::vector<std::wstring>  questions;
         using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::SetSnapshotForTest;
 
@@ -285,6 +295,14 @@ namespace DebuggerBreakpointBarTests
 
             window.Build();
             window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDisableAll);
+
+            //  Delete all puts a question first, and Cancel deletes nothing.
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDeleteAll);
+            Assert::AreEqual ((size_t) 1, window.questions.size());
+            Assert::AreEqual (std::wstring (L"Delete all breakpoints?"), window.questions[0]);
+            Assert::AreEqual ((size_t) 1, host.actions.size(), L"Cancel");
+
+            window.answer = IDYES;
             window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDeleteAll);
 
             Assert::AreEqual ((size_t) 2, host.actions.size());
