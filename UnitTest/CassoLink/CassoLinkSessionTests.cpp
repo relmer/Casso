@@ -656,7 +656,32 @@ public:
         listing.hasVolumeNumber = true;
         listing.volumeNumber    = 254;
         operation.kind          = LinkOperationKind::WriteDisk;
-        Assert::AreEqual (std::string ("WRITING AN IMAGE TO D2 (VOL 254)"), CassoLinkSession::DescribeOperation (operation, listing));
+        operation.imagePath     = "C:\\Disks\\GAMES.DSK";
+        Assert::AreEqual (std::string ("WRITING IMAGE GAMES.DSK TO D2 (VOL 254)"), CassoLinkSession::DescribeOperation (operation, listing));
+    }
+
+
+
+    //  The history line of an operation that succeeded is in the past tense,
+    //  and a Write disk made for a format has the new volume in place of the
+    //  image's name.
+    TEST_METHOD (DescribeOperation_Finished_IsInThePastTense)
+    {
+        LinkOperation  operation;
+
+        operation.kind      = LinkOperationKind::WriteDisk;
+        operation.drive     = 1;
+        operation.imagePath = "C:\\Temp\\casso-format-1.dsk";
+        operation.formatted = "VOL 254";
+        Assert::AreEqual (std::string ("FORMATTING VOL 254 IN D1"), CassoLinkSession::DescribeOperation (operation));
+        Assert::AreEqual (std::string ("FORMATTED VOL 254 IN D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.formatted.clear();
+        operation.imagePath = "C:\\Disks\\GAMES.DSK";
+        Assert::AreEqual (std::string ("WROTE IMAGE GAMES.DSK TO D1"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
+
+        operation.kind = LinkOperationKind::ReadDisk;
+        Assert::AreEqual (std::string ("SENT D1 TO PC"), CassoLinkSession::DescribeOperation (operation, std::nullopt, true));
     }
 
 

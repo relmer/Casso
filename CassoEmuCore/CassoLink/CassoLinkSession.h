@@ -89,6 +89,10 @@ struct LinkOperation
     //  unreadable lists those sectors, as track and DOS 3.3 sector.
     std::string                      imagePath;
     bool                             blankUnreadable = false;
+
+    //  Write disk for a format: the new volume, as VOL 254 or /NAME, so the
+    //  label for a format differs from one for an image written.
+    std::string                      formatted;
     std::vector<std::pair<int, int>> unreadable;
 
     //  Check link disk: whether the drive has the link's boot disk.
@@ -218,7 +222,7 @@ public:
     //  back. The caller has the user's confirmation first. An image whose
     //  tracks do not all decode to standard sectors fails before any track
     //  is written.
-    std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath);
+    std::shared_ptr<LinkOperation>  WriteDisk     (int drive, const std::string & imagePath, const std::string & formatted = std::string());
 
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.
@@ -231,8 +235,9 @@ public:
     //  A Status error code as an HRESULT.
     static HRESULT  FromStatusError (Byte error);
 
-    //  The Label text the program draws for an operation (FR-090).
-    static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt);
+    //  The Label text the program draws for an operation (FR-090), or with
+    //  `finished`, the past tense for the history line of one that succeeded.
+    static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt, bool finished = false);
 
     //  A drive as the label has it: D2, and the disk's volume, as
     //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.

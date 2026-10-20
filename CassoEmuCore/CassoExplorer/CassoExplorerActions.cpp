@@ -3569,6 +3569,9 @@ CassoExplorerActions::Outcome CassoExplorerActions::FormatAppleDrive (const std:
     DiskOperations::NewDiskRequest  disk     = request;
     bool                            prodos   = request.formatName == "prodos";
     std::string                     path;
+    std::string                     volume;
+    VolumeListing                   listing;
+    VolumeKind                      kind     = VolumeKind::Unknown;
     std::vector<Byte>               blank (NibblizationLayer::kImageByteSize, 0);
     HRESULT                         hr       = S_OK;
 
@@ -3601,7 +3604,14 @@ CassoExplorerActions::Outcome CassoExplorerActions::FormatAppleDrive (const std:
 
     outcome.written = 0;
 
-    SubmitWrite (link, drive, [drive, path] (CassoLinkSession & session) { return session.WriteDisk (drive, path); }, outcome);
+    //  The new volume, as the Apple's label and history have it.
+    Append (outcome, m_browser.GetOperations().List (path, listing, kind));
+
+    volume = listing.hasVolumeName   ? "/" + listing.volumeName
+           : listing.hasVolumeNumber ? std::format ("VOL {}", listing.volumeNumber)
+                                     : std::string (prodos ? "PRODOS" : "DOS 3.3");
+
+    SubmitWrite (link, drive, [drive, path, volume] (CassoLinkSession & session) { return session.WriteDisk (drive, path, volume); }, outcome);
 
     return outcome;
 }

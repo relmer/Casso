@@ -304,13 +304,14 @@ std::shared_ptr<LinkOperation> CassoLinkSession::ReadDisk (int drive, const std:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std::string & imagePath)
+std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std::string & imagePath, const std::string & formatted)
 {
     std::shared_ptr<LinkOperation>  operation = std::make_shared<LinkOperation>();
 
 
 
     operation->imagePath = imagePath;
+    operation->formatted = formatted;
 
     return Queue (LinkOperationKind::WriteDisk, drive, FilePath(), operation);
 }
@@ -648,7 +649,7 @@ void CassoLinkSession::Run (std::stop_token stop)
 
         if (!IsLineLost (hr) && operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
-            logged = LogOnApple (std::format ("{} {}", SUCCEEDED (hr) ? "OK " : "ERR", DescribeOperation (*operation)));
+            logged = LogOnApple (std::format ("{} {}", SUCCEEDED (hr) ? "OK " : "ERR", DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr))));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 
@@ -791,7 +792,7 @@ Error:
 
     if (FAILED (hr) && operation.message.empty())
     {
-        operation.message = "The Apple did not answer after the bootstrap. Check that IN#2 and Control-A 14B were typed on it.";
+        operation.message = "The Apple did not answer after the bootstrap. Check that IN#2 and Ctrl+A 14B were typed on it.";
     }
 
     return hr;
@@ -1311,31 +1312,37 @@ void CassoLinkSession::SetState (LinkState state)
 //
 //  CassoLinkSession::DescribeOperation
 //
-//  The Label text for an operation, as the program's screen draws it.
+//  The Label text for an operation, as the program's screen draws it, or
+//  with `finished`, in the past tense for the history. A Write disk's label
+//  has its image's file name, or for a format, the new volume.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing)
+std::string CassoLinkSession::DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing, bool finished)
 {
     std::string  path  = operation.path.ToString();
     std::string  drive = DescribeDrive (operation.drive, listing);
+    std::string  image = std::filesystem::path (operation.imagePath).filename().string();
     std::string  text;
 
 
 
     switch (operation.kind)
     {
-        case LinkOperationKind::Enumerate:       text = path.empty() ? "READING THE CATALOG OF " + drive : "LISTING " + path; break;
-        case LinkOperationKind::ReadFile:        text = std::format ("COPYING {} FROM {}", path, drive);                break;
-        case LinkOperationKind::WriteFile:       text = std::format ("COPYING {} TO {}", path, drive);                  break;
-        case LinkOperationKind::Delete:          text = "DELETING " + path;                                                break;
-        case LinkOperationKind::Rename:          text = std::format ("RENAMING {} TO {}", path, operation.newName);        break;
-        case LinkOperationKind::MakeDirectory:   text = "MAKING FOLDER " + path;                                           break;
-        case LinkOperationKind::RemoveDirectory: text = "DELETING FOLDER " + path;                                         break;
-        case LinkOperationKind::ReadDisk:        text = std::format ("SENDING {} TO PC", drive);                        break;
-        case LinkOperationKind::WriteDisk:       text = "WRITING AN IMAGE TO " + drive;                                   break;
-        case LinkOperationKind::CheckLinkDisk:   text = "CHECKING THE DISK IN " + drive;                                  break;
-        default:                                 text = "WORKING";                                                         break;
+        case LinkOperationKind::Enumerate:       text = path.empty() ? std::format ("{} THE CATALOG OF {}", finished ? "READ" : "READING", drive)
+                                                                     : std::format ("{} {}", finished ? "LISTED" : "LISTING", path);       break;
+        case LinkOperationKind::ReadFile:        text = std::format ("{} {} FROM {}", finished ? "COPIED" : "COPYING", path, drive);         break;
+        case LinkOperationKind::WriteFile:       text = std::format ("{} {} TO {}", finished ? "COPIED" : "COPYING", path, drive);           break;
+        case LinkOperationKind::Delete:          text = std::format ("{} {}", finished ? "DELETED" : "DELETING", path);                     break;
+        case LinkOperationKind::Rename:          text = std::format ("{} {} TO {}", finished ? "RENAMED" : "RENAMING", path, operation.newName); break;
+        case LinkOperationKind::MakeDirectory:   text = std::format ("{} FOLDER {}", finished ? "MADE" : "MAKING", path);                   break;
+        case LinkOperationKind::RemoveDirectory: text = std::format ("{} FOLDER {}", finished ? "DELETED" : "DELETING", path);              break;
+        case LinkOperationKind::ReadDisk:        text = std::format ("{} {} TO PC", finished ? "SENT" : "SENDING", drive);                  break;
+        case LinkOperationKind::WriteDisk:       text = !operation.formatted.empty()
+                                                          ? std::format ("{} {} IN {}", finished ? "FORMATTED" : "FORMATTING", operation.formatted, drive)
+                                                          : std::format ("{} IMAGE {} TO {}", finished ? "WROTE" : "WRITING", image, drive); break;
+        case LinkOperationKind::CheckLinkDisk:   text = std::format ("{} THE DISK IN {}", finished ? "CHECKED" : "CHECKING", drive);        break;
+        default:                                 text = "WORKING";                                                                          break;
     }
 
     return text;

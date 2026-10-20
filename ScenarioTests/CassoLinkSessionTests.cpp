@@ -394,7 +394,7 @@ public:
 
         Assert::AreEqual (std::string ("HISTORY:"), rig.Row (kRow10));
         Assert::IsTrue   (std::regex_match (top, match, s_kLine), L"the newest line has the time");
-        Assert::AreEqual (std::string ("OK  COPYING FROMPC TO D1"), match[1].str());
+        Assert::AreEqual (std::string ("OK  COPIED FROMPC TO D1"), match[1].str());
         Assert::IsTrue   (std::regex_match (next, match, s_kLine));
         Assert::AreEqual (std::string ("PC CONNECTED"), match[1].str(), L"the connection, before the copy");
     }
