@@ -82,7 +82,7 @@ the drive turns at exactly 300 rpm.
   `I/O ERROR` with the head chattering: DOS loaded and its catalog on track
   17 read, but HELLO's sectors, just past the catalog track and inside the
   range CassoLink's experiments had overwritten, did not. So CassoLink's
-  writes did reach this disk at some point, and stopped.
+  writes changed this disk at some point, and then stopped changing it.
 - **Cause:** not yet known; in CassoLink's write path. Next: compare a
   sector write by the committed program, by a build with RWTS's indexed
   stores, and by DOS's RWTS itself called from CassoLink.
