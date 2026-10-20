@@ -4073,6 +4073,23 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  A row's tip is over its label and its value.
+        TEST_METHOD (APanelRowsTipIsOverItsLabelAndValue)
+        {
+            DiagnosticsSnapshot                           snapshot;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+            snapshot.groups.push_back ({ "Switches", { IDiagnosticsProvider::MakeFlagRow ("RAMRD", true, "Reads of aux RAM.") } });
+            rows = DiagnosticsPane::MakeRows (snapshot);
+
+            Assert::AreEqual (std::wstring (L"Reads of aux RAM."), rows[1][0].tip);
+            Assert::AreEqual (std::wstring (L"Reads of aux RAM."), rows[1][1].tip);
+            Assert::AreEqual (std::wstring (L"ON"),                rows[1][1].text);
+        }
+
+
         //  The graphic follows the payload's kind; only a change of kind asks
         //  the frame to lay out again.
         TEST_METHOD (APanelShowsTheGraphicItsPayloadAsksFor)

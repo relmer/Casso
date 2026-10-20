@@ -494,7 +494,9 @@ void MemoryMapBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 //
 //  A run of pages with the same source is one fill, so the usual map of a
 //  few large regions is a handful of rectangles rather than 256. The source's
-//  name is centered in a run that has room for it.
+//  name is centered in a run that has room for it, in a smaller size where
+//  the run is too short for the body size; a write strip's unmapped run reads
+//  "Not written".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -515,7 +517,9 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
         MemorySource     source = GetSourceOf (first, isWrite);
         int              end    = first + 1;
         uint32_t         color  = (source == MemorySource::None) ? theme.Divider() : GetColorOf (source);
-        const wchar_t  * label  = GetSourceLabel (source);
+        const wchar_t  * label  = (source == MemorySource::None) ? (isWrite ? L"Not written" : L"Not mapped") : GetSourceLabel (source);
+        uint32_t         ink    = (source == MemorySource::None) ? theme.ForegroundMuted() : DxuiColor::ChooseInkFor (color, 0xFF000000u, 0xFFFFFFFFu);
+        float            fitted = size;
         float            y      = GetPageY (first, isWrite);
         float            height = 0.0f;
         float            w      = 0.0f;
@@ -532,9 +536,16 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
         fit = (*label != L'\0') ? text.MeasureString (label, size, font.face, w, h) : E_FAIL;
 
-        if (SUCCEEDED (fit) && h + pad * 2.0f <= height && w + pad * 2.0f <= strip)
+        //  A run kMinRunDip tall, the I/O page's, takes the name a size down.
+        if (SUCCEEDED (fit) && h + pad * 2.0f > height)
         {
-            hr = text.DrawString (label, x, y, strip, height, DxuiColor::ChooseInkFor (color, 0xFF000000u, 0xFFFFFFFFu), size, font.face,
+            fitted = size * std::max (0.6f, (height - pad * 2.0f) / std::max (h, 1.0f));
+            fit    = text.MeasureString (label, fitted, font.face, w, h);
+        }
+
+        if (SUCCEEDED (fit) && h <= height && w + pad * 2.0f <= strip)
+        {
+            hr = text.DrawString (label, x, y, strip, height, ink, fitted, font.face,
                                   DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }

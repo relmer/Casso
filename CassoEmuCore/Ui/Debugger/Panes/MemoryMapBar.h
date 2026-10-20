@@ -29,7 +29,7 @@
 class MemoryMapBar : public IDxuiControl
 {
 public:
-    static constexpr int  kStripDip    = 72;
+    static constexpr int  kStripDip    = 96;
     static constexpr int  kStripGapDip = 4;
     static constexpr int  kBoundsDip   = 44;
     static constexpr int  kHeadingDip  = 18;

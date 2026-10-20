@@ -175,7 +175,8 @@ bool DiagnosticsPane::Apply (const DiagnosticsSnapshot & snapshot)
 //
 //  DiagnosticsPane::MakeRows
 //
-//  A group's title stands alone on its row; its rows are indented under it.
+//  A group's title is alone on its row; its rows are indented under it,
+//  each with its tip over its label and its value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,6 +195,9 @@ std::vector<std::vector<DxuiListView::Cell>> DiagnosticsPane::MakeRows (const Di
             rows.push_back ({ { L"  " + TextEncoding::NarrowToWide (row.label) },
                               MakeValueCell (row),
                               MakeBitsCell (row.bits) });
+
+            rows.back()[0].tip = TextEncoding::NarrowToWide (row.tip);
+            rows.back()[1].tip = rows.back()[0].tip;
         }
     }
 

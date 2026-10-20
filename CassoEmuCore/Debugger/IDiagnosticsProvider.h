@@ -35,7 +35,7 @@ public:
     //  Rows in the forms every provider uses: on or off, a number in hex, and
     //  a byte in hex with a name for each bit, bit 7 first. An empty name
     //  leaves that bit out of the decode.
-    static DiagnosticsRow  MakeFlagRow (const std::string & label, bool on);
+    static DiagnosticsRow  MakeFlagRow (const std::string & label, bool on, const std::string & tip = std::string());
     static DiagnosticsRow  MakeHexRow  (const std::string & label, uint32_t value, int digits);
     static DiagnosticsRow  MakeByteRow (const std::string & label, Byte value, const std::array<const char *, 8> & bitNames);
     static DiagnosticsRow  MakeTextRow (const std::string & label, const std::string & value);
