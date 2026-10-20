@@ -983,8 +983,8 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
 
     //  The outline: none while the band sweeps, the fill then covering its
     //  area; otherwise, for the selection, the edge wider than the line, then
-    //  the selection color. Lines of partial alpha would overlap where their
-    //  pieces meet and light a dot at each joint.
+    //  the selection color. Lines of partial alpha overlap at the joints
+    //  between their pieces, which adds up to a dot at each joint.
     if (isSelected && !isLit)
     {
         drawOutline (thick + 2.0f, [&] (float, float) { return edge; });
