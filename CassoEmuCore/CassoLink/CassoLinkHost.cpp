@@ -1319,9 +1319,73 @@ std::string CassoLinkHost::ReadName (const std::vector<Byte> & payload, size_t &
 //
 //  CassoLinkHost::ReadSectors
 //
+//  Each operation is sent again when the client did not take its request,
+//  up to kMaxResends times; every operation can be repeated safely.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkHost::ReadSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus)
+{
+    return Resend ([&] () { return ReadSectorsOnce (drive, track, sectors, outData, outStatus); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::SendSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::SendSectors (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
+                                    std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer)
+{
+    return Resend ([&] () { return SendSectorsOnce (command, request, track, sectors, data, outStatus, trailer); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::FormatTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::FormatTrack (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap)
+{
+    return Resend ([&] () { return FormatTrackOnce (drive, track, volume, outStatus, gap); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::TimeDrive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::TimeDrive (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus)
+{
+    return Resend ([&] () { return TimeDriveOnce (drive, track, revolutions, outRevolutionMs, outStatus); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ReadSectorsOnce
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::ReadSectorsOnce (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus)
 {
     HRESULT            hr        = S_OK;
     std::vector<Byte>  request   = { drive, track, (Byte) sectors.size() };
@@ -1405,9 +1469,10 @@ HRESULT CassoLinkHost::WriteSectors (Byte drive, Byte track, std::span<const Byt
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::WriteTrack (Byte drive, Byte track, Byte volume, std::span<const Byte> data, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::WriteTrack (Byte drive, Byte track, Byte volume, std::span<const Byte> data, CassoLinkStatus & outStatus, Byte gap)
 {
     std::array<Byte, 16>  physicals = {};
+    const Byte            trailer[] = { gap };
 
 
 
@@ -1416,7 +1481,7 @@ HRESULT CassoLinkHost::WriteTrack (Byte drive, Byte track, Byte volume, std::spa
         physicals[i] = (Byte) i;
     }
 
-    return SendSectors (CassoLinkCodec::kWriteTrack, { drive, track, volume }, track, physicals, data, outStatus);
+    return SendSectors (CassoLinkCodec::kWriteTrack, { drive, track, volume }, track, physicals, data, outStatus, trailer);
 }
 
 
@@ -1425,15 +1490,137 @@ HRESULT CassoLinkHost::WriteTrack (Byte drive, Byte track, Byte volume, std::spa
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkHost::SendSectors
+//  CassoLinkHost::Exit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::Exit()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kExit, {});
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::TimeDriveOnce
+//
+//  Each marker is timed as it is read. A packet in place of a marker is the
+//  Status of a track with no sector 0, which ends the markers.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::TimeDriveOnce (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus)
+{
+    HRESULT          hr        = S_OK;
+    const Byte       request[] = { drive, track, revolutions, m_progressStart, m_progressEnd };
+    CassoLinkPacket  packet;
+    LARGE_INTEGER    frequency = {};
+    LARGE_INTEGER    first     = {};
+    LARGE_INTEGER    last      = {};
+    int              marks     = 0;
+    bool             filled    = false;
+
+
+
+    outRevolutionMs = 0.0;
+    outStatus       = {};
+
+    QueryPerformanceFrequency (&frequency);
+
+    hr = AwaitReady();
+    CHR (hr);
+
+    hr = SendPacket (CassoLinkCodec::kTimeDrive, request);
+    CHR (hr);
+
+    while (marks < revolutions)
+    {
+        hr = Fill (1, m_operationTimeoutMs, filled);
+        CHR (hr);
+
+        CBREx (filled, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
+
+        if (m_buffer.front() != CassoLinkCodec::kTimeMark)
+        {
+            break;
+        }
+
+        QueryPerformanceCounter (marks == 0 ? &first : &last);
+        Consume (1);
+        marks++;
+    }
+
+    hr = ReadReply (packet);
+    CHR (hr);
+
+    hr = ReadStatus (packet, outStatus);
+    CHR (hr);
+
+    if (marks >= 2 && outStatus.error == 0)
+    {
+        outRevolutionMs = (double) (last.QuadPart - first.QuadPart) * 1000.0 / (double) frequency.QuadPart / (double) (marks - 1);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::ComputeFormatGap
+//
+//  A sector without its gap is 14 address bytes and 349 data bytes, 32
+//  cycles each, and 5 self-sync bytes, 40 each; each gap byte is 40. The
+//  margin is about 1% of a revolution, for the drive's drift and the eight
+//  cycles at each page the stream crosses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte CassoLinkHost::ComputeFormatGap (double revolutionMs)
+{
+    constexpr double  kSectorCycles = 14.0 * 32.0 + 5.0 * 40.0 + 349.0 * 32.0;
+    constexpr double  kMarginCycles = 2400.0;
+    double            room          = revolutionMs * kCpuCyclesPerMs - kMarginCycles - 16.0 * kSectorCycles;
+    int               gap           = (int) std::floor (room / (16.0 * 40.0));
+
+
+
+    return (Byte) std::clamp (gap, 4, 40);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::SendSectorsOnce
 //
 //  A write's request, then each sector the client requests by an
 //  Acknowledge, until its Status.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::SendSectors (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
-                                    std::span<const Byte> data, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
+                                    std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer)
 {
     HRESULT            hr       = S_OK;
     std::vector<Byte>  encoded;
@@ -1452,6 +1639,7 @@ HRESULT CassoLinkHost::SendSectors (Byte command, std::vector<Byte> request, Byt
     CBRAEx (sized, E_INVALIDARG);
 
     request.insert (request.end(), { m_progressStart, m_progressEnd });
+    request.insert (request.end(), trailer.begin(), trailer.end());
 
     hr = AwaitReady();
     CHR (hr);
@@ -1513,14 +1701,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkHost::FormatTrack
+//  CassoLinkHost::FormatTrackOnce
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkHost::FormatTrack (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus)
+HRESULT CassoLinkHost::FormatTrackOnce (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap)
 {
     HRESULT          hr        = S_OK;
-    const Byte       request[] = { drive, track, volume, m_progressStart, m_progressEnd };
+    const Byte       request[] = { drive, track, volume, m_progressStart, m_progressEnd, gap };
     CassoLinkPacket  packet;
 
 
@@ -1825,7 +2013,8 @@ Error:
 
 HRESULT CassoLinkHost::ReadReply (CassoLinkPacket & outPacket)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr      = S_OK;
+    int      readies = 0;
 
 
 
@@ -1838,6 +2027,16 @@ HRESULT CassoLinkHost::ReadReply (CassoLinkPacket & outPacket)
         {
             m_readyPending = true;
             CBREx (false, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+        }
+
+        //  One Ready can cross the request, sent as the client's wait for a
+        //  reply ran out; a second is the client idle, the request lost.
+        readies += (outPacket.command == CassoLinkCodec::kReady) ? 1 : 0;
+
+        if (readies > 1)
+        {
+            m_readyPending = true;
+            CBREx (false, kLostRequest);
         }
     }
     while (outPacket.command == CassoLinkCodec::kReady);

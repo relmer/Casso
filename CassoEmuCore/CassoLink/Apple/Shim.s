@@ -40,6 +40,8 @@ ACK      = $06
 NAK      = $15
 
 PROGRAM  = $0800
+ZPSAVE   = $3C00                ; the machine's zero page, as the shim found it,
+                                ; on the page below the shim, which runs to $3FFF
 PROGVERLO = $0803               ; the program's version, low byte
 
 ROW0     = $0400                ; the title
@@ -71,9 +73,30 @@ tmohi    = $18
         jmp start
 speedtxt: .text "9600  "        ; $3D06: the speed, six characters
 dialtxt: .ds 40                  ; $3D0C: the modem's dial command, or empty
+zpsaved: .byte 0                 ; $3D34: nonzero once the machine's state is saved
+oldreset: .byte 0, 0, 0          ; $3D35: the reset vector and its check byte
 
+; The first start saves the machine's zero page at ZPSAVE and its reset
+; vector, for the program to put back when CassoLink ends. A bootstrap or a
+; boot disk has zpsaved at 0; the program's Load program, back to the shim,
+; finds it set and saves nothing.
 start:  sta ACIACTL
         cld
+        lda zpsaved
+        bne zpdone
+        ldx #0
+zpsave: lda $00,x
+        sta ZPSAVE,x
+        inx
+        bne zpsave
+        lda $03F2
+        sta oldreset
+        lda $03F3
+        sta oldreset+1
+        lda $03F4
+        sta oldreset+2
+        inc zpsaved
+zpdone:
         lda #$20
         sta slotx
         lda #$0B                ; DTR on, no parity, no interrupts

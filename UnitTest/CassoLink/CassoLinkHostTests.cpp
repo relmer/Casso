@@ -790,4 +790,17 @@ public:
         Assert::AreEqual (std::string ("Casso's Apple program does not fit below the shim"),
                           CassoLinkHost::DescribeAssemblyFailure (""));
     }
+
+
+    //  The gap after each sector is as long as fits 16 sectors in the
+    //  drive's revolution with a margin: longer on a slow drive, shorter on a
+    //  fast one, and never outside 4 to 40.
+    TEST_METHOD (FormatGap_FitsTheDrivesRevolution)
+    {
+        Assert::AreEqual ((Byte) 27, CassoLinkHost::ComputeFormatGap (204.68), L"the owner's //c at 293.1 rpm");
+        Assert::AreEqual ((Byte) 19, CassoLinkHost::ComputeFormatGap (200.0),  L"300 rpm");
+        Assert::AreEqual ((Byte) 6,  CassoLinkHost::ComputeFormatGap (192.0),  L"312.5 rpm");
+        Assert::AreEqual ((Byte) 4,  CassoLinkHost::ComputeFormatGap (180.0),  L"too fast for any gap: the least");
+        Assert::AreEqual ((Byte) 40, CassoLinkHost::ComputeFormatGap (250.0),  L"very slow: the most");
+    }
 };

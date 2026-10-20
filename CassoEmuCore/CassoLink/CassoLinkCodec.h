@@ -87,6 +87,11 @@ public:
     static constexpr Byte  kCancel       = 0xD1;
     static constexpr Byte  kLabel        = 0xDC;
     static constexpr Byte  kLog          = 0xDD;
+    static constexpr Byte  kTimeDrive    = 0xDE;
+    static constexpr Byte  kExit         = 0xDF;
+
+    //  Time drive's marker, one a revolution, outside any packet.
+    static constexpr Byte  kTimeMark     = 0xA5;
 
     //  The longest Label text the program draws.
     static constexpr size_t  kLabelLength = 38;

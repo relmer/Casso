@@ -408,7 +408,7 @@ public:
 
         packet = client.ReceivePacket();
         Assert::AreEqual<int> (CassoLinkCodec::kFormatTrack, packet.command);
-        Assert::IsTrue (packet.payload == std::vector<Byte> { 2, 34, 254, 0, 100 });
+        Assert::IsTrue (packet.payload == std::vector<Byte> { 2, 34, 254, 0, 100, 0 }, L"the gap byte last, 0 for the program's own");
 
         client.SendStatus (3, 2, 34, 1, CassoLinkHost::kErrorNone);
 

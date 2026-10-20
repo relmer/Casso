@@ -24,9 +24,10 @@
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 37;
-    static constexpr Byte    kShimVersion       = 3;
+    static constexpr Word    kProgramVersion    = 38;
+    static constexpr Byte    kShimVersion       = 4;
     static constexpr Word    kShimAddress       = 0x3D00;
+    static constexpr Word    kZeroPageSave      = 0x3C00;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
     static constexpr size_t  kShimLimit         = 0x300;   // $3D00-$3FFF, below the program's tables
 

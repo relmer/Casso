@@ -1292,6 +1292,9 @@ void CassoLinkSession::SetState (LinkState state)
 
     if (state == LinkState::Ready && before != LinkState::Busy)
     {
+        //  A new connection may be to another Apple, with other drives.
+        m_revolutionMs = {};
+
         m_sink.OnActivity (std::format ("Connected to {}", TextEncoding::WideToNarrow (GetModelName().empty() ? std::wstring (L"the Apple") : GetModelName())));
     }
     else if (state == LinkState::Disconnected && (before == LinkState::Ready || before == LinkState::Busy))
@@ -1805,6 +1808,7 @@ HRESULT CassoLinkSession::WriteWholeDisk (LinkOperation & operation)
     VolumeListing       listing;
     CassoLinkStatus     status;
     Byte                volume   = 254;
+    Byte                gap      = 0;
     bool                standard = false;
     HRESULT             listed   = S_OK;
 
@@ -1846,6 +1850,9 @@ HRESULT CassoLinkSession::WriteWholeDisk (LinkOperation & operation)
     m_disks[index]->Clear();
     m_listings[index].reset();
 
+    hr = TimeDriveForFormat (operation.drive, gap);
+    CHR (hr);
+
     for (int track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
         Report (operation, track * 100 / NibblizationLayer::kTrackCount);
@@ -1860,7 +1867,7 @@ HRESULT CassoLinkSession::WriteWholeDisk (LinkOperation & operation)
             data.insert (data.end(), from, from + (ptrdiff_t) LinkedDisk::kSectorSize);
         }
 
-        hr = m_host->WriteTrack ((Byte) operation.drive, (Byte) track, volume, data, status);
+        hr = m_host->WriteTrack ((Byte) operation.drive, (Byte) track, volume, data, status, gap);
         CHR (hr);
 
         hr = FromStatusError (status.error);
@@ -1869,6 +1876,95 @@ HRESULT CassoLinkSession::WriteWholeDisk (LinkOperation & operation)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::TimeDriveForFormat
+//
+//  The drive's revolution timed on track 0, and the gap after each sector
+//  that fits 16 sectors in it. A track 0 with no sector 0, as on a blank
+//  disk, is formatted first with the program's own gap, which fits a drive
+//  up to about 4% fast. A drive that cannot be timed gets the program's gap.
+//
+//  Only a real Apple's drive is timed: the PC times the revolution by its
+//  own clock, and an emulated Apple does not always run in real time, so its
+//  milliseconds are not its cycles. An emulated drive turns at 300 rpm.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkSession::TimeDriveForFormat (int drive, Byte & outGap)
+{
+    HRESULT          hr          = S_OK;
+    CassoLinkStatus  status;
+    double           revolution  = 0.0;
+
+
+
+    outGap = 0;
+
+    BAIL_OUT_IF (m_settings.transport != LinkTransport::Serial && m_settings.transport != LinkTransport::WifiModem, S_OK);
+
+    //  A drive's speed is its own, not its disk's: timed once a connection.
+    revolution = m_revolutionMs[(size_t) drive - 1];
+    BAIL_OUT_IF (revolution > 0.0, S_OK);
+
+    hr = m_host->TimeDrive ((Byte) drive, 0, kTimedRevolutions, revolution, status);
+    CHR (hr);
+
+    if (revolution == 0.0)
+    {
+        hr = m_host->FormatTrack ((Byte) drive, 0, 254, status);
+        CHR (hr);
+
+        hr = m_host->TimeDrive ((Byte) drive, 0, kTimedRevolutions, revolution, status);
+        CHR (hr);
+    }
+
+    BAIL_OUT_IF (revolution == 0.0, S_OK);
+
+    m_revolutionMs[(size_t) drive - 1] = revolution;
+    m_sink.OnActivity (DescribeDriveSpeed (drive, revolution));
+
+Error:
+    outGap = (revolution > 0.0) ? CassoLinkHost::ComputeFormatGap (revolution) : 0;
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::DescribeDriveSpeed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkSession::DescribeDriveSpeed (int drive, double revolutionMs)
+{
+    double       rpm     = 60000.0 / revolutionMs;
+    double       percent = (rpm - 300.0) / 3.0;
+    std::string  text    = std::format ("D{} turns at {:.1f} rpm", drive, rpm);
+
+
+
+    if (std::abs (percent) >= 0.05)
+    {
+        text += std::format (", {:.1f}% {}", std::abs (percent), percent < 0.0 ? "slow" : "fast");
+    }
+
+    if (std::abs (percent) > 1.5)
+    {
+        text += "; drives are usually set within 1.5% of 300 rpm";
+    }
+
+    return text;
 }
 
 

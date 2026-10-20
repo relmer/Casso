@@ -239,6 +239,15 @@ public:
     //  `finished`, the past tense for the history line of one that succeeded.
     static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt, bool finished = false);
 
+    //  A drive's speed for the activity log, from its measured revolution:
+    //  D1 turns at 293.1 rpm, 2.3% slow, with a note when it is more than
+    //  1.5% from 300 rpm, the usual setting.
+    static std::string  DescribeDriveSpeed (int drive, double revolutionMs);
+
+    //  Revolutions timed for a drive's speed, once a connection for each
+    //  drive: about two seconds.
+    static constexpr Byte  kTimedRevolutions = 10;
+
     //  A drive as the label has it: D2, and the disk's volume, as
     //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.
     static std::string  DescribeDrive     (int drive, const std::optional<VolumeListing> & listing);
@@ -281,6 +290,7 @@ private:
     HRESULT  ReadBootSector (LinkOperation & operation);
     HRESULT  ReadTrack     (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable);
     void     Report        (LinkOperation & operation, int progress);
+    HRESULT  TimeDriveForFormat (int drive, Byte & outGap);
 
     static bool  IsSameCatalog (const VolumeListing & a, const VolumeListing & b);
     static bool  IsLineLost    (HRESULT hr);
@@ -315,6 +325,7 @@ private:
     //  Why the line was dropped, for the activity text; the session's thread
     //  sets it just before Disconnect.
     std::string                                 m_lostReason;
+    std::array<double, kDriveCount>             m_revolutionMs = {};   // each drive's, once timed this connection
     std::wstring                                m_modelName;
     std::shared_ptr<LinkOperation>              m_bootstrap;
     uint64_t                                    m_commitTag        = 1;

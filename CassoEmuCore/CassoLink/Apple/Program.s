@@ -9,15 +9,21 @@
 ;   Write sectors   drive, track, count, sectors: for each, an Acknowledge
 ;                   with its number, ACK or NAK for another copy, and the
 ;                   host's Sector data, written and read back
-;   Format track    drive, track, volume
-;   Write track     drive, track, volume: an Acknowledge for each of the 16
-;                   sectors as for Write sectors, then the track formatted
-;                   with their data in one revolution, read back and compared
+;   Format track    drive, track, volume, and after the percentages the gap
+;                   after each sector, in self-sync bytes (0 for 10)
+;   Write track     drive, track, volume and the gap: an Acknowledge for each
+;                   of the 16 sectors as for Write sectors, then the track
+;                   formatted with their data in one revolution, read back
+;                   and compared
+;   Time drive      drive, track, revolutions: $A5 the moment each pass of
+;                   sector 0's address field after the first is read, so the
+;                   PC times the drive's revolution
 ;   Cancel          during an operation: it stops, and Ready follows
 ;   Label           the user's operation, as text: drawn, and Ready again
 ;   Log             the PC's hour and minute, then text: a history line,
 ;                   drawn at the top of the history, and Ready again
 ;   Load program    back to the shim, which sends Ready for the program
+;   Exit            CassoLink ends, and control returns to BASIC or the monitor
 ;
 ; Read sectors, Write sectors, Format track and Write track end with two
 ; percentages, the part of the user's whole operation the request covers, so
@@ -85,10 +91,15 @@ CMDCANCEL = $D1
 CMDLOAD   = $CF
 CMDLABEL  = $DC
 CMDLOG    = $DD
+CMDTIME   = $DE
+CMDEXIT   = $DF
 SHIM      = $3D00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
+SHIMSAVED = SHIM + $34            ; nonzero once the shim saved the machine's state
+SHIMRESET = SHIM + $35            ; the reset vector the shim found, and its check
+ZPSAVE    = $3C00                 ; the zero page the shim found, below the shim
 ACK       = $06
 NAK       = $15
 
@@ -134,7 +145,7 @@ ENCBUF   = $7000                ; write track: each sector's 86 groups on one
 ENCT0    = $9000                ; encode: a byte's low two bits, swapped, for
 ENCT1    = $9100                ; the first third of a sector, shifted for the
 ENCT2    = $9200                ; second, and for the third
-FPAGES   = 25
+FPAGES   = 26                   ; the format stream, whatever its gaps
 WSTART   = 512 - 354            ; the sector stream ends at its second page's end
 
 ; Zero page.
@@ -143,6 +154,8 @@ plo      = $07                  ; the whole operation's percentage at the
 phi      = $08                  ; request's start, and at its end
 fdata    = $09                  ; buildformat: nonzero for ENCBUF's sectors
 misses   = $0A                  ; revolutions in a row with no address field
+revs     = $0B                  ; Time drive: passes left to report
+fgap     = $0C                  ; the gap after each sector, in self-sync bytes
 diskx    = $E0
 drive    = $E1                  ; 1 or 2
 track    = $E2
@@ -211,12 +224,23 @@ slotok: clc
         sta fdata
         lda #3
         sta tmolen
+        lda #<exitlink          ; Control-Reset ends CassoLink cleanly
+        sta $03F2
+        lda #>exitlink
+        sta $03F3
+        eor #$A5
+        sta $03F4
         jsr mktables
         jsr probe
         jsr readid
         jsr drawscreen
 
-main:   lda #OPIDLE
+main:   lda $C000               ; Escape on the Apple ends CassoLink
+        cmp #$9B
+        bne mnokey
+        sta $C010
+        jmp exitlink
+mnokey: lda #OPIDLE
         sta op
         jsr showop
         jsr sendready
@@ -261,10 +285,119 @@ notwtrack: cmp #CMDLABEL
 notlabel: cmp #CMDLOG
         bne notlog
         jmp dolog
-notlog: cmp #CMDLOAD
-        bne tomain
+notlog: cmp #CMDTIME
+        bne nottime
+        jmp dotime
+nottime: cmp #CMDLOAD
+        bne notload
         jmp doload
+notload: cmp #CMDEXIT
+        bne tomain
+        jmp exitlink
 tomain: jmp main
+
+; exitlink: CassoLink ends, by Control-Reset, Escape or the PC's Exit, and
+; control returns to BASIC. The drive is in read mode with its motor off and
+; the 6551's DTR off, so the PC's DSR drops; the zero page and reset
+; vector the shim saved are put back; BASIC's program is emptied as NEW
+; does, since the program was loaded over it; input and output are the
+; keyboard and screen; and DOS's warm start follows, or the monitor when
+; there is no DOS.
+exitlink: sei
+        cld
+        ldx #$FF
+        txs
+        ldx diskx
+        lda Q7L,x
+        lda Q6L,x
+        jsr motoroff
+        ldx slotx
+        lda #$0A                ; DTR off, as the shim set it otherwise
+        sta ACIACMD,x
+        lda #0                  ; with nothing saved, at least BASIC's output
+        sta $F3                 ; is plain: FLASHBIT off, INVFLG normal
+        lda #$FF
+        sta $32
+        lda SHIMSAVED           ; 1 once the shim saved them; an older shim
+        cmp #1                  ; has code there, which is left alone
+        bne lvbasic
+        ldx #0
+lvzp:   lda ZPSAVE,x
+        sta $00,x
+        inx
+        bne lvzp
+        lda SHIMRESET
+        sta $03F2
+        lda SHIMRESET+1
+        sta $03F3
+        lda SHIMRESET+2
+        sta $03F4
+        lda #0
+        sta SHIMSAVED
+lvbasic: lda #0
+        sta $0800
+        sta $0801
+        sta $0802
+        lda #$01                ; TXTTAB, BASIC's program, at $0801
+        sta $67
+        lda #$08
+        sta $68
+        sta $6A
+        sta $6C
+        sta $6E
+        lda #$03                ; VARTAB, ARYTAB and STREND at $0803: no
+        sta $69                 ; program and no variables
+        sta $6B
+        sta $6D
+        jsr $FE89               ; SETKBD: input from the keyboard
+        jsr $FE93               ; SETVID: output to the screen
+        jsr $FB2F               ; INIT: the text screen, the whole window
+        jsr $FC58               ; HOME
+        lda $03D0               ; DOS's warm start, a JMP into DOS
+        cmp #$4C
+        bne lvmon
+        lda $03D2
+        cmp #$9D
+        bcc lvmon
+        jmp $03D0
+lvmon:  jmp $FF69               ; the monitor
+
+; Time drive: sector 0's address field found on the track, then $A5 sent as
+; each later pass of it is read, one a revolution; the time between the
+; PC's timestamps on them is the drive's revolution.
+dotime: lda PKTBUF+2
+        sta revs
+        lda #0
+        sta PKTBUF+2            ; no sector count for begin
+        lda #OPREAD
+        jsr begin
+        bcs tmdone
+        lda #0
+        sta sector
+        jsr findsector
+        bcs tmdone
+tmloop: jsr findsector
+        bcs tmdone
+        lda #$A5
+        jsr putb
+        dec revs
+        bne tmloop
+tmdone: jmp opdone
+
+; getgap: fgap from the request's byte after its percentages, or 10 when the
+; request has none or it is outside 4 to 40.
+getgap: lda #10
+        sta fgap
+        lda lenlo
+        cmp #6
+        bcc ggdone
+        lda PKTBUF+5
+        cmp #4
+        bcc ggdone
+        cmp #41
+        bcs ggdone
+        sta fgap
+ggdone: rts
 
 ; doload: back to the shim, at the speed the 6551 is at now, which is the
 ; speed the host sends the program at; and with no dial command, as a modem
@@ -410,6 +543,7 @@ wrbad:  lda #ERRVERIFY
 ; did not take ends with the first sector that does not read.
 doformat: lda PKTBUF+2
         sta volume
+        jsr getgap
         lda #0
         sta PKTBUF+2            ; no sector count for begin
         lda #OPFORMAT
@@ -437,6 +571,7 @@ fmtdone: jmp opdone
 ; and once to read back.
 dowtrack: lda PKTBUF+2
         sta volume
+        jsr getgap
         lda #0
         sta PKTBUF+2            ; no sector count for begin
         lda #OPWRITE
@@ -1603,13 +1738,16 @@ putstream: sty savex
         inc ptr+1
 psdone: rts
 
-; buildformat: FSTREAM, a whole track of 25 pages: 352 self-sync bytes, then
-; for each sector 0 to 15 its address field, 5 self-sync bytes, a data field
-; and 10 self-sync bytes. The data fields are zeros, or with fdata set, the
-; sectors in ENCBUF. The stream takes about 209,700 cycles to write, longer
-; than a revolution, so its end lands in the first gap: a revolution at 300
-; rpm is about 204,100 cycles at the //c's speed, and the sectors take about
-; 195,600, so a drive up to about 4% fast keeps every address field.
+; buildformat: FSTREAM, a whole track of 26 pages: the first gap, then for
+; each sector 0 to 15 its address field, 5 self-sync bytes, a data field and
+; fgap self-sync bytes. The data fields are zeros, or with fdata set, the
+; sectors in ENCBUF. A sector is 368 bytes and its gap, so the first gap is
+; 768 - 16 * fgap self-sync bytes and the stream always fills its pages. The
+; stream takes longer to write than a revolution, so its end lands in the
+; first gap; the host picks fgap for the drive's measured speed so the 16
+; sectors take a little less than a revolution. A revolution at 300 rpm is
+; about 204,100 cycles at the //c's speed, and the sectors with gaps of 10
+; take about 195,600.
 buildformat: ldy #0
         lda #0
 bfzero: sta SECBUF,y
@@ -1620,16 +1758,36 @@ bfzero: sta SECBUF,y
         sta ptr
         lda #>FSTREAM
         sta ptr+1
-        ldx #0                  ; 352: past a revolution, so the stream's end
-bfgap1: lda #0                  ; overwrites only this gap
+        lda fgap                ; 768 - 16 * fgap: 16 * fgap in tmp2:tmp
+        asl a
+        asl a
+        asl a
+        asl a
+        sta tmp
+        lda fgap
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        sta tmp2
+        lda #0
+        sec
+        sbc tmp
+        sta gap1lo
+        lda #3
+        sbc tmp2
+        sta gap1hi
+bfgap1: lda gap1lo
+        ora gap1hi
+        beq bfsecs
+        lda #0
         jsr putstream
-        dex
-        bne bfgap1
-        ldx #96
-bfgap1b: lda #0
-        jsr putstream
-        dex
-        bne bfgap1b
+        lda gap1lo
+        bne bfg1dec
+        dec gap1hi
+bfg1dec: dec gap1lo
+        jmp bfgap1
+bfsecs:
         lda #0
         sta sector
 bfsec:  lda #$D5
@@ -1664,7 +1822,7 @@ bfgap2: lda #0
         beq bfdata
         jsr encpage
 bfdata: jsr putdata
-        ldx #10
+        ldx fgap
 bfgap3: lda #0
         jsr putstream
         dex
@@ -1674,6 +1832,9 @@ bfgap3: lda #0
         cmp #16
         bne bfsec
         rts
+
+gap1lo: .byte 0                 ; buildformat: the first gap's count
+gap1hi: .byte 0
 
 ; put44: A as two 4-and-4 nibbles: the odd bits, then the even.
 put44:  sta tmp

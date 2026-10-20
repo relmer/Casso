@@ -240,6 +240,28 @@ public:
 
 
 
+    //  After a request lost on the line, the Apple is idle and sends Ready:
+    //  the host sends the request again rather than waiting on those for good.
+    TEST_METHOD (ALostRequest_IsSentAgain)
+    {
+        Rig  rig;
+
+        rig.apple.readyEveryMs = 200;
+        rig.Start();
+
+        AssertSucceeded (rig.Finish (rig.session->Enumerate (1, FilePath()))->result);
+
+        rig.apple.dropRequests = 1;
+
+        auto  list = rig.Finish (rig.session->Enumerate (2, FilePath()));
+
+        AssertSucceeded (list->result);
+        Assert::AreEqual (1, rig.apple.dropped.load(), L"one request was dropped and sent again");
+    }
+
+
+
+
     TEST_METHOD (WriteFile_ThenReadFile_OnBothDrives)
     {
         Rig          rig;
@@ -658,6 +680,18 @@ public:
         operation.kind          = LinkOperationKind::WriteDisk;
         operation.imagePath     = "C:\\Disks\\GAMES.DSK";
         Assert::AreEqual (std::string ("WRITING IMAGE GAMES.DSK TO D2"), CassoLinkSession::DescribeOperation (operation, listing), L"not the volume the write replaces");
+    }
+
+
+
+    //  A drive's speed in rpm and how far it is from 300, with a note past the
+    //  usual 1.5%.
+    TEST_METHOD (DescribeDriveSpeed_GivesRpmAndTheDeviation)
+    {
+        Assert::AreEqual (std::string ("D1 turns at 293.1 rpm, 2.3% slow; drives are usually set within 1.5% of 300 rpm"),
+                          CassoLinkSession::DescribeDriveSpeed (1, 204.68));
+        Assert::AreEqual (std::string ("D2 turns at 301.5 rpm, 0.5% fast"), CassoLinkSession::DescribeDriveSpeed (2, 199.0));
+        Assert::AreEqual (std::string ("D1 turns at 300.0 rpm"), CassoLinkSession::DescribeDriveSpeed (1, 200.0));
     }
 
 

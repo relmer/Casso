@@ -56,8 +56,9 @@ HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string 
     hr = Assemble (GetProgramSource(), kProgramAddress, outBytes, outErrors);
     CHR (hr);
 
-    //  The program ends below the shim, which it returns to.
-    fits = kProgramAddress + outBytes.size() <= kShimAddress;
+    //  The program ends below the shim's copy of the zero page, and the shim,
+    //  which it returns to.
+    fits = kProgramAddress + outBytes.size() <= kZeroPageSave;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:

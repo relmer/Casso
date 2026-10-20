@@ -45,6 +45,13 @@ public:
     std::atomic<int>                  cancels        { 0 };
     //  Idles received as a shim, before the program is loaded.
     std::atomic<int>                  shimIdles      { 0 };
+    //  Time drive: the time between markers, and the requests received.
+    std::atomic<int>                  revolutionMs   { 2 };
+    std::atomic<int>                  timedDrives    { 0 };
+    //  Requests to drop as if lost on the line, and those dropped.
+    std::atomic<int>                  dropRequests   { 0 };
+    std::atomic<int>                  readyEveryMs   { 3000 };
+    std::atomic<int>                  dropped        { 0 };
 
     //  Sectors the drive cannot read, as track and physical sector.
     std::set<std::pair<int, int>>     badSectors;
@@ -167,8 +174,15 @@ private:
 
             silent = false;
 
-            if (!Receive (stop, line, packet, 3000))
+            if (!Receive (stop, line, packet, readyEveryMs))
             {
+                continue;
+            }
+
+            if (packet.command != CassoLinkCodec::kIdle && dropRequests > 0)
+            {
+                dropRequests--;
+                dropped++;
                 continue;
             }
 
@@ -201,6 +215,19 @@ private:
 
                 case CassoLinkCodec::kWriteTrack:
                     WriteSectors (stop, line, { packet.payload.at (0), packet.payload.at (1), 16, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 });
+                    break;
+
+                //  A revolution of revolutionMs: markers that far apart, then
+                //  the Status.
+                case CassoLinkCodec::kTimeDrive:
+                    for (Byte pass = 0; pass < packet.payload.at (2) && !stop.stop_requested(); pass++)
+                    {
+                        std::this_thread::sleep_for (std::chrono::milliseconds (revolutionMs));
+                        Send (line, std::vector<Byte> { CassoLinkCodec::kTimeMark });
+                    }
+
+                    timedDrives++;
+                    SendPacket (line, CassoLinkCodec::kStatus, { 1, packet.payload.at (0), packet.payload.at (1), 100, 0 });
                     break;
 
                 case CassoLinkCodec::kLabel:

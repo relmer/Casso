@@ -119,6 +119,10 @@ public:
 
     static constexpr DWORD   kReplyTimeoutMs     = 3000;
     static constexpr int     kMaxResends         = 5;
+
+    //  A request the client did not take: it sent Ready again, idle, in
+    //  place of a reply. HRESULT_FROM_WIN32 (ERROR_RETRY).
+    static constexpr HRESULT kLostRequest        = (HRESULT) 0x800704D5;
     static constexpr size_t  kBlockSize          = 512;
     static constexpr size_t  kDirectoryPage      = 1024;
     static constexpr size_t  kNamesPerPage       = 18;
@@ -196,11 +200,24 @@ public:
     //  field; data is 256 bytes per sector, in the order of `sectors`.
     HRESULT  ReadSectors  (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
     HRESULT  WriteSectors (Byte drive, Byte track, std::span<const Byte> sectors, std::span<const Byte> data, CassoLinkStatus & outStatus);
-    HRESULT  FormatTrack  (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus);
+    //  `gap` is the self-sync bytes after each sector; 0 is the program's own.
+    HRESULT  FormatTrack  (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap = 0);
 
     //  A whole track, its 16 sectors in physical order, formatted under
     //  `volume` with their data in one revolution and read back.
-    HRESULT  WriteTrack   (Byte drive, Byte track, Byte volume, std::span<const Byte> data, CassoLinkStatus & outStatus);
+    HRESULT  WriteTrack   (Byte drive, Byte track, Byte volume, std::span<const Byte> data, CassoLinkStatus & outStatus, Byte gap = 0);
+
+    //  The drive's revolution in milliseconds, from the client's marker at
+    //  each pass of sector 0 on `track`, over `revolutions` passes. Zero, with
+    //  the Status's error, when the track has no sector 0 to time.
+    HRESULT  TimeDrive    (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+
+    //  The gap after each sector for a drive with this revolution: as long as
+    //  lets 16 sectors fit in a revolution with a margin, from 4 to 40.
+    static Byte  ComputeFormatGap (double revolutionMs);
+
+    //  The //c's 65C02, at 14.318 MHz / 14 less a stretched cycle a scan line.
+    static constexpr double  kCpuCyclesPerMs = 1020.484;
 
     //  The part of the user's operation the requests that follow cover, as
     //  percentages of the whole, for the program's status row; 0 and 100
@@ -225,6 +242,10 @@ public:
     //  the host connected is in its receive loop; Idle ends that loop, and
     //  Ready is sent again.
     HRESULT  PromptReady  () { return SendPacket (CassoLinkCodec::kIdle, {}); }
+
+    //  Ends CassoLink on the Apple, and control returns to BASIC or the
+    //  monitor there; nothing follows on the line.
+    HRESULT  Exit         ();
 
     //  Stops the client's running operation from another thread. The client
     //  sends Ready next, and the operation then returns ERROR_CANCELLED.
@@ -279,11 +300,41 @@ private:
 
     HRESULT  AwaitReady        ();
     HRESULT  ReadReply         (CassoLinkPacket & outPacket);
+    HRESULT  ReadSectorsOnce   (Byte drive, Byte track, std::span<const Byte> sectors, std::vector<Byte> & outData, CassoLinkStatus & outStatus);
+    HRESULT  FormatTrackOnce   (Byte drive, Byte track, Byte volume, CassoLinkStatus & outStatus, Byte gap);
+    HRESULT  TimeDriveOnce     (Byte drive, Byte track, Byte revolutions, double & outRevolutionMs, CassoLinkStatus & outStatus);
+    HRESULT  SendSectorsOnce   (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
+                                std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer);
+
+    //  An operation sent again while its request is lost, up to
+    //  kMaxResends times.
+    template <typename Attempt>
+    HRESULT  Resend (Attempt attempt)
+    {
+        HRESULT  hr = S_OK;
+
+        for (int sent = 0; sent <= kMaxResends; sent++)
+        {
+            hr = attempt();
+
+            if (hr != kLostRequest)
+            {
+                break;
+            }
+
+            if (m_activity)
+            {
+                m_activity ("The Apple did not take a request, so it was sent again");
+            }
+        }
+
+        return hr;
+    }
     HRESULT  ReadStatus        (const CassoLinkPacket & packet, CassoLinkStatus & outStatus);
     HRESULT  SendPacket        (Byte command, std::span<const Byte> payload);
     HRESULT  LoadProgram       ();
     HRESULT  SendSectors       (Byte command, std::vector<Byte> request, Byte track, std::span<const Byte> sectors,
-                                std::span<const Byte> data, CassoLinkStatus & outStatus);
+                                std::span<const Byte> data, CassoLinkStatus & outStatus, std::span<const Byte> trailer = {});
 
     HRESULT  ReceiveImage      (std::vector<Byte> & image, bool untilSummary = true);
     HRESULT  LoadVirtualDrive  (int drive);
