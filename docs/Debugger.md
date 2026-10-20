@@ -829,8 +829,12 @@ history, and `PROFILE HISTORY ALL` of all of it: the history is
 replayed on a scratch machine in the background, so the machine does not slow
 down, and the finished counts become the profile the lists below read. The
 Profiler pane's **Show** drop-down runs it for the last 10 seconds,
-60 seconds, 5 minutes or since history began, with a progress bar while the
-profile builds.
+60 seconds, 5 minutes or since history began, with "Loading profile... (n%)"
+over the list while the profile builds, and while the pane is open the
+chosen period's profile is built again at each stop. The history is cut into
+blocks at keyframes and the blocks are replayed on several scratch machines
+at once; each block's counts are cached, so a longer period, or the same one
+built again, replays only the blocks not counted before.
 
 `PROFILE ON` counts every instruction the machine executes, in a run the
 debugger starts or one the machine makes on its own, and `PROFILE OFF` stops.
@@ -904,6 +908,10 @@ typed in the window by then. Ctrl+F12 is for running Casso under a debugger
 that takes F12 as its break key. It shows the code around the PC, the registers and flags,
 breakpoints, watches, the stack and memory, with a command box and console
 below the code.
+
+Counts of 1,000 or more in the window are written with the locale's
+thousands separator. The tips on **Undo** and **Redo** state the change they
+undo or redo, as "Undo delete all breakpoints".
 
 - **Step**, **Step over**, **Run**, **Run to cursor** and **Pause** run the
   machine. **Follow PC** returns the code pane to the PC. Run to cursor sends
@@ -1078,9 +1086,10 @@ menu also opens these, which stay closed until first opened:
   tree** or **Flame graph**. A line above the list has the totals and the time
   the profile's cycles cover, so a period longer than the history reads as
   the shorter time there is; while a profile builds, its progress bar is drawn
-  over the list. A timeline of the last 600 frames runs across the top, each frame a
-  bar of its cycles by routine, the eight hottest in color and the rest in
-  gray; resting the pointer on a frame lists its routines. The flame graph
+  over the list. A timeline of the period runs across the top, each bar a
+  frame, or several frames joined when the period has more than fit, with its
+  cycles by routine, the eight hottest in color and the rest in
+  gray; resting the pointer on a bar lists its routines. The flame graph
   draws Top level across the top and each routine under its caller, as wide as
   its total: a click zooms into a routine, a click on Top level or a caller
   above zooms back out, and a double-click goes to the routine's code. In
@@ -1126,13 +1135,14 @@ column it began in.
 
 The Breakpoints pane's **New** drop-down lists Execution's types (Address,
 Condition, Opcode, BRK, BRK on interrupt) and the Memory, BASIC and Hardware
-submenus. A type with fields opens the breakpoint dialog on it, sized to those
+submenus. **Delete all** opens a confirmation with Delete and Cancel first. A type with fields opens the breakpoint dialog on it, sized to those
 fields; BRK, BRK on interrupt, Reading uninitialized memory and BASIC errors
 have none, so they are set or cleared at once and checked while on, and
 **Edit...** on the row adds a condition. Every type that is a row of the table
 takes a condition, and the info tip after the Condition label lists what it
 can use, with examples; it stays open while the pointer is over it or its tip,
-or while it has the focus. OK checks the breakpoint first, against the symbols
+or while it has the focus. A field is checked when the focus moves off it, and
+OK checks the whole breakpoint first, against the symbols
 and breakpoints the debugger has: a definition that does not parse, a number
 out of range, an unknown name in the condition, or an execution breakpoint
 already set is reported under the fields, and the dialog stays open. The
@@ -1149,10 +1159,12 @@ power cycle until the heat map tracks writes.
 
 The Watches pane has an ID column: **Auto** for what the instruction at the
 PC and the one just run touch, the watch's number for a watch, and ZPn for a
-zero-page pointer, with the check box that enables or disables it. What is
-typed in the add row is watched as what it is, resolved once: a register's
-value, the word at a symbol (followed to wherever the symbol moves), the byte
-at `*expr`, or an expression's value, each read again at every stop. An entry
+zero-page pointer. What is typed in the add row is watched as what it is,
+resolved once: a register's value, the word at an address or a symbol
+(followed to wherever the symbol moves), or an expression's value, each read
+again at every stop. A `.b` or `.w` after an address, a symbol or an
+expression reads a byte or a word there, as `FB+205.w`; a `$` marks a number
+as hex and sets no width. An entry
 that is none of these stays in the edit box with the reason above the list.
 The console's `W` remains AppleWin's address watch, and `W EXPR text` is the
 typed form. Under **Zero-page pointers** the pane lists the zero-page
