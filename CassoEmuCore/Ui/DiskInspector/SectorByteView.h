@@ -59,7 +59,7 @@ private:
     };
 
     void                   PaintGrid      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
-                                           std::span<const Byte> other, float textPx);
+                                           std::span<const Byte> other, std::span<const Byte> hits, float textPx);
     std::span<const Byte>  GetPairedBytes (const TrackAnalysis & track) const;
 
     ByteGrid  m_grid;

@@ -19,6 +19,7 @@ static constexpr float  s_kCharDip         = 8.0f;
 static constexpr float  s_kHeaderGapDip    = 20.0f;
 static constexpr uint32_t  s_kSelectionAlpha = 0x50000000u;
 static constexpr uint32_t  s_kDiffAlpha      = 0x50000000u;
+static constexpr uint32_t  s_kHitAlpha       = 0x60000000u;
 static constexpr float     s_kDiffLineDip    = 2.0f;
 static constexpr float     s_kMinRowDip      = 11.0f;
 
@@ -163,6 +164,8 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
     float                    left    = static_cast<float> (m_boundsDip.left);
     bool                     isBad   = sector.isDataCheck && !sector.isDataGood;
     int                      rows    = static_cast<int> (data.bytes.size() + kBytesPerRow - 1) / kBytesPerRow;
+    int                      index   = static_cast<int> (&sector - track.sectors.data());
+    vector<Byte>             hits    (data.bytes.size(), 0);
     ByteGrid                 grid;
 
 
@@ -186,9 +189,14 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
         grid.top += rowH * 1.25f;
     }
 
+    for (size_t i = 0; m_context.findMarks != nullptr && i < hits.size(); i++)
+    {
+        hits[i] = m_context.findMarks->IsByteMarked (&track, index, static_cast<int> (i)) ? 1 : 0;
+    }
+
     m_grid = grid;
     PaintSelection (painter, theme);
-    PaintGrid      (painter, text, theme, grid, data.bytes, bytesB, textPx);
+    PaintGrid      (painter, text, theme, grid, data.bytes, bytesB, hits, textPx);
 
     if (isB)
     {
@@ -199,7 +207,7 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
         if (!bytesB.empty())
         {
-            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, textPx);
+            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, {}, textPx);
         }
     }
 }
@@ -214,12 +222,13 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  Rows of 16 under their offsets, hex then text. A byte that differs from
 //  the other side's is tinted and underlined, so it shows without color;
-//  with no other side, nothing is marked.
+//  with no other side, nothing is marked. A byte of a find hit is tinted
+//  and outlined in both columns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
-                                std::span<const Byte> other, float textPx)
+                                std::span<const Byte> other, std::span<const Byte> hits, float textPx)
 {
     float     left   = static_cast<float> (m_boundsDip.left);
     float     line   = m_scaler.ToPxf (s_kDiffLineDip);
@@ -250,6 +259,13 @@ void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text
         {
             text.DrawString (std::format (L"{:02X}", i).c_str(), left, rowTop, grid.hexLeft - left, grid.rowH, theme.ForegroundMuted(), textPx,
                              DxuiTheme::kMonoFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        }
+
+        if (i < hits.size() && hits[i] != 0)
+        {
+            painter.FillRect    (grid.hexLeft + col * grid.byteW, rowTop, grid.byteW * 0.8f, grid.rowH, (m_context.palette.colors.findHit & 0x00FFFFFFu) | s_kHitAlpha);
+            painter.OutlineRect (grid.hexLeft + col * grid.byteW, rowTop, grid.byteW * 0.8f, grid.rowH, 1.0f, m_context.palette.colors.findHit);
+            painter.FillRect    (grid.textLeft + col * grid.charW, rowTop, grid.charW, grid.rowH, (m_context.palette.colors.findHit & 0x00FFFFFFu) | s_kHitAlpha);
         }
 
         if (!other.empty() && (i >= other.size() || other[i] != bytes[i]))

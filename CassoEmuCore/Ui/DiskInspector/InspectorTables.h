@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/InspectorSearch.h"
+#include "Ui/DiskInspector/FindMarks.h"
 
 
 
@@ -55,7 +56,7 @@ public:
     static vector<std::wstring>  GetSearchHitColumns ();
 
     static vector<TableRow>  BuildFindings (const DiskAnalysis & analysis, uint32_t categoryMask, int sortColumn, bool isDescending);
-    static vector<TableRow>  BuildTracks   (const DiskAnalysis & analysis);
+    static vector<TableRow>  BuildTracks   (const DiskAnalysis & analysis, const FindMarks * marks = nullptr);
     static vector<TableRow>  BuildFields   (const DiskAnalysis & analysis, int quarterTrack);
     static vector<TableRow>  BuildImage    (const ImageDetails & image);
 

@@ -65,6 +65,7 @@ struct DiskInspectorColors
     uint32_t  headReading      = 0;
     uint32_t  headWriting      = 0;
     uint32_t  selection        = 0;
+    uint32_t  findHit          = 0;
 
 
 
@@ -118,6 +119,7 @@ struct DiskInspectorColors
         c.headReading      = 0xFF40E060;
         c.headWriting      = 0xFFFF4040;
         c.selection        = 0xFFFFFFFF;
+        c.findHit          = 0xFFFFE600;
 
         return c;
     }
@@ -174,6 +176,7 @@ struct DiskInspectorColors
         c.headReading      = 0xFF108030;
         c.headWriting      = 0xFFC02020;
         c.selection        = 0xFF000000;
+        c.findHit          = 0xFFE07800;
 
         return c;
     }

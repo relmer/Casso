@@ -1998,7 +1998,7 @@ void DiskInspectorWindow::RefreshTables()
     if (m_isTablesDirty)
     {
         vector<std::wstring>  columns = InspectorTables::GetTrackColumns();
-        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis) : vector<TableRow>();
+        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis, m_context.findMarks) : vector<TableRow>();
 
         //  While comparing, each quarter track's verdict (FR-121).
         if (m_comparison.IsComparing())
@@ -2239,6 +2239,7 @@ void DiskInspectorWindow::OpenFindBar()
         m_findBar->SetQuery  (m_findQuery);
         m_findBar->SetResult (m_findIndex, static_cast<int> (m_findHits.size()));
         m_findBar->SetVisible (true);
+        SyncFindMarks();
         Layout (m_boundsDip, m_hostScaler);
     }
 
@@ -2263,6 +2264,7 @@ void DiskInspectorWindow::CloseFindBar()
     m_isFindOpen = false;
     m_findBar->SetInputFocused (false);
     m_findBar->SetVisible (false);
+    SyncFindMarks();
     m_keyTarget = KeyTarget::Platter;
     Layout (m_boundsDip, m_hostScaler);
 }
@@ -2320,6 +2322,8 @@ void DiskInspectorWindow::RunFind (const SearchQuery & query)
 void DiskInspectorWindow::RefreshFindResults()
 {
     m_findResults->SetRows (InspectorTables::BuildSearchHits (m_findHits, m_context.hasDisk ? &m_analysis : nullptr, GetFileMap()));
+    m_findMarks.Build (m_findHits, GetFileMap());
+    SyncFindMarks();
 
     if (m_findHits.empty() && m_isDiskGroup && m_diskTab == kTabFindResults)
     {
@@ -2329,6 +2333,25 @@ void DiskInspectorWindow::RefreshFindResults()
     {
         Layout (m_boundsDip, m_hostScaler);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SyncFindMarks
+//
+//  The views mark the hits while the find bar is open (FR-056), and the
+//  Tracks tab counts them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SyncFindMarks()
+{
+    m_context.findMarks = (m_isFindOpen && !m_findMarks.IsEmpty()) ? &m_findMarks : nullptr;
+    m_isTablesDirty     = true;
 }
 
 

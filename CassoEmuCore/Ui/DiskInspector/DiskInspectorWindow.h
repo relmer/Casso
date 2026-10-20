@@ -169,6 +169,7 @@ private:
     void  CloseFindBar       ();
     void  RunFind            (const SearchQuery & query);
     void  RefreshFindResults ();
+    void  SyncFindMarks      ();
     vector<int>  GetShownDiskTabs () const;
     int          GetTabIndex      () const;
     void  OpenExport ();
@@ -309,6 +310,7 @@ private:
     FindBar                               * m_findBar            = nullptr;
     InspectorTableView                    * m_findResults        = nullptr;
     bool                                    m_isFindOpen         = false;
+    FindMarks                               m_findMarks;
     GoToKind                                m_goToKind           = GoToKind::Track;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     PlatterView                           * m_platterView        = nullptr;

@@ -522,6 +522,13 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, number > 0 ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
     }
 
+    //  A cell with find hits (FR-056): a band along its top.
+    if (m_context.findMarks != nullptr && m_context.findMarks->IsCellMarked (cell))
+    {
+        painter.FillRect (x, y, w, m_scaler.ToPxf (s_kDiffBandDip + 1.0f), DiskInspectorPalette::GetTextColorOn (m_context.palette.colors.findHit));
+        painter.FillRect (x, y, w, m_scaler.ToPxf (s_kDiffBandDip), m_context.palette.colors.findHit);
+    }
+
     //  While comparing, a cell of the selected file pair that differs (FR-120).
     if (m_context.diffCells != nullptr && std::find (m_context.diffCells->begin(), m_context.diffCells->end(), cell) != m_context.diffCells->end())
     {

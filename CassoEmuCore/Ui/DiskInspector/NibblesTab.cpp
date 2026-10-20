@@ -13,6 +13,7 @@
 
 static constexpr uint32_t  s_kRangeAlpha = 0x60000000u;
 static constexpr uint32_t  s_kDiffAlpha  = 0x50000000u;
+static constexpr uint32_t  s_kHitAlpha   = 0x60000000u;
 static constexpr int    s_kWheelRows   = 3;
 static constexpr float  s_kSelectDip   = 2.0f;
 static constexpr Byte   s_kSyncValue   = 0xFF;
@@ -87,6 +88,13 @@ void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                 if (IsInRange (n))
                 {
                     painter.FillRect (x, y, cellW, rowH, (theme.Accent() & 0x00FFFFFFu) | s_kRangeAlpha);
+                }
+
+                //  A nibble of a find hit (FR-056).
+                if (m_context.findMarks != nullptr && m_context.findMarks->IsNibbleMarked (track, n))
+                {
+                    painter.FillRect    (x, y, cellW, rowH, (m_context.palette.colors.findHit & 0x00FFFFFFu) | s_kHitAlpha);
+                    painter.OutlineRect (x + 1, y + 1, cellW - 2, rowH - 2, m_scaler.ToPxf (1.0f), m_context.palette.colors.findHit);
                 }
 
                 //  While comparing, a nibble that differs from B's (FR-121).

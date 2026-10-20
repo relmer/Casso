@@ -71,6 +71,7 @@ private:
                                    const TrackAnalysis & track, const RingTurns & turns, double start, double end);
     void           PaintFiles     (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintDiffs     (IDxuiPainter & painter, const PlatterPlacement & view);
+    void           PaintHits      (IDxuiPainter & painter, const PlatterPlacement & view);
     void           GetFileArcs    (vector<FileArc> & outArcs) const;
     void           PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     void           PaintArcMark     (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const;

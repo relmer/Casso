@@ -40,6 +40,10 @@ static constexpr float    s_kMinMarkDip     = 8.0f;
 static constexpr float    s_kShimmerStepDip = 3.0f;
 static constexpr double   s_kPiecesPerTurn   = 96.0;
 static constexpr double   s_kMinDiffTurn     = 0.004;
+static constexpr float    s_kMinHitDip       = 3.0f;
+static constexpr float    s_kHitEdgeDip      = 1.0f;
+static constexpr float    s_kHitSolidDip     = 24.0f;
+static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
 
@@ -152,6 +156,11 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     if (m_context.isDiffsOverlay && m_context.comparison != nullptr)
     {
         PaintDiffs (painter, view);
+    }
+
+    if (m_context.findMarks != nullptr)
+    {
+        PaintHits (painter, view);
     }
 
     if (m_context.isFileHighlighted)
@@ -1428,6 +1437,120 @@ void PlatterView::PaintDiffs (IDxuiPainter & painter, const PlatterPlacement & v
         }
 
         ShadeRingArc (painter, view, a, std::max (b, a + s_kMinDiffTurn), inner, outer, color);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintHits
+//
+//  Each find hit (FR-056) as a stretch of its ring, across the whole track
+//  for a whole track as the Differences overlay marks it, with a dark edge
+//  so it contrasts with the ring's own colors. A stretch is at least a
+//  few pixels long, so a hit is visible at fit, and once it is long on
+//  screen it is translucent, so the nibbles under it remain visible. Hits closer
+//  together than that are joined, and every edge is drawn before any fill.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintHits (IDxuiPainter & painter, const PlatterPlacement & view)
+{
+    struct Stretch
+    {
+        double  a     = 0;
+        double  b     = 0;
+        double  inner = 0;
+        double  outer = 0;
+    };
+
+    uint32_t         fill      = m_context.palette.colors.findHit;
+    uint32_t         edge      = DiskInspectorPalette::GetTextColorOn (fill);
+    double           edgePx    = m_scaler.ToPxf (s_kHitEdgeDip);
+    double           minPx     = m_scaler.ToPxf (s_kMinHitDip);
+    vector<Stretch>  stretches;
+    int              qt        = 0;
+    int              slot      = 0;
+    int              span      = 0;
+    int              size      = 0;
+    double           outer     = 0;
+    double           inner     = 0;
+    double           minTurn   = 0;
+    double           a         = 0;
+    double           b         = 0;
+
+
+
+    for (const auto & [track, marks] : m_context.findMarks->GetTracks())
+    {
+        qt   = marks.quarterTrack;
+        slot = (qt >= 0) ? m_context.analysis->entries[qt].slot : -1;
+
+        //  Hits on a record analyzed again since the search are listed in the
+        //  Find results tab, marked out of date, but not drawn on the platter.
+        if (slot < 0 || m_context.analysis->tracks[slot].get() != track)
+        {
+            continue;
+        }
+
+        size = static_cast<int> (track->framed.nibbles.size());
+
+        if (size == 0)
+        {
+            continue;
+        }
+
+        const RingTurns &  turns = GetRingTurns (slot, *track);
+
+        span    = (qt % DiskImage::kQuarterTracksPerWholeTrack == 0) ? DiskImage::kQuarterTracksPerWholeTrack : 1;
+        outer   = PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx;
+        inner   = PlatterGeometry::GetRingOuter (std::min (qt + span, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx;
+        minTurn = minPx / (s_kTwoPi * std::max (outer, 1.0));
+
+        for (const FindMarks::Run & run : marks.nibbles)
+        {
+            a = turns.nibbles[static_cast<size_t> (run.first % size)];
+            b = turns.nibbles[static_cast<size_t> ((run.first + run.count) % size)];
+            b = std::max ((b > a) ? b : b + 1.0, a + minTurn);
+
+            if (!stretches.empty() && stretches.back().outer == outer && a <= stretches.back().b + minTurn)
+            {
+                stretches.back().b = std::max (stretches.back().b, b);
+            }
+            else
+            {
+                stretches.push_back ({ a, b, inner, outer });
+            }
+        }
+    }
+
+    auto  isLong = [&] (const Stretch & s) { return (s.b - s.a) * s_kTwoPi * s.outer > m_scaler.ToPxf (s_kHitSolidDip); };
+
+    //  Under a translucent stretch the edge is only a frame, which the fill
+    //  does not cover.
+    for (const Stretch & s : stretches)
+    {
+        double  t = edgePx / (s_kTwoPi * s.outer);
+
+        if (isLong (s))
+        {
+            ShadeRingArc (painter, view, s.a - t, s.b + t, s.outer,          s.outer + edgePx, edge);
+            ShadeRingArc (painter, view, s.a - t, s.b + t, s.inner - edgePx, s.inner,          edge);
+            ShadeRingArc (painter, view, s.a - t, s.a,     s.inner,          s.outer,          edge);
+            ShadeRingArc (painter, view, s.b,     s.b + t, s.inner,          s.outer,          edge);
+        }
+        else
+        {
+            ShadeRingArc (painter, view, s.a - t, s.b + t, s.inner - edgePx, s.outer + edgePx, edge);
+        }
+    }
+
+    for (const Stretch & s : stretches)
+    {
+        ShadeRingArc (painter, view, s.a, s.b, s.inner, s.outer, isLong (s) ? (fill & 0x00FFFFFFu) | s_kHitAlpha : fill);
     }
 }
 

@@ -32,6 +32,8 @@ static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
 static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
 static constexpr float     s_kFilesShare     = 0.3f;
 static constexpr float     s_kDiffBandDip    = 4.0f;
+static constexpr float     s_kMinHitDip      = 4.0f;
+static constexpr float     s_kHitLineDip     = 2.0f;
 
 
 
@@ -185,6 +187,7 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
 
     PaintDiffs     (painter, track, g);
+    PaintHits      (painter, track, g);
     PaintSelection (painter, theme, g);
     PaintShimmer   (painter, g);
     PaintSeam      (painter, text, theme, track, g);
@@ -981,6 +984,56 @@ void TrackStripView::PaintDiffs (IDxuiPainter & painter, const TrackAnalysis & t
         for (int k = 0; k < count; k++)
         {
             painter.FillRect (parts[k].x0, static_cast<float> (bar.bottom) - h, std::max (parts[k].x1 - parts[k].x0, 1.0f), h, m_context.palette.colors.difference);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintHits
+//
+//  Each run of nibbles with find hits (FR-056) outlined across the bar in
+//  the hit color, framed in a dark line so it reads apart from the gold of
+//  the address marks it often contains, and at least a few pixels wide so
+//  a hit is visible at any zoom.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintHits (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g)
+{
+    const FindMarks::TrackMarks *  marks  = (m_context.findMarks != nullptr) ? m_context.findMarks->GetTrack (&track) : nullptr;
+    RECT                           bar    = GetBarRect();
+    float                          top    = static_cast<float> (bar.top);
+    float                          h      = static_cast<float> (bar.bottom - bar.top);
+    float                          line   = m_scaler.ToPxf (s_kHitLineDip);
+    float                          edge   = m_scaler.ToPxf (1.0f);
+    float                          minW   = m_scaler.ToPxf (s_kMinHitDip);
+    uint32_t                       fill   = m_context.palette.colors.findHit;
+    int                            size   = static_cast<int> (track.framed.nibbles.size());
+    std::array<StripSegment, 2>    parts  = {};
+    int                            count  = 0;
+    double                         a      = 0;
+    double                         b      = 0;
+    float                          w      = 0;
+
+
+
+    for (const FindMarks::Run & run : (marks != nullptr && size > 0) ? marks->nibbles : vector<FindMarks::Run>())
+    {
+        a     = m_turns[static_cast<size_t> (run.first % size)];
+        b     = m_turns[static_cast<size_t> ((run.first + run.count) % size)];
+        count = g.GetSegments (a, (b > a) ? b - a : b + 1.0 - a, parts);
+
+        for (int k = 0; k < count; k++)
+        {
+            w = std::max (parts[k].x1 - parts[k].x0, minW);
+
+            painter.OutlineRect (parts[k].x0 - edge, top - edge, w + 2 * edge, h + 2 * edge, edge, DiskInspectorPalette::GetTextColorOn (fill));
+            painter.OutlineRect (parts[k].x0, top, w, h, line, fill);
         }
     }
 }

@@ -8,7 +8,8 @@
 
 
 
-static constexpr LPCWSTR  s_kpszLabel = L"Sectors, in the order they pass the head";
+static constexpr LPCWSTR  s_kpszLabel  = L"Sectors, in the order they pass the head";
+static constexpr float    s_kHitDotDip = 3.0f;
 
 
 
@@ -60,6 +61,15 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                                         DxuiTheme::kCornerRadiusDip, m_scaler.ToPxf (selected ? 2.0f : 1.0f), selected ? theme.Accent() : color);
             text.DrawString (caption.c_str(), static_cast<float> (r.left), static_cast<float> (r.top), static_cast<float> (r.right - r.left), static_cast<float> (r.bottom - r.top),
                              color, m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+
+            //  A dot in the top right corner of a sector with find hits (FR-056).
+            if (m_context.findMarks != nullptr && m_context.findMarks->GetSectorHits (track, order[i]) > 0)
+            {
+                painter.FillCircle (static_cast<float> (r.right) - m_scaler.ToPxf (2.0f * s_kHitDotDip), static_cast<float> (r.top) + m_scaler.ToPxf (2.0f * s_kHitDotDip),
+                                    m_scaler.ToPxf (s_kHitDotDip + 1.0f), DiskInspectorPalette::GetTextColorOn (m_context.palette.colors.findHit));
+                painter.FillCircle (static_cast<float> (r.right) - m_scaler.ToPxf (2.0f * s_kHitDotDip), static_cast<float> (r.top) + m_scaler.ToPxf (2.0f * s_kHitDotDip),
+                                    m_scaler.ToPxf (s_kHitDotDip), m_context.palette.colors.findHit);
+            }
         }
     }
 }

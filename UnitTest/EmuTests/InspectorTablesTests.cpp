@@ -120,7 +120,7 @@ public:
         Assert::AreEqual (std::wstring (L"Bit track"), rows[68].cells[1]);
         Assert::AreEqual (InspectorFormat::FormatQuarterTrackList (analysis.entries[68].sharesWith), rows[68].cells[2]);
         Assert::AreEqual (std::wstring (L"15 of 16"), rows[20].cells[4], L"track 5 has one bad sector");
-        Assert::AreEqual (std::wstring (L"Beyond the head's reach"), rows[DiskImage::kQuarterTrackCount - 1].cells[12]);
+        Assert::AreEqual (std::wstring (L"Beyond the head's reach"), rows[DiskImage::kQuarterTrackCount - 1].cells[13]);
         Assert::IsFalse (InspectorTables::IsAlignmentNoteShown (analysis), L"no note for a DSK");
     }
 
@@ -221,6 +221,75 @@ public:
         Assert::AreEqual (std::wstring (L"Byte $2C"),  rows[0].cells[3]);
     }
 
+
+
+    TEST_METHOD (FindMarksJoinRunsAndWrapAtTheIndex)
+    {
+        vector<FindMarks::Run>  runs = { { 10, 3 }, { 5, 2 }, { 12, 4 }, { 7, 1 }, { 98, 4 } };
+
+
+
+        FindMarks::Merge (runs);
+
+        Assert::AreEqual (static_cast<size_t> (3), runs.size(), L"runs that touch or overlap are joined");
+        Assert::AreEqual (5,  runs[0].first);
+        Assert::AreEqual (3,  runs[0].count);
+        Assert::AreEqual (10, runs[1].first);
+        Assert::AreEqual (6,  runs[1].count);
+
+        Assert::IsTrue  (FindMarks::IsInRuns (runs, 100, 15));
+        Assert::IsFalse (FindMarks::IsInRuns (runs, 100, 16));
+        Assert::IsFalse (FindMarks::IsInRuns (runs, 100, 9));
+        Assert::IsTrue  (FindMarks::IsInRuns (runs, 100, 1),  L"the last run passes the index");
+        Assert::IsFalse (FindMarks::IsInRuns (runs, 100, 2));
+        Assert::IsFalse (FindMarks::IsInRuns (runs, 0, 1),    L"byte runs do not wrap");
+    }
+
+
+
+    TEST_METHOD (FindMarksCountHitsAndPlaceSectorBytes)
+    {
+        DiskAnalysis           analysis;
+        SearchQuery            query;
+        FindMarks              marks;
+        SearchHit              hit;
+        const TrackAnalysis *  track = nullptr;
+        int                    first = 0;
+        int                    count = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        track = analysis.tracks[analysis.entries[20].slot].get();
+
+        query.text = L"D5 AA 96";
+        marks.Build (InspectorSearch::Find (analysis, 20, query), nullptr);
+
+        Assert::AreEqual (16, marks.GetTrackHits (track));
+        Assert::AreEqual (1,  marks.GetSectorHits (track, 3));
+        Assert::IsTrue   (marks.IsNibbleMarked (track, track->fields[track->sectors[3].addressField].firstNibble));
+        Assert::IsFalse  (marks.IsNibbleMarked (track, track->fields[track->sectors[3].dataField].bodyNibble));
+        Assert::AreEqual (std::wstring (L"16"), InspectorTables::BuildTracks (analysis, &marks)[20].cells[12], L"the Tracks tab counts the hits");
+        Assert::AreEqual (std::wstring(),       InspectorTables::BuildTracks (analysis, &marks)[16].cells[12]);
+
+        hit.quarterTrack = 20;
+        hit.track        = track;
+        hit.sectorIndex  = 2;
+        hit.offset       = 0x2C;
+        hit.length       = 3;
+
+        Assert::IsTrue   (FindMarks::GetNibbles (hit, first, count));
+        Assert::AreEqual (track->fields[track->sectors[2].dataField].bodyNibble + 86 + 0x2C, first, L"6-and-2 bytes follow 86 auxiliary nibbles");
+        Assert::AreEqual (3, count);
+
+        marks.Build ({ hit }, nullptr);
+
+        Assert::IsTrue   (marks.IsByteMarked (track, 2, 0x2E));
+        Assert::IsFalse  (marks.IsByteMarked (track, 2, 0x2F));
+        Assert::IsFalse  (marks.IsByteMarked (track, 3, 0x2C));
+        Assert::AreEqual (1, marks.GetSectorHits (track, 2));
+        Assert::IsTrue   (marks.IsNibbleMarked (track, first + 2));
+    }
 
 
     TEST_METHOD (FindBarQueriesDifferInEveryField)
