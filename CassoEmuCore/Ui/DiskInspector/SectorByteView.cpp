@@ -402,6 +402,63 @@ bool SectorByteView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SectorByteView::GetTooltip
+//
+//  Only a byte of a find hit has a tip (FR-056): its offset, and the hit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorByteView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
+{
+    const TrackAnalysis *  track  = m_context.GetTrack();
+    int                    sector = (m_context.model != nullptr) ? m_context.model->GetSectorIndex() : -1;
+    bool                   isText = false;
+    int                    index  = HitTest (pointPx, isText);
+    bool                   hasTip = index >= 0 && sector >= 0 && m_context.findMarks != nullptr && m_context.findMarks->IsByteMarked (track, sector, index);
+
+
+
+    if (hasTip)
+    {
+        outText     = std::format (L"Byte ${:02X}\n{}", index, m_context.findMarks->FormatHitLine (1));
+        outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
+    }
+
+    return hasTip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::GetTooltipSwatches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorByteView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
+{
+    std::wstring  text;
+    RECT          anchor = {};
+    bool          hasTip = GetTooltip (pointPx, text, anchor);
+
+
+
+    if (hasTip)
+    {
+        outSwatches = { { 1, m_context.palette.colors.findHit } };
+    }
+
+    return hasTip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SectorByteView::HitTest
 //
 //  The byte under a point and which column it is in, or -1. A drag past

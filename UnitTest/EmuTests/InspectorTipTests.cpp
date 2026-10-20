@@ -108,6 +108,43 @@ public:
 
 
 
+    TEST_METHOD (AFindHitUnderThePointerHasALineWithItsSwatch)
+    {
+        DiskAnalysis           analysis;
+        InspectorViewContext   context;
+        FindMarks              marks;
+        SearchQuery            query;
+        const TrackAnalysis *  track = nullptr;
+        InspectorTip           tip;
+        int                    mark  = 0;
+
+
+
+        AnalyzeDsk (analysis);
+        query.text = L"D5 AA 96";
+        marks.Build (InspectorSearch::Find (analysis, 68, query), nullptr, query.text);
+        context.analysis  = &analysis;
+        context.findMarks = &marks;
+        track = analysis.tracks[analysis.entries[68].slot].get();
+        mark  = track->fields[track->sectors[3].addressField].firstNibble;
+
+        tip = InspectorTip::BuildPlatterTip (context, 68, TrackAnalyzer::GetAngle (*track, track->framed.nibbles[mark + 1].startCell), kOneCell, false);
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nFind hit for \"D5 AA 96\""), tip.GetText().c_str());
+        Assert::AreEqual (context.palette.colors.findHit, tip.GetSwatches().back().argb);
+        Assert::AreEqual (std::wstring (L"Find hit for \"D5 AA 96\""), GetLine (tip.GetText(), tip.GetSwatches().back().line));
+
+        tip = InspectorTip::BuildPlatterTip (context, 68, GetDataTurn (*track, 3, 20), kOneCell, false);
+        Assert::IsTrue   (tip.GetText().find (L"Find hit") == std::wstring::npos, tip.GetText().c_str());
+
+        tip = InspectorTip::BuildNibbleTip (context, *track, mark + 2, track->framed.nibbles[mark + 2].startCell, 8, false);
+        Assert::IsTrue   (tip.GetText().ends_with (L"\nFind hit for \"D5 AA 96\""), tip.GetText().c_str());
+
+        tip = InspectorTip::BuildNibbleTip (context, *track, mark + 3, track->framed.nibbles[mark + 3].startCell, 8, false);
+        Assert::IsTrue   (tip.GetText().find (L"Find hit") == std::wstring::npos, L"the nibble after the hit");
+    }
+
+
+
     TEST_METHOD (EachColorLineHasItsColorsSwatch)
     {
         DiskAnalysis           analysis;

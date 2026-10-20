@@ -101,7 +101,8 @@ int PlatterLegendView::GetHeightDip() const
 //  PlatterLegendView::BuildSections
 //
 //  The platter for its mode, then the file map's roles while the Files
-//  overlay colors the platter.
+//  overlay colors the platter, then the find hits' color while the views
+//  mark them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +128,11 @@ vector<LegendSection> PlatterLegendView::BuildSections (const InspectorViewConte
         }
 
         sections.push_back (files);
+    }
+
+    if (context.findMarks != nullptr)
+    {
+        sections.push_back ({ L"Find", { { context.palette.colors.findHit, context.findMarks->FormatHitLine (1) } }, L"" });
     }
 
     return sections;

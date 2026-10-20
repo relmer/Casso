@@ -15,7 +15,8 @@
 //  A tooltip's text and a swatch beside each line about a color under the
 //  pointer (FR-148): the platter's, the strip's and the Nibbles tab's.
 //  The kinds of cell in the spot are listed most cells first, then in Timing
-//  mode the spot's timing, then the Files overlay's role for the sector.
+//  mode the spot's timing, then the Files overlay's role for the sector,
+//  then whether the spot has a find hit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +43,7 @@ private:
     void  AddKinds    (const InspectorViewContext & context, const TrackAnalysis & track, uint32_t firstCell, uint32_t cellCount, bool isColored);
     void  AddTiming   (const InspectorViewContext & context, const TrackAnalysis & track, uint32_t firstCell, uint32_t cellCount, bool isColored);
     void  AddFileRole (const InspectorViewContext & context, int wholeTrack, const TrackAnalysis & track, int nibble);
+    void  AddFindHit  (const InspectorViewContext & context, const TrackAnalysis & track, uint32_t firstCell, uint32_t cellCount);
 
     std::wstring               m_text;
     vector<DxuiTooltipSwatch>  m_swatches;

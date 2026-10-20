@@ -1799,7 +1799,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     int64_t                               now       = static_cast<int64_t> (GetTickCount64());
     vector<DxuiTooltipSwatch>             swatches;
     bool                                  isInstant = false;
-    const std::array<InspectorView *, 8>  views     = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_nibblesTab, m_fluxTab, m_mapGrid, m_headerView };
+    const std::array<InspectorView *, 9>  views     = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_byteView, m_nibblesTab, m_fluxTab, m_mapGrid, m_headerView };
 
 
 
@@ -2322,7 +2322,7 @@ void DiskInspectorWindow::RunFind (const SearchQuery & query)
 void DiskInspectorWindow::RefreshFindResults()
 {
     m_findResults->SetRows (InspectorTables::BuildSearchHits (m_findHits, m_context.hasDisk ? &m_analysis : nullptr, GetFileMap()));
-    m_findMarks.Build (m_findHits, GetFileMap());
+    m_findMarks.Build (m_findHits, GetFileMap(), m_findQuery.text);
     SyncFindMarks();
 
     if (m_findHits.empty() && m_isDiskGroup && m_diskTab == kTabFindResults)

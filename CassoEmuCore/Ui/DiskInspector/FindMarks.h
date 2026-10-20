@@ -39,7 +39,7 @@ public:
         std::map<int, vector<Run>>  bytes;
     };
 
-    void  Build (const vector<SearchHit> & hits, const FileMap * map);
+    void  Build (const vector<SearchHit> & hits, const FileMap * map, const std::wstring & queryText);
     void  Clear ();
     bool  IsEmpty () const { return m_tracks.empty(); }
 
@@ -47,10 +47,15 @@ public:
 
     const TrackMarks *  GetTrack       (const TrackAnalysis * track) const;
     bool                IsNibbleMarked (const TrackAnalysis * track, int nibble) const;
+    bool                IsRangeMarked  (const TrackAnalysis * track, int first, int count) const;
     bool                IsByteMarked   (const TrackAnalysis * track, int sectorIndex, int offset) const;
     int                 GetSectorHits  (const TrackAnalysis * track, int sectorIndex) const;
     int                 GetTrackHits   (const TrackAnalysis * track) const;
     bool                IsCellMarked   (int cell) const;
+
+    //  A tooltip line for a spot with hits, as `Find hit for "D5 AA 96"`, or
+    //  with a count, as `3 find hits for "D5 AA 96"`.
+    std::wstring        FormatHitLine  (int count) const;
 
     //  The nibbles a hit covers: its own for a nibble hit, framed from its
     //  first cell for one at any bit offset, and for a hit in sector data
@@ -72,4 +77,5 @@ public:
 private:
     std::map<const TrackAnalysis *, TrackMarks>  m_tracks;
     vector<Byte>                                 m_cells;
+    std::wstring                                 m_queryText;
 };

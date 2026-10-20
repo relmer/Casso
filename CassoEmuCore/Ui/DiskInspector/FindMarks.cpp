@@ -17,7 +17,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindMarks::Build (const vector<SearchHit> & hits, const FileMap * map)
+void FindMarks::Build (const vector<SearchHit> & hits, const FileMap * map, const std::wstring & queryText)
 {
     int  first  = 0;
     int  count  = 0;
@@ -28,6 +28,7 @@ void FindMarks::Build (const vector<SearchHit> & hits, const FileMap * map)
 
 
     Clear();
+    m_queryText = queryText;
     m_cells.assign ((map != nullptr) ? map->cells.size() : 0, 0);
 
     for (const SearchHit & hit : hits)
@@ -96,6 +97,7 @@ void FindMarks::Clear()
 {
     m_tracks.clear();
     m_cells.clear();
+    m_queryText.clear();
 }
 
 
@@ -134,6 +136,52 @@ bool FindMarks::IsNibbleMarked (const TrackAnalysis * track, int nibble) const
 
 
     return marks != nullptr && IsInRuns (marks->nibbles, static_cast<int> (track->framed.nibbles.size()), nibble);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindMarks::IsRangeMarked
+//
+//  Whether any nibble of a run of `count` from `first`, around the index
+//  too, has a hit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FindMarks::IsRangeMarked (const TrackAnalysis * track, int first, int count) const
+{
+    const TrackMarks *  marks = GetTrack (track);
+    int                 size  = (track != nullptr) ? static_cast<int> (track->framed.nibbles.size()) : 0;
+    bool                isHit = false;
+    int                 start = 0;
+
+
+
+    for (size_t i = 0; marks != nullptr && size > 0 && !isHit && i < marks->nibbles.size(); i++)
+    {
+        start = (marks->nibbles[i].first - first % size + size) % size;
+        isHit = start < count || start + marks->nibbles[i].count > size;
+    }
+
+    return isHit;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindMarks::FormatHitLine
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FindMarks::FormatHitLine (int count) const
+{
+    return (count > 1) ? std::format (L"{} find hits for \"{}\"", count, m_queryText) : std::format (L"Find hit for \"{}\"", m_queryText);
 }
 
 

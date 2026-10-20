@@ -523,7 +523,7 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
     }
 
     //  A cell with find hits (FR-056): a band along its top.
-    if (m_context.findMarks != nullptr && m_context.findMarks->IsCellMarked (cell))
+    if (IsHitCell (cell))
     {
         painter.FillRect (x, y, w, m_scaler.ToPxf (s_kDiffBandDip + 1.0f), DiskInspectorPalette::GetTextColorOn (m_context.palette.colors.findHit));
         painter.FillRect (x, y, w, m_scaler.ToPxf (s_kDiffBandDip), m_context.palette.colors.findHit);
@@ -888,6 +888,7 @@ bool FileMapGridView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & 
                                                                                  InspectorFormat::FormatSector (m_map->GetColumn (cell)),
                                                                                  FileMapText::FormatResult (m_map->cells[cell].result));
         outText    += IsDimmed (cell) ? L"\nDimmed: not part of " + m_map->files[m_selectedFile].path : L"";
+        outText    += IsHitCell (cell) ? L"\n" + m_context.findMarks->FormatHitLine (1) : L"";
         outAnchorPx = { pointPx.x, pointPx.y, pointPx.x + 1, pointPx.y + 1 };
     }
 
@@ -903,7 +904,8 @@ bool FileMapGridView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & 
 //  FileMapGridView::GetTooltipSwatches
 //
 //  The cell's color beside the line with its role, or with its result when
-//  the disk is not mapped.
+//  the disk is not mapped, and the find hit color beside the last line for
+//  a cell with hits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -915,10 +917,33 @@ bool FileMapGridView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatc
 
     if (cell >= 0)
     {
+        std::wstring  text;
+        RECT          anchor = {};
+
         outSwatches = { { 1, IsDimmed (cell) ? InspectorMarquee::Dim (m_context.palette, GetCellColor (cell)) : GetCellColor (cell) } };
+
+        if (IsHitCell (cell) && GetTooltip (pointPx, text, anchor))
+        {
+            outSwatches.push_back ({ static_cast<int> (std::count (text.begin(), text.end(), L'\n')), m_context.palette.colors.findHit });
+        }
     }
 
     return cell >= 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::IsHitCell
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapGridView::IsHitCell (int cell) const
+{
+    return m_context.findMarks != nullptr && m_context.findMarks->IsCellMarked (cell);
 }
 
 

@@ -263,7 +263,7 @@ public:
         track = analysis.tracks[analysis.entries[20].slot].get();
 
         query.text = L"D5 AA 96";
-        marks.Build (InspectorSearch::Find (analysis, 20, query), nullptr);
+        marks.Build (InspectorSearch::Find (analysis, 20, query), nullptr, query.text);
 
         Assert::AreEqual (16, marks.GetTrackHits (track));
         Assert::AreEqual (1,  marks.GetSectorHits (track, 3));
@@ -271,6 +271,13 @@ public:
         Assert::IsFalse  (marks.IsNibbleMarked (track, track->fields[track->sectors[3].dataField].bodyNibble));
         Assert::AreEqual (std::wstring (L"16"), InspectorTables::BuildTracks (analysis, &marks)[20].cells[12], L"the Tracks tab counts the hits");
         Assert::AreEqual (std::wstring(),       InspectorTables::BuildTracks (analysis, &marks)[16].cells[12]);
+
+        first = track->fields[track->sectors[3].addressField].firstNibble;
+        Assert::IsTrue   (marks.IsRangeMarked (track, first - 5, 6),  L"a spot that ends on a hit's first nibble");
+        Assert::IsTrue   (marks.IsRangeMarked (track, first + 2, 10), L"a spot that starts on a hit's last nibble");
+        Assert::IsFalse  (marks.IsRangeMarked (track, first + 3, 10));
+        Assert::AreEqual (std::wstring (L"Find hit for \"D5 AA 96\""),   marks.FormatHitLine (1));
+        Assert::AreEqual (std::wstring (L"3 find hits for \"D5 AA 96\""), marks.FormatHitLine (3));
 
         hit.quarterTrack = 20;
         hit.track        = track;
@@ -282,7 +289,7 @@ public:
         Assert::AreEqual (track->fields[track->sectors[2].dataField].bodyNibble + 86 + 0x2C, first, L"6-and-2 bytes follow 86 auxiliary nibbles");
         Assert::AreEqual (3, count);
 
-        marks.Build ({ hit }, nullptr);
+        marks.Build ({ hit }, nullptr, L"x");
 
         Assert::IsTrue   (marks.IsByteMarked (track, 2, 0x2E));
         Assert::IsFalse  (marks.IsByteMarked (track, 2, 0x2F));

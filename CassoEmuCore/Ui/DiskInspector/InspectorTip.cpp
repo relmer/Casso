@@ -13,7 +13,8 @@
 
 
 
-static const std::wstring  s_kSeparator = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+static const std::wstring  s_kSeparator   = std::wstring (L" ") + s_kpszMiddleDot + L" ";
+static constexpr double    s_kHitReachPx = 5.0;
 
 
 
@@ -166,6 +167,12 @@ InspectorTip InspectorTip::BuildPlatterTip (const InspectorViewContext & context
         {
             tip.AddFileRole (context, wholeTrack, *fileTrack, PlatterGeometry::GetNibbleAt (*fileTrack, PlatterGeometry::GetCellAtTurn (*fileTrack, turn)));
         }
+
+        //  A hit's mark on the platter is a few pixels long however short the
+        //  hit, starting at the hit, so a hit up to that far before the spot
+        //  counts.
+        first = PlatterGeometry::GetCellAtTurn (*track, turn - turnSpan * s_kHitReachPx - std::floor (turn - turnSpan * s_kHitReachPx));
+        tip.AddFindHit (context, *track, first, (turnSpan >= 1.0) ? track->framed.cellCount : (last + track->framed.cellCount - first) % track->framed.cellCount + 1);
     }
 
     return tip;
@@ -245,6 +252,8 @@ InspectorTip InspectorTip::BuildNibbleTip (const InspectorViewContext & context,
     {
         tip.AddFileRole (context, qt / DiskImage::kQuarterTracksPerWholeTrack, track, nibble);
     }
+
+    tip.AddFindHit (context, track, firstCell, cellCount);
 
     return tip;
 }
@@ -373,6 +382,39 @@ void InspectorTip::AddTiming (const InspectorViewContext & context, const TrackA
     else
     {
         AddLine (line);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTip::AddFindHit
+//
+//  A line with the find hit color while the spot's nibbles include a hit
+//  (FR-056).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorTip::AddFindHit (const InspectorViewContext & context, const TrackAnalysis & track, uint32_t firstCell, uint32_t cellCount)
+{
+    int  size  = static_cast<int> (track.framed.nibbles.size());
+    int  first = 0;
+    int  last  = 0;
+
+
+
+    if (context.findMarks != nullptr && size > 0 && cellCount > 0 && track.framed.cellCount > 0)
+    {
+        first = PlatterGeometry::GetNibbleAt (track, firstCell % track.framed.cellCount);
+        last  = PlatterGeometry::GetNibbleAt (track, (firstCell + cellCount - 1) % track.framed.cellCount);
+
+        if (first >= 0 && last >= 0 && context.findMarks->IsRangeMarked (&track, first, (last - first + size) % size + 1))
+        {
+            AddColor (context.palette.colors.findHit, context.findMarks->FormatHitLine (1));
+        }
     }
 }
 

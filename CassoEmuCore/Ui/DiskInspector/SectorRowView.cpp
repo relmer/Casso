@@ -126,6 +126,7 @@ bool SectorRowView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & ou
 
 
     bool                   hasTip   = position >= 0 || (track != nullptr && PtInRect (&m_boundsDip, pointPx) != FALSE);
+    int                    hits     = 0;
 
 
 
@@ -133,6 +134,8 @@ bool SectorRowView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & ou
     {
         outText     = InspectorText::FormatSectorTooltip (track->sectors[GetPassingOrder (*track)[position]], *track);
         outAnchorPx = GetButtonRect (position);
+        hits        = (m_context.findMarks != nullptr) ? m_context.findMarks->GetSectorHits (track, GetPassingOrder (*track)[position]) : 0;
+        outText    += (hits > 0) ? L"\n" + m_context.findMarks->FormatHitLine (hits) : L"";
     }
     else if (hasTip)
     {
@@ -141,6 +144,36 @@ bool SectorRowView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & ou
     }
 
     return hasTip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorRowView::GetTooltipSwatches
+//
+//  The find hit color beside the line counting a sector's hits, its last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorRowView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
+{
+    const TrackAnalysis *  track    = m_context.GetTrack();
+    int                    position = (track != nullptr) ? HitTest (pointPx, *track) : -1;
+    std::wstring           text;
+    RECT                   anchor   = {};
+    bool                   hasHits  = position >= 0 && m_context.findMarks != nullptr && m_context.findMarks->GetSectorHits (track, GetPassingOrder (*track)[position]) > 0;
+
+
+
+    if (hasHits && GetTooltip (pointPx, text, anchor))
+    {
+        outSwatches = { { static_cast<int> (std::count (text.begin(), text.end(), L'\n')), m_context.palette.colors.findHit } };
+    }
+
+    return hasHits;
 }
 
 
