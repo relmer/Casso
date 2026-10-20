@@ -20,6 +20,8 @@ the drive turns at exactly 300 rpm.
 - **Symptom:** sector writes failed to verify; the drive did not take the
   intended byte.
 - **Evidence:** writes verified after the change below and not before it.
+  **Doubtful since the ADTPro survey:** ADTPro's formatter and Apple's RWTS
+  use indexed stores on the //c without fault. See "What ADTPro does".
 - **Cause:** `sta $C08D,x` takes five cycles, and on its fourth the 65C02
   accesses the I/O page once before the real store. The IWM latches a byte on
   that access, a cycle early. The //c ROM listing notes the same effect for
@@ -229,6 +231,86 @@ proof there were none. The link's handling of data errors, from the code:
   out-of-range branch in a diagnostic build failed assembly, and the load returned
   no error to the caller.
 - **Fix:** pending. Report the assembly error from the load.
+
+## What ADTPro does
+
+A survey of ADTPro's source (the owner's clone, last commit 2026-05-28),
+read for strategies only; no code is taken from it. References are to its
+tree.
+
+**Disk writes.** Sector and block writes go through Apple's routines: the
+ProDOS client calls the MLI's WRITE_BLOCK (`src/client/prodos/rw.asm`), the
+DOS client calls RWTS. ADTPro's only nibble-level write is its formatter,
+taken from Hyper-FORMAT (`src/client/diskii.asm` 40-91,
+`src/client/prodos/format.asm`).
+
+- The formatter stores with **indexed** addresses (`$C08F,X`, `$C08D,X`,
+  `$C08C,X`), with 32 cycles per data byte and 40 per sync. The //c's slot 6
+  passes the same Disk II signature test and takes the same loop; there is
+  no IWM path. **This contradicts item 1's explanation**: indexed stores work
+  on the //c for ADTPro's formatter and for Apple's RWTS. Item 1's fix may
+  have worked for another reason, such as the rebalanced cycle counts.
+  Reopen item 1 once writes take effect on the disk again (item 4).
+- A write ends with the last bytes of the buffer being gap filler, and read
+  mode follows within about 10 cycles of the last store. A buffered byte
+  dropped there is filler. This is consistent with item 2.
+- Track layout is fixed: 206 syncs in gap 1, 6 in gap 2, 16 in gap 3,
+  volume 254. The whole write is about 207,700 cycles, longer than a
+  revolution at 300 rpm, so its end lands in gap 1. No speed measurement, no
+  gap adaptation (compare item 3).
+- No read-back verify after a format or a write (compare items 4 to 6).
+  The DOS client retries a failed RWTS call a user-chosen number of times.
+- Write-protect is sensed the same way as ours.
+- Drive presence comes from ProDOS's device list, with no probe of its own
+  (compare item 11). The motor is started early, during the serial transfer of
+  the data to write, which removes the spin-up wait.
+
+**Bootstrap** (compare items 7 and 16).
+
+- Characters of a line go out in one burst at the carriage return; the
+  pause is after each line: 250 ms by default (15 to 1,000 ms), and at least
+  500 ms for the first and last few lines.
+- The typed text is a monitor listing that returns the cursor to the top
+  row at a fixed interval of lines, so the screen never scrolls; scrolling slows the
+  monitor's echo.
+- No checksum. The typed stage is a small loader that requests the rest in
+  binary and sends the request again after each timeout of about 2 s.
+
+**Protocol errors** (compare items 14, 15 and 18).
+
+- CRC-16 with polynomial `$1021` on the data, an EOR check byte on each
+  envelope.
+- Apple to PC: the host sends ACK or NAK, with up to 3 resends and a wait
+  of 500 ms times the resend number before each NAK.
+- PC to Apple: the Apple's ACK has the next block's number, and the host
+  treats a wrong number as a NAK; up to 3 resends with a growing wait. The host
+  drops a resent block it already has, which covers an ACK that does not arrive. The Apple's
+  side retries without limit.
+- A corrupted request from the Apple is dropped by the host; the Apple's
+  wait for a reply times out and the operation is abandoned.
+
+**6551 and line state** (compare items 8 and 17).
+
+- Polled, interrupts off, command `$0B`. The 6551's parity, framing and
+  overrun bits are never read; the CRC is relied on.
+- Before each menu the Apple reads and discards input until about 0.13 s
+  of silence, which clears a line left in a bad state.
+- The PC side has no flow control unless the user picks the ImageWriter
+  cable option, and no CTS, DSR or DCD monitoring, no disconnect detection
+  and no reconnect. A dead Apple appears only as long timeouts.
+- The Apple always sends first; only the bootstrap loader repeats its
+  request until a reply arrives (compare item 9).
+
+**Ideas from it for us:**
+
+- Write data sectors the way Apple's routines time them, and recheck our
+  write loop against RWTS's timing rather than against item 1's theory.
+- Write throwaway sync bytes after the last nibble of every write (item 2).
+- Pace the bootstrap per line rather than per character, and return the
+  cursor to the top so the screen does not scroll, which may let it run faster than item 7's pacing.
+- Put the block number in every ACK and check it on both ends.
+- Drain the line until quiet before a new session.
+- Start the motor during the transfer of the data to write.
 
 ## Follow-up ideas
 
