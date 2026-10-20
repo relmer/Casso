@@ -58,6 +58,32 @@ namespace DebuggerTests
         //  symbol, the word at wherever it is now; *expr, the byte there. A
         //  name that is nothing known is an error. A plain W is AppleWin's
         //  address watch.
+        //  A .b or .w suffix reads the byte or the word at the address, symbol
+        //  or expression before it, and saves with the watch; a register
+        //  takes none.
+        TEST_METHOD (W_ExprWidthSuffixReadsAByteOrAWord)
+        {
+            Rig  rig;
+
+
+
+            rig.target.memory[0x0300] = 0x34;
+            rig.target.memory[0x0301] = 0x12;
+            rig.target.memory[0x00FB] = 0x00;
+            rig.target.memory[0x00FC] = 0x03;
+            rig.session.GetSymbols().Add (SymbolTableId::User, "COUNT", 0x0300);
+
+            Assert::AreEqual (std::string ("#0 300.b = $34"),   rig.RunOk ("W EXPR 300.b").text.at (0), L"an address's byte");
+            Assert::AreEqual (std::string ("#1 $300.w = $1234"), rig.RunOk ("W EXPR $300.W").text.at (0), L"$ marks hex only, and .W a word, written .w");
+            Assert::AreEqual (std::string ("#2 COUNT.b = $34"), rig.RunOk ("W EXPR count.b").text.at (0), L"a symbol's byte, in the symbol's case");
+            Assert::AreEqual (std::string ("#3 FB+205.w = $1234"), rig.RunOk ("W EXPR FB+205.w").text.at (0), L"an expression's value as the address");
+            rig.RunFails ("W EXPR A.b", "invalid arguments");
+
+            Assert::IsTrue (WatchHandlers::MakeScript (rig.session, WatchListKind::Watch).find ("WA EXPR 300.b") != std::string::npos, L"the suffix saves with the watch");
+        }
+
+
+
         TEST_METHOD (W_ExprIsResolvedOnceToWhatItIs)
         {
             Rig  rig;

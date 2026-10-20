@@ -1878,9 +1878,9 @@ std::string DebuggerViewState::GetPokeLine (Word address, Byte value)
 //  DebuggerViewState::GetWatchError
 //
 //  A BASIC variable, and anything once the machine is stopped in a program,
-//  is left to the session; otherwise the text must parse. A name no symbol
-//  has yet is a watch all the same, which reads as the symbol once symbols
-//  define it.
+//  is left to the session; otherwise the text, less any `.b` or `.w`
+//  suffix, must parse. A name no symbol has yet is a watch all the same,
+//  which reads as the symbol once symbols define it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1906,6 +1906,12 @@ std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snaps
     if (text.size() > kBasic.size() && _strnicmp (text.c_str(), kBasic.data(), kBasic.size()) == 0)
     {
         return {};
+    }
+
+    if (WatchItem::SplitWidth (text, text) != 0)
+    {
+        hr = DebugExpressionEvaluator::Parse (text, parsed, error);
+        return FAILED (hr) ? error : std::string();
     }
 
     if (ApplesoftProgram::TryParseReference (text, reference) &&
@@ -1970,6 +1976,7 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
                 return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
                      : !watch.basicName.empty() || !watch.isValueEditable ? std::vector<DebuggerAction> {}
                      : IsRegisterWatch (watch)      ? std::vector<DebuggerAction> { DebuggerActions::GetSetRegister (GetUpper (watch.expression), text, mode) }
+                     : IsByteWatch (watch)          ? std::vector<DebuggerAction> { DebuggerActions::GetEnterByte (watch.address, text, mode) }
                      :                               std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
             }
         }
@@ -2046,6 +2053,25 @@ bool DebuggerViewState::IsRegisterWatch (const DebuggerViewSnapshot::WatchLine &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::IsByteWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsByteWatch (const DebuggerViewSnapshot::WatchLine & watch)
+{
+    std::string  base;
+
+
+
+    return watch.basicName.empty() && WatchItem::SplitWidth (watch.expression, base) == 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetUpper
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2114,7 +2140,8 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
             }
 
             undo.actions = { IsRegisterWatch (watch) ? DebuggerActions::GetSetRegister (GetUpper (watch.expression), value, mode)
-                                                     : DebuggerActions::GetEnterWord (watch.address, value, mode) };
+                           : IsByteWatch (watch)     ? DebuggerActions::GetEnterByte (watch.address, (Byte) value, mode)
+                           :                           DebuggerActions::GetEnterWord (watch.address, value, mode) };
             return undo;
         }
 

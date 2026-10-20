@@ -706,6 +706,9 @@ public:
 
     //  A manual watch of a register, A, X, Y, S, P or PC, in any case.
     static bool         IsRegisterWatch (const DebuggerViewSnapshot::WatchLine & watch);
+
+    //  A manual watch of a byte, its text ending in `.b`.
+    static bool         IsByteWatch     (const DebuggerViewSnapshot::WatchLine & watch);
     static std::string  GetUpper        (const std::string & text);
 
     //  Which optional views are open, as the text the preferences keep, so a

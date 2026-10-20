@@ -16,7 +16,8 @@
 //  empty for an address. A watch typed in the watch pane is resolved once
 //  to its kind, with the text typed as its expression: a register's
 //  name, a symbol's, whose address is looked up again at each read, or an
-//  expression evaluated at each read.
+//  expression evaluated at each read. A `.b` or `.w` suffix on an address,
+//  a symbol or an expression reads the byte or the word there.
 struct WatchItem
 {
     enum class Kind
@@ -34,6 +35,10 @@ struct WatchItem
     std::string  basicName;
     Kind         kind    = Kind::Address;
     std::string  expression;
+
+    //  The width of a text's `.b` or `.w` suffix, in either case: 1 for a
+    //  byte, 2 for a word, 0 for none; base is the text before the suffix.
+    static int  SplitWidth (const std::string & text, std::string & base);
 };
 
 
