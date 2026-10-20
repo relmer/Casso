@@ -888,9 +888,9 @@ void PlatterView::PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & t
 //  A stretch of a ring marked across a band at least s_kMinMarkDip wide, so
 //  the mark is plain at fit. The selection is outlined in the selection
 //  color over a contrasting edge between the shimmer's sweeps. While the
-//  band sweeps, the fill also covers the outline's area and the outline is
-//  drawn only as the band's light, so the band crosses the whole mark plain
-//  to see (FR-038). The hovered sector is lit faintly and outlined thinly.
+//  band sweeps, the outline is not drawn and the fill covers its area, so
+//  the band crosses the whole mark plain to see, lighting the outline's
+//  area as it passes (FR-038). The hovered sector is lit faintly and outlined thinly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -981,19 +981,16 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
         }
     }
 
-    //  The outline: while the band sweeps, only its light where it touches
-    //  the outline; otherwise, for the selection, the edge wider than the
-    //  line, then the selection color.
-    if (isLit)
-    {
-        drawOutline (thick + 2.0f, [&] (float x, float y) { return InspectorMarquee::GetShimmerBand (now, x, y, box); });
-    }
-    else if (isSelected)
+    //  The outline: none while the band sweeps, the fill then covering its
+    //  area; otherwise, for the selection, the edge wider than the line, then
+    //  the selection color. Lines of partial alpha would overlap where their
+    //  pieces meet and light a dot at each joint.
+    if (isSelected && !isLit)
     {
         drawOutline (thick + 2.0f, [&] (float, float) { return edge; });
-        drawOutline (thick,        [&] (float, float) { return ink; });
     }
-    else
+
+    if (!isLit)
     {
         drawOutline (thick, [&] (float, float) { return ink; });
     }
