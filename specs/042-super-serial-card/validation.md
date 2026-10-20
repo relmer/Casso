@@ -39,6 +39,16 @@ GuestVisibleSuperSerialCardTests`.
   data register. In WDC's W65C51N datasheet, an overrun is flagged when the
   next byte is transferred to the receive data register before the previous
   one is read.
+- In printer mode the firmware echoes output to the screen only at the
+  40-character line width. Apple's 1985 manual (page 15) adds "or up to 80
+  characters if you have an 80-column card installed", but ROM 341-0065-A
+  has no such case: its initialization looks up the width from SW2-3 and
+  SW2-4 in the table at $C9A6 (41, 72, 80, 132) and clears the echo bit (bit
+  7 of $0738+slot) for every width but the first ($C85E `BEQ`, $C861 `AND
+  #$7F`), and it never reads the //e's 80-column status. On a //e with the
+  80-column display on (PR#3), with and without DOS 3.3, a listing at 80
+  characters went to the connector and not to the screen. Settings labels
+  only the 40-character choice "echoed to the screen".
 
 ## Real programs
 
