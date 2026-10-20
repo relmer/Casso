@@ -30,6 +30,8 @@ Requires ADTPro's server and its Ethernet client disk, supplied by the owner; th
 3. In the client's configuration, set slot 3 and either DHCP or static `10.0.65.15`, and set the server address to `10.0.65.1` (the PC itself, through the virtual gateway).
 4. Result: the client lists the server's directory, then sends a disk image to the server and receives one back, byte for byte.
 
+Validated 2026-10-19 with ADTPro 2.1.0 (server in Ethernet mode, client ADTPROETH on an enhanced //e): the client took 10.0.65.15 by DHCP, listed the server's disks folder, sent its boot disk (identical to the original) and received `D2.dsk` into drive 1 (identical to the server's copy). The owner ran Telnet65 against a public telnet BBS through the DNS relay the same day, with no faults.
+
 ## Performance (SC-005)
 
 At Authentic speed the emulator is throttled to 1.023 MHz with or without an idle card. Unthrottled, measured 2026-10-14 in Release on a //e `TestMachine` running a `JMP *` loop for 50 million cycles per run, 16 runs alternating the order (card first, then card second): 3558.5 ms without the card, 3619.8 ms with it, a cost of about 1.7% of maximum emulation speed. Each run pair is order-sensitive by roughly 10%, so single-order comparisons are not meaningful.

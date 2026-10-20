@@ -136,3 +136,9 @@ Loading merges the shipped slot entries with the user's by slot number, so a use
 - Guest (UnitTest, `TestMachine("Apple2e")` with the card in slot 3 and `FakeHostNetwork`): 6502 programs assembled by `Assembler` at test time: hardware UDP round trip, hardware TCP round trip larger than the socket's buffer share, and a MACRAW program that runs DHCP and a TCP exchange through the virtual network.
 - Scenario (ScenarioTests, real `Win32HostNetwork`, loopback only): a hardware TCP and UDP round trip against a peer socket in the test, proving the Winsock implementation.
 - Owner validation: shipped ADTPro against an ADTPro server on the same PC (SC-006). The agent does not download ADTPro (no external binaries).
+
+## R16. IP65's passive open and the first data byte
+
+**Finding**: IP65's TCP (`ip65/tcp.s`) does not count the SYN it sends when it accepts a connection: its first data segment has the SYN-ACK's sequence number. A standard TCP receiver trims the byte that overlaps the SYN, so HFS65, IP65's web server, delivers each response without its first byte (`TTP/1.0 200 OK`). AppleWin has the same result, since its raw-Ethernet path (Npcap on Windows, libslirp on Linux) ends in a standard TCP stack, and so would a real card on a real network.
+
+**Decision**: Casso's virtual network follows standard TCP, with no special case for IP65. Contiki's web server, whose stack counts its SYN, delivers whole responses through the same port forward.
