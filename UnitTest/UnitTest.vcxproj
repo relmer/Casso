@@ -516,6 +516,7 @@
     <ClCompile Include="Dxui\DxuiCheckboxTests.cpp" />
     <ClCompile Include="Dxui\DxuiRadioGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiSearchBoxTests.cpp" />
+    <ClCompile Include="Dxui\DxuiShimmerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputDegenerateTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputWordSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiOrbitControlTests.cpp" />
