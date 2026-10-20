@@ -793,7 +793,8 @@ the pre-merge gate.
 - **The disks it needs are fetched for you.** `-Scenario` runs
   `scripts/FetchStockDisks.ps1` first, which downloads the DOS 3.3 System
   Master and ProDOS Users Disk only when this machine has neither a copy under
-  `Disks/Apple/` nor one in the emulator's cache. Both are gitignored. A fetch
+  `Disks/Apple/` nor one in the emulator's cache, and the Kermit-65 disk into
+  `Disks/ThirdParty/` when it is not there. All are gitignored. A fetch
   that cannot supply a missing disk stops the run rather than letting it
   proceed half-armed.
 - **If a required suite could not run, state that in the summary rather than
@@ -916,9 +917,11 @@ in conversation.
 - **Do NOT add stray-file patterns to `.gitignore`.** The user
   prefers stray files to surface in `git status` as a visible
   reminder. Silencing them with `.gitignore` defeats that signal.
-- The only `.gitignore`d disk images are the two Apple-owned masters the
-  scenario suite reads, `Disks/Apple/dos33-master.dsk` and
-  `Disks/Apple/prodos-users.dsk`. Disks we author belong in the repo.
+- The only `.gitignore`d disk images are the ones the scenario suite fetches
+  because they contain Apple's software: the two Apple masters,
+  `Disks/Apple/dos33-master.dsk` and `Disks/Apple/prodos-users.dsk`, and the
+  Kermit-65 ProDOS disk, `Disks/ThirdParty/kermit-65.dsk`. Disks we author
+  are committed.
 - **Launch Casso in the background unless the user asked for it.** Any run
   the user did not directly request -- screenshot capture, render
   validation, reproducing a bug, checking that a change took -- must not
