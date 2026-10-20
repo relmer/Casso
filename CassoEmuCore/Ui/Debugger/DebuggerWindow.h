@@ -445,6 +445,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     std::string  GetMenuState   () const;
     void     RunCommandBarEntry  (int id) override;
     bool     RouteCommandBarMouse (const DxuiMouseEvent & ev);
+    bool     RouteMenuKey         (const DxuiKeyEvent & ev);
     void     ConfigureCommandBarHost ();
     void     SyncCommandBarFloatTip  ();
     bool     RouteFloatingBarMouse (const DxuiMouseEvent & ev);

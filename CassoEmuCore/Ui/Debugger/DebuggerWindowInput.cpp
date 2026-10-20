@@ -603,6 +603,58 @@ void DebuggerWindow::OfferPress (IDxuiControl * control, const DxuiMouseEvent & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RouteMenuKey
+//
+//  While a context menu or a drop-down of a bar is open, every key goes to
+//  it, so Escape closes it and the arrows and Enter choose in it, in any
+//  pane; nothing behind it takes the key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerWindow::RouteMenuKey (const DxuiKeyEvent & ev)
+{
+    DxuiHwndSource  * popups = GetPopupHost();
+
+
+
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    if (popups != nullptr && popups->GetContextMenu().IsVisible())
+    {
+        (void) popups->GetContextMenu().OnKey (ev.vk);
+        return true;
+    }
+
+    if (m_commandBar != nullptr && m_commandBar->IsMenuOpen())
+    {
+        (void) m_commandBar->HandleKey (ev.vk);
+        return true;
+    }
+
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        for (DxuiToolbar * bar : pane->GetBars())
+        {
+            if (bar != nullptr && bar->IsMenuOpen())
+            {
+                (void) bar->HandleKey (ev.vk);
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::RouteCommandBarMouse
 //
 //  The strip takes the pointer over itself and everything while one of its
@@ -1224,6 +1276,11 @@ bool DebuggerWindow::OnKey (const DxuiKeyEvent & ev)
     //  Escape cancels a pane's drag, as in Visual Studio, and every pane
     //  stays where it was.
     if (m_floating->GetRoutingPane().empty() && m_dockSite->OnDragKey (ev))
+    {
+        return true;
+    }
+
+    if (RouteMenuKey (ev))
     {
         return true;
     }
