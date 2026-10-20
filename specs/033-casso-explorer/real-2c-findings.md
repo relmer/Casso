@@ -15,24 +15,41 @@ the drive turns at exactly 300 rpm.
 
 ## Disk writes
 
-### 1. Indexed stores put a false byte on the IWM
+### 1. Absolute stores leave the IWM's disk unwritten
 
-- **Symptom:** sector writes failed to verify; the drive did not take the
-  intended byte.
-- **Evidence:** writes verified after the change below and not before it.
-  **Doubtful since the ADTPro survey:** ADTPro's formatter and Apple's RWTS
-  use indexed stores on the //c without fault. See "What ADTPro does".
-- **Cause:** `sta $C08D,x` takes five cycles, and on its fourth the 65C02
-  accesses the I/O page once before the real store. The IWM latches a byte on
-  that access, a cycle early. The //c ROM listing notes the same effect for
-  the IWM's mode register.
-- **Fix:** `3b869585d`. The write player stores to slot 6's absolute addresses
-  (`W6Q6L` `$C0EC`, `W6Q6H` `$C0ED`, `W6Q7H` `$C0EF`), with its cycle counts
-  rebalanced.
-- **Why the emulator missed it** *(unverified)*: the emulated LSS takes the
-  data bus value at the store's write cycle and either ignores the extra
-  access or treats it as harmless. A real Disk II card tolerates it too; only
-  the IWM does not.
+This entry first had the cause reversed, as "indexed stores put a false byte on
+the IWM", with `3b869585d` moving the player to absolute stores. That was
+wrong; the record of the reversal follows.
+
+- **Symptom:** sector writes failed to verify, and formats left the track
+  as it was (item 4).
+- **Evidence, 2026-10-20,** each a sector write of a known pattern to T28 S0
+  on a disk freshly formatted by DOS's `INIT`:
+  - Absolute stores (`sta $C0ED`, the committed `3b869585d`): the sector
+    read back the old data; verify error `$40`.
+  - Indexed stores (`sta $C08D,x`) with the same cycle counts: the disk
+    changed, but the data field did not decode (`$30`), and the next read
+    found no address field (`$20`).
+  - DOS's RWTS, called from inside CassoLink: written and read back exactly.
+  - Indexed stores with every spacing a whole number of bit cells (item 21):
+    written and read back exactly; a format then read all 16 sectors.
+- **Cause** *(the mechanism is a hypothesis)*: an indexed store reads its
+  address in the cycle before it writes it. On the IWM, that read of `Q6H`
+  sets Q6 before the write, so the write loads the data register; an
+  absolute store sets Q6 and writes in the same cycle, and the byte is not
+  loaded. Apple's RWTS, ProDOS's driver and ADTPro's formatter all use
+  indexed stores. The //c ROM listing's note on a false byte from indexed
+  stores is about the IWM's mode register, written with the motor off, not
+  about data.
+- **Why sector writes seemed to verify after `3b869585d`:** most likely the
+  sectors already had the pattern from an earlier build with indexed stores,
+  so the verify compared old data. Every verify since uses a disk freshly
+  formatted by DOS.
+- **Fix:** `8305fa908`. Indexed stores throughout the player, with item 21's
+  timing.
+- **Why the emulator missed it** *(unverified)*: the emulated controller loads
+  the data register from any store to `Q6H` in write mode, absolute or
+  indexed, so both work there.
 
 ### 2. The end of a written stream was lost
 
@@ -62,7 +79,7 @@ the drive turns at exactly 300 rpm.
   Real drives vary by a few percent, so a configurable drive speed in the
   emulator would cover this.
 
-### 4. Writes stopped reaching the disk (open)
+### 4. Writes stopped changing the disk (fixed)
 
 - **Symptom:** a format and a sector write both return success, or a verify
   error, while the track is left as it was.
@@ -83,10 +100,11 @@ the drive turns at exactly 300 rpm.
   17 read, but HELLO's sectors, just past the catalog track and inside the
   range CassoLink's experiments had overwritten, did not. So CassoLink's
   writes changed this disk at some point, and then stopped changing it.
-- **Cause:** not yet known; in CassoLink's write path. Next: compare a
-  sector write by the committed program, by a build with RWTS's indexed
-  stores, and by DOS's RWTS itself called from CassoLink.
-- **Why the emulator missed it:** to be determined with the cause.
+- **Cause:** items 1 and 21. `3b869585d`'s absolute stores wrote nothing;
+  before it, indexed stores with partial-cell spacing wrote nibbles that did
+  not read. The damage on the disk dates from those earlier builds.
+- **Fix:** `8305fa908`.
+- **Why the emulator missed it:** see items 1 and 21.
 
 ### 5. Damage attributed to the format was on the old track
 
@@ -97,7 +115,11 @@ the drive turns at exactly 300 rpm.
   write's start by 1, 51, 101 and 151 ms. Item 4 is the reason: none of those
   formats wrote the track.
 - **Cause:** a stale track, from DOS's INIT and earlier experiments, read
-  back after formats that did nothing.
+  back after formats that wrote nothing. A raw capture after one more
+  format had a short run of self-sync bytes inside two otherwise intact data
+  fields: a format with indexed stores and partial-cell timing (item 21)
+  wrote a few bytes at a random place, then nothing that read. Each such
+  format damaged one more sector, which is why the failing set grew.
 - **Fix:** see item 6, so that a format that writes nothing is reported as an
   error.
 - **Why the emulator missed it:** not an emulator gap. The emulated drive
@@ -111,6 +133,26 @@ the drive turns at exactly 300 rpm.
 - **Fix:** pending. Read the track back after a format and report the first
   sector that does not read.
 - **Why the emulator missed it:** see item 5.
+
+### 21. Stores partway through a bit cell
+
+- **Symptom:** with indexed stores, a sector write changed the disk but the
+  data field did not decode. A raw capture had the last self-sync bytes out
+  of frame (`9F F3 FD`) and the data prologue one bit off (`AB AA B7` for
+  `D5 AA AD`). The same sector written by RWTS read `FF FF FF FF FF D5 AA AD`.
+- **Cause:** the player's spacing from one store to the next was 32 cycles
+  between data bytes and 40 from a data byte to a sync byte, but 43 between
+  sync bytes, 35 from a sync byte to a data byte, and 3 more at a page
+  crossing. A bit cell is 4 cycles. A store at 43 or 35 cycles lands partway
+  through a cell, and on the IWM the bits after it are shifted. In RWTS,
+  each spacing is a multiple of 4.
+- **Fix:** `8305fa908`. 32 cycles between data bytes, 40 to and between sync
+  bytes, 32 from a sync byte to a data byte, and 8 more at a page crossing:
+  two whole cells, which put two zero bits between nibbles.
+- **Why the emulator missed it** *(unverified)*: the emulated logic state
+  sequencer runs in whole CPU cycles and loads a byte at the store wherever
+  it falls, which matches a Disk II card; a Disk II tolerates a store
+  partway through a cell. The IWM's behavior there is not modeled.
 
 ## Bootstrap and link
 
