@@ -283,6 +283,23 @@ hardware.
   extension, with each ProDOS directory as a folder inside it. The files take
   the host file style the Options dialog sets, as a Copy does. When that
   folder exists, the files go into `name (2)`, `name (3)` and so on.
+- Q: What is on the Apple-side program's screen besides the status? → A: Below
+  the status, a history: one line per operation the user ran, and one when
+  the PC connects, the newest at the top and older lines moving down. Each
+  line starts with the PC's time, HH:MM, since an Apple may have no clock,
+  then OK or ERR and the operation's label.
+- Q: How is a drive that is not attached distinguished from an empty one? → A:
+  The program reads the drive's data for about a quarter second at start.
+  A drive reads nibbles from a disk, and noise with none, so its data
+  changes; with no drive at the //c's port it reads `` throughout, as
+  measured on a //c. A drive that is not attached is left out of the drive
+  map, and Casso Explorer lists only the drives in the map.
+- Q: Can a disk in an Apple's drive be formatted, or made bootable? → A:
+  Format disk, on an Apple drive's menu in the tree, opens the format dialog:
+  DOS 3.3 or ProDOS, its volume, and Bootable, which copies the stock system
+  files as for an image. The disk is built as an image on the PC and written
+  to the drive as Write image to disk writes one, after a confirmation that
+  everything on it is erased.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1504,7 +1521,9 @@ to Casso over TCP.
   confirmation that identifies the drive and the volume, and MUST read the
   disk back to verify it. A .dsk, .do or .po is written as it is, and a .nib
   or .woz by its standard sectors; an image with tracks that do not decode
-  to standard sectors MUST fail with the reason.
+  to standard sectors MUST fail with the reason. Format disk MUST write a
+  new DOS 3.3 or ProDOS disk to an Apple drive in the same way, bootable
+  when Bootable is checked, with the stock system files.
 - **FR-087**: Every packet MUST include a checksum and every page of data a
   CRC; a damaged packet MUST be sent again, up to five times. A transfer that
   cannot complete MUST fail with the reason, and MUST NOT result in a partial
@@ -1528,7 +1547,9 @@ to Casso over TCP.
   error, until the next operation succeeds; and a short label of the user's
   operation, sent by the PC. The shim MUST display a title and its state:
   waiting for the PC, with the port and speed; loading the program, with a
-  percentage; and starting the program's version.
+  percentage; and starting the program's version. Below the status, the
+  program's screen MUST have a history of the user's operations and the PC's
+  connections, newest at the top, each with the PC's time.
 - **FR-091**: The Apple-side program MUST be a resident shim that, at each
   launch, compares its version with Casso's and loads the current program
   from the PC when they differ. Casso MUST offer to write the current shim
