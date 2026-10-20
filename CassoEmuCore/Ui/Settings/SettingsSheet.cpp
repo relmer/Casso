@@ -1014,7 +1014,7 @@ void SettingsSheet::OnDialogTick()
     UpdateDiskTabVisibility();
     UpdateSerialTabVisibility();
     PollSerialFirmwareDownload();
-    UpdateSerialSparkle();
+    UpdateTabSparkles();
     UpdateTickInterval();
 
 
@@ -1093,7 +1093,7 @@ void SettingsSheet::UpdateTickInterval()
         wanted = m_controllersPage->GetPollIntervalMs();
     }
 
-    if (GetSerialSparkleProgress().has_value())
+    if (IsAnyTabSweeping())
     {
         wanted = std::min (wanted, kSparkleTickMs);
     }
@@ -1571,10 +1571,9 @@ void SettingsSheet::UpdateSerialTabVisibility()
         m_serialPage->Rebuild();
     }
 
-    if (turnedOn && DxuiSystemSettings::Instance().AreAnimationsEnabled())
+    if (turnedOn)
     {
-        m_serialSparkleStartMs = (int64_t) GetTickCount64();
-        UpdateTickInterval();
+        StartTabSparkle (m_serialPageIndex);
     }
 
 Error:
@@ -1587,25 +1586,45 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetSerialSparkleProgress
+//  StartTabSparkle
 //
-//  The current sweep's progress over the Serial card tab, 0 to 1, or nothing
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::StartTabSparkle (int pageIndex)
+{
+    if (pageIndex >= 0 && DxuiSystemSettings::Instance().AreAnimationsEnabled())
+    {
+        m_tabSparkleStartMs[pageIndex] = (int64_t) GetTickCount64();
+        UpdateTickInterval();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTabSparkleProgress
+//
+//  The current sweep's progress over a page's tab, 0 to 1, or nothing
 //  between sweeps, once the tab has been opened, or while it is hidden.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<float> SettingsSheet::GetSerialSparkleProgress() const
+std::optional<float> SettingsSheet::GetTabSparkleProgress (int pageIndex) const
 {
     std::optional<float>  progress;
-    int64_t               phase    = 0;
-    bool                  running  = m_serialSparkleStartMs.has_value() && m_serialTabVisible &&
-                                     GetActiveIndex() != m_serialPageIndex;
+    int64_t               phase   = 0;
+    auto                  start   = m_tabSparkleStartMs.find (pageIndex);
+    bool                  running = start != m_tabSparkleStartMs.end() && IsPageVisible (pageIndex) &&
+                                    GetActiveIndex() != pageIndex;
 
 
 
     if (running)
     {
-        phase = ((int64_t) GetTickCount64() - *m_serialSparkleStartMs) % kSparklePeriodMs;
+        phase = ((int64_t) GetTickCount64() - start->second) % kSparklePeriodMs;
 
         if (phase < DxuiShimmer::kSweepMs)
         {
@@ -1622,19 +1641,43 @@ std::optional<float> SettingsSheet::GetSerialSparkleProgress() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  UpdateSerialSparkle
-//
-//  Opening the Serial card tab ends its sparkle for good, as does turning
-//  the card off again.
+//  IsAnyTabSweeping
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdateSerialSparkle()
+bool SettingsSheet::IsAnyTabSweeping() const
 {
-    if (!m_serialTabVisible || GetActiveIndex() == m_serialPageIndex)
+    bool  sweeping = false;
+
+
+
+    for (const auto & [pageIndex, startMs] : m_tabSparkleStartMs)
     {
-        m_serialSparkleStartMs.reset();
+        sweeping = sweeping || GetTabSparkleProgress (pageIndex).has_value();
     }
+
+    return sweeping;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateTabSparkles
+//
+//  Opening a sparkling tab ends its sparkle for good, as does hiding it
+//  again by turning its card off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateTabSparkles()
+{
+    std::erase_if (m_tabSparkleStartMs, [this] (const auto & entry)
+    {
+        return !IsPageVisible (entry.first) || GetActiveIndex() == entry.first;
+    });
 }
 
 
@@ -1645,21 +1688,26 @@ void SettingsSheet::UpdateSerialSparkle()
 //
 //  Paint
 //
-//  The sheet, then the Serial card tab's sparkle over its label.
+//  The sheet, then each sparkling tab's sweep over its label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SettingsSheet::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    std::optional<float>  progress = GetSerialSparkleProgress();
+    std::optional<float>  progress;
 
 
 
     DxuiPropertySheet::Paint (painter, text, theme);
 
-    if (progress.has_value())
+    for (const auto & [pageIndex, startMs] : m_tabSparkleStartMs)
     {
-        PaintSerialSparkle (text, *progress);
+        progress = GetTabSparkleProgress (pageIndex);
+
+        if (progress.has_value())
+        {
+            PaintTabSparkle (text, pageIndex, *progress);
+        }
     }
 }
 
@@ -1669,21 +1717,21 @@ void SettingsSheet::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaintSerialSparkle
+//  PaintTabSparkle
 //
-//  DxuiShimmer over the tab's label, drawn where and as the tab strip draws
-//  it; the glints span only the label text's width.
+//  DxuiShimmer over a page's tab label, drawn where and as the tab strip
+//  draws it; the glints span only the label text's width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::PaintSerialSparkle (IDxuiTextRenderer & text, float progress)
+void SettingsSheet::PaintTabSparkle (IDxuiTextRenderer & text, int pageIndex, float progress)
 {
     constexpr float  kGlintDip = 2.5f;
 
 
 
     HRESULT                    hr      = S_OK;
-    const DxuiTabStrip::Tab *  tab     = FindTabOfPage (m_serialPageIndex);
+    const DxuiTabStrip::Tab *  tab     = FindTabOfPage (pageIndex);
     DxuiDpiScaler              scaler;
     float                      fontPx  = 0.0f;
     float                      padX    = 0.0f;
@@ -1711,7 +1759,7 @@ void SettingsSheet::PaintSerialSparkle (IDxuiTextRenderer & text, float progress
 
     labelW = std::min (labelW, w);
 
-    DxuiShimmer::Paint (text, x, y, w, h, x + (w - labelW) * 0.5f, labelW, fontPx, scaler.ToPxf (kGlintDip), progress, m_serialSparkleGlints,
+    DxuiShimmer::Paint (text, x, y, w, h, x + (w - labelW) * 0.5f, labelW, fontPx, scaler.ToPxf (kGlintDip), progress, m_tabSparkleGlints,
                         [&] (uint32_t argb)
                         {
                             HRESULT  drawHr = S_OK;

@@ -303,21 +303,24 @@ private:
     bool           m_serialEnableOnDownload  = false;
     uint32_t       m_serialDownloadCount     = 0;
 
-    // A tab appearing among the others is easy to miss, so when turning the
-    // card on adds the Serial card tab, its label shimmers as the update
-    // indicator's text does, one sweep every kSparklePeriodMs, until the tab
-    // is opened. Not with animations turned off.
+    // A tab appearing among the others is easy to miss, so when turning a
+    // card on adds its tab, StartTabSparkle makes the tab's label shimmer as
+    // the update indicator's text does, one sweep every kSparklePeriodMs,
+    // until the tab is opened or hidden again. Not with animations turned
+    // off. Keyed by page index; any number of tabs can sparkle at once.
     static constexpr UINT     kSparkleTickMs   = 16;
     static constexpr int64_t  kSparklePeriodMs = 5000;
 
     static_assert (DxuiShimmer::kSweepMs < kSparklePeriodMs, "a sweep ends before the next starts");
 
-    std::optional<int64_t>  m_serialSparkleStartMs;
-    DxuiSweepGlints         m_serialSparkleGlints = DxuiShimmer::MakeEvenSweepGlints();
+    std::map<int, int64_t>  m_tabSparkleStartMs;
+    DxuiSweepGlints         m_tabSparkleGlints = DxuiShimmer::MakeEvenSweepGlints();
 
-    std::optional<float>  GetSerialSparkleProgress () const;
-    void                  UpdateSerialSparkle      ();
-    void                  PaintSerialSparkle       (IDxuiTextRenderer & text, float progress);
+    void                  StartTabSparkle       (int pageIndex);
+    std::optional<float>  GetTabSparkleProgress (int pageIndex) const;
+    bool                  IsAnyTabSweeping      () const;
+    void                  UpdateTabSparkles     ();
+    void                  PaintTabSparkle       (IDxuiTextRenderer & text, int pageIndex, float progress);
 
     // The dialog tick last asked for: the Controllers page's live rate while
     // it is shown, the default otherwise.
