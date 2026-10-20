@@ -173,6 +173,7 @@
     <ClCompile Include="DurableCommitFileTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
+    <ClCompile Include="GuestVisibleApple2cSerialTests.cpp" />
     <ClCompile Include="GuestVisibleSuperSerialCardTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />

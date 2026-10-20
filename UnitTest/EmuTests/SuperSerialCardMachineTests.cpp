@@ -67,6 +67,25 @@ namespace SuperSerialCardMachineTestNs
         }
 
 
+        //  The //c has no slots, so its config lists no card for Settings to
+        //  offer, and its serial ports are its own two built-in 6551s.
+        TEST_METHOD (TheApple2cHasNoCard)
+        {
+            TestMachine  machine ("Apple2c");
+
+
+
+            Assert::IsNull (machine.GetRefs().superSerialCard);
+
+            for (const SlotConfig & slot : machine.GetConfig().slots)
+            {
+                Assert::AreNotEqual (std::string (kpszSuperSerialCardDevice), slot.device, L"no slot lists the card");
+            }
+
+            Assert::AreEqual ((size_t) 2, machine.GetRefs().serialChips.size(), L"the two built-in ports");
+        }
+
+
         TEST_METHOD (TurnedOnTheCardIsInSlot2)
         {
             for (const char * id : { "Apple2", "Apple2Plus", "Apple2e", "Apple2eEnhanced" })

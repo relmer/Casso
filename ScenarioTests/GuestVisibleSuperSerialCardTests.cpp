@@ -70,10 +70,10 @@ public:
 
             sent = ReadSentText (output);
 
-            Assert::IsTrue (sent.find (kListingLine10) != std::string::npos, Widen (std::string (machineId) + ": line 10 is in the file: " + sent).c_str());
-            Assert::IsTrue (sent.find (kListingLine20) != std::string::npos, Widen (std::string (machineId) + ": line 20 is in the file: " + sent).c_str());
-            Assert::IsTrue (GuestSession::AnyRowIs (rows, kListingLine10), Widen (std::string (machineId) + ": and on the screen, which is on at this line width").c_str());
-            Assert::IsTrue (GuestSession::AnyRowIs (rows, kListingLine20), Widen (machineId).c_str());
+            Assert::IsTrue (sent.find (GetListingLine10 (machineId)) != std::string::npos, Widen (std::string (machineId) + ": line 10 is in the file: " + sent).c_str());
+            Assert::IsTrue (sent.find (GetListingLine20 (machineId)) != std::string::npos, Widen (std::string (machineId) + ": line 20 is in the file: " + sent).c_str());
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, GetListingLine10 (machineId)), Widen (std::string (machineId) + ": and on the screen, which is on at this line width: " + JoinRows (rows)).c_str());
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, GetListingLine20 (machineId)), Widen (machineId).c_str());
         }
     }
 
@@ -135,8 +135,9 @@ public:
 
             rows = ReadScreen (machine);
 
-            Assert::IsTrue (GuestSession::AnyRowIs (rows, "]PRINT 6*7"), Widen (std::string (machineId) + ": the line came back through the plug").c_str());
-            Assert::IsTrue (GuestSession::AnyRowIs (rows, "42"),         Widen (std::string (machineId) + ": and Applesoft ran it").c_str());
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, IsIntegerBasic (machineId) ? ">PRINT 6*7" : "]PRINT 6*7"),
+                            Widen (std::string (machineId) + ": the line came back through the plug: " + JoinRows (rows)).c_str());
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, "42"), Widen (std::string (machineId) + ": and BASIC ran it").c_str());
         }
     }
 
@@ -148,26 +149,30 @@ public:
     {
         std::vector<Byte>          master = GuestSession::RequireDos33Master();
         std::filesystem::path      input  = MakeOutputPath (L"program-in.txt");
-        std::vector<std::string>   rows;
 
 
 
         WriteFile (input, kProgramFile);
 
+        for (const char * machineId : kMachines)
         {
-            TestMachine  machine ("Apple2e", [&] (MachineConfig & config)
+            std::vector<std::string>  rows;
+
             {
-                ConfigureCard (config, kCommunications300Sw1, kShippedSw2, kpszSerialFileIn, input);
-            });
+                TestMachine  machine (machineId, [&] (MachineConfig & config)
+                {
+                    ConfigureCard (config, kCommunications300Sw1, kShippedSw2, kpszSerialFileIn, input);
+                });
 
-            GuestSession::BootToPrompt (machine, master);
-            TypeLine (machine, "IN#2", kFileInCycles);
-            TypeLine (machine, "RUN");
+                GuestSession::BootToPrompt (machine, master);
+                TypeLine (machine, "IN#2", kFileInCycles);
+                TypeLine (machine, "RUN");
 
-            rows = ReadScreen (machine);
+                rows = ReadScreen (machine);
+            }
+
+            Assert::IsTrue (GuestSession::AnyRowIs (rows, "FROM A FILE"), Widen (std::string (machineId) + ": the program from the file ran: " + JoinRows (rows)).c_str());
         }
-
-        Assert::IsTrue (GuestSession::AnyRowIs (rows, "FROM A FILE"), Widen ("the program from the file ran: " + JoinRows (rows)).c_str());
     }
 
 
@@ -189,7 +194,7 @@ public:
                 ConfigureCard (config, isPrinter ? kPrinterSw1 : kCommunicationsSw1, kShippedSw2, "", {});
             });
             Acia6551      & acia    = machine.GetRefs().superSerialCard->GetAcia();
-            std::string     command = isPrinter ? "PRINT CHR$(9)\"" : "PRINT CHR$(1)\"";
+            std::string     command = MakeCommandPrefix (machineId, isPrinter);
             std::wstring    mode    = Widen (std::string (machineId) + (isPrinter ? ", printer mode" : ", communications mode"));
 
             GuestSession::BootToPrompt (machine, master);
@@ -212,10 +217,10 @@ public:
 
 private:
 
-    //  The machines the card is checked on with Apple's firmware. The ][ is
-    //  left out: it boots to Integer BASIC's > prompt, which GuestSession does
-    //  not recognize, and its slot decoding is the ][+'s.
-    static constexpr const char *  kMachines[] = { "Apple2e", "Apple2Plus" };
+    //  The machines the card is checked on with Apple's firmware. The ][
+    //  boots DOS 3.3 into Integer BASIC, whose prompt, listing and missing
+    //  CHR$ the tests allow for.
+    static constexpr const char *  kMachines[] = { "Apple2e", "Apple2Plus", "Apple2" };
 
     //  Apple's switch settings as the card ships, but in printer or
     //  communications mode (SW1-5), at 9,600 baud.
@@ -236,6 +241,11 @@ private:
     //  connector.
     static constexpr const char *  kProgramFile       = "10 PRINT \"FROM A FILE\"\r20 END\rIN#0\r";
 
+    //  The firmware's command characters: Ctrl+I in printer mode, Ctrl+A in
+    //  communications mode.
+    static constexpr char  kCtrlI = '\x09';
+    static constexpr char  kCtrlA = '\x01';
+
     //  The 6551's baud-rate field (control bits 0-3).
     static constexpr Byte    kBaudBits         = 0x0F;
     static constexpr Byte    kBaud9600         = 0x0E;
@@ -248,9 +258,12 @@ private:
     static constexpr Byte    kParityBits       = 0xE0;
     static constexpr Byte    kEvenParity       = 0x60;
 
-    //  How LIST prints the program EnterProgram types.
-    static constexpr const char *  kListingLine10 = "10  PRINT \"HELLO\"";
-    static constexpr const char *  kListingLine20 = "20  END";
+    //  How LIST prints the program EnterProgram types, in Applesoft and in
+    //  Integer BASIC.
+    static constexpr const char *  kListingLine10    = "10  PRINT \"HELLO\"";
+    static constexpr const char *  kListingLine20    = "20  END";
+    static constexpr const char *  kIntListingLine10 = "   10 PRINT \"HELLO\"";
+    static constexpr const char *  kIntListingLine20 = "   20 END";
 
     //  Long enough for each key's echo to be sent at 9,600 baud.
     static constexpr uint64_t  kKeyGapCycles = 30'000;
@@ -283,6 +296,25 @@ private:
     }
 
 
+    //  The original ][ runs Integer BASIC; the ][+ and //e run Applesoft.
+    static bool IsIntegerBasic (const char * machineId)
+    {
+        return std::string (machineId) == "Apple2";
+    }
+
+
+    static const char * GetListingLine10 (const char * machineId)
+    {
+        return IsIntegerBasic (machineId) ? kIntListingLine10 : kListingLine10;
+    }
+
+
+    static const char * GetListingLine20 (const char * machineId)
+    {
+        return IsIntegerBasic (machineId) ? kIntListingLine20 : kListingLine20;
+    }
+
+
     //  The text screen's rows, without their trailing blanks.
     static std::vector<std::string> ReadScreen (MachineHost & machine)
     {
@@ -294,6 +326,29 @@ private:
         }
 
         return rows;
+    }
+
+
+    //  A PRINT that sends the firmware's command character, then the start
+    //  of a quoted string the caller ends. Integer BASIC has no CHR$, so on
+    //  the ][ the character is typed inside the quotes, and the stored line
+    //  contains it.
+    static std::string MakeCommandPrefix (const char * machineId, bool isPrinter)
+    {
+        std::string  prefix;
+
+
+
+        if (IsIntegerBasic (machineId))
+        {
+            prefix = std::string ("PRINT \"") + (isPrinter ? kCtrlI : kCtrlA);
+        }
+        else
+        {
+            prefix = isPrinter ? "PRINT CHR$(9)\"" : "PRINT CHR$(1)\"";
+        }
+
+        return prefix;
     }
 
 
