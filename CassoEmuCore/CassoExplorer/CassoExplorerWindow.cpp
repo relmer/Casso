@@ -10660,8 +10660,10 @@ void CassoExplorerWindow::SearchLink (const std::string & name)
 void CassoExplorerWindow::BootstrapLink (const std::string & name)
 {
     HRESULT       hr      = S_OK;
-    std::wstring  steps   = L"On the Apple, at the BASIC prompt, type IN#2 and press Return. "
-                            L"Then press Control-A, type 14B and press Return.\n\nThe loader is then typed into the Apple, which takes about 40 seconds.";
+    std::wstring  steps   = L"On the Apple, at the prompt, type:\n\n"
+                            L"1. **IN#2**, then press Return\n"
+                            L"2. **Ctrl+A 14B**, then press Return\n\n"
+                            L"The loader is then typed into the Apple, which takes about 40 seconds.";
     int           answer  = DxuiMessageBox (GetHwnd(), m_theme, steps.c_str(), L"Bootstrap the Apple",
                                             MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });
 
