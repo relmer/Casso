@@ -324,10 +324,10 @@ private:
 
     //  Why the line was dropped, for the activity text; the session's thread
     //  sets it just before Disconnect.
-    std::string                                 m_lostReason;
-    std::array<double, kDriveCount>             m_revolutionMs = {};   // each drive's, once timed this connection
-    std::wstring                                m_modelName;
-    std::shared_ptr<LinkOperation>              m_bootstrap;
-    uint64_t                                    m_commitTag        = 1;
-    std::jthread                                m_thread;
+    std::string                      m_lostReason;
+    std::array<double, kDriveCount>  m_revolutionMs = {};   // each drive's, once timed this connection
+    std::wstring                     m_modelName;
+    std::shared_ptr<LinkOperation>   m_bootstrap;
+    uint64_t                         m_commitTag    = 1;
+    std::jthread                     m_thread;
 };

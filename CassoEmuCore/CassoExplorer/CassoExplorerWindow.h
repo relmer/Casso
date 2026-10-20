@@ -1034,26 +1034,26 @@ private:
 
     //  Rename in place: an edit box laid over the row's name, as Explorer's
     //  F2 opens one. The row being renamed, or -1.
-    DxuiTextInput        * m_renameBox       = nullptr;
-    int                    m_renameRow       = -1;
+    DxuiTextInput        * m_renameBox          = nullptr;
+    int                    m_renameRow          = -1;
     std::wstring           m_renameTreeId;
-    DxuiLabel            * m_listMessage     = nullptr;
-    bool                   m_listMessageTop  = false;
-    DxuiButton           * m_listAction      = nullptr;
+    DxuiLabel            * m_listMessage        = nullptr;
+    bool                   m_listMessageTop     = false;
+    DxuiButton           * m_listAction         = nullptr;
     std::string            m_listActionLink;
     bool                   m_listActionConnects = false;
-    DxuiSplitter         * m_previewSplitter = nullptr;
-    DxuiListView         * m_previewList     = nullptr;
-    DxuiTextView         * m_textView        = nullptr;
-    DxuiHexView          * m_hexView         = nullptr;
+    DxuiSplitter         * m_previewSplitter    = nullptr;
+    DxuiListView         * m_previewList        = nullptr;
+    DxuiTextView         * m_textView           = nullptr;
+    DxuiHexView          * m_hexView            = nullptr;
     PreviewBytes           m_previewBytes;
     FileBytes              m_fileBytes;
-    DxuiFramebufferView  * m_picture         = nullptr;
-    DxuiSelectableText   * m_previewMessage  = nullptr;
-    DxuiStatusBar        * m_status          = nullptr;
-    DxuiTabStrip         * m_tabs            = nullptr;
-    DxuiToolbar          * m_toolbar         = nullptr;
-    DxuiToolbar          * m_previewToolbar  = nullptr;
+    DxuiFramebufferView  * m_picture            = nullptr;
+    DxuiSelectableText   * m_previewMessage     = nullptr;
+    DxuiStatusBar        * m_status             = nullptr;
+    DxuiTabStrip         * m_tabs               = nullptr;
+    DxuiToolbar          * m_toolbar            = nullptr;
+    DxuiToolbar          * m_previewToolbar     = nullptr;
 
     //  The preview toolbar's commands, as one of CassoExplorerCommands'
     //  preview bars.
