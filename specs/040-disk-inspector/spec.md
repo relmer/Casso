@@ -2108,7 +2108,10 @@ legend, and tilt the platter and back.
   platter, a few pixels long at least so it is visible at fit; outlined on
   the track strip; as a dot on each sector button with hits; tinted in the
   Sector data and Nibbles tabs; along the top of each file map cell with
-  hits; and counted in a Hits column of the Tracks tab. For a
+  hits; and counted in a Hits column of the Tracks tab. The tooltip over a
+  mark MUST include a line with the find color's swatch and the query text,
+  as Find hit for "D5 AA 96", with the count for a sector button, and
+  the Legend MUST list the color while hits are marked. For a
   search with no match, the bar MUST display "No matches". In Casso, results
   on a track the drive writes MUST be marked out of date until Find runs again.
 - **FR-057**: In the Sector data tab, Copy MUST put the selection on the
