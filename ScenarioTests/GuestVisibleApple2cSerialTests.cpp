@@ -151,7 +151,7 @@ private:
 
     static std::vector<std::string> ReadScreen (MachineHost & machine)
     {
-        std::vector<std::string>  rows = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
+        std::vector<std::string>  rows = TextScreenScraper::Scrape (machine);
 
         for (std::string & row : rows)
         {

@@ -63,8 +63,10 @@ port. Run with `scripts\RunTests.ps1 -Build -Scenario -Filter GuestVisible`.
   7 of $0738+slot) for every width but the first ($C85E `BEQ`, $C861 `AND
   #$7F`), and it never reads the //e's 80-column status. On a //e with the
   80-column display on (PR#3), with and without DOS 3.3, a listing at 80
-  characters went to the connector and not to the screen. Settings labels
-  only the 40-character choice "echoed to the screen".
+  characters went to the connector and not to the screen
+  (`ListingAtEightyCharactersIsNotEchoedEvenToAnEightyColumnScreen`, which
+  first reads a printed line back whole in 80 columns). Settings labels only
+  the 40-character choice "echoed to the screen".
 
 ## Real programs
 

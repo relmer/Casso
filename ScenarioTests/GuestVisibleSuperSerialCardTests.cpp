@@ -112,6 +112,43 @@ public:
     }
 
 
+    //  The same 80-character setting with the //e's 80-column display on
+    //  (PR#3). In Apple's manual up to 80 characters echo with an
+    //  80-column card, but the firmware echoes only at 40, whatever the
+    //  display: the listing is written to the file and not to the screen. A
+    //  line printed before PR#2 is read back whole, so the screen is read in
+    //  80 columns.
+    TEST_METHOD (ListingAtEightyCharactersIsNotEchoedEvenToAnEightyColumnScreen)
+    {
+        std::vector<Byte>          master = GuestSession::RequireDos33Master();
+        std::filesystem::path      output = MakeOutputPath (L"printer-80-column.txt");
+        std::string                sent;
+        std::vector<std::string>   rows;
+
+        {
+            TestMachine  machine ("Apple2e", [&] (MachineConfig & config)
+            {
+                ConfigureCard (config, kPrinterSw1, kShippedSw2, kpszSerialFileOut, output);
+            });
+
+            GuestSession::BootToPrompt (machine, master);
+            EnterProgram (machine);
+            TypeLine (machine, "PR#3");
+            TypeLine (machine, "PRINT \"80 COLUMNS\"");
+            TypeLine (machine, "PR#2");
+            TypeLine (machine, "LIST", kDelayedListingCycles);
+
+            rows = ReadScreen (machine);
+        }
+
+        sent = ReadSentText (output);
+
+        Assert::IsTrue  (GuestSession::AnyRowIs (rows, "80 COLUMNS"), Widen ("the 80-column screen reads back whole: " + JoinRows (rows)).c_str());
+        Assert::IsTrue  (sent.find (kListingLine10) != std::string::npos, Widen ("line 10 is in the file: " + sent).c_str());
+        Assert::IsFalse (GuestSession::AnyRowIs (rows, kListingLine10), Widen ("and not on the screen: " + JoinRows (rows)).c_str());
+    }
+
+
     //  Communications mode with a loopback plug: IN#2 selects the port for
     //  input, so each typed key is sent, comes back through the plug, and is
     //  what Applesoft reads.
@@ -318,7 +355,7 @@ private:
     //  The text screen's rows, without their trailing blanks.
     static std::vector<std::string> ReadScreen (MachineHost & machine)
     {
-        std::vector<std::string>  rows = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), TextScreenScraper::kTextPage1);
+        std::vector<std::string>  rows = TextScreenScraper::Scrape (machine);
 
         for (std::string & row : rows)
         {
