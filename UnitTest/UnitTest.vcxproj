@@ -415,6 +415,7 @@
     <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
     <ClCompile Include="EmuTests\VideoScannerTests.cpp" />
     <ClCompile Include="EmuTests\TextScreenScraper.cpp" />
+    <ClCompile Include="EmuTests\TextScreenScraperTests.cpp" />
     <ClCompile Include="EmuTests\KeystrokeInjector.cpp" />
     <ClCompile Include="EmuTests\MachineIdle.cpp" />
     <ClCompile Include="EmuTests\MemoryProbeHelpers.cpp" />
