@@ -273,6 +273,17 @@ hardware.
   `--text` or `--basic` is given. Any other host name is stored as written,
   so `MEMO.txt` is stored as `MEMO.TXT`.
 
+### Session 2026-10-19
+
+- Q: Which buttons do the Delete and Format confirmations have? → A: Delete
+  and Cancel, and Format and Cancel, not Yes and No.
+- Q: How are all of a disk image's files copied out at once? → A: Extract
+  all files, on a disk image's menu in the list and in the tree, copies every
+  file into a new folder beside the image, called after the image without its
+  extension, with each ProDOS directory as a folder inside it. The files take
+  the host file style the Options dialog sets, as a Copy does. When that
+  folder exists, the files go into `name (2)`, `name (3)` and so on.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
