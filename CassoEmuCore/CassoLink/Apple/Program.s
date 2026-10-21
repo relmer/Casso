@@ -2008,7 +2008,8 @@ ROWST = $0680                   ; row 5: the status, after a blank row
 ROWLB = $0700                   ; row 6: the label of the user's operation
 ROWER = $0428                   ; row 8: the last error, when there is one
 ROWHIST = $0528                 ; row 10: the history's title, its lines below
-LOGROWS = 13                    ; the history's lines
+LOGROWS = 12                    ; the history's lines, rows 11 to 22
+ROWESC = $07D0 + 11             ; row 23, centered: how to leave CassoLink
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
@@ -2070,6 +2071,9 @@ labels: .byte <ROW0, >ROW0
         .byte <ROWHIST, >ROWHIST
         .text "HISTORY"
         .byte $3A, 0
+        .byte <ROWESC, >ROWESC
+        .text "PRESS ESC TO EXIT"
+        .byte 0
         .byte 0
         .byte 0, 0
 
@@ -2563,6 +2567,6 @@ p2ones: sta tmp2
         ora #'0'
         jmp putch
 
-; The history's lines, rows 11 to 23 of the text page.
-logrowlo: .byte $A8, $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50, $D0
-logrowhi: .byte $05, $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07, $07
+; The history's lines, rows 11 to 22 of the text page.
+logrowlo: .byte $A8, $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50
+logrowhi: .byte $05, $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07

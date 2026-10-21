@@ -272,11 +272,13 @@ public:
                 rows.push_back (screen.substr (start, end - start));
             }
 
-            for (size_t row = 11; row < rows.size(); row++)
+            for (size_t row = 11; row < 23 && row < rows.size(); row++)
             {
                 Assert::AreEqual (std::string::npos, rows[row].find_first_not_of (' '), std::format (L"row {} is blank", row).c_str());
             }
         }
+
+        Assert::AreNotEqual (std::string::npos, rig.screens.back().find ("PRESS ESC TO EXIT"), L"the last row has how to leave");
     }
 
 
