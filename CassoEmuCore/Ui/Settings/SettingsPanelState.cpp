@@ -612,9 +612,17 @@ bool SettingsPanelState::RequiresReset() const
 
 
 
+    // A serial attachment is opened when the machine is built, so changing
+    // it takes a rebuild too. The card's switches do not: they are register
+    // reads, applied live.
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
+        const HardwareEntry &  before = m_original.hardware[i];
+        const HardwareEntry &  after  = m_current.hardware[i];
+        bool                   serial = after.type == kpszSuperSerialCardDevice;
+
+        changed = before.enabled != after.enabled
+               || (serial && (before.ports != after.ports || before.portPath != after.portPath));
     }
 
     return changed;
@@ -1040,6 +1048,112 @@ void SettingsPanelState::SetMouseConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindSerialCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanelState::FindSerialCard() const
+{
+    int  index = -1;
+
+
+
+    for (size_t i = 0; index < 0 && i < m_current.hardware.size(); ++i)
+    {
+        if (m_current.hardware[i].kind == HardwareEntryKind::Slot &&
+            m_current.hardware[i].type == kpszSuperSerialCardDevice)
+        {
+            index = static_cast<int> (i);
+        }
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasEnabledSerialCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::HasEnabledSerialCard() const
+{
+    int  index = FindSerialCard();
+
+
+
+    return index >= 0 && m_current.hardware[static_cast<size_t> (index)].enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialCardSwitches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetSerialCardSwitches (const std::string & sw1, const std::string & sw2)
+{
+    HRESULT  hr      = S_OK;
+    int      index   = FindSerialCard();
+    bool     hasCard = index >= 0;
+
+
+
+    CBR (hasCard);
+
+    m_current.hardware[static_cast<size_t> (index)].switchesSw1 = sw1;
+    m_current.hardware[static_cast<size_t> (index)].switchesSw2 = sw2;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialCardAttachment
+//
+//  The card has one connector, so the staged port list is that one entry;
+//  an empty device stages an empty connector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetSerialCardAttachment (const std::string & device, const std::string & path)
+{
+    HRESULT          hr      = S_OK;
+    int              index   = FindSerialCard();
+    bool             hasCard = index >= 0;
+    HardwareEntry  * entry   = nullptr;
+
+
+
+    CBR (hasCard);
+
+    entry           = &m_current.hardware[static_cast<size_t> (index)];
+    entry->ports    = { device };
+    entry->portPath = path;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetHardwareEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1123,12 +1237,22 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
     AddDefinedDevices (m_machineName, augmented);
     hr = ExtractHardware (augmented, hardware);
 
+    // A card's connectors are taken from disk too, unless a page in this sheet
+    // changed them: the Super Serial Card's connector is chosen on its page,
+    // and the copy on disk is the one the user just replaced.
     for (size_t i = 0; SUCCEEDED (hr) && i < hardware.size() && i < m_current.hardware.size(); i++)
     {
-        if (hardware[i].type == m_current.hardware[i].type && hardware[i].slot == m_current.hardware[i].slot)
+        HardwareEntry &  current   = m_current.hardware[i];
+        HardwareEntry &  original  = m_original.hardware[i];
+        bool             sameCard  = hardware[i].type == current.type && hardware[i].slot == current.slot;
+        bool             unchanged = current.ports == original.ports && current.portPath == original.portPath;
+
+        if (sameCard && unchanged)
         {
-            m_current.hardware[i].ports  = hardware[i].ports;
-            m_original.hardware[i].ports = hardware[i].ports;
+            current.ports     = hardware[i].ports;
+            current.portPath  = hardware[i].portPath;
+            original.ports    = hardware[i].ports;
+            original.portPath = hardware[i].portPath;
         }
     }
 
@@ -1199,6 +1323,18 @@ HRESULT SettingsPanelState::Apply (
 
     sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
     sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
+
+    // The Super Serial Card's switches take effect without a reset: they are
+    // register reads. Pushed whenever the machine lists the card turned on.
+    if (HasEnabledSerialCard())
+    {
+        const HardwareEntry &  card = m_current.hardware[static_cast<size_t> (FindSerialCard())];
+
+        if (!card.switchesSw1.empty())
+        {
+            sink.ApplySerialCardSwitches (card.switchesSw1, card.switchesSw2);
+        }
+    }
 
     // The Uthernet II's LAN access and port forwards apply to the running
     // card. Turning the card on or off takes the reset below.
@@ -1774,6 +1910,7 @@ HRESULT SettingsPanelState::ExtractHardware (
         { kpszNetworkCardDevice,     kpszNetworkCardName },
         { "passport",                "Passport MIDI" },
         { "serial",                  "Super Serial Card" },
+        { "super-serial-card",       "Super Serial Card" },
         { "parallel",                "Parallel printer" },
         { "videx",                   "Videx 80-Column" },
         { "ramworks",                "RamWorks" },
@@ -1898,7 +2035,25 @@ HRESULT SettingsPanelState::ExtractHardware (
                         hw.ports.push_back (port.GetType() == JsonType::String
                                             ? port.GetString()
                                             : GetStringOpt (port, kpszPortDeviceKey, ""));
+
+                        if (j == 0 && port.GetType() == JsonType::Object)
+                        {
+                            hw.portPath = GetStringOpt (port, kpszPortPathKey, "");
+                        }
                     }
+                }
+            }
+
+            {
+                const JsonValue *  switches = nullptr;
+                HRESULT            hrObj    = entry.GetObject (kpszSwitchesKey, switches);
+
+                IGNORE_RETURN_VALUE (hrObj, S_OK);
+
+                if (switches != nullptr)
+                {
+                    hw.switchesSw1 = GetStringOpt (*switches, kpszSw1Key, "");
+                    hw.switchesSw2 = GetStringOpt (*switches, kpszSw2Key, "");
                 }
             }
 
@@ -2105,6 +2260,13 @@ JsonValue SettingsPanelState::BuildJson (
                             continue;
                         }
 
+                        // Staged switches replace the source's the same way.
+                        if (srcEntry.first == kpszSwitchesKey &&
+                            staged != nullptr && !staged->switchesSw1.empty())
+                        {
+                            continue;
+                        }
+
                         rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                     }
 
@@ -2125,10 +2287,33 @@ JsonValue SettingsPanelState::BuildJson (
 
                         for (const std::string & device : staged->ports)
                         {
-                            portArr.emplace_back (JsonValue (device));
+                            // The first connector of a card with a file
+                            // attachment is written as an object, to include the
+                            // file's path.
+                            if (portArr.empty() && !staged->portPath.empty())
+                            {
+                                std::vector<std::pair<std::string, JsonValue>>  port;
+
+                                port.emplace_back (kpszPortDeviceKey, JsonValue (device));
+                                port.emplace_back (kpszPortPathKey,   JsonValue (staged->portPath));
+                                portArr.emplace_back (JsonValue (std::move (port)));
+                            }
+                            else
+                            {
+                                portArr.emplace_back (JsonValue (device));
+                            }
                         }
 
                         rebuilt.emplace_back (kpszPortsKey, JsonValue (std::move (portArr)));
+                    }
+
+                    if (staged != nullptr && !staged->switchesSw1.empty())
+                    {
+                        std::vector<std::pair<std::string, JsonValue>>  switches;
+
+                        switches.emplace_back (kpszSw1Key, JsonValue (staged->switchesSw1));
+                        switches.emplace_back (kpszSw2Key, JsonValue (staged->switchesSw2));
+                        rebuilt.emplace_back (kpszSwitchesKey, JsonValue (std::move (switches)));
                     }
                 }
 
@@ -2343,14 +2528,17 @@ bool SettingsPanelState::AreHardwareEqual (
         // `ports` counts: attaching or detaching a drive is a staged edit
         // like any other, and leaving it out here would make the panel report
         // itself clean and never save the change.
-        equal = a[i].kind       == b[i].kind
-             && a[i].jsonIndex  == b[i].jsonIndex
-             && a[i].slot       == b[i].slot
-             && a[i].type       == b[i].type
-             && a[i].capability == b[i].capability
-             && a[i].enabled    == b[i].enabled
-             && a[i].ports      == b[i].ports
-             && a[i].network    == b[i].network;
+        equal = a[i].kind        == b[i].kind
+             && a[i].jsonIndex   == b[i].jsonIndex
+             && a[i].slot        == b[i].slot
+             && a[i].type        == b[i].type
+             && a[i].capability  == b[i].capability
+             && a[i].enabled     == b[i].enabled
+             && a[i].ports       == b[i].ports
+             && a[i].portPath    == b[i].portPath
+             && a[i].switchesSw1 == b[i].switchesSw1
+             && a[i].switchesSw2 == b[i].switchesSw2
+             && a[i].network     == b[i].network;
     }
 
     return equal;

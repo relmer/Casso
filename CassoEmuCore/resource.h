@@ -100,6 +100,7 @@
 // Live: neither needs a reset, and each is saved with the machine.
 #define IDM_STORAGE_DRIVE2          40087
 #define IDM_STORAGE_RECORDER        40088
+#define IDM_SSC_SWITCHES            40400  // Settings: the Super Serial Card's DIP switches
 
 // Apply the Uthernet II's LAN access and port forwards to the running card.
 // The payload is the card's settings as JSON.

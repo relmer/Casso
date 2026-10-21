@@ -659,14 +659,100 @@ void MachineConfigLoader::ParsePorts (
         {
             HRESULT hrName = entry.GetString ("name",   port.name);
             HRESULT hrDev  = entry.GetString ("device", port.device);
+            HRESULT hrPath = entry.GetString ("path",   port.path);
 
             IGNORE_RETURN_VALUE (hrName, S_OK);
             IGNORE_RETURN_VALUE (hrDev,  S_OK);
+            IGNORE_RETURN_VALUE (hrPath, S_OK);
         }
 
         // Anything else (null, a number, a nested array) leaves both fields
         // empty and lands here as an unoccupied connector, on purpose.
         outPorts.push_back (port);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveSlotFirmware
+//
+//  A slot's optional firmware file, resolved under the card family's device
+//  folder like `rom`. Missing and wrong-size are stored in the slot rather
+//  than failing the load: the card works without firmware, and the shell
+//  reports the problem to the user.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ResolveSlotFirmware (
+    const vector<fs::path> & searchPaths,
+    const FileResolver     & resolver,
+    SlotConfig             & slot)
+{
+    HRESULT          hr          = S_OK;
+    fs::path         relPath;
+    fs::path         found;
+    std::error_code  ec;
+    uintmax_t        size        = 0;
+    bool             hasFirmware = !slot.firmware.empty();
+    bool             wasFound    = false;
+
+
+
+    slot.firmwareStatus = SlotFirmwareStatus::None;
+    BAIL_OUT_IF (!hasFirmware, S_OK);
+
+    relPath  = (fs::path (kpszSuperSerialFirmwareDir) / slot.firmware).make_preferred();
+    found    = resolver (searchPaths, relPath);
+    wasFound = !found.empty();
+
+    slot.firmwarePath   = relPath.string();
+    slot.firmwareStatus = SlotFirmwareStatus::Missing;
+    BAIL_OUT_IF (!wasFound, S_OK);
+
+    size = fs::file_size (found, ec);
+
+    slot.firmwarePath   = found.string();
+    slot.firmwareStatus = (!ec && size == kSuperSerialFirmwareSize) ? SlotFirmwareStatus::Present
+                                                                    : SlotFirmwareStatus::WrongSize;
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseSwitches
+//
+//  `"switches": { "sw1": "off off off on on on on", "sw2": "..." }`. The text
+//  is stored as written; the card parses it and falls back to its default for
+//  a bank it cannot read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineConfigLoader::ParseSwitches (const JsonValue & owner, SlotConfig & slot)
+{
+    const JsonValue  * switches = nullptr;
+    HRESULT            hrObj    = owner.GetObject ("switches", switches);
+
+
+
+    IGNORE_RETURN_VALUE (hrObj, S_OK);
+
+    if (switches != nullptr)
+    {
+        HRESULT hrSw1 = switches->GetString ("sw1", slot.switchesSw1);
+        HRESULT hrSw2 = switches->GetString ("sw2", slot.switchesSw2);
+
+        IGNORE_RETURN_VALUE (hrSw1, S_OK);
+        IGNORE_RETURN_VALUE (hrSw2, S_OK);
     }
 }
 
@@ -805,6 +891,16 @@ HRESULT MachineConfigLoader::LoadSlots (
             HRESULT hrEnabled = entry.GetBool ("enabled", slot.enabled);
             IGNORE_RETURN_VALUE (hrEnabled, S_OK);
         }
+
+        // Optional: firmware and switches, which a card with a large ROM and
+        // DIP switches (the Super Serial Card) lists. Neither fails the load.
+        {
+            HRESULT hrFirmware = entry.GetString ("firmware", slot.firmware);
+            IGNORE_RETURN_VALUE (hrFirmware, S_OK);
+        }
+
+        ResolveSlotFirmware (searchPaths, resolver, slot);
+        ParseSwitches       (entry, slot);
 
         // Optional: the network card's settings. A bad value takes its
         // default instead of failing the load.

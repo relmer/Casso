@@ -85,6 +85,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
                                                     !cmd.payload.empty() && cmd.payload[0] == '1');
             break;
 
+        case IDM_SSC_SWITCHES:
+            DispatchSerialCardSwitches (cmd.payload, targets.machine);
+            break;
+
         case IDM_DISK_WP1:
         case IDM_DISK_WP2:
             hr = targets.disks.ToggleImageWriteProtect ((cmd.id == IDM_DISK_WP1) ? 0 : 1);
@@ -197,6 +201,31 @@ void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, I
     }
 
     disks.ResolvePendingChange (slot, drive, action, savePath);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchSerialCardSwitches
+//
+//  "<sw1>|<sw2>", each bank as the card's "on off ..." text. A payload with
+//  no separator is ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchSerialCardSwitches (const std::string & payload, ICpuMachineCommands & machine)
+{
+    size_t  split = payload.find ('|');
+
+
+
+    if (split != std::string::npos)
+    {
+        machine.SetSerialCardSwitches (payload.substr (0, split), payload.substr (split + 1));
+    }
 }
 
 

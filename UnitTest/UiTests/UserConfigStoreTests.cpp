@@ -423,6 +423,39 @@ public:
     }
 
 
+    //  The Super Serial Card's switches and its connector, with the file on
+    //  it, are saved as a difference from the shipped slot and read back.
+    TEST_METHOD (Diff_And_Merge_Keep_A_Serial_Cards_Switches_And_Connector)
+    {
+        JsonValue          d        = ParseOrFail (R"({"slots":[{"slot":2,"device":"super-serial-card","firmware":"SSC.rom","enabled":false}]})");
+        JsonValue          c        = ParseOrFail (R"({"slots":[{"slot":2,"device":"super-serial-card","firmware":"SSC.rom","enabled":true,)"
+                                                   R"("ports":[{"device":"serial-file-out","path":"C:\\out.txt"}],)"
+                                                   R"("switches":{"sw1":"off off off on off on on","sw2":"on on on on off off off"}}]})");
+        JsonValue          diff     = UserConfigStore::DiffJson (c, d);
+        JsonValue          merged   = UserConfigStore::MergeJson (d, diff);
+        const JsonValue  * slots    = nullptr;
+        const JsonValue  * ports    = nullptr;
+        const JsonValue  * switches = nullptr;
+        const JsonValue  * expected = nullptr;
+        HRESULT            hr       = S_OK;
+
+
+
+        hr = merged.GetArray ("slots", slots);
+        AssertSucceeded (hr, L"slots");
+        Assert::AreEqual (size_t (1), slots->GetArraySize());
+
+        hr = slots->GetArrayElement (0).GetArray ("ports", ports);
+        AssertSucceeded (hr, L"the connector is read back");
+
+        hr = c.GetObjectEntries()[0].second.GetArrayElement (0).GetArray ("ports", expected);
+        AssertSucceeded (hr, L"fixture");
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (*ports, *expected), L"with its file");
+
+        hr = slots->GetArrayElement (0).GetObject ("switches", switches);
+        AssertSucceeded (hr, L"the switches are read back");
+    }
+
     TEST_METHOD (Diff_Deep_Object_Only_Inner_Diff)
     {
         JsonValue  diff;

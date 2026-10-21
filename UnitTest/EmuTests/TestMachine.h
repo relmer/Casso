@@ -84,6 +84,26 @@ public:
     //  nothing left to say.
     explicit TestMachine (const std::string & machineId, Slots slots = Slots::AsShipped);
 
+    //  As above, with the loaded config passed to `configure` before the build,
+    //  for a test that turns on a card the shipped config lists as off.
+    TestMachine (const std::string                         & machineId,
+                 const std::function<void (MachineConfig &)> & configure);
+
+    //  Whether the machine has a video scanner. Untimed is the default above:
+    //  $C019 then reads 0 on every read, so a guest loop on the vertical blank
+    //  never exits. Timed attaches the scanner before the build, so
+    //  MachineBuilder connects it to the CPU, the soft switches, the keyboard
+    //  and the //c mouse as it does for Casso itself.
+    enum class Video
+    {
+        Untimed,
+        Timed,
+    };
+
+    TestMachine (const std::string                         & machineId,
+                 Video                                       video,
+                 const std::function<void (MachineConfig &)> & configure = {});
+
     //  Edits the loaded configuration and the build services before the
     //  build, for a test that enables a card the shipped machine has disabled
     //  or puts a fake behind one of the services.
@@ -98,6 +118,7 @@ public:
 private:
 
     static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
+    void         BuildFrom  (const std::string & machineId, const MachineConfig & config);
 
     static MachineBuildServices  MakeServices (const std::string & machineId, const Customize & customize);
 

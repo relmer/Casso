@@ -3,6 +3,8 @@
 #include "DxuiDialogWindow.h"
 
 #include "Core/DxuiPanel.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Theme/IDxuiTheme.h"
 #include "Widgets/DxuiButton.h"
 #include "Window/DxuiButtonRow.h"
 
@@ -148,4 +150,85 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
             left[i]->button->SetDpi  (scaler.GetDpi());
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialogWindow::OnDialogShowing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDialogWindow::OnDialogShowing()
+{
+    HRESULT  hr = FitHeightToContent();
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialogWindow::FitHeightToContent
+//
+//  The caller's size came from an estimate made before the window had a
+//  renderer, and an estimate that runs short clips the text. Here the
+//  content measures itself at the width it was laid out at, and the window
+//  grows or shrinks by the difference, keeping its center where the caller
+//  put it. The work area's height is the ceiling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDialogWindow::FitHeightToContent()
+{
+    HRESULT                 hr       = S_OK;
+    IDxuiMeasuredContent  * measured = dynamic_cast<IDxuiMeasuredContent *> (m_content);
+    IDxuiTextRenderer     * text     = GetTextRenderer();
+    const IDxuiTheme      * theme    = GetTheme();
+    HWND                    hwnd     = GetHwnd();
+    RECT                    content  = {};
+    RECT                    window   = {};
+    int                     needPx   = 0;
+    int                     heightPx = 0;
+    int                     top      = 0;
+    bool                    ok       = false;
+    HMONITOR                monitor  = nullptr;
+    MONITORINFO             mi       = { sizeof (mi) };
+
+
+
+    BAIL_OUT_IF (measured == nullptr, S_OK);
+    CBR (text != nullptr && theme != nullptr && hwnd != nullptr);
+
+    content = m_content->GetBounds();
+    ok      = measured->TryMeasureHeightPx (*text, *theme, content.right - content.left, needPx);
+    CBR (ok);
+
+    ok = GetWindowRect (hwnd, &window) != FALSE;
+    CBR (ok);
+
+    heightPx = (window.bottom - window.top) + needPx - (content.bottom - content.top);
+    top      = window.top - (heightPx - (window.bottom - window.top)) / 2;
+    monitor  = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+
+    if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))
+    {
+        heightPx = std::min (heightPx, (int) (mi.rcWork.bottom - mi.rcWork.top));
+        top      = std::clamp (top, (int) mi.rcWork.top, (int) mi.rcWork.bottom - heightPx);
+    }
+
+    ok = SetWindowPos (hwnd, nullptr, window.left, top, window.right - window.left, heightPx,
+                       SWP_NOZORDER | SWP_NOACTIVATE) != FALSE;
+    CBR (ok);
+
+Error:
+    return hr;
 }

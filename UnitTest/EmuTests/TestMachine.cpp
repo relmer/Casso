@@ -58,6 +58,65 @@ TestMachine::TestMachine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TestMachine::TestMachine (configure)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string                         & machineId,
+    const std::function<void (MachineConfig &)> & configure)
+    : m_builder (*this, m_nothingListening)
+{
+    MachineConfig  config;
+
+
+
+    LoadConfig (machineId, config);
+    configure  (config);
+    BuildFrom  (machineId, config);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::TestMachine (video, configure)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string                         & machineId,
+    Video                                       video,
+    const std::function<void (MachineConfig &)> & configure)
+    : m_builder (*this, m_nothingListening)
+{
+    MachineConfig  config;
+
+
+
+    if (video == Video::Timed)
+    {
+        SetVideoTiming (std::make_unique<VideoTiming>());
+    }
+
+    LoadConfig (machineId, config);
+
+    if (configure)
+    {
+        configure (config);
+    }
+
+    BuildFrom (machineId, config);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TestMachine::MakeServices
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,16 +154,13 @@ void TestMachine::Construct (
     Slots                slots,
     const Customize    & customize)
 {
-    std::wstring          wide = TextEncoding::NarrowToWide (machineId);
-    HRESULT               hr   = S_OK;
-    MachineBuildServices  unused;
-
-
-
     //  Built FROM a config of its own, and the host keeps a copy of what
     //  it was built from. Handing the builder the host's own config makes
     //  it walk a list the build is entitled to rewrite as it goes.
-    MachineConfig  config;
+    MachineConfig         config;
+    MachineBuildServices  unused;
+
+
 
     LoadConfig (machineId, config);
 
@@ -122,6 +178,26 @@ void TestMachine::Construct (
     {
         customize (config, unused);
     }
+
+    BuildFrom (machineId, config);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::BuildFrom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TestMachine::BuildFrom (const std::string & machineId, const MachineConfig & config)
+{
+    std::wstring  wide = TextEncoding::NarrowToWide (machineId);
+    HRESULT       hr   = S_OK;
+
+
 
     SetPrng (std::make_unique<Prng> (kSeed));
     SetCurrentMachineName (wide);

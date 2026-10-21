@@ -11,6 +11,7 @@
 #include "Core/PathResolver.h"
 #include "Core/Prng.h"
 #include "Devices/Acia6551.h"
+#include "Devices/AciaByteSourceEndpoint.h"
 #include "Devices/AciaEndpoints.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/RamDevice.h"
@@ -32,6 +33,8 @@
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
 #include "Machines/Apple2/Common/CassettePort.h"
+#include "Machines/Apple2/Common/CxxxRomRouter.h"
+#include "Machines/Apple2/Common/ExpansionRomBus.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -41,6 +44,8 @@
 #include "Machines/Apple2/Common/ParallelFirmware.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple2/Common/SscSwitches.h"
+#include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Print/PrintJobStore.h"
 #include "Print/PrinterWorker.h"
 #include "WasapiAudio.h"
@@ -430,6 +435,8 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             }
             else
             {
+                MemoryDevice *  raw = device.get();
+
                 // Cache the printer card so the background drain worker can
                 // reach its ring once the machine is built.
                 if (slot.device == "parallel-printer")
@@ -439,6 +446,11 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
 
                 m_host.GetMemoryBus().AddDevice (device.get());
                 m_host.GetOwnedDevices().push_back (std::move (device));
+
+                if (slot.device == kpszSuperSerialCardDevice)
+                {
+                    WireSuperSerialCard (slot, *static_cast<SuperSerialCard *> (raw));
+                }
             }
         }
 
@@ -590,9 +602,10 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
         // (the //c has no config slots) -- the serial firmware is part of the
         // internal //c ROM. Each raises IRQs through the shared interrupt
-        // controller. v1 endpoints are loopback (comms self-test); the serial
-        // printer-endpoint bridge + Hardware-tab endpoint selector are
-        // downstream work.
+        // controller. Each has a loopback plug attached (comms self-test); the
+        // serial printer-endpoint bridge and an endpoint selector for the //c
+        // are downstream work. Both are ticked with the CPU so their character
+        // timing follows its clock.
         for (int slot = 1; slot <= 2; ++slot)
         {
             HRESULT                                hrIc     = S_OK;
@@ -607,9 +620,12 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             hrIc = acia->AttachInterruptController (&m_host.GetInterruptController());
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
+            acia->SetCpuClockHz (m_host.GetConfig().clockSpeed);
+
             loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
             acia->SetEndpoint (loopback.get());
 
+            m_host.GetRefs().serialChips.push_back (acia.get());
             m_host.GetMemoryBus().AddDevice (acia.get());
             m_host.GetOwnedAciaEndpoints().push_back (std::move (loopback));
             m_host.GetOwnedDevices().push_back (std::move (acia));
@@ -1868,3 +1884,186 @@ void MachineBuilder::SelectVideoMode()
     m_host.GetRefs().text80->SetAltCharSet (altCharSet);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireSuperSerialCard
+//
+//  Connects a Super Serial Card the registry just created: its firmware, its
+//  switches, its $Cs00 page and the shared expansion space, its interrupt,
+//  its clock and its serial connector.
+//
+//  The page and the expansion space are routed by machine. On the //e the
+//  CxxxRomRouter owns $C100-$CFFF and passes the card's page and the
+//  expansion space to it under the //e's ROM switches; on the ][ and ][+ both
+//  are plain bus devices.
+//
+//  With a firmware file that is missing or the wrong size, the card has no
+//  firmware, and the shell reports the slot's status from the config.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCard & card)
+{
+    HRESULT            hr        = S_OK;
+    MachineRefs      & refs      = m_host.GetRefs();
+    SscSwitches        switches  = SscSwitches::MakeDefault();
+    vector<Byte>       firmware;
+    bool               parsedSw1 = false;
+    bool               parsedSw2 = false;
+
+
+
+    if (slot.firmwareStatus == SlotFirmwareStatus::Present)
+    {
+        hr = ReadRomFileBytes (slot.firmwarePath, firmware);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = card.SetFirmware (move (firmware));
+        }
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (!slot.switchesSw1.empty())
+    {
+        parsedSw1 = switches.TryParseBankText (SscBank::Sw1, slot.switchesSw1);
+        IGNORE_RETURN_VALUE (parsedSw1, false);
+    }
+
+    if (!slot.switchesSw2.empty())
+    {
+        parsedSw2 = switches.TryParseBankText (SscBank::Sw2, slot.switchesSw2);
+        IGNORE_RETURN_VALUE (parsedSw2, false);
+    }
+
+    card.SetSwitches (switches);
+
+    if (refs.expansionRomBus == nullptr)
+    {
+        auto  bus = std::make_unique<ExpansionRomBus> (m_host.GetMemoryBus());
+
+        refs.expansionRomBus = bus.get();
+
+        if (m_host.GetMmu() != nullptr)
+        {
+            m_host.GetMmu()->GetCxxxRouter()->SetExpansionRomBus (refs.expansionRomBus);
+        }
+        else
+        {
+            m_host.GetMemoryBus().AddDevice (refs.expansionRomBus);
+        }
+
+        m_host.GetOwnedDevices().push_back (std::move (bus));
+    }
+
+    refs.expansionRomBus->AddCard (&card);
+
+    if (m_host.GetMmu() != nullptr)
+    {
+        m_host.GetMmu()->GetCxxxRouter()->SetSlotIoDevice (slot.slot, &card.GetSlotPage());
+    }
+    else
+    {
+        m_host.GetMemoryBus().AddDevice (&card.GetSlotPage());
+    }
+
+    hr = card.GetAcia().AttachInterruptController (&m_host.GetInterruptController());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    card.GetAcia().SetCpuClockHz (m_host.GetConfig().clockSpeed);
+    refs.serialChips.push_back (&card.GetAcia());
+
+    if (refs.superSerialCard == nullptr)
+    {
+        refs.superSerialCard = &card;
+    }
+
+    AttachSerialEndpoint (slot, card);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AttachSerialEndpoint
+//
+//  Plugs the attachment the slot's first port specifies into the card's
+//  serial connector: nothing, a loopback plug, a file that receives what the
+//  card sends, or a file whose bytes are sent into the card. A file that
+//  cannot be opened or read results in an empty connector, and the problem is
+//  stored on the card for the shell to report.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card)
+{
+    HRESULT                                   hr       = S_OK;
+    string                                    device;
+    string                                    path;
+    std::unique_ptr<IAciaEndpoint>            endpoint;
+    std::unique_ptr<AciaFileEndpoint>         fileOut;
+    std::unique_ptr<AciaByteSourceEndpoint>   fileIn;
+    vector<Byte>                              bytes;
+
+
+
+    if (!slot.ports.empty())
+    {
+        device = slot.ports.front().device;
+        path   = slot.ports.front().path;
+    }
+
+    if (device == kpszSerialLoopback)
+    {
+        endpoint = std::make_unique<AciaLoopbackEndpoint> (&card.GetAcia());
+    }
+    else if (device == kpszSerialFileOut)
+    {
+        fileOut = std::make_unique<AciaFileEndpoint>();
+        hr      = fileOut->Open (path);
+
+        if (SUCCEEDED (hr))
+        {
+            endpoint = std::move (fileOut);
+        }
+        else
+        {
+            card.SetAttachmentProblem ("Cannot open " + path + " for the serial connector.");
+        }
+    }
+    else if (device == kpszSerialFileIn)
+    {
+        hr = ReadRomFileBytes (path, bytes);
+
+        if (SUCCEEDED (hr))
+        {
+            fileIn   = std::make_unique<AciaByteSourceEndpoint> (&card.GetAcia(), move (bytes));
+            endpoint = std::move (fileIn);
+        }
+        else
+        {
+            card.SetAttachmentProblem ("Cannot read " + path + " for the serial connector.");
+        }
+    }
+
+    BAIL_OUT_IF (endpoint == nullptr, S_OK);
+
+    card.GetAcia().SetEndpoint (endpoint.get());
+
+    if (device == kpszSerialFileIn)
+    {
+        static_cast<AciaByteSourceEndpoint *> (endpoint.get())->Start();
+    }
+
+    m_host.GetOwnedAciaEndpoints().push_back (std::move (endpoint));
+
+Error:
+    return;
+}

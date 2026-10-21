@@ -606,9 +606,10 @@ bool UserConfigStore::TryGetStringField (
 //
 //  UserConfigStore::BuildObjectWithOverrides
 //
-//  Returns `src` with the per-entry fields a user file is allowed to
-//  restate: the `enabled` bit, a card's `ports` connector list when the user
-//  entry has one, and a network card's `network` settings likewise.
+//  Returns `src` with the per-entry fields a user file may restate replaced:
+//  the `enabled` bit, a card's `ports` connector list, a Super Serial Card's
+//  `switches` and a network card's `network` settings, the last three when
+//  the user entry declares them.
 //
 //  Everything else deliberately comes from the default. A user file records a
 //  DIFFERENCE, so `device`, `rom` and the capability flags have to keep
@@ -621,6 +622,7 @@ JsonValue UserConfigStore::BuildObjectWithOverrides (
     const JsonValue & src,
     bool              enabled,
     const JsonValue * ports,
+    const JsonValue * switches,
     const JsonValue * network)
 {
     std::vector<std::pair<std::string, JsonValue>>    rebuilt;
@@ -633,9 +635,10 @@ JsonValue UserConfigStore::BuildObjectWithOverrides (
     {
         const std::string &  key = (*entries)[i].first;
 
-        if (key == "enabled"
-            || (key == "ports"   && ports   != nullptr)
-            || (key == "network" && network != nullptr))
+        if (key == "enabled" ||
+            (key == "ports"    && ports    != nullptr) ||
+            (key == "switches" && switches != nullptr) ||
+            (key == "network"  && network  != nullptr))
         {
             continue;
         }
@@ -648,6 +651,11 @@ JsonValue UserConfigStore::BuildObjectWithOverrides (
     if (ports != nullptr)
     {
         rebuilt.emplace_back ("ports", *ports);
+    }
+
+    if (switches != nullptr)
+    {
+        rebuilt.emplace_back ("switches", *switches);
     }
 
     if (network != nullptr)
@@ -998,24 +1006,31 @@ JsonValue UserConfigStore::MergeHardwareArray (
 
         if (userIdx >= 0)
         {
-            const JsonValue & userEntry   = userArr.GetArrayElement ((size_t) userIdx);
-            const JsonValue * userPorts   = nullptr;
-            const JsonValue * userNetwork = nullptr;
+            const JsonValue & userEntry    = userArr.GetArrayElement ((size_t) userIdx);
+            const JsonValue * userPorts    = nullptr;
+            const JsonValue * userSwitches = nullptr;
+            const JsonValue * userNetwork  = nullptr;
             userMatched[(size_t) userIdx] = true;
 
-            // Only a slot entry has connectors or network settings, and only
-            // the user's own values may override the default's. With an
-            // absent or malformed `ports`, the shipped connector list is used.
+            // Only a slot entry has connectors, switches or network settings,
+            // and only the user's own values may override the default's. For
+            // an absent or malformed one, the default's value is used, as the
+            // card shipped.
             if (slotArray)
             {
-                (void) TryFindTypedField (userEntry, "ports",   JsonType::Array,  userPorts);
-                (void) TryFindTypedField (userEntry, "network", JsonType::Object, userNetwork);
+                (void) TryFindTypedField (userEntry, "ports",    JsonType::Array,  userPorts);
+                (void) TryFindTypedField (userEntry, "switches", JsonType::Object, userSwitches);
+                (void) TryFindTypedField (userEntry, "network",  JsonType::Object, userNetwork);
             }
 
             if (TryGetBoolField (userEntry, "enabled", enabled) &&
                 defEntry.GetType() == JsonType::Object)
             {
-                merged.emplace_back (BuildObjectWithOverrides (defEntry, enabled, userPorts, userNetwork));
+                merged.emplace_back (BuildObjectWithOverrides (defEntry,
+                                                               enabled,
+                                                               userPorts,
+                                                               userSwitches,
+                                                               userNetwork));
             }
             else if (slotArray)
             {
@@ -1092,16 +1107,19 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
 
     for (size_t i = 0; i < currentArr.GetArraySize(); ++i)
     {
-        const JsonValue & curEntry      = currentArr.GetArrayElement (i);
-        const JsonValue * curPorts      = nullptr;
-        const JsonValue * defPorts      = nullptr;
-        const JsonValue * curNetwork    = nullptr;
-        const JsonValue * defNetwork    = nullptr;
-        int               defIdx        = -1;
-        bool              curEn         = true;
-        bool              defEn         = true;
-        bool              portsDiffer   = false;
-        bool              networkDiffer = false;
+        const JsonValue  & curEntry       = currentArr.GetArrayElement (i);
+        const JsonValue  * curPorts       = nullptr;
+        const JsonValue  * defPorts       = nullptr;
+        const JsonValue  * curSwitches    = nullptr;
+        const JsonValue  * defSwitches    = nullptr;
+        const JsonValue  * curNetwork     = nullptr;
+        const JsonValue  * defNetwork     = nullptr;
+        int                defIdx         = -1;
+        bool               curEn          = true;
+        bool               defEn          = true;
+        bool               portsDiffer    = false;
+        bool               switchesDiffer = false;
+        bool               networkDiffer  = false;
 
         if (curEntry.GetType() != JsonType::Object)
         {
@@ -1143,10 +1161,12 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
 
             if (slotArray)
             {
-                (void) TryFindTypedField (curEntry, "ports",   JsonType::Array,  curPorts);
-                (void) TryFindTypedField (defEntry, "ports",   JsonType::Array,  defPorts);
-                (void) TryFindTypedField (curEntry, "network", JsonType::Object, curNetwork);
-                (void) TryFindTypedField (defEntry, "network", JsonType::Object, defNetwork);
+                (void) TryFindTypedField (curEntry, "ports",    JsonType::Array,  curPorts);
+                (void) TryFindTypedField (defEntry, "ports",    JsonType::Array,  defPorts);
+                (void) TryFindTypedField (curEntry, "switches", JsonType::Object, curSwitches);
+                (void) TryFindTypedField (defEntry, "switches", JsonType::Object, defSwitches);
+                (void) TryFindTypedField (curEntry, "network",  JsonType::Object, curNetwork);
+                (void) TryFindTypedField (defEntry, "network",  JsonType::Object, defNetwork);
             }
         }
 
@@ -1155,13 +1175,16 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
         // Diffing the enabled bit by itself threw that edit away -- the
         // dialog applied it live, nothing reached the user file, and the
         // drive was back the next time the machine or the dialog loaded.
-        // A network card's settings are the same case.
-        portsDiffer   = curPorts != nullptr &&
-                        (defPorts == nullptr || !AreJsonEqual (*curPorts, *defPorts));
-        networkDiffer = curNetwork != nullptr &&
-                        (defNetwork == nullptr || !AreJsonEqual (*curNetwork, *defNetwork));
+        // A Super Serial Card's switches and a network card's settings are
+        // settings of the same kind.
+        portsDiffer    = curPorts != nullptr &&
+                         (defPorts == nullptr || !AreJsonEqual (*curPorts, *defPorts));
+        switchesDiffer = curSwitches != nullptr &&
+                         (defSwitches == nullptr || !AreJsonEqual (*curSwitches, *defSwitches));
+        networkDiffer  = curNetwork != nullptr &&
+                         (defNetwork == nullptr || !AreJsonEqual (*curNetwork, *defNetwork));
 
-        if (curEn != defEn || portsDiffer || networkDiffer)
+        if (curEn != defEn || portsDiffer || switchesDiffer || networkDiffer)
         {
             std::vector<std::pair<std::string, JsonValue>>  obj;
             std::string                                     type;
@@ -1187,6 +1210,11 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
             if (portsDiffer)
             {
                 obj.emplace_back ("ports", *curPorts);
+            }
+
+            if (switchesDiffer)
+            {
+                obj.emplace_back ("switches", *curSwitches);
             }
 
             if (networkDiffer)

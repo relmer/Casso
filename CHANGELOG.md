@@ -10,8 +10,14 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
+- Apple's Super Serial Card, in slot 2 of the ][, ][+, //e and Enhanced //e.
+  Turn it on in Settings > Machine and set it up on the new Serial card page.
+  You can also send its output to a file, feed it input from a file, or loop
+  its output back to its input.
 - An Uthernet II Ethernet card (WIZnet W5100) for the ][, ][+, //e and //e Enhanced,
   turned on in Settings > Machine.
+- A tab added to the Settings dialog while it is open sparkles until it is
+  opened, so it is easy to notice.
 - An info icon after a mounted WOZ image's name when the models or the minimum
   RAM the image declares do not match the running machine. Hovering it lists
   what the image declares and marks whether the running machine meets each
@@ -20,6 +26,10 @@ Entries before versioning was introduced use dates only.
 
 ### Changed
 
+- In Settings > Machine, click a device's name to turn it on or off. You no
+  longer have to hit the checkbox.
+- The //c's serial ports send and receive bytes at the selected baud rate, not
+  instantly.
 - Changed the drive strip's hotkey from Ctrl+D to F8.
 - EmulatorShell is split into components: audio, Disk II drives, tape deck,
   printer, update notification, settings, desk scene, chrome, renderer and
@@ -32,6 +42,8 @@ Entries before versioning was introduced use dates only.
 
 ### Fixed
 
+- Dialogs size to fit their text, so a long message no longer runs into the
+  buttons.
 - Selecting the other Disk II drive no longer moves its head to the previous
   drive's track. Each drive has its own head position, as on real hardware.
 - Mounting an unreadable disk image over a disk already in the drive no longer

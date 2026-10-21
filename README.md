@@ -314,7 +314,9 @@ an audit-correct Language Card state machine; the //e Enhanced and the //c run a
 drive plus a connectable external one, dual 6551 serial ports, and the //c mouse
 driven by the machine's own mouse firmware. Its two latching case switches are
 modeled on a control strip: **80/40** drives `$C060`, and the **keyboard** switch
-flips the typed stream to Dvorak.
+flips the typed stream to Dvorak. The ][, ][+, //e and Enhanced //e support
+Apple's Super Serial Card in slot 2. You can also send its output to a file,
+feed it input from a file, or loop its output back to its input.
 
 On first launch Casso fetches the ROMs and Disk II audio samples it needs, with
 your consent, and its boot disk picker offers the DOS 3.3 System Master and

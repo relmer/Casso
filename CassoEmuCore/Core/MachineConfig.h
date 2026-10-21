@@ -169,6 +169,7 @@ struct PortConfig
 {
     string  name;      // "disk", "serial1", "joystick"; empty for numbered ports
     string  device;    // what is attached; empty for an unoccupied port
+    string  path;      // a host file, for the serial file attachments
 };
 
 
@@ -185,6 +186,31 @@ static constexpr int           kDiskIiPortCount = 2;
 // alone would leave short.
 static constexpr const char *  kpszLanguageCardDevice = "language-card";
 static constexpr uint32_t      kLanguageCardRamK      = 16;
+
+// The Super Serial Card, where its firmware lives under the asset roots, and
+// the firmware's size: Apple's 341-0065-A, 2 KB.
+static constexpr const char *  kpszSuperSerialCardDevice   = "super-serial-card";
+static constexpr const char *  kpszSuperSerialFirmwareDir  = "Devices/SuperSerialCard";
+static constexpr size_t        kSuperSerialFirmwareSize    = 2048;
+static constexpr const char *  kpszSerialCardFirmware      = "SSC.rom";
+
+// Serial connector attachments a card's ports list can specify.
+static constexpr const char *  kpszSerialLoopback = "serial-loopback";
+static constexpr const char *  kpszSerialFileOut  = "serial-file-out";
+static constexpr const char *  kpszSerialFileIn   = "serial-file-in";
+
+
+//
+//  The state of a slot's optional firmware file. None means the slot entry
+//  has no `firmware` key.
+//
+enum class SlotFirmwareStatus
+{
+    None,
+    Present,
+    Missing,
+    WrongSize,
+};
 
 
 struct SlotConfig
@@ -203,6 +229,18 @@ struct SlotConfig
     // config written before the key existed relies on.
     vector<PortConfig>  ports;
 
+    // Firmware too large for the $Cn00 page (the Super Serial Card's 2 KB
+    // ROM). Unlike `rom`, a missing or wrong-size file does not fail the
+    // load: the card runs without it, and the status indicates why. The path
+    // is the file found, or the relative path searched for when missing.
+    string              firmware;
+    string              firmwarePath;
+    SlotFirmwareStatus  firmwareStatus = SlotFirmwareStatus::None;
+
+    // DIP switch positions as "on off ..." text, SW-1 first; empty means the
+    // card's default.
+    string              switchesSw1;
+    string              switchesSw2;
     // The Uthernet II's settings, from the slot entry's `network` object;
     // defaults for any other device.
     NetworkCardSettings  network;
@@ -596,4 +634,13 @@ private:
                                        string                 & outError);
 
     static void    LoadKeyboardConfig (const JsonValue & keyboard, MachineConfig & outConfig);
+
+    // Resolves a slot's optional `firmware` file into the slot's path and
+    // status. Never fails the load.
+    static void    ResolveSlotFirmware (const vector<fs::path> & searchPaths,
+                                        const FileResolver     & resolver,
+                                        SlotConfig             & slot);
+
+    // Reads a slot's optional `switches` object into its text fields.
+    static void    ParseSwitches      (const JsonValue & owner, SlotConfig & slot);
 };

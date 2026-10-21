@@ -294,6 +294,25 @@ void SettingsApplyAdapter::ApplyMouseConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ApplySerialCardSwitches
+//
+//  Through the CPU-thread command queue, like write-protect: the switches are
+//  read by the card on that thread, and SW2-6 connects or disconnects its
+//  interrupt there. The payload is the two banks' text, separated by '|'.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplySerialCardSwitches (const std::string & sw1, const std::string & sw2)
+{
+    m_shell.PostCommand (IDM_SSC_SWITCHES, sw1 + "|" + sw2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplyNetworkCard
 //
 //  The card's sockets are pumped on the CPU thread, so the settings go
