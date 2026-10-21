@@ -408,9 +408,9 @@ private:
     //  A linked Apple's drive's buttons, after View while one is open.
     static constexpr ToolbarRow  kAppleDriveRows[] =
     {
-        { kReadDiskToImage,     DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Create image", L"Create an image file from the whole disk" },
-        { kWriteImageToDisk,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save,     L"Write image",  L"Write an image file to the whole disk" },
-        { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",     L"Cancel the running operation"         },
+        { kReadDiskToImage,     DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Create image", L"Create an image file from the disk" },
+        { kWriteImageToDisk,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save,     L"Write image",  L"Write an image file to the disk"    },
+        { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",       L"Cancel the running operation"       },
     };
 
     static constexpr ToolbarRow  kPreviewToolbarRows[] =
