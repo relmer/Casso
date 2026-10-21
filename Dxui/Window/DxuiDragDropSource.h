@@ -30,7 +30,9 @@
 //  A TARGET OR THE SHELL MAY STORE FORMATS OF ITS OWN on the object: the drag
 //  image, the drop description, the effect it performed. Each is kept, and
 //  read back as if the source had offered it, since the drag image cannot be
-//  drawn without them.
+//  drawn without them. The drag helper sets some in global memory and some as
+//  a stream, so both are accepted; refusing the stream fails the helper's
+//  whole setup, and the drag has no image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,9 +97,12 @@ private:
     //  The rendered bytes for one item, rendering them the first time.
     HRESULT  GetRendered (const Format & format, int index, const std::vector<uint8_t> *& outBytes);
 
-    std::atomic<ULONG>                                          m_refCount = 1;
+    static HRESULT  ReadStream (IStream * stream, std::vector<uint8_t> & outBytes);
+
+    std::atomic<ULONG>                                         m_refCount = 1;
     std::vector<Format>                                         m_formats;
     std::map<std::pair<CLIPFORMAT, int>, std::vector<uint8_t>>  m_rendered;
     std::map<std::pair<CLIPFORMAT, int>, int>                   m_renderCounts;
     std::map<CLIPFORMAT, std::vector<uint8_t>>                  m_stored;
+    std::map<CLIPFORMAT, DWORD>                                 m_storedTymed;   // the medium each was set in, read back in it
 };

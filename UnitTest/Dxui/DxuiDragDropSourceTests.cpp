@@ -218,4 +218,51 @@ public:
         Assert::AreEqual ((DWORD) DROPEFFECT_COPY, fixture.source->GetStoredDword (CFSTR_PERFORMEDDROPEFFECT, DROPEFFECT_COPY),
                           L"A format never stored reads as the fallback");
     }
+
+
+    TEST_METHOD (SetData_KeepsAStreamAndGivesItBackAsOne)
+    {
+        Fixture     fixture;
+        CLIPFORMAT  context = (CLIPFORMAT) RegisterClipboardFormatW (L"DragContext");
+        FORMATETC   format  = { context, nullptr, DVASPECT_CONTENT, -1, TYMED_ISTREAM };
+        STGMEDIUM   medium  = {};
+        STGMEDIUM   read    = {};
+        uint8_t     bytes[] = { 1, 2, 3, 4, 5 };
+        uint8_t     back[8] = {};
+        ULONG       count   = 0;
+
+        Build (fixture);
+
+        medium.tymed = TYMED_ISTREAM;
+        medium.pstm  = SHCreateMemStream (bytes, sizeof (bytes));
+        Assert::IsNotNull (medium.pstm);
+
+        Assert::AreEqual (S_OK, fixture.source->SetData (&format, &medium, TRUE), L"The drag helper sets some formats as streams");
+        Assert::AreEqual (S_OK, fixture.source->QueryGetData (&format));
+        Assert::AreEqual (S_OK, fixture.source->GetData (&format, &read));
+        Assert::AreEqual ((DWORD) TYMED_ISTREAM, read.tymed, L"and reads them back as streams");
+
+        Assert::AreEqual (S_OK, read.pstm->Read (back, sizeof (back), &count));
+        Assert::AreEqual ((ULONG) sizeof (bytes), count);
+        Assert::AreEqual (0, memcmp (bytes, back, sizeof (bytes)));
+        ReleaseStgMedium (&read);
+    }
+
+
+    TEST_METHOD (SetDragImage_IsAcceptedByTheShellsDragHelper)
+    {
+        Fixture        fixture;
+        DxuiIconImage  image;
+        FORMATETC      bits = { (CLIPFORMAT) RegisterClipboardFormatW (L"DragImageBits"), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+
+        Build (fixture);
+
+        image.width  = 32;
+        image.height = 32;
+        image.bgraPremul.assign (32 * 32, 0xFF2060C0u);
+
+        Assert::AreEqual (S_OK, DxuiDragDropSource::SetDragImage (static_cast<IDataObject *> (fixture.source), image),
+                          L"The helper stores a stream as well as the image, and fails if the object refuses it");
+        Assert::AreEqual (S_OK, fixture.source->QueryGetData (&bits));
+    }
 };

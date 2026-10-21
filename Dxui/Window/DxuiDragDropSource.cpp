@@ -420,14 +420,18 @@ int DxuiDragDropSource::GetRenderCount (CLIPFORMAT format, int index) const
 
 STDMETHODIMP DxuiDragDropSource::GetData (FORMATETC * format, STGMEDIUM * medium)
 {
-    HRESULT                       hr      = S_OK;
-    const Format                * entry   = nullptr;
-    const std::vector<uint8_t>  * bytes   = nullptr;
-    HGLOBAL                       global  = nullptr;
-    void                        * locked  = nullptr;
-    int                           index   = 0;
-    bool                          inRange = false;
-    bool                          wantsHg = false;
+    HRESULT                       hr       = S_OK;
+    const Format                * entry    = nullptr;
+    const std::vector<uint8_t>  * bytes    = nullptr;
+    HGLOBAL                       global   = nullptr;
+    void                        * locked   = nullptr;
+    int                           index    = 0;
+    bool                          inRange  = false;
+    bool                          wantsHg  = false;
+    bool                          stored   = false;
+    bool                          asStream = false;
+    IStream                     * stream   = nullptr;
+    ULARGE_INTEGER                size     = {};
 
 
 
@@ -435,10 +439,12 @@ STDMETHODIMP DxuiDragDropSource::GetData (FORMATETC * format, STGMEDIUM * medium
 
     ZeroMemory (medium, sizeof (*medium));
 
-    wantsHg = (format->tymed & TYMED_HGLOBAL) != 0;
-    CBREx (wantsHg, DV_E_TYMED);
+    stored   = m_stored.contains (format->cfFormat);
+    asStream = stored && m_storedTymed[format->cfFormat] == TYMED_ISTREAM && (format->tymed & TYMED_ISTREAM) != 0;
+    wantsHg  = (format->tymed & TYMED_HGLOBAL) != 0;
+    CBREx (asStream || wantsHg, DV_E_TYMED);
 
-    if (m_stored.contains (format->cfFormat))
+    if (stored)
     {
         bytes = &m_stored[format->cfFormat];
     }
@@ -468,12 +474,39 @@ STDMETHODIMP DxuiDragDropSource::GetData (FORMATETC * format, STGMEDIUM * medium
 
     GlobalUnlock (global);
 
-    medium->tymed          = TYMED_HGLOBAL;
-    medium->hGlobal        = global;
     medium->pUnkForRelease = nullptr;
-    global                 = nullptr;
+
+    //  A format set as a stream is read back as one, over the same memory,
+    //  which the stream frees when it is released.
+    if (asStream)
+    {
+        hr = CreateStreamOnHGlobal (global, TRUE, &stream);
+        CHR (hr);
+
+        global = nullptr;
+
+        size.QuadPart = bytes->size();
+
+        hr = stream->SetSize (size);
+        CHR (hr);
+
+        medium->tymed = TYMED_ISTREAM;
+        medium->pstm  = stream;
+        stream        = nullptr;
+    }
+    else
+    {
+        medium->tymed   = TYMED_HGLOBAL;
+        medium->hGlobal = global;
+        global          = nullptr;
+    }
 
 Error:
+    if (stream != nullptr)
+    {
+        stream->Release();
+    }
+
     if (global != nullptr)
     {
         GlobalFree (global);
@@ -512,6 +545,10 @@ STDMETHODIMP DxuiDragDropSource::GetDataHere (FORMATETC * format, STGMEDIUM * me
 
 STDMETHODIMP DxuiDragDropSource::QueryGetData (FORMATETC * format)
 {
+    DWORD  media = TYMED_HGLOBAL;
+
+
+
     if (format == nullptr)
     {
         return E_POINTER;
@@ -522,7 +559,13 @@ STDMETHODIMP DxuiDragDropSource::QueryGetData (FORMATETC * format)
         return DV_E_FORMATETC;
     }
 
-    return (format->tymed & TYMED_HGLOBAL) != 0 ? S_OK : DV_E_TYMED;
+    //  A stored format is read in global memory, or in the medium it was set in.
+    if (m_storedTymed.contains (format->cfFormat))
+    {
+        media |= m_storedTymed[format->cfFormat];
+    }
+
+    return (format->tymed & media) != 0 ? S_OK : DV_E_TYMED;
 }
 
 
@@ -567,23 +610,82 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
     HRESULT                hr     = S_OK;
     const uint8_t        * locked = nullptr;
     std::vector<uint8_t>   bytes;
+    bool                   global = false;
+    bool                   stream = false;
 
 
 
     CBREx (format != nullptr && medium != nullptr, E_POINTER);
-    CBREx ((medium->tymed & TYMED_HGLOBAL) != 0 && (format->tymed & TYMED_HGLOBAL) != 0, DV_E_TYMED);
 
-    locked = (const uint8_t *) GlobalLock (medium->hGlobal);
-    CWR (locked);
+    global = medium->tymed == TYMED_HGLOBAL && (format->tymed & TYMED_HGLOBAL) != 0;
+    stream = medium->tymed == TYMED_ISTREAM && (format->tymed & TYMED_ISTREAM) != 0 && medium->pstm != nullptr;
+    CBREx (global || stream, DV_E_TYMED);
 
-    bytes.assign (locked, locked + GlobalSize (medium->hGlobal));
-    GlobalUnlock (medium->hGlobal);
+    if (global)
+    {
+        locked = (const uint8_t *) GlobalLock (medium->hGlobal);
+        CWR (locked);
 
-    m_stored[format->cfFormat] = std::move (bytes);
+        bytes.assign (locked, locked + GlobalSize (medium->hGlobal));
+        GlobalUnlock (medium->hGlobal);
+    }
+    else
+    {
+        hr = ReadStream (medium->pstm, bytes);
+        CHR (hr);
+    }
+
+    m_stored[format->cfFormat]      = std::move (bytes);
+    m_storedTymed[format->cfFormat] = medium->tymed;
 
     if (release)
     {
         ReleaseStgMedium (medium);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDragDropSource::ReadStream
+//
+//  The whole stream, from its start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDragDropSource::ReadStream (IStream * stream, std::vector<uint8_t> & outBytes)
+{
+    HRESULT        hr    = S_OK;
+    STATSTG        stat  = {};
+    LARGE_INTEGER  start = {};
+    ULONG          read  = 0;
+    bool           whole = false;
+
+
+
+    outBytes.clear();
+
+    hr = stream->Stat (&stat, STATFLAG_NONAME);
+    CHR (hr);
+
+    hr = stream->Seek (start, STREAM_SEEK_SET, nullptr);
+    CHR (hr);
+
+    outBytes.resize ((size_t) stat.cbSize.QuadPart);
+
+    if (!outBytes.empty())
+    {
+        hr = stream->Read (outBytes.data(), (ULONG) outBytes.size(), &read);
+        CHR (hr);
+
+        whole = read == outBytes.size();
+        CBREx (whole, STG_E_READFAULT);
     }
 
 Error:
@@ -652,7 +754,7 @@ STDMETHODIMP DxuiDragDropSource::EnumFormatEtc (DWORD direction, IEnumFORMATETC 
 
     for (const auto & [stored, bytes] : m_stored)
     {
-        FORMATETC  one = { stored, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+        FORMATETC  one = { stored, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL | m_storedTymed[stored] };
 
         if (FindFormat (stored) == nullptr)
         {
