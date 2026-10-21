@@ -912,14 +912,7 @@ void CassoExplorerWindow::ConfigureWidgets()
     m_tabs->SetOnDragMove ([this] (int index, POINT point, bool tornOff) { OnTabDragMove (index, point, tornOff); });
     m_tabs->SetOnDragEnd  ([this] (int index, POINT point, bool tornOff) { OnTabDragEnd  (index, point, tornOff); });
     m_tabs->SetOnNewTab ([this]() { Dispatch (CassoExplorerCommands::kNewTab); });
-    m_tabs->SetOnClose  ([this] (int index)
-    {
-        //  The last tab stays, as the close command leaves it.
-        if (m_browser.GetBrowserModel().GetTabCount() > 1 && m_browser.CloseTab ((size_t) index))
-        {
-            FillList();
-        }
-    });
+    m_tabs->SetOnClose  ([this] (int index) { CloseTabAt ((size_t) index); });
 
     m_address->SetOnSegment ([this] (int index)
     {
@@ -4918,7 +4911,6 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kGroup2:
         case CassoExplorerCommands::kGroup4:
         case CassoExplorerCommands::kGroup8:            return IsHexPreviewShowing();
-        case CassoExplorerCommands::kCloseTab:
         case CassoExplorerCommands::kNextTab:
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
         case CassoExplorerCommands::kUndo:              return !m_undo.empty();
@@ -6470,7 +6462,7 @@ void CassoExplorerWindow::Dispatch (int id)
             break;
 
         case CassoExplorerCommands::kCloseTab:
-            refill = m_browser.CloseTab (m_browser.GetBrowserModel().GetActiveIndex());
+            CloseTabAt (m_browser.GetBrowserModel().GetActiveIndex());
             break;
 
         case CassoExplorerCommands::kNextTab:
@@ -12097,8 +12089,9 @@ void CassoExplorerWindow::OnShellListed (const std::wstring & key)
 //
 //  CassoExplorerWindow::ShowTabContextMenu
 //
-//  Explorer's tab menu. The last tab never closes, and the last tab has no
-//  tabs to its right, so those rows are disabled rather than doing nothing.
+//  Explorer's tab menu. With one tab there are no others to close, and the
+//  last tab has none to its right, so those rows are disabled rather than
+//  doing nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12112,13 +12105,7 @@ void CassoExplorerWindow::ShowTabContextMenu (int x, int y, int index)
 
     m_menuCommands.clear();
 
-    AddMenuCommand (items, L"&Close tab", [this, tab]()
-    {
-        if (m_browser.CloseTab (tab))
-        {
-            FillList();
-        }
-    }, L"Ctrl+W");
+    AddMenuCommand (items, L"&Close tab", [this, tab]() { CloseTabAt (tab); }, L"Ctrl+W");
 
     AddMenuCommand (items, L"Close &other tabs", [this, tab]()
     {
@@ -12142,7 +12129,6 @@ void CassoExplorerWindow::ShowTabContextMenu (int x, int y, int index)
         FillList();
     });
 
-    m_menuCommands[0]->isEnabled = [count]() { return count > 1; };
     m_menuCommands[1]->isEnabled = [count]() { return count > 1; };
     m_menuCommands[2]->isEnabled = [tab, count]() { return tab + 1 < count; };
 
@@ -14982,7 +14968,7 @@ void CassoExplorerWindow::OnTabDragEnd (int index, POINT client, bool tornOff)
     if (target != nullptr)
     {
         target->AcceptTab (m_browser.GetBrowserModel().GetTab ((size_t) index));
-        LeaveWithTab (index);
+        CloseTabAt ((size_t) index);
     }
     else if (tornOff)
     {
@@ -15276,7 +15262,7 @@ void CassoExplorerWindow::TearOffTab (int index, POINT screen)
         return;
     }
 
-    LeaveWithTab (index);
+    CloseTabAt ((size_t) index);
 }
 
 
@@ -15285,15 +15271,14 @@ void CassoExplorerWindow::TearOffTab (int index, POINT screen)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerWindow::LeaveWithTab
+//  CassoExplorerWindow::CloseTabAt
 //
-//  A tab that went to another window closes here. A window left with none
-//  closes too; its last tab stays in it until then, since a window always
-//  shows somewhere.
+//  A window left with no tabs closes. Its last tab stays in it until then,
+//  since a window always has a location open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::LeaveWithTab (int index)
+void CassoExplorerWindow::CloseTabAt (size_t index)
 {
     if (m_browser.GetBrowserModel().GetTabCount() <= 1)
     {
@@ -15301,7 +15286,7 @@ void CassoExplorerWindow::LeaveWithTab (int index)
         return;
     }
 
-    if (m_browser.CloseTab ((size_t) index))
+    if (m_browser.CloseTab (index))
     {
         FillList();
         SaveSession();

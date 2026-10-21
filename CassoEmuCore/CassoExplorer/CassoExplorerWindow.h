@@ -670,7 +670,10 @@ private:
     void   SetTabDragTarget    (CassoExplorerWindow * target, POINT screen);
     void   TearOffTab          (int index, POINT screen);
     RECT   GetTearOffRect      (POINT screen) const;
-    void   LeaveWithTab        (int index);
+
+    //  A tab closed by its button, its menu or Ctrl+W, or moved to another
+    //  window. The last tab closes the window, as File Explorer's does.
+    void   CloseTabAt          (size_t index);
     void   FillPreview();
     void  UpdateCommandBar();
     void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
