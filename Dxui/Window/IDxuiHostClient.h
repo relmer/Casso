@@ -371,6 +371,15 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_ENDSESSION. `ending` is true when Windows is signing out or shutting
+    // down; the process can end any time after this returns, so anything to
+    // save is written here.
+    virtual DxuiMessageResult  OnEndSession     (bool ending)
+    {
+        UNREFERENCED_PARAMETER (ending);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_GETMINMAXINFO. info is the MINMAXINFO * the OS pre-populated
     // with default min/max track sizes. Override to clamp the minimum
     // window size -- e.g. so a borderless window's custom chrome and

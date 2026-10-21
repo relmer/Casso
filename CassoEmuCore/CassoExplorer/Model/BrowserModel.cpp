@@ -52,6 +52,26 @@ size_t BrowserModel::OpenTab (const Location & location)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BrowserModel::InsertTab
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t BrowserModel::InsertTab (size_t index, Tab tab)
+{
+    index = (std::min) (index, m_tabs.size());
+
+    m_tabs.insert (m_tabs.begin() + (ptrdiff_t) index, std::move (tab));
+    m_active = index;
+
+    return m_active;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BrowserModel::CloseTab
 //
 //  Closing the active tab moves to the one before it, or the first, so the

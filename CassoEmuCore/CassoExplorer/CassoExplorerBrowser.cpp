@@ -4392,6 +4392,26 @@ bool CassoExplorerBrowser::CloseTab (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::InsertTab
+//
+//  The tab's cached catalog moves with it, so its disk is not read again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoExplorerBrowser::InsertTab (size_t index, BrowserModel::Tab tab)
+{
+    index = m_model.InsertTab (index, std::move (tab));
+    SwitchTab (index);
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::OpenInNewTab
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -4537,22 +4557,12 @@ void CassoExplorerBrowser::RestoreTabs (const std::vector<Location> & locations)
         closed = m_model.CloseTab (0);
     }
 
-    //  A tab on a drive that is not attached now is left closed rather than
-    //  opened on an error. Only a drive letter is checked: asking a network
-    //  share could take as long as the network takes to answer.
     for (const Location & location : locations)
     {
-        bool  hostPath = location.kind == Location::Kind::HostFolder
-                      || location.kind == Location::Kind::DiskImage
-                      || location.kind == Location::Kind::DiskDirectory;
-
-        if (hostPath && location.path.size() >= 2 && location.path[1] == L':'
-            && !m_fs.DirectoryExists (location.path.substr (0, 2) + L"\\"))
+        if (!IsOnMissingDrive (location))
         {
-            continue;
+            m_model.OpenTab (location);
         }
-
-        m_model.OpenTab (location);
     }
 
     if (m_model.GetTabCount() == 0)
@@ -4562,6 +4572,90 @@ void CassoExplorerBrowser::RestoreTabs (const std::vector<Location> & locations)
 
     switched = SwitchTab (0);
     IGNORE_RETURN_VALUE (switched, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::RestoreTabs
+//
+//  Whole tabs, history and view included, with `active` active. A tab left
+//  closed for a missing drive moves the active index along with the rest; if
+//  the active tab itself is left closed, the first tab is active.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::RestoreTabs (std::vector<BrowserModel::Tab> tabs, size_t active)
+{
+    size_t  kept     = 0;
+    size_t  showing  = 0;
+    size_t  i        = 0;
+    bool    switched = false;
+
+
+
+    if (tabs.empty())
+    {
+        RestoreTabs (std::vector<Location>());
+        return;
+    }
+
+    for (bool closed = true; closed && m_model.GetTabCount() > 0; )
+    {
+        closed = m_model.CloseTab (0);
+    }
+
+    for (i = 0; i < tabs.size(); i++)
+    {
+        if (IsOnMissingDrive (tabs[i].location))
+        {
+            continue;
+        }
+
+        if (i == active)
+        {
+            showing = kept;
+        }
+
+        m_model.InsertTab (kept++, std::move (tabs[i]));
+    }
+
+    if (m_model.GetTabCount() == 0)
+    {
+        m_model.OpenTab (Location());
+    }
+
+    switched = SwitchTab (showing);
+    IGNORE_RETURN_VALUE (switched, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::IsOnMissingDrive
+//
+//  A tab on a drive that is not attached now is left closed rather than
+//  opened on an error. Only a drive letter is checked: a query to a network
+//  share could take as long as the network takes to answer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsOnMissingDrive (const Location & location) const
+{
+    bool  hostPath = location.kind == Location::Kind::HostFolder
+                  || location.kind == Location::Kind::DiskImage
+                  || location.kind == Location::Kind::DiskDirectory;
+
+
+
+    return hostPath && location.path.size() >= 2 && location.path[1] == L':'
+        && !m_fs.DirectoryExists (location.path.substr (0, 2) + L"\\");
 }
 
 

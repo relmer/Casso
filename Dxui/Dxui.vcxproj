@@ -201,6 +201,8 @@
     <ClCompile Include="Widgets\DxuiAddressBar.cpp" />
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
+    <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
+    <ClCompile Include="Widgets\DxuiTabDragVisual.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
@@ -308,6 +310,8 @@
     <ClInclude Include="Widgets\DxuiAddressBar.h" />
     <ClInclude Include="Widgets\DxuiTextView.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
+    <ClInclude Include="Widgets\DxuiTabDragModel.h" />
+    <ClInclude Include="Widgets\DxuiTabDragVisual.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />

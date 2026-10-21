@@ -182,22 +182,10 @@ std::string CassoExplorerPrefs::ReadCassoTheme (const std::wstring & baseDir, IF
 JsonValue CassoExplorerPrefs::LocationToJson (const Location & location)
 {
     std::vector<std::pair<std::string, JsonValue>>  fields;
-    const char *                                    kind = s_kpszKindHostFolder;
 
 
 
-    switch (location.kind)
-    {
-        case Location::Kind::DiskImage:     kind = s_kpszKindDiskImage;     break;
-        case Location::Kind::DiskDirectory: kind = s_kpszKindDiskDirectory; break;
-        case Location::Kind::Root:          kind = s_kpszKindRoot;          break;
-        case Location::Kind::RecycleBin:    kind = s_kpszKindRecycleBin;    break;
-        case Location::Kind::ShellFolder:   kind = s_kpszKindShellFolder;   break;
-        case Location::Kind::AppleDrive:    kind = s_kpszKindAppleDrive;    break;
-        default:                            break;
-    }
-
-    fields.emplace_back ("kind",  JsonValue (std::string (kind)));
+    fields.emplace_back ("kind",  JsonValue (std::string (GetLocationKindName (location.kind))));
     fields.emplace_back ("path",  JsonValue (TextEncoding::WideToNarrow (location.path)));
     fields.emplace_back ("inner", JsonValue (location.innerPath));
 
@@ -242,13 +230,60 @@ bool CassoExplorerPrefs::TryLocationFromJson (const JsonValue & value, Location 
     outLocation.innerPath = inner;
     outLocation.label     = TextEncoding::NarrowToWide (label);
 
-    if (kind == s_kpszKindDiskImage)          { outLocation.kind = Location::Kind::DiskImage; }
-    else if (kind == s_kpszKindDiskDirectory) { outLocation.kind = Location::Kind::DiskDirectory; }
-    else if (kind == s_kpszKindHostFolder)    { outLocation.kind = Location::Kind::HostFolder; }
-    else if (kind == s_kpszKindRoot)          { outLocation.kind = Location::Kind::Root; }
-    else if (kind == s_kpszKindRecycleBin)    { outLocation.kind = Location::Kind::RecycleBin; }
-    else if (kind == s_kpszKindShellFolder)   { outLocation.kind = Location::Kind::ShellFolder; }
-    else if (kind == s_kpszKindAppleDrive)    { outLocation.kind = Location::Kind::AppleDrive; }
+    return TryGetLocationKind (kind, outLocation.kind);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::GetLocationKindName
+//
+//  A location with no kind is stored as a host folder, as it always was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const char * CassoExplorerPrefs::GetLocationKindName (Location::Kind kind)
+{
+    const char *  name = s_kpszKindHostFolder;
+
+
+
+    switch (kind)
+    {
+        case Location::Kind::DiskImage:     name = s_kpszKindDiskImage;     break;
+        case Location::Kind::DiskDirectory: name = s_kpszKindDiskDirectory; break;
+        case Location::Kind::Root:          name = s_kpszKindRoot;          break;
+        case Location::Kind::RecycleBin:    name = s_kpszKindRecycleBin;    break;
+        case Location::Kind::ShellFolder:   name = s_kpszKindShellFolder;   break;
+        case Location::Kind::AppleDrive:    name = s_kpszKindAppleDrive;    break;
+        default:                            break;
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerPrefs::TryGetLocationKind
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerPrefs::TryGetLocationKind (const std::string & name, Location::Kind & outKind)
+{
+    if (name == s_kpszKindDiskImage)          { outKind = Location::Kind::DiskImage; }
+    else if (name == s_kpszKindDiskDirectory) { outKind = Location::Kind::DiskDirectory; }
+    else if (name == s_kpszKindHostFolder)    { outKind = Location::Kind::HostFolder; }
+    else if (name == s_kpszKindRoot)          { outKind = Location::Kind::Root; }
+    else if (name == s_kpszKindRecycleBin)    { outKind = Location::Kind::RecycleBin; }
+    else if (name == s_kpszKindShellFolder)   { outKind = Location::Kind::ShellFolder; }
+    else if (name == s_kpszKindAppleDrive)    { outKind = Location::Kind::AppleDrive; }
     else                                      { return false; }
 
     return true;

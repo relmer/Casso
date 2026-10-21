@@ -53,6 +53,137 @@ public:
     }
 
 
+    TEST_METHOD (ForwardedArguments_ParseBack)
+    {
+        // A second launch sends its command line to the running app, which
+        // parses it as the launch would have: quotes, spaces and a trailing
+        // backslash in the path included.
+        CassoExplorerLaunchOptions  sent;
+        CassoExplorerLaunchOptions  received;
+
+        sent.owner       = (HWND) (UINT_PTR) 0x1A2B3C;
+        sent.hasOwner    = true;
+        sent.titlePrefix = L"033 \"explorer\"";
+        sent.newWindow   = true;
+        sent.openPath    = L"C:\\My Disks\\";
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (CassoExplorerShell::SplitArguments (CassoExplorerShell::MakeForwardedArguments (sent)), received));
+        Assert::IsTrue   (received.hasOwner);
+        Assert::IsTrue   (received.owner == sent.owner);
+        Assert::AreEqual (sent.titlePrefix, received.titlePrefix);
+        Assert::IsTrue   (received.newWindow);
+        Assert::AreEqual (sent.openPath, received.openPath);
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (CassoExplorerShell::SplitArguments (CassoExplorerShell::MakeForwardedArguments (CassoExplorerLaunchOptions())), received));
+        Assert::IsFalse  (received.hasOwner, L"A plain launch forwards as one");
+        Assert::IsTrue   (received.openPath.empty());
+    }
+
+
+    static CassoExplorerSessionWindow  MakeSessionWindow (const wchar_t * path, int x)
+    {
+        CassoExplorerSessionWindow  window;
+        BrowserModel::Tab           tab;
+
+        tab.location           = Location::MakeHostFolder (path);
+        window.tabs            = { tab, tab };
+        window.activeTab       = 1;
+        window.placement.x     = x;
+        window.placement.w     = 800;
+        window.placement.h     = 600;
+        window.placement.valid = true;
+
+        return window;
+    }
+
+
+    TEST_METHOD (FirstLaunch_RestoresEverySessionWindow)
+    {
+        CassoExplorerLaunchOptions               options;
+        CassoExplorerPrefs                       prefs;
+        std::vector<CassoExplorerWindowRequest>  requests;
+
+        options.openPath = L"C:\\Opened";
+        options.owner    = (HWND) (UINT_PTR) 0x1234;
+        prefs.tabs       = { Location::MakeHostFolder (L"C:\\Old") };
+
+        requests = CassoExplorerShell::PlanFirstLaunch (options, { MakeSessionWindow (L"C:\\A", 10), MakeSessionWindow (L"C:\\B", 900) }, prefs);
+
+        Assert::AreEqual ((size_t) 2, requests.size(), L"One window for each in the session");
+        Assert::AreEqual ((size_t) 2, requests[1].tabs.size());
+        Assert::AreEqual ((size_t) 1, requests[1].activeTab);
+        Assert::AreEqual (900,        requests[1].placement.x, L"each where it was");
+        Assert::IsFalse  (requests[1].cascade);
+        Assert::AreEqual (std::wstring (L"C:\\Opened"), requests[0].openPath, L"The launch's path opens in the first");
+        Assert::IsTrue   (requests[0].owner == options.owner, L"which serves the launch's emulator");
+        Assert::IsTrue   (requests[1].openPath.empty());
+        Assert::IsTrue   (requests[1].owner == nullptr);
+    }
+
+
+    TEST_METHOD (FirstLaunch_WithNoSession_OpensThePreferencesTabs)
+    {
+        CassoExplorerLaunchOptions               options;
+        CassoExplorerPrefs                       prefs;
+        std::vector<CassoExplorerWindowRequest>  requests;
+
+        prefs.tabs            = { Location::MakeHostFolder (L"C:\\Old"), Location::MakeDiskImage (L"C:\\Old\\a.dsk") };
+        prefs.placement.x     = 42;
+        prefs.placement.valid = true;
+
+        requests = CassoExplorerShell::PlanFirstLaunch (options, {}, prefs);
+
+        Assert::AreEqual ((size_t) 1, requests.size());
+        Assert::AreEqual ((size_t) 2, requests[0].tabs.size(), L"The tabs from a build before sessions");
+        Assert::IsTrue   (requests[0].tabs[1].location == Location::MakeDiskImage (L"C:\\Old\\a.dsk"));
+        Assert::AreEqual (42, requests[0].placement.x);
+
+        requests = CassoExplorerShell::PlanFirstLaunch (options, {}, CassoExplorerPrefs());
+        Assert::AreEqual ((size_t) 1, requests.size(), L"With nothing saved, one window");
+        Assert::IsTrue   (requests[0].tabs.empty(), L"on Home");
+    }
+
+
+    TEST_METHOD (FirstLaunch_NewWindowOpensItsPathAlone)
+    {
+        CassoExplorerLaunchOptions               options;
+        CassoExplorerPrefs                       prefs;
+        std::vector<CassoExplorerWindowRequest>  requests;
+
+        options.newWindow = true;
+        options.openPath  = L"C:\\Only";
+        prefs.tabs        = { Location::MakeHostFolder (L"C:\\Old") };
+
+        requests = CassoExplorerShell::PlanFirstLaunch (options, { MakeSessionWindow (L"C:\\A", 10) }, prefs);
+
+        Assert::AreEqual ((size_t) 1, requests.size());
+        Assert::IsTrue   (requests[0].tabs.empty(), L"Neither the session nor the preferences' tabs");
+        Assert::AreEqual (std::wstring (L"C:\\Only"), requests[0].openPath);
+    }
+
+
+    TEST_METHOD (ForwardedLaunch_StepsFromTheWindowInFront)
+    {
+        CassoExplorerLaunchOptions     options;
+        CassoExplorerPrefs::Placement  from;
+        CassoExplorerWindowRequest     request;
+
+        options.openPath = L"C:\\Next";
+        from.x           = 100;
+        from.valid       = true;
+
+        request = CassoExplorerShell::PlanForwardedLaunch (options, from);
+
+        Assert::AreEqual (std::wstring (L"C:\\Next"), request.openPath);
+        Assert::AreEqual (100, request.placement.x);
+        Assert::IsTrue   (request.cascade, L"stepped down and right from it");
+        Assert::IsTrue   (request.tabs.empty(), L"on its path, not on the session");
+
+        request = CassoExplorerShell::PlanForwardedLaunch (options, CassoExplorerPrefs::Placement());
+        Assert::IsFalse  (request.cascade, L"With no window to step from, at the default place");
+    }
+
+
     TEST_METHOD (NoArguments_IsAPlainLaunch)
     {
         CassoExplorerLaunchOptions  options;

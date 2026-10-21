@@ -6,15 +6,15 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoExplorer/Model/CassoExplorerSession.h"
 #include "Config/Win32FileSystem.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
-#include "Seams/Win32FolderWatcher.h"
 #include "Seams/IProcessProbe.h"
 #include "CassoLink/RunningCassoRegistry.h"
-#include "Seams/Win32IntentChannel.h"
 
 
 
@@ -28,8 +28,8 @@
 //  `--owner <window handle in decimal>` and, when it has one, `--title
 //  <label>`; a launch from a shortcut has neither. A path, given once without
 //  a switch, opens in a tab: a folder, a disk image, or a file's folder.
-//  `--new-window` opens a window of its own rather than a tab in the window
-//  already open, as File Explorer's Open in new window does.
+//  `--new-window` opens a window of its own on the path alone, rather than
+//  the windows of the last session.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,22 +51,31 @@ struct CassoExplorerLaunchOptions
 //
 //  CassoExplorerShell
 //
-//  The browser's top-level window and the process state around it: COM, the
-//  palette, and the placement the preferences remember.
+//  The app: every Casso Explorer window, in one process, and the state they
+//  share -- COM, the preferences, the CassoLink connections, the running
+//  Cassos -- with what each window has of its own: a browser, its actions,
+//  a folder watcher, and the intent channel for its writes.
 //
-//  ONE WINDOW PER OWNER. The emulator's menu item launches a new process each
-//  time it is chosen, so the process looks for a window already serving the
-//  same emulator first and fronts it rather than opening a second. The owner
-//  is recorded as a window property, which any process can read back by
+//  ONE PROCESS. A second launch finds a window of this class and sends its
+//  command line to that window's app, which opens the window; the launch
+//  then exits. ONE WINDOW PER OWNER: a launch from an emulator that a window
+//  already serves fronts that window instead, and opens its path there. The
+//  owner is stored as a window property, which the launch reads back by
 //  enumerating windows of this class.
+//
+//  THE SESSION IS THE WINDOWS LEFT STANDING. File > Exit, and Windows
+//  signing out or shutting down, write every window for the next launch. A
+//  window closed while others stay open is left out; the last window closed
+//  is written. The session is written as each window changes, so a process
+//  that never closes cleanly reopens where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoExplorerShell
+class CassoExplorerShell : public ICassoExplorerHost
 {
 public:
     CassoExplorerShell();
-    ~CassoExplorerShell();
+    ~CassoExplorerShell() override;
 
     CassoExplorerShell (const CassoExplorerShell &)             = delete;
     CassoExplorerShell & operator= (const CassoExplorerShell &) = delete;
@@ -75,6 +84,33 @@ public:
     //  take, or an owner that is not a decimal handle, fills `refusal` and
     //  fails with E_INVALIDARG.
     static HRESULT  ParseArguments (const std::vector<std::wstring> & arguments, CassoExplorerLaunchOptions & outOptions);
+
+    //  The arguments of a command line, split as the C runtime splits them.
+    static std::vector<std::wstring>  SplitArguments (const std::wstring & commandLine);
+
+    //  A launch's options as the command line that parses back to them, for
+    //  the app already running.
+    static std::wstring  MakeForwardedArguments (const CassoExplorerLaunchOptions & options);
+
+    //  `path` made full against this process's current folder, since the app
+    //  it goes to has its own; empty for an empty path or one with no full form.
+    static std::wstring  GetFullPath (const std::wstring & path);
+
+    //  `text` to `hwnd` in a WM_COPYDATA with `id`, as UTF-16, waiting a few
+    //  seconds at most for a window that has stopped answering.
+    static void  ForwardToWindow (HWND hwnd, ULONG_PTR id, const std::wstring & text);
+
+    //  The windows the first launch opens: the last session's, the first of
+    //  them with the launch's path and owner; or, with none saved, one on the
+    //  tabs in the preferences from before there were sessions; or one on Home.
+    //  `--new-window` opens one on its path alone.
+    static std::vector<CassoExplorerWindowRequest>  PlanFirstLaunch (const CassoExplorerLaunchOptions              & options,
+                                                                     const std::vector<CassoExplorerSessionWindow> & session,
+                                                                     const CassoExplorerPrefs                      & prefs);
+
+    //  The window another launch opens in the running app, stepped down and
+    //  right from `from`, the window it was opened over.
+    static CassoExplorerWindowRequest  PlanForwardedLaunch (const CassoExplorerLaunchOptions & options, const CassoExplorerPrefs::Placement & from);
 
     //  The window already serving `owner`, or null.
     static HWND  FindWindowForOwner (HWND owner);
@@ -110,6 +146,15 @@ public:
     int      RunMessageLoop ();
     HWND     GetWindow      () const;
 
+    //  ICassoExplorerHost
+    CassoExplorerWindow *  OpenWindow    (CassoExplorerWindowRequest request) override;
+    CassoExplorerWindow *  GetWindowFor  (HWND hwnd) override;
+    void                   ForEachWindow (const std::function<void (CassoExplorerWindow & window)> & fn) override;
+    void                   CloseWindow   (CassoExplorerWindow & window) override;
+    void                   ExitAll       () override;
+    void                   SaveSession   () override;
+    void                   RunLaunch     (const std::wstring & arguments) override;
+
     static constexpr const wchar_t *  kWindowClass   = L"CassoExplorerWindow";
     static constexpr const wchar_t *  kOwnerProperty = L"CassoExplorerOwner";
     static constexpr const wchar_t *  kAppName       = L"Casso Explorer";
@@ -118,20 +163,30 @@ public:
     static constexpr int  kDefaultHeightDip = 720;
 
 private:
-    Win32FileSystem                       m_fs;
-    Win32DiskFileIo                       m_fileIo;
-    Win32FolderWatcher                    m_watcher;
-    Win32IntentChannel                    m_intentChannel;
-    Win32ByteStreamFactory                m_streams;
-    CassoLinkFolder                       m_linkFolder;
-    CassoLinkConnections                  m_links;
-    Win32ProcessProbe                     m_processProbe;
-    RunningCassoRegistry                  m_running;
-    CassoExplorerBrowser                  m_browser;
-    CassoExplorerActions                  m_actions;
-    std::unique_ptr<CassoExplorerWindow>  m_window;
-    bool                                  m_oleInitialized = false;
-    CassoExplorerLaunchOptions            m_options;
-    CassoExplorerPrefs                    m_prefs;
-    std::wstring                          m_baseDir;
+    //  One window and what it has of its own, released in the reverse of the
+    //  order it was made in.
+    struct WindowSlot;
+
+    void  ConfigureBrowser       (CassoExplorerBrowser & browser);
+    void  ReleaseClosedWindows   ();
+    bool  HasOpenWindows         () const;
+    std::vector<CassoExplorerSessionWindow>  GetOpenSession () const;
+
+    Win32FileSystem                           m_fs;
+    Win32DiskFileIo                           m_fileIo;
+    Win32ByteStreamFactory                    m_streams;
+    CassoLinkFolder                           m_linkFolder;
+    CassoLinkConnections                      m_links;
+    Win32ProcessProbe                         m_processProbe;
+    RunningCassoRegistry                      m_running;
+    std::vector<std::unique_ptr<WindowSlot>>  m_windows;
+    std::vector<std::wstring>                 m_knownFolders;
+    bool                                      m_oleInitialized = false;
+    bool                                      m_exiting        = false;
+    bool                                      m_initializing   = false;
+    HINSTANCE                                 m_instance       = nullptr;
+    int                                       m_showCommand    = SW_SHOWNORMAL;
+    CassoExplorerLaunchOptions                m_options;
+    CassoExplorerPrefs                        m_prefs;
+    std::wstring                              m_baseDir;
 };

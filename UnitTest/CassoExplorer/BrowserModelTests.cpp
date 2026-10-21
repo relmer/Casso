@@ -80,6 +80,31 @@ public:
 
 
 
+    TEST_METHOD (Tabs_InsertKeepsTheWholeTabAndMakesItActive)
+    {
+        BrowserModel       model;
+        BrowserModel::Tab  arriving;
+
+        model.OpenTab (Folder (L"C:\\A"));
+        model.OpenTab (Folder (L"C:\\B"));
+
+        arriving.location      = Folder (L"C:\\Dropped");
+        arriving.back          = { Folder (L"C:\\Before") };
+        arriving.previewScroll = 12;
+
+        Assert::AreEqual ((size_t) 1, model.InsertTab (1, arriving));
+        Assert::AreEqual ((size_t) 3, model.GetTabCount());
+        Assert::AreEqual ((size_t) 1, model.GetActiveIndex(), L"The tab that arrived is active");
+        Assert::IsTrue   (model.GetActiveTab().location == Folder (L"C:\\Dropped"));
+        Assert::AreEqual ((size_t) 1, model.GetActiveTab().back.size(), L"with its history");
+        Assert::AreEqual (12, model.GetActiveTab().previewScroll);
+        Assert::IsTrue   (model.GetTab (2).location == Folder (L"C:\\B"), L"The tabs after it move along");
+
+        Assert::AreEqual ((size_t) 3, model.InsertTab (99, arriving), L"Past the last, it goes at the end");
+    }
+
+
+
     TEST_METHOD (Address_TheAdtProFolder_IsUnderCassoLink)
     {
         BrowserModel::AddressRoot                  root;

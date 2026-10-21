@@ -404,6 +404,8 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
 {
     HRESULT      hr               = S_OK;
     WNDCLASSEXW  wc               = { sizeof (wc) };
+    WNDCLASSEXW  existing         = { sizeof (existing) };
+    bool         classExists      = false;
     DWORD        style            = 0;
     DWORD        exStyle          = 0;
     HINSTANCE    hInstance        = nullptr;
@@ -458,10 +460,19 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    classAtom = RegisterClassExW (&wc);
-    CWRA (classAtom);
+    //  A stable class name is shared by every window of the app that passes
+    //  it, so the second window finds the class the first registered. The
+    //  window that registered it unregisters it, which fails harmlessly while
+    //  another window of the class is open.
+    classExists = params.classNameOverride != nullptr && GetClassInfoExW (hInstance, m_className.c_str(), &existing) != FALSE;
 
-    m_classRegistered = true;
+    if (!classExists)
+    {
+        classAtom = RegisterClassExW (&wc);
+        CWRA (classAtom);
+
+        m_classRegistered = true;
+    }
 
     style   = params.borderless ? (WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)
                                 : WS_OVERLAPPEDWINDOW;
@@ -1158,6 +1169,8 @@ void DxuiHwndSource::Destroy()
 
     if (m_classRegistered && m_hInstance != nullptr)
     {
+        //  Fails while another window of a shared class is open; the class then
+        //  stays registered for that window.
         UnregisterClassW (m_className.c_str(), m_hInstance);
         m_classRegistered = false;
     }
@@ -3001,6 +3014,7 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
         case WM_SETFOCUS:      isHandled = IsClaimed (m_client->OnSetFocus(),     RepaintOnClaim::No); break;
         case WM_KILLFOCUS:     isHandled = IsClaimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
         case WM_CANCELMODE:    isHandled = IsClaimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;
+        case WM_ENDSESSION:    isHandled = IsClaimed (m_client->OnEndSession (wp != 0), RepaintOnClaim::No); break;
         case WM_COPYDATA:      isHandled = IsClaimed (m_client->OnCopyData (wp, lp), RepaintOnClaim::No); break;
         case WM_NOTIFY:        isHandled = IsClaimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
         case WM_PAINT:         isHandled = IsClaimed (m_client->OnPaint(),        RepaintOnClaim::No); break;
