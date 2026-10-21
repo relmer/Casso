@@ -672,6 +672,36 @@ DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouseLeave
+//
+//  The pointer left the client area, off the window or onto its frame. The
+//  panel tree is sent DxuiMouseEventKind::Leave, so hover states and tips
+//  over the content end however fast the pointer went; the last move may
+//  have been over a row. Not while the window has the capture, so a drag
+//  continues until its release. NotHandled, so DefWindowProc is called too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnMouseLeave()
+{
+    HWND  hwnd = GetHwnd();
+
+
+
+    if (hwnd != nullptr && GetCapture() != hwnd)
+    {
+        (void) DispatchMouse (DxuiMouseEventKind::Leave, DxuiMouseButton::None, -1, -1, 0.0f);
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseWheel
 //
 //  WM_MOUSEWHEEL packs the point in SCREEN coordinates; convert to the
