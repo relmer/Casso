@@ -1320,6 +1320,42 @@ public:
     }
 
 
+    TEST_METHOD (Reload_KeepsALinkDriveSelected_WhenItsLabelChanges)
+    {
+        Host           host;
+        LinkTreeEntry  link;
+        std::wstring   linkId;
+        std::wstring   drivePath;
+        int            row = -1;
+
+        link.name     = L"Apple II (COM3)";
+        link.replying = true;
+        link.drives   = { { 6, 1, false, L"" }, { 6, 2, true, L"" } };
+        host.browser.GetTreeModel().SetLinks ({ link });
+
+        for (const DxuiTreeNode & node : host.browser.GetTreeChildren (TreeModel::kCassoLinkRootId))
+        {
+            linkId = (node.label == link.name) ? node.id : linkId;
+        }
+
+        AssertSucceeded (host.browser.SelectTreeNode (linkId));
+        Assert::AreEqual ((size_t) 2, host.browser.GetRows().size());
+
+        drivePath = host.browser.GetRows()[0].hostPath;
+        host.browser.SetSelectedRows ({ 0 });
+
+        //  Reading the drive's catalog relabels it.
+        link.drives[0].volume = L"DOS 3.3 volume 254";
+        host.browser.GetTreeModel().SetLinks ({ link });
+
+        AssertSucceeded (host.browser.Reload (true));
+
+        Assert::AreEqual ((size_t) 1, host.browser.GetSelectedRows().size());
+        row = host.browser.GetSelectedRows()[0];
+        Assert::AreEqual (drivePath, host.browser.GetRows()[(size_t) row].hostPath);
+    }
+
+
     TEST_METHOD (KnownFolders_CanBeRemovedAndOtherFoldersAdded)
     {
         Host                       host;

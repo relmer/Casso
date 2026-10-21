@@ -1559,11 +1559,7 @@ void CassoExplorerBrowser::ResortKeepingSelection()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerBrowser::GetSelectionKey
-//
-//  The occurrence counts rows of the same name that come before this one in
-//  the listing rather than in the sorted view, so the key stays the same
-//  across a re-sort and a reload.
+//  CassoExplorerBrowser::SelectRowsByKeys
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1615,6 +1611,12 @@ void CassoExplorerBrowser::GetRowKeys (std::vector<std::wstring> & outKeys) cons
 
     for (const CatalogRow & row : m_rows)
     {
+        if (row.hostPath.starts_with (TreeModel::kLinkRootTag))
+        {
+            outKeys.push_back (row.hostPath);
+            continue;
+        }
+
         size_t  occurrence = seen[row.name]++;
 
         outKeys.push_back (std::to_wstring (occurrence) + L":" + row.name);
@@ -1628,6 +1630,10 @@ void CassoExplorerBrowser::GetRowKeys (std::vector<std::wstring> & outKeys) cons
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CassoExplorerBrowser::GetSelectionKey
+//
+//  The occurrence counts rows of the same name that come before this one in
+//  the listing rather than in the sorted view, so the key stays the same
+//  across a re-sort and a reload. GetRowKeys must build the same keys.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
