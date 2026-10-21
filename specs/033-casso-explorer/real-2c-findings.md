@@ -477,8 +477,9 @@ it, and a DOS disk in drive 1.
   the reset vector on its first start; Control-Reset, Escape or the PC's
   Exit run `exitlink`, which stops the drive, turns DTR off, puts both back,
   empties BASIC's program, sets the keyboard and screen and ends at DOS's
-  warm start, or the monitor with no DOS. Shim version 4. Not yet tested on
-  the //c; that takes a bootstrap of shim 4.
+  warm start, or the monitor with no DOS. Shim version 4. On the //c,
+  2026-10-20: Escape gave the BASIC prompt with an empty program, `CATALOG`
+  worked, and no stray characters were drawn.
 - **Disconnect:** Casso Explorer's list started a stopped link on every
   refresh, so Disconnect was followed at once by a new connection. A
   disconnected link now stays stopped, with "... is disconnected." and a
