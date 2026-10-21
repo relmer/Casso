@@ -507,7 +507,7 @@ it, and a DOS disk in drive 1.
   and the button had no route. It is given every move and the presses
   inside it. Verified with clicks on the emulated and the serial link.
 
-### 34. A 10 KB file took 31 seconds to write
+### 34. A 10 KB file took 31 seconds to write (5.7 s now)
 
 - **Symptom:** a 10 KB binary written to drive 1 took 31.0 s; SC-028's limit is
   5 s. Read back from a new session, the same file took 3.2 s.
@@ -540,13 +540,23 @@ it, and a DOS disk in drive 1.
   - The motor runs for about two seconds after an operation, so the next
     one does not wait for it to come up to speed.
   - Program version 44.
-- **Result:** a new 10 KB file in 6.3 s, read back equal; 8.6 s when it
-  replaces a file, as the volume code then reads each other file's
-  track/sector list once. The rest is the disk: a sector costs about 62 ms
-  (23 ms on the line, then its CRC, encoding and stream), and each track's
-  request about 0.55 s of revolutions to write it and read it back. Under
-  5 s takes dropping the read-back, or receiving on interrupts while
-  encoding, which the //c's interrupt path is too slow for at 115,200 baud.
+- **Result, version 44:** a new 10 KB file in 6.3 s, read back equal; 8.6 s
+  when it replaces a file, as the volume code then reads each other file's
+  track/sector list once.
+- **Then, version 47:**
+  - a write's check for another disk is the VTOC that every operation
+    already reads, not track 17 again;
+  - the catalog's sectors are written after the data's;
+  - the host sends each sector as its data field's 343 nibbles
+    (`CassoLinkCodec::kSectorNibbles`), which the Apple stores into the
+    sector's stream as they arrive. A sector then costs about 54 ms rather
+    than 62: 31 ms on the line, and about 10 ms of the rest for the CRC.
+- **Result, version 47:** on an empty disk, 5.7 s and 7.6 s for two new
+  files; on the nearly full System Master, 9.2 s and 6.7 s. What remains is
+  about 2.2 revolutions a track, for the first sector to come round and
+  to verify, and the tracks a file is spread over. A checksum computed as each byte
+  arrives in place of the CRC would save about 0.45 s; the owner stopped
+  here, 2026-10-20.
 - **Why the emulator missed it:** the scenario tests checked what was
   written, not how long it took; in-process, the line costs nothing.
   `WriteSectors_AWholeTrackTakesAFewRevolutions` now times a whole track:
