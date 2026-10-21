@@ -183,6 +183,7 @@ private:
     std::vector<std::wstring>                 m_knownFolders;
     bool                                      m_oleInitialized = false;
     bool                                      m_exiting        = false;
+    bool                                      m_initializing   = false;
     HINSTANCE                                 m_instance       = nullptr;
     int                                       m_showCommand    = SW_SHOWNORMAL;
     CassoExplorerLaunchOptions                m_options;

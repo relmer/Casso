@@ -907,6 +907,7 @@ void CassoExplorerWindow::ConfigureWidgets()
         bool  moved = m_browser.MoveTab ((size_t) from, (size_t) to);
 
         IGNORE_RETURN_VALUE (moved, true);
+        SaveSession();
     });
     m_tabs->SetOnDragMove ([this] (int index, POINT point, bool tornOff) { OnTabDragMove (index, point, tornOff); });
     m_tabs->SetOnDragEnd  ([this] (int index, POINT point, bool tornOff) { OnTabDragEnd  (index, point, tornOff); });
@@ -14939,8 +14940,10 @@ void CassoExplorerWindow::ShowTabDragVisual (int index, POINT screen)
 //  CassoExplorerWindow::FindTabStripAt
 //
 //  Another window of the app under the point, with the point over its tab
-//  strip, or null. The card is click-through, so the window found is the one
-//  under it.
+//  strip, or null. WindowFromPoint returns the card that moves with the
+//  pointer, so when it does, the window under the card is found by walking
+//  the z-order below it: the first one visible, not cloaked and not
+//  click-through whose rectangle has the point.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14948,9 +14951,15 @@ CassoExplorerWindow * CassoExplorerWindow::FindTabStripAt (POINT screen) const
 {
     HWND                   under  = WindowFromPoint (screen);
     HWND                   root   = (under != nullptr) ? GetAncestor (under, GA_ROOT) : nullptr;
+    HWND                   card   = m_tabDragVisual.GetHwnd();
     CassoExplorerWindow  * window = nullptr;
 
 
+
+    if (root != nullptr && root == card)
+    {
+        root = FindWindowBelow (card, screen);
+    }
 
     if (root != nullptr && root != GetHwnd() && m_context.host != nullptr)
     {
@@ -14958,6 +14967,47 @@ CassoExplorerWindow * CassoExplorerWindow::FindTabStripAt (POINT screen) const
     }
 
     return (window != nullptr && window->IsOverTabStrip (screen)) ? window : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FindWindowBelow
+//
+//  The first top-level window below `above` in the z-order that is visible,
+//  not cloaked (a window on another virtual desktop, or a suspended app's),
+//  not click-through, and whose rectangle has the point; or null.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND CassoExplorerWindow::FindWindowBelow (HWND above, POINT screen)
+{
+    HWND     next    = GetWindow (above, GW_HWNDNEXT);
+    HWND     found   = nullptr;
+    RECT     rect    = {};
+    DWORD    cloaked = 0;
+    HRESULT  hr      = S_OK;
+    bool     passes  = false;
+
+
+
+    for (; next != nullptr && found == nullptr; next = GetWindow (next, GW_HWNDNEXT))
+    {
+        cloaked = 0;
+        hr      = DwmGetWindowAttribute (next, DWMWA_CLOAKED, &cloaked, sizeof (cloaked));
+        passes  = !IsWindowVisible (next) || IsIconic (next) || (SUCCEEDED (hr) && cloaked != 0)
+               || (GetWindowLongW (next, GWL_EXSTYLE) & WS_EX_TRANSPARENT) != 0;
+
+        if (!passes && GetWindowRect (next, &rect) && PtInRect (&rect, screen))
+        {
+            found = next;
+        }
+    }
+
+    return found;
 }
 
 
@@ -15085,6 +15135,7 @@ void CassoExplorerWindow::TearOffTab (int index, POINT screen)
 
         moved = SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
         IGNORE_RETURN_VALUE (moved, TRUE);
+        SaveSession();
         return;
     }
 
@@ -15133,6 +15184,7 @@ void CassoExplorerWindow::LeaveWithTab (int index)
     if (m_browser.CloseTab ((size_t) index))
     {
         FillList();
+        SaveSession();
     }
 }
 
@@ -15237,6 +15289,7 @@ void CassoExplorerWindow::AcceptTab (BrowserModel::Tab tab)
     m_browser.LeaveMissingLocation();
     FillList();
     CassoExplorerShell::FrontWindow (GetHwnd());
+    SaveSession();
 }
 
 

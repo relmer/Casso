@@ -18,9 +18,9 @@ class IDxuiTextRenderer;
 //
 //  The card drawn for a dragged tab: a rounded rectangle in the tab's look
 //  that moves with the pointer anywhere on the screen, over this window,
-//  another, or none, as File Explorer's does. It is a click-through popup, so
-//  WindowFromPoint finds the window under it, and it is topmost while the
-//  drag lasts.
+//  another, or none, as File Explorer's does. It is a click-through popup and
+//  topmost while the drag lasts. WindowFromPoint can return the card anyway,
+//  so a caller looking for the window under the pointer skips GetHwnd().
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +42,9 @@ public:
     void     MoveTo  (POINT topLeftScreen);
     void     Hide    ();
     bool     IsShown () const { return m_popup != nullptr; }
+
+    //  The card's window, or null while there is no card.
+    HWND     GetHwnd () const;
 
 private:
     DxuiHwndSource  * m_popups = nullptr;

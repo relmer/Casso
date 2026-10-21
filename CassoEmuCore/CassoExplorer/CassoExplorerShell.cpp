@@ -750,13 +750,20 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
 
     requests = PlanFirstLaunch (m_options, session, m_prefs);
 
+    //  Saved once every window is open, rather than as each opens and before
+    //  the rest of the session has.
+    m_initializing = true;
+
     for (CassoExplorerWindowRequest & request : requests)
     {
         window = OpenWindow (std::move (request));
         opened = opened || window != nullptr;
     }
 
+    m_initializing = false;
     CBR (opened);
+
+    SaveSession();
 
 Error:
     return hr;
@@ -851,6 +858,11 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     //  The launch's nCmdShow value applies to the first window; the rest open
     //  normally.
     m_showCommand = SW_SHOWNORMAL;
+
+    if (!m_initializing)
+    {
+        SaveSession();
+    }
 
 Error:
     return window;

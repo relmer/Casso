@@ -666,6 +666,7 @@ private:
     void   CancelTabDrag       ();
     void   ShowTabDragVisual   (int index, POINT screen);
     CassoExplorerWindow *  FindTabStripAt (POINT screen) const;
+    static HWND            FindWindowBelow (HWND above, POINT screen);
     void   SetTabDragTarget    (CassoExplorerWindow * target, POINT screen);
     void   TearOffTab          (int index, POINT screen);
     RECT   GetTearOffRect      (POINT screen) const;
