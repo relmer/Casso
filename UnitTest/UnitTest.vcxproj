@@ -644,6 +644,27 @@
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
+    <ClCompile Include="NetworkTests\FakeHostSocket.cpp" />
+    <ClCompile Include="NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="NetworkTests\W5100Driver.cpp" />
+    <ClCompile Include="NetworkTests\W5100RegisterTests.cpp" />
+    <ClCompile Include="NetworkTests\W5100BufferTests.cpp" />
+    <ClCompile Include="EmuTests\UthernetCardTests.cpp" />
+    <ClCompile Include="NetworkTests\UthernetRig.cpp" />
+    <ClCompile Include="NetworkTests\DhcpTestPackets.cpp" />
+    <ClCompile Include="NetworkTests\W5100SocketBridgeTests.cpp" />
+    <ClCompile Include="NetworkTests\RecordingPacketSink.cpp" />
+    <ClCompile Include="NetworkTests\PacketCodecTests.cpp" />
+    <ClCompile Include="NetworkTests\DhcpServerTests.cpp" />
+    <ClCompile Include="NetworkTests\UdpNatTests.cpp" />
+    <ClCompile Include="NetworkTests\TcpNatTests.cpp" />
+    <ClCompile Include="NetworkTests\VirtualNetworkTests.cpp" />
+    <ClCompile Include="NetworkTests\PortForwarderTests.cpp" />
+    <ClCompile Include="EmuTests\UthernetGuestTests.cpp" />
+    <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />
+    <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
+    <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />
+    <ClCompile Include="UiTests\NetworkPageTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
@@ -690,6 +711,12 @@
     <ClInclude Include="Dxui\MockDxuiTextRenderer.h" />
     <ClInclude Include="Dxui\MockDxuiTheme.h" />
     <ClInclude Include="EmuTests\WarpRenderHarness.h" />
+    <ClInclude Include="NetworkTests\FakeHostSocket.h" />
+    <ClInclude Include="NetworkTests\FakeHostNetwork.h" />
+    <ClInclude Include="NetworkTests\W5100Driver.h" />
+    <ClInclude Include="NetworkTests\UthernetRig.h" />
+    <ClInclude Include="NetworkTests\DhcpTestPackets.h" />
+    <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

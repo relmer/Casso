@@ -103,6 +103,7 @@ void SettingsSheet::OnBuildPages()
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
     m_serialPage   = CreatePage<SerialCardPage> (L"Serial card");
+    m_networkPage  = CreatePage<NetworkPage>  (L"Network");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
     m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
 
@@ -277,6 +278,10 @@ HRESULT SettingsSheet::OpenModeless (
     m_diskPageIndex   = IndexOfPage (m_diskPage);
     m_serialPageIndex = IndexOfPage (m_serialPage);
 
+    // The Network tab likewise exists only while the staged config has the
+    // Uthernet II turned on.
+    m_networkPageIndex = IndexOfPage (m_networkPage);
+
     // Wire the pages against a fresh SettingsPanelState + machine/theme
     // catalog (the same objects the legacy SettingsPanel owns).
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
@@ -296,6 +301,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_hardwarePage->SetState (&m_state);
     m_diskPage->SetState     (&m_state);
     m_displayPage->SetState  (&m_state);
+    m_networkPage->SetState  (&m_state);
 
     // Disk page play (>) buttons audition the drive sounds live.
     m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)
@@ -502,6 +508,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
     m_serialPage->SetPopupHost   (GetPopupHost());
+    m_networkPage->SetPopupHost  (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
     m_controllersPage->SetPopupHost (GetPopupHost());
 
@@ -703,6 +710,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_diskPage->Rebuild();
     m_serialPage->Rebuild();
     m_displayPage->Rebuild();
+    m_networkPage->Rebuild();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
     // Capture the CRT / color / theme baseline so OnCancel can revert any
@@ -1016,9 +1024,16 @@ void SettingsSheet::OnDialogTick()
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
     UpdateSerialTabVisibility();
+    UpdateNetworkTabVisibility();
     UpdateTabSparkles();
     UpdateTickInterval();
 
+    // The Machine tab's tree, a machine switch and Cancel all change the
+    // staged card behind the Network page.
+    if (m_networkPage != nullptr)
+    {
+        m_networkPage->Sync();
+    }
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.
@@ -1920,6 +1935,40 @@ void SettingsSheet::SetSerialCardEnabled (bool enabled)
         hr = m_state.SetHardwareEnabled (static_cast<size_t> (index), enabled);
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_hardwarePage->Rebuild();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateNetworkTabVisibility
+//
+//  The Network tab is present only while the staged hardware config has the
+//  Uthernet II turned on, which the Machine tab's tree sets, as the Disk tab
+//  follows the Disk ][ controller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateNetworkTabVisibility()
+{
+    bool  want = m_state.HasEnabledNetworkCard();
+
+
+
+    if (m_networkPageIndex < 0 || want == m_networkTabVisible)
+    {
+        return;
+    }
+
+    m_networkTabVisible = want;
+    SetPageVisible (m_networkPageIndex, want);
+
+    if (want)
+    {
+        StartTabSparkle (m_networkPageIndex);
     }
 }
 

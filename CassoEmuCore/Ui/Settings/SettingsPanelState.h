@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Config/NetworkCardSettings.h"
 #include "Controllers/ControllerTypes.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
@@ -147,6 +148,9 @@ struct HardwareEntry
     std::string  switchesSw1;
     std::string  switchesSw2;
     std::string  portPath;
+
+    // The network card's settings; defaults for every other device.
+    NetworkCardSettings  network;
 };
 
 
@@ -227,6 +231,7 @@ public:
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void ApplyMouseConnected         (bool connected)        = 0;
     virtual void ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
+    virtual void ApplyNetworkCard    (const NetworkCardSettings & settings) = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
@@ -363,6 +368,19 @@ public:
     HRESULT SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2);
     HRESULT SetSerialCardAttachment (const std::string & device, const std::string & path);
 
+    // The Uthernet II. The machine's slot list places it and the Machine tab
+    // turns it on; turned on with no MAC address, it gets a random locally
+    // administered one.
+    static constexpr const char *  kpszNetworkCardDevice = "uthernet2";
+    static constexpr const char *  kpszNetworkCardName   = "Uthernet II (Ethernet)";
+
+    const HardwareEntry *  GetNetworkCard        () const;
+    bool                   HasEnabledNetworkCard () const;
+    HRESULT                SetNetworkCardMac     (const std::string & text, std::string & outError);
+    void                   SetNetworkLanAccess   (bool lanAccess);
+    HRESULT                AddPortForward        (const PortForward & forward, std::string & outError);
+    HRESULT                RemovePortForward     (size_t index);
+
     // Apply
 
     HRESULT Apply (ISettingsApplySink & sink,
@@ -478,6 +496,10 @@ private:
     // A machine with no definition is left untouched -- its document is the
     // only description of it there is.
     static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
+
+    int   FindNetworkCard () const;
+
+    static MacAddress  MakeRandomMac ();
 
 
     std::string          m_machineName;

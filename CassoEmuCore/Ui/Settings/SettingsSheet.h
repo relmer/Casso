@@ -18,6 +18,7 @@
 #include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
+#include "NetworkPage.h"
 #include "PrintingPage.h"
 #include "ScreenshotsPage.h"
 
@@ -262,6 +263,7 @@ private:
     DisplayPage      * m_displayPage     = nullptr;
     PrintingPage     * m_printingPage    = nullptr;
     SerialCardPage   * m_serialPage      = nullptr;
+    NetworkPage      * m_networkPage     = nullptr;
     ScreenshotsPage  * m_shotsPage       = nullptr;
     ControllersPage  * m_controllersPage = nullptr;
 
@@ -278,8 +280,14 @@ private:
     // dynamic tab when the controller-present state actually flips.
     bool           m_diskTabVisible = true;
 
-    // Refresh the Disk tab's presence from the staged hardware config.
-    void  UpdateDiskTabVisibility ();
+    // The same pair for the Network tab, which follows the Uthernet II.
+    int            m_networkPageIndex  = -1;
+    bool           m_networkTabVisible = true;
+
+    // Refresh the Disk and Network tabs' presence from the staged hardware
+    // config.
+    void  UpdateDiskTabVisibility    ();
+    void  UpdateNetworkTabVisibility ();
 
     // The Serial card tab, present while the staged hardware has the Super
     // Serial Card turned on. Turning the card on while its firmware is

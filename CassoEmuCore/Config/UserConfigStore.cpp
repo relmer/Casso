@@ -606,9 +606,10 @@ bool UserConfigStore::TryGetStringField (
 //
 //  UserConfigStore::BuildObjectWithOverrides
 //
-//  Returns `src` with the three per-entry fields a user file may restate
-//  replaced: the `enabled` bit, a card's `ports` connector list, and a Super
-//  Serial Card's `switches`, the last two when the user entry declares them.
+//  Returns `src` with the per-entry fields a user file may restate replaced:
+//  the `enabled` bit, a card's `ports` connector list, a Super Serial Card's
+//  `switches` and a network card's `network` settings, the last three when
+//  the user entry declares them.
 //
 //  Everything else deliberately comes from the default. A user file records a
 //  DIFFERENCE, so `device`, `rom` and the capability flags have to keep
@@ -621,7 +622,8 @@ JsonValue UserConfigStore::BuildObjectWithOverrides (
     const JsonValue & src,
     bool              enabled,
     const JsonValue * ports,
-    const JsonValue * switches)
+    const JsonValue * switches,
+    const JsonValue * network)
 {
     std::vector<std::pair<std::string, JsonValue>>    rebuilt;
     const auto                                      * entries = &src.GetObjectEntries();
@@ -635,7 +637,8 @@ JsonValue UserConfigStore::BuildObjectWithOverrides (
 
         if (key == "enabled" ||
             (key == "ports"    && ports    != nullptr) ||
-            (key == "switches" && switches != nullptr))
+            (key == "switches" && switches != nullptr) ||
+            (key == "network"  && network  != nullptr))
         {
             continue;
         }
@@ -653,6 +656,11 @@ JsonValue UserConfigStore::BuildObjectWithOverrides (
     if (switches != nullptr)
     {
         rebuilt.emplace_back ("switches", *switches);
+    }
+
+    if (network != nullptr)
+    {
+        rebuilt.emplace_back ("network", *network);
     }
 
     return JsonValue (std::move (rebuilt));
@@ -842,6 +850,95 @@ int UserConfigStore::FindSlotByNumber (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UserConfigStore::IsSameCard
+//
+//  Whether the shipped entry at `defIdx` is for the same card as `entry`:
+//  it exists, and the two have the same device. An entry without a device
+//  matches any shipped entry in its slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UserConfigStore::IsSameCard (
+    const JsonValue & entry,
+    const JsonValue & defaultArr,
+    int               defIdx)
+{
+    std::string  device;
+    std::string  defDevice;
+    bool         isSame = false;
+
+
+
+    if (defIdx >= 0)
+    {
+        const JsonValue &  defEntry = defaultArr.GetArrayElement ((size_t) defIdx);
+
+        isSame = defEntry.GetType() != JsonType::Object
+              || !TryGetStringField (entry,    "device", device)
+              || !TryGetStringField (defEntry, "device", defDevice)
+              || device == defDevice;
+    }
+
+    return isSame;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::FindMovedCard
+//
+//  The user entry for the shipped card `defEntry` after the card moved: an
+//  unmatched entry with the same device, in a slot with no shipped entry.
+//  -1 when the card did not move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int UserConfigStore::FindMovedCard (
+    const JsonValue          & defEntry,
+    const JsonValue          & defaultArr,
+    const JsonValue          & userArr,
+    const std::vector<bool>  & userMatched)
+{
+    std::string  defDevice;
+    std::string  device;
+    size_t       i         = 0;
+    int          slot      = -1;
+    int          found     = -1;
+    bool         hasDevice = defEntry.GetType() == JsonType::Object
+                          && TryGetStringField (defEntry, "device", defDevice);
+
+
+
+    for (i = 0; hasDevice && i < userArr.GetArraySize() && found < 0; ++i)
+    {
+        const JsonValue & e = userArr.GetArrayElement (i);
+
+        device.clear();
+        slot = -1;
+
+        if (!userMatched[i]
+            && e.GetType() == JsonType::Object
+            && TryGetStringField (e, "device", device)
+            && device == defDevice
+            && TryGetIntField (e, "slot", slot)
+            && FindSlotByNumber (defaultArr, slot) < 0)
+        {
+            found = (int) i;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UserConfigStore::MergeHardwareArray
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -893,26 +990,47 @@ JsonValue UserConfigStore::MergeHardwareArray (
             }
         }
 
+        if (userIdx < 0 && slotArray)
+        {
+            userIdx = FindMovedCard (defEntry, defaultArr, userArr, userMatched);
+
+            if (userIdx >= 0)
+            {
+                // The card moved to a slot with no shipped entry: the user
+                // entry, merged over the shipped one, replaces it.
+                userMatched[(size_t) userIdx] = true;
+                merged.emplace_back (MergeJson (defEntry, userArr.GetArrayElement ((size_t) userIdx)));
+                continue;
+            }
+        }
+
         if (userIdx >= 0)
         {
             const JsonValue & userEntry    = userArr.GetArrayElement ((size_t) userIdx);
             const JsonValue * userPorts    = nullptr;
             const JsonValue * userSwitches = nullptr;
+            const JsonValue * userNetwork  = nullptr;
             userMatched[(size_t) userIdx] = true;
 
-            // Only a slot entry has connectors and switches, and only the
-            // user's own value may override the default's. For an absent or
-            // malformed one, the default's value is used, as the card shipped.
+            // Only a slot entry has connectors, switches or network settings,
+            // and only the user's own values may override the default's. For
+            // an absent or malformed one, the default's value is used, as the
+            // card shipped.
             if (slotArray)
             {
                 (void) TryFindTypedField (userEntry, "ports",    JsonType::Array,  userPorts);
                 (void) TryFindTypedField (userEntry, "switches", JsonType::Object, userSwitches);
+                (void) TryFindTypedField (userEntry, "network",  JsonType::Object, userNetwork);
             }
 
             if (TryGetBoolField (userEntry, "enabled", enabled) &&
                 defEntry.GetType() == JsonType::Object)
             {
-                merged.emplace_back (BuildObjectWithOverrides (defEntry, enabled, userPorts, userSwitches));
+                merged.emplace_back (BuildObjectWithOverrides (defEntry,
+                                                               enabled,
+                                                               userPorts,
+                                                               userSwitches,
+                                                               userNetwork));
             }
             else if (slotArray)
             {
@@ -994,11 +1112,14 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
         const JsonValue  * defPorts       = nullptr;
         const JsonValue  * curSwitches    = nullptr;
         const JsonValue  * defSwitches    = nullptr;
+        const JsonValue  * curNetwork     = nullptr;
+        const JsonValue  * defNetwork     = nullptr;
         int                defIdx         = -1;
         bool               curEn          = true;
         bool               defEn          = true;
         bool               portsDiffer    = false;
         bool               switchesDiffer = false;
+        bool               networkDiffer  = false;
 
         if (curEntry.GetType() != JsonType::Object)
         {
@@ -1022,6 +1143,15 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
             }
         }
 
+        // A slot entry with no shipped card of the same device in its slot
+        // is the user's own: a card in a slot with no shipped entry, or a
+        // card moved there. The whole entry is saved.
+        if (slotArray && !IsSameCard (curEntry, defaultArr, defIdx))
+        {
+            delta.push_back (curEntry);
+            continue;
+        }
+
         (void) TryGetBoolField (curEntry, "enabled", curEn);
         if (defIdx >= 0 && defaultArr.GetArrayElement ((size_t) defIdx).GetType() == JsonType::Object)
         {
@@ -1035,6 +1165,8 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
                 (void) TryFindTypedField (defEntry, "ports",    JsonType::Array,  defPorts);
                 (void) TryFindTypedField (curEntry, "switches", JsonType::Object, curSwitches);
                 (void) TryFindTypedField (defEntry, "switches", JsonType::Object, defSwitches);
+                (void) TryFindTypedField (curEntry, "network",  JsonType::Object, curNetwork);
+                (void) TryFindTypedField (defEntry, "network",  JsonType::Object, defNetwork);
             }
         }
 
@@ -1043,14 +1175,16 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
         // Diffing the enabled bit by itself threw that edit away -- the
         // dialog applied it live, nothing reached the user file, and the
         // drive was back the next time the machine or the dialog loaded.
-        portsDiffer = curPorts != nullptr &&
-                      (defPorts == nullptr || !AreJsonEqual (*curPorts, *defPorts));
-
-        // A Super Serial Card's switches are a setting of the same kind.
+        // A Super Serial Card's switches and a network card's settings are
+        // settings of the same kind.
+        portsDiffer    = curPorts != nullptr &&
+                         (defPorts == nullptr || !AreJsonEqual (*curPorts, *defPorts));
         switchesDiffer = curSwitches != nullptr &&
                          (defSwitches == nullptr || !AreJsonEqual (*curSwitches, *defSwitches));
+        networkDiffer  = curNetwork != nullptr &&
+                         (defNetwork == nullptr || !AreJsonEqual (*curNetwork, *defNetwork));
 
-        if (curEn != defEn || portsDiffer || switchesDiffer)
+        if (curEn != defEn || portsDiffer || switchesDiffer || networkDiffer)
         {
             std::vector<std::pair<std::string, JsonValue>>  obj;
             std::string                                     type;
@@ -1081,6 +1215,11 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
             if (switchesDiffer)
             {
                 obj.emplace_back ("switches", *curSwitches);
+            }
+
+            if (networkDiffer)
+            {
+                obj.emplace_back ("network", *curNetwork);
             }
 
             delta.emplace_back (JsonValue (std::move (obj)));

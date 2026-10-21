@@ -36,4 +36,5 @@ private:
     static void  DispatchDriveVolumes  (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
     static void  DispatchDrivePan      (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
     static void  DispatchDriveTest     (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
+    static void  DispatchNetworkConfigure (const std::string & payload, ICpuMachineCommands & machine);
 };

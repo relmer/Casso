@@ -344,11 +344,20 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     { "Apple2eEnhanced", "89355968f0683869a22fe7d2a564cb62b4783b7a675886420df9371a5bc4ca92" },
     { "Apple2c",         "ad85c6350233e5d5312c6ba9b4dc97e225583ad0de0c2b113f68d99b0be8bfd0" },
 
-    // The four slot machines before the Super Serial Card joined slot 2.
+    // The four slotted machines before either card: Apple2 v10,
+    // Apple2Plus v13, Apple2e v12, Apple2eEnhanced v7.
     { "Apple2",          "32b2d21a67494e91d9b232bc9d4e1777831fa2d0a99749f15c38842a99f6d49d" },
     { "Apple2Plus",      "9dda6064ecd6cd9af46091da47ada410bcc08a57fb49e8600e60f0c9620152a7" },
     { "Apple2e",         "08ef86bc0a3ecd79ea6475331a2a05d94873eafd72621ee3f646f6dee048d761" },
     { "Apple2eEnhanced", "0ee887a4b0b42660de16caf3b329cc4aea4effa5efcf7ced9d63cdf22132eec4" },
+
+    // The same four with the Super Serial Card in slot 2 and before
+    // the Uthernet II entry in slot 3: Apple2 v11, Apple2Plus v14,
+    // Apple2e v13, Apple2eEnhanced v8.
+    { "Apple2",          "8857e6dfd805a32967a8c7b5396014b3e78b7fa0f66f3980a6304c0a42c0ef3a" },
+    { "Apple2Plus",      "5fd41292fb955256277ba6a4864b43e12c60ff7a8561974fc05fc74a8c0a8737" },
+    { "Apple2e",         "3b5caa6968292ef27d89fa078781e7a477f9d842d95d31f27bf8f5144c921f9f" },
+    { "Apple2eEnhanced", "30e5f9b9bf8352d9495e40f08241724d8eeacbd09feefc711c77eee42629de2f" },
 };
 
 

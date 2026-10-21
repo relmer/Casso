@@ -57,6 +57,7 @@
 #include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
 #include "Core/JsonParser.h"
 #include "Machines/Apple2/Common/AppleTextMode.h"
 #include "Machines/Apple2/Common/Apple80ColTextMode.h"
@@ -166,6 +167,7 @@ EmulatorShell::EmulatorShell()
 
     m_printer->BindBuildServices (services);
 
+    services.hostNetwork            = &m_hostNetwork;
     services.traceCapacity          = &m_traceCapacity;
     services.imageWatchDisabled     = &m_imageWatchDisabled;
     services.requestPowerCycle      = [this] () { m_machineManager->PowerCycle(); };
@@ -1013,8 +1015,47 @@ HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
         m_serialCard->NoteMachineBuilt();
     }
 
+    QueueUthernetNotices();
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QueueUthernetNotices
+//
+//  Port forwards whose host port could not be opened, reported as notices.
+//  The first machine is built before the window exists, so its notices are
+//  appended to m_pendingNotices and displayed at the end of
+//  InitializeUiShell; later builds post theirs to the window directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::QueueUthernetNotices()
+{
+    if (m_machine.GetRefs().uthernet == nullptr)
+    {
+        return;
+    }
+
+    for (const std::string & error : m_machine.GetRefs().uthernet->GetNetworkErrors())
+    {
+        std::wstring  text = TextEncoding::NarrowToWide (error);
+
+        if (m_hwnd != nullptr && m_chrome != nullptr)
+        {
+            m_chrome->PostNotice (text);
+        }
+        else
+        {
+            m_pendingNotices.push_back (std::move (text));
+        }
+    }
 }
 
 
@@ -1061,6 +1102,13 @@ HRESULT EmulatorShell::InitializeUiShell()
 
     hr = FinishUiShellLayout();
     CHR (hr);
+
+    for (const std::wstring & notice : m_pendingNotices)
+    {
+        m_chrome->ShowNotice (notice);
+    }
+
+    m_pendingNotices.clear();
 
 Error:
     return hr;

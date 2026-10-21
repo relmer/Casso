@@ -10,6 +10,7 @@
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/Win32HostNetwork.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
@@ -276,6 +277,7 @@ private:
     // commands go to ShellDisks, ShellAudio and ShellTapeDeck.
     void     StepInstruction           () override;
     void     SaveTrace                 () override;
+    void     ConfigureNetworkCard      (const NetworkCardSettings & settings) override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
     void     SetSerialCardSwitches     (const std::string & sw1, const std::string & sw2) override;
 
@@ -307,6 +309,7 @@ private:
     void    PrimeChromeThemeEarly           ();
 
     HRESULT BuildMachineDevices             (const MachineConfig & config);
+    void    QueueUthernetNotices            ();
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
     void    RestoreColorTextPref            ();
@@ -692,6 +695,13 @@ private:
     // m_host->Create() returns. The chrome-band dock scales its band
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
+
+    //  Winsock for the Uthernet II. Declared ahead of the machine so it is
+    //  destroyed after it: the card's host sockets close before WSACleanup.
+    Win32HostNetwork        m_hostNetwork;
+
+    //  Notices raised before the window exists, displayed once it does.
+    std::vector<std::wstring>  m_pendingNotices;
 
     //  The emulated machine: bus, CPU, devices, video modes, and the
     //  configuration and identity that say which machine this is. Everything

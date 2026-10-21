@@ -46,27 +46,29 @@ public:
     class RecordingSink : public ISettingsApplySink
     {
     public:
-        SettingsSpeedMode  lastSpeed                  = SettingsSpeedMode::Authentic;
-        SettingsColorMode  lastColor                  = SettingsColorMode::Color;
-        bool               lastFloppySound            = true;
-        bool               lastFastTapeLoading        = true;
-        float              lastTapeVolume             = 1.0f;
-        bool               lastTapeAutoStop           = true;
-        bool               lastTapeIdleStop           = true;
-        bool               lastTapeEightBit           = false;
-        std::string        lastMechanism;
-        bool               lastWriteProtect[2]        = { false, false };
-        float              lastDriveMotor             = -1.0f;
-        float              lastDriveHead              = -1.0f;
-        float              lastDriveDoor              = -1.0f;
-        float              lastDriveOnePan            = 0.0f;
-        float              lastDriveTwoPan            = 0.0f;
-        bool               lastExternalDriveConnected = false;
-        bool               lastMouseConnected         = true;
-        int                queuedResetCount           = 0;
-        std::string        lastSerialSw1;
-        std::string        lastSerialSw2;
-        int                applyCount                 = 0;
+        SettingsSpeedMode    lastSpeed                  = SettingsSpeedMode::Authentic;
+        SettingsColorMode    lastColor                  = SettingsColorMode::Color;
+        bool                 lastFloppySound            = true;
+        bool                 lastFastTapeLoading        = true;
+        float                lastTapeVolume             = 1.0f;
+        bool                 lastTapeAutoStop           = true;
+        bool                 lastTapeIdleStop           = true;
+        bool                 lastTapeEightBit           = false;
+        std::string          lastMechanism;
+        bool                 lastWriteProtect[2]        = { false, false };
+        float                lastDriveMotor             = -1.0f;
+        float                lastDriveHead              = -1.0f;
+        float                lastDriveDoor              = -1.0f;
+        float                lastDriveOnePan            = 0.0f;
+        float                lastDriveTwoPan            = 0.0f;
+        bool                 lastExternalDriveConnected = false;
+        bool                 lastMouseConnected         = true;
+        int                  queuedResetCount           = 0;
+        std::string          lastSerialSw1;
+        std::string          lastSerialSw2;
+        int                  applyCount                 = 0;
+        NetworkCardSettings  lastNetworkCard;
+        int                  networkCardCount           = 0;
 
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
@@ -115,6 +117,12 @@ public:
             lastSerialSw1 = sw1;
             lastSerialSw2 = sw2;
             ++applyCount;
+        }
+
+        void ApplyNetworkCard (const NetworkCardSettings & settings) override
+        {
+            lastNetworkCard = settings;
+            ++networkCardCount;
         }
 
         void QueueMachineReset() override { ++queuedResetCount; }

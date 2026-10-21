@@ -187,6 +187,9 @@
     <ClCompile Include="..\UnitTest\EmuTests\MachineIdle.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TextScreenScraper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FluxTestImages.cpp" />
+    <ClCompile Include="UthernetLoopbackTests.cpp" />
+    <ClCompile Include="UthernetSoftwareTests.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />

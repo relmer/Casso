@@ -26,26 +26,30 @@ namespace fs = std::filesystem;
 TestMachine::TestMachine (const std::string & machineId, Slots slots)
     : m_builder (*this, m_nothingListening)
 {
-    //  Built FROM a config of its own, and the host keeps a copy of what
-    //  it was built from. Handing the builder the host's own config makes
-    //  it walk a list the build is entitled to rewrite as it goes.
-    MachineConfig  config;
+    Construct (machineId, slots, nullptr);
+}
 
 
 
-    LoadConfig (machineId, config);
 
-    if (slots == Slots::Empty)
-    {
-        config.slots.clear();
-    }
-    else if (slots == Slots::DiskOnly)
-    {
-        std::erase_if (config.slots,
-                       [] (const SlotConfig & slot) { return slot.slot != 6; });
-    }
 
-    BuildFrom (machineId, config);
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::TestMachine (customized)
+//
+//  The builder copies its services when it is constructed, so they are
+//  customized up front through a first, throwaway config load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TestMachine::TestMachine (
+    const std::string  & machineId,
+    Slots                slots,
+    const Customize    & customize)
+    : m_nothingListening (MakeServices (machineId, customize)),
+      m_builder          (*this, m_nothingListening)
+{
+    Construct (machineId, slots, customize);
 }
 
 
@@ -102,6 +106,77 @@ TestMachine::TestMachine (
     if (configure)
     {
         configure (config);
+    }
+
+    BuildFrom (machineId, config);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::MakeServices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MachineBuildServices TestMachine::MakeServices (
+    const std::string  & machineId,
+    const Customize    & customize)
+{
+    MachineConfig         config;
+    MachineBuildServices  services;
+
+
+
+    if (customize)
+    {
+        LoadConfig (machineId, config);
+        customize (config, services);
+    }
+
+    return services;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestMachine::Construct
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TestMachine::Construct (
+    const std::string  & machineId,
+    Slots                slots,
+    const Customize    & customize)
+{
+    //  Built FROM a config of its own, and the host keeps a copy of what
+    //  it was built from. Handing the builder the host's own config makes
+    //  it walk a list the build is entitled to rewrite as it goes.
+    MachineConfig         config;
+    MachineBuildServices  unused;
+
+
+
+    LoadConfig (machineId, config);
+
+    if (slots == Slots::Empty)
+    {
+        config.slots.clear();
+    }
+    else if (slots == Slots::DiskOnly)
+    {
+        std::erase_if (config.slots,
+                       [] (const SlotConfig & slot) { return slot.slot != 6; });
+    }
+
+    if (customize)
+    {
+        customize (config, unused);
     }
 
     BuildFrom (machineId, config);

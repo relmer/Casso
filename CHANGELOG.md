@@ -14,6 +14,8 @@ Entries before versioning was introduced use dates only.
   Turn it on in Settings > Machine and set it up on the new Serial card page.
   You can also send its output to a file, feed it input from a file, or loop
   its output back to its input.
+- An Uthernet II Ethernet card (WIZnet W5100) for the ][, ][+, //e and //e Enhanced,
+  turned on in Settings > Machine.
 - A tab added to the Settings dialog while it is open sparkles until it is
   opened, so it is easy to notice.
 - An info icon after a mounted WOZ image's name when the models or the minimum

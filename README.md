@@ -502,6 +502,17 @@ re-printing — **Save** as PNG, **Copy** to the clipboard, or **Print** to a re
 Windows printer — and the paper stays loaded until you tear it off, so a pending
 printout survives across sessions.
 
+### Network
+
+An **Uthernet II** Ethernet card (WIZnet W5100) for the ][, ][+, //e and //e
+Enhanced. It is off by default; turn it on in the **Machine** tab in Settings.
+Its MAC address, LAN access and port forwards are on the new **Network** tab.
+The W5100's TCP and UDP sockets open as Windows sockets on the PC's network.
+Software that uses the chip's raw Ethernet mode, such as IP65 and ADTPro's
+Ethernet client, gets a built-in virtual network: a DHCP server, DNS relayed to
+the PC's DNS server, the PC itself at 10.0.65.1, and port forwards to servers on
+the Apple II.
+
 ### Input
 
 Analog game I/O via the PREAD timer, and a **Map arrows to joystick** mode that
@@ -543,7 +554,7 @@ Full reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
 ### Testing
 
-**6400+ unit tests** covering CPU encoding and addressing, assembler features,
+**6600+ unit tests** covering CPU encoding and addressing, assembler features,
 the audio pipeline, the 6522 VIA and AY-3-8910, //e MMU and Language Card, video
 timing, the Disk II nibble engine, WOZ and nibblized formats, DOS 3.3 and ProDOS
 file read/write, the printer pipeline, and reset semantics.
@@ -682,7 +693,7 @@ Casso.sln
 ├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — assembler CLI (`as65`, `merlin`) with `run` and `disk` subcommands
-├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (6400+ tests)
+├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (6600+ tests)
 └── ScenarioTests/ Test DLL — system tests needing the DOS 3.3 System Master and a booted guest (`RunTests.ps1 -Scenario`)
 ```
 

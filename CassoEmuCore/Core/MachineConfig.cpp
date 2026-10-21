@@ -902,6 +902,19 @@ HRESULT MachineConfigLoader::LoadSlots (
         ResolveSlotFirmware (searchPaths, resolver, slot);
         ParseSwitches       (entry, slot);
 
+        // Optional: the network card's settings. A bad value takes its
+        // default instead of failing the load.
+        {
+            const JsonValue  * network = nullptr;
+            vector<string>     ignored;
+
+            if (entry.HasObject (NetworkCardSettings::kpszJsonKey, network))
+            {
+                HRESULT hrNetwork = NetworkCardSettings::FromJson (*network, slot.network, ignored);
+                IGNORE_RETURN_VALUE (hrNetwork, S_OK);
+            }
+        }
+
         outConfig.slots.push_back (slot);
     }
 

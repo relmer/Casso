@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "JsonParser.h"
 #include "PathResolver.h"
+#include "Config/NetworkCardSettings.h"
 
 
 
@@ -240,6 +241,9 @@ struct SlotConfig
     // card's default.
     string              switchesSw1;
     string              switchesSw2;
+    // The Uthernet II's settings, from the slot entry's `network` object;
+    // defaults for any other device.
+    NetworkCardSettings  network;
 };
 
 

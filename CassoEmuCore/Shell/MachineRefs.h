@@ -35,6 +35,7 @@ struct MachineRefs
     class VideoOutput *           activeVideoMode  = nullptr;
     class PrinterCard *           printerCard      = nullptr;
     class SuperSerialCard *       superSerialCard  = nullptr;
+    class UthernetCard *          uthernet         = nullptr;
 
     // The $C800-$CFFF expansion space the slot cards share, created with the
     // first card that has expansion ROM. A bus device on the ][ and ][+; on
