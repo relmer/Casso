@@ -696,6 +696,13 @@ private:
     //  The linked Apple's drive a drop would land on: a drive's node or row,
     //  or the drive in the list.
     bool  TryGetAppleDropDrive (int tag, POINT screen, Location & outDrive);
+
+    //  The drive of the one drive row selected while the list is on a linked
+    //  machine. The image commands run on it, and dragging it drags its disk,
+    //  as for the drive's node in the tree.
+    bool  TryGetSelectedLinkDrive (Location & outDrive) const;
+    void  OpenSelectedLinkDrive   ();
+    void  BeginDiskDrag           (const std::wstring & driveId);
     void  WriteImageToDisk  ();
     void  SaveLinkToDisk    ();
     void  FormatAppleDisk   (const Location & location);

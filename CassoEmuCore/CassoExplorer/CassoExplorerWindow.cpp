@@ -2371,7 +2371,8 @@ void CassoExplorerWindow::UpdateCommandBar()
 {
     using Extra = CassoExplorerCommands::CommandBarExtra;
 
-    Extra  extra = Extra::None;
+    Extra     extra = Extra::None;
+    Location  drive;
 
 
 
@@ -2379,7 +2380,7 @@ void CassoExplorerWindow::UpdateCommandBar()
     {
         extra = Extra::RecycleBin;
     }
-    else if (m_browser.IsAppleDriveLocation())
+    else if (m_browser.IsAppleDriveLocation() || TryGetSelectedLinkDrive (drive))
     {
         extra = Extra::AppleDrive;
     }
@@ -2494,6 +2495,7 @@ void CassoExplorerWindow::ReadDiskToImage (bool blankUnreadable, const std::wstr
 
 
 
+    OpenSelectedLinkDrive();
     BAIL_OUT_IF (!m_browser.IsAppleDriveOpen(), S_OK);
 
     spec.filters          = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
@@ -2566,6 +2568,7 @@ void CassoExplorerWindow::WriteImageToDisk()
 
 
 
+    OpenSelectedLinkDrive();
     BAIL_OUT_IF (!m_browser.IsAppleDriveOpen(), S_OK);
 
     spec.filters    = { FileDialogFilter { L"Disk images (*.dsk, *.do, *.po, *.woz, *.nib)", L"*.dsk;*.do;*.po;*.woz;*.nib" },
@@ -2669,12 +2672,8 @@ void CassoExplorerWindow::StartImageWrite (const Location & drive, const std::ws
 
 void CassoExplorerWindow::BeginTreeDrag (const Location & location)
 {
-    HRESULT                                  hr      = S_OK;
-    DWORD                                    effect  = DROPEFFECT_NONE;
-    DxuiMouseEvent                           release;
-    POINT                                    start   = {};
-    std::vector<DxuiDragDropSource::Format>  formats;
-    BOOL                                     got     = FALSE;
+    HRESULT         hr = S_OK;
+    DxuiMouseEvent  release;
 
 
 
@@ -2692,7 +2691,31 @@ void CassoExplorerWindow::BeginTreeDrag (const Location & location)
         return;
     }
 
-    formats = CassoExplorerDragOut::BuildDiskFormats (m_browser, location.path);
+    BeginDiskDrag (location.path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::BeginDiskDrag
+//
+//  A linked Apple's whole drive, as one image file, from its node in the tree
+//  or its row in the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::BeginDiskDrag (const std::wstring & driveId)
+{
+    HRESULT                                  hr      = S_OK;
+    DWORD                                    effect  = DROPEFFECT_NONE;
+    POINT                                    start   = {};
+    std::vector<DxuiDragDropSource::Format>  formats = CassoExplorerDragOut::BuildDiskFormats (m_browser, driveId);
+    BOOL                                     got     = FALSE;
+
+
 
     if (formats.empty())
     {
@@ -2706,6 +2729,70 @@ void CassoExplorerWindow::BeginTreeDrag (const Location & location)
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TryGetSelectedLinkDrive
+//
+//  A drive row's path is the drive's id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::TryGetSelectedLinkDrive (Location & outDrive) const
+{
+    Location                  shown    = m_browser.GetLocation();
+    const std::vector<int>  & selected = m_browser.GetSelectedRows();
+    std::wstring              link;
+    std::wstring              id;
+    int                       slot     = 0;
+    int                       drive    = 0;
+    bool                      found    = shown.kind == Location::Kind::Root && TreeModel::TryParseLinkId (shown.path, link, slot, drive) && drive == 0
+                                      && selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < m_browser.GetRows().size();
+
+
+
+    if (found)
+    {
+        id    = m_browser.GetRows()[(size_t) selected[0]].hostPath;
+        found = TreeModel::TryParseLinkId (id, link, slot, drive) && drive != 0;
+    }
+
+    if (found)
+    {
+        outDrive = Location::MakeAppleDrive (id, std::string());
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OpenSelectedLinkDrive
+//
+//  The image commands run on the open drive, so a drive selected on its
+//  machine is opened first, as its context menu opens it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OpenSelectedLinkDrive()
+{
+    Location  drive;
+
+
+
+    if (!m_browser.IsAppleDriveOpen() && TryGetSelectedLinkDrive (drive))
+    {
+        GoToLocation (drive);
+    }
 }
 
 
@@ -4793,6 +4880,7 @@ bool CassoExplorerWindow::IsEnabled (int id) const
     const BrowserModel &  model    = m_browser.GetBrowserModel();
     DxuiStandardCommand   standard = CassoExplorerCommands::GetStandardCommand (id);
     bool                  enabled  = false;
+    Location              drive;
 
 
 
@@ -4842,8 +4930,8 @@ bool CassoExplorerWindow::IsEnabled (int id) const
         case CassoExplorerCommands::kShareItems:        return IsListVerbOffered (CassoExplorerActions::Verb::Share);
         case CassoExplorerCommands::kExtractAll:        return !m_browser.GetExtractTarget().empty();
         case CassoExplorerCommands::kReadDiskToImage:
-        case CassoExplorerCommands::kWriteImageToDisk:  return m_browser.IsAppleDriveOpen();
-        case CassoExplorerCommands::kCancelLinkOperation: return m_browser.IsAppleDriveOpen() && m_context.links != nullptr && !m_context.links->GetPendingJobs().empty();
+        case CassoExplorerCommands::kWriteImageToDisk:  return m_browser.IsAppleDriveOpen() || TryGetSelectedLinkDrive (drive);
+        case CassoExplorerCommands::kCancelLinkOperation: return (m_browser.IsAppleDriveOpen() || TryGetSelectedLinkDrive (drive)) && m_context.links != nullptr && !m_context.links->GetPendingJobs().empty();
         case CassoExplorerCommands::kDeleteItems:       return IsListVerbOffered (CassoExplorerActions::Verb::Delete);
         case CassoExplorerCommands::kEmptyRecycleBin:
         case CassoExplorerCommands::kRestoreItems:      return m_browser.GetLocation().kind == Location::Kind::RecycleBin && !m_browser.GetRows().empty();
@@ -9665,20 +9753,35 @@ Error:
 
 std::wstring CassoExplorerWindow::GetCommandLabel (int id) const
 {
+    Location      drive;
+    std::wstring  title;
+
+
+
     if (id == CassoExplorerCommands::kRestoreItems && !m_browser.GetSelectedRows().empty())
     {
         return L"Restore the selected items";
     }
 
-    //  A linked Apple's drive by its slot, drive and volume.
-    if (id == CassoExplorerCommands::kReadDiskToImage && m_browser.IsAppleDriveOpen())
+    //  A linked Apple's drive by its slot, drive and volume: the open drive, or
+    //  the drive selected on its machine.
+    if (m_browser.IsAppleDriveOpen())
     {
-        return std::format (L"Create image from {}...", m_actions.DescribeAppleDrive());
+        title = m_actions.DescribeAppleDrive();
+    }
+    else if (TryGetSelectedLinkDrive (drive))
+    {
+        title = m_browser.GetTreeModel().GetLinkDriveTitle (drive.path);
     }
 
-    if (id == CassoExplorerCommands::kWriteImageToDisk && m_browser.IsAppleDriveOpen())
+    if (id == CassoExplorerCommands::kReadDiskToImage && !title.empty())
     {
-        return std::format (L"Write image to {}...", m_actions.DescribeAppleDrive());
+        return std::format (L"Create image from {}...", title);
+    }
+
+    if (id == CassoExplorerCommands::kWriteImageToDisk && !title.empty())
+    {
+        return std::format (L"Write image to {}...", title);
     }
 
     return std::wstring();
@@ -15338,12 +15441,21 @@ void CassoExplorerWindow::BeginDragOut()
     std::string                              image   = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
     CassoExplorerActions::Outcome            outcome;
     BOOL                                     got     = FALSE;
+    Location                                 drive;
 
 
 
     release.kind   = DxuiMouseEventKind::Up;
     release.button = DxuiMouseButton::Left;
     m_list->OnMouse (release);
+
+    //  Dragging a linked machine's drive drags its whole disk, as dragging its
+    //  node in the tree does.
+    if (TryGetSelectedLinkDrive (drive))
+    {
+        BeginDiskDrag (drive.path);
+        return;
+    }
 
     if (!m_browser.PrepareCassoLinkItems())
     {
