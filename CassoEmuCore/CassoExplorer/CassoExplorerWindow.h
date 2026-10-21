@@ -1038,6 +1038,7 @@ private:
     RECT                                      m_client              = {};
     RECT                                      m_previewRect         = {};
     Location                                  m_listLocation;
+    size_t                                    m_listTabCount        = 0;    // the tabs when FillList last saved the session
 
     //  Why each row's image is broken, as its cells are built; empty for the
     //  rest.

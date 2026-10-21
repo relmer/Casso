@@ -1040,7 +1040,9 @@ void CassoExplorerShell::SaveSessionWith (const std::vector<CassoExplorerSession
 
 
 
-    if (m_exiting)
+    //  Not while the session's windows are opening: the first one open would
+    //  write a session without the rest.
+    if (m_exiting || m_initializing)
     {
         return;
     }

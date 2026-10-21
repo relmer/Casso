@@ -1758,6 +1758,7 @@ void CassoExplorerWindow::FillList()
     const BrowserModel                            & model    = m_browser.GetBrowserModel();
     std::wstring                                    message  = m_browser.GetListError();
     size_t                                          count    = m_browser.GetRows().size();
+    bool                                            changed  = false;
 
 
 
@@ -1845,6 +1846,15 @@ void CassoExplorerWindow::FillList()
         }
 
         UpdateWatchedFolders();
+        changed = true;
+    }
+
+    //  A new location or a new tab is saved as the list is filled for it, so a
+    //  process that ends without closing reopens on it.
+    if (changed || model.GetTabCount() != m_listTabCount)
+    {
+        m_listTabCount = model.GetTabCount();
+        SaveSession();
     }
 
     //  Address and Locked are a disk catalog's; a host folder has neither, so
