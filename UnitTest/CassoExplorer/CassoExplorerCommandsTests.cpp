@@ -143,12 +143,14 @@ public:
         Assert::AreEqual ((int) CassoExplorerCommands::kExtractAll, bar[9].command->id);
         Assert::IsFalse  (bar[9].iconOnly, L"with its label");
 
-        //  A linked Apple's drive reads and writes the whole disk, after View.
+        //  A linked Apple's Refresh, then its drive's disk read and written,
+        //  after View.
         bar = commands.BuildCommandBarEntries (CassoExplorerCommands::CommandBarExtra::AppleDrive);
 
-        Assert::AreEqual ((int) CassoExplorerCommands::kReadDiskToImage,     bar[9].command->id);
-        Assert::AreEqual ((int) CassoExplorerCommands::kWriteImageToDisk,    bar[10].command->id);
-        Assert::AreEqual ((int) CassoExplorerCommands::kCancelLinkOperation, bar[11].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kRefresh,             bar[9].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kReadDiskToImage,     bar[10].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kWriteImageToDisk,    bar[11].command->id);
+        Assert::AreEqual ((int) CassoExplorerCommands::kCancelLinkOperation, bar[12].command->id);
     }
 
 

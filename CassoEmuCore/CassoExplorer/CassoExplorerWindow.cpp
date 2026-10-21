@@ -2364,8 +2364,7 @@ void CassoExplorerWindow::UpdateCommandBar()
 {
     using Extra = CassoExplorerCommands::CommandBarExtra;
 
-    Extra     extra = Extra::None;
-    Location  drive;
+    Extra  extra = Extra::None;
 
 
 
@@ -2373,7 +2372,7 @@ void CassoExplorerWindow::UpdateCommandBar()
     {
         extra = Extra::RecycleBin;
     }
-    else if (m_browser.IsAppleDriveLocation() || TryGetSelectedLinkDrive (drive))
+    else if (m_browser.IsAppleDriveLocation() || IsOnLinkedMachine())
     {
         extra = Extra::AppleDrive;
     }
@@ -2760,14 +2759,12 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerWindow::GetRowDragImage()
 
 bool CassoExplorerWindow::TryGetSelectedLinkDrive (Location & outDrive) const
 {
-    Location                  shown    = m_browser.GetLocation();
     const std::vector<int>  & selected = m_browser.GetSelectedRows();
     std::wstring              link;
     std::wstring              id;
     int                       slot     = 0;
     int                       drive    = 0;
-    bool                      found    = shown.kind == Location::Kind::Root && TreeModel::TryParseLinkId (shown.path, link, slot, drive) && drive == 0
-                                      && selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < m_browser.GetRows().size();
+    bool                      found    = IsOnLinkedMachine() && selected.size() == 1 && selected[0] >= 0 && (size_t) selected[0] < m_browser.GetRows().size();
 
 
 
@@ -2783,6 +2780,31 @@ bool CassoExplorerWindow::TryGetSelectedLinkDrive (Location & outDrive) const
     }
 
     return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsOnLinkedMachine
+//
+//  The list on a linked Apple, which lists its drives, rather than on one of
+//  the drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsOnLinkedMachine() const
+{
+    Location      shown = m_browser.GetLocation();
+    std::wstring  link;
+    int           slot  = 0;
+    int           drive = 0;
+
+
+
+    return shown.kind == Location::Kind::Root && TreeModel::TryParseLinkId (shown.path, link, slot, drive) && drive == 0;
 }
 
 

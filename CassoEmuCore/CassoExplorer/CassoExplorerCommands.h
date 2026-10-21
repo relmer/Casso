@@ -405,9 +405,12 @@ private:
         { kExtractAll, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Extract all", L"Extract all" },
     };
 
-    //  A linked Apple's drive's buttons, after View while one is open.
+    //  A linked Apple's buttons, after View while the list is on the machine or
+    //  one of its drives. Refresh reads the drives again, as a Disk II has no
+    //  signal for a changed disk.
     static constexpr ToolbarRow  kAppleDriveRows[] =
     {
+        { kRefresh,             DxuiToolbar::Kind::Command, 5, s_kpszMdl2Refresh,  L"Refresh",      L"Refresh (F5)"                       },
         { kReadDiskToImage,     DxuiToolbar::Kind::Command, 5, s_kpszMdl2Download, L"Create image", L"Create an image file from the disk" },
         { kWriteImageToDisk,    DxuiToolbar::Kind::Command, 5, s_kpszMdl2Save,     L"Write image",  L"Write an image file to the disk"    },
         { kCancelLinkOperation, DxuiToolbar::Kind::Command, 5, s_kpszMdl2Cancel,   L"Cancel",       L"Cancel the running operation"       },

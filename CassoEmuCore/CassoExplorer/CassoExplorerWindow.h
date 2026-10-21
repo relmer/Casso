@@ -705,6 +705,7 @@ private:
     //  machine. The image commands run on it, and dragging it drags its disk,
     //  as for the drive's node in the tree.
     bool  TryGetSelectedLinkDrive (Location & outDrive) const;
+    bool  IsOnLinkedMachine       () const;
     void  OpenSelectedLinkDrive   ();
     void  BeginDiskDrag           (const std::wstring & driveId);
 
