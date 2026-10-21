@@ -681,6 +681,42 @@ public:
     }
 
 
+    TEST_METHOD (CancelDrag_PutsEverythingBackAndReportsNoDrop)
+    {
+        // Escape, as in File Explorer: the gap closes, nothing moves, and the
+        // release that follows does nothing.
+        DxuiTabStrip  ts;
+        int           moves = 0;
+        int           ends  = 0;
+        int           picks = 0;
+
+        ts.SetStyle             (DxuiTabStripStyle::Explorer);
+        ts.SetAnimationsEnabled (false);
+        ts.SetTabs              (MakeThreeTabs());
+        ts.SetSelected          (2);
+        ts.SetOnMove            ([&] (int, int) { moves++; });
+        ts.SetOnDragEnd         ([&] (int, POINT, bool) { ends++; });
+        ts.SetOnChange          ([&] (int) { picks++; });
+
+        ts.OnLButtonDown (10, 10);
+        ts.OnMouseMove   (200, 10);
+        Assert::AreEqual (80L, ts.GetTabScreenRect (2).left);
+
+        ts.CancelDrag();
+        Assert::IsFalse  (ts.IsDragging());
+        Assert::IsFalse  (ts.IsInteracting());
+        Assert::AreEqual (160L, ts.GetTabScreenRect (2).left, L"The gap closes");
+        Assert::AreEqual (0L,   ts.GetTabScreenRect (0).left, L"and the tab is back in its place");
+
+        Assert::IsFalse  (ts.OnLButtonUp (200, 10), L"The release after it is nobody's");
+        Assert::AreEqual (0, moves);
+        Assert::AreEqual (0, ends);
+        Assert::AreEqual (0, picks, L"and selects nothing");
+        Assert::AreEqual (2, ts.GetSelected());
+        Assert::AreEqual (std::wstring (L"Machine"), ts.GetTabs()[0].label);
+    }
+
+
     TEST_METHOD (TearOff_DraggedBackOntoTheStripReopensTheGap)
     {
         DxuiTabStrip  ts;

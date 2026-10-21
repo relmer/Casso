@@ -142,6 +142,10 @@ public:
     //  coordinates.
     RECT  GetTabScreenRect (int index) const;
 
+    //  Ends a drag with nothing moved and no drop reported, as Escape does:
+    //  the gap closes and the tab slides back to its place.
+    void  CancelDrag       ();
+
     bool  IsDragging       () const { return m_dragging; }
     bool  IsTornOff        () const { return m_dragging && m_tornOff; }
 

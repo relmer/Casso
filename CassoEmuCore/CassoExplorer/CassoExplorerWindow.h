@@ -647,6 +647,7 @@ private:
     //  that window, or into a window of its own.
     void   OnTabDragMove       (int index, POINT client, bool tornOff);
     void   OnTabDragEnd        (int index, POINT client, bool tornOff);
+    void   CancelTabDrag       ();
     void   ShowTabDragVisual   (int index, POINT screen);
     HWND   FindTabStripAt      (POINT screen) const;
     void   SetTabDragTarget    (HWND target, POINT screen);

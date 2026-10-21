@@ -3970,6 +3970,14 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    //  A move with the button already up means the release went elsewhere,
+    //  as when another window took the mouse, so the drag is canceled.
+    if (m_tabs->IsDragging() && ev.kind == DxuiMouseEventKind::Move && ev.button != DxuiMouseButton::Left)
+    {
+        CancelTabDrag();
+        return true;
+    }
+
     //  A tab being dragged keeps the pointer until the button comes up, so the
     //  drag can run past the strip's ends and scroll it.
     if (m_tabs->IsInteracting())
@@ -4439,6 +4447,14 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 
 
     ArmTick();
+
+    //  Escape cancels a tab drag, as in File Explorer: the card goes, the gap
+    //  closes and the tab is back where it was.
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && m_tabs->IsDragging())
+    {
+        CancelTabDrag();
+        return true;
+    }
 
     //  A rename in place takes every key: Enter keeps the name, Escape puts
     //  the old one back.
@@ -14744,10 +14760,34 @@ void CassoExplorerWindow::OnTabDragEnd (int index, POINT client, bool tornOff)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::CancelTabDrag
+//
+//  The window the tab was over closes its gap too. The strip has no press
+//  left, so the release that follows does nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::CancelTabDrag()
+{
+    m_tabs->CancelDrag();
+    m_tabDragVisual.Hide();
+    SetTabDragTarget (nullptr, POINT {});
+    ArmTick();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::ShowTabDragVisual
 //
 //  The card is the tab as the strip draws the selected one, filled with the
-//  row the selected tab joins.
+//  row the selected tab joins. The Windows themes' row is a translucent wash
+//  over Mica, and the card has no Mica behind it, so the wash is laid over
+//  the theme's opaque background instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14757,13 +14797,15 @@ void CassoExplorerWindow::ShowTabDragVisual (int index, POINT screen)
     RECT      tab   = m_tabs->GetTabScreenRect (index);
     POINT     grab  = m_tabs->GetDragGrab();
     uint32_t  text  = m_theme->Foreground();
+    uint32_t  wash  = m_theme->navStrip;
+    uint32_t  fill  = DxuiColor::Mix (m_theme->Background() | 0xFF000000u, wash | 0xFF000000u, (float) (wash >> 24) / 255.0f);
 
 
 
     hr = m_tabDragVisual.Show (*GetPopupHost(),
                                SIZE { tab.right - tab.left, tab.bottom - tab.top },
                                POINT { screen.x - grab.x, screen.y - grab.y },
-                               m_theme->navStrip,
+                               fill,
                                [this, index, text] (IDxuiPainter &, IDxuiTextRenderer & renderer, float width, float height)
                                {
                                    m_tabs->PaintFloatingTab (renderer, index, width, height, text);
