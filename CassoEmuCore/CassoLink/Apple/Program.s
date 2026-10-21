@@ -2377,7 +2377,14 @@ showstatus: jsr percent
         sta ptr
         lda optext+1,x
         sta ptr+1
-        jsr puttext
+        lda op                  ; idle with no PC: waiting for the connection,
+        ora pcflag              ; not for a command
+        bne stput
+        lda #<onopc
+        sta ptr
+        lda #>onopc
+        sta ptr+1
+stput:  jsr puttext
         lda op
         beq stdone
         cmp #OPSPEED
@@ -2429,6 +2436,8 @@ stsector: .byte $2C
 optext: .word oidle, oread, owrite, oformat, ospeed
 
 oidle:   .text "WAITING FOR A COMMAND"
+         .byte 0
+onopc:   .text "WAITING FOR CONNECTION"
          .byte 0
 oread:   .text "READING"
          .byte 0
