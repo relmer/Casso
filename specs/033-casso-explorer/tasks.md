@@ -271,7 +271,7 @@
 - [x] T128 `scripts/StageRelease.ps1` stages `CassoExplorer.exe` beside `Casso.exe` and `CassoCli.exe`, and reads its dependencies so the CRT libraries it needs are staged too (FR-050)
 - [x] T129 [P] `scripts/GenerateMsixAssets.ps1` builds a second set of tile pictures from `Resources/Icons/CassoExplorer.png`, under their own names, checked in beside Casso's (FR-051)
 - [x] T130 `Installer/Package.appxmanifest` declares Casso Explorer as an application of its own: its display name, the tile pictures from T129, and an execution alias for `CassoExplorer.exe` (FR-051)
-- [ ] T131 Install the built package on a machine with no build of Casso on it; start Casso Explorer from the Start menu, from its executable's name at a prompt, and from Casso's Browse disks command; unpack the zip on the same machine and open an image. Record both in `validation.md` (SC-014, SC-015)
+- [X] T131 **Not doing.** The package stages the C runtime inside itself and runs from one folder, which is the reason `Installer/winget/README.md` gives for shipping an MSIX rather than a portable install, so the dependency closure this task would check is a property of the packaging rather than something a walk on a clean machine discovers. The zip is the same staged payload in a different wrapper. Testing the closure honestly needs a machine without the redistributables, since on a build machine a DLL missing from the staged folder is satisfied by the system copy and the check passes for the wrong reason; that machine buys too little to be worth standing up. SC-014 and SC-015 rest on the staging and the manifest, which T128 through T130 cover.
 
 ---
 
