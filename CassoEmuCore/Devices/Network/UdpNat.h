@@ -30,7 +30,7 @@ class UdpNat
 {
 public:
 
-    static constexpr uint64_t  kIdleCycles     = 120ULL * 1022727ULL;   // 120 s at 1.023 MHz
+    static constexpr uint64_t  kIdleCycles     = 120ULL * 1020484ULL;   // 120 s at 1.020 MHz
     static constexpr size_t    kMaxDatagram    = 65535;
 
     explicit UdpNat (IGuestPacketSink & sink) : m_sink (sink) {}

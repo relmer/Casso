@@ -1252,7 +1252,7 @@ namespace Ssi263TestNs
         // out here rather than taken from MachineConfig so these tests state
         // the number they expect instead of agreeing with production by
         // construction.
-        static constexpr double     kPhi2ClockHz     = 1022727.0;
+        static constexpr double     kPhi2ClockHz     = 1020484.0;
 
         // How far short of, and past, the expected count the boundary checks
         // land. A few cycles absorb the truncation in turning a duration in

@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 5,
+    "$cassoMachineVersion": 6,
 
     // The monitor this machine ships with. The phosphor is a fact about the
     // TUBE, so it lives with the monitor in MonitorCatalog rather than being
@@ -16,7 +16,7 @@
     "releaseYear": 1984,
     "timing": {
         "videoStandard": "ntsc",
-        "clockSpeed": 1022727,
+        "clockSpeed": 1020484,
         "cyclesPerScanline": 65
     },
     "systemRom": {

@@ -94,7 +94,7 @@ public:
     // Timing bases. The CPU clock defaults to the NTSC Apple II's and is set
     // from the machine config by the builder.
     static constexpr uint32_t  kCrystalHz         = 1843200;
-    static constexpr uint32_t  kDefaultCpuClockHz = 1022727;
+    static constexpr uint32_t  kDefaultCpuClockHz = 1020484;
 
     explicit                 Acia6551 (Word baseAddress);
 

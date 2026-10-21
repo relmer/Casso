@@ -358,6 +358,15 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     { "Apple2Plus",      "5fd41292fb955256277ba6a4864b43e12c60ff7a8561974fc05fc74a8c0a8737" },
     { "Apple2e",         "3b5caa6968292ef27d89fa078781e7a477f9d842d95d31f27bf8f5144c921f9f" },
     { "Apple2eEnhanced", "30e5f9b9bf8352d9495e40f08241724d8eeacbd09feefc711c77eee42629de2f" },
+
+    // All five at the crystal divided by 14 (1,022,727 Hz), before the
+    // clock became the scanline average: Apple2 v12, Apple2Plus v15,
+    // Apple2e v14, Apple2eEnhanced v9, Apple2c v5.
+    { "Apple2",          "3c2b7e071afcf540a4f7bbe1ae7b7c33840131c78240246a22a6306c205c4d68" },
+    { "Apple2Plus",      "b2995b59e6d5826dd620e0f5930a98f892eb29fd7eadde2100632c44583091b0" },
+    { "Apple2e",         "3c7b492ad67ad8fd325a82a8f3c6080fdb07b9716368ce20922e941a30be0983" },
+    { "Apple2eEnhanced", "bf6b8311abb1354116cd44e461f5a19a6eb14ab092637e466a0c3122d0df62a9" },
+    { "Apple2c",         "001b5e57036ad0a34ff50418be0e794052c27b2746934eb6222736246319d93b" },
 };
 
 

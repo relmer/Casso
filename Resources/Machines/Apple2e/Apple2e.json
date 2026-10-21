@@ -3,12 +3,12 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 14,
+    "$cassoMachineVersion": 15,
     "name": "Apple //e",
     "releaseYear": 1983,
     "timing": {
         "videoStandard": "ntsc",
-        "clockSpeed": 1022727,
+        "clockSpeed": 1020484,
         "cyclesPerScanline": 65
     },
     "systemRom": {

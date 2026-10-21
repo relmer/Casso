@@ -275,10 +275,13 @@ enum class VideoStandard
 //
 //  Every timing constant here is DERIVED from the 14.31818 MHz crystal rather
 //  than written as a rounded figure, because that one oscillator is where all
-//  Apple II timing comes from. The CPU clock is the crystal divided by 14 (7
-//  pixels per character times 2 phases), and cycles per frame is the product
-//  of the scanline and frame counts. Writing 1023000 Hz directly would be
-//  close enough to look right and wrong enough to drift the video phase.
+//  Apple II timing comes from. An ordinary CPU cycle is 14 crystal periods (7
+//  pixels per character times 2 phases), but the last cycle of each 65-cycle
+//  scanline is stretched to 16, so a scanline is 912 periods and the CPU's
+//  average rate is 14,318,180 * 65 / 912 = 1,020,484 Hz. That average is the
+//  clock: the crystal divided by 14 (1,022,727 Hz) runs every timed thing
+//  0.22% fast, and the frame rate comes out 60.05 Hz instead of the real
+//  59.92. Cycles per frame is the product of the scanline and frame counts.
 //
 //  Fields default to the NTSC Apple II values, so a config that omits a timing
 //  key yields a working machine rather than a zeroed one.
@@ -293,13 +296,17 @@ enum class VideoStandard
 // Apple II NTSC timing — all values derived from the 14.31818 MHz crystal
 static constexpr uint32_t kNtscCrystalHz       = 14318180;  // 4x NTSC color burst (3,579,545 Hz)
 static constexpr uint32_t kCrystalDivisor      = 14;        // 7 pixels/char * 2 phases
+static constexpr uint32_t kLongCycleExtra      = 2;         // the stretched cycle is 16 periods
 static constexpr uint32_t kCyclesPerScanline   = 65;        // 40 visible + 25 blanking
 static constexpr uint32_t kScanlinesPerFrame   = 262;       // 192 visible + 70 blanking
 
 static constexpr uint32_t kNtscScanlines       = 262;
 static constexpr uint32_t kPalScanlines        = 312;
 
-static constexpr uint32_t kAppleCpuClock       = kNtscCrystalHz / kCrystalDivisor;
+static constexpr uint32_t kAppleCpuClock       = static_cast<uint32_t> (uint64_t (kNtscCrystalHz) * kCyclesPerScanline /
+                                                                     (kCyclesPerScanline * kCrystalDivisor + kLongCycleExtra));
+
+static_assert (kAppleCpuClock == 1020484);
 static constexpr uint32_t kAppleCyclesPerFrame = kCyclesPerScanline * kScanlinesPerFrame;
 
 

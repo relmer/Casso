@@ -247,8 +247,8 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
     m_speedLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_speedLabel.SetText (L"CPU speed:");
     m_speed.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_speed.SetItems ({ L"Authentic (1.023 MHz)",
-                        L"2x (2.046 MHz)",
+    m_speed.SetItems ({ L"Authentic (1.020 MHz)",
+                        L"2x (2.041 MHz)",
                         std::wstring (L"Maximum (full afterburner ") + s_kpszRocket + L")" });
     y += rowHeight + sectionGap;
 
@@ -426,7 +426,7 @@ void HardwarePage::Rebuild()
 
         RebuildSerialPorts (*state);
 
-        // Comma-grouped clock speed (e.g. "1,022,727 Hz"). std::format with
+        // Comma-grouped clock speed (e.g. "1,020,484 Hz"). std::format with
         // the "L" locale-aware flag requires a locale; build the grouped
         // string by hand for predictable output.
         auto FormatGrouped = [] (uint32_t n)
