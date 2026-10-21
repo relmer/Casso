@@ -925,8 +925,9 @@ void CassoExplorerShell::ForEachWindow (const std::function<void (CassoExplorerW
 //  CassoExplorerShell::CloseWindow
 //
 //  The last window closed is written to the session; one closed while others
-//  stay open is left out of it. CassoLink notifications move to another
-//  window. The window itself is released once its own message has returned.
+//  stay open is left out of it, but recorded in m_closed, so the last close
+//  writes every window of a quick run. CassoLink notifications move to another window. The
+//  window itself is released once its own message has returned.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -952,9 +953,16 @@ void CassoExplorerShell::CloseWindow (CassoExplorerWindow & window)
 
     last = std::count_if (m_windows.begin(), m_windows.end(), [] (const std::unique_ptr<WindowSlot> & slot) { return !slot->closed; }) == 1;
 
+    //  The last close's session is final, as File > Exit's is: any save after
+    //  it, with nothing left open, would write an empty session over it.
     if (last)
     {
-        SaveSession();
+        SaveSessionWith (GetClosedRun (m_closed, GetTickCount64()));
+        m_exiting = true;
+    }
+    else
+    {
+        m_closed.push_back (ClosedWindow { GetTickCount64(), window.GetSessionWindow() });
     }
 
     closing->closed = true;
@@ -1012,7 +1020,23 @@ void CassoExplorerShell::ExitAll()
 
 void CassoExplorerShell::SaveSession()
 {
-    HRESULT  hr = S_OK;
+    SaveSessionWith ({});
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::SaveSessionWith
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerShell::SaveSessionWith (const std::vector<CassoExplorerSessionWindow> & closed)
+{
+    HRESULT                                  hr      = S_OK;
+    std::vector<CassoExplorerSessionWindow>  session = GetOpenSession();
 
 
 
@@ -1021,11 +1045,41 @@ void CassoExplorerShell::SaveSession()
         return;
     }
 
-    hr = CassoExplorerSession::Save (m_fs, m_baseDir, GetOpenSession());
+    session.insert (session.end(), closed.begin(), closed.end());
+
+    hr = CassoExplorerSession::Save (m_fs, m_baseDir, session);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     hr = m_prefs.Save (m_baseDir, m_fs);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::GetClosedRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<CassoExplorerSessionWindow> CassoExplorerShell::GetClosedRun (const std::vector<ClosedWindow> & closed, ULONGLONG nowMs)
+{
+    std::vector<CassoExplorerSessionWindow>  run;
+    ULONGLONG                                later = nowMs;
+    size_t                                   i     = closed.size();
+
+
+
+    while (i > 0 && closed[i - 1].closedMs <= later && later - closed[i - 1].closedMs <= kCloseRunMs)
+    {
+        i--;
+        later = closed[i].closedMs;
+        run.insert (run.begin(), closed[i].window);
+    }
+
+    return run;
 }
 
 

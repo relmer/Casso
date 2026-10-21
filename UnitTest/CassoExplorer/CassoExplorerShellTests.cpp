@@ -121,6 +121,29 @@ public:
     }
 
 
+    TEST_METHOD (ClosedRun_HasTheWindowsClosedShortlyBeforeTheLast)
+    {
+        std::vector<CassoExplorerShell::ClosedWindow>  closed;
+        std::vector<CassoExplorerSessionWindow>        run;
+
+        closed.push_back ({ 1000, MakeSessionWindow (L"C:\\Alone",  10) });
+        closed.push_back ({ 4500, MakeSessionWindow (L"C:\\First",  20) });
+        closed.push_back ({ 6000, MakeSessionWindow (L"C:\\Second", 30) });
+
+        //  Second closed 2 s before the last, First 1.5 s before Second; Alone
+        //  3.5 s before First, which breaks the run.
+        run = CassoExplorerShell::GetClosedRun (closed, 8000);
+
+        Assert::AreEqual ((size_t) 2, run.size());
+        Assert::AreEqual (20, run[0].placement.x, L"Oldest first");
+        Assert::AreEqual (30, run[1].placement.x);
+
+        //  A last window closed long after the others closes alone.
+        Assert::IsTrue (CassoExplorerShell::GetClosedRun (closed, 60000).empty());
+        Assert::IsTrue (CassoExplorerShell::GetClosedRun ({}, 8000).empty());
+    }
+
+
     TEST_METHOD (FirstLaunch_WithNoSession_OpensThePreferencesTabs)
     {
         CassoExplorerLaunchOptions               options;

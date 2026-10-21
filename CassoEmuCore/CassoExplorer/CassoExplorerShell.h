@@ -66,8 +66,10 @@ struct CassoExplorerLaunchOptions
 //  THE SESSION IS THE WINDOWS LEFT STANDING. File > Exit, and Windows
 //  signing out or shutting down, write every window for the next launch. A
 //  window closed while others stay open is left out; the last window closed
-//  is written. The session is written as each window changes, so a process
-//  that never closes cleanly reopens where it was.
+//  is written, with every window closed in a quick run before it, as the
+//  taskbar's Close all windows closes them one at a time. The session is
+//  written as each window changes, so a process that never closes cleanly
+//  reopens where it was.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,6 +109,19 @@ public:
     static std::vector<CassoExplorerWindowRequest>  PlanFirstLaunch (const CassoExplorerLaunchOptions              & options,
                                                                      const std::vector<CassoExplorerSessionWindow> & session,
                                                                      const CassoExplorerPrefs                      & prefs);
+
+    //  A window closed while others stayed open, and when.
+    struct ClosedWindow
+    {
+        ULONGLONG                   closedMs = 0;
+        CassoExplorerSessionWindow  window;
+    };
+
+    //  The windows closed in the run that ends at `nowMs`, oldest first: back
+    //  from `nowMs`, each closed no more than kCloseRunMs before the next.
+    static std::vector<CassoExplorerSessionWindow>  GetClosedRun (const std::vector<ClosedWindow> & closed, ULONGLONG nowMs);
+
+    static constexpr ULONGLONG  kCloseRunMs = 3000;
 
     //  The window another launch opens in the running app, stepped down and
     //  right from `from`, the window it was opened over.
@@ -172,6 +187,9 @@ private:
     bool  HasOpenWindows         () const;
     std::vector<CassoExplorerSessionWindow>  GetOpenSession () const;
 
+    //  The open windows, then `closed`, written as the session.
+    void  SaveSessionWith (const std::vector<CassoExplorerSessionWindow> & closed);
+
     Win32FileSystem                           m_fs;
     Win32DiskFileIo                           m_fileIo;
     Win32ByteStreamFactory                    m_streams;
@@ -180,6 +198,7 @@ private:
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;
     std::vector<std::unique_ptr<WindowSlot>>  m_windows;
+    std::vector<ClosedWindow>                 m_closed;
     std::vector<std::wstring>                 m_knownFolders;
     bool                                      m_oleInitialized = false;
     bool                                      m_exiting        = false;
