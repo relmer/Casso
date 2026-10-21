@@ -525,6 +525,7 @@ wrask:  ldx sector
         jsr sendack
         jsr getsector
         bcc wrgot
+        jsr drain
         dec tries
         beq wrlink
         lda #NAK
@@ -598,6 +599,7 @@ wtask:  ldx sector
         jsr sendack
         jsr getsector
         bcc wtgot
+        jsr drain
         dec tries
         beq wtlink
         lda #NAK
@@ -1055,6 +1057,15 @@ gestart: sta tmp
         clc
         rts
 gefail: sec
+        rts
+
+; drain: the bytes still arriving dropped, until a tenth of a second passes
+; with none. A damaged packet is found partway through, with the rest of it
+; still on the line; a NAK sent then has the host send the packet again
+; behind that rest, which is then read as the new packet's start, and so on
+; for every try.
+drain:  jsr getbtq
+        bcc drain
         rts
 
 ; getpayload: a command's payload, at most 255 bytes, into PKTBUF, and its
