@@ -53,6 +53,7 @@ public:
         std::vector<Byte>                     dos;
         std::vector<Byte>                     prodos;
         std::vector<std::string>              screens;
+        uint64_t                              spent = 0;   // the last Run's cycles
 
         Rig()
         {
@@ -102,8 +103,9 @@ public:
         //  screen at each frame to `screens`.
         HRESULT  Run (std::function<HRESULT()> operation, std::function<void()> eachFrame = nullptr)
         {
-            auto      result = std::async (std::launch::async, operation);
-            uint64_t  spent  = 0;
+            auto  result = std::async (std::launch::async, operation);
+
+            spent = 0;
 
             while (result.wait_for (std::chrono::seconds (0)) != std::future_status::ready && spent < kBudget)
             {
@@ -375,6 +377,37 @@ public:
         for (int p = 0; p < 16; p++)
         {
             Assert::IsTrue (SameSector (data, (size_t) p, rig.prodos, ProDosOffset (2, p)), std::format (L"ProDOS track 2 sector {}", p).c_str());
+        }
+    }
+
+
+
+
+    //  A whole track's sectors, in the skewed order DOS 3.3's logical
+    //  sectors map to, are written in one pass and read back once. The
+    //  emulated line takes most of the time: about 16 revolutions, where
+    //  writing and reading back each sector in turn took 38.
+    TEST_METHOD (WriteSectors_AWholeTrackTakesAFewRevolutions)
+    {
+        static constexpr uint64_t  kRevolution = 204'600;   // cycles at 300 rpm
+        Rig                        rig;
+        const Byte                 sectors[]   = { 0, 13, 11, 9, 7, 5, 3, 1, 14, 12, 10, 8, 6, 4, 2, 15 };
+        std::vector<Byte>          data        = Pattern (16 * 256, 0x33);
+        std::vector<Byte>          image;
+        CassoLinkStatus            status;
+
+        rig.Connect();
+
+        Assert::AreEqual (S_OK, rig.Run ([&] () { return rig.host->WriteSectors (1, 21, sectors, data, status); }));
+        Assert::AreEqual<int> (CassoLinkHost::kErrorNone, status.error);
+        Logger::WriteMessage (std::format ("{} cycles, {:.1f} revolutions\n", rig.spent, (double) rig.spent / kRevolution).c_str());
+        Assert::IsTrue (rig.spent < 25 * kRevolution, std::format (L"{} cycles", rig.spent).c_str());
+
+        image = rig.Image (0);
+
+        for (size_t i = 0; i < 16; i++)
+        {
+            Assert::IsTrue (SameSector (data, i, image, DosOffset (21, sectors[i])), L"the DOS 3.3 image has the sector");
         }
     }
 

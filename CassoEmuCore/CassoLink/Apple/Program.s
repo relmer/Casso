@@ -124,15 +124,13 @@ INVTAB   = $4000                ; nibble -> 6-bit value
 CRCLO    = $4100                ; CRC-16/XMODEM table
 CRCHI    = $4200
 SECBUF   = $4300                ; a sector to write
-RDSEC    = $4400                ; a sector read
-RDAUX    = $4500                ; read: the 86 two-bit groups
-RDPRI    = $4600                ; read: the 256 six-bit values
 WRAUX    = $4700                ; write: the 86 two-bit groups
 WRPRI    = $4800                ; write: the 256 six-bit values
 PKTBUF   = $4900                ; a command's payload
 WSTREAM  = $4A00                ; a sector's write stream, two pages
 FSTREAM  = $5000                ; a track's format stream, 25 pages
 RAWBUF   = $5000                ; read: a track's raw sectors, two pages each, to $6FFF
+WSLOTS   = $5000                ; write sectors: each sector's stream, two pages each, to $6FFF
 AUXT0    = $4C00                ; a 6-bit group's two bits for the first third
 AUXT1    = $4C40                ; for the second
 AUXT2    = $4C80                ; for the third
@@ -157,6 +155,7 @@ fdata    = $09                  ; buildformat: nonzero for ENCBUF's sectors
 misses   = $0A                  ; revolutions in a row with no address field
 revs     = $0B                  ; Time drive: passes left to report
 fgap     = $0C                  ; the gap after each sector, in self-sync bytes
+idles    = $0D                  ; Idle replies since the last operation
 diskx    = $E0
 drive    = $E1                  ; 1 or 2
 track    = $E2
@@ -222,6 +221,7 @@ slotok: clc
         sta phi
         sta index
         sta count
+        sta idles
         sta pcflag
         sta silent
         sta spinning
@@ -264,8 +264,13 @@ mreply: jsr getpayload
         cmp #CMDIDLE
         bne notidle
         jsr clrlabel            ; the user's operation is over
+        lda idles               ; the motor runs on for IDLEOFF Idles, about
+        cmp #IDLEOFF            ; two seconds, so the user's next operation
+        bcc mnidle              ; does not wait for it to come up to speed
         jsr motoroff
-        lda #100
+        jmp mnwait
+mnidle: inc idles
+mnwait: lda #100
         jsr delayms
         jmp main
 notidle: cmp #CMDSPEED
@@ -497,15 +502,20 @@ opdone: jsr showerr
 
 ; Write sectors: for each, an Acknowledge with its number, then the host's
 ; Sector data, checked by its CRC, with a NAK sent for another copy until it
-; arrives whole; then written, read back and compared.
+; arrives whole. Each is encoded into ENCBUF and its stream built as it
+; arrives; then all are written in one pass, each as its address field
+; passes, and the track read back once and compared. Writing each sector
+; and reading it back before asking for the next takes more than a
+; revolution a sector.
 dowrite: lda #OPWRITE
         jsr begin
-        bcs opdone
+        bcs wrdone
         jsr protected
-        bcs opdone
+        bcs wrdone
 wrnext: jsr showprog
         ldy index
         lda PKTBUF+3,y
+        and #15
         sta sector
         lda #8
         sta tries
@@ -521,25 +531,18 @@ wrask:  ldx sector
         jmp wrask
 wrlink: lda #ERRLINK
         sta err
-        jmp opdone
-wrgot:  jsr writesector
-        bcs opdone
-        jsr readsector
-        bcs opdone
-        ldy #0
-wrcmp:  lda SECBUF,y
-        cmp RDSEC,y
-        bne wrbad
-        iny
-        bne wrcmp
+wrdone: jmp opdone
+wrgot:  jsr encpage
+        jsr encodeto
+        jsr buildslot
         inc index
         lda index
         cmp count
         bne wrnext
+        jsr writepass
+        bcs wrdone
+        jsr verifysecs
         jsr showprog
-        jmp opdone
-wrbad:  lda #ERRVERIFY
-        sta err
         jmp opdone
 
 ; Format track: 16 sectors of zeros, numbered 0 to 15 in order around the
@@ -646,24 +649,8 @@ verifytrack: jsr readall
         bcs vtfail
         lda #0
         sta sector
-vtsec:  jsr rawslot
-        jsr encpage
-        sta vtaux+2
-        clc
-        adc #1
-        sta vtpri+2
-        ldy #85
-vtcmpa: lda (dst),y
-vtaux:  cmp ENCBUF,y
-        bne vtbad
-        dey
-        bpl vtcmpa
-        ldy #0
-vtcmpp: lda (dstp),y
-vtpri:  cmp ENCBUF+256,y
-        bne vtbad
-        iny
-        bne vtcmpp
+vtsec:  jsr cmpslot
+        bcs vtfail
         inc sector
         lda sector
         cmp #16
@@ -671,9 +658,54 @@ vtpri:  cmp ENCBUF+256,y
         dec sector              ; the status ends on the last sector, 15
         clc
         rts
-vtbad:  lda #ERRVERIFY
-        sta err
 vtfail: sec
+        rts
+
+; verifysecs: Write sectors' sectors read back, and each one's 6-and-2
+; values compared with those in ENCBUF. The carry is set, with err and
+; sector, at the first that does not read or differs.
+verifysecs: jsr readtrack
+        bcs vsdone
+        lda #0
+        sta left
+vsnext: ldx left
+        lda PKTBUF+3,x
+        and #15
+        sta sector
+        jsr cmpslot
+        bcs vsdone
+        inc left
+        lda left
+        cmp count
+        bne vsnext
+        clc
+vsdone: rts
+
+; cmpslot: `sector`'s raw values in RAWBUF compared with its encoding in
+; ENCBUF. The carry is set, with err, when they differ.
+cmpslot: jsr rawslot
+        jsr encpage
+        sta csaux+2
+        clc
+        adc #1
+        sta cspri+2
+        ldy #85
+cscmpa: lda (dst),y
+csaux:  cmp ENCBUF,y
+        bne csbad
+        dey
+        bpl cscmpa
+        ldy #0
+cscmpp: lda (dstp),y
+cspri:  cmp ENCBUF+256,y
+        bne csbad
+        iny
+        bne cscmpp
+        clc
+        rts
+csbad:  lda #ERRVERIFY
+        sta err
+        sec
         rts
 ; begin: the operation in A; drive and track from the payload, the sector
 ; count after them. Draw them, start the motor and seek. The carry is set
@@ -683,6 +715,7 @@ begin:  sta op
         sta err
         lda #0
         sta index
+        sta idles
         lda PKTBUF
         sta drive
         lda PKTBUF+1
@@ -856,7 +889,6 @@ ssloop: lda stathdr,x
 stathdr: .byte $C1, $05, $00, CMDSTATUS, $C1 ^ $05 ^ $00 ^ CMDSTATUS
 statend:
 
-; sendsector: Sector data with the track, the sector, RDSEC and its CRC.
 ; sendsector: Sector data with the track, the sector, the raw sector at (dst)
 ; and (dstp) decoded, and its CRC. The 86 groups are first turned into three
 ; arrays of ready two-bit values, one per third of the sector; each byte is
@@ -948,25 +980,25 @@ getsector: jsr getenvt
         jmp cancel
 gsdatacmd: cmp #CMDDATA
         bne gsfail
-        jsr getbt               ; track
+        jsr getbtq              ; track
         bcs gsfail
-        jsr getbt               ; sector
+        jsr getbtq              ; sector
         bcs gsfail
         cmp sector
         bne gsfail
         ldy #0
-gsdata: jsr getbt
+gsdata: jsr getbtq
         bcs gsfail
         sta SECBUF,y
         iny
         bne gsdata
-        jsr getbt
+        jsr getbtq
         bcs gsfail
         sta tmp
-        jsr getbt
+        jsr getbtq
         bcs gsfail
         sta tmp2
-        jsr getbt               ; the payload's EOR; the CRC checks the data
+        jsr getbtq              ; the payload's EOR; the CRC checks the data
         bcs gsfail
         ldy #0
         sty crclo
@@ -988,28 +1020,34 @@ gsfail: sec
 
 ; getenvt: an envelope, with a timeout. A and envcmd are the command and
 ; lenlo and lenhi the payload length, with the carry clear; the carry is set
-; on a timeout or a bad check.
+; on a timeout or a bad check. The host sends a packet in one piece, so after
+; its first byte the rest come at once: a byte other than the start is the
+; rest of a packet whose start was lost on the line, and the line going quiet
+; after it ends the wait at once rather than after the whole timeout.
 getenvt: jsr getbt
         bcs gefail
-        cmp #$C1
-        bne getenvt
-        sta tmp
-        jsr getbt
+geskip: cmp #$C1
+        beq gestart
+        jsr getbtq
+        bcs gefail
+        jmp geskip
+gestart: sta tmp
+        jsr getbtq
         bcs gefail
         sta lenlo
         eor tmp
         sta tmp
-        jsr getbt
+        jsr getbtq
         bcs gefail
         sta lenhi
         eor tmp
         sta tmp
-        jsr getbt
+        jsr getbtq
         bcs gefail
         sta envcmd
         eor tmp
         sta tmp
-        jsr getbt
+        jsr getbtq
         bcs gefail
         cmp tmp
         bne gefail
@@ -1027,7 +1065,7 @@ getpayload: lda lenhi
         beq gpdone
         ldy #0
         sty peor
-gploop: jsr getbt
+gploop: jsr getbtq
         bcs gpfail
         sta PKTBUF,y
         eor peor
@@ -1035,7 +1073,7 @@ gploop: jsr getbt
         iny
         cpy lenlo
         bne gploop
-        jsr getbt
+        jsr getbtq
         bcs gpfail
         cmp peor
         bne gpfail
@@ -1075,14 +1113,25 @@ crcupd: sty savex
         rts
 
 ; getbt: a byte through the 6551, waiting about three seconds. The carry is
-; set on a timeout. X and Y are saved and restored.
+; set on a timeout. X and Y are saved and restored. getbtq waits about a
+; tenth of a second, for a byte inside a packet the host sends in one
+; piece: a byte lost on the line then costs a tenth of a second before the
+; NAK, not three. A USB serial adapter can hold bytes for 16 ms.
 getbt:  stx savex
         ldx slotx
         lda #0
         sta tmo
         sta tmo+1
         lda tmolen
-        sta tmo+2
+        bne gbset               ; always: tmolen is 1 or more
+getbtq: stx savex
+        ldx slotx
+        lda #0
+        sta tmo
+        lda #$E0                ; 32 of the 256 rounds
+        sta tmo+1
+        lda #1
+gbset:  sta tmo+2
 gbwait: lda ACIASTAT,x
         and #RDRF
         bne gbgot
@@ -1411,24 +1460,6 @@ ra6:    lda Q6L,x               ; the epilogue's first nibble, before it passes
 rafail: sec
         rts
 
-; readsector: `sector`'s data into RDSEC. The carry is set, with err, when
-; the address field is not found or the data field does not decode.
-readsector: lda #4
-        sta pagecnt             ; data-field attempts
-rsagain: jsr findsector
-        bcc rsfound
-        rts
-rsfound: jsr readdata
-        bcc rsdone
-rsretry: dec pagecnt
-        beq rsgive
-        jmp rsagain
-rsgive: lda #ERRDATA
-        sta err
-rsfail: sec
-        rts
-rsdone: rts
-
 ; readraw: the data field after the address field just read, its 86 two-bit
 ; groups at (dst) and its 256 six-bit values at (dstp), not yet decoded. The
 ; carry is set when it is not found or its checksum is wrong. Decoding takes
@@ -1479,44 +1510,6 @@ rdchk:  ldy Q6L,x
 rrbad:  sec
         rts
 
-; readdata: the data field into RDAUX and RDPRI, decoded into RDSEC. The
-; carry is set when it is not found or does not decode.
-readdata: lda #<RDAUX
-        sta dst
-        lda #>RDAUX
-        sta dst+1
-        lda #<RDPRI
-        sta dstp
-        lda #>RDPRI
-        sta dstp+1
-        jsr readraw
-        bcs rdbad
-
-        ldy #0                  ; RDSEC[i] = RDPRI[i] << 2 | the two bits
-        ldx #0                  ; from RDAUX[i mod 86], shifted as used
-rddec:  lda RDAUX,x
-        and #3
-        sta tmp
-        lsr RDAUX,x
-        lsr RDAUX,x
-        lda RDPRI,y
-        asl a
-        asl a
-        stx tmp2
-        ldx tmp
-        ora swap2,x
-        ldx tmp2
-        sta RDSEC,y
-        inx
-        cpx #86
-        bne rddnext
-        ldx #0
-rddnext: iny
-        bne rddec
-        clc
-        rts
-rdbad:  sec
-        rts
 
 ; readtrack: each requested sector of `track` into RAWBUF, raw, two pages per
 ; physical sector, taken as its address field passes. The carry is set, with
@@ -1608,18 +1601,61 @@ rawslot: lda sector
         sta dst
         sta dstp
         rts
-; writesector: SECBUF to `sector`. The stream is built first, so writing can
-; start the moment the sector's address field has passed.
-writesector: jsr encode
-        jsr buildwrite
-        jsr findsector
-        bcs wsfail
-        lda #>WSTREAM
+; writepass: each of Write sectors' sectors written from its stream in
+; WSLOTS as its address field passes, so the sectors that follow one another
+; around the track are written in one revolution. The streams are built
+; first, so writing can start the moment an address field has passed. The
+; carry is set, with err and sector, when some are not written after several
+; revolutions.
+writepass: ldx #15
+        lda #0
+wpclear: sta PENDING,x
+        dex
+        bpl wpclear
+        ldy #0
+wpmark: lda PKTBUF+3,y
+        and #15
+        tax
+        lda #1
+        sta PENDING,x
+        iny
+        cpy count
+        bne wpmark
+        lda count
+        sta left
+        lda #96                 ; address fields to look at: six revolutions
+        sta tries
+        lda #0
+        sta misses
+wploop: jsr rdaddr
+        bcc wphit
+        jsr missed
+        bcs wpnone
+        bcc wpnext
+wphit:  lda #0
+        sta misses
+        lda atrk
+        cmp track
+        bne wpnext
+        ldx asec
+        cpx #16
+        bcs wpnext
+        lda PENDING,x
+        beq wpnext
+        lda #0
+        sta PENDING,x
+        txa
+        asl a
+        clc
+        adc #>WSLOTS
         ldy #<WSTART
         jsr play
-        clc
-        rts
-wsfail: sec
+        dec left
+        beq wpdone
+wpnext: dec tries
+        bne wploop
+wpnone: jmp rtnone              ; the first sector not written, for the error
+wpdone: clc
         rts
 
 ; encode: SECBUF as 6-and-2: WRAUX's 86 two-bit groups, then WRPRI's 256
@@ -1651,19 +1687,23 @@ enprist: sta WRPRI,x
         inx
         bne enpri
         rts
-; buildwrite: WSTREAM from WSTART: five self-sync bytes, the data prologue,
-; the 343 data nibbles, the epilogue and the end mark, ending at the second
-; page's end.
-buildwrite: lda #<(WSTREAM+WSTART)
-        sta ptr
-        lda #>(WSTREAM+WSTART)
+; buildslot: `sector`'s stream in its two pages of WSLOTS from WSTART, from
+; its encoding in ENCBUF: five self-sync bytes, the data prologue, the 343
+; data nibbles, the epilogue and the end mark, ending at the second page's
+; end.
+buildslot: lda sector
+        asl a
+        clc
+        adc #>WSLOTS
         sta ptr+1
+        lda #<WSTART
+        sta ptr
         ldx #5
-bwsync: lda #0
+bssync: lda #0
         jsr putstream
         dex
-        bne bwsync
-        lda #>WRAUX
+        bne bssync
+        jsr encpage
         jsr putdata
         lda #PEND
         jmp putstream
@@ -1970,6 +2010,7 @@ ROWER = $0428                   ; row 8: the last error, when there is one
 ROWHIST = $0528                 ; row 10: the history's title, its lines below
 LOGROWS = 13                    ; the history's lines
 PCGONE = 5                      ; seconds with no reply before the PC is gone
+IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
 FIELDLEN = 20
 scr = $13                       ; and $14: the field being drawn
