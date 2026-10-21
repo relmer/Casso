@@ -11827,15 +11827,32 @@ void CassoExplorerWindow::RefreshLinkViews()
     showing = showing || m_browser.GetLocation().path == TreeModel::kCassoLinkRootId;
 
     //  The preview of a drive whose catalog was being read is drawn again
-    //  with the catalog.
+    //  with the catalog. A CHANGE TO ANY LINK CALLS THIS, NOT ONLY A CHANGE TO
+    //  THE LINK THE LIST IS ON: a link with nothing to connect to changes state
+    //  about once a second as it retries, so the list and the preview are
+    //  redrawn only when the reload changed them, or each retry would scroll the
+    //  preview to its top.
     if (showing)
     {
+        std::vector<CatalogRow>  rows     = m_browser.GetRows();
+        std::vector<int>         selected = m_browser.GetSelectedRows();
+        std::wstring             message  = m_browser.GetListError();
+        PreviewContent           preview  = m_browser.GetPreview();
+
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         m_browser.RefreshPreview();
-        FillList();
-        FillPreview();
+
+        //  Filling the list fills the preview as well.
+        if (m_browser.GetRows() != rows || m_browser.GetSelectedRows() != selected || m_browser.GetListError() != message)
+        {
+            FillList();
+        }
+        else if (m_browser.GetPreview() != preview)
+        {
+            FillPreview();
+        }
     }
 
     Invalidate();

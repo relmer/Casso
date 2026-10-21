@@ -105,6 +105,8 @@ struct PreviewContent
     //  monitor, or a double hi-res picture the other way, without a read.
     PicturePreview::Mode       pictureMode   = PicturePreview::Mode::None;
     PicturePreview::Mode       pictureChosen = PicturePreview::Mode::None;
+
+    bool  operator== (const PreviewContent &) const = default;
 };
 
 

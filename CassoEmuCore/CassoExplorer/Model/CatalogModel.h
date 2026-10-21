@@ -105,6 +105,8 @@ struct CatalogRow
 
     //  A linked machine that is not connected, whose apple is drawn in grays.
     bool           offline       = false;
+
+    bool  operator== (const CatalogRow &) const = default;
 };
 
 
