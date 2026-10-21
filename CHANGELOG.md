@@ -10,6 +10,8 @@ Entries before versioning was introduced use dates only.
 
 ### Added
 
+- An Uthernet II Ethernet card (WIZnet W5100) for the ][, ][+, //e and //e Enhanced,
+  turned on in Settings > Machine.
 - An info icon after a mounted WOZ image's name when the models or the minimum
   RAM the image declares do not match the running machine. Hovering it lists
   what the image declares and marks whether the running machine meets each
