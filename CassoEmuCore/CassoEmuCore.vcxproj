@@ -288,7 +288,7 @@
     <ClCompile Include="CassoExplorer\Model\HostFileNaming.cpp" />
     <ClCompile Include="CassoExplorer\Model\KnownFolderStore.cpp" />
     <ClCompile Include="CassoExplorer\Model\LaunchCommand.cpp" />
-    <ClCompile Include="CassoExplorer\Model\TabTransfer.cpp" />
+    <ClCompile Include="CassoExplorer\Model\CassoExplorerSession.cpp" />
     <ClCompile Include="CassoExplorer\Model\FocusRing.cpp" />
     <ClCompile Include="Seams\IntentReplyTracker.cpp" />
     <ClCompile Include="Seams\Win32ProcessLauncher.cpp" />
@@ -689,7 +689,8 @@
     <ClInclude Include="CassoExplorer\Model\HostFileNaming.h" />
     <ClInclude Include="CassoExplorer\Model\KnownFolderStore.h" />
     <ClInclude Include="CassoExplorer\Model\LaunchCommand.h" />
-    <ClInclude Include="CassoExplorer\Model\TabTransfer.h" />
+    <ClInclude Include="CassoExplorer\Model\CassoExplorerSession.h" />
+    <ClInclude Include="CassoExplorer\ICassoExplorerHost.h" />
     <ClInclude Include="CassoExplorer\Model\FocusRing.h" />
     <ClInclude Include="Seams\IntentReplyTracker.h" />
     <ClInclude Include="Seams\IProcessLauncher.h" />

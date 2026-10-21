@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerCommands.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
+#include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Model/FocusRing.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/IFileSystem.h"
@@ -30,6 +31,7 @@
 class CassoLinkConnections;
 class CassoLinkFolder;
 class RunningCassoRegistry;
+struct CassoExplorerSessionWindow;
 
 
 
@@ -60,16 +62,15 @@ public:
     {
         IFileSystem   * fs          = nullptr;
         std::wstring    baseDir;
-        HWND            owner       = nullptr;
         std::wstring    titlePrefix;
-        std::wstring    openPath;       // from the command line; empty: none
-        bool            newWindow   = false;   // a second window, cascaded from the saved placement
 
-        //  A tab torn off another window, as TabTransfer encodes it, and where
-        //  that window put this one; empty and none for any other launch.
-        std::wstring    tab;
-        RECT            placement    = {};
-        bool            hasPlacement = false;
+        //  What this window opens on and where it goes.
+        CassoExplorerWindowRequest  request;
+
+        //  Optional: the app that owns the window, which implements other
+        //  windows, the session, and File > Exit. Without one the window is
+        //  the process's only window.
+        ICassoExplorerHost * host   = nullptr;
 
         //  Optional: without one, the browser shows what it read when it read
         //  it, and a change made elsewhere is seen on the next navigation.
@@ -94,26 +95,40 @@ public:
     //  WM_COPYDATA with this id and the full path as UTF-16 text.
     static constexpr ULONG_PTR  kOpenPathCopyId = 0x43454F50;   // 'CEOP'
 
-    //  A tab dragged from one window onto another's tab strip. While it is
-    //  over the strip, the window it came from posts kTabHoverMessage with
-    //  wParam 1 and the pointer's screen position in lParam, and wParam 0 once
-    //  it leaves; a drop sends the tab in a WM_COPYDATA with this id, as
-    //  TabTransfer encodes it in UTF-16. Each window publishes its strip's
-    //  client rectangle in kTabStripProperty, packed 16 bits a side, so the
-    //  dragging window can find the strip under the pointer.
-    static constexpr ULONG_PTR        kTabDropCopyId    = 0x43455444;   // 'CETD'
-    static constexpr UINT             kTabHoverMessage  = WM_APP + 0x40;
-    static constexpr const wchar_t *  kTabStripProperty = L"CassoExplorerTabStrip";
+    //  A second launch with no window of its own to front sends its whole
+    //  command line to the running app, in a WM_COPYDATA with this id and the
+    //  arguments as UTF-16 text, its path made full.
+    static constexpr ULONG_PTR  kLaunchCopyId   = 0x43454C41;   // 'CELA'
 
     //  Opens a folder, a disk image, or a file's folder in a new tab.
     void  OpenPathInNewTab (const std::wstring & path);
 
-    //  The window's placement in the preferences' terms, for saving on exit.
-    void  StorePlacement();
+    //  The window's placement in the preferences' terms.
+    CassoExplorerPrefs::Placement  GetPlacement () const;
 
-    //  Records the session -- tabs, typed paths, placement -- and saves the
-    //  preferences now, rather than only on a clean exit.
+    //  This window as the session writes it: its placement and every tab.
+    CassoExplorerSessionWindow     GetSessionWindow () const;
+
+    //  Saves the typed paths, the session and the preferences now,
+    //  rather than only on a clean exit.
     void  SaveSession();
+
+    //  A tab dragged from another window of the app: whether the point is
+    //  over this window's tab strip, the gap it opens while it is, and the
+    //  tab arriving on the drop, at the gap.
+    bool  IsOverTabStrip (POINT screen) const;
+    void  OnTabHover     (bool over, POINT screen);
+    void  AcceptTab      (BrowserModel::Tab tab);
+
+    //  CassoLink posts its changes to one window; this one, from now on.
+    void  TakeLinkNotifications();
+
+    //  A CassoLink operation finished or a link changed state: the tree, the
+    //  list and the status bar are brought up to date.
+    void  RefreshLinkViews();
+
+    //  Closed by the app, which has saved the session already.
+    void  CloseForApp();
 
     void    Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void    Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -323,9 +338,9 @@ private:
     static constexpr UINT      kLinkMessage          = WM_APP + 0x3E;
     static constexpr UINT      kRunningMessage       = WM_APP + 0x3F;
 
-    //  Posted to itself once a tab dropped from another window has arrived,
-    //  so the sender is not held in its send while the tab is shown.
-    static constexpr UINT      kTabArrivedMessage    = WM_APP + 0x41;
+    //  Posted to itself once another launch has forwarded its arguments, so
+    //  the launch's send returns before a window opens.
+    static constexpr UINT      kLaunchMessage        = WM_APP + 0x41;
 
 public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
@@ -427,6 +442,7 @@ protected:
     void               OnExitSizeMove           () override;
     void               OnEnterSizeMove          () override;
     DxuiMessageResult  OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnEndSession (bool ending) override;
 
 private:
     //  Keyboard focus. The toolbar is one pane, with its focused button in
@@ -642,22 +658,18 @@ private:
     static BrowserModel::AddressRoot  GetProfileRoot();
     void  SwitchToTab (size_t index);
 
-    //  A tab dragged off the strip: the card that follows the pointer, the
+    //  A tab dragged off the strip: the card that moves with the pointer, the
     //  other window's strip it is over, and where it goes on the drop -- into
     //  that window, or into a window of its own.
     void   OnTabDragMove       (int index, POINT client, bool tornOff);
     void   OnTabDragEnd        (int index, POINT client, bool tornOff);
     void   CancelTabDrag       ();
     void   ShowTabDragVisual   (int index, POINT screen);
-    HWND   FindTabStripAt      (POINT screen) const;
-    void   SetTabDragTarget    (HWND target, POINT screen);
-    bool   TrySendTab          (HWND target, int index);
+    CassoExplorerWindow *  FindTabStripAt (POINT screen) const;
+    void   SetTabDragTarget    (CassoExplorerWindow * target, POINT screen);
     void   TearOffTab          (int index, POINT screen);
     RECT   GetTearOffRect      (POINT screen) const;
     void   LeaveWithTab        (int index);
-    void   PublishTabStrip     ();
-    void   OnTabHover          (WPARAM over, LPARAM screen);
-    void   InsertArrivedTabs   ();
     void   FillPreview();
     void  UpdateCommandBar();
     void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
@@ -1122,11 +1134,9 @@ private:
     DxuiInPlaceTip           m_labelTip;   // a tree name the splitter cuts off, shown whole over its row
     DxuiTabDragVisual        m_tabDragVisual;
     HWND                     m_tabDragTarget = nullptr;   // the other window whose strip a dragged tab is over
-    bool                     m_emptied       = false;     // its last tab left for another window
 
-    //  Tabs dropped from another window, each with the place it dropped at,
-    //  inserted once the send that brought it returns.
-    std::vector<std::pair<int, BrowserModel::Tab>>  m_arrivedTabs;
+    //  Other launches' arguments, run once the send that brought each returns.
+    std::vector<std::wstring>  m_pendingLaunches;
 
     std::vector<UndoStep>    m_undo;   // newest last
     int                      m_restoreTicks  = 0;

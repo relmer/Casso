@@ -113,26 +113,33 @@ extern "C" int WINAPI wCassoExplorerMain (
     {
         CassoExplorerShell::FrontWindow (existing);
 
-        //  The window open already takes the path; a full one, since its
-        //  process has its own current folder.
+        //  The window open already takes the path.
         if (!options.openPath.empty())
         {
-            std::wstring    full   (32768, L'\0');
-            DWORD           length = GetFullPathNameW (options.openPath.c_str(), (DWORD) full.size(), full.data(), nullptr);
-            COPYDATASTRUCT  copy   = {};
-            DWORD_PTR       result = 0;
-
-            full.resize (length < full.size() ? length : 0);
-
-            copy.dwData = CassoExplorerWindow::kOpenPathCopyId;
-            copy.cbData = (DWORD) (full.size() * sizeof (wchar_t));
-            copy.lpData = full.data();
-
-            if (!full.empty())
-            {
-                SendMessageTimeoutW (existing, WM_COPYDATA, 0, (LPARAM) &copy, SMTO_ABORTIFHUNG, 5000, &result);
-            }
+            CassoExplorerShell::ForwardToWindow (existing, CassoExplorerWindow::kOpenPathCopyId, CassoExplorerShell::GetFullPath (options.openPath));
         }
+    }
+
+    BAIL_OUT_IF (existing != nullptr, S_OK);
+
+    //  Every window is in one process: a launch with no window of its own to
+    //  front sends its command line to the running app, which opens the
+    //  window, and allows that window to come forward.
+    existing = FindWindowW (CassoExplorerShell::kWindowClass, nullptr);
+
+    if (existing != nullptr)
+    {
+        DWORD  process = 0;
+        BOOL   allowed = FALSE;
+
+        if (GetWindowThreadProcessId (existing, &process) != 0)
+        {
+            allowed = AllowSetForegroundWindow (process);
+            IGNORE_RETURN_VALUE (allowed, TRUE);
+        }
+
+        options.openPath = CassoExplorerShell::GetFullPath (options.openPath);
+        CassoExplorerShell::ForwardToWindow (existing, CassoExplorerWindow::kLaunchCopyId, CassoExplorerShell::MakeForwardedArguments (options));
     }
 
     BAIL_OUT_IF (existing != nullptr, S_OK);

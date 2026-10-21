@@ -38,10 +38,6 @@ public:
     //  `--new-window "<path>"`, and `--title <prefix>` when there is one.
     static std::wstring  MakeNewWindowArguments (const std::wstring & path, const std::wstring & titlePrefix);
 
-    //  `--new-window --tab "<tab>" --at <x>,<y>,<width>,<height>`, and
-    //  `--title <prefix>` when there is one: a window for a torn-off tab.
-    static std::wstring  MakeTearOffArguments   (const std::wstring & tab, const RECT & window, const std::wstring & titlePrefix);
-
     //  One argument in the quoting CommandLineToArgvW reads back unchanged.
     static std::wstring  QuoteArgument (const std::wstring & argument);
 

@@ -103,6 +103,7 @@ public:
     bool          MoveTab     (size_t from, size_t to) { return m_model.MoveTab (from, to); }
     bool          SwitchTab   (size_t index);
     void          RestoreTabs (const std::vector<Location> & locations);
+    void          RestoreTabs (std::vector<BrowserModel::Tab> tabs, size_t active);
 
     //  A tab arriving from another window goes in at `index`, history and view
     //  included, and becomes the active tab.
@@ -447,6 +448,7 @@ public:
 private:
     //  Refresh for a navigation, whose failure is already in the list error.
     void     ReloadAfterNavigation();
+    bool     IsOnMissingDrive (const Location & location) const;
     HRESULT  LoadHostFolder (const std::wstring & path);
     HRESULT  LoadRoot       (const std::wstring & id);
     HRESULT  LoadRecycleBin ();

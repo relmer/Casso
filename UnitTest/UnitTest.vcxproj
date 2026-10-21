@@ -371,7 +371,7 @@
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
     <ClCompile Include="CassoExplorer\TreeModelTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
-    <ClCompile Include="CassoExplorer\TabTransferTests.cpp" />
+    <ClCompile Include="CassoExplorer\CassoExplorerSessionTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPrefsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerLinkDialogTests.cpp" />
