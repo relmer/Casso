@@ -32,6 +32,7 @@
 #include <wrl/client.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <cmath>

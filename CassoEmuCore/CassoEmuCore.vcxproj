@@ -257,6 +257,8 @@
     <ClCompile Include="Machines\Apple2\Common\LanguageCard.cpp" />
     <ClCompile Include="Devices\Acia6551.cpp" />
     <ClCompile Include="Devices\AciaEndpoints.cpp" />
+    <ClCompile Include="Devices\AciaByteSourceEndpoint.cpp" />
+    <ClCompile Include="Devices\SerialByteQueue.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleMouse.cpp" />
     <ClCompile Include="Devices\Via6522.cpp" />
     <ClCompile Include="Devices\Ay8910.cpp" />
@@ -358,6 +360,10 @@
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eKeyboard.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eMmu.cpp" />
     <ClCompile Include="Machines\Apple2\Common\CxxxRomRouter.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\ExpansionRomBus.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SlotRomPage.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SscSwitches.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\SuperSerialCard.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2c\Apple2cRomBank.cpp" />
     <ClCompile Include="Machines\Apple2\Apple2e\Apple2eSoftSwitchBank.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AppleTextMode.cpp" />
@@ -450,6 +456,10 @@
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
     <ClCompile Include="Ui\Settings\PrintingPage.cpp" />
+    <ClCompile Include="Ui\Settings\SerialCardPage.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsInfoTip.cpp" />
+    <ClCompile Include="Ui\Settings\SscSettingsModel.cpp" />
+    <ClCompile Include="Ui\Settings\SscSwitchesView.cpp" />
     <ClCompile Include="Ui\Settings\ScreenshotsPage.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
@@ -507,6 +517,8 @@
     <ClCompile Include="Shell\Components\ShellAudio.cpp" />
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
+    <ClCompile Include="Shell\Components\ShellSerialCard.cpp" />
+    <ClCompile Include="Shell\SerialCardNotice.cpp" />
     <ClCompile Include="Shell\Components\ShellSettings.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebug.cpp" />
     <ClCompile Include="WasapiAudio.cpp" />
@@ -722,6 +734,7 @@
     <ClInclude Include="Machines\Apple2\Common\LanguageCard.h" />
     <ClInclude Include="Devices\Acia6551.h" />
     <ClInclude Include="Devices\AciaEndpoints.h" />
+    <ClInclude Include="Devices\AciaByteSourceEndpoint.h" />
     <ClInclude Include="Machines\Apple2\Common\AppleMouse.h" />
     <ClInclude Include="Devices\Via6522.h" />
     <ClInclude Include="Devices\Ay8910.h" />
@@ -730,6 +743,7 @@
     <ClInclude Include="Machines\Apple2\Common\MockingboardAudioSource.h" />
     <ClInclude Include="Machines\Apple2\Common\MockingboardCard.h" />
     <ClInclude Include="Devices\IAciaEndpoint.h" />
+    <ClInclude Include="Devices\SerialByteQueue.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Controller.h" />
     <ClInclude Include="Machines\Apple2\Common\IDisk2EventSink.h" />
     <ClInclude Include="Machines\Apple2\Common\Disk2Event.h" />
@@ -741,6 +755,11 @@
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eKeyboard.h" />
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eMmu.h" />
     <ClInclude Include="Machines\Apple2\Common\CxxxRomRouter.h" />
+    <ClInclude Include="Machines\Apple2\Common\ExpansionRomBus.h" />
+    <ClInclude Include="Machines\Apple2\Common\IExpansionRomCard.h" />
+    <ClInclude Include="Machines\Apple2\Common\SlotRomPage.h" />
+    <ClInclude Include="Machines\Apple2\Common\SscSwitches.h" />
+    <ClInclude Include="Machines\Apple2\Common\SuperSerialCard.h" />
     <ClInclude Include="Machines\Apple2\Apple2c\Apple2cRomBank.h" />
     <ClInclude Include="Devices\IRomBankSwitch.h" />
     <ClInclude Include="Machines\Apple2\Apple2e\Apple2eSoftSwitchBank.h" />
@@ -872,6 +891,10 @@
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
     <ClInclude Include="Ui\Settings\PrintingPage.h" />
+    <ClInclude Include="Ui\Settings\SerialCardPage.h" />
+    <ClInclude Include="Ui\Settings\SettingsInfoTip.h" />
+    <ClInclude Include="Ui\Settings\SscSettingsModel.h" />
+    <ClInclude Include="Ui\Settings\SscSwitchesView.h" />
     <ClInclude Include="Ui\Settings\ScreenshotsPage.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Ui\UiShell.h" />
@@ -913,6 +936,8 @@
     <ClInclude Include="Shell\Components\ShellDeskScene.h" />
     <ClInclude Include="Shell\Components\ShellDisks.h" />
     <ClInclude Include="Shell\Components\ShellPrinter.h" />
+    <ClInclude Include="Shell\Components\ShellSerialCard.h" />
+    <ClInclude Include="Shell\SerialCardNotice.h" />
     <ClInclude Include="Shell\Components\ShellSettings.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
     <ClInclude Include="Shell\Components\ShellUpdater.h" />

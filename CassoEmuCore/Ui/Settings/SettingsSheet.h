@@ -28,6 +28,7 @@ class ThemeManager;
 class EmulatorShell;
 class IFileSystem;
 class DxuiLabel;
+class SerialCardPage;
 
 
 
@@ -117,6 +118,7 @@ protected:
     //  open, preserving the bespoke look (no separate popup HWND). Layout keeps
     //  it centered in the current sheet bounds.
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void     Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     HasModalOverlay   () const override;
     void     PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     OnOverlayMouse    (const DxuiMouseEvent & ev) override;
@@ -259,6 +261,7 @@ private:
     ThemePage        * m_themePage       = nullptr;
     DisplayPage      * m_displayPage     = nullptr;
     PrintingPage     * m_printingPage    = nullptr;
+    SerialCardPage   * m_serialPage      = nullptr;
     ScreenshotsPage  * m_shotsPage       = nullptr;
     ControllersPage  * m_controllersPage = nullptr;
 
@@ -277,6 +280,42 @@ private:
 
     // Refresh the Disk tab's presence from the staged hardware config.
     void  UpdateDiskTabVisibility ();
+
+    // The Serial card tab, present while the staged hardware has the Super
+    // Serial Card turned on. Turning the card on while its firmware is
+    // missing selects the tab, whose banner offers the download.
+    int            m_serialPageIndex  = -1;
+    bool           m_serialTabVisible = true;
+
+    void           UpdateSerialTabVisibility ();
+    bool           IsSerialFirmwareMissing   () const;
+    std::wstring   GetSerialFirmwareStatus   () const;
+
+    // The card is turned on only with Apple's firmware installed. Turning it
+    // on without the firmware turns it off again and opens the download
+    // dialog; the card is turned on when the download succeeds.
+    // DownloadSerialFirmware returns true when the firmware was written.
+    bool           DownloadSerialFirmware (const std::wstring & intro);
+    void           SetSerialCardEnabled   (bool enabled);
+
+    // A tab appearing among the others is easy to miss, so when turning a
+    // card on adds its tab, StartTabSparkle makes the tab's label shimmer as
+    // the update indicator's text does, one sweep every kSparklePeriodMs,
+    // until the tab is opened or hidden again. Not with animations turned
+    // off. Keyed by page index; any number of tabs can sparkle at once.
+    static constexpr UINT     kSparkleTickMs   = 16;
+    static constexpr int64_t  kSparklePeriodMs = 5000;
+
+    static_assert (DxuiShimmer::kSweepMs < kSparklePeriodMs, "a sweep ends before the next starts");
+
+    std::map<int, int64_t>  m_tabSparkleStartMs;
+    DxuiSweepGlints         m_tabSparkleGlints = DxuiShimmer::MakeEvenSweepGlints();
+
+    void                  StartTabSparkle       (int pageIndex);
+    std::optional<float>  GetTabSparkleProgress (int pageIndex) const;
+    bool                  IsAnyTabSweeping      () const;
+    void                  UpdateTabSparkles     ();
+    void                  PaintTabSparkle       (IDxuiTextRenderer & text, int pageIndex, float progress);
 
     // The dialog tick last asked for: the Controllers page's live rate while
     // it is shown, the default otherwise.

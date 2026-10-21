@@ -117,6 +117,7 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs)
             label.SetTextRole  (DxuiTextRole::Body);
             label.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
             item.widget = &label;
+            item.label  = &label;
         }
 
         m_items.push_back (item);
@@ -199,6 +200,77 @@ int DialogBodyContent::GetPreferredHeightDip() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DialogBodyContent::TryMeasureHeightPx
+//
+//  Mirrors Layout's stacking: the top icon, then the runs beside the glyph
+//  column, with the glyph as the floor. A prose run is measured wrapped at
+//  the width its label gets, in the size and face the label draws in; a
+//  link or column row is one line. No run is shorter than one line, so an
+//  empty run is a one-line gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DialogBodyContent::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx)
+{
+    HRESULT  hr       = S_OK;
+    int      linePx   = m_scaler.ToPx (s_kLineHeightDip);
+    int      gapPx    = m_scaler.ToPx (s_kItemGapDip);
+    int      runsW    = widthPx;
+    int      iconTop  = 0;
+    int      runs     = 0;
+    float    measureW = 0.0f;
+    float    measureH = 0.0f;
+    float    fontDip  = 0.0f;
+
+
+
+    if (!m_iconPixels.empty() && m_iconSizeDip > 0)
+    {
+        iconTop = m_scaler.ToPx (m_iconSizeDip) + m_scaler.ToPx (s_kIconGapDip);
+    }
+
+    if (m_glyph != 0 && m_glyphSizeDip > 0)
+    {
+        runsW -= m_scaler.ToPx (m_glyphSizeDip) + m_scaler.ToPx (s_kGlyphGapDip);
+    }
+
+    CBR (runsW > 0);
+
+    for (Item & item : m_items)
+    {
+        item.heightPx = item.lines * linePx;
+
+        if (item.label != nullptr && !item.label->GetText().empty())
+        {
+            fontDip = (item.label->GetFontSizeDip() > 0.0f) ? item.label->GetFontSizeDip() : theme.BodyFont().sizeDip;
+
+            hr = text.MeasureStringWrapped (item.label->GetText().c_str(), m_scaler.ToPxf (fontDip),
+                                            DxuiTheme::kBodyFace, (float) runsW, measureW, measureH);
+            CHR (hr);
+
+            item.heightPx = std::max (linePx, (int) std::ceil (measureH));
+        }
+
+        runs += item.heightPx + gapPx;
+    }
+
+    if (m_glyph != 0)
+    {
+        runs = std::max (runs, m_scaler.ToPx (m_glyphSizeDip));
+    }
+
+    heightPx = iconTop + runs;
+
+Error:
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DialogBodyContent::EstimateTextWidthDip
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +342,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     SetBounds (boundsPx);
 
+    m_scaler      = scaler;
     m_iconRectPx  = {};
     m_glyphRectPx = {};
 
@@ -298,7 +371,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     for (Item & item : m_items)
     {
-        int   hPx = item.lines * linePx;
+        int   hPx = (item.heightPx > 0) ? item.heightPx : item.lines * linePx;
         RECT  b   = { runsLeft, y, boundsPx.right, y + hPx };
 
         if (item.arrowWidget != nullptr)

@@ -45,7 +45,7 @@ void DownloadDialog::OnCreate()
         m_skipBtn = AddDialogButton (L"Skip", kIdSkip);
     }
 
-    m_exitBtn = AddDialogButton (L"Exit", IDCANCEL);
+    m_exitBtn = AddDialogButton (m_cancelLabel, IDCANCEL);
 
     SetDialogTickIntervalMs (m_tickMs);
 }

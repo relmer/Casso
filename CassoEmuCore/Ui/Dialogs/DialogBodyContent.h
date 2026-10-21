@@ -22,9 +22,14 @@ class IDxuiControl;
 //  the per-run heights scale with DPI. Used by the Dxui dialog path that
 //  replaces the legacy DialogPrimitive for simple + hyperlink dialogs.
 //
+//  Each run's height starts as an estimate from its character count, for the
+//  dialog's first size; TryMeasureHeightPx replaces it with the wrapped
+//  height measured by the window's renderer, and the dialog is resized to
+//  the total before the window appears.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-class DialogBodyContent : public DxuiPanel
+class DialogBodyContent : public DxuiPanel, public IDxuiMeasuredContent
 {
 public:
     // Build one child widget per body run. Normal runs render with the
@@ -43,9 +48,13 @@ public:
     // semantic glyph).
     void  SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip);
 
-    // Estimated stacked height in DIP, used by the caller to size the
-    // hosting dialog.
+    // Estimated stacked height in DIP, used by the caller for the hosting
+    // dialog's first size.
     int   GetPreferredHeightDip () const;
+
+    // The stacked height measured at `widthPx`, each prose run wrapped as its
+    // label draws it. Layout uses the measured run heights from then on.
+    bool  TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) override;
 
     // Width in DIP the column rows need, or 0 when the body has none. Only
     // column rows report a width: prose wraps to whatever it is given, so a
@@ -59,8 +68,10 @@ public:
 private:
     struct Item
     {
-        IDxuiControl *  widget = nullptr;
-        int             lines  = 1;
+        IDxuiControl *  widget   = nullptr;
+        DxuiLabel *     label    = nullptr;   // the widget, for a prose run
+        int             lines    = 1;
+        int             heightPx = 0;         // measured; 0 until TryMeasureHeightPx
 
         // A three-column row owns two more widgets: the arrow between the
         // cells and the right cell. Null on an ordinary prose run.
@@ -91,4 +102,5 @@ private:
     uint32_t               m_glyphArgb    = 0;
     int                    m_glyphSizeDip = 0;
     RECT                   m_glyphRectPx  = {};
+    DxuiDpiScaler          m_scaler;
 };

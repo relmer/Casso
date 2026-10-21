@@ -10,6 +10,10 @@
     guest-visible case FAILS, which is the intended signal but a poor
     welcome for a fresh clone, so `RunTests.ps1 -Scenario` runs this first.
 
+    The Kermit-65 3.87 disk is fetched the same way, into
+    `Disks/ThirdParty/`, for the scenario case that runs Kermit. It is not
+    Apple's, but it contains ProDOS, so it is not committed either.
+
     LOOKS BEFORE IT FETCHES, in the two places the tests themselves read, so
     a machine that already has an image never touches the network:
 
@@ -73,9 +77,10 @@ $destDir = Join-Path $repoRoot 'Disks/Apple'
 #  its cost. An exact hash already establishes identity, so a structural probe
 #  after it could only fail on bytes the hash has already accepted.
 #
-#  RepoName is what the tests look for under Disks/Apple; CacheName is what
-#  the emulator saves the same image as. The two differ, and both differ from
-#  the name on the archive, so all three appear here.
+#  RepoName is what the tests look for under Disks/Apple, or under RepoDir
+#  when an entry has one; CacheName is what the emulator saves the same image
+#  as. The two differ, and both differ from the name on the archive, so all
+#  three appear here. BaseUrl replaces the default host for one entry.
 #
 $assets = @(
     @{ RepoName  = 'dos33-master.dsk'
@@ -90,7 +95,18 @@ $assets = @(
        UrlPath   = '/images/masters/prodos/ProDOS%20Users%20Disk%20-%20680-0224-C.dsk'
        Size      = 143360
        Sha1      = '40DC1A16E3F234857A29B49CA0B996E1B14D38B9'
-       Desc      = 'ProDOS Users Disk (680-0224-C)' }
+       Desc      = 'ProDOS Users Disk (680-0224-C)' },
+
+    #  Kermit-65 3.87 for ProDOS. The emulator never downloads it, so it has
+    #  no cache name, and its URL is on a mirror of the Asimov archive.
+    @{ RepoName  = 'kermit-65.dsk'
+       RepoDir   = 'Disks/ThirdParty'
+       CacheName = $null
+       BaseUrl   = 'https://mirrors.apple2.org.za/ftp.apple.asimov.net'
+       UrlPath   = '/images/communications/kermit_protocol.dsk'
+       Size      = 143360
+       Sha1      = '9928F056472E0F46F4652BB4C7FED9B52545572A'
+       Desc      = 'Kermit-65 3.87 for ProDOS' }
 )
 
 #
@@ -123,7 +139,7 @@ function Get-AssetProblem {
 function Get-CachedImagePath {
     param([hashtable]$Asset)
 
-    if (-not $env:LOCALAPPDATA) {
+    if (-not $env:LOCALAPPDATA -or -not $Asset.CacheName) {
         return $null
     }
 
@@ -150,7 +166,9 @@ $fetched = 0
 $missing = 0
 
 foreach ($asset in $assets) {
-    $destPath = Join-Path $destDir $asset.RepoName
+    $assetDir = if ($asset['RepoDir']) { Join-Path $repoRoot $asset['RepoDir'] } else { $destDir }
+    $assetUrl = if ($asset['BaseUrl']) { $asset['BaseUrl'] } else { $baseUrl }
+    $destPath = Join-Path $assetDir $asset.RepoName
 
     #  Already in the repo, and still the right bytes.
     if ((Test-Path -LiteralPath $destPath) -and -not $Force) {
@@ -183,14 +201,14 @@ foreach ($asset in $assets) {
         }
     }
 
-    if (-not (Test-Path -LiteralPath $destDir)) {
-        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+    if (-not (Test-Path -LiteralPath $assetDir)) {
+        New-Item -ItemType Directory -Path $assetDir -Force | Out-Null
     }
 
     Write-Status "  GET   $($asset.RepoName) ($($asset.Desc))..." 'Gray' -NoNewline
 
     try {
-        Invoke-WebRequest -Uri "$baseUrl$($asset.UrlPath)" -OutFile $destPath `
+        Invoke-WebRequest -Uri "$assetUrl$($asset.UrlPath)" -OutFile $destPath `
                           -MaximumRedirection 10 -UseBasicParsing
 
         $problem = Get-AssetProblem -Path $destPath -Asset $asset

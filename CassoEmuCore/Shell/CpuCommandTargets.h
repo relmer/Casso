@@ -55,6 +55,10 @@ public:
     virtual void     PowerCycle                ()                                  = 0;
     virtual void     StepInstruction           ()                                  = 0;
     virtual void     SaveTrace                 ()                                  = 0;
+
+    // The Super Serial Card's DIP switches, as "on off ..." text per bank.
+    virtual void     SetSerialCardSwitches     (const std::string & sw1,
+                                                const std::string & sw2)           = 0;
 };
 
 

@@ -42,6 +42,18 @@ public:
     }
 
 
+    TEST_METHOD (SerialCardSwitchesSplitAtTheBar)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_SSC_SWITCHES, "on on off off on on off|off off on on off off on", target);
+        Dispatch (IDM_SSC_SWITCHES, "no separator", target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size(), L"a payload with no separator is ignored");
+        Assert::AreEqual (std::string ("SetSerialCardSwitches on on off off on on off / off off on on off off on"), target.calls[0]);
+    }
+
+
     TEST_METHOD (EjectEmptiesTheDriveTheIdNames)
     {
         Notebook  target;
@@ -276,6 +288,12 @@ private:
         void     PowerCycle() override      { calls.push_back ("PowerCycle"); }
         void     StepInstruction() override { calls.push_back ("StepInstruction"); }
         void     SaveTrace() override       { calls.push_back ("SaveTrace"); }
+
+        void     SetSerialCardSwitches (const std::string & sw1, const std::string & sw2) override
+        {
+            calls.push_back ("SetSerialCardSwitches " + sw1 + " / " + sw2);
+        }
+
         void     RemountDisks() override    { calls.push_back ("RemountDisks"); }
 
         HRESULT  MountDisk (int drive, const std::string & path) override

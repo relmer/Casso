@@ -606,9 +606,9 @@ bool UserConfigStore::TryGetStringField (
 //
 //  UserConfigStore::BuildObjectWithOverrides
 //
-//  Returns `src` carrying the two per-entry fields a user file is allowed to
-//  restate: the `enabled` bit, and a card's `ports` connector list when the
-//  user entry declares one.
+//  Returns `src` with the three per-entry fields a user file may restate
+//  replaced: the `enabled` bit, a card's `ports` connector list, and a Super
+//  Serial Card's `switches`, the last two when the user entry declares them.
 //
 //  Everything else deliberately comes from the default. A user file records a
 //  DIFFERENCE, so `device`, `rom` and the capability flags have to keep
@@ -620,19 +620,22 @@ bool UserConfigStore::TryGetStringField (
 JsonValue UserConfigStore::BuildObjectWithOverrides (
     const JsonValue & src,
     bool              enabled,
-    const JsonValue * ports)
+    const JsonValue * ports,
+    const JsonValue * switches)
 {
     std::vector<std::pair<std::string, JsonValue>>    rebuilt;
     const auto                                      * entries = &src.GetObjectEntries();
 
 
 
-    rebuilt.reserve (entries->size() + 2);
+    rebuilt.reserve (entries->size() + 3);
     for (size_t i = 0; i < entries->size(); ++i)
     {
         const std::string &  key = (*entries)[i].first;
 
-        if (key == "enabled" || (key == "ports" && ports != nullptr))
+        if (key == "enabled" ||
+            (key == "ports"    && ports    != nullptr) ||
+            (key == "switches" && switches != nullptr))
         {
             continue;
         }
@@ -645,6 +648,11 @@ JsonValue UserConfigStore::BuildObjectWithOverrides (
     if (ports != nullptr)
     {
         rebuilt.emplace_back ("ports", *ports);
+    }
+
+    if (switches != nullptr)
+    {
+        rebuilt.emplace_back ("switches", *switches);
     }
 
     return JsonValue (std::move (rebuilt));
@@ -887,22 +895,24 @@ JsonValue UserConfigStore::MergeHardwareArray (
 
         if (userIdx >= 0)
         {
-            const JsonValue & userEntry = userArr.GetArrayElement ((size_t) userIdx);
-            const JsonValue * userPorts = nullptr;
+            const JsonValue & userEntry    = userArr.GetArrayElement ((size_t) userIdx);
+            const JsonValue * userPorts    = nullptr;
+            const JsonValue * userSwitches = nullptr;
             userMatched[(size_t) userIdx] = true;
 
-            // Only a slot entry has connectors, and only the user's own list
-            // may override the default's -- an absent or malformed `ports`
-            // leaves the card describing the hardware it shipped with.
+            // Only a slot entry has connectors and switches, and only the
+            // user's own value may override the default's. For an absent or
+            // malformed one, the default's value is used, as the card shipped.
             if (slotArray)
             {
-                (void) TryFindTypedField (userEntry, "ports", JsonType::Array, userPorts);
+                (void) TryFindTypedField (userEntry, "ports",    JsonType::Array,  userPorts);
+                (void) TryFindTypedField (userEntry, "switches", JsonType::Object, userSwitches);
             }
 
             if (TryGetBoolField (userEntry, "enabled", enabled) &&
                 defEntry.GetType() == JsonType::Object)
             {
-                merged.emplace_back (BuildObjectWithOverrides (defEntry, enabled, userPorts));
+                merged.emplace_back (BuildObjectWithOverrides (defEntry, enabled, userPorts, userSwitches));
             }
             else if (slotArray)
             {
@@ -979,13 +989,16 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
 
     for (size_t i = 0; i < currentArr.GetArraySize(); ++i)
     {
-        const JsonValue & curEntry    = currentArr.GetArrayElement (i);
-        const JsonValue * curPorts    = nullptr;
-        const JsonValue * defPorts    = nullptr;
-        int               defIdx      = -1;
-        bool              curEn       = true;
-        bool              defEn       = true;
-        bool              portsDiffer = false;
+        const JsonValue  & curEntry       = currentArr.GetArrayElement (i);
+        const JsonValue  * curPorts       = nullptr;
+        const JsonValue  * defPorts       = nullptr;
+        const JsonValue  * curSwitches    = nullptr;
+        const JsonValue  * defSwitches    = nullptr;
+        int                defIdx         = -1;
+        bool               curEn          = true;
+        bool               defEn          = true;
+        bool               portsDiffer    = false;
+        bool               switchesDiffer = false;
 
         if (curEntry.GetType() != JsonType::Object)
         {
@@ -1018,8 +1031,10 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
 
             if (slotArray)
             {
-                (void) TryFindTypedField (curEntry, "ports", JsonType::Array, curPorts);
-                (void) TryFindTypedField (defEntry, "ports", JsonType::Array, defPorts);
+                (void) TryFindTypedField (curEntry, "ports",    JsonType::Array,  curPorts);
+                (void) TryFindTypedField (defEntry, "ports",    JsonType::Array,  defPorts);
+                (void) TryFindTypedField (curEntry, "switches", JsonType::Object, curSwitches);
+                (void) TryFindTypedField (defEntry, "switches", JsonType::Object, defSwitches);
             }
         }
 
@@ -1031,7 +1046,11 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
         portsDiffer = curPorts != nullptr &&
                       (defPorts == nullptr || !AreJsonEqual (*curPorts, *defPorts));
 
-        if (curEn != defEn || portsDiffer)
+        // A Super Serial Card's switches are a setting of the same kind.
+        switchesDiffer = curSwitches != nullptr &&
+                         (defSwitches == nullptr || !AreJsonEqual (*curSwitches, *defSwitches));
+
+        if (curEn != defEn || portsDiffer || switchesDiffer)
         {
             std::vector<std::pair<std::string, JsonValue>>  obj;
             std::string                                     type;
@@ -1057,6 +1076,11 @@ JsonValue UserConfigStore::BuildHardwareDeltaArray (
             if (portsDiffer)
             {
                 obj.emplace_back ("ports", *curPorts);
+            }
+
+            if (switchesDiffer)
+            {
+                obj.emplace_back ("switches", *curSwitches);
             }
 
             delta.emplace_back (JsonValue (std::move (obj)));

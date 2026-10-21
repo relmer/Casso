@@ -58,7 +58,7 @@ public:
     void                  SetQuiet          (bool isQuiet) { m_isQuiet = isQuiet; }
     void                  StartShimmerClock (int64_t nowMs) { m_shownAtMs = nowMs; }
     void                  SetRandomSource   (UpdateIndicatorModel::RandomIndexFn randomIndex) { m_random = std::move (randomIndex); }
-    const SweepGlints   & GetSweepGlints    () const { return m_sweepGlints; }
+    const DxuiSweepGlints & GetSweepGlints  () const { return m_sweepGlints; }
     bool                  TickShimmer       (int64_t nowMs);
     std::optional<int64_t>  GetMsUntilShimmer (int64_t nowMs) const;
 
@@ -79,7 +79,7 @@ private:
     bool                                 m_isQuiet     = false;   // no shimmer: the update is already waiting
     int64_t                              m_shownAtMs   = 0;
     std::optional<float>                 m_sweep;
-    SweepGlints                          m_sweepGlints = UpdateIndicatorModel::MakeEvenSweepGlints();
+    DxuiSweepGlints                      m_sweepGlints = DxuiShimmer::MakeEvenSweepGlints();
     UpdateIndicatorModel::RandomIndexFn  m_random;
 
     void           PaintShimmer (IDxuiTextRenderer & text, float x, float y, float w, float h, float fontPx, float progress) const;

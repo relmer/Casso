@@ -2,6 +2,7 @@
 #include "Core/MachineConfig.h"
 #include "Machines/MachineDefinitions.h"
 #include "Core/TextEncoding.h"
+#include "FixtureProvider.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -917,6 +918,110 @@ public:
         Assert::AreEqual (std::string ("disk-ii-drive"), config.ports[2].device);
     }
 
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Super Serial Card slot keys: `firmware`, `switches` and a port `path`.
+    //
+    //  The firmware is optional in a way `rom` is not: a missing or
+    //  wrong-size file must load, with the reason in the slot. The
+    //  present case resolves to a fixture that happens to be 2 KB (the ][
+    //  character ROM), so no test writes a file.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    static std::string MakeSscJson()
+    {
+        return R"({
+            "name": "Test",
+            "cpu": "6502",
+            "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "slots": [
+                { "slot": 2, "device": "super-serial-card", "firmware": "SSC.rom", "enabled": false,
+                  "switches": { "sw1": "on on on on off on on", "sw2": "off off off off off on off" },
+                  "ports": [ { "device": "serial-file-out", "path": "C:\\serial.txt" } ] }
+            ],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+    }
+
+    static HRESULT LoadSscWithFirmwareAt (const fs::path & firmwarePath, MachineConfig & config)
+    {
+        std::string  error;
+        auto         resolver = [firmwarePath] (const std::vector<fs::path> & paths,
+                                                const fs::path              & rel) -> fs::path
+        {
+            return (rel.filename() == "SSC.rom") ? firmwarePath : MockResolveAll (paths, rel);
+        };
+
+        return MachineConfigLoader::Load (MakeSscJson(), "TestMachine", { "/mock" }, resolver, config, error);
+    }
+
+    TEST_METHOD (Load_SscFirmwareMissing_LoadsWithMissingStatus)
+    {
+        MachineConfig  config;
+        HRESULT        hr = LoadSscWithFirmwareAt (fs::path(), config);
+
+        AssertSucceeded (hr, L"a missing firmware file must not fail the load");
+        Assert::IsTrue (config.slots[0].firmwareStatus == SlotFirmwareStatus::Missing);
+        Assert::AreEqual (std::string ("Devices\\SuperSerialCard\\SSC.rom"), config.slots[0].firmwarePath,
+            L"the path searched for is stored for the report");
+    }
+
+    TEST_METHOD (Load_SscFirmwareUnreadable_LoadsWithWrongSizeStatus)
+    {
+        MachineConfig  config;
+        HRESULT        hr = LoadSscWithFirmwareAt (fs::path ("Z:/no/such/dir/SSC.rom"), config);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (config.slots[0].firmwareStatus == SlotFirmwareStatus::WrongSize);
+    }
+
+    TEST_METHOD (Load_SscFirmwarePresent_LoadsWithPresentStatus)
+    {
+        FixtureProvider  fixtures;
+        fs::path         twoKb   = fs::path (fixtures.GetRoot()) / "Apple2_Video.rom";
+        MachineConfig    config;
+        HRESULT          hr      = S_OK;
+
+        Assert::IsTrue (fs::exists (twoKb), L"fixture ROMs are required (scripts/FetchRoms.ps1 -Fixtures)");
+
+        hr = LoadSscWithFirmwareAt (twoKb, config);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (config.slots[0].firmwareStatus == SlotFirmwareStatus::Present);
+        Assert::AreEqual (twoKb.string(), config.slots[0].firmwarePath);
+    }
+
+    TEST_METHOD (Load_SscSwitchesAndPortPathParsed)
+    {
+        MachineConfig  config;
+        HRESULT        hr = LoadSscWithFirmwareAt (fs::path(), config);
+
+        AssertSucceeded (hr);
+        Assert::AreEqual (std::string ("on on on on off on on"),     config.slots[0].switchesSw1);
+        Assert::AreEqual (std::string ("off off off off off on off"), config.slots[0].switchesSw2);
+        Assert::AreEqual (size_t (1), config.slots[0].ports.size());
+        Assert::AreEqual (std::string ("serial-file-out"), config.slots[0].ports[0].device);
+        Assert::AreEqual (std::string ("C:\\serial.txt"),  config.slots[0].ports[0].path);
+        Assert::IsFalse (config.slots[0].enabled);
+    }
+
+    TEST_METHOD (CollectRomFiles_DoesNotListSlotFirmware)
+    {
+        std::vector<std::string>  files;
+        std::string               error;
+        HRESULT                   hr = MachineConfigLoader::CollectRomFiles (MakeSscJson(), files, error);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (std::find (files.begin(), files.end(), "SSC.rom") == files.end(),
+            L"optional firmware is never listed by the startup download dialog");
+        Assert::IsTrue (std::find (files.begin(), files.end(), "Apple2Plus.rom") != files.end(),
+            L"the scan itself ran");
+    }
 private:
 
     // Mock resolver that creates a temporary file of the expected size for the
