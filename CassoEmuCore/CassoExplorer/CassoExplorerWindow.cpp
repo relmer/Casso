@@ -36,15 +36,16 @@
 
 
 
-//  The Theme menu's rows, in order, by the theme each one selects.
+//  The Theme menu's rows, in order, by the theme each one selects: Casso's
+//  themes in Casso's order, then Windows' dark and light and Follow system.
 static constexpr const char *  s_kpszThemeRows[] =
 {
-    CassoExplorerPrefs::kThemeLight,
-    CassoExplorerPrefs::kThemeDark,
-    CassoExplorerPrefs::kThemeFollowSystem,
     CassoExplorerPrefs::kThemeSkeuomorphic,
-    CassoExplorerPrefs::kThemeDarkModern,
     CassoExplorerPrefs::kThemeRetroTerminal,
+    CassoExplorerPrefs::kThemeDarkModern,
+    CassoExplorerPrefs::kThemeDark,
+    CassoExplorerPrefs::kThemeLight,
+    CassoExplorerPrefs::kThemeFollowSystem,
 };
 
 
@@ -8993,8 +8994,8 @@ void CassoExplorerWindow::SetCommandBarDropDowns()
     viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
     viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (CassoExplorerCommands::kOptions)));
 
-    for (int id : { (int) CassoExplorerCommands::kThemeLight, (int) CassoExplorerCommands::kThemeDark, (int) CassoExplorerCommands::kThemeSystem,
-                    (int) CassoExplorerCommands::kThemeSkeuomorphic, (int) CassoExplorerCommands::kThemeDarkModern, (int) CassoExplorerCommands::kThemeRetroTerminal })
+    for (int id : { (int) CassoExplorerCommands::kThemeSkeuomorphic, (int) CassoExplorerCommands::kThemeRetroTerminal, (int) CassoExplorerCommands::kThemeDarkModern,
+                    (int) CassoExplorerCommands::kThemeDark, (int) CassoExplorerCommands::kThemeLight, (int) CassoExplorerCommands::kThemeSystem })
     {
         themeItems.push_back (DxuiPopupMenuItem::ForCommand (m_commands.Find (id)));
     }

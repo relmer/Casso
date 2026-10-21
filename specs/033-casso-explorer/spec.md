@@ -1251,9 +1251,9 @@ to Casso over TCP.
   for the window, not per tab. Open tabs are restored on the next launch.
 - **FR-026**: Every operation MUST be reachable from the keyboard, and
   every context menu MUST open from the application key and Shift+F10.
-- **FR-027**: The toolbar's Theme dropdown MUST offer Light, Dark, Follow system, and
-  Casso's three themes, with the skeuomorphic entry marked as colors
-  only; Follow system MUST track the Windows setting live.
+- **FR-027**: The toolbar's Theme dropdown MUST offer Casso's three themes in
+  Casso's order, the skeuomorphic entry marked as colors only, then Dark,
+  Light and Follow system; Follow system MUST track the Windows setting live.
 - **FR-028**: Theme choice, preview-pane state, host file naming and
   window placement MUST persist in Casso Explorer's own preferences file beside
   Casso's, since Casso's file is rewritten whole by a running Casso and

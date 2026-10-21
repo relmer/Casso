@@ -109,8 +109,8 @@ image or file.
 - Complete sections 2 through 5 with the mouse disconnected.
 - Set Casso Explorer to Follow system and toggle Windows dark mode. Expected: the
   window changes within a second, no restart.
-- Open the Theme dropdown. Expected: Light, Dark, Follow system, Skeuomorphic
-  (colors only), DarkModern, RetroTerminal.
+- Open the Theme dropdown. Expected: Skeuomorphic (colors only), Retro Terminal,
+  Dark Modern, Dark, Light, Follow system.
 - Help, About. Expected: the cassowary picture and the explanation of the
   name.
 
