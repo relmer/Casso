@@ -121,7 +121,7 @@ public:
     //  from `nowMs`, each closed no more than kCloseRunMs before the next.
     static std::vector<CassoExplorerSessionWindow>  GetClosedRun (const std::vector<ClosedWindow> & closed, ULONGLONG nowMs);
 
-    static constexpr ULONGLONG  kCloseRunMs = 3000;
+    static constexpr ULONGLONG  kCloseRunMs = 10000;
 
     //  The window another launch opens in the running app, stepped down and
     //  right from `from`, the window it was opened over.
