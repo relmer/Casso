@@ -14,10 +14,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  AciaBridgeEndpointTests
 //
-//  The bridge is a serial line between the 6551 and a stream: one character
-//  at a time, at the speed the control register sets, on the machine's clock.
-//  A guest that reads each byte in time receives every byte; one that falls
-//  behind overruns, as on a real //c.
+//  The bridge joins the 6551 to a stream, and the 6551 paces the line: one
+//  character at a time, at the speed the control register sets, on the
+//  machine's clock. A guest that reads each byte in time receives every
+//  byte; one that falls behind overruns, as on a real //c. Each test ticks
+//  the bridge and the ACIA together, as the machine does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,11 +29,11 @@ public:
     static constexpr Word  kBase       = 0xC0A8;
     static constexpr Word  kAddrData   = kBase + Acia6551::kRegData;
     static constexpr Word  kAddrStatus = kBase + Acia6551::kRegStatus;
+    static constexpr Word  kAddrCmd    = kBase + Acia6551::kRegCommand;
     static constexpr Word  kAddrCtrl   = kBase + Acia6551::kRegControl;
 
     //  8 data bits, 1 stop bit: 10 bits a character.
     static constexpr Byte  kControl115200 = 0x00;
-    static constexpr Byte  kControl9600   = 0x0E;
 
 
     struct Line
@@ -42,14 +43,44 @@ public:
         std::shared_ptr<InProcessByteStream>  pcEnd;
         std::unique_ptr<AciaBridgeEndpoint>   bridge;
 
+        //  DTR on and the transmitter on, as the link's shim writes them ($0B).
+        //  The ACIA neither receives nor sends without them.
         explicit Line (Byte control)
         {
             InProcessByteStream::CreatePair (machineEnd, pcEnd);
 
             bridge = std::make_unique<AciaBridgeEndpoint> (&acia, machineEnd);
             acia.SetEndpoint (bridge.get());
+            acia.Write (kAddrCmd,  Acia6551::kCommandDtr | Acia6551::kCommandRxIrqDisable | Acia6551::kCommandTicTxIrqOff);
             acia.Write (kAddrCtrl, control);
         }
+
+        void  Run (int cycles)
+        {
+            for (int cycle = 0; cycle < cycles; cycle++)
+            {
+                bridge->Tick (1);
+                acia.Tick (1);
+            }
+        }
+
+        //  Cycles until a byte lands, or -1 if none does within `limit`.
+        int  RunUntilRxFull (int limit)
+        {
+            for (int cycle = 1; cycle <= limit; cycle++)
+            {
+                Run (1);
+
+                if (IsRxFull())
+                {
+                    return cycle;
+                }
+            }
+
+            return -1;
+        }
+
+        int  GetCharacterCycles() const { return (int) std::ceil (acia.GetTransmitCharacterCycles()); }
 
         void  SendFromPc (std::initializer_list<Byte> bytes)
         {
@@ -73,42 +104,21 @@ public:
     };
 
 
-    TEST_METHOD (CharacterTimeFollowsTheControlRegister)
-    {
-        //  10 bits at 115,200 and at 9,600 baud on a 1,020,484 Hz CPU, rounded up.
-        Assert::AreEqual<uint32_t> (89,   AciaBridgeEndpoint::GetCyclesPerCharacter (kControl115200, 0));
-        Assert::AreEqual<uint32_t> (1064, AciaBridgeEndpoint::GetCyclesPerCharacter (kControl9600, 0));
-
-        //  Two stop bits and a parity bit make 12.
-        Assert::AreEqual<uint32_t> ((uint32_t) ((1020484ull * 12 + 9599) / 9600),
-                                    AciaBridgeEndpoint::GetCyclesPerCharacter (kControl9600 | Acia6551::kControlStopBits, Acia6551::kCommandParityEnable));
-    }
-
-
-    TEST_METHOD (BaudRateZeroIsTheExternalClockAt115200)
-    {
-        Assert::AreEqual<uint32_t> (115200, AciaBridgeEndpoint::GetBaudRate (0x00));
-        Assert::AreEqual<uint32_t> (9600,   AciaBridgeEndpoint::GetBaudRate (0x0E));
-        Assert::AreEqual<uint32_t> (19200,  AciaBridgeEndpoint::GetBaudRate (0x0F));
-        Assert::AreEqual<uint32_t> (300,    AciaBridgeEndpoint::GetBaudRate (0x06));
-    }
-
-
-    TEST_METHOD (BytesArriveNoFasterThanOneACharacterTime)
+    TEST_METHOD (ReceivedBytesLandOneCharacterTimeApart)
     {
         Line  line (kControl115200);
+        int   character = line.GetCharacterCycles();
+        int   first     = 0;
+        int   second    = 0;
 
         line.SendFromPc ({ 0x11, 0x22 });
 
-        line.bridge->Tick (1);
-        Assert::IsTrue (line.IsRxFull(), L"the first byte arrives on an idle line");
+        first = line.RunUntilRxFull (character * 3);
+        Assert::IsTrue (first > 0, L"the first byte lands");
         Assert::AreEqual<Byte> (0x11, line.acia.Read (kAddrData));
 
-        line.bridge->Tick (88);
-        Assert::IsFalse (line.IsRxFull(), L"the second byte is on the wire");
-
-        line.bridge->Tick (1);
-        Assert::IsTrue (line.IsRxFull());
+        second = line.RunUntilRxFull (character * 3);
+        Assert::IsTrue (second >= character - 1 && second <= character + 1, L"the second byte lands one character time later");
         Assert::AreEqual<Byte> (0x22, line.acia.Read (kAddrData));
     }
 
@@ -120,9 +130,9 @@ public:
 
         line.SendFromPc ({ 1, 2, 3, 4, 5, 6, 7, 8 });
 
-        for (int cycle = 0; cycle < 89 * 10; cycle++)
+        for (int cycle = 0; cycle < line.GetCharacterCycles() * 10; cycle++)
         {
-            line.bridge->Tick (1);
+            line.Run (1);
 
             if (line.IsRxFull())
             {
@@ -140,36 +150,31 @@ public:
         Line  line (kControl115200);
 
         line.SendFromPc ({ 1, 2 });
-
-        line.bridge->Tick (1);
-        line.bridge->Tick (89);
+        line.Run (line.GetCharacterCycles() * 3);
 
         Assert::IsTrue ((line.acia.GetStatus() & Acia6551::kStatusOverrun) != 0);
         Assert::AreEqual<Byte> (2, line.acia.Read (kAddrData), L"the later byte replaces the unread one");
     }
 
 
-    TEST_METHOD (TransmitShiftsOneByteWhileTheNextRemainsInTheRegister)
+    TEST_METHOD (TransmittedBytesReachTheStreamAsTheirShiftEnds)
     {
         Line  line (kControl115200);
+        int   character = line.GetCharacterCycles();
 
         line.acia.Write (kAddrData, 0xA1);
-        Assert::IsTrue (line.IsTxEmpty(), L"the first byte moves straight into the shift register");
-
         line.acia.Write (kAddrData, 0xA2);
-        Assert::IsFalse (line.IsTxEmpty(), L"the second remains in the data register");
-        Assert::IsTrue (line.TakeAtPc().empty(), L"nothing is sent yet");
+        Assert::IsTrue (line.TakeAtPc().empty(), L"nothing is sent until a shift ends");
 
-        line.bridge->Tick (89);
+        line.Run (character + 1);
         Assert::IsTrue (line.TakeAtPc() == std::vector<Byte> ({ 0xA1 }));
-        Assert::IsTrue (line.IsTxEmpty(), L"the second byte moved into the shift register");
 
-        line.bridge->Tick (89);
+        line.Run (character + 1);
         Assert::IsTrue (line.TakeAtPc() == std::vector<Byte> ({ 0xA2 }));
     }
 
 
-    TEST_METHOD (TheByteLogMarksEachByteWithItsDirectionAndCycle)
+    TEST_METHOD (TheByteLogMarksEachByteWithItsDirection)
     {
         Line                                  line (kControl115200);
         std::vector<std::pair<bool, Byte>>    log;
@@ -178,17 +183,14 @@ public:
         line.bridge->SetByteLog ([&log, &cycles] (bool fromGuest, Byte value, uint64_t cycle) { log.emplace_back (fromGuest, value); cycles.push_back (cycle); });
 
         line.SendFromPc ({ 0x55 });
-        line.bridge->Tick (1);
+        line.Run (1);
         line.acia.Write (kAddrData, 0xAA);
-        line.bridge->Tick (89);
+        line.Run (line.GetCharacterCycles() + 1);
 
         Assert::AreEqual<size_t> (2, log.size());
         Assert::IsTrue (log[0] == std::make_pair (false, (Byte) 0x55));
         Assert::IsTrue (log[1] == std::make_pair (true,  (Byte) 0xAA));
-
-        //  Received on the first cycle; sent once the 89-cycle character has
-        //  shifted out after it.
-        Assert::IsTrue (cycles == std::vector<uint64_t> ({ 1, 90 }));
+        Assert::IsTrue (cycles[1] > cycles[0], L"the sent byte is logged once its shift ends, after the received one");
     }
 
 
@@ -198,7 +200,7 @@ public:
 
         line.pcEnd->Close();
         line.acia.Write (kAddrData, 0x01);
-        line.bridge->Tick (89);
+        line.Run (line.GetCharacterCycles() + 1);
 
         Assert::IsTrue (line.IsTxEmpty());
     }

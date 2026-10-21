@@ -15,8 +15,9 @@ class Acia6551;
 //
 //  AciaLoopbackEndpoint
 //
-//  Feeds every transmitted byte straight back into the ACIA's receiver. Used
-//  for comms self-test: each byte the guest sends is received back. The ACIA is caller-owned.
+//  A loopback plug: every transmitted byte is queued back to the ACIA's
+//  receiver, RTS is wired to CTS, and DTR to DSR and DCD. Used for comms
+//  self-test: the guest reads what it sends. The ACIA is caller-owned.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +26,8 @@ class AciaLoopbackEndpoint : public IAciaEndpoint
 public:
     explicit    AciaLoopbackEndpoint (Acia6551 * acia) : m_acia (acia) {}
 
-    void        OnByteTransmitted (Byte value) override;
+    void        OnByteTransmitted     (Byte value) override;
+    void        OnModemControlChanged (bool dtr, bool rts) override;
 
 private:
     Acia6551 *    m_acia = nullptr;
@@ -65,19 +67,16 @@ private:
 //
 //  AciaBridgeEndpoint
 //
-//  Joins the ACIA to a byte stream at the line's own speed, so bytes arrive
-//  with the timing of a real serial cable. The speed is read from the
-//  ACIA's control register for each character, and the clock is the
-//  machine's cycles, so the timing is correct under a debugger's pause and at
-//  any emulation speed.
+//  Joins the ACIA to a byte stream. The ACIA paces the line: it passes each
+//  byte here as its shift ends, and lands the bytes queued from the stream
+//  one character time apart, at the speed in its control register, so bytes
+//  arrive with the timing of a real serial cable. The clock is the machine's
+//  cycles, so the timing is correct under a debugger's pause and at any
+//  emulation speed.
 //
-//  RECEIVE IS A LINE, NOT A QUEUE. A byte is due one character time after
-//  the last; it arrives whether or not the guest read the one before, which
-//  then overruns, as on a real //c. A guest that reads each byte in time receives every byte.
-//
-//  Transmit is a shift register behind the transmit data register: a byte
-//  written while one shifts remains in the register with TDRE clear, and is
-//  sent when the first one finishes.
+//  RECEIVE IS A LINE, NOT A QUEUE the guest can see. A byte lands one
+//  character time after the last, whether or not the guest read the one
+//  before, which then overruns, as on a real //c.
 //
 //  The stream is shared, so a test or the link can own its other end. The
 //  ACIA is caller-owned.
@@ -89,50 +88,31 @@ class AciaBridgeEndpoint : public IAciaEndpoint
 public:
     using ByteLogFn = std::function<void (bool fromGuest, Byte value, uint64_t cycle)>;
 
-    //  An NTSC Apple II's CPU clock.
-    static constexpr uint32_t  kCpuHz = 1020484;
-
     AciaBridgeEndpoint (Acia6551 * acia, std::shared_ptr<IByteStream> stream) : m_acia (acia), m_stream (std::move (stream)) {}
 
     void        OnByteTransmitted (Byte value) override;
-    bool        PacesTransmit     () const override { return true; }
 
-    //  Advance the line by the cycles the CPU has run.
+    //  Advance the line by the cycles the CPU has run, moving what the
+    //  stream received to the ACIA once per character time.
     void        Tick              (uint32_t cpuCycles);
 
-    //  Every byte that crosses the line, in either direction, with the count of
-    //  cycles the line has run when it crossed, for captures.
+    //  Every byte that crosses the line, in either direction, with the count
+    //  of cycles the line has run when it crossed, for captures: a sent byte
+    //  as its shift ends, a received one as it is queued for the ACIA.
     void        SetByteLog        (ByteLogFn log)   { m_log = std::move (log); }
 
     IByteStream *  GetStream      () const          { return m_stream.get(); }
 
-    //  The 6551's rate for its control register: the low four bits select a
-    //  rate from the //c's 1.8432 MHz crystal, and zero is its 16x external
-    //  clock, 115,200 baud.
-    static uint32_t  GetBaudRate           (Byte control);
-
-    //  CPU cycles to send one character: a start bit, the data bits, a parity
-    //  bit when the command register enables one, and the stop bits.
-    static uint32_t  GetCyclesPerCharacter (Byte control, Byte command);
-
 private:
-    void        DeliverReceived ();
-    void        FinishShifting  ();
-    uint32_t    GetCharacterCycles () const;
+    //  Bytes queued in the ACIA at most: enough that its queue never empties
+    //  between two checks of the stream.
+    static constexpr size_t  kQueueCap = 16;
 
-    static constexpr uint32_t  s_kBaudRates[16] =
-    {
-        115200, 50, 75, 110, 135, 150, 300, 600, 1200, 1800, 2400, 3600, 4800, 7200, 9600, 19200,
-    };
+    size_t      GetQueueRoom () const;
 
-    Acia6551                     * m_acia      = nullptr;
+    Acia6551                     * m_acia     = nullptr;
     std::shared_ptr<IByteStream>   m_stream;
     ByteLogFn                      m_log;
-    uint64_t                       m_cycle     = 0;
-    int64_t                        m_rxWait    = 0;
-    int64_t                        m_txWait    = 0;
-    bool                           m_shifting  = false;
-    Byte                           m_shiftByte = 0;
-    bool                           m_tdrFull   = false;
-    Byte                           m_tdr       = 0;
+    uint64_t                       m_cycle    = 0;
+    int64_t                        m_pollWait = 0;   // cycles until the stream is next checked
 };

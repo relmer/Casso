@@ -4,6 +4,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
 #include "Shell/Components/ShellSettings.h"
@@ -574,6 +575,7 @@ bool ShellRenderer::TryPresentUiFrame()
 
 
     m_shell.m_disks->ExpireChangeBannerIfDue();
+    m_shell.m_serialCard->Tick();
 
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been

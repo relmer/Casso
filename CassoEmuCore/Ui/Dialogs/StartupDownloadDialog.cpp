@@ -653,7 +653,8 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                                                    HWND                     hwndOwner,
                                                    std::string_view         themeName,
                                                    const std::wstring     & machineDisplayName,
-                                                   StartupDownloadSet     & set)
+                                                   StartupDownloadSet     & set,
+                                                   const StartupDownloadPrompt * prompt)
 {
     constexpr int  s_kLineHeightDip = 20;
     constexpr int  s_kIntroPadDip   = 8;
@@ -722,7 +723,12 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         title += s_kchEmDash;
         title += L" Download assets";
 
-        if (requiresRoms)
+        if (prompt != nullptr)
+        {
+            title = prompt->title;
+            intro = prompt->intro;
+        }
+        else if (requiresRoms)
         {
             std::wstring  machineStr = machineDisplayName.empty() ? L"" : machineDisplayName;
 
@@ -753,13 +759,18 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         body.SetPaintFn ([&set, &state] (DialogPaintContext & ctx) { PaintBody (ctx, set, state); });
         body.SetInputFn ([&state] (const DialogInputEvent & ev) { (void) HandleBodyInput (ev, state); });
 
-        content->Init (&introLabel, &body, introLines * s_kLineHeightDip + s_kIntroPadDip);
+        content->Init (&introLabel, &body, introLines * s_kLineHeightDip + s_kIntroPadDip, s_kIntroPadDip);
 
         heightDip = s_kChromeDip + introLines * s_kLineHeightDip + s_kIntroPadDip
                   + headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
                   + rowCount    * (s_kRowHeightDp    + s_kRowGapDp);
 
         dlg.ConfigureDownload (std::move (content), requiresRoms, s_kTickIntervalMs);
+
+        if (prompt != nullptr)
+        {
+            dlg.SetCancelLabel (L"Cancel");
+        }
 
         params.title                    = title;
         params.hInstance                = hInstance;
@@ -774,6 +785,12 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         // user is looking at when it does.
         params.placement                = DxuiWindowPlacement::CenteredOnScreen;
 
+        // From Settings there is an owner, so the dialog is centered on it.
+        if (prompt != nullptr && hwndOwner != nullptr)
+        {
+            params.placement = DxuiWindowPlacement::CenteredOnOwner;
+        }
+
         hrCreate = dlg.Create (params);
 
         // No window means no way to ask, and the assets may be required to
@@ -784,7 +801,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         }
         else
         {
-            dlg.SetTheme (&theme);
+            dlg.SetTheme ((prompt != nullptr && prompt->theme != nullptr) ? prompt->theme : &theme);
 
             //  Download starts the workers in place (the button stays open and
             //  relabels); Skip auto-closes with the default Skipped result; Exit

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Shell/CpuCommandDispatcher.h"
+#include "Config/NetworkCardSettings.h"
 
 #include "resource.h"
 
@@ -39,6 +40,18 @@ public:
         Assert::AreEqual ((size_t) 2, target.calls.size());
         Assert::AreEqual (std::string ("MountDisk 0 C:\\Disks\\one.woz"), target.calls[0]);
         Assert::AreEqual (std::string ("MountDisk 1 C:\\Disks\\two.dsk"), target.calls[1]);
+    }
+
+
+    TEST_METHOD (SerialCardSwitchesSplitAtTheBar)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_SSC_SWITCHES, "on on off off on on off|off off on on off off on", target);
+        Dispatch (IDM_SSC_SWITCHES, "no separator", target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size(), L"a payload with no separator is ignored");
+        Assert::AreEqual (std::string ("SetSerialCardSwitches on on off off on on off / off off on on off off on"), target.calls[0]);
     }
 
 
@@ -141,6 +154,28 @@ public:
         Assert::AreEqual (std::string ("SaveTrace"), target.calls[0]);
     }
 
+
+    TEST_METHOD (NetworkConfigureParsesTheSettings)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_NETWORK_CONFIGURE,
+                  R"({"lanAccess":true,"portForwards":[{"protocol":"tcp","hostPort":8080,"guestPort":80}]})",
+                  target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("ConfigureNetworkCard lan=on forwards=1"), target.calls[0]);
+    }
+
+
+    TEST_METHOD (NetworkConfigureIgnoresAPayloadThatDoesNotParse)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_NETWORK_CONFIGURE, "{not json", target);
+
+        Assert::AreEqual ((size_t) 0, target.calls.size());
+    }
 
     TEST_METHOD (WriteProtectReadsAOneAsOnAndAnythingElseAsOff)
     {
@@ -298,6 +333,16 @@ private:
         {
             calls.push_back (std::format ("ConnectSerialPort {} {}", port, device));
             return S_OK;
+        }
+
+        void     SetSerialCardSwitches (const std::string & sw1, const std::string & sw2) override
+        {
+            calls.push_back ("SetSerialCardSwitches " + sw1 + " / " + sw2);
+        }
+
+        void     ConfigureNetworkCard (const NetworkCardSettings & settings) override
+        {
+            calls.push_back (std::format ("ConfigureNetworkCard lan={} forwards={}", settings.lanAccess ? "on" : "off", settings.portForwards.size()));
         }
 
         void     RemountDisks() override    { calls.push_back ("RemountDisks"); }

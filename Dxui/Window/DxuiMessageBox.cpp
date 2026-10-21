@@ -53,10 +53,11 @@ static constexpr int  s_kWorkAreaMarginDip = 40;   // kept clear above and below
 //
 //  DxuiMessageBoxBody -- the content control: an optional semantic glyph in a
 //  left column, and the wrapped message text (theme body font) beside it.
+//  It measures that text, so the dialog's height fits it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DxuiMessageBoxBody : public DxuiPanel
+class DxuiMessageBoxBody : public DxuiPanel, public IDxuiMeasuredContent
 {
 public:
     void  Set (std::wstring text, DxuiMessageSeverity severity)
@@ -152,6 +153,8 @@ true);
         }
     }
 
+    bool  TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) override;
+
 private:
     //  Text with semibold runs, a line at a time: a line of one regular run
     //  wraps, and a line with semibold runs is drawn run after run on one
@@ -237,6 +240,50 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiMessageBoxBody::TryMeasureHeightPx
+//
+//  The text wrapped at the width Paint draws it at, beside the glyph column
+//  when there is a glyph; the glyph row is the floor for a short message.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx)
+{
+    HRESULT         hr       = S_OK;
+    DxuiFontHandle  bf       = theme.BodyFont();
+    float           textW    = (float) widthPx;
+    float           measureW = 0.0f;
+    float           measureH = 0.0f;
+
+
+
+    if (m_severity != DxuiMessageSeverity::None)
+    {
+        textW -= (float) (m_scaler.ToPx (s_kIconColDip) + m_scaler.ToPx (s_kIconTextGapDip));
+    }
+
+    CBR (textW > 0.0f);
+
+    hr = text.MeasureStringWrapped (m_text.c_str(), m_scaler.ToPxf (bf.sizeDip), bf.face, textW, measureW, measureH);
+    CHR (hr);
+
+    heightPx = (int) std::ceil (measureH);
+
+    if (m_severity != DxuiMessageSeverity::None)
+    {
+        heightPx = std::max (heightPx, m_scaler.ToPx (s_kGlyphRowDip));
+    }
+
+Error:
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiMessageBoxWindow -- the modal dialog: builds the body + buttons in
 //  OnCreate, then the free function shows it via ShowModalDialog.
 //
@@ -251,8 +298,9 @@ public:
         int              id    = 0;
     };
 
-    // Rough (renderer-free) wrapped-line estimate so the dialog can be sized
-    // before its backend exists. Mirrors the shell's line-count heuristic.
+    // Rough (renderer-free) wrapped-line estimate for the window's first
+    // size, before its backend exists; the body's measurement then sets the
+    // height (DxuiDialogWindow::FitHeightToContent).
     static int  EstimateTextHeightDip (const std::wstring & text, bool hasGlyph);
 
     void  Configure (std::wstring              text,

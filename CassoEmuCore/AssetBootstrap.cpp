@@ -130,6 +130,14 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c Character Generator + MouseText" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
+    // Apple's Super Serial Card firmware, 341-0065-A, from the same mirror as
+    // the //c ROM. No machine config lists it under `rom`, so the startup
+    // dialog never offers it; Settings and the missing-firmware infobar
+    // download it on request through DownloadOptionalRom.
+    { "",                 "SSC.rom",               "",                           "Devices/SuperSerialCard",    2048, "Super Serial Card firmware (341-0065-A)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Interface%20Cards/Serial/Apple%20II%20Super%20Serial%20Card/ROM%20Images/Apple%20II%20Super%20Serial%20Card%20ROM%20-%20341-0065-A.bin",
+      "apple2.org.za" },
 };
 
 
@@ -335,6 +343,21 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     { "Apple2e",         "1c355cafb7a8f301b9d34e9f718697c6208b2e93b3c21a109387a9f7c1fa6b89" },
     { "Apple2eEnhanced", "89355968f0683869a22fe7d2a564cb62b4783b7a675886420df9371a5bc4ca92" },
     { "Apple2c",         "ad85c6350233e5d5312c6ba9b4dc97e225583ad0de0c2b113f68d99b0be8bfd0" },
+
+    // The four slotted machines before either card: Apple2 v10,
+    // Apple2Plus v13, Apple2e v12, Apple2eEnhanced v7.
+    { "Apple2",          "32b2d21a67494e91d9b232bc9d4e1777831fa2d0a99749f15c38842a99f6d49d" },
+    { "Apple2Plus",      "9dda6064ecd6cd9af46091da47ada410bcc08a57fb49e8600e60f0c9620152a7" },
+    { "Apple2e",         "08ef86bc0a3ecd79ea6475331a2a05d94873eafd72621ee3f646f6dee048d761" },
+    { "Apple2eEnhanced", "0ee887a4b0b42660de16caf3b329cc4aea4effa5efcf7ced9d63cdf22132eec4" },
+
+    // The same four with the Super Serial Card in slot 2 and before
+    // the Uthernet II entry in slot 3: Apple2 v11, Apple2Plus v14,
+    // Apple2e v13, Apple2eEnhanced v8.
+    { "Apple2",          "8857e6dfd805a32967a8c7b5396014b3e78b7fa0f66f3980a6304c0a42c0ef3a" },
+    { "Apple2Plus",      "5fd41292fb955256277ba6a4864b43e12c60ff7a8561974fc05fc74a8c0a8737" },
+    { "Apple2e",         "3b5caa6968292ef27d89fa078781e7a477f9d842d95d31f27bf8f5144c921f9f" },
+    { "Apple2eEnhanced", "30e5f9b9bf8352d9495e40f08241724d8eeacbd09feefc711c77eee42629de2f" },
 };
 
 
@@ -2006,6 +2029,108 @@ HRESULT AssetBootstrap::EnsureStockBootDisk (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DownloadOptionalRom
+//
+//  Downloads a catalog ROM that no machine config requires (the Super Serial
+//  Card's firmware) into its device folder under the asset base, replacing
+//  any file already there. Blocking, with no UI of its own: the caller owns
+//  the user's consent and the reporting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::DownloadOptionalRom (
+    string_view   cassoName,
+    fs::path    & outPath,
+    string      & outError)
+{
+    HRESULT          hr        = S_OK;
+    const RomSpec  * spec      = FindRomSpec ("", cassoName);
+    HINTERNET        hSession  = nullptr;
+    bool             hasSource = (spec != nullptr) && !spec->altHost.empty();
+    vector<Byte>     payload;
+    error_code       ec;
+    wstring          host;
+    wstring          urlPath;
+
+
+
+    outPath.clear();
+
+    CBRF (hasSource,
+          outError = format ("Casso has no download source for {}.", cassoName));
+
+    host    = AsciiToWide (spec->altHost);
+    urlPath = AsciiToWide (spec->altUrlPath);
+
+    hSession = WinHttpOpen (s_kpszUserAgent,
+                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                            WINHTTP_NO_PROXY_NAME,
+                            WINHTTP_NO_PROXY_BYPASS,
+                            0);
+    CBRF (hSession != nullptr,
+          outError = "Cannot initialize WinHTTP session");
+
+    hr = DownloadHttp (hSession,
+                       host.c_str(),
+                       urlPath.c_str(),
+                       spec->expectedSize,
+                       spec->cassoName,
+                       payload,
+                       outError);
+    CHR (hr);
+
+    outPath = GetAssetBaseDirectory() / string (spec->localRelDir) / string (spec->cassoName);
+    fs::create_directories (outPath.parent_path(), ec);
+
+    hr = WriteFileBytes (outPath, payload);
+    CHRF (hr,
+          outError = format ("Cannot write {}", outPath.string()));
+
+Error:
+    if (hSession != nullptr)
+    {
+        WinHttpCloseHandle (hSession);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsOptionalRomInstalled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::IsOptionalRomInstalled (string_view cassoName)
+{
+    const RomSpec  * spec      = FindRomSpec ("", cassoName);
+    error_code       ec;
+    fs::path         path;
+    uintmax_t        size      = 0;
+    bool             installed = false;
+
+
+
+    if (spec != nullptr)
+    {
+        path      = GetAssetBaseDirectory() / string (spec->localRelDir) / string (spec->cassoName);
+        size      = fs::file_size (path, ec);
+        installed = !ec && size == spec->expectedSize;
+    }
+
+    return installed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FilesHaveSameContent
 //
 //  Cheap byte-equality check for disk-image dedup heuristics in the
@@ -3364,6 +3489,163 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeRomDownloadFn
+//
+//  The fetch a ROM row of the download dialog runs: from the ROM's own host
+//  when the catalog lists one, from AppleWin's resource folder otherwise,
+//  with the dialog's progress and cancel flags wired into the transfer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static StartupAssetEntry::DownloadFn MakeRomDownloadFn (const RomSpec * spec, fs::path destPath)
+{
+    return [spec, destPath] (
+        std::atomic<std::uint64_t> & bytesDone,
+        std::atomic<bool>          & cancel,
+        std::string                & err) -> HRESULT
+    {
+        HRESULT       hr      = S_OK;
+        HINTERNET     hSes    = nullptr;
+        vector<Byte>  payload;
+        error_code    ecLocal;
+
+        // Default AppleWin source, or the ROM's explicit alternate host
+        // (e.g. the //c ROM on the apple2.org.za mirror).
+        bool          useAlt  = !spec->altHost.empty();
+        wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
+        wstring       wPath   = useAlt
+                                ? AsciiToWide (spec->altUrlPath)
+                                : (wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName));
+
+        hSes = WinHttpOpen (s_kpszUserAgent,
+                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                            WINHTTP_NO_PROXY_NAME,
+                            WINHTTP_NO_PROXY_BYPASS,
+                            0);
+        CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
+
+        hr = DownloadHttp (hSes,
+                           wHost.c_str(),
+                           wPath.c_str(),
+                           spec->expectedSize,
+                           spec->cassoName,
+                           payload,
+                           err,
+                           &bytesDone,
+                           &cancel);
+        CHR (hr);
+
+        fs::create_directories (destPath.parent_path(), ecLocal);
+        hr = WriteFileBytes (destPath, payload);
+        CHRF (hr, err = format ("Cannot write {}", destPath.string()));
+
+    Error:
+        if (hSes != nullptr)
+        {
+            WinHttpCloseHandle (hSes);
+        }
+
+        return hr;
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OfferOptionalRomDownload
+//
+//  The startup download dialog, opened for one catalog ROM that no machine
+//  config requires: `title` and `intro` in place of the startup wording,
+//  Cancel in place of Exit, and centered on `owner`. The row is locked on,
+//  so the only choices are Download and Cancel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::OfferOptionalRomDownload (
+    HWND                 owner,
+    const IDxuiTheme   * theme,
+    string_view          cassoName,
+    const wstring      & title,
+    const wstring      & intro,
+    bool               & outDownloaded,
+    string             & outError)
+{
+    HRESULT                  hr        = S_OK;
+    const RomSpec          * spec      = FindRomSpec ("", cassoName);
+    bool                           hasSource = (spec != nullptr) && !spec->altHost.empty();
+    auto                           failure   = std::make_shared<string>();
+    HINSTANCE                      hInst     = GetModuleHandleW (nullptr);
+    StartupDownloadSet             set;
+    StartupAssetEntry              entry;
+    StartupDownloadPrompt          prompt;
+    StartupDownloadResult          result    = StartupDownloadResult::Exit;
+    StartupAssetEntry::DownloadFn  fetch;
+
+
+
+    outDownloaded = false;
+    outError.clear();
+
+    CBRF (hasSource,
+          outError = format ("Casso has no download source for {}.", cassoName));
+
+    entry.kind          = StartupAssetKind::Rom;
+    entry.groupLabel    = L"Firmware";
+    entry.displayName   = AsciiToWide (spec->description);
+    entry.kindLabel     = L"ROM";
+    entry.source        = AsciiToWide (spec->sourceLabel);
+    entry.selectable    = false;
+    entry.selected      = true;
+    entry.expectedBytes = (std::uint64_t) spec->expectedSize;
+    entry.destPaths.push_back (GetAssetBaseDirectory() / string (spec->localRelDir) / string (spec->cassoName));
+
+    // The dialog reports a failed row only as "Failed", so the reason is
+    // copied out for the caller.
+    fetch            = MakeRomDownloadFn (spec, entry.destPaths.front());
+    entry.downloadFn = [fetch, failure] (
+        std::atomic<std::uint64_t> & bytesDone,
+        std::atomic<bool>          & cancel,
+        std::string                & err) -> HRESULT
+    {
+        HRESULT  hrFetch = fetch (bytesDone, cancel, err);
+
+
+
+        if (FAILED (hrFetch))
+        {
+            *failure = err;
+        }
+
+        return hrFetch;
+    };
+
+    set.entries.push_back (std::move (entry));
+
+    prompt.title = title;
+    prompt.intro = intro;
+    prompt.theme = theme;
+
+    result        = StartupDownloadDialog::Show (hInst, owner, "", L"", set, &prompt);
+    outDownloaded = result == StartupDownloadResult::AllDone;
+
+    if (result == StartupDownloadResult::PartialDone)
+    {
+        outError = failure->empty() ? string ("The download failed.") : *failure;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunStartupDownloader
 //
 //  Unified entry point: scans for every missing ROM and every missing
@@ -3449,54 +3731,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
         entry.expectedBytes = (std::uint64_t) spec->expectedSize;
-        entry.downloadFn    = [spec, destPath = entry.destPaths.front()] (
-            std::atomic<std::uint64_t> & bytesDone,
-            std::atomic<bool>          & cancel,
-            std::string                & err) -> HRESULT
-        {
-            HRESULT       hr      = S_OK;
-            HINTERNET     hSes    = nullptr;
-            vector<Byte>  payload;
-            error_code    ecLocal;
-
-            // Default AppleWin source, or the ROM's explicit alternate host
-            // (e.g. the //c ROM on the apple2.org.za mirror).
-            bool          useAlt  = !spec->altHost.empty();
-            wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
-            wstring       wPath   = useAlt
-                                    ? AsciiToWide (spec->altUrlPath)
-                                    : (wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName));
-
-            hSes = WinHttpOpen (s_kpszUserAgent,
-                                WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                                WINHTTP_NO_PROXY_NAME,
-                                WINHTTP_NO_PROXY_BYPASS,
-                                0);
-            CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
-
-            hr = DownloadHttp (hSes,
-                                    wHost.c_str(),
-                                    wPath.c_str(),
-                                    spec->expectedSize,
-                                    spec->cassoName,
-                                    payload,
-                                    err,
-                                    &bytesDone,
-                                    &cancel);
-            CHR (hr);
-
-            fs::create_directories (destPath.parent_path(), ecLocal);
-            hr = WriteFileBytes (destPath, payload);
-            CHRF (hr, err = format ("Cannot write {}", destPath.string()));
-
-        Error:
-            if (hSes != nullptr)
-            {
-                WinHttpCloseHandle (hSes);
-            }
-
-            return hr;
-        };
+        entry.downloadFn    = MakeRomDownloadFn (spec, entry.destPaths.front());
 
         set.entries.push_back (std::move (entry));
     }

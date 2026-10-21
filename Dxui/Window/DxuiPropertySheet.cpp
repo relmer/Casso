@@ -356,6 +356,31 @@ int DxuiPropertySheet::IndexOfPage (const DxuiPropertyPage * page) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindTabOfPage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DxuiTabStrip::Tab * DxuiPropertySheet::FindTabOfPage (int pageIndex) const
+{
+    const DxuiTabStrip::Tab *  found = nullptr;
+    int                        tab   = TabIndexOfPage (pageIndex);
+
+
+
+    if (m_tabs != nullptr && tab >= 0 && tab < (int) m_tabs->GetTabs().size())
+    {
+        found = &m_tabs->GetTabs()[(size_t) tab];
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetFirstPresentPage
 //
 ////////////////////////////////////////////////////////////////////////////////

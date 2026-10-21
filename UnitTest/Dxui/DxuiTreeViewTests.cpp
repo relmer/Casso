@@ -237,6 +237,47 @@ public:
             L"Optional row's checkbox click must toggle the underlying node.");
     }
 
+    //  The label toggles the row as the checkbox does, once the tree has
+    //  been painted and the label's extent is known. The mock renderer
+    //  measures 7 DIP per character, so "joystick" ends 56 past its start,
+    //  which is 36: twisty 0..16, checkbox 16..32, then a 4 DIP gap.
+    TEST_METHOD (Click_OnOptionalLabel_Toggles)
+    {
+        DxuiTreeView          tv = MakeFlatTree();
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+
+
+        tv.Paint (painter, text, theme);
+
+        Assert::IsTrue (tv.OnLButtonDown (60, 25));
+        Assert::IsTrue (tv.OnLButtonUp   (60, 25));
+        Assert::IsTrue (tv.GetNodeAt (1)->checked, L"a click on the label toggles the row");
+
+        Assert::IsTrue  (tv.OnLButtonDown (150, 25));
+        Assert::IsTrue  (tv.OnLButtonUp   (150, 25));
+        Assert::IsTrue  (tv.GetNodeAt (1)->checked, L"past the label's end a click only selects");
+        Assert::AreEqual (1, tv.GetHighlight());
+    }
+
+    TEST_METHOD (Click_OnRequiredLabel_NoToggle)
+    {
+        DxuiTreeView          tv = MakeFlatTree();
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+
+
+
+        tv.Paint (painter, text, theme);
+
+        Assert::IsTrue (tv.OnLButtonDown (50, 5));
+        Assert::IsTrue (tv.OnLButtonUp   (50, 5));
+        Assert::IsTrue (tv.GetNodeAt (0)->checked, L"a Required row stays on");
+    }
+
     TEST_METHOD (Click_OnRequiredCheckbox_NoToggle)
     {
         DxuiTreeView  tv            = MakeFlatTree();
@@ -461,7 +502,7 @@ public:
         tv.SetOnToggle ([&toggles] (const std::wstring &, bool) { toggles++; });
 
         //  Where the checkbox would be on a checklist tree.
-        Assert::IsFalse (tv.HitTestCheckbox (20, 5, 0));
+        Assert::IsFalse (tv.HitTestToggle (20, 5, 0));
 
         Assert::IsTrue  (tv.OnLButtonDown (20, 5));
         Assert::IsTrue  (tv.OnLButtonUp   (20, 5));

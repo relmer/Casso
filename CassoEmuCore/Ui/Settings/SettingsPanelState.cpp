@@ -601,8 +601,9 @@ bool SettingsPanelState::IsDirty() const
 //  RequiresReset
 //
 //  Per FR-010: a reset is required iff the hardware-enable bits
-//  changed. Speed / color / sound / mechanism / write-protect and the
-//  serial ports' devices are all live-applicable.
+//  changed, or a Super Serial Card's attachment did. Speed / color / sound
+//  / mechanism / write-protect, the //c's serial port devices and the
+//  Uthernet II's settings are all live-applicable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -613,9 +614,17 @@ bool SettingsPanelState::RequiresReset() const
 
 
 
+    // A serial attachment is opened when the machine is built, so changing
+    // it takes a rebuild too. The card's switches do not: they are register
+    // reads, applied live.
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
+        const HardwareEntry &  before = m_original.hardware[i];
+        const HardwareEntry &  after  = m_current.hardware[i];
+        bool                   serial = after.type == kpszSuperSerialCardDevice;
+
+        changed = before.enabled != after.enabled
+               || (serial && (before.ports != after.ports || before.portPath != after.portPath));
     }
 
     return changed;
@@ -1163,6 +1172,112 @@ void SettingsPanelState::SetMouseConnected (bool connected)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FindSerialCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanelState::FindSerialCard() const
+{
+    int  index = -1;
+
+
+
+    for (size_t i = 0; index < 0 && i < m_current.hardware.size(); ++i)
+    {
+        if (m_current.hardware[i].kind == HardwareEntryKind::Slot &&
+            m_current.hardware[i].type == kpszSuperSerialCardDevice)
+        {
+            index = static_cast<int> (i);
+        }
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasEnabledSerialCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::HasEnabledSerialCard() const
+{
+    int  index = FindSerialCard();
+
+
+
+    return index >= 0 && m_current.hardware[static_cast<size_t> (index)].enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialCardSwitches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetSerialCardSwitches (const std::string & sw1, const std::string & sw2)
+{
+    HRESULT  hr      = S_OK;
+    int      index   = FindSerialCard();
+    bool     hasCard = index >= 0;
+
+
+
+    CBR (hasCard);
+
+    m_current.hardware[static_cast<size_t> (index)].switchesSw1 = sw1;
+    m_current.hardware[static_cast<size_t> (index)].switchesSw2 = sw2;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialCardAttachment
+//
+//  The card has one connector, so the staged port list is that one entry;
+//  an empty device stages an empty connector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetSerialCardAttachment (const std::string & device, const std::string & path)
+{
+    HRESULT          hr      = S_OK;
+    int              index   = FindSerialCard();
+    bool             hasCard = index >= 0;
+    HardwareEntry  * entry   = nullptr;
+
+
+
+    CBR (hasCard);
+
+    entry           = &m_current.hardware[static_cast<size_t> (index)];
+    entry->ports    = { device };
+    entry->portPath = path;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetHardwareEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1185,6 +1300,15 @@ HRESULT SettingsPanelState::SetHardwareEnabled (size_t index, bool enabled)
     }
 
     m_current.hardware[index].enabled = enabled;
+
+    // A network card turned on with no MAC address gets one, as a card
+    // comes with an address on its label.
+    if (enabled
+        && m_current.hardware[index].type == kpszNetworkCardDevice
+        && !m_current.hardware[index].network.mac.IsSet())
+    {
+        m_current.hardware[index].network.mac = MakeRandomMac();
+    }
 
 Error:
     return hr;
@@ -1256,12 +1380,22 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
     AddDefinedDevices (m_machineName, augmented);
     hr = ExtractHardware (augmented, hardware);
 
+    // A card's connectors are taken from disk too, unless a page in this sheet
+    // changed them: the Super Serial Card's connector is chosen on its page,
+    // and the copy on disk is the one the user just replaced.
     for (size_t i = 0; SUCCEEDED (hr) && i < hardware.size() && i < m_current.hardware.size(); i++)
     {
-        if (hardware[i].type == m_current.hardware[i].type && hardware[i].slot == m_current.hardware[i].slot)
+        HardwareEntry &  current   = m_current.hardware[i];
+        HardwareEntry &  original  = m_original.hardware[i];
+        bool             sameCard  = hardware[i].type == current.type && hardware[i].slot == current.slot;
+        bool             unchanged = current.ports == original.ports && current.portPath == original.portPath;
+
+        if (sameCard && unchanged)
         {
-            m_current.hardware[i].ports  = hardware[i].ports;
-            m_original.hardware[i].ports = hardware[i].ports;
+            current.ports     = hardware[i].ports;
+            current.portPath  = hardware[i].portPath;
+            original.ports    = hardware[i].ports;
+            original.portPath = hardware[i].portPath;
         }
     }
 
@@ -1304,8 +1438,9 @@ HRESULT SettingsPanelState::Apply (
     ISettingsApplySink & sink,
     JsonValue          & outCurrentJson) const
 {
-    HRESULT  hr = S_OK;
-    int      i  = 0;
+    HRESULT  hr      = S_OK;
+    int      i       = 0;
+    int      network = -1;
 
 
 
@@ -1340,6 +1475,29 @@ HRESULT SettingsPanelState::Apply (
         {
             sink.ApplySerialPortDevice (port, GetSerialPortDevice (port));
         }
+    }
+
+    // The Super Serial Card's switches take effect without a reset: they are
+    // register reads. Pushed whenever the machine lists the card turned on.
+    if (HasEnabledSerialCard())
+    {
+        const HardwareEntry &  card = m_current.hardware[static_cast<size_t> (FindSerialCard())];
+
+        if (!card.switchesSw1.empty())
+        {
+            sink.ApplySerialCardSwitches (card.switchesSw1, card.switchesSw2);
+        }
+    }
+
+    // The Uthernet II's LAN access and port forwards apply to the running
+    // card. Turning the card on or off takes the reset below.
+    network = FindNetworkCard();
+
+    if (network >= 0 && !RequiresReset()
+        && m_current.hardware[(size_t) network].enabled
+        && !(m_original.hardware[(size_t) network].network == m_current.hardware[(size_t) network].network))
+    {
+        sink.ApplyNetworkCard (m_current.hardware[(size_t) network].network);
     }
 
     // FR-010: any hardware enable diff requires the caller to confirm
@@ -1735,6 +1893,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     outInfo.supportsGamePortAdapter = MachineDefinitions::Find (machineId) != nullptr &&
                                       MachineDefinitions::Find (machineId)->hasAnnunciators;
 
+
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
     {
@@ -1901,8 +2060,10 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "smartport",               "SmartPort" },
         { "mockingboard",            "Mockingboard A (sound)" },
         { "mockingboard-c",          "Mockingboard C (sound + speech)" },
+        { kpszNetworkCardDevice,     kpszNetworkCardName },
         { "passport",                "Passport MIDI" },
         { "serial",                  "Super Serial Card" },
+        { "super-serial-card",       "Super Serial Card" },
         { "parallel",                "Parallel printer" },
         { "videx",                   "Videx 80-Column" },
         { "ramworks",                "RamWorks" },
@@ -2027,7 +2188,37 @@ HRESULT SettingsPanelState::ExtractHardware (
                         hw.ports.push_back (port.GetType() == JsonType::String
                                             ? port.GetString()
                                             : GetStringOpt (port, kpszPortDeviceKey, ""));
+
+                        if (j == 0 && port.GetType() == JsonType::Object)
+                        {
+                            hw.portPath = GetStringOpt (port, kpszPortPathKey, "");
+                        }
                     }
+                }
+            }
+
+            {
+                const JsonValue *  switches = nullptr;
+                HRESULT            hrObj    = entry.GetObject (kpszSwitchesKey, switches);
+
+                IGNORE_RETURN_VALUE (hrObj, S_OK);
+
+                if (switches != nullptr)
+                {
+                    hw.switchesSw1 = GetStringOpt (*switches, kpszSw1Key, "");
+                    hw.switchesSw2 = GetStringOpt (*switches, kpszSw2Key, "");
+                }
+            }
+
+            if (dev == kpszNetworkCardDevice)
+            {
+                const JsonValue           * network = nullptr;
+                std::vector<std::string>    ignored;
+
+                if (entry.HasObject (NetworkCardSettings::kpszJsonKey, network))
+                {
+                    HRESULT  hrNetwork = NetworkCardSettings::FromJson (*network, hw.network, ignored);
+                    IGNORE_RETURN_VALUE (hrNetwork, S_OK);
                 }
             }
 
@@ -2171,6 +2362,8 @@ JsonValue SettingsPanelState::BuildJson (
                 const JsonValue                                 & src         = slotSrc->GetArrayElement (i);
                 const auto                                      & srcEntries  = src.GetObjectEntries();
                 bool                                              enabledFlag = false;
+                bool                                              hadNetwork  = false;
+                const JsonValue                                 * network     = nullptr;
                 std::vector<std::pair<std::string, JsonValue>>    rebuilt;
                 size_t                                            j           = 0;
                 if (src.GetType() != JsonType::Object)
@@ -2180,6 +2373,7 @@ JsonValue SettingsPanelState::BuildJson (
                 }
 
                 enabledFlag = true;
+                hadNetwork  = src.HasObject (NetworkCardSettings::kpszJsonKey, network);
 
                 {
                     const HardwareEntry *  staged = nullptr;
@@ -2202,6 +2396,12 @@ JsonValue SettingsPanelState::BuildJson (
                             continue;
                         }
 
+
+                        if (srcEntry.first == NetworkCardSettings::kpszJsonKey && staged != nullptr)
+                        {
+                            continue;
+                        }
+
                         // A staged port list replaces the source's. An EMPTY
                         // staged list means the card never declared ports, so
                         // the source key (if any) passes through untouched --
@@ -2213,10 +2413,26 @@ JsonValue SettingsPanelState::BuildJson (
                             continue;
                         }
 
+                        // Staged switches replace the source's the same way.
+                        if (srcEntry.first == kpszSwitchesKey &&
+                            staged != nullptr && !staged->switchesSw1.empty())
+                        {
+                            continue;
+                        }
+
                         rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                     }
 
                     rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
+
+                    // Default settings are not written, so looking at the card
+                    // does not put a `network` object into the user's file.
+                    if (staged != nullptr
+                        && staged->type == kpszNetworkCardDevice
+                        && (hadNetwork || !(staged->network == NetworkCardSettings {})))
+                    {
+                        rebuilt.emplace_back (NetworkCardSettings::kpszJsonKey, staged->network.ToJson());
+                    }
 
                     if (staged != nullptr && !staged->ports.empty())
                     {
@@ -2224,15 +2440,39 @@ JsonValue SettingsPanelState::BuildJson (
 
                         for (const std::string & device : staged->ports)
                         {
-                            portArr.emplace_back (JsonValue (device));
+                            // The first connector of a card with a file
+                            // attachment is written as an object, to include the
+                            // file's path.
+                            if (portArr.empty() && !staged->portPath.empty())
+                            {
+                                std::vector<std::pair<std::string, JsonValue>>  port;
+
+                                port.emplace_back (kpszPortDeviceKey, JsonValue (device));
+                                port.emplace_back (kpszPortPathKey,   JsonValue (staged->portPath));
+                                portArr.emplace_back (JsonValue (std::move (port)));
+                            }
+                            else
+                            {
+                                portArr.emplace_back (JsonValue (device));
+                            }
                         }
 
                         rebuilt.emplace_back (kpszPortsKey, JsonValue (std::move (portArr)));
+                    }
+
+                    if (staged != nullptr && !staged->switchesSw1.empty())
+                    {
+                        std::vector<std::pair<std::string, JsonValue>>  switches;
+
+                        switches.emplace_back (kpszSw1Key, JsonValue (staged->switchesSw1));
+                        switches.emplace_back (kpszSw2Key, JsonValue (staged->switchesSw2));
+                        rebuilt.emplace_back (kpszSwitchesKey, JsonValue (std::move (switches)));
                     }
                 }
 
                 slotArr.emplace_back (JsonValue (std::move (rebuilt)));
             }
+
         }
     }
 
@@ -2441,14 +2681,244 @@ bool SettingsPanelState::AreHardwareEqual (
         // `ports` counts: attaching or detaching a drive is a staged edit
         // like any other, and leaving it out here would make the panel report
         // itself clean and never save the change.
-        equal = a[i].kind       == b[i].kind
-             && a[i].jsonIndex  == b[i].jsonIndex
-             && a[i].slot       == b[i].slot
-             && a[i].type       == b[i].type
-             && a[i].capability == b[i].capability
-             && a[i].enabled    == b[i].enabled
-             && a[i].ports      == b[i].ports;
+        equal = a[i].kind        == b[i].kind
+             && a[i].jsonIndex   == b[i].jsonIndex
+             && a[i].slot        == b[i].slot
+             && a[i].type        == b[i].type
+             && a[i].capability  == b[i].capability
+             && a[i].enabled     == b[i].enabled
+             && a[i].ports       == b[i].ports
+             && a[i].portPath    == b[i].portPath
+             && a[i].switchesSw1 == b[i].switchesSw1
+             && a[i].switchesSw2 == b[i].switchesSw2
+             && a[i].network     == b[i].network;
     }
 
     return equal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindNetworkCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SettingsPanelState::FindNetworkCard() const
+{
+    size_t  i = 0;
+
+
+
+    for (i = 0; i < m_current.hardware.size(); ++i)
+    {
+        if (m_current.hardware[i].kind == HardwareEntryKind::Slot && m_current.hardware[i].type == kpszNetworkCardDevice)
+        {
+            return (int) i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetNetworkCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const HardwareEntry * SettingsPanelState::GetNetworkCard() const
+{
+    int  index = FindNetworkCard();
+
+
+
+    return (index < 0) ? nullptr : &m_current.hardware[(size_t) index];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasEnabledNetworkCard
+//
+//  The Network tab is present only while this is true, as the Storage tab
+//  follows the disk controller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::HasEnabledNetworkCard() const
+{
+    const HardwareEntry *  card = GetNetworkCard();
+
+
+
+    return card != nullptr && card->enabled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetNetworkCardMac
+//
+//  On bad text, `outError` gets the error in the fixed two-part format and
+//  the stored address stays in effect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetNetworkCardMac (
+    const std::string  & text,
+    std::string        & outError)
+{
+    HRESULT     hr     = S_OK;
+    int         index  = FindNetworkCard();
+    MacAddress  parsed;
+    bool        valid  = false;
+
+
+
+    outError.clear();
+
+    CBR (index >= 0);
+
+    valid = MacAddress::TryParse (text, parsed) && parsed.IsUnicast();
+
+    CBRFEx (valid,
+            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
+            outError = "Error: invalid MAC address\n"
+                       "A MAC address is six pairs of hexadecimal digits separated by colons or "
+                       "hyphens, such as 02:CA:55:12:34:56, and cannot be a multicast address.");
+
+    m_current.hardware[(size_t) index].network.mac = parsed;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetNetworkLanAccess
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetNetworkLanAccess (bool lanAccess)
+{
+    int  index = FindNetworkCard();
+
+
+
+    if (index >= 0)
+    {
+        m_current.hardware[(size_t) index].network.lanAccess = lanAccess;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddPortForward
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::AddPortForward (
+    const PortForward  & forward,
+    std::string        & outError)
+{
+    HRESULT        hr      = S_OK;
+    int            index   = FindNetworkCard();
+    std::string    problem;
+    bool           valid   = false;
+
+
+
+    outError.clear();
+
+    CBR (index >= 0);
+
+    problem = NetworkCardSettings::ValidatePortForward (forward, m_current.hardware[(size_t) index].network.portForwards);
+    valid   = problem.empty();
+
+    CBRFEx (valid,
+            HRESULT_FROM_WIN32 (ERROR_INVALID_DATA),
+            outError = "Error: invalid port forward\n" + problem);
+
+    m_current.hardware[(size_t) index].network.portForwards.push_back (forward);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RemovePortForward
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::RemovePortForward (size_t forwardIndex)
+{
+    HRESULT                     hr       = S_OK;
+    int                         index    = FindNetworkCard();
+    std::vector<PortForward>  * forwards = nullptr;
+    size_t                      count    = 0;
+
+
+
+    CBR (index >= 0);
+
+    forwards = &m_current.hardware[(size_t) index].network.portForwards;
+    count    = forwards->size();
+    CBR (forwardIndex < count);
+
+    forwards->erase (forwards->begin() + (ptrdiff_t) forwardIndex);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeRandomMac
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MacAddress SettingsPanelState::MakeRandomMac()
+{
+    std::random_device   source;
+    MacAddress::Octets   octets = {};
+
+
+
+    for (Byte & octet : octets)
+    {
+        octet = (Byte) (source() & 0xFF);
+    }
+
+    return MacAddress::MakeRandomLocal (octets);
 }

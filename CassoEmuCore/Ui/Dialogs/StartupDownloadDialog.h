@@ -4,6 +4,7 @@
 
 
 class    DxuiButton;
+class    IDxuiTheme;
 class    DxuiCheckbox;
 class    DxuiLabel;
 class    DxuiDpiScaler;
@@ -58,6 +59,10 @@ struct StartupAssetEntry
     std::wstring                      source;             // human-readable origin ("AppleWin (GitHub)")
     std::vector<std::filesystem::path>  destPaths;   // every file produced (for cleanup)
     std::uint64_t                       expectedBytes = 0;   // 0 = unknown
+    using DownloadFn = std::function<HRESULT (std::atomic<std::uint64_t> & bytesDone,
+                                              std::atomic<bool>          & cancel,
+                                              std::string                & outError)>;
+
     bool                                selectable    = true;   // user can toggle the checkbox?
     bool                                selected      = true;   // initial / current checkbox state
 
@@ -66,10 +71,7 @@ struct StartupAssetEntry
     // between chunks; on cancel, return E_ABORT and leave any partial
     // file on disk -- the dialog removes it after worker join. On
     // failure, fill `outError` with a short user-facing message.
-    std::function<HRESULT (
-        std::atomic<std::uint64_t> & bytesDone,
-        std::atomic<bool>          & cancel,
-        std::string                & outError)>  downloadFn;
+    DownloadFn                          downloadFn;
 };
 
 
@@ -97,6 +99,29 @@ struct StartupDownloadSet
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartupDownloadPrompt
+//
+//  The dialog's text and look when it is opened for an asset outside
+//  startup, from Settings: its own title and intro, Cancel in place of
+//  Exit, the live theme, and centered on its owner.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct StartupDownloadPrompt
+{
+    std::wstring        title;
+    std::wstring        intro;
+    const IDxuiTheme *  theme = nullptr;
+};
+
+
+
+
+
 enum class StartupDownloadResult
 {
     NothingToDo,
@@ -115,7 +140,8 @@ public:
                                         HWND                     hwndOwner,
                                         std::string_view         themeName,
                                         const std::wstring     & machineDisplayName,
-                                        StartupDownloadSet     & set);
+                                        StartupDownloadSet     & set,
+                                        const StartupDownloadPrompt * prompt = nullptr);
 
 private:
     enum class  EntryStatus;

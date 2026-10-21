@@ -296,14 +296,20 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HitTestCheckbox
+//  HitTestToggle
+//
+//  The checkbox and its label toggle the row, as a standalone checkbox and
+//  its label do. The label's extent comes from the row's last paint; before
+//  any paint only the checkbox counts. Past the end of the label a click
+//  selects the row and toggles nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
+bool DxuiTreeView::HitTestToggle (int x, int y, int flatRow) const
 {
     int   rowDepth  = 0;
     int   checkboxX = 0;
+    int   right     = 0;
     bool  isHit     = false;
 
 
@@ -314,7 +320,15 @@ bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
     {
         rowDepth  = m_flatRows[(size_t) flatRow].depth;
         checkboxX = m_boundsDip.left + GetLeftPadPx() + rowDepth * m_indentPx + m_twistyPx - m_leftPx;
-        isHit     = x >= checkboxX && x < checkboxX + m_checkboxPx;
+        right     = checkboxX + m_checkboxPx;
+
+        //  The label is part of the toggle's target, scrolled as it is drawn.
+        if (flatRow < (int) m_labelSpans.size() && m_labelSpans[(size_t) flatRow].y != 0)
+        {
+            right = (std::max) (right, (std::min) ((int) m_boundsDip.left + (int) m_labelSpans[(size_t) flatRow].y - m_leftPx, (int) m_boundsDip.right));
+        }
+
+        isHit = x >= checkboxX && x < right;
     }
 
     return isHit;
@@ -380,7 +394,7 @@ bool DxuiTreeView::OnLButtonDown (int x, int y)
 //  be left set by an early exit and leak into the next click.
 //
 //  Which of the three actions fires is decided by sub-region: twisty, then
-//  checkbox, then anything else is a selection. Ordering matters because the
+//  checkbox or label, then anything else is a selection. Ordering matters because the
 //  twisty and checkbox both sit inside the row's own rect.
 //
 //  A twisty click on a childless node is consumed but does nothing, rather
@@ -412,7 +426,7 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
                 consumed = true;
             }
         }
-        else if (HitTestCheckbox (x, y, row))
+        else if (HitTestToggle (x, y, row))
         {
             ToggleRow (row);
             consumed = true;

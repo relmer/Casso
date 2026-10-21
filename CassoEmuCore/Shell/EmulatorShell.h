@@ -10,6 +10,7 @@
 #include "Shell/MachineGamePortSink.h"
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
+#include "Seams/Win32HostNetwork.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
@@ -38,6 +39,7 @@ class ShellDeskScene;
 class ShellDisks;
 class ShellPrinter;
 class ShellSettings;
+class ShellSerialCard;
 class ShellTapeDeck;
 class ShellUpdater;
 struct MonitorSpec;
@@ -157,6 +159,7 @@ public:
 
     // The printer drain, print preview, status light and print dialog.
     ShellPrinter &  GetPrinter();
+    ShellSerialCard &  GetSerialCard() { return *m_serialCard; }
 
     // The Disk II drives: the DiskManager, the drive widgets and their state,
     // the recent-disks list, salvage and the external-change notice.
@@ -283,8 +286,10 @@ private:
     // commands go to ShellDisks, ShellAudio and ShellTapeDeck.
     void     StepInstruction           () override;
     void     SaveTrace                 () override;
+    void     ConfigureNetworkCard      (const NetworkCardSettings & settings) override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
     HRESULT  ConnectSerialPort         (int port, const std::string & device) override;
+    void     SetSerialCardSwitches     (const std::string & sw1, const std::string & sw2) override;
 
     // Posts a reset with the Apple keys as they are at this moment, read on
     // the UI thread where the key state is valid. The strip, the toolbar and
@@ -314,6 +319,7 @@ private:
     void    PrimeChromeThemeEarly           ();
 
     HRESULT BuildMachineDevices             (const MachineConfig & config);
+    void    QueueUthernetNotices            ();
     HRESULT InitializeUiShell               ();
     HRESULT WireUiShellChromeAndThemes      ();
     void    RestoreColorTextPref            ();
@@ -681,6 +687,7 @@ private:
     friend class ShellDisks;
     friend class ShellPrinter;
     friend class ShellSettings;
+    friend class ShellSerialCard;
     friend class ShellTapeDeck;
     friend class ShellUpdater;
     friend class MachineManager;
@@ -698,6 +705,13 @@ private:
     // m_host->Create() returns. The chrome-band dock scales its band
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
+
+    //  Winsock for the Uthernet II. Declared ahead of the machine so it is
+    //  destroyed after it: the card's host sockets close before WSACleanup.
+    Win32HostNetwork        m_hostNetwork;
+
+    //  Notices raised before the window exists, displayed once it does.
+    std::vector<std::wstring>  m_pendingNotices;
 
     //  The emulated machine: bus, CPU, devices, video modes, and the
     //  configuration and identity that say which machine this is. Everything
@@ -922,6 +936,7 @@ private:
     std::unique_ptr<ClipboardManager>         m_clipboardManager;
     std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
+    std::unique_ptr<ShellSerialCard>          m_serialCard;
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

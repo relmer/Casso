@@ -4,6 +4,8 @@
 
 #include "resource.h"
 #include "Core/TextEncoding.h"
+#include "Core/JsonParser.h"
+#include "Config/NetworkCardSettings.h"
 
 
 
@@ -62,6 +64,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
             targets.machine.SaveTrace();
             break;
 
+        case IDM_NETWORK_CONFIGURE:
+            DispatchNetworkConfigure (cmd.payload, targets.machine);
+            break;
+
         case IDM_DISK_INSERT1:
         case IDM_DISK_INSERT2:
             hr = targets.disks.MountDisk ((cmd.id == IDM_DISK_INSERT1) ? 0 : 1, cmd.payload);
@@ -77,6 +83,10 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
         case IDM_DISK_WRITEPROTECT2:
             targets.disks.SetDriveUserWriteProtect ((cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1,
                                                     !cmd.payload.empty() && cmd.payload[0] == '1');
+            break;
+
+        case IDM_SSC_SWITCHES:
+            DispatchSerialCardSwitches (cmd.payload, targets.machine);
             break;
 
         case IDM_DISK_WP1:
@@ -203,6 +213,31 @@ void CpuCommandDispatcher::DispatchResolveChange (const std::string & payload, I
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DispatchSerialCardSwitches
+//
+//  "<sw1>|<sw2>", each bank as the card's "on off ..." text. A payload with
+//  no separator is ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchSerialCardSwitches (const std::string & payload, ICpuMachineCommands & machine)
+{
+    size_t  split = payload.find ('|');
+
+
+
+    if (split != std::string::npos)
+    {
+        machine.SetSerialCardSwitches (payload.substr (0, split), payload.substr (split + 1));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DispatchDriveVolumes
 //
 //  Percents on the wire, unit values at the target: "motor,head,door" in
@@ -304,4 +339,39 @@ void CpuCommandDispatcher::DispatchSerialConnect (const std::string & payload, I
         hr = machine.ConnectSerialPort (payload[0] - '0', payload.substr (2));
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchNetworkConfigure
+//
+//  The Uthernet II's settings as JSON. A payload that does not parse changes
+//  nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchNetworkConfigure (const std::string & payload, ICpuMachineCommands & machine)
+{
+    HRESULT                   hr       = S_OK;
+    JsonValue                 json;
+    JsonParseError            error;
+    NetworkCardSettings       settings;
+    std::vector<std::string>  warnings;
+
+
+
+    hr = JsonParser::Parse (payload, json, error);
+    CHR (hr);
+
+    hr = NetworkCardSettings::FromJson (json, settings, warnings);
+    CHR (hr);
+
+    machine.ConfigureNetworkCard (settings);
+
+Error:
+    return;
 }

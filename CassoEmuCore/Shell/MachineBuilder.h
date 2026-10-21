@@ -5,12 +5,17 @@
 #include "Shell/MachineHost.h"
 
 
+class Acia6551;
 class DriveAudioMixer;
+class IHostNetwork;
 class Disk2AudioSource;
 class JsonValue;
 class PrinterAudioSource;
 class PrinterWorker;
+class SuperSerialCard;
 class WasapiAudio;
+
+struct SlotConfig;
 
 
 
@@ -52,6 +57,10 @@ struct MachineBuildServices
     WasapiAudio                                     *  wasapiAudio            = nullptr;
 
     PrinterWorker  *  printerWorker           = nullptr;
+
+    //  The PC's network stack, for the Uthernet II. With null, the card has no
+    //  PC connectivity.
+    IHostNetwork   *  hostNetwork             = nullptr;
     uint64_t       *  printerAutoOpenActivity = nullptr;
 
     const float  *  drivePan          = nullptr;    // two entries
@@ -132,6 +141,7 @@ public:
     void     WireJoyport          ();
     void     WireCassettePort     ();
     void     AttachSerialDevices  (const MachineConfig & config);
+    HRESULT  WireUthernet         (const MachineConfig & config);
 
     Byte *   GetAuxRamBuffer      ();
     Byte *   GetMainRamBuffer     ();
@@ -139,6 +149,9 @@ public:
     void     SelectVideoMode      ();
 
 private:
+
+    void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
+    void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
 
     MachineHost          &  m_host;
     MachineBuildServices    m_services;

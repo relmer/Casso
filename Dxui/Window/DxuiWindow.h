@@ -246,6 +246,7 @@ public:
     void     Invalidate ();
 
     void     SetTheme   (const IDxuiTheme * theme);
+    const IDxuiTheme *  GetTheme () const { return m_theme; }
     void     SetTitle   (const std::wstring & title);
     int      GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
     UINT     GetDpi         () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
@@ -291,6 +292,14 @@ protected:
     //  (e.g. a download progress dialog). Default no-op.
     //
     virtual void  OnDialogTick    () {}
+
+    //
+    //  ShowModalDialog and ShowModelessDialog call this just before the
+    //  window first appears, with its theme set and its content laid out,
+    //  so a dialog can size itself to what its content measures. Default
+    //  no-op.
+    //
+    virtual void  OnDialogShowing () {}
 
     //
     //  Ctrl+Tab / Ctrl+Shift+Tab while a dialog is showing. The dialog

@@ -145,6 +145,7 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiPopupMenu.h"
 #include "Widgets/DxuiRadio.h"
 #include "Widgets/DxuiSearchBox.h"
+#include "Widgets/DxuiShimmer.h"
 #include "Widgets/DxuiSlider.h"
 #include "Widgets/DxuiTabDragModel.h"
 #include "Widgets/DxuiTabDragVisual.h"

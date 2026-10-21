@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Config/NetworkCardSettings.h"
 #include "Controllers/ControllerTypes.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
@@ -140,6 +141,16 @@ struct HardwareEntry
     // attached" -- BuildJson leaves the key alone in that case so a card that
     // never had ports does not acquire an empty list by being looked at.
     std::vector<std::string>  ports;
+
+    // A Super Serial Card's DIP switches as "on off ..." text, and the host
+    // file its first connector's attachment uses. Empty for every other card,
+    // and BuildJson does not write the slot's keys while they are empty.
+    std::string  switchesSw1;
+    std::string  switchesSw2;
+    std::string  portPath;
+
+    // The network card's settings; defaults for every other device.
+    NetworkCardSettings  network;
 };
 
 
@@ -220,6 +231,8 @@ public:
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void ApplyMouseConnected         (bool connected)        = 0;
     virtual void ApplySerialPortDevice       (int port, const std::string & device) = 0;
+    virtual void ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
+    virtual void ApplyNetworkCard    (const NetworkCardSettings & settings) = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
@@ -282,7 +295,7 @@ public:
     JsonValue  BuildCurrentJson () const { return BuildJson (m_mergedJson, m_current.hardware, m_current.prefs, m_current.machinePorts); }
 
     bool IsDirty       () const;
-    bool RequiresReset () const;          // true iff any hardware enable changed
+    bool RequiresReset () const;          // a hardware enable or a serial attachment changed
 
     // Live (current) accessors / mutators
 
@@ -343,13 +356,38 @@ public:
     void    SetMouseConnected         (bool connected);
 
     // What a //c serial port, 1 or 2, connects to: its back-panel port's
-    // device (see SerialPortDevice). A change takes effect when the machine
-    // is rebuilt, so it requires a reset.
+    // device (see SerialPortDevice). A change is applied to the running
+    // machine, with no reset.
     bool         HasSerialPorts      () const;
     std::string  GetSerialPortDevice (int port) const;
     void         SetSerialPortDevice (int port, const std::string & device);
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
+
+    // The staged Super Serial Card: its index in GetHardware(), or -1 when
+    // the machine lists none. HasEnabledSerialCard drives the Serial card
+    // page's presence, as HasDiskIIController drives the Storage page's.
+    int     FindSerialCard        () const;
+    bool    HasEnabledSerialCard  () const;
+
+    // Stage the card's switches, or what is attached to its connector
+    // ("" for nothing, or one of the serial attachment devices) with the
+    // host file the file attachments use.
+    HRESULT SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2);
+    HRESULT SetSerialCardAttachment (const std::string & device, const std::string & path);
+
+    // The Uthernet II. The machine's slot list places it and the Machine tab
+    // turns it on; turned on with no MAC address, it gets a random locally
+    // administered one.
+    static constexpr const char *  kpszNetworkCardDevice = "uthernet2";
+    static constexpr const char *  kpszNetworkCardName   = "Uthernet II (Ethernet)";
+
+    const HardwareEntry *  GetNetworkCard        () const;
+    bool                   HasEnabledNetworkCard () const;
+    HRESULT                SetNetworkCardMac     (const std::string & text, std::string & outError);
+    void                   SetNetworkLanAccess   (bool lanAccess);
+    HRESULT                AddPortForward        (const PortForward & forward, std::string & outError);
+    HRESULT                RemovePortForward     (size_t index);
 
     // Apply
 
@@ -418,6 +456,10 @@ private:
     static constexpr const char *  kpszPortsKey     = "ports";
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
+    static constexpr const char *  kpszPortPathKey   = "path";
+    static constexpr const char *  kpszSwitchesKey   = "switches";
+    static constexpr const char *  kpszSw1Key        = "sw1";
+    static constexpr const char *  kpszSw2Key        = "sw2";
     static constexpr const char *  kpszDiskPortName = "disk";
     static constexpr const char *  kpszSerialPortNames[] = { "serial1", "serial2" };
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
@@ -465,6 +507,10 @@ private:
     // A machine with no definition is left untouched -- its document is the
     // only description of it there is.
     static void  AddDefinedDevices (const std::string & machineName, JsonValue & doc);
+
+    int   FindNetworkCard () const;
+
+    static MacAddress  MakeRandomMac ();
 
 
     std::string          m_machineName;

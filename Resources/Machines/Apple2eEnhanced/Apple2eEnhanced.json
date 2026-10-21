@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 7,
+    "$cassoMachineVersion": 9,
     "name": "Apple //e Enhanced",
     "releaseYear": 1985,
     "timing": {
@@ -20,6 +20,8 @@
     },
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
+        { "slot": 2, "device": "super-serial-card", "firmware": "SSC.rom", "enabled": false },
+        { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false },
         { "slot": 4, "device": "mockingboard-c" },
         // The Disk ][ Interface has two drive connectors whether or not both
         // are used, so the card always declares two ports. An empty string
