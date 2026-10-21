@@ -4392,6 +4392,30 @@ bool CassoExplorerBrowser::CloseTab (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::InsertTab
+//
+//  The catalog a tab cached belongs to the window it came from, so the one it
+//  arrives in reads its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t CassoExplorerBrowser::InsertTab (size_t index, BrowserModel::Tab tab)
+{
+    tab.hasCatalog = false;
+    tab.catalogImage.clear();
+
+    index = m_model.InsertTab (index, std::move (tab));
+    SwitchTab (index);
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::OpenInNewTab
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -118,6 +118,28 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
         {
             outOptions.newWindow = true;
         }
+        else if (argument == L"--tab" && hasValue && outOptions.tab.empty())
+        {
+            outOptions.tab = arguments[++i];
+            valid          = !outOptions.tab.empty();
+
+            if (!valid)
+            {
+                outOptions.refusal = L"--tab takes a tab, which another Casso Explorer window gives it.";
+            }
+        }
+        else if (argument == L"--at" && hasValue && !outOptions.hasPlacement)
+        {
+            const std::wstring &  value = arguments[++i];
+
+            valid                   = TryParseRect (value, outOptions.placement);
+            outOptions.hasPlacement = valid;
+
+            if (!valid)
+            {
+                outOptions.refusal = L"--at takes <x>,<y>,<width>,<height>, not \"" + value + L"\".";
+            }
+        }
         else if (!argument.empty() && argument.rfind (L"--", 0) != 0 && outOptions.openPath.empty())
         {
             outOptions.openPath = argument;
@@ -133,6 +155,51 @@ HRESULT CassoExplorerShell::ParseArguments (const std::vector<std::wstring> & ar
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerShell::TryParseRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerShell::TryParseRect (const std::wstring & text, RECT & outRect)
+{
+    constexpr size_t  kX          = 0;
+    constexpr size_t  kY          = 1;
+    constexpr size_t  kWidth      = 2;
+    constexpr size_t  kHeight     = 3;
+    constexpr size_t  kFieldCount = 4;
+
+
+
+    long             fields[kFieldCount] = {};
+    const wchar_t  * next                = text.c_str();
+    wchar_t        * end                 = nullptr;
+    size_t           i                   = 0;
+    bool             read                = !text.empty();
+
+
+
+    for (i = 0; i < kFieldCount && read; i++)
+    {
+        fields[i] = wcstol (next, &end, 10);
+        read      = end != next && iswdigit (end[-1]) && *end == ((i + 1 < kFieldCount) ? L',' : L'\0');
+        next      = end + 1;
+    }
+
+    read = read && fields[kWidth] > 0 && fields[kHeight] > 0;
+
+    if (read)
+    {
+        outRect = RECT { fields[kX], fields[kY], fields[kX] + fields[kWidth], fields[kY] + fields[kHeight] };
+    }
+
+    return read;
 }
 
 
@@ -502,13 +569,16 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     {
         CassoExplorerWindow::Context  context;
 
-        context.fs          = &m_fs;
-        context.baseDir     = m_baseDir;
-        context.owner       = m_options.owner;
-        context.titlePrefix = m_options.titlePrefix;
-        context.openPath    = m_options.openPath;
-        context.newWindow   = m_options.newWindow;
-        context.watcher     = &m_watcher;
+        context.fs           = &m_fs;
+        context.baseDir      = m_baseDir;
+        context.owner        = m_options.owner;
+        context.titlePrefix  = m_options.titlePrefix;
+        context.openPath     = m_options.openPath;
+        context.newWindow    = m_options.newWindow;
+        context.tab          = m_options.tab;
+        context.placement    = m_options.placement;
+        context.hasPlacement = m_options.hasPlacement;
+        context.watcher      = &m_watcher;
     context.links       = &m_links;
     context.linkFolder  = &m_linkFolder;
     context.running     = &m_running;
@@ -588,6 +658,7 @@ int CassoExplorerShell::RunMessageLoop()
     if (m_window != nullptr && m_window->GetHwnd() != nullptr)
     {
         RemovePropW (m_window->GetHwnd(), kOwnerProperty);
+        RemovePropW (m_window->GetHwnd(), CassoExplorerWindow::kTabStripProperty);
     }
 
     hr = m_prefs.Save (m_baseDir, m_fs);

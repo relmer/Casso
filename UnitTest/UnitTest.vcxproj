@@ -371,6 +371,7 @@
     <ClCompile Include="CassoExplorer\DiskOperationsTests.cpp" />
     <ClCompile Include="CassoExplorer\TreeModelTests.cpp" />
     <ClCompile Include="CassoExplorer\BrowserModelTests.cpp" />
+    <ClCompile Include="CassoExplorer\TabTransferTests.cpp" />
     <ClCompile Include="CassoExplorer\KnownFolderStoreTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerPrefsTests.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerLinkDialogTests.cpp" />
@@ -514,6 +515,7 @@
     <ClCompile Include="Dxui\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiAddressBarTests.cpp" />
     <ClCompile Include="UiTests\DxuiTextViewTests.cpp" />
+    <ClCompile Include="Dxui\DxuiTabDragModelTests.cpp" />
     <ClCompile Include="Dxui\DxuiTabStripTests.cpp" />
     <ClCompile Include="UiTests\DxuiFieldErrorTests.cpp" />
     <ClCompile Include="UiTests\AttributionsTextTests.cpp" />

@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/TabTransfer.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -50,6 +51,63 @@ public:
         Assert::IsTrue   (options.hasOwner);
         Assert::IsTrue   (options.owner == owner);
         Assert::AreEqual (std::wstring (L"033 explorer"), options.titlePrefix);
+    }
+
+
+    TEST_METHOD (TearOffArguments_ParseBack)
+    {
+        // A torn-off tab crosses on the command line as JSON, quotes and
+        // backslashes and all, and must come out of the C runtime's split
+        // exactly as it went in.
+        CassoExplorerLaunchOptions  options;
+        BrowserModel::Tab           tab;
+        BrowserModel::Tab           received;
+        std::wstring                text;
+        RECT                        window = { -1200, 40, -400, 640 };
+
+        tab.location  = Location::MakeDiskDirectory (L"C:\\My Disks\\game \"one\".po", "GAMES");
+        tab.back      = { Location::MakeHostFolder (L"C:\\My Disks\\") };
+        tab.selection = { L"A \"quoted\" name" };
+        text          = TabTransfer::Encode (tab);
+
+        Assert::AreEqual (S_OK, CassoExplorerShell::ParseArguments (Split (LaunchCommand::MakeTearOffArguments (text, window, L"033 explorer")), options));
+        Assert::IsTrue   (options.newWindow, L"A torn-off tab opens a window of its own");
+        Assert::AreEqual (text, options.tab);
+        Assert::IsTrue   (options.hasPlacement);
+        Assert::AreEqual (-1200L, options.placement.left, L"on any monitor, left of the primary one included");
+        Assert::AreEqual (40L,    options.placement.top);
+        Assert::AreEqual (-400L,  options.placement.right);
+        Assert::AreEqual (640L,   options.placement.bottom);
+        Assert::AreEqual (std::wstring (L"033 explorer"), options.titlePrefix);
+
+        Assert::IsTrue   (TabTransfer::TryDecode (options.tab, received));
+        Assert::IsTrue   (received.location == tab.location);
+        Assert::IsTrue   (received.back[0] == tab.back[0], L"A trailing backslash survives the quoting");
+        Assert::AreEqual (tab.selection[0], received.selection[0]);
+    }
+
+
+    TEST_METHOD (WindowRect_TakesFourIntegersWithAPositiveSize)
+    {
+        CassoExplorerLaunchOptions  options;
+        RECT                        rect    = {};
+
+        Assert::IsTrue   (CassoExplorerShell::TryParseRect (L"-10,20,300,400", rect));
+        Assert::AreEqual (-10L, rect.left);
+        Assert::AreEqual (290L, rect.right);
+        Assert::AreEqual (420L, rect.bottom);
+
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"",           rect));
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"1,2,3",      rect));
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"1,2,3,4,5",  rect));
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"1,2,0,4",    rect), L"no width");
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"1,2,3,-4",   rect), L"no height");
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"a,2,3,4",    rect));
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"1,,3,4",     rect));
+        Assert::IsFalse  (CassoExplorerShell::TryParseRect (L"1,2,3,4x",   rect));
+
+        Assert::AreEqual (E_INVALIDARG, CassoExplorerShell::ParseArguments ({ L"--at", L"1,2" }, options));
+        Assert::IsFalse  (options.refusal.empty(), L"and the refusal gives the form it takes");
     }
 
 

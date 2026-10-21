@@ -51,10 +51,15 @@ enum class DxuiTabStripStyle
 //  fit past its end.
 //
 //  The rest is the host's to turn on, in either style. With a move handler
-//  set, a tab dragged along the strip moves as it crosses its neighbors, and
-//  each move is reported; without one, a press that leaves its tab is
-//  canceled. With a new-tab handler set, a + button follows the last tab, or
-//  holds the strip's right end when the tabs overflow. With a close handler
+//  set, a tab can be dragged, as File Explorer's are: the dragged tab is
+//  lifted out of the row, the others close up and slide apart to open a gap
+//  where it would drop, and the + button slides along after the last of
+//  them. The move is reported once, on the drop. Dragged far enough off the
+//  strip, the tab is torn off: the gap closes, and the host handles the drop.
+//  Without a move handler, a press is canceled once the pointer moves off
+//  its tab. A host can also open a gap for a tab dragged in from elsewhere
+//  (SetIncomingDrag). With a new-tab handler set, a + button follows the
+//  last tab, or holds the strip's right end when the tabs overflow. With a close handler
 //  set, every tab gets a close button. A tab with an icon draws it before its
 //  label.
 //
@@ -67,6 +72,8 @@ public:
     using MoveFn   = std::function<void (int from, int to)>;
     using NewTabFn = std::function<void ()>;
     using CloseFn  = std::function<void (int index)>;
+    using DragFn   = std::function<void (int index, POINT point, bool tornOff)>;
+    using ClockFn  = std::function<int64_t ()>;
 
     // Label metrics: the size a tab label is drawn at, and the inset the
     // label keeps from its tab's sides (in the Explorer style, from its right
@@ -78,7 +85,7 @@ public:
 
     static const wchar_t *  GetLabelFace();
 
-    DxuiTabStrip() { m_focusable = true; }
+    DxuiTabStrip();
 
     struct Tab
     {
@@ -105,6 +112,45 @@ public:
 
     //  With a close handler set, every tab gets a close button.
     void  SetOnClose  (CloseFn fn)  { m_close  = std::move (fn); }
+
+    //  A drag's progress, on every move of the pointer, and its drop. The
+    //  point is in the strip's own coordinates; `tornOff` is set while the
+    //  pointer is far enough off the strip that a drop tears the tab off. A
+    //  drop that was not torn off has already moved the tab, and its index
+    //  is where it landed.
+    void  SetOnDragMove (DragFn fn) { m_dragMove = std::move (fn); }
+    void  SetOnDragEnd  (DragFn fn) { m_dragEnd  = std::move (fn); }
+
+    //  A tab dragged in from elsewhere, `widthPx` wide with the pointer at its
+    //  center: a gap opens where it would drop, until it is cleared.
+    //  GetIncomingIndex is where the tab would go, or -1 with none.
+    void  SetIncomingDrag   (int x, int widthPx);
+    void  ClearIncomingDrag ();
+    int   GetIncomingIndex  () const { return m_incoming ? m_gap : -1; }
+
+    //  The time slides are measured on, in milliseconds; GetTickCount64 by
+    //  default. Slides run only while animations are enabled, which follows
+    //  the system's setting unless set.
+    void  SetClock             (ClockFn fn) { m_clock = std::move (fn); }
+    void  SetAnimationsEnabled (bool on)    { m_animate = on; }
+
+    //  True while any tab or the + button is sliding to its place; the host
+    //  repaints until it is false.
+    bool  IsSliding () const;
+
+    //  Where tab `index` is drawn now, sliding included, in the strip's own
+    //  coordinates.
+    RECT  GetTabScreenRect (int index) const;
+
+    bool  IsDragging       () const { return m_dragging; }
+    bool  IsTornOff        () const { return m_dragging && m_tornOff; }
+
+    //  Where in the dragged tab the pointer took it, from its top-left corner.
+    POINT GetDragGrab      () const { return m_grab; }
+
+    //  Draws tab `index` as a dragged tab's card, `widthPx` by `heightPx` from
+    //  the origin: its icon and its label, drawn as on the selected tab.
+    void  PaintFloatingTab (IDxuiTextRenderer & text, int index, float widthPx, float heightPx, uint32_t textArgb) const;
 
     //  The Explorer style's selected tab fill, the color of the row it joins,
     //  and the icon face the close glyph is drawn in.
@@ -158,6 +204,8 @@ public:
 private:
     static constexpr int  s_kDragThresholdDip = 4;    // movement before a press becomes a drag
     static constexpr int  s_kDragScrollDip    = 16;   // scroll per move while a drag is held past an end
+    static constexpr int  s_kTearOffDip       = 24;   // distance off the strip that tears a tab off
+    static constexpr int  s_kSlideMs          = 160;  // a tab's slide to its new place
     static constexpr int  s_kWheelStepDip     = 60;   // scroll per wheel notch
     static constexpr int  s_kArrowWidthDip    = 28;   // each scroll arrow
 
@@ -174,10 +222,25 @@ private:
     static constexpr float  s_kExplorerCloseGlyphDip  = 8.67f;
     static constexpr int    s_kCornerDip              = 6;   // the selected tab's rounded top corners
 
+    //  One tab's slide, or the + button's, from where it was drawn to where
+    //  it is going, in the strip's content coordinates.
+    struct Slide
+    {
+        float    from    = 0.0f;
+        float    to      = 0.0f;
+        int64_t  startMs = 0;
+    };
+
     void  Commit         (int newIndex);
     bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }
     int   GetMaxScrollPx () const;
-    int   GetDropIndex   (int x) const;
+    int   GetContentX    (int x) const { return x + m_scrollPx - GetArrowWidthPx(); }
+    int64_t  GetNowMs    () const;
+    float GetSlideLeft   (size_t item) const;
+    void  RetargetSlides ();
+    void  SnapSlides     ();
+    void  UpdateDragGap  ();
+    void  EndDrag        (int x, int y);
     void  ClampScroll    ();
     void  ScrollIntoView (int index);
     void  MoveDraggedTab (int to);
@@ -193,8 +256,13 @@ private:
     RECT  GetNewTabRect  () const;
     bool  IsOverNewTab   (int x, int y) const;
     void  PaintNewTab    (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
-    RECT  GetTabScreenRect (int index) const;
     RECT  GetCloseRect   (int index) const;
+
+    //  The tab drawn as selected: none while the selected tab is the one being
+    //  dragged, which is not drawn in the row. And whether tab `index` is
+    //  drawn at all.
+    int   GetPaintedSelection () const;
+    bool  IsPainted      (int index) const { return !(m_dragging && index == m_pressed); }
 
     //  A tab's hover fill, darker while pressed; and what a tab shows: the
     //  strip, or its hover mixed onto the strip.
@@ -221,8 +289,21 @@ private:
     int                m_hover         = -1;
     int                m_pressed       = -1;
     int                m_pressX        = 0;
+    int                m_pressY        = 0;
     int                m_scrollPx      = 0;
     bool               m_dragging      = false;
+    bool               m_tornOff       = false;
+    POINT              m_grab          = {};
+    int                m_dragX         = 0;
+    int                m_gap           = -1;   // the slot the gap is open at, among the tabs not dragged
+    bool               m_incoming      = false;
+    int                m_incomingX     = 0;
+    int                m_incomingWidth = 0;
+    DragFn             m_dragMove;
+    DragFn             m_dragEnd;
+    std::vector<Slide> m_slides;               // one per tab, then the + button
+    ClockFn            m_clock;
+    bool               m_animate       = true;
     int                m_hoverArrow    = 0;   // -1 left, +1 right, 0 neither
     int                m_pressedArrow  = 0;
     NewTabFn           m_newTab;

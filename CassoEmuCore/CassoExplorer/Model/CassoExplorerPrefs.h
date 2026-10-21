@@ -177,6 +177,11 @@ struct CassoExplorerPrefs
     static constexpr int  kDefaultTreeWidthDip    = 240;
     static constexpr int  kDefaultPreviewWidthDip = 360;
 
+    //  The name a location's kind is stored under, and the kind a name reads
+    //  back as; anything else is no kind.
+    static const char *  GetLocationKindName (Location::Kind kind);
+    static bool          TryGetLocationKind  (const std::string & name, Location::Kind & outKind);
+
 private:
     static JsonValue  LocationToJson (const Location & location);
     static JsonValue  LinkToJson     (const CassoLinkSettings & link);

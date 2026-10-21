@@ -31,15 +31,22 @@
 //  `--new-window` opens a window of its own rather than a tab in the window
 //  already open, as File Explorer's Open in new window does.
 //
+//  A tab torn off a window's strip opens a new window with `--tab <text>`,
+//  the tab as TabTransfer encodes it, and `--at <x>,<y>,<width>,<height>`,
+//  the window's rectangle on the screen. Neither is for typing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct CassoExplorerLaunchOptions
 {
-    HWND          owner     = nullptr;
-    bool          hasOwner  = false;
-    bool          newWindow = false;
+    HWND          owner        = nullptr;
+    bool          hasOwner     = false;
+    bool          newWindow    = false;
     std::wstring  titlePrefix;
     std::wstring  openPath;
+    std::wstring  tab;
+    RECT          placement    = {};
+    bool          hasPlacement = false;
     std::wstring  refusal;
 };
 
@@ -75,6 +82,10 @@ public:
     //  take, or an owner that is not a decimal handle, fills `refusal` and
     //  fails with E_INVALIDARG.
     static HRESULT  ParseArguments (const std::vector<std::wstring> & arguments, CassoExplorerLaunchOptions & outOptions);
+
+    //  `--at`'s value: four decimal integers, comma-separated, the width and
+    //  height positive.
+    static bool     TryParseRect   (const std::wstring & text, RECT & outRect);
 
     //  The window already serving `owner`, or null.
     static HWND  FindWindowForOwner (HWND owner);

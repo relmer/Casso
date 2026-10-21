@@ -104,6 +104,10 @@ public:
     bool          SwitchTab   (size_t index);
     void          RestoreTabs (const std::vector<Location> & locations);
 
+    //  A tab arriving from another window goes in at `index`, history and view
+    //  included, and becomes the active tab.
+    size_t        InsertTab   (size_t index, BrowserModel::Tab tab);
+
     //  How much of a file with no file of its own, such as one inside a zip,
     //  is read for its preview.
     static constexpr size_t  s_kShellPreviewMaxBytes = 16 * 1024 * 1024;

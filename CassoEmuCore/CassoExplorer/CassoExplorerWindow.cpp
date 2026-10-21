@@ -17,6 +17,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/LaunchCommand.h"
+#include "CassoExplorer/Model/TabTransfer.h"
 #include "AssetBootstrap.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Config/FileAssociations.h"
@@ -225,6 +226,24 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
             {
                 showCommand = SW_SHOWMAXIMIZED;
             }
+        }
+    }
+
+    //  A window for a torn-off tab opens where the drop put it, at the size
+    //  of the window it came from, and never maximized. Twice, for the DPI,
+    //  as above.
+    if (m_context.hasPlacement)
+    {
+        rect = m_context.placement;
+
+        result = SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
+        IGNORE_RETURN_VALUE (result, TRUE);
+        result = SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
+        IGNORE_RETURN_VALUE (result, TRUE);
+
+        if (showCommand == SW_SHOWMAXIMIZED)
+        {
+            showCommand = SW_SHOWNORMAL;
         }
     }
 
@@ -855,6 +874,8 @@ void CassoExplorerWindow::ConfigureWidgets()
 
         IGNORE_RETURN_VALUE (moved, true);
     });
+    m_tabs->SetOnDragMove ([this] (int index, POINT point, bool tornOff) { OnTabDragMove (index, point, tornOff); });
+    m_tabs->SetOnDragEnd  ([this] (int index, POINT point, bool tornOff) { OnTabDragEnd  (index, point, tornOff); });
     m_tabs->SetOnNewTab ([this]() { Dispatch (CassoExplorerCommands::kNewTab); });
     m_tabs->SetOnClose  ([this] (int index)
     {
@@ -1009,6 +1030,17 @@ void CassoExplorerWindow::ConfigureWidgets()
     if (!m_context.openPath.empty())
     {
         OpenPathInNewTab (m_context.openPath);
+    }
+
+    //  A tab torn off another window arrives whole.
+    if (!m_context.tab.empty())
+    {
+        BrowserModel::Tab  torn;
+
+        if (TabTransfer::TryDecode (m_context.tab, torn))
+        {
+            m_browser.InsertTab (m_browser.GetBrowserModel().GetTabCount(), std::move (torn));
+        }
     }
 
     //  The first-run Home tab goes once the path has a tab of its own.
@@ -1204,6 +1236,7 @@ void CassoExplorerWindow::RecomputeLayout()
 
     m_tabs->Layout (m_tabBand.GetBounds(), m_scaler);
     FillTabs();
+    PublishTabStrip();
 
     m_commandBar->SetHostClientRect (m_client);
     m_commandBar->Layout (m_menuBand.GetBounds(), m_scaler);
@@ -3714,7 +3747,7 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
 
     //  A pointer leaving the strip by any edge, or the window, takes the
     //  tab's hover with it.
-    if (m_tabs->GetHoverIndex() >= 0 &&
+    if (m_tabs->GetHoverIndex() >= 0 && !m_tabs->IsInteracting() &&
         ((ev.kind == DxuiMouseEventKind::Move && !Contains (m_tabs->GetBounds(), point)) || ev.kind == DxuiMouseEventKind::Leave))
     {
         DxuiMouseEvent  away = ev;
@@ -6416,7 +6449,9 @@ void CassoExplorerWindow::RecordSession()
 
     m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
 
-    if (!m_context.newWindow)
+    //  A window whose last tab left for another is closing with nothing of
+    //  its own to keep, so it keeps the saved session, as a second window does.
+    if (!m_context.newWindow && !m_emptied)
     {
         m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
         StorePlacement();
@@ -10170,6 +10205,27 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
         return DxuiMessageResult::Handled;
     }
 
+    //  A tab dropped on the strip goes where its gap is, or at the end when
+    //  no hover came first. It is decoded here, while the sender waits, and
+    //  shown once the send has returned.
+    if (copy != nullptr && copy->dwData == kTabDropCopyId && copy->lpData != nullptr)
+    {
+        BrowserModel::Tab  dropped;
+        int                index = m_tabs->GetIncomingIndex();
+
+        m_tabs->ClearIncomingDrag();
+
+        if (TabTransfer::TryDecode (std::wstring ((const wchar_t *) copy->lpData, copy->cbData / sizeof (wchar_t)), dropped))
+        {
+            m_arrivedTabs.emplace_back ((index < 0) ? (int) m_browser.GetBrowserModel().GetTabCount() : index, std::move (dropped));
+            PostMessageW (GetHwnd(), kTabArrivedMessage, 0, 0);
+        }
+
+        Invalidate();
+
+        return DxuiMessageResult::Handled;
+    }
+
     if (!ours || !Win32IntentChannel::DecodeReply ((const Byte *) copy->lpData, copy->cbData, reply))
     {
         return DxuiMessageResult::NotHandled;
@@ -10199,6 +10255,18 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
     if (m_shellPreview.OnHelperMessage (msg, wParam, lParam))
     {
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kTabHoverMessage)
+    {
+        OnTabHover (wParam, lParam);
+        return DxuiMessageResult::Handled;
+    }
+
+    if (msg == kTabArrivedMessage)
+    {
+        InsertArrivedTabs();
         return DxuiMessageResult::Handled;
     }
 
@@ -14594,6 +14662,509 @@ void CassoExplorerWindow::SwitchToTab (size_t index)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::OnTabDragMove
+//
+//  The card follows the pointer from the first move of the drag. Torn off,
+//  the tab may be over another window's strip, which is told so it can open
+//  a gap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnTabDragMove (int index, POINT client, bool tornOff)
+{
+    POINT  screen = client;
+    POINT  grab   = m_tabs->GetDragGrab();
+    BOOL   mapped = ClientToScreen (GetHwnd(), &screen);
+
+
+
+    IGNORE_RETURN_VALUE (mapped, TRUE);
+
+    if (m_tabDragVisual.IsShown())
+    {
+        m_tabDragVisual.MoveTo (POINT { screen.x - grab.x, screen.y - grab.y });
+    }
+    else
+    {
+        ShowTabDragVisual (index, screen);
+    }
+
+    SetTabDragTarget (tornOff ? FindTabStripAt (screen) : nullptr, screen);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnTabDragEnd
+//
+//  A drop on this strip has already moved the tab. Torn off, it goes to the
+//  strip of the window under the pointer, or into a window of its own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnTabDragEnd (int index, POINT client, bool tornOff)
+{
+    POINT  screen = client;
+    HWND   target = m_tabDragTarget;
+    BOOL   mapped = ClientToScreen (GetHwnd(), &screen);
+
+
+
+    IGNORE_RETURN_VALUE (mapped, TRUE);
+
+    m_tabDragVisual.Hide();
+
+    //  The target clears its own gap on the drop, so it is not told the tab
+    //  left first.
+    m_tabDragTarget = nullptr;
+
+    if (tornOff && target != nullptr && TrySendTab (target, index))
+    {
+        LeaveWithTab (index);
+    }
+    else if (tornOff)
+    {
+        if (target != nullptr)
+        {
+            PostMessageW (target, kTabHoverMessage, 0, 0);
+        }
+
+        TearOffTab (index, screen);
+    }
+
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::ShowTabDragVisual
+//
+//  The card is the tab as the strip draws the selected one, filled with the
+//  row the selected tab joins.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::ShowTabDragVisual (int index, POINT screen)
+{
+    HRESULT   hr    = S_OK;
+    RECT      tab   = m_tabs->GetTabScreenRect (index);
+    POINT     grab  = m_tabs->GetDragGrab();
+    uint32_t  text  = m_theme->Foreground();
+
+
+
+    hr = m_tabDragVisual.Show (*GetPopupHost(),
+                               SIZE { tab.right - tab.left, tab.bottom - tab.top },
+                               POINT { screen.x - grab.x, screen.y - grab.y },
+                               m_theme->navStrip,
+                               [this, index, text] (IDxuiPainter &, IDxuiTextRenderer & renderer, float width, float height)
+                               {
+                                   m_tabs->PaintFloatingTab (renderer, index, width, height, text);
+                               });
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FindTabStripAt
+//
+//  Another Casso Explorer window under the point, with the point over its
+//  tab strip, or null. The card is click-through, so the window found is the
+//  one under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND CassoExplorerWindow::FindTabStripAt (POINT screen) const
+{
+    constexpr int  kClassChars = 64;
+
+
+
+    HWND      under                  = WindowFromPoint (screen);
+    HWND      root                   = (under != nullptr) ? GetAncestor (under, GA_ROOT) : nullptr;
+    HWND      found                  = nullptr;
+    wchar_t   className[kClassChars] = {};
+    uint64_t  packed                 = 0;
+    RECT      strip                  = {};
+    POINT     origin                 = {};
+    int       length                 = 0;
+
+
+
+    if (root == nullptr || root == GetHwnd())
+    {
+        return nullptr;
+    }
+
+    length = GetClassNameW (root, className, ARRAYSIZE (className));
+
+    if (length <= 0 || wcscmp (className, CassoExplorerShell::kWindowClass) != 0)
+    {
+        return nullptr;
+    }
+
+    packed = (uint64_t) (uintptr_t) GetPropW (root, kTabStripProperty);
+
+    if (packed == 0 || !ClientToScreen (root, &origin))
+    {
+        return nullptr;
+    }
+
+    strip = RECT { (LONG) (packed & 0xFFFF), (LONG) ((packed >> 16) & 0xFFFF), (LONG) ((packed >> 32) & 0xFFFF), (LONG) ((packed >> 48) & 0xFFFF) };
+    OffsetRect (&strip, origin.x, origin.y);
+
+    if (PtInRect (&strip, screen))
+    {
+        found = root;
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::SetTabDragTarget
+//
+//  The window the tab was over hears that it left; the one it is over hears
+//  where it is, on every move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SetTabDragTarget (HWND target, POINT screen)
+{
+    LPARAM  point = MAKELPARAM ((WORD) (SHORT) screen.x, (WORD) (SHORT) screen.y);
+
+
+
+    if (m_tabDragTarget != nullptr && m_tabDragTarget != target)
+    {
+        PostMessageW (m_tabDragTarget, kTabHoverMessage, 0, 0);
+    }
+
+    m_tabDragTarget = target;
+
+    if (target != nullptr)
+    {
+        PostMessageW (target, kTabHoverMessage, 1, point);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TrySendTab
+//
+//  The window the tab goes to comes forward, which this window, in the
+//  foreground while its drag lasts, lets it do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::TrySendTab (HWND target, int index)
+{
+    constexpr UINT  kSendTimeoutMs = 5000;
+
+
+
+    std::wstring    text    = TabTransfer::Encode (m_browser.GetBrowserModel().GetTab ((size_t) index), (std::numeric_limits<size_t>::max)());
+    COPYDATASTRUCT  copy    = {};
+    DWORD_PTR       result  = 0;
+    DWORD           process = 0;
+    LRESULT         sent    = 0;
+    BOOL            allowed = FALSE;
+
+
+
+    copy.dwData = kTabDropCopyId;
+    copy.cbData = (DWORD) (text.size() * sizeof (wchar_t));
+    copy.lpData = text.data();
+
+    if (GetWindowThreadProcessId (target, &process) != 0)
+    {
+        allowed = AllowSetForegroundWindow (process);
+        IGNORE_RETURN_VALUE (allowed, TRUE);
+    }
+
+    sent = SendMessageTimeoutW (target, WM_COPYDATA, (WPARAM) GetHwnd(), (LPARAM) &copy, SMTO_ABORTIFHUNG, kSendTimeoutMs, &result);
+
+    return sent != 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetTearOffRect
+//
+//  A torn-off tab's window is as big as this one, placed so the tab sits
+//  where it was let go: its first tab under the card, which is under the
+//  pointer where the drag took it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoExplorerWindow::GetTearOffRect (POINT screen) const
+{
+    WINDOWPLACEMENT  place  = { sizeof (place) };
+    RECT             window = {};
+    RECT             strip  = m_tabs->GetBounds();
+    POINT            client = {};
+    POINT            grab   = m_tabs->GetDragGrab();
+    int              width  = 0;
+    int              height = 0;
+    int              left   = 0;
+    int              top    = 0;
+
+
+
+    if (!GetWindowRect (GetHwnd(), &window) || !ClientToScreen (GetHwnd(), &client))
+    {
+        return RECT {};
+    }
+
+    width  = window.right  - window.left;
+    height = window.bottom - window.top;
+
+    //  A maximized window's new one takes the size it would restore to.
+    if (GetWindowPlacement (GetHwnd(), &place) && IsZoomed (GetHwnd()))
+    {
+        width  = place.rcNormalPosition.right  - place.rcNormalPosition.left;
+        height = place.rcNormalPosition.bottom - place.rcNormalPosition.top;
+    }
+
+    left = screen.x - grab.x - (strip.left + (int) std::lround (m_scaler.ToPxf (kTabLeadDip))) - (client.x - window.left);
+    top  = screen.y - grab.y - (strip.top  + m_scaler.ToPx (kTabTopDip))                       - (client.y - window.top);
+
+    return RECT { left, top, left + width, top + height };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TearOffTab
+//
+//  Released away from every strip, the tab opens a window of its own, a new
+//  Casso Explorer with the tab on its command line. A window's only tab
+//  takes the window with it instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::TearOffTab (int index, POINT screen)
+{
+    wchar_t       module[MAX_PATH] = {};
+    DWORD         length           = GetModuleFileNameW (nullptr, module, ARRAYSIZE (module));
+    RECT          rect             = GetTearOffRect (screen);
+    HRESULT       hr               = S_OK;
+    BOOL          moved            = FALSE;
+    std::wstring  tab;
+
+
+
+    if (rect.right <= rect.left || index < 0 || index >= (int) m_browser.GetBrowserModel().GetTabCount())
+    {
+        return;
+    }
+
+    if (m_browser.GetBrowserModel().GetTabCount() == 1)
+    {
+        if (IsZoomed (GetHwnd()))
+        {
+            moved = ShowWindow (GetHwnd(), SW_RESTORE);
+            IGNORE_RETURN_VALUE (moved, TRUE);
+        }
+
+        moved = SetWindowPos (GetHwnd(), nullptr, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
+        IGNORE_RETURN_VALUE (moved, TRUE);
+        return;
+    }
+
+    if (length == 0 || length >= ARRAYSIZE (module))
+    {
+        return;
+    }
+
+    tab = TabTransfer::Encode (m_browser.GetBrowserModel().GetTab ((size_t) index));
+    hr  = m_launcher.Launch (module, LaunchCommand::MakeTearOffArguments (tab, rect, m_context.titlePrefix));
+
+    if (FAILED (hr))
+    {
+        ShowMessage (L"A new window could not be opened.", MB_ICONERROR);
+        return;
+    }
+
+    LeaveWithTab (index);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::LeaveWithTab
+//
+//  A tab that went to another window closes here. A window left with none
+//  closes too; its last tab stays in it until then, since a window always
+//  shows somewhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::LeaveWithTab (int index)
+{
+    if (m_browser.GetBrowserModel().GetTabCount() <= 1)
+    {
+        m_emptied = true;
+        PostMessageW (GetHwnd(), WM_CLOSE, 0, 0);
+        return;
+    }
+
+    if (m_browser.CloseTab ((size_t) index))
+    {
+        FillList();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PublishTabStrip
+//
+//  The strip's client rectangle, for a window dragging a tab over this one.
+//  Client coordinates are never negative and fit in 16 bits, so the four
+//  sides pack into the one pointer-sized value a property has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PublishTabStrip()
+{
+    RECT      strip  = m_tabs->GetBounds();
+    uint64_t  packed = 0;
+    BOOL      set    = FALSE;
+
+
+
+    if (GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    packed = ((uint64_t) (strip.left   & 0xFFFF))
+           | ((uint64_t) (strip.top    & 0xFFFF) << 16)
+           | ((uint64_t) (strip.right  & 0xFFFF) << 32)
+           | ((uint64_t) (strip.bottom & 0xFFFF) << 48);
+
+    set = SetPropW (GetHwnd(), kTabStripProperty, (HANDLE) (uintptr_t) packed);
+    IGNORE_RETURN_VALUE (set, TRUE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnTabHover
+//
+//  A tab from another window over this strip opens a gap as wide as this
+//  window's own tabs, centered on the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::OnTabHover (WPARAM over, LPARAM screen)
+{
+    POINT  point  = { (int) (short) LOWORD (screen), (int) (short) HIWORD (screen) };
+    int    width  = m_scaler.ToPx (kTabWidthDip);
+    BOOL   mapped = FALSE;
+
+
+
+    if (!m_tabs->GetTabs().empty())
+    {
+        const RECT &  first = m_tabs->GetTabs().front().rect;
+
+        width = first.right - first.left;
+    }
+
+    if (over == 0)
+    {
+        m_tabs->ClearIncomingDrag();
+    }
+    else
+    {
+        mapped = ScreenToClient (GetHwnd(), &point);
+        IGNORE_RETURN_VALUE (mapped, TRUE);
+
+        m_tabs->SetIncomingDrag (point.x, width);
+    }
+
+    ArmTick();
+    Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::InsertArrivedTabs
+//
+//  The window comes forward with the tab it was given selected, as File
+//  Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::InsertArrivedTabs()
+{
+    std::vector<std::pair<int, BrowserModel::Tab>>  arrived = std::move (m_arrivedTabs);
+
+
+
+    m_arrivedTabs.clear();
+
+    for (std::pair<int, BrowserModel::Tab> & entry : arrived)
+    {
+        m_browser.InsertTab ((size_t) entry.first, std::move (entry.second));
+    }
+
+    if (!arrived.empty())
+    {
+        m_browser.LeaveMissingLocation();
+        FillList();
+        CassoExplorerShell::FrontWindow (GetHwnd());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::BeginDragOut
 //
 //  The drag runs its own loop until the drop or the cancel, so the list is
@@ -15946,6 +16517,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
                | (int) m_tree->TickScrollbars (GetNowMs())
                | (int) m_picture->TickScrollbars (GetNowMs())) != 0;
 
+    //  Tabs slide apart for a dragged tab and back together after it.
+    barsMoved = barsMoved || m_tabs->IsSliding();
+
     if (barsMoved)
     {
         Invalidate();
@@ -16010,7 +16584,7 @@ void CassoExplorerWindow::ArmTick()
 
 bool CassoExplorerWindow::IsTickWanted() const
 {
-    return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_address->WantsTick()
+    return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_address->WantsTick() || m_tabs->IsSliding()
         || m_menuBar->IsOpen() || m_toolbar->IsMenuOpen() || m_commandBar->IsMenuOpen() || m_previewToolbar->IsMenuOpen()
         || m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewToolbar->WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()

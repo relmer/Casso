@@ -65,6 +65,12 @@ public:
         std::wstring    openPath;       // from the command line; empty: none
         bool            newWindow   = false;   // a second window, cascaded from the saved placement
 
+        //  A tab torn off another window, as TabTransfer encodes it, and where
+        //  that window put this one; empty and none for any other launch.
+        std::wstring    tab;
+        RECT            placement    = {};
+        bool            hasPlacement = false;
+
         //  Optional: without one, the browser shows what it read when it read
         //  it, and a change made elsewhere is seen on the next navigation.
         IFolderWatcher * watcher    = nullptr;
@@ -87,6 +93,17 @@ public:
     //  A second launch hands its path to the window already open, in a
     //  WM_COPYDATA with this id and the full path as UTF-16 text.
     static constexpr ULONG_PTR  kOpenPathCopyId = 0x43454F50;   // 'CEOP'
+
+    //  A tab dragged from one window onto another's tab strip. While it is
+    //  over the strip, the window it came from posts kTabHoverMessage with
+    //  wParam 1 and the pointer's screen position in lParam, and wParam 0 once
+    //  it leaves; a drop sends the tab in a WM_COPYDATA with this id, as
+    //  TabTransfer encodes it in UTF-16. Each window publishes its strip's
+    //  client rectangle in kTabStripProperty, packed 16 bits a side, so the
+    //  dragging window can find the strip under the pointer.
+    static constexpr ULONG_PTR        kTabDropCopyId    = 0x43455444;   // 'CETD'
+    static constexpr UINT             kTabHoverMessage  = WM_APP + 0x40;
+    static constexpr const wchar_t *  kTabStripProperty = L"CassoExplorerTabStrip";
 
     //  Opens a folder, a disk image, or a file's folder in a new tab.
     void  OpenPathInNewTab (const std::wstring & path);
@@ -305,6 +322,10 @@ private:
     //  Posted by an CassoLink when an operation is done or its state changes.
     static constexpr UINT      kLinkMessage          = WM_APP + 0x3E;
     static constexpr UINT      kRunningMessage       = WM_APP + 0x3F;
+
+    //  Posted to itself once a tab dropped from another window has arrived,
+    //  so the sender is not held in its send while the tab is shown.
+    static constexpr UINT      kTabArrivedMessage    = WM_APP + 0x41;
 
 public:
     static constexpr UINT_PTR  kFolderTimerId        = 0x5154;
@@ -620,7 +641,23 @@ private:
     static DxuiHexView::TextEncoding  GetHexEncoding (bool hostFile, HostCharset charset);
     static BrowserModel::AddressRoot  GetProfileRoot();
     void  SwitchToTab (size_t index);
-    void  FillPreview();
+
+    //  A tab dragged off the strip: the card that follows the pointer, the
+    //  other window's strip it is over, and where it goes on the drop -- into
+    //  that window, or into a window of its own.
+    void   OnTabDragMove       (int index, POINT client, bool tornOff);
+    void   OnTabDragEnd        (int index, POINT client, bool tornOff);
+    void   ShowTabDragVisual   (int index, POINT screen);
+    HWND   FindTabStripAt      (POINT screen) const;
+    void   SetTabDragTarget    (HWND target, POINT screen);
+    bool   TrySendTab          (HWND target, int index);
+    void   TearOffTab          (int index, POINT screen);
+    RECT   GetTearOffRect      (POINT screen) const;
+    void   LeaveWithTab        (int index);
+    void   PublishTabStrip     ();
+    void   OnTabHover          (WPARAM over, LPARAM screen);
+    void   InsertArrivedTabs   ();
+    void   FillPreview();
     void  UpdateCommandBar();
     void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
     void  AddPackagedCommandsFor  (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
@@ -1082,6 +1119,14 @@ private:
     DxuiTextInput          * m_findBox       = nullptr;
     DxuiTooltip              m_tooltip;
     DxuiInPlaceTip           m_labelTip;   // a tree name the splitter cuts off, shown whole over its row
+    DxuiTabDragVisual        m_tabDragVisual;
+    HWND                     m_tabDragTarget = nullptr;   // the other window whose strip a dragged tab is over
+    bool                     m_emptied       = false;     // its last tab left for another window
+
+    //  Tabs dropped from another window, each with the place it dropped at,
+    //  inserted once the send that brought it returns.
+    std::vector<std::pair<int, BrowserModel::Tab>>  m_arrivedTabs;
+
     std::vector<UndoStep>    m_undo;   // newest last
     int                      m_restoreTicks  = 0;
     bool                     m_caretOn       = true;   // the search caret as last drawn

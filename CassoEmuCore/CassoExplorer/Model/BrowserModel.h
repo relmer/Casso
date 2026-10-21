@@ -79,6 +79,10 @@ public:
     };
 
     size_t  OpenTab   (const Location & location);
+
+    //  A whole tab, history and view included, at `index` (the end, past the
+    //  last); it becomes the active one.
+    size_t  InsertTab (size_t index, Tab tab);
     bool    CloseTab  (size_t index);
     bool    MoveTab   (size_t from, size_t to);
     bool    SwitchTo  (size_t index);

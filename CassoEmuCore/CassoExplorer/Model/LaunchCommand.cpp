@@ -169,6 +169,33 @@ std::wstring LaunchCommand::MakeNewWindowArguments (const std::wstring & path, c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LaunchCommand::MakeTearOffArguments
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring LaunchCommand::MakeTearOffArguments (const std::wstring & tab, const RECT & window, const std::wstring & titlePrefix)
+{
+    std::wstring  arguments = L"--new-window --tab " + QuoteArgument (tab);
+
+
+
+    arguments += L" --at " + std::to_wstring (window.left) + L"," + std::to_wstring (window.top) + L","
+               + std::to_wstring (window.right - window.left) + L"," + std::to_wstring (window.bottom - window.top);
+
+    if (!titlePrefix.empty())
+    {
+        arguments += L" --title " + QuoteArgument (titlePrefix);
+    }
+
+    return arguments;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LaunchCommand::DescribeMissing
 //
 ////////////////////////////////////////////////////////////////////////////////
