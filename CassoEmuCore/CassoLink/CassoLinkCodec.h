@@ -74,22 +74,22 @@ public:
     static constexpr Byte  kVirtualDrive = 0xC5;
 
     // Casso's commands.
-    static constexpr Byte  kReady        = 0xD2;
-    static constexpr Byte  kIdle         = 0xC9;
-    static constexpr Byte  kSectorData   = 0xCA;
+    static constexpr Byte  kReady         = 0xD2;
+    static constexpr Byte  kIdle          = 0xC9;
+    static constexpr Byte  kSectorData    = 0xCA;
     static constexpr Byte  kSectorNibbles = 0xCC;
-    static constexpr Byte  kLoadProgram  = 0xCF;
-    static constexpr Byte  kSetSpeed     = 0xD7;
-    static constexpr Byte  kReadSectors  = 0xD5;
-    static constexpr Byte  kWriteSectors = 0xD6;
-    static constexpr Byte  kFormatTrack  = 0xC8;
-    static constexpr Byte  kWriteTrack   = 0xDB;
-    static constexpr Byte  kStatus       = 0xD4;
-    static constexpr Byte  kCancel       = 0xD1;
-    static constexpr Byte  kLabel        = 0xDC;
-    static constexpr Byte  kLog          = 0xDD;
-    static constexpr Byte  kTimeDrive    = 0xDE;
-    static constexpr Byte  kExit         = 0xDF;
+    static constexpr Byte  kLoadProgram   = 0xCF;
+    static constexpr Byte  kSetSpeed      = 0xD7;
+    static constexpr Byte  kReadSectors   = 0xD5;
+    static constexpr Byte  kWriteSectors  = 0xD6;
+    static constexpr Byte  kFormatTrack   = 0xC8;
+    static constexpr Byte  kWriteTrack    = 0xDB;
+    static constexpr Byte  kStatus        = 0xD4;
+    static constexpr Byte  kCancel        = 0xD1;
+    static constexpr Byte  kLabel         = 0xDC;
+    static constexpr Byte  kLog           = 0xDD;
+    static constexpr Byte  kTimeDrive     = 0xDE;
+    static constexpr Byte  kExit          = 0xDF;
 
     //  Time drive's marker, one a revolution, outside any packet.
     static constexpr Byte  kTimeMark     = 0xA5;
