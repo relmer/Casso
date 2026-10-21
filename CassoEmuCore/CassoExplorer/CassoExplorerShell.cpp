@@ -812,7 +812,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     std::unique_ptr<WindowSlot>    slot    = std::make_unique<WindowSlot>();
     CassoExplorerWindow::Context   context;
     CassoExplorerWindow          * window  = nullptr;
-    HWND                           owner   = request.owner;
+    UINT_PTR                       owner   = (UINT_PTR) request.owner;   // a value, read before the request is moved
     BOOL                           marked  = FALSE;
 
 
@@ -846,7 +846,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
 
     slot->intents->SetSender (slot->window->GetHwnd());
 
-    if (owner != nullptr)
+    if (owner != 0)
     {
         marked = SetPropW (slot->window->GetHwnd(), kOwnerProperty, (HANDLE) owner);
         CWR (marked);

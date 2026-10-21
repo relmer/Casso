@@ -440,7 +440,7 @@ STDMETHODIMP DxuiDragDropSource::GetData (FORMATETC * format, STGMEDIUM * medium
     ZeroMemory (medium, sizeof (*medium));
 
     stored   = m_stored.contains (format->cfFormat);
-    asStream = stored && m_storedTymed[format->cfFormat] == TYMED_ISTREAM && (format->tymed & TYMED_ISTREAM) != 0;
+    asStream = stored && (m_storedTymed[format->cfFormat] & TYMED_ISTREAM) != 0 && (format->tymed & TYMED_ISTREAM) != 0;
     wantsHg  = (format->tymed & TYMED_HGLOBAL) != 0;
     CBREx (asStream || wantsHg, DV_E_TYMED);
 
@@ -617,8 +617,8 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
 
     CBREx (format != nullptr && medium != nullptr, E_POINTER);
 
-    global = medium->tymed == TYMED_HGLOBAL && (format->tymed & TYMED_HGLOBAL) != 0;
-    stream = medium->tymed == TYMED_ISTREAM && (format->tymed & TYMED_ISTREAM) != 0 && medium->pstm != nullptr;
+    global = (medium->tymed & TYMED_HGLOBAL) != 0 && (format->tymed & TYMED_HGLOBAL) != 0;
+    stream = (medium->tymed & TYMED_ISTREAM) != 0 && (format->tymed & TYMED_ISTREAM) != 0 && medium->pstm != nullptr;
     CBREx (global || stream, DV_E_TYMED);
 
     if (global)
