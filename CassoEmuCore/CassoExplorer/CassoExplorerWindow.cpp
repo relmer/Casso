@@ -6769,8 +6769,8 @@ const wchar_t * CassoExplorerWindow::GetVerbLabel (CassoExplorerActions::Verb ve
         case CassoExplorerActions::Verb::Delete:         return L"&Delete";
         case CassoExplorerActions::Verb::Rename:         return L"Re&name...";
         case CassoExplorerActions::Verb::Boot:           return L"Set as &startup program";
-        case CassoExplorerActions::Verb::InsertDrive1:   return L"Insert into drive &1";
-        case CassoExplorerActions::Verb::InsertDrive2:   return L"Insert into drive &2";
+        case CassoExplorerActions::Verb::InsertDrive1:   return L"Insert into Casso drive &1";
+        case CassoExplorerActions::Verb::InsertDrive2:   return L"Insert into Casso drive &2";
         case CassoExplorerActions::Verb::OpenInNewCasso: return L"Open in &new Casso";
         case CassoExplorerActions::Verb::NewDisk:        return L"&Disk image...";
         case CassoExplorerActions::Verb::NewFolder:      return L"&Folder";

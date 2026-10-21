@@ -93,8 +93,8 @@ image or file.
 - From Casso's menu, open Casso Explorer. Right-click an image, Insert into
   Drive 1. Expected: that Casso's drive 1 widget shows the disk.
 - With a single-drive machine as Casso's default and no Casso running,
-  right-click an image. Expected: Insert into Drive 2 is disabled.
-- Close Casso, Insert into Drive 1. Expected: a Casso launches with the
+  right-click an image. Expected: Insert into Casso drive 2 is disabled.
+- Close Casso, Insert into Casso drive 1. Expected: a Casso launches with the
   disk mounted.
 - Open in new Casso while one is running. Expected: a second Casso, the
   first untouched.

@@ -431,7 +431,7 @@ result to the equivalent story 2 operation.
 
 ### User Story 4 - Hand a disk to Casso (Priority: P2)
 
-A user right-clicks a disk image and chooses Insert into Drive 1 or
+A user right-clicks a disk image and chooses Insert into Casso drive 1 or
 Drive 2, or Open in new Casso. If a Casso is running, the insert goes to
 it. If none is, one is launched with the disk in the drive. Drive 2 is
 offered only when the machine that would receive the disk has a second
@@ -450,7 +450,7 @@ disk mounted; Open in new Casso always launches a new instance.
 1. **Given** Casso Explorer launched from Casso's menu, **When** Insert into
    Drive 1 is chosen, **Then** that Casso instance mounts the disk.
 2. **Given** the target machine has one drive, **When** the context menu
-   opens, **Then** Insert into Drive 2 is disabled.
+   opens, **Then** Insert into Casso drive 2 is disabled.
 3. **Given** no Casso running, **When** Insert is chosen, **Then** a Casso
    starts with the disk in that drive.
 4. **Given** any state, **When** Open in new Casso is chosen, **Then** a
@@ -1224,9 +1224,9 @@ to Casso over TCP.
 
 **Casso integration**
 
-- **FR-020**: A disk image's context menu MUST offer Insert into Drive 1,
-  Insert into Drive 2, and Open in new Casso.
-- **FR-021**: Insert into Drive 2 MUST be enabled only when the receiving
+- **FR-020**: A disk image's context menu MUST offer Insert into Casso drive 1,
+  Insert into Casso drive 2, and Open in new Casso.
+- **FR-021**: Insert into Casso drive 2 MUST be enabled only when the receiving
   machine declares a second drive, determined in-process from the default
   machine's layout when no Casso is running and by asking the running
   Casso otherwise.
