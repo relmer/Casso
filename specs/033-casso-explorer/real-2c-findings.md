@@ -495,22 +495,50 @@ it, and a DOS disk in drive 1.
   and the button had no route. It is given every move and the presses
   inside it. Verified with clicks on the emulated and the serial link.
 
-### 34. A 10 KB file takes 31 seconds to write (open)
+### 34. A 10 KB file took 31 seconds to write
 
 - **Symptom:** a 10 KB binary written to drive 1 took 31.0 s; SC-028's limit is
   5 s. Read back from a new session, the same file took 3.2 s.
-- **Cause:** Write sectors handles one sector at a time: the program
-  requests its data from the host with an Acknowledge, the sector is
-  written when it next passes the head, then read back when it passes
-  again a revolution later, and only then is the next sector requested.
-  Each sector costs more than a revolution, about 200 ms at the //c's
-  speed, in whatever order the sectors come; DOS 3.3's skew makes the
-  order worse, as each next physical sector is two behind the last.
-- **Fix:** pending, the owner's decision. Under 5 s takes the request's
-  sectors received first, written in one pass as they come under the
-  head, and the track verified once at the end.
-- **Why the emulator missed it:** the scenario tests check what is
-  written, not how long it takes; in-process, the line costs nothing.
+- **Cause, in three parts, from a timed trace of every packet:**
+  - Write sectors handled one sector at a time: the program requested its
+    data with an Acknowledge, wrote the sector when it next passed the
+    head, read it back a revolution later, and only then requested the
+    next. Each sector cost more than a revolution, about 200 ms, and DOS
+    3.3's skew made the order worse, as each next physical sector is two
+    behind the last.
+  - Before each write, `CassoLinkSession::CheckCatalog` dropped the drive's
+    cache and listed the drive again: track 17, then each file's
+    track/sector list and first sector, one request a track, about 7 s.
+  - A byte lost on the line cost the 3 s timeout before the NAK; one in
+    about forty data packets is lost on the owner's line.
+- **Fix:**
+  - Write sectors receives and encodes every sector of the request first,
+    each into ENCBUF and its write stream into its own two pages of
+    `WSLOTS` (`$5000`-`$6FFF`); then writes them in one pass, each as its
+    address field passes, as a track read does; then reads the track back
+    once and compares each sector with its encoding (`verifysecs`,
+    `cmpslot`).
+  - `CheckCatalog` reads only the catalog's sectors again
+    (`LinkedDisk::GetCatalogSectors`); when they read as they are in
+    memory, the cache is used as it is. While CassoLink runs the Apple runs nothing else,
+    so only another disk in the drive changes them.
+  - The bytes of a packet after its first, and the bytes of a damaged
+    packet, wait about a tenth of a second (`getbtq`): a loss costs a
+    tenth of a second.
+  - The motor runs for about two seconds after an operation, so the next
+    one does not wait for it to come up to speed.
+  - Program version 44.
+- **Result:** a new 10 KB file in 6.3 s, read back equal; 8.6 s when it
+  replaces a file, as the volume code then reads each other file's
+  track/sector list once. The rest is the disk: a sector costs about 62 ms
+  (23 ms on the line, then its CRC, encoding and stream), and each track's
+  request about 0.55 s of revolutions to write it and read it back. Under
+  5 s takes dropping the read-back, or receiving on interrupts while
+  encoding, which the //c's interrupt path is too slow for at 115,200 baud.
+- **Why the emulator missed it:** the scenario tests checked what was
+  written, not how long it took; in-process, the line costs nothing.
+  `WriteSectors_AWholeTrackTakesAFewRevolutions` now times a whole track:
+  about 16 revolutions of emulated time, against 38 for the old loop.
 
 ### 33. Write track's status ended on sector 16
 
