@@ -142,6 +142,7 @@ public:
 
     static constexpr int       kMaxCatalogName     = 30;
     static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
+    static constexpr int       kDragImageDip       = 96;       // a dragged item's icon, as File Explorer draws it
 
     static constexpr const wchar_t *  kCassoNodeTip    = L"Folders Casso has opened disk images from, most recently used first";
     static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
@@ -706,6 +707,9 @@ private:
     bool  TryGetSelectedLinkDrive (Location & outDrive) const;
     void  OpenSelectedLinkDrive   ();
     void  BeginDiskDrag           (const std::wstring & driveId);
+
+    //  The first selected row's icon at the drag image's size.
+    std::shared_ptr<const DxuiIconImage>  GetRowDragImage ();
     void  WriteImageToDisk  ();
     void  SaveLinkToDisk    ();
     void  FormatAppleDisk   (const Location & location);
@@ -986,6 +990,7 @@ private:
     Win32ProcessLauncher                         m_launcher;
     Win32ShellIcons                              m_shellIcons;
     Win32ShellIcons                              m_listIcons;
+    Win32ShellIcons                              m_dragIcons;   // drawn as each drag starts, so not in the background
     Win32InfoTips                                m_infoTips;
     Win32ContentDetails                          m_contentDetails;
     Win32ShellPreview                            m_shellPreview;

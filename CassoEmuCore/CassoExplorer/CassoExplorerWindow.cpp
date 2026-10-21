@@ -2674,9 +2674,11 @@ void CassoExplorerWindow::BeginTreeDrag (const Location & location)
     release.button = DxuiMouseButton::Left;
     m_tree->OnMouse (release);
 
+    //  A disk image has Casso's floppy, which the shell has no icon for.
     if (location.kind != Location::Kind::AppleDrive)
     {
-        hr = m_shellVerbs.DragItems ({ location.path }, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK);
+        hr = m_shellVerbs.DragItems ({ location.path }, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK,
+                                     (location.kind == Location::Kind::DiskImage) ? m_dragIcons.GetForKind (IShellIcons::Kind::DiskImage).get() : nullptr);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         RefreshAfterHostChange();
@@ -2718,10 +2720,30 @@ void CassoExplorerWindow::BeginDiskDrag (const std::wstring & driveId)
     got = GetCursorPos (&start);
     IGNORE_RETURN_VALUE (got, TRUE);
 
-    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY, start, effect);
+    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY, start, effect, nullptr, m_dragIcons.GetForKind (IShellIcons::Kind::DiskImage).get());
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetRowDragImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const DxuiIconImage> CassoExplorerWindow::GetRowDragImage()
+{
+    const std::vector<int>  & selected = m_browser.GetSelectedRows();
+    bool                      found    = !selected.empty() && selected[0] >= 0 && (size_t) selected[0] < m_browser.GetRows().size();
+
+
+
+    return found ? CassoExplorerBrowser::GetRowIcon (m_browser.GetRows()[(size_t) selected[0]], m_browser.GetLocation(), m_dragIcons) : nullptr;
 }
 
 
@@ -9249,7 +9271,8 @@ void CassoExplorerWindow::ShowViewOnButton()
 //  CassoExplorerWindow::SizeListIcons
 //
 //  The list's icons are drawn at its view's size, so they are fetched at that
-//  size rather than scaled up from the tree's.
+//  size rather than scaled up from the tree's. A drag's image follows the
+//  same DPI.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9262,6 +9285,9 @@ void CassoExplorerWindow::SizeListIcons()
     m_listIcons.SetDpi    (dpi);
     m_listIcons.SetSizePx ((m_listView == DxuiListView::View::Details) ? MulDiv (DxuiTreeView::s_kIconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi)
                                                                         : DxuiListView::GetItemIconPx (m_listView, dpi));
+
+    m_dragIcons.SetDpi    (dpi);
+    m_dragIcons.SetSizePx (MulDiv (kDragImageDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi));
 }
 
 
@@ -15429,12 +15455,21 @@ void CassoExplorerWindow::BeginDragOut()
     CassoExplorerActions::Outcome            outcome;
     BOOL                                     got     = FALSE;
     Location                                 drive;
+    std::shared_ptr<const DxuiIconImage>     icon    = GetRowDragImage();
+    bool                                     images  = !m_browser.GetSelectedRows().empty();
 
 
 
     release.kind   = DxuiMouseEventKind::Up;
     release.button = DxuiMouseButton::Left;
     m_list->OnMouse (release);
+
+    //  Casso's own icon goes with a drag of disk images and of files with no
+    //  file of their own, which the shell has no image for.
+    for (int row : m_browser.GetSelectedRows())
+    {
+        images = images && row >= 0 && (size_t) row < m_browser.GetRows().size() && m_browser.GetRows()[(size_t) row].isDiskImage;
+    }
 
     //  Dragging a linked machine's drive drags its whole disk, as dragging its
     //  node in the tree does.
@@ -15455,7 +15490,7 @@ void CassoExplorerWindow::BeginDragOut()
     //  formats built here.
     if (TryGetSelectedShellIds (shellIds))
     {
-        hr = m_shellVerbs.DragItems (shellIds, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK);
+        hr = m_shellVerbs.DragItems (shellIds, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, images ? icon.get() : nullptr);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         RefreshAfterHostChange();
@@ -15482,7 +15517,8 @@ void CassoExplorerWindow::BeginDragOut()
     got = GetCursorPos (&start);
     IGNORE_RETURN_VALUE (got, TRUE);
 
-    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect);
+    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY | DROPEFFECT_MOVE, start, effect, nullptr,
+                                    (images || inImage || m_browser.IsAppleDriveLocation()) ? icon.get() : nullptr);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     //  A target that moved the entries by copying them leaves their removal

@@ -184,8 +184,12 @@ public:
 
     //  Drags items out through the shell's own data object, for items with no
     //  file of their own, such as files inside a zip, which the shell extracts
-    //  where they are dropped.
-    virtual HRESULT  DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects)         { (void) ids; (void) allowedEffects; return E_NOTIMPL; }
+    //  where they are dropped. With `dragImage`, that image is drawn in place
+    //  of the shell's image of the items.
+    virtual HRESULT  DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects, const DxuiIconImage * dragImage = nullptr)
+    {
+        (void) ids; (void) allowedEffects; (void) dragImage; return E_NOTIMPL;
+    }
 
     //  Up to `maxBytes` of an item the shell lists, read through its stream,
     //  for one with no file on a disk, such as a file inside a zip.

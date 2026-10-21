@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Core/DxuiIconImage.h"
+
 
 
 
@@ -48,9 +50,16 @@ public:
     //  Builds a source and runs the drag from `startScreen`. `resultEffect` is
     //  what the target accepted, DROPEFFECT_NONE on a cancel. A target that
     //  moved the items itself -- an optimized move -- returns none and says so
-    //  in `outLogicalEffect`, which is then DROPEFFECT_MOVE.
+    //  in `outLogicalEffect`, which is then DROPEFFECT_MOVE. With `dragImage`,
+    //  that image is drawn under the pointer in place of one the shell builds.
     static HRESULT  Begin (std::vector<Format> formats, DWORD allowedEffects, POINT startScreen,
-                           DWORD & resultEffect, DWORD * outLogicalEffect = nullptr);
+                           DWORD & resultEffect, DWORD * outLogicalEffect = nullptr, const DxuiIconImage * dragImage = nullptr);
+
+    //  Sets `image` as the drag image of `data`, above the pointer as File
+    //  Explorer draws a dragged file's icon. The shell builds an image only
+    //  from files it can read, so a drag of virtual files has none without
+    //  this, and a file type with no icon registered has a blank page.
+    static HRESULT  SetDragImage (IDataObject * data, const DxuiIconImage & image);
 
     //  A DWORD a target stored under the registered format, or `fallback`.
     DWORD  GetStoredDword (const wchar_t * formatName, DWORD fallback) const;

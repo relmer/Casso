@@ -2839,12 +2839,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32ShellItemVerbs::DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects)
+HRESULT Win32ShellItemVerbs::DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects, const DxuiIconImage * dragImage)
 {
-    HRESULT                  hr     = S_OK;
+    HRESULT                  hr      = S_OK;
+    HRESULT                  hrImage = S_OK;
     ComPtr<IShellItemArray>  items;
     ComPtr<IDataObject>      data;
-    DWORD                    effect = DROPEFFECT_NONE;
+    DWORD                    effect  = DROPEFFECT_NONE;
 
 
 
@@ -2853,6 +2854,14 @@ HRESULT Win32ShellItemVerbs::DragItems (const std::vector<std::wstring> & ids, D
 
     hr = items->BindToHandler (nullptr, BHID_DataObject, IID_PPV_ARGS (&data));
     CHR (hr);
+
+    //  An image set on the object first is drawn for the drag; without one,
+    //  SHDoDragDrop builds the shell's.
+    if (dragImage != nullptr)
+    {
+        hrImage = DxuiDragDropSource::SetDragImage (data.Get(), *dragImage);
+        IGNORE_RETURN_VALUE (hrImage, S_OK);
+    }
 
     hr = SHDoDragDrop (nullptr, data.Get(), nullptr, allowedEffects, &effect);
     CHR (hr);

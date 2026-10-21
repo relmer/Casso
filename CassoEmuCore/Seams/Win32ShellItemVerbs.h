@@ -58,7 +58,7 @@ public:
     HRESULT  SetPinnedToQuickAccess (HWND owner, const std::wstring & folder, bool pinned) override;
     bool     IsArchive (const std::wstring & path) override;
     HRESULT  DeletePermanently (HWND owner, const std::vector<std::wstring> & ids) override;
-    HRESULT  DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects) override;
+    HRESULT  DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects, const DxuiIconImage * dragImage = nullptr) override;
     HRESULT  ReadItemBytes (const std::wstring & id, size_t maxBytes, std::vector<Byte> & outBytes) override;
     HRESULT  RenameItem          (HWND owner, const std::wstring & path, const std::wstring & newName) override;
     HRESULT  PlaceOnClipboard    (HWND owner, const std::vector<std::wstring> & paths, bool cut) override;

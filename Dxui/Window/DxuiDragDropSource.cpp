@@ -58,7 +58,7 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEffects, POINT startScreen,
-                                   DWORD & resultEffect, DWORD * outLogicalEffect)
+                                   DWORD & resultEffect, DWORD * outLogicalEffect, const DxuiIconImage * dragImage)
 {
     HRESULT                      hr      = S_OK;
     HRESULT                      hrImage = S_OK;
@@ -77,18 +77,26 @@ HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEff
     hr = Create (std::move (formats), &source);
     CHR (hr);
 
-    //  The shell's drag image, with room for a target's drop description. With
-    //  no window given, the shell builds the image from the object's own
-    //  formats. A drag without one still works, as a bare pointer.
-    hrImage = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
-
-    if (SUCCEEDED (hrImage))
+    //  The drag image given, or the shell's, with room for a target's drop
+    //  description. With no window given, the shell builds the image from the
+    //  object's own formats. A drag without one works as a bare pointer.
+    if (dragImage != nullptr)
     {
-        hrImage = helper->SetFlags (DSH_ALLOWDROPDESCRIPTIONTEXT);
+        hrImage = SetDragImage (static_cast<IDataObject *> (source), *dragImage);
         IGNORE_RETURN_VALUE (hrImage, S_OK);
+    }
+    else
+    {
+        hrImage = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
 
-        hrImage = helper->InitializeFromWindow (nullptr, &startScreen, static_cast<IDataObject *> (source));
-        IGNORE_RETURN_VALUE (hrImage, S_OK);
+        if (SUCCEEDED (hrImage))
+        {
+            hrImage = helper->SetFlags (DSH_ALLOWDROPDESCRIPTIONTEXT);
+            IGNORE_RETURN_VALUE (hrImage, S_OK);
+
+            hrImage = helper->InitializeFromWindow (nullptr, &startScreen, static_cast<IDataObject *> (source));
+            IGNORE_RETURN_VALUE (hrImage, S_OK);
+        }
     }
 
     hr = DoDragDrop (static_cast<IDataObject *> (source), static_cast<IDropSource *> (source),
@@ -112,6 +120,75 @@ Error:
     if (source != nullptr)
     {
         source->Release();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDragDropSource::SetDragImage
+//
+//  The image goes to the helper as a premultiplied 32-bit DIB with no color
+//  key, so its alpha edges blend. On success the helper frees the bitmap,
+//  so it is not deleted here. The pointer sits under the image's bottom
+//  center.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDragDropSource::SetDragImage (IDataObject * data, const DxuiIconImage & image)
+{
+    HRESULT                      hr     = S_OK;
+    ComPtr<IDragSourceHelper2>   helper;
+    BITMAPINFO                   info   = {};
+    void                       * bits   = nullptr;
+    HBITMAP                      bitmap = nullptr;
+    SHDRAGIMAGE                  drag   = {};
+    size_t                       pixels = (size_t) image.width * (size_t) image.height;
+    bool                         sized  = image.width > 0 && image.height > 0 && image.bgraPremul.size() == pixels;
+
+
+
+    CBRAEx (data != nullptr, E_INVALIDARG);
+    CBREx  (sized, E_INVALIDARG);
+
+    hr = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
+    CHR (hr);
+
+    hr = helper->SetFlags (DSH_ALLOWDROPDESCRIPTIONTEXT);
+    CHR (hr);
+
+    //  Top-down, as the image's rows run.
+    info.bmiHeader.biSize        = sizeof (info.bmiHeader);
+    info.bmiHeader.biWidth       = image.width;
+    info.bmiHeader.biHeight      = -image.height;
+    info.bmiHeader.biPlanes      = 1;
+    info.bmiHeader.biBitCount    = 32;
+    info.bmiHeader.biCompression = BI_RGB;
+
+    bitmap = CreateDIBSection (nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
+    CBREx (bitmap != nullptr && bits != nullptr, E_OUTOFMEMORY);
+
+    memcpy (bits, image.bgraPremul.data(), pixels * sizeof (uint32_t));
+
+    drag.sizeDragImage = SIZE  { image.width, image.height };
+    drag.ptOffset      = POINT { image.width / 2, image.height };
+    drag.hbmpDragImage = bitmap;
+    drag.crColorKey    = CLR_NONE;
+
+    hr = helper->InitializeFromBitmap (&drag, data);
+    CHR (hr);
+
+    bitmap = nullptr;
+
+Error:
+    if (bitmap != nullptr)
+    {
+        DeleteObject (bitmap);
     }
 
     return hr;
