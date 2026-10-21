@@ -195,8 +195,16 @@ public:
         AssertSucceeded (disk.Run ([&] (const IVolume & volume) { return volume.Enumerate (listing); }));
         AssertSucceeded (disk.Write ([&] (const IVolume & volume, std::vector<Byte> & outBuffer) { return volume.Write (FilePath::Parse ("FOURTH"), payload, outBuffer); }, sent));
 
-        Assert::IsTrue (sent == changed, L"exactly the sectors the write changed");
-        Assert::AreEqual (1, drive.writes);
+        std::vector<size_t>  catalog = LinkedDisk::GetCatalogSectors (VolumeImage::DetectFilesystem (image));
+        std::vector<size_t>  sorted  = sent;
+        auto                 first   = std::find_if (sent.begin(), sent.end(), [&] (size_t s) { return std::find (catalog.begin(), catalog.end(), s) != catalog.end(); });
+
+        std::sort (sorted.begin(), sorted.end());
+
+        Assert::IsTrue (sorted == changed, L"exactly the sectors the write changed");
+        Assert::IsTrue (std::all_of (first, sent.end(), [&] (size_t s) { return std::find (catalog.begin(), catalog.end(), s) != catalog.end(); }),
+                        L"the catalog's sectors after the data's");
+        Assert::AreEqual (2, drive.writes, L"the data, then the catalog");
         Assert::IsTrue (drive.image == expected, L"the drive has the written volume");
     }
 

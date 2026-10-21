@@ -131,16 +131,18 @@ HRESULT LinkedDisk::Run (const ReadOperation & operation)
 //  LinkedDisk::Write
 //
 //  The write's buffer is compared with the disk's sector by sector; a
-//  sector the write left as it was is not sent.
+//  sector the write left as it was is not sent. The catalog's sectors go
+//  last, so a write that fails partway leaves no catalog entry or free map
+//  that points at data never written.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT LinkedDisk::Write (const WriteOperation & operation, std::vector<size_t> & outSent)
 {
-    HRESULT            hr     = S_OK;
-    std::vector<Byte>  result;
-    std::vector<Byte>  data;
-    bool               sized  = false;
+    HRESULT              hr      = S_OK;
+    std::vector<Byte>    result;
+    std::vector<size_t>  catalog = GetCatalogSectors (m_kind);
+    bool                 sized   = false;
 
 
 
@@ -152,21 +154,30 @@ HRESULT LinkedDisk::Write (const WriteOperation & operation, std::vector<size_t>
     sized = result.size() == m_sectors.size();
     CBREx (sized, E_UNEXPECTED);
 
-    for (size_t sector = 0; sector < kSectorCount; sector++)
+    for (bool last : { false, true })
     {
-        auto  from = result.begin() + (ptrdiff_t) (sector * kSectorSize);
+        std::vector<size_t>  part;
+        std::vector<Byte>    data;
 
-        if (!std::equal (from, from + (ptrdiff_t) kSectorSize, m_sectors.begin() + (ptrdiff_t) (sector * kSectorSize)))
+        for (size_t sector = 0; sector < kSectorCount; sector++)
         {
-            outSent.push_back (sector);
-            data.insert (data.end(), from, from + (ptrdiff_t) kSectorSize);
-        }
-    }
+            auto  from      = result.begin() + (ptrdiff_t) (sector * kSectorSize);
+            bool  isCatalog = std::find (catalog.begin(), catalog.end(), sector) != catalog.end();
 
-    if (!outSent.empty())
-    {
-        hr = m_source.WriteSectors (outSent, data);
-        CHR (hr);
+            if (isCatalog == last && !std::equal (from, from + (ptrdiff_t) kSectorSize, m_sectors.begin() + (ptrdiff_t) (sector * kSectorSize)))
+            {
+                part.push_back (sector);
+                data.insert (data.end(), from, from + (ptrdiff_t) kSectorSize);
+            }
+        }
+
+        if (!part.empty())
+        {
+            hr = m_source.WriteSectors (part, data);
+            CHR (hr);
+        }
+
+        outSent.insert (outSent.end(), part.begin(), part.end());
     }
 
     m_sectors = std::move (result);

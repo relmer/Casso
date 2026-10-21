@@ -234,10 +234,8 @@ static void AppendDataField (
     size_t         &  bitOffset,
     const Byte     *  sectorData)
 {
-    Byte    encoded[kEncodedDataSize] = {};
-    Byte    prev                      = 0;
-    Byte    enc                       = 0;
-    int     i                         = 0;
+    vector<Byte>  nibbles;
+    int           i       = 0;
 
 
 
@@ -249,6 +247,40 @@ static void AppendDataField (
     PackNibbleBits (dst, bitOffset, kAddrProlog0);
     PackNibbleBits (dst, bitOffset, kAddrProlog1);
     PackNibbleBits (dst, bitOffset, kDataProlog2);
+
+    NibblizationLayer::EncodeDataNibbles (sectorData, nibbles);
+
+    for (Byte nibble : nibbles)
+    {
+        PackNibbleBits (dst, bitOffset, nibble);
+    }
+
+    PackNibbleBits (dst, bitOffset, kEpilog0);
+    PackNibbleBits (dst, bitOffset, kEpilog1);
+    PackNibbleBits (dst, bitOffset, kEpilog2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::EncodeDataNibbles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NibblizationLayer::EncodeDataNibbles (const Byte * sectorData, vector<Byte> & outNibbles)
+{
+    Byte    encoded[kEncodedDataSize] = {};
+    Byte    prev                      = 0;
+    Byte    enc                       = 0;
+    int     i                         = 0;
+
+
+
+    outNibbles.clear();
+    outNibbles.reserve (kDataNibbleCount);
 
     for (i = 0; i < kThirdGroupSize; i++)
     {
@@ -296,13 +328,10 @@ static void AppendDataField (
         // checksum] == 0 -- the boot ROM's success gate.
         enc  = static_cast<Byte> (encoded[i] ^ prev);
         prev = encoded[i];
-        PackNibbleBits (dst, bitOffset, kWriteTranslate[enc & 0x3F]);
+        outNibbles.push_back (kWriteTranslate[enc & 0x3F]);
     }
 
-    PackNibbleBits (dst, bitOffset, kWriteTranslate[prev & 0x3F]);
-    PackNibbleBits (dst, bitOffset, kEpilog0);
-    PackNibbleBits (dst, bitOffset, kEpilog1);
-    PackNibbleBits (dst, bitOffset, kEpilog2);
+    outNibbles.push_back (kWriteTranslate[prev & 0x3F]);
 }
 
 
@@ -870,6 +899,55 @@ static Byte InverseTranslate (Byte nib)
     }
 
     return value;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizationLayer::DecodeDataNibbles
+//
+//  As the boot ROM decodes a data field: each nibble's 6-bit value EOR the
+//  value before it is the encoded byte, and the checksum nibble's value is
+//  the last encoded byte. The 86 encoded bytes hold each byte's low two bits,
+//  swapped, a third of the sector to each bit pair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool NibblizationLayer::DecodeDataNibbles (const Byte * nibbles, vector<Byte> & outSector)
+{
+    Byte  encoded[kEncodedDataSize] = {};
+    Byte  prev                      = 0;
+    Byte  value                     = 0;
+    bool  legal                     = true;
+    int   i                         = 0;
+
+
+
+    outSector.assign (kSectorByteSize, 0);
+
+    for (i = 0; i < kEncodedDataSize; i++)
+    {
+        value      = InverseTranslate (nibbles[i]);
+        legal      = legal && value != kIllegalNibble;
+        prev       = static_cast<Byte> ((value ^ prev) & kSixBitMask);
+        encoded[i] = prev;
+    }
+
+    value = InverseTranslate (nibbles[kEncodedDataSize]);
+    legal = legal && value == prev;
+
+    for (i = 0; i < kSectorByteSize; i++)
+    {
+        int   third = i / kThirdGroupSize;
+        Byte  bits  = static_cast<Byte> (encoded[i % kThirdGroupSize] >> (2 * third));
+
+        outSector[(size_t) i] = static_cast<Byte> ((encoded[kThirdGroupSize + i] << 2) | ((bits & 0x01) << 1) | ((bits & 0x02) >> 1));
+    }
+
+    return legal;
 }
 
 

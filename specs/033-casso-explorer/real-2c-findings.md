@@ -440,17 +440,28 @@ it, and a DOS disk in drive 1.
 - **Why the emulator missed it:** the emulated drive reads any run of zero
   bits back exactly; a real read amplifier does not.
 
-### 30. One track's sectors did not arrive over the line (open)
+### 30. One track's sectors did not arrive over the line
 
 - **Symptom:** in the write of drive 2 above, Write track for track 3 ended
   with `ERRLINK`: one sector's data failed its CRC, or did not arrive, 8
   times in a row.
-- **Evidence:** the COM port has no software flow control (in `ToDcb`, `fOutX`
-  and `fInX` are clear), so a `$13` byte cannot pause the line.
-- **Cause:** not yet known. Next: write track 3 again alone, with the
-  link's error counts (item 18) to see whether its sectors fail their CRC
-  or time out.
-
+- **Evidence:** with three pseudo-random images written to drive 2 and every
+  packet timed, two wrote whole and one ended in a link error on track 30,
+  sector 14. From its first NAK, a NAK followed about every 22 ms, the time
+  one data packet takes on the line, and each came within 2 ms of the
+  host's resend.
+- **Cause:** a damaged packet is found partway through, with the rest of it
+  on the line. The NAK went out at once, the host sent the packet
+  again behind that rest, and the program read the rest as the new
+  packet's start, failed again, and so on until all 8 attempts had failed. The
+  3-second timeouts this morning made it rare; the tenth-of-a-second ones
+  (finding 34) made it common.
+- **Fix:** before each NAK, `drain` drops the bytes arriving until a
+  tenth of a second passes with none. Program version 46. The image that
+  failed then wrote whole in 62.3 s with 5 NAKs, and the other two with 8
+  and 9.
+- **Why the emulator missed it:** no byte is lost on the emulated line,
+  so no packet is ever damaged.
 ### 27. Each drive's speed is timed, and the format fits it
 
 - **Before:** fixed gaps of 10 after each sector and a 352-byte first gap,
@@ -477,8 +488,9 @@ it, and a DOS disk in drive 1.
   the reset vector on its first start; Control-Reset, Escape or the PC's
   Exit run `exitlink`, which stops the drive, turns DTR off, puts both back,
   empties BASIC's program, sets the keyboard and screen and ends at DOS's
-  warm start, or the monitor with no DOS. Shim version 4. Not yet tested on
-  the //c; that takes a bootstrap of shim 4.
+  warm start, or the monitor with no DOS. Shim version 4. On the //c,
+  2026-10-20: after Escape, the BASIC prompt with an empty program; `CATALOG`
+  worked, and no stray characters were drawn.
 - **Disconnect:** Casso Explorer's list started a stopped link on every
   refresh, so Disconnect was followed at once by a new connection. A
   disconnected link now stays stopped, with "... is disconnected." and a
@@ -495,7 +507,7 @@ it, and a DOS disk in drive 1.
   and the button had no route. It is given every move and the presses
   inside it. Verified with clicks on the emulated and the serial link.
 
-### 34. A 10 KB file took 31 seconds to write
+### 34. A 10 KB file took 31 seconds to write (5.7 s now)
 
 - **Symptom:** a 10 KB binary written to drive 1 took 31.0 s; SC-028's limit is
   5 s. Read back from a new session, the same file took 3.2 s.
@@ -528,13 +540,23 @@ it, and a DOS disk in drive 1.
   - The motor runs for about two seconds after an operation, so the next
     one does not wait for it to come up to speed.
   - Program version 44.
-- **Result:** a new 10 KB file in 6.3 s, read back equal; 8.6 s when it
-  replaces a file, as the volume code then reads each other file's
-  track/sector list once. The rest is the disk: a sector costs about 62 ms
-  (23 ms on the line, then its CRC, encoding and stream), and each track's
-  request about 0.55 s of revolutions to write it and read it back. Under
-  5 s takes dropping the read-back, or receiving on interrupts while
-  encoding, which the //c's interrupt path is too slow for at 115,200 baud.
+- **Result, version 44:** a new 10 KB file in 6.3 s, read back equal; 8.6 s
+  when it replaces a file, as the volume code then reads each other file's
+  track/sector list once.
+- **Then, version 47:**
+  - a write's check for another disk is the VTOC that every operation
+    already reads, not track 17 again;
+  - the catalog's sectors are written after the data's;
+  - the host sends each sector as its data field's 343 nibbles
+    (`CassoLinkCodec::kSectorNibbles`), which the Apple stores into the
+    sector's stream as they arrive. A sector then costs about 54 ms rather
+    than 62: 31 ms on the line, and about 10 ms of the rest for the CRC.
+- **Result, version 47:** on an empty disk, 5.7 s and 7.6 s for two new
+  files; on the nearly full System Master, 9.2 s and 6.7 s. What remains is
+  about 2.2 revolutions a track, for the first sector to come round and
+  to verify, and the tracks a file is spread over. A checksum computed as each byte
+  arrives in place of the CRC would save about 0.45 s; the owner stopped
+  here, 2026-10-20.
 - **Why the emulator missed it:** the scenario tests checked what was
   written, not how long it took; in-process, the line costs nothing.
   `WriteSectors_AWholeTrackTakesAFewRevolutions` now times a whole track:

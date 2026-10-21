@@ -80,6 +80,7 @@ Q7H      = $C08F
 CMDREADY  = $D2
 CMDIDLE   = $C9
 CMDDATA   = $CA
+CMDNIBS   = $CC                 ; a sector's data field nibbles, for Write sectors
 CMDACK    = $CB
 CMDSPEED  = $D7
 CMDREAD   = $D5
@@ -130,7 +131,8 @@ PKTBUF   = $4900                ; a command's payload
 WSTREAM  = $4A00                ; a sector's write stream, two pages
 FSTREAM  = $5000                ; a track's format stream, 25 pages
 RAWBUF   = $5000                ; read: a track's raw sectors, two pages each, to $6FFF
-WSLOTS   = $5000                ; write sectors: each sector's stream, two pages each, to $6FFF
+WSLOTS   = $7000                ; write sectors: each sector's stream, two pages each, to $8FFF,
+                                ; on ENCBUF's pages, as Write sectors encodes nothing
 AUXT0    = $4C00                ; a 6-bit group's two bits for the first third
 AUXT1    = $4C40                ; for the second
 AUXT2    = $4C80                ; for the third
@@ -145,6 +147,9 @@ ENCT1    = $9100                ; the first third of a sector, shifted for the
 ENCT2    = $9200                ; second, and for the third
 FPAGES   = 26                   ; the format stream, whatever its gaps
 WSTART   = 512 - 355            ; the sector stream and its end mark end at its second page's end
+NIBSTART = WSTART + 8           ; its 343 data field nibbles, after 5 syncs and the prologue
+SYNCEND  = NIBSTART - 3         ; where the prologue starts
+NIBEND   = NIBSTART + 343 - 256 ; where the nibbles end on the second page
 PEND     = $01                  ; the end of a write stream
 
 ; Zero page.
@@ -501,12 +506,14 @@ opdone: jsr showerr
         jmp main
 
 ; Write sectors: for each, an Acknowledge with its number, then the host's
-; Sector data, checked by its CRC, with a NAK sent for another copy until it
-; arrives whole. Each is encoded into ENCBUF and its stream built as it
-; arrives; then all are written in one pass, each as its address field
-; passes, and the track read back once and compared. Writing each sector
-; and reading it back before asking for the next takes more than a
-; revolution a sector.
+; Sector nibbles, checked by their CRC, with a NAK sent for another copy
+; until they arrive whole. The host encodes each sector, so its nibbles go
+; straight into its stream in WSLOTS, and only the fixed parts around them
+; are added here; then all are written in one pass, each as its address
+; field passes, and the track read back once and compared. Writing each
+; sector and reading it back before asking for the next takes more than a
+; revolution a sector, and encoding each here took more time than sending
+; its nibbles.
 dowrite: lda #OPWRITE
         jsr begin
         bcs wrdone
@@ -523,8 +530,9 @@ wrnext: jsr showprog
 wrask:  ldx sector
         ldy track
         jsr sendack
-        jsr getsector
+        jsr getnibs
         bcc wrgot
+        jsr drain
         dec tries
         beq wrlink
         lda #NAK
@@ -532,9 +540,7 @@ wrask:  ldx sector
 wrlink: lda #ERRLINK
         sta err
 wrdone: jmp opdone
-wrgot:  jsr encpage
-        jsr encodeto
-        jsr buildslot
+wrgot:  jsr frameslot
         inc index
         lda index
         cmp count
@@ -598,6 +604,7 @@ wtask:  ldx sector
         jsr sendack
         jsr getsector
         bcc wtgot
+        jsr drain
         dec tries
         beq wtlink
         lda #NAK
@@ -672,7 +679,7 @@ vsnext: ldx left
         lda PKTBUF+3,x
         and #15
         sta sector
-        jsr cmpslot
+        jsr cmpnibs
         bcs vsdone
         inc left
         lda left
@@ -1055,6 +1062,15 @@ gestart: sta tmp
         clc
         rts
 gefail: sec
+        rts
+
+; drain: the bytes still arriving dropped, until a tenth of a second passes
+; with none. A damaged packet is found partway through, with the rest of it
+; still on the line; a NAK sent then has the host send the packet again
+; behind that rest, which is then read as the new packet's start, and so on
+; for every try.
+drain:  jsr getbtq
+        bcc drain
         rts
 
 ; getpayload: a command's payload, at most 255 bytes, into PKTBUF, and its
@@ -1687,26 +1703,156 @@ enprist: sta WRPRI,x
         inx
         bne enpri
         rts
-; buildslot: `sector`'s stream in its two pages of WSLOTS from WSTART, from
-; its encoding in ENCBUF: five self-sync bytes, the data prologue, the 343
-; data nibbles, the epilogue and the end mark, ending at the second page's
-; end.
-buildslot: lda sector
+; slotpage: ptr at the first of `sector`'s two pages in WSLOTS.
+slotpage: lda sector
         asl a
         clc
         adc #>WSLOTS
         sta ptr+1
-        lda #<WSTART
+        lda #0
         sta ptr
-        ldx #5
-bssync: lda #0
-        jsr putstream
-        dex
-        bne bssync
-        jsr encpage
-        jsr putdata
+        rts
+
+; getnibs: the host's Sector nibbles into `sector`'s stream in WSLOTS, at
+; its data field's place, from NIBSTART on the first page to NIBEND on the
+; second. The carry is set when it times out, is not Sector nibbles, is for
+; another sector or fails its CRC. The nibbles are stored as they arrive: at
+; 115,200 baud a byte comes every 89 cycles, too few for the CRC as well.
+getnibs: jsr getenvt
+        bcs gnfail
+        cmp #CMDCANCEL
+        bne gncmd
+        jmp cancel
+gncmd:  cmp #CMDNIBS
+        bne gnfail
+        jsr getbtq              ; track
+        bcs gnfail
+        jsr getbtq              ; sector
+        bcs gnfail
+        cmp sector
+        bne gnfail
+        jsr slotpage
+        ldy #<NIBSTART
+gnfirst: jsr getbtq
+        bcs gnfail
+        sta (ptr),y
+        iny
+        bne gnfirst
+        inc ptr+1
+gnsecond: jsr getbtq
+        bcs gnfail
+        sta (ptr),y
+        iny
+        cpy #NIBEND
+        bne gnsecond
+        jsr getbtq
+        bcs gnfail
+        sta tmp
+        jsr getbtq
+        bcs gnfail
+        sta tmp2
+        jsr getbtq              ; the payload's EOR; the CRC checks the nibbles
+        bcs gnfail
+        dec ptr+1
+        ldy #0
+        sty crclo
+        sty crchi
+        ldy #<NIBSTART
+gncrc1: lda (ptr),y
+        jsr crcupd
+        iny
+        bne gncrc1
+        inc ptr+1
+gncrc2: lda (ptr),y
+        jsr crcupd
+        iny
+        cpy #NIBEND
+        bne gncrc2
+        lda crclo
+        cmp tmp
+        bne gnfail
+        lda crchi
+        cmp tmp2
+        bne gnfail
+        clc
+        rts
+gnfail: sec
+        rts
+
+; frameslot: the parts of `sector`'s stream around its nibbles: five
+; self-sync bytes from WSTART and the data prologue before them, the
+; epilogue and the end mark after, ending at the second page's end.
+frameslot: jsr slotpage
+        lda #0
+        ldy #<WSTART
+fssync: sta (ptr),y
+        iny
+        cpy #<SYNCEND
+        bne fssync
+        lda #$D5
+        sta (ptr),y
+        iny
+        lda #$AA
+        sta (ptr),y
+        iny
+        lda #$AD
+        sta (ptr),y
+        inc ptr+1
+        ldy #NIBEND
+        lda #$DE
+        sta (ptr),y
+        iny
+        lda #$AA
+        sta (ptr),y
+        iny
+        lda #$EB
+        sta (ptr),y
+        iny
         lda #PEND
-        jmp putstream
+        sta (ptr),y
+        rts
+
+; cmpnibs: `sector`'s raw values in RAWBUF compared with the nibbles of its
+; stream in WSLOTS, decoded as the read decodes them. The carry is set, with
+; err, when they differ. The read checked the data field's checksum.
+cmpnibs: jsr rawslot
+        jsr slotpage
+        lda #<NIBSTART
+        sta ptr
+        lda #0
+        sta tmp2
+        ldy #0
+cnaux:  jsr cnnext
+        cmp (dst),y
+        bne cnbad
+        iny
+        cpy #86
+        bne cnaux
+        ldy #0
+cnpri:  jsr cnnext
+        cmp (dstp),y
+        bne cnbad
+        iny
+        bne cnpri
+        clc
+        rts
+cnbad:  lda #ERRVERIFY
+        sta err
+        sec
+        rts
+
+; cnnext: the nibble at (ptr) as the read decodes it, EOR the value before
+; it, in A and tmp2; ptr on. X is overwritten.
+cnnext: ldx #0
+        lda (ptr,x)
+        tax
+        lda INVTAB,x
+        eor tmp2
+        sta tmp2
+        inc ptr
+        bne cnndone
+        inc ptr+1
+cnndone: rts
 
 ; putdata: a data field into the stream: D5 AA AD, the 342 nibbles of the
 ; 86 groups on page A and the 256 values on the page after it, each the EOR
@@ -2008,7 +2154,8 @@ ROWST = $0680                   ; row 5: the status, after a blank row
 ROWLB = $0700                   ; row 6: the label of the user's operation
 ROWER = $0428                   ; row 8: the last error, when there is one
 ROWHIST = $0528                 ; row 10: the history's title, its lines below
-LOGROWS = 13                    ; the history's lines
+LOGROWS = 12                    ; the history's lines, rows 11 to 22
+ROWESC = $07D0 + 11             ; row 23, centered: how to leave CassoLink
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
@@ -2070,6 +2217,9 @@ labels: .byte <ROW0, >ROW0
         .byte <ROWHIST, >ROWHIST
         .text "HISTORY"
         .byte $3A, 0
+        .byte <ROWESC, >ROWESC
+        .text "PRESS ESC TO EXIT"
+        .byte 0
         .byte 0
         .byte 0, 0
 
@@ -2563,6 +2713,6 @@ p2ones: sta tmp2
         ora #'0'
         jmp putch
 
-; The history's lines, rows 11 to 23 of the text page.
-logrowlo: .byte $A8, $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50, $D0
-logrowhi: .byte $05, $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07, $07
+; The history's lines, rows 11 to 22 of the text page.
+logrowlo: .byte $A8, $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50
+logrowhi: .byte $05, $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07

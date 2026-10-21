@@ -299,13 +299,15 @@ a probe outside the suite. The hardware findings are in
 | Check | Result |
 |---|---|
 | SC-033: bootstrap | Bootstrapped from Casso Explorer several times with `IN#2` and Ctrl+A `14B` typed on the //c; the status screen each time, after the loader's typing of about 40 s |
+| Leaving CassoLink | Escape on the //c: the BASIC prompt, `LIST` empty, `CATALOG` of drive 1 worked, no stray characters |
+| ADTPro's own bootstrap | Speediboot from ADTPro 2.1.0's server, after `IN#2` and Ctrl+A `14B`: the monitor beeped at the loader's lines, at its 250 ms pacing and at 1000 ms, and the client did not start; its client disk, written to drive 2 by CassoLink, booted |
 | Drive speeds | Drive 1 at 293.2 rpm (2.3% slow), drive 2 at 298.4 rpm; each format's gap fits its drive |
 | Write image to disk | The DOS 3.3 System Master to drive 1, 65.9 s including the drive's timing; every track verified |
-| SC-027: disk to image | Drive 1 into an image at 115,200 baud in 27.6 s, byte for byte the System Master image written to it. Not yet compared with ADTPro's image of the same disk, which takes ADTPro's client on the //c and the owner at its keyboard |
+| SC-027: disk to image | Drive 1 into an image at 115,200 baud in 27.6 s, byte for byte the System Master image written to it. After two files were written to it, read again in 28.1 s: byte for byte the image ADTPro 2.1.0's client sent of the same disk, from drive 2, in 26.4 s |
 | SC-028: file from the //c | A 10 KB binary, T10K, in 3.2 s from a new session after its catalog (7.1 s, the first listing of the drive), equal to the original |
-| SC-028: file onto the //c | **Not met, 6.3 s:** T10K written in 31.0 s with program version 43, then 6.3 s with version 44 (8.6 s when it replaces a file), equal when read back. The rest is the disk: about 62 ms a sector and 0.55 s of revolutions a track; finding 34 |
-| Step 5: Save link to disk, boot it | Not yet done on the //c |
-| Step 7: booting a written image | Not yet done; a `.woz` with a non-standard track is refused with the track listed, in the scenario tests |
+| SC-028: file onto the //c | **Not met:** T10K written in 31.0 s with program version 43. With version 47, a new 10 KB file in 5.7 s and 7.6 s on an empty disk, and 9.2 s and 6.7 s on the nearly full System Master, equal when read back. The rest is about 2.2 revolutions a track and the tracks a file is spread over; the owner stopped here. Finding 34 |
+| Step 5: Save link to disk, boot it | The link disk, program version 45, written to drive 2 over the link in 59.8 s, moved to drive 1 and booted: the shim waiting on port 2 at 115,200; the PC connected with no bootstrap in about 10 s, and both drives were listed |
+| Step 7: booting a written image | ADTPro 2.1.0's client disk, written to drive 2 over the link in 60.4 s, moved to drive 1 and booted to ADTPro's menu. Writing a `.woz` with a non-standard track fails with the track listed, in the scenario tests |
 
 ### File Explorer's menus beside Casso Explorer's, 2026-10-18
 

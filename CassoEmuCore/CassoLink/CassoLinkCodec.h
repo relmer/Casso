@@ -74,21 +74,22 @@ public:
     static constexpr Byte  kVirtualDrive = 0xC5;
 
     // Casso's commands.
-    static constexpr Byte  kReady        = 0xD2;
-    static constexpr Byte  kIdle         = 0xC9;
-    static constexpr Byte  kSectorData   = 0xCA;
-    static constexpr Byte  kLoadProgram  = 0xCF;
-    static constexpr Byte  kSetSpeed     = 0xD7;
-    static constexpr Byte  kReadSectors  = 0xD5;
-    static constexpr Byte  kWriteSectors = 0xD6;
-    static constexpr Byte  kFormatTrack  = 0xC8;
-    static constexpr Byte  kWriteTrack   = 0xDB;
-    static constexpr Byte  kStatus       = 0xD4;
-    static constexpr Byte  kCancel       = 0xD1;
-    static constexpr Byte  kLabel        = 0xDC;
-    static constexpr Byte  kLog          = 0xDD;
-    static constexpr Byte  kTimeDrive    = 0xDE;
-    static constexpr Byte  kExit         = 0xDF;
+    static constexpr Byte  kReady         = 0xD2;
+    static constexpr Byte  kIdle          = 0xC9;
+    static constexpr Byte  kSectorData    = 0xCA;
+    static constexpr Byte  kSectorNibbles = 0xCC;
+    static constexpr Byte  kLoadProgram   = 0xCF;
+    static constexpr Byte  kSetSpeed      = 0xD7;
+    static constexpr Byte  kReadSectors   = 0xD5;
+    static constexpr Byte  kWriteSectors  = 0xD6;
+    static constexpr Byte  kFormatTrack   = 0xC8;
+    static constexpr Byte  kWriteTrack    = 0xDB;
+    static constexpr Byte  kStatus        = 0xD4;
+    static constexpr Byte  kCancel        = 0xD1;
+    static constexpr Byte  kLabel         = 0xDC;
+    static constexpr Byte  kLog           = 0xDD;
+    static constexpr Byte  kTimeDrive     = 0xDE;
+    static constexpr Byte  kExit          = 0xDF;
 
     //  Time drive's marker, one a revolution, outside any packet.
     static constexpr Byte  kTimeMark     = 0xA5;
@@ -123,6 +124,12 @@ public:
     // The track, sector and 256 bytes of a Sector data packet, once its CRC
     // is checked.
     static HRESULT   ParseSectorData   (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);
+
+    // Sector nibbles: the track, the sector, its data field's 343 nibbles as
+    // NibblizationLayer encodes them, and their CRC. Write sectors sends
+    // these, so the Apple writes them as they are rather than encoding them.
+    static HRESULT   EncodeSectorNibbles (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out);
+    static HRESULT   ParseSectorNibbles  (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);
 
     static Word      ComputeCrc        (std::span<const Byte> data);
     static Byte      ComputeEor        (std::span<const Byte> data);

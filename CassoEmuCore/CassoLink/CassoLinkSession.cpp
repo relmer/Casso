@@ -1492,7 +1492,9 @@ Error:
 //  CassoLinkSession::Revalidate
 //
 //  The sectors that identify the volume -- the VTOC, or the volume
-//  directory's key block -- are read again; when they differ from what is
+//  directory's key block and the bitmap -- are read again; each has the
+//  volume's free space, so another disk almost never matches them. When they
+//  differ from what is
 //  in memory, another disk is in the drive, or this one was written
 //  elsewhere, and its sectors are dropped. The drive's listing is not: a
 //  write checks the disk against the drive's last listing.
@@ -1518,8 +1520,11 @@ HRESULT CassoLinkSession::Revalidate (int drive)
     }
     else
     {
-        marks.push_back (ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, 0) / LinkedDisk::kSectorSize);
-        marks.push_back (ProDosSkeleton::GetBlockByteOffset (ProDosSkeleton::kDirKeyBlock, LinkedDisk::kSectorSize) / LinkedDisk::kSectorSize);
+        for (int block : { ProDosSkeleton::kDirKeyBlock, ProDosSkeleton::kBitmapBlock })
+        {
+            marks.push_back (ProDosSkeleton::GetBlockByteOffset (block, 0) / LinkedDisk::kSectorSize);
+            marks.push_back (ProDosSkeleton::GetBlockByteOffset (block, LinkedDisk::kSectorSize) / LinkedDisk::kSectorSize);
+        }
     }
 
     hr = m_sources[index]->ReadSectors (marks, fresh);
@@ -1551,27 +1556,24 @@ Error:
 //
 //  The catalog read from the disk, everything else dropped, against the
 //  drive's last listing. While CassoLink runs, the Apple runs nothing else,
-//  so the disk changes only when another is put in the drive; the sectors
-//  that hold the catalog show that, and when they read as they are in
-//  memory, the rest is kept rather than read again.
+//  so the disk changes only when another is put in the drive, and
+//  Revalidate, at the start of the operation, drops the sectors in memory
+//  when that happens; sectors still in memory are this disk's, and are used
+//  as they are.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CassoLinkSession::CheckCatalog (int drive)
 {
-    HRESULT        hr        = S_OK;
-    size_t         index     = (size_t) drive - 1;
+    HRESULT        hr    = S_OK;
+    size_t         index = (size_t) drive - 1;
     VolumeListing  listing;
-    bool           same      = false;
-    bool           unchanged = false;
+    bool           same  = false;
 
 
 
     BAIL_OUT_IF (!m_listings[index].has_value(), S_OK);
-
-    hr = IsCatalogUnchanged (drive, unchanged);
-    CHR (hr);
-    BAIL_OUT_IF (unchanged, S_OK);
+    BAIL_OUT_IF (m_disks[index]->GetKind() != VolumeKind::Unknown, S_OK);
 
     m_disks[index]->Clear();
 
@@ -1580,55 +1582,6 @@ HRESULT CassoLinkSession::CheckCatalog (int drive)
 
     same = IsSameCatalog (listing, *m_listings[index]);
     CBREx (same, HRESULT_FROM_WIN32 (ERROR_MEDIA_CHANGED));
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoLinkSession::IsCatalogUnchanged
-//
-//  The catalog's sectors read again and compared with those in memory; not
-//  the same when any of them is not in memory.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT CassoLinkSession::IsCatalogUnchanged (int drive, bool & outSame)
-{
-    HRESULT              hr      = S_OK;
-    size_t               index   = (size_t) drive - 1;
-    LinkedDisk         & disk    = *m_disks[index];
-    std::vector<size_t>  sectors = LinkedDisk::GetCatalogSectors (disk.GetKind());
-    std::vector<Byte>    fresh;
-    bool                 cached  = !sectors.empty();
-
-
-
-    outSame = false;
-
-    for (size_t sector : sectors)
-    {
-        cached = cached && disk.IsPresent (sector);
-    }
-
-    BAIL_OUT_IF (!cached, S_OK);
-
-    hr = m_sources[index]->ReadSectors (sectors, fresh);
-    CHR (hr);
-
-    outSame = true;
-
-    for (size_t i = 0; i < sectors.size(); i++)
-    {
-        outSame = outSame && std::equal (fresh.begin() + (ptrdiff_t) (i * LinkedDisk::kSectorSize),
-                                         fresh.begin() + (ptrdiff_t) ((i + 1) * LinkedDisk::kSectorSize),
-                                         disk.GetSectors().begin() + (ptrdiff_t) (sectors[i] * LinkedDisk::kSectorSize));
-    }
 
 Error:
     return hr;
