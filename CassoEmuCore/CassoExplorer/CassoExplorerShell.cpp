@@ -925,7 +925,7 @@ void CassoExplorerShell::ForEachWindow (const std::function<void (CassoExplorerW
 //  CassoExplorerShell::CloseWindow
 //
 //  The last window closed is written to the session; one closed while others
-//  stay open is left out of it, but recorded in m_closed, so the last close
+//  stay open is left out of it and added to m_closed, so the last close
 //  writes every window of a quick run. CassoLink notifications move to another window. The
 //  window itself is released once its own message has returned.
 //
