@@ -343,7 +343,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildAppleDriveFor
                              const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                              std::string                      path       = directory.empty() ? descriptor.catalogPath : directory + "/" + descriptor.catalogPath;
                              FilePayload                      payload;
-                             HRESULT                          hr         = links->WaitForFile (link, drive, path, kDropWaitMs, payload);
+                             HRESULT                          hr         = links->WaitForFile (link, drive, path, kDropWaitMs, &CassoExplorerDragOut::PumpWhileWaiting, payload);
 
                              out.clear();
 
@@ -435,7 +435,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (
                              while ((operation->state == LinkOperationState::Queued || operation->state == LinkOperationState::Running)
                                     && std::chrono::steady_clock::now() < until)
                              {
-                                 std::this_thread::sleep_for (std::chrono::milliseconds (CassoLinkConnections::kWaitPollMs));
+                                 PumpWhileWaiting (CassoLinkConnections::kWaitPollMs);
                              }
 
                              hr = operation->state == LinkOperationState::Done ? fileIo->ReadAllBytes (path, bytes) : HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
@@ -674,4 +674,40 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     formats.push_back ({ CF_HDROP, 1, [drop] (int, std::vector<uint8_t> & out) { out = *drop; return S_OK; } });
 
     return formats;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::PumpWhileWaiting
+//
+//  Painting, sent messages and posted ones, timers among them, are taken;
+//  input is not, so nothing the user does starts while the drop runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerDragOut::PumpWhileWaiting (DWORD ms)
+{
+    MSG    msg    = {};
+    DWORD  waited = MsgWaitForMultipleObjectsEx (0, nullptr, ms, QS_PAINT | QS_POSTMESSAGE | QS_SENDMESSAGE | QS_TIMER, 0);
+
+
+
+    IGNORE_RETURN_VALUE (waited, WAIT_OBJECT_0);
+
+    while (PeekMessageW (&msg, nullptr, 0, 0, PM_REMOVE | PM_QS_PAINT | PM_QS_POSTMESSAGE | PM_QS_SENDMESSAGE))
+    {
+        //  A quit is left for the main loop.
+        if (msg.message == WM_QUIT)
+        {
+            PostQuitMessage ((int) msg.wParam);
+            break;
+        }
+
+        TranslateMessage (&msg);
+        DispatchMessageW (&msg);
+    }
 }

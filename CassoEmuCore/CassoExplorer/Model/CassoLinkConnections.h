@@ -129,9 +129,10 @@ public:
     bool  IsWritingDisk (const std::string & name, int drive) const;
 
     //  A file's contents, waiting up to timeoutMs for them. Only for a drop,
-    //  where the target requests the bytes and nothing else can run until
-    //  they arrive.
-    HRESULT  WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, FilePayload & outPayload);
+    //  where the target requests the bytes and cannot finish without them.
+    //  pause is called between checks, so the window can paint meanwhile.
+    HRESULT  WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, const std::function<void (DWORD)> & pause,
+                          FilePayload & outPayload);
 
     //  The text for an operation that failed.
     static std::wstring  DescribeFailure (const LinkOperation & operation);

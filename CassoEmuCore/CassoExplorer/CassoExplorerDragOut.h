@@ -59,6 +59,11 @@ public:
     //  A whole disk takes far longer to come over the link than a file.
     static constexpr DWORD  kDiskDropWaitMs = 180000;
 
+    //  Waits up to ms between a drop's checks on the link. Paints and posted
+    //  messages are run meanwhile, so the window is redrawn while a drop onto
+    //  Explorer waits on the link. Input is queued until the drop finishes.
+    static void  PumpWhileWaiting (DWORD ms);
+
     //  The format a linked Apple's drive drags with, the drive's id in it,
     //  so a drop inside Casso Explorer reads the disk without waiting on it.
     static constexpr const wchar_t *  kDriveFormatName = L"CassoExplorer.AppleDrive";

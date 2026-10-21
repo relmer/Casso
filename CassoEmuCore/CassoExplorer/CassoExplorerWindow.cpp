@@ -8870,22 +8870,9 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
     }
 
 
-    //  Onto a host folder, the folder's own target does the drop.
-    if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsSameFolder (hostFolder, m_hostDropFolder))
-    {
-        effect = m_dropTarget.GetAllowedEffects();
-
-        HRESULT  hr = m_hostDrop->Drop (data, m_dropTarget.GetDragKeyState(), at, &effect);
-
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        m_dropTarget.SetDropResult (effect);
-
-        m_hostDrop.Reset();
-        m_hostDropFolder.clear();
-        return;
-    }
-
     //  A linked Apple's whole drive onto a host folder: its image, made there.
+    //  AHEAD OF THE FOLDER'S OWN TARGET, which would request the image's bytes
+    //  and wait on the UI thread while the whole disk came over the link.
     if (CassoExplorerDragOut::TryGetDraggedDrive (data, driveId) && TryGetHostDropFolder (tag, screen, hostFolder) && !hostFolder.starts_with (L"shell:"))
     {
         std::wstring  link;
@@ -8907,6 +8894,21 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
             OnLinkChanged();
         }
 
+        return;
+    }
+
+    //  Onto a host folder, the folder's own target does the drop.
+    if (m_hostDrop != nullptr && TryGetHostDropFolder (tag, screen, hostFolder) && IsSameFolder (hostFolder, m_hostDropFolder))
+    {
+        effect = m_dropTarget.GetAllowedEffects();
+
+        HRESULT  hr = m_hostDrop->Drop (data, m_dropTarget.GetDragKeyState(), at, &effect);
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_dropTarget.SetDropResult (effect);
+
+        m_hostDrop.Reset();
+        m_hostDropFolder.clear();
         return;
     }
 

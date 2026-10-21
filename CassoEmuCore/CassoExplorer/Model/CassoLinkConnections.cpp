@@ -803,7 +803,8 @@ bool CassoLinkConnections::IsWritingDisk (const std::string & name, int drive) c
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkConnections::WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, FilePayload & outPayload)
+HRESULT CassoLinkConnections::WaitForFile (const std::string & name, int drive, const std::string & path, DWORD timeoutMs, const std::function<void (DWORD)> & pause,
+                                           FilePayload & outPayload)
 {
     HRESULT      hr      = S_OK;
     std::string  message;
@@ -818,7 +819,7 @@ HRESULT CassoLinkConnections::WaitForFile (const std::string & name, int drive, 
 
         if (!arrived)
         {
-            std::this_thread::sleep_for (std::chrono::milliseconds (kWaitPollMs));
+            pause (kWaitPollMs);
         }
     }
 
