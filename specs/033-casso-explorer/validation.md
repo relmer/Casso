@@ -306,8 +306,8 @@ a probe outside the suite. The hardware findings are in
 | SC-027: disk to image | Drive 1 into an image at 115,200 baud in 27.6 s, byte for byte the System Master image written to it. After two files were written to it, read again in 28.1 s: byte for byte the image ADTPro 2.1.0's client sent of the same disk, from drive 2, in 26.4 s |
 | SC-028: file from the //c | A 10 KB binary, T10K, in 3.2 s from a new session after its catalog (7.1 s, the first listing of the drive), equal to the original |
 | SC-028: file onto the //c | **Not met, 6.3 s:** T10K written in 31.0 s with program version 43, then 6.3 s with version 44 (8.6 s when it replaces a file), equal when read back. The rest is the disk: about 62 ms a sector and 0.55 s of revolutions a track; finding 34 |
-| Step 5: Save link to disk, boot it | Not yet done on the //c |
-| Step 7: booting a written image | Not yet done; a `.woz` with a non-standard track is refused with the track listed, in the scenario tests |
+| Step 5: Save link to disk, boot it | The link disk, program version 45, written to drive 2 over the link in 59.8 s, moved to drive 1 and booted: the shim waiting on port 2 at 115,200; the PC connected with no bootstrap in about 10 s, and both drives were listed |
+| Step 7: booting a written image | ADTPro 2.1.0's client disk, written to drive 2 over the link in 60.4 s, moved to drive 1 and booted to ADTPro's menu. A `.woz` with a non-standard track is refused with the track listed, in the scenario tests |
 
 ### File Explorer's menus beside Casso Explorer's, 2026-10-18
 
