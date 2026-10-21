@@ -71,6 +71,10 @@ public:
     //  to 6 for ProDOS -- in one request, and the volume's kind from them.
     HRESULT  Prefetch ();
 
+    //  The sectors that hold the catalog of a volume of `kind`: track 17 for
+    //  DOS 3.3, blocks 2 to 6 for ProDOS.
+    static std::vector<size_t>  GetCatalogSectors (VolumeKind kind);
+
     //  Runs `operation` until a run reads no absent sector. Its result is the
     //  last run's.
     HRESULT  Run   (const ReadOperation & operation);

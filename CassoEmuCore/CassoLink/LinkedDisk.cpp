@@ -55,21 +55,13 @@ void LinkedDisk::Clear()
 
 HRESULT LinkedDisk::Prefetch()
 {
-    HRESULT              hr = S_OK;
-    std::vector<size_t>  sectors;
+    HRESULT              hr      = S_OK;
+    std::vector<size_t>  sectors = GetCatalogSectors (VolumeKind::Dos33);
+    std::vector<size_t>  prodos  = GetCatalogSectors (VolumeKind::ProDos);
 
 
 
-    for (int sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
-    {
-        sectors.push_back ((size_t) (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack + sector));
-    }
-
-    for (int block = ProDosSkeleton::kDirKeyBlock; block <= ProDosSkeleton::kBitmapBlock; block++)
-    {
-        sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, 0) / kSectorSize);
-        sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, kSectorSize) / kSectorSize);
-    }
+    sectors.insert (sectors.end(), prodos.begin(), prodos.end());
 
     hr = Fetch (sectors);
     CHR (hr);
@@ -78,6 +70,41 @@ HRESULT LinkedDisk::Prefetch()
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkedDisk::GetCatalogSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<size_t> LinkedDisk::GetCatalogSectors (VolumeKind kind)
+{
+    std::vector<size_t>  sectors;
+
+
+
+    if (kind == VolumeKind::Dos33)
+    {
+        for (int sector = 0; sector < NibblizationLayer::kSectorsPerTrack; sector++)
+        {
+            sectors.push_back ((size_t) (Dos33Skeleton::kVtocTrack * NibblizationLayer::kSectorsPerTrack + sector));
+        }
+    }
+    else if (kind == VolumeKind::ProDos)
+    {
+        for (int block = ProDosSkeleton::kDirKeyBlock; block <= ProDosSkeleton::kBitmapBlock; block++)
+        {
+            sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, 0) / kSectorSize);
+            sectors.push_back (ProDosSkeleton::GetBlockByteOffset (block, kSectorSize) / kSectorSize);
+        }
+    }
+
+    return sectors;
 }
 
 
