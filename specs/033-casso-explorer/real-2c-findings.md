@@ -440,17 +440,28 @@ it, and a DOS disk in drive 1.
 - **Why the emulator missed it:** the emulated drive reads any run of zero
   bits back exactly; a real read amplifier does not.
 
-### 30. One track's sectors did not arrive over the line (open)
+### 30. One track's sectors did not arrive over the line
 
 - **Symptom:** in the write of drive 2 above, Write track for track 3 ended
   with `ERRLINK`: one sector's data failed its CRC, or did not arrive, 8
   times in a row.
-- **Evidence:** the COM port has no software flow control (in `ToDcb`, `fOutX`
-  and `fInX` are clear), so a `$13` byte cannot pause the line.
-- **Cause:** not yet known. Next: write track 3 again alone, with the
-  link's error counts (item 18) to see whether its sectors fail their CRC
-  or time out.
-
+- **Evidence:** with three pseudo-random images written to drive 2 and every
+  packet timed, two wrote whole and one ended in a link error on track 30,
+  sector 14. From its first NAK, a NAK followed about every 22 ms, the time
+  one data packet takes on the line, and each came within 2 ms of the
+  host's resend.
+- **Cause:** a damaged packet is found partway through, with the rest of it
+  on the line. The NAK went out at once, the host sent the packet
+  again behind that rest, and the program read the rest as the new
+  packet's start, failed again, and so on until all 8 attempts had failed. The
+  3-second timeouts this morning made it rare; the tenth-of-a-second ones
+  (finding 34) made it common.
+- **Fix:** before each NAK, `drain` drops the bytes arriving until a
+  tenth of a second passes with none. Program version 46. The image that
+  failed then wrote whole in 62.3 s with 5 NAKs, and the other two with 8
+  and 9.
+- **Why the emulator missed it:** no byte is lost on the emulated line,
+  so no packet is ever damaged.
 ### 27. Each drive's speed is timed, and the format fits it
 
 - **Before:** fixed gaps of 10 after each sector and a 352-byte first gap,
@@ -478,7 +489,7 @@ it, and a DOS disk in drive 1.
   Exit run `exitlink`, which stops the drive, turns DTR off, puts both back,
   empties BASIC's program, sets the keyboard and screen and ends at DOS's
   warm start, or the monitor with no DOS. Shim version 4. On the //c,
-  2026-10-20: Escape gave the BASIC prompt with an empty program, `CATALOG`
+  2026-10-20: after Escape, the BASIC prompt with an empty program; `CATALOG`
   worked, and no stray characters were drawn.
 - **Disconnect:** Casso Explorer's list started a stopped link on every
   refresh, so Disconnect was followed at once by a new connection. A
