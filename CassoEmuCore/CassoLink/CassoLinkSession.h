@@ -284,7 +284,6 @@ private:
     HRESULT  Execute       (LinkOperation & operation);
     HRESULT  Revalidate    (int drive);
     HRESULT  CheckCatalog  (int drive);
-    HRESULT  IsCatalogUnchanged (int drive, bool & outSame);
     HRESULT  RunWrite      (LinkOperation & operation, const LinkedDisk::WriteOperation & write);
     HRESULT  ReadWholeDisk (LinkOperation & operation);
     HRESULT  WriteWholeDisk (LinkOperation & operation);
