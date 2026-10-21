@@ -77,6 +77,7 @@ public:
     static constexpr Byte  kReady        = 0xD2;
     static constexpr Byte  kIdle         = 0xC9;
     static constexpr Byte  kSectorData   = 0xCA;
+    static constexpr Byte  kSectorNibbles = 0xCC;
     static constexpr Byte  kLoadProgram  = 0xCF;
     static constexpr Byte  kSetSpeed     = 0xD7;
     static constexpr Byte  kReadSectors  = 0xD5;
@@ -123,6 +124,12 @@ public:
     // The track, sector and 256 bytes of a Sector data packet, once its CRC
     // is checked.
     static HRESULT   ParseSectorData   (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);
+
+    // Sector nibbles: the track, the sector, its data field's 343 nibbles as
+    // NibblizationLayer encodes them, and their CRC. Write sectors sends
+    // these, so the Apple writes them as they are rather than encoding them.
+    static HRESULT   EncodeSectorNibbles (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out);
+    static HRESULT   ParseSectorNibbles  (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData);
 
     static Word      ComputeCrc        (std::span<const Byte> data);
     static Byte      ComputeEor        (std::span<const Byte> data);

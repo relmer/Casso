@@ -260,6 +260,38 @@ public:
     }
 
 
+    //  Every byte value in every place, through the data field's nibbles and
+    //  back, as Write sectors sends a sector.
+    TEST_METHOD (SectorNibblesRoundTripAndCheckTheirCrc)
+    {
+        std::vector<Byte>  sector (256);
+        std::vector<Byte>  wire;
+        std::vector<Byte>  back (256);
+        CassoLinkPacket    packet;
+        size_t             consumed = 0;
+        Byte               track    = 0;
+        Byte               number   = 0;
+
+        for (int seed : { 0, 1, 85, 170 })
+        {
+            for (size_t i = 0; i < sector.size(); i++) { sector[i] = (Byte) (i + seed); }
+
+            wire.clear();
+            AssertSucceeded (CassoLinkCodec::EncodeSectorNibbles (20, 9, sector, wire));
+            Assert::AreEqual (S_OK, DecodeOne (wire, consumed, packet));
+            Assert::AreEqual<size_t> (343 + 4, packet.payload.size(), L"track, sector, 343 nibbles, CRC");
+            AssertSucceeded (CassoLinkCodec::ParseSectorNibbles (packet, track, number, back));
+
+            Assert::AreEqual<Byte> (20, track);
+            Assert::AreEqual<Byte> (9, number);
+            Assert::IsTrue (back == sector);
+        }
+
+        packet.payload[200] ^= 0x01;
+        Assert::AreEqual (kDamaged, CassoLinkCodec::ParseSectorNibbles (packet, track, number, back), L"a changed nibble fails the CRC");
+    }
+
+
     TEST_METHOD (AcknowledgeHasKindAndBlock)
     {
         std::vector<Byte>  wire;

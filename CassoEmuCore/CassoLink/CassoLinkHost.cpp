@@ -1682,7 +1682,17 @@ HRESULT CassoLinkHost::SendSectorsOnce (Byte command, std::vector<Byte> request,
 
         encoded.clear();
 
-        hr = CassoLinkCodec::EncodeSectorData (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
+        //  Write sectors takes each sector as its nibbles, written as they
+        //  arrive; Write track takes the bytes, formatted with the track.
+        if (command == CassoLinkCodec::kWriteSectors)
+        {
+            hr = CassoLinkCodec::EncodeSectorNibbles (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
+        }
+        else
+        {
+            hr = CassoLinkCodec::EncodeSectorData (track, sectors[index], data.subspan (index * kSectorSize, kSectorSize), encoded);
+        }
+
         CHR (hr);
 
         hr = Send (encoded);

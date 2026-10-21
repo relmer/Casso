@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 
 
@@ -210,6 +211,87 @@ HRESULT CassoLinkCodec::ParseSectorData (const CassoLinkPacket & packet, Byte & 
     outTrack  = packet.payload[0];
     outSector = packet.payload[1];
     std::copy (data.begin(), data.end(), outData.begin());
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCodec::EncodeSectorNibbles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCodec::EncodeSectorNibbles (Byte track, Byte sector, std::span<const Byte> data, std::vector<Byte> & out)
+{
+    HRESULT            hr      = S_OK;
+    bool               whole   = data.size() == kSectorSize;
+    Word               crc     = 0;
+    std::vector<Byte>  nibbles;
+    std::vector<Byte>  payload;
+
+
+
+    CBRAEx (whole, E_INVALIDARG);
+
+    NibblizationLayer::EncodeDataNibbles (data.data(), nibbles);
+    crc = ComputeCrc (nibbles);
+
+    payload.reserve (nibbles.size() + 4);
+    payload.push_back (track);
+    payload.push_back (sector);
+    payload.insert (payload.end(), nibbles.begin(), nibbles.end());
+    payload.push_back ((Byte) (crc & 0xFF));
+    payload.push_back ((Byte) (crc >> 8));
+
+    hr = Encode (kSectorNibbles, payload, out);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkCodec::ParseSectorNibbles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkCodec::ParseSectorNibbles (const CassoLinkPacket & packet, Byte & outTrack, Byte & outSector, std::span<Byte> outData)
+{
+    HRESULT                hr      = S_OK;
+    bool                   room    = outData.size() == kSectorSize;
+    bool                   shaped  = packet.command == kSectorNibbles && packet.payload.size() == NibblizationLayer::kDataNibbleCount + 4;
+    bool                   crcOk   = false;
+    bool                   decoded = false;
+    std::span<const Byte>  nibbles;
+    std::vector<Byte>      sector;
+    Word                   crc     = 0;
+
+
+
+    CBRAEx (room, E_INVALIDARG);
+    CBREx (shaped, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    nibbles = std::span<const Byte> (packet.payload).subspan (2, NibblizationLayer::kDataNibbleCount);
+    crc     = (Word) (packet.payload[NibblizationLayer::kDataNibbleCount + 2] | (packet.payload[NibblizationLayer::kDataNibbleCount + 3] << 8));
+    crcOk   = ComputeCrc (nibbles) == crc;
+    CBREx (crcOk, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    decoded = NibblizationLayer::DecodeDataNibbles (nibbles.data(), sector);
+    CBREx (decoded, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outTrack  = packet.payload[0];
+    outSector = packet.payload[1];
+    std::copy (sector.begin(), sector.end(), outData.begin());
 
 Error:
     return hr;

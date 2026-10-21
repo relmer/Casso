@@ -330,18 +330,18 @@ public:
 
         client.SendAcknowledge (CassoLinkCodec::kAck, 2, 3);
         packet = client.ReceivePacket();
-        Assert::AreEqual (S_OK, CassoLinkCodec::ParseSectorData (packet, track, sector, got));
+        Assert::AreEqual (S_OK, CassoLinkCodec::ParseSectorNibbles (packet, track, sector, got));
         Assert::AreEqual<int> (2, sector);
         Assert::IsTrue (std::equal (got.begin(), got.end(), data.begin()));
 
         client.SendAcknowledge (CassoLinkCodec::kNak, 2, 3);
         packet = client.ReceivePacket();
-        Assert::AreEqual (S_OK, CassoLinkCodec::ParseSectorData (packet, track, sector, got));
+        Assert::AreEqual (S_OK, CassoLinkCodec::ParseSectorNibbles (packet, track, sector, got));
         Assert::AreEqual<int> (2, sector);
 
         client.SendAcknowledge (CassoLinkCodec::kAck, 7, 3);
         packet = client.ReceivePacket();
-        Assert::AreEqual (S_OK, CassoLinkCodec::ParseSectorData (packet, track, sector, got));
+        Assert::AreEqual (S_OK, CassoLinkCodec::ParseSectorNibbles (packet, track, sector, got));
         Assert::AreEqual<int> (7, sector);
         Assert::IsTrue (std::equal (got.begin(), got.end(), data.begin() + 256));
 

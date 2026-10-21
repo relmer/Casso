@@ -370,7 +370,14 @@ private:
                 return;
             }
 
-            CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, data);
+            if (packet.command == CassoLinkCodec::kSectorNibbles)
+            {
+                CassoLinkCodec::ParseSectorNibbles (packet, gotTrack, gotSector, data);
+            }
+            else
+            {
+                CassoLinkCodec::ParseSectorData (packet, gotTrack, gotSector, data);
+            }
 
             {
                 std::lock_guard<std::mutex>  guard (lock);
