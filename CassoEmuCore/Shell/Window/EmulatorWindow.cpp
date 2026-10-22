@@ -358,6 +358,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         SetWindowPos (m_host->GetHwnd(), nullptr, placed.left, placed.top,
                       placed.right - placed.left, placed.bottom - placed.top,
                       SWP_NOZORDER | SWP_NOACTIVATE);
+
+        //  A rect saved on a larger or less scaled screen can exceed this one.
+        DxuiHwndSource::FitWindowToWorkArea (m_host->GetHwnd());
     }
 
     WindowTrace::LogWindow ("create.actual", "main", m_host->GetHwnd(), "after Create");

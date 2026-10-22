@@ -51,6 +51,15 @@ enum class DxuiWindowPlacement
 };
 
 
+//  What FitWindowToWorkArea may change. A DPI change can arrive in the middle
+//  of a drag across monitors, where moving the window would fight the user.
+enum class DxuiWorkAreaFit
+{
+    SizeAndPosition,   // no larger than the work area, and inside it
+    SizeOnly,          // no larger than the work area, top-left kept
+};
+
+
 
 
 
@@ -246,12 +255,6 @@ public:
         // the owner rather than the owner's whole frame. Ignored by every
         // other mode.
         RECT                     placementAnchorRectPx    = {};
-
-        // Shrink the initial size to the work area of the monitor the window
-        // opens on, so a tall dialog on a small or scaled display keeps its
-        // bottom edge above the taskbar. Only for content that can scroll or
-        // reflow into less room. Ignored when useInitialWindowRectPx is set.
-        bool                     fitToWorkArea            = false;
     };
 
 
@@ -279,6 +282,36 @@ public:
     //  `work`. A size that already fits comes back unchanged.
     //
     static SIZE   FitSizeToWorkArea (const SIZE & windowSizePx, const RECT & work);
+
+    //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). The visible frame FitWindowToWorkArea moves a window to:
+    //  `visible` reduced to the work area on each axis, and then, for
+    //  SizeAndPosition, moved the minimum needed to sit inside it.
+    //
+    static RECT   FitVisibleRectToWorkArea (const RECT & visible, const RECT & work, DxuiWorkAreaFit fit);
+
+    //
+    //  NO WINDOW IS EVER LARGER THAN ITS MONITOR'S WORK AREA. Reduces the
+    //  window to the work area on each axis, then shifts it inside, in one
+    //  SetWindowPos; a window that already fits is left alone. Content that
+    //  does not fit the result scrolls, which is the only remedy that keeps
+    //  the whole frame reachable.
+    //
+    //  Every path that sizes a window ends here: creation, a restored
+    //  placement, and the rect Windows suggests on a DPI change, which
+    //  scales a window by the ratio of the two monitors and so can hand
+    //  back one larger than the screen it just arrived on.
+    //
+    //  A window whose minimum track size exceeds the work area cannot be
+    //  brought inside it, since WM_GETMINMAXINFO outranks SetWindowPos.
+    //  That is a minimum set too large for the display, not something this
+    //  can fix.
+    //
+    //  Maximized, minimized and fullscreen windows are left alone: the first
+    //  two are sized by Windows, and fullscreen covers the taskbar by design.
+    //
+    static void   FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit = DxuiWorkAreaFit::SizeAndPosition);
 
     //
     //  Which side of the owner PlaceBesideOwner tries first. The other
@@ -720,14 +753,6 @@ private:
 
     static BOOL CALLBACK  FirstIconGroupProc  (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param);
     static HICON          GetDefaultAppIcon      (bool big);
-
-    // Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
-    // minimum needed so its whole frame sits within its monitor's work
-    // area -- fixing a cascade that would open the bottom edge (and its
-    // command-button row) beneath the taskbar -- without otherwise moving
-    // it (position only, no re-centering over the owner). rcWork already
-    // excludes the taskbar.
-    static void           NudgeWindowOnScreen (HWND hwnd);
 
     // Win32 half of every non-Default placement: owner frame + owner
     // monitor work area in, the chosen geometry helper's answer out.

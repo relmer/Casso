@@ -72,6 +72,10 @@ Entries before versioning was introduced use dates only.
   the old one, so a power loss just after the command finishes can no longer
   leave the image empty or partly written. Casso now sets the attributes,
   creation date, and permissions to match the old file.
+- No window is larger than its screen's work area, including a window restored
+  from a larger screen or moved to a more scaled one. On a 1080p screen at 150%
+  scaling, the debugger window's bottom edge had been off the screen.
+- On a first run the debugger window opens beside the emulator window.
 
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 

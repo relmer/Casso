@@ -112,11 +112,6 @@ public:
         // The screen rect BelowAnchorRect opens under. Ignored by every
         // other mode.
         RECT                placementAnchorRectPx = {};
-
-        // Shrink the initial size to fit the monitor's work area. For
-        // content that can scroll into less room; see DxuiPropertySheet::
-        // SetDesignHeightDip.
-        bool                fitToWorkArea         = false;
     };
 
 

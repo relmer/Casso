@@ -124,7 +124,6 @@ std::optional<DebuggerOptions> DebuggerOptionsSheet::Ask (HWND owner, const IDxu
     params.ownerHwnd                = owner;
     params.initialSizeDip           = { kSheetWidthDip, kSheetHeightDip };
     params.minSizeDip               = { kSheetWidthDip, kSheetMinHeightDip };
-    params.fitToWorkArea            = true;
     params.resizable                = true;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;

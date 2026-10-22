@@ -1470,6 +1470,9 @@ void DebuggerWindow::ApplySavedPlacement()
                   placed.right - placed.left, placed.bottom - placed.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
 
+    //  A rect saved on a larger or less scaled screen can exceed this one.
+    DxuiHwndSource::FitWindowToWorkArea (GetHwnd());
+
     WindowTrace::LogWindow ("restore.applied", "debugger", GetHwnd(), "window rect after placing");
 }
 

@@ -64,7 +64,6 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.placement              = params.placement;
     hostParams.placementAnchorHwnd    = params.placementAnchorHwnd;
     hostParams.placementAnchorRectPx  = params.placementAnchorRectPx;
-    hostParams.fitToWorkArea          = params.fitToWorkArea;
 
     m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);

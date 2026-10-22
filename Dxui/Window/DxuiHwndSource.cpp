@@ -10,6 +10,7 @@
 #include "Theme/DxuiDwm.h"
 #include "Theme/IDxuiTheme.h"
 #include "Core/DxuiThread.h"
+#include "Core/DxuiWindowFrame.h"
 #include "Core/DxuiEvents.h"
 
 #pragma comment(lib, "d3d11.lib")
@@ -33,56 +34,77 @@ static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NudgeWindowOnScreen
+//  FitWindowToWorkArea
 //
-//  Pulls a window back onto the desktop if its saved placement puts it
-//  somewhere unreachable -- the classic case being a monitor that has since
-//  been unplugged.
+//  Brings a window inside its monitor's work area: no larger than it, then
+//  moved the minimum needed to sit within it. Both halves are needed, and in
+//  that order -- ClampToWorkArea can only keep a window inside the work area
+//  once it is no larger than it, and pins an oversized one to the work origin
+//  with the remainder hanging off the bottom right.
 //
-//  The work area, not the full monitor rect, is the target, so a restored
-//  window is never left under the taskbar.
+//  The work area, not the full monitor rect, is the target, so a window is
+//  never left under the taskbar, and a restored placement pointing at a
+//  monitor since unplugged comes back onto the desktop.
 //
 //  Fallbacks degrade in order: the window's nearest monitor, then the primary
 //  work area, then a 1920x1080 guess. The last is arbitrary but bounded, and
 //  it only matters if both system queries fail -- at which point ANY on-screen
 //  guess beats leaving the window where nobody can reach it.
 //
-//  The move is skipped when the clamp changes nothing, so a normally-placed
-//  window is never gratuitously repositioned. NOACTIVATE keeps the nudge from
-//  stealing focus, since this runs during window setup.
+//  One SetWindowPos, skipped entirely when neither half changes anything, so a
+//  window that already fits is never gratuitously resized or repositioned.
+//  NOACTIVATE keeps it from stealing focus, since this runs during window
+//  setup and again on a DPI change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void  DxuiHwndSource::NudgeWindowOnScreen (HWND hwnd)
+void  DxuiHwndSource::FitWindowToWorkArea (HWND hwnd, DxuiWorkAreaFit fit)
 {
+    HRESULT      hr      = S_OK;
     RECT         rect    = {};
+    RECT         visible = {};
     HMONITOR     monitor = nullptr;
     MONITORINFO  info    = { sizeof (info) };
     RECT         work    = { 0, 0, 1920, 1080 };
-    POINT        placed  = {};
+    RECT         target  = {};
+    BOOL         fOk     = FALSE;
 
 
 
-    if (hwnd != nullptr && GetWindowRect (hwnd, &rect) != FALSE)
+    BAIL_OUT_IF (hwnd == nullptr || IsZoomed (hwnd) || IsIconic (hwnd), S_OK);
+
+    fOk = GetWindowRect (hwnd, &rect);
+    CWR (fOk);
+
+    monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+    if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
     {
-        monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-        if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
-        {
-            work = info.rcWork;
-        }
-        else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
-        {
-            work = { 0, 0, 1920, 1080 };
-        }
+        //  Fullscreen: exactly the monitor, taskbar included, on purpose.
+        BAIL_OUT_IF (EqualRect (&rect, &info.rcMonitor), S_OK);
 
-        placed = DxuiHwndSource::ClampToWorkArea (rect, work);
-
-        if (placed.x != rect.left || placed.y != rect.top)
-        {
-            SetWindowPos (hwnd, nullptr, placed.x, placed.y, 0, 0,
-                          SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-        }
+        work = info.rcWork;
     }
+    else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
+    {
+        work = { 0, 0, 1920, 1080 };
+    }
+
+    //  THE VISIBLE FRAME, NOT THE WINDOW RECT. A window carries an invisible
+    //  resize border outside what the user sees, so one snapped to fill the
+    //  work area has a window rect wider and taller than it. Fitting the
+    //  window rect would shrink every such window by its own border.
+    visible = DxuiWindowFrame::GetVisibleRect (hwnd);
+    target  = DxuiWindowFrame::ToWindowRect (hwnd, FitVisibleRectToWorkArea (visible, work, fit));
+
+    BAIL_OUT_IF (EqualRect (&target, &rect), S_OK);
+
+    fOk = SetWindowPos (hwnd, nullptr, target.left, target.top,
+                        target.right - target.left, target.bottom - target.top,
+                        SWP_NOZORDER | SWP_NOACTIVATE);
+    CWR (fOk);
+
+Error:
+    return;
 }
 
 
@@ -559,7 +581,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     else
     {
         // Let the OS pick a cascade position (the window keeps its natural
-        // placement, not re-centered over the owner); NudgeWindowOnScreen
+        // placement, not re-centered over the owner); FitWindowToWorkArea
         // below only corrects it if it lands partly off-screen.
         windowX  = CW_USEDEFAULT;
         windowY  = CW_USEDEFAULT;
@@ -569,7 +591,10 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         // Fit BEFORE placing, so the placement measures the size the window
         // will really have. A dialog that fits at 100% scale can outgrow a
         // 1080-line screen at 125%, before the taskbar is even counted.
-        if (params.fitToWorkArea && TryGetAnchorWorkArea (anchorHwnd, workArea))
+        // FitWindowToWorkArea below is the backstop that holds the rule for
+        // every window; this is what keeps a placement from measuring a
+        // frame that is about to be reduced under it.
+        if (TryGetAnchorWorkArea (anchorHwnd, workArea))
         {
             fittedSizePx = FitSizeToWorkArea (SIZE { widthPx, heightPx }, workArea);
             widthPx      = fittedSizePx.cx;
@@ -628,14 +653,11 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     // which monitor it landed on.
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
 
-    // A CW_USEDEFAULT dialog can cascade with its lower edge — and button
-    // row — beneath the taskbar. Nudge the still-hidden window the minimum
-    // needed to sit fully within its monitor's work area (position only, no
-    // re-centering). The saved-RECT path places itself and is left as-is.
-    if (!params.useInitialWindowRectPx)
-    {
-        NudgeWindowOnScreen (m_hwnd);
-    }
+    // A CW_USEDEFAULT dialog can cascade with its lower edge -- and button
+    // row -- beneath the taskbar, and a saved RECT can be larger than the
+    // monitor it is restored to. Both come inside the work area here, the
+    // saved-RECT path included.
+    FitWindowToWorkArea (m_hwnd);
 
     // Apply app icons. Win32 MessageBox dialogs + the taskbar pick the icon
     // up via WM_GETICON, NOT WNDCLASS::hIcon, so the explicit WM_SETICON
@@ -755,6 +777,39 @@ SIZE DxuiHwndSource::FitSizeToWorkArea (const SIZE & windowSizePx, const RECT & 
 
     if (workW > 0 && result.cx > workW) { result.cx = workW; }
     if (workH > 0 && result.cy > workH) { result.cy = workH; }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::FitVisibleRectToWorkArea
+//
+//  Pure placement geometry (declared in the header). The clamp measures the
+//  frame at the size it is about to have, not the size it has now, or a frame
+//  reduced on one axis would be positioned as though it were still oversized
+//  on that axis.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiHwndSource::FitVisibleRectToWorkArea (const RECT & visible, const RECT & work, DxuiWorkAreaFit fit)
+{
+    SIZE   size   = { visible.right - visible.left, visible.bottom - visible.top };
+    SIZE   fitted = FitSizeToWorkArea (size, work);
+    RECT   result = { visible.left, visible.top, visible.left + fitted.cx, visible.top + fitted.cy };
+    POINT  placed = {};
+
+
+
+    if (fit == DxuiWorkAreaFit::SizeAndPosition)
+    {
+        placed = ClampToWorkArea (result, work);
+        result = RECT { placed.x, placed.y, placed.x + fitted.cx, placed.y + fitted.cy };
+    }
 
     return result;
 }
@@ -3624,6 +3679,12 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
                       rect.right  - rect.left,
                       rect.bottom - rect.top,
                       SWP_NOZORDER | SWP_NOACTIVATE);
+
+        //  The suggested rect is the old one scaled by the ratio of the two
+        //  DPIs, so a window that filled a 100% screen arrives on a 200% one
+        //  twice the size of it. Size only: this can arrive mid-drag, and the
+        //  user is the one deciding where the window goes.
+        FitWindowToWorkArea (m_hwnd, DxuiWorkAreaFit::SizeOnly);
     }
 
     if (m_hwnd != nullptr && m_root != nullptr && GetClientRect (m_hwnd, &rcClient))

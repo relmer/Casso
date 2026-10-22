@@ -143,9 +143,12 @@ HRESULT DebuggerWindow::Create (HINSTANCE hInstance, HWND hwndOwner, const Casso
     //  A PEER OF THE EMULATOR WINDOW, NOT AN OWNED ONE. An owned window is
     //  z-locked above its owner forever: the debugger could never be put
     //  behind Casso, which is what a second window on one screen is for. It
-    //  still opens beside it, which is what the placement anchor is.
+    //  still opens beside it, which is what the placement anchor and the
+    //  placement together are: the anchor alone does nothing, because every
+    //  use of it is gated on the placement not being Default.
     params.ownerHwnd                = nullptr;
     params.placementAnchorHwnd      = hwndOwner;
+    params.placement                = DxuiWindowPlacement::BesideOwnerRight;
     params.initialSizeDip           = { kPreferredWidthDip, kPreferredHeightDip };
     params.minSizeDip               = { kMinWidthDip, kMinHeightDip };
     params.resizable                = true;

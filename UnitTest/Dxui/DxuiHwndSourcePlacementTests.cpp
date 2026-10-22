@@ -393,6 +393,54 @@ public:
     }
 
     //
+    //  The debugger window at 150% on a 1080p screen: 1650x1260 against a
+    //  1040-line work area. It comes back no taller than the work area and
+    //  inside it, not pinned at the top with its bottom off the screen.
+    //
+    TEST_METHOD (FitVisibleRectReducesAndMovesAnOversizedWindowInside)
+    {
+        RECT  fit = DxuiHwndSource::FitVisibleRectToWorkArea (GetRect (300, 100, 1950, 1360), s_kWork,
+                                                              DxuiWorkAreaFit::SizeAndPosition);
+
+
+        Assert::AreEqual (1650L, fit.right  - fit.left, L"width fits, so it is unchanged");
+        Assert::AreEqual (1040L, fit.bottom - fit.top,  L"height reduced to the work area");
+        Assert::AreEqual (0L,    fit.top,               L"moved up to sit inside it");
+        Assert::AreEqual (270L,  fit.left,              L"moved left only as far as it must");
+    }
+
+
+    //
+    //  A window that already fits is returned exactly as it was.
+    //
+    TEST_METHOD (FitVisibleRectLeavesAFittingWindowAlone)
+    {
+        RECT  in  = GetRect (200, 150, 1300, 990);
+        RECT  fit = DxuiHwndSource::FitVisibleRectToWorkArea (in, s_kWork, DxuiWorkAreaFit::SizeAndPosition);
+
+
+        Assert::IsTrue (EqualRect (&in, &fit) != FALSE, L"unchanged");
+    }
+
+
+    //
+    //  On a DPI change the size is capped but the window is not moved, since
+    //  the change can arrive while the user is dragging it across monitors.
+    //
+    TEST_METHOD (FitVisibleRectSizeOnlyKeepsTheTopLeft)
+    {
+        RECT  fit = DxuiHwndSource::FitVisibleRectToWorkArea (GetRect (500, 400, 2700, 2000), s_kWork,
+                                                              DxuiWorkAreaFit::SizeOnly);
+
+
+        Assert::AreEqual (500L,  fit.left,              L"left kept");
+        Assert::AreEqual (400L,  fit.top,               L"top kept");
+        Assert::AreEqual (1920L, fit.right  - fit.left, L"width reduced to the work area");
+        Assert::AreEqual (1040L, fit.bottom - fit.top,  L"height reduced to the work area");
+    }
+
+
+    //
     //  A message box is placed when it is created, centered on its owner, as
     //  every other owned dialog is -- not created at the cascade position on
     //  whichever monitor that is and moved afterward.
