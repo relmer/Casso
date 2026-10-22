@@ -566,6 +566,7 @@ void CassoLinkSession::Run (std::stop_token stop)
 {
     HRESULT                         hr     = S_OK;
     HRESULT                         logged = S_OK;
+    bool                            lost   = false;
     std::shared_ptr<LinkOperation>  operation;
 
 
@@ -664,16 +665,19 @@ void CassoLinkSession::Run (std::stop_token stop)
                                                                           : LinkOperationState::Failed;
         m_sink.OnDone (operation);
 
-        if (!IsLineLost (hr) && operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
+        //  A failure after which the stream is closed, such as an unplugged
+        //  USB adapter, is a lost line whatever its code.
+        lost = IsLineLost (hr) || (FAILED (hr) && !IsLineOpen());
+
+        if (!lost && operation->kind != LinkOperationKind::Enumerate && operation->kind != LinkOperationKind::CheckLinkDisk)
         {
             logged = LogOnApple (std::format ("{} {}", SUCCEEDED (hr) ? "OK " : "ERR", DescribeOperation (*operation, std::nullopt, SUCCEEDED (hr))));
             IGNORE_RETURN_VALUE (logged, S_OK);
         }
 
-        if (IsLineLost (hr))
+        if (lost)
         {
-            m_lostReason = std::format ("{}: {}", DescribeOperation (*operation),
-                                        (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT)) ? "no reply" : "the line closed");
+            m_lostReason = std::format ("{}: {}", DescribeOperation (*operation), DescribeLineFailure (hr));
             Disconnect();
             hr = S_OK;
         }
@@ -937,16 +941,16 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
     driveMap = m_host->GetClient().driveMap;
     model    = m_host->GetClient().GetModelName();
 
-    if (driveMap != m_driveMap)
+    //  What was read before is read again: the line may have dropped in the
+    //  middle of a write, or the disks may have been changed while it was
+    //  down.
+    for (int i = 0; i < kDriveCount; i++)
     {
-        for (int i = 0; i < kDriveCount; i++)
-        {
-            m_disks[(size_t) i]->Clear();
-            m_listings[(size_t) i].reset();
-        }
-
-        m_driveMap = driveMap;
+        m_disks[(size_t) i]->Clear();
+        m_listings[(size_t) i].reset();
     }
+
+    m_driveMap = driveMap;
 
     {
         std::lock_guard<std::mutex>  lock (m_lock);
