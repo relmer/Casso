@@ -347,6 +347,7 @@ public:
         emulated.name      = "Apple II (Casso)";
         emulated.transport = LinkTransport::Emulated;
         emulated.address   = "127.0.0.1:6502";
+        emulated.slot      = 5;
 
         saved.links = { serial, emulated };
         saved.tabs  = { Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Apple II (COM3)", 6, 1), "GAMES") };

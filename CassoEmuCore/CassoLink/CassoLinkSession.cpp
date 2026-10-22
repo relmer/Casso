@@ -768,7 +768,7 @@ HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
 
     CBREx (hasPort, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    hr = LinkBootstrap::BuildLines (m_settings.bootstrapBaud, lines);
+    hr = LinkBootstrap::BuildLines (m_settings.bootstrapBaud, lines, m_settings.slot);
     CHR (hr);
 
     SetState (LinkState::Bootstrapping);
@@ -794,7 +794,7 @@ Error:
 
     if (FAILED (hr) && operation.message.empty())
     {
-        operation.message = "The Apple did not answer after the bootstrap. Check that IN#2 and Ctrl+A 14B were typed on it.";
+        operation.message = std::format ("The Apple did not answer after the bootstrap. Check that IN#{} and Ctrl+A 14B were typed on it.", m_settings.slot);
     }
 
     return hr;

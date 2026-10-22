@@ -2022,6 +2022,7 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
         refs.superSerialCard = &card;
     }
 
+    m_host.SetSerialPort (slot.slot, &card.GetAcia(), true);
     AttachSerialEndpoint (slot, card);
 }
 
@@ -2035,8 +2036,9 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 //
 //  Plugs the attachment the slot's first port specifies into the card's
 //  serial connector: nothing, a loopback plug, a file that receives what the
-//  card sends, or a file whose bytes are sent into the card. A file that
-//  cannot be opened or read results in an empty connector, and the problem is
+//  card sends, a file whose bytes are sent into the card, or, as a //c's
+//  port, a TCP port on this PC or a COM port. A file, TCP port or COM port
+//  that cannot be opened results in an empty connector, and the problem is
 //  stored on the card for the shell to report.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2059,7 +2061,17 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
         path   = slot.ports.front().path;
     }
 
-    if (device == kpszSerialLoopback)
+    if (device.starts_with ("tcp:") || device.starts_with ("com:"))
+    {
+        hr = m_host.ConnectSerialPort (slot.slot, device, m_services.streamFactory,
+                                       (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr);
+
+        if (FAILED (hr))
+        {
+            card.SetAttachmentProblem ((device.starts_with ("tcp:") ? "Cannot listen on TCP port " : "Cannot open ") + device.substr (4) + " for the serial connector.");
+        }
+    }
+    else if (device == kpszSerialLoopback)
     {
         endpoint = std::make_unique<AciaLoopbackEndpoint> (&card.GetAcia());
     }

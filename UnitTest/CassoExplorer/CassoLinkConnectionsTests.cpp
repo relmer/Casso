@@ -300,6 +300,34 @@ public:
 
 
 
+    //  A card in any slot is usable, since the shim is given the slot; only
+    //  a //c's port 1 is listed with the reason.
+    TEST_METHOD (ARunningCassosCard_IsARootForItsSlot)
+    {
+        Rig                         rig;
+        RunningCasso                card;
+        std::vector<LinkTreeEntry>  entries;
+        bool                        found = false;
+
+        card.pid = 7;   card.machine = "Apple //e";   card.serialPort = 5;   card.onCard = true;   card.address = "127.0.0.1:6505";
+
+        rig.links->SetRunning ({ card });
+        entries = rig.links->BuildTreeEntries();
+
+        Assert::AreEqual ((size_t) 2, entries.size());
+        Assert::IsTrue   (entries[1].status.find (L"port 2") == std::wstring::npos, L"no reason for a card");
+
+        for (const CassoLinkSettings & settings : rig.links->GetLinks())
+        {
+            found = found || (settings.name == "Casso on port 6505" && settings.slot == 5);
+        }
+
+        Assert::IsTrue (found, L"the root's shim is for slot 5");
+    }
+
+
+
+
     TEST_METHOD (ARunningCassoThatExits_StopsItsLink)
     {
         Rig           rig;

@@ -61,7 +61,28 @@ public:
         Assert::AreEqual (133'000'000'000'000'123ull,    running[0].started, L"a FILETIME, exactly");
         Assert::AreEqual (std::string ("Apple //c"),      running[0].machine);
         Assert::AreEqual (2,                              running[0].serialPort);
+        Assert::IsFalse  (running[0].onCard, L"a //c's own port");
         Assert::AreEqual (std::string ("127.0.0.1:6502"), running[0].address);
+    }
+
+
+
+
+    TEST_METHOD (ACardsSlot_IsListedAsOnACard)
+    {
+        InMemoryFileSystem         fs;
+        FakeProbe                  probe;
+        RunningCassoRegistry       registry (fs, probe, kFolder);
+        std::vector<RunningCasso>  running;
+
+        probe.running[17] = 99;
+
+        AssertSucceeded (registry.Publish (17, 5, "Apple //e", 6505, true));
+        AssertSucceeded (registry.Enumerate (running));
+
+        Assert::AreEqual ((size_t) 1, running.size());
+        Assert::AreEqual (5, running[0].serialPort);
+        Assert::IsTrue   (running[0].onCard);
     }
 
 

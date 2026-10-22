@@ -278,11 +278,12 @@ Byte MachineHost::StepOne()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineHost::SetSerialPort (int port, Acia6551 * acia)
+void MachineHost::SetSerialPort (int port, Acia6551 * acia, bool onCard)
 {
     if (port >= 1 && port <= s_kSerialPortCount)
     {
-        m_serialPorts[(size_t) port] = acia;
+        m_serialPorts[(size_t) port]  = acia;
+        m_serialOnCard[(size_t) port] = onCard;
     }
 }
 
@@ -313,7 +314,7 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
     CBRAEx (known, E_INVALIDARG);
     CBREx (acia != nullptr, HRESULT_FROM_WIN32 (ERROR_DEV_NOT_EXIST));
 
-    InstallSerialEndpoint (port, std::make_unique<AciaLoopbackEndpoint> (acia), nullptr);
+    InstallSerialEndpoint (port, m_serialOnCard[(size_t) port] ? nullptr : std::make_unique<AciaLoopbackEndpoint> (acia), nullptr);
 
     if (m_runningRegistry != nullptr)
     {
@@ -343,7 +344,7 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
     //  does not stop the port; the port is only unlisted.
     if (m_runningRegistry != nullptr && parsed.kind == SerialPortDevice::Kind::Tcp)
     {
-        HRESULT  published = m_runningRegistry->Publish (GetCurrentProcessId(), port, m_config->name, parsed.tcpPort);
+        HRESULT  published = m_runningRegistry->Publish (GetCurrentProcessId(), port, m_config->name, parsed.tcpPort, m_serialOnCard[(size_t) port]);
 
         IGNORE_RETURN_VALUE (published, S_OK);
     }
@@ -463,6 +464,7 @@ void MachineHost::DetachSerialPorts()
     m_serialPorts     = {};
     m_serialBridges   = {};
     m_serialEndpoints = {};
+    m_serialOnCard    = {};
     m_ownedAciaEndpoints.clear();
 }
 

@@ -164,15 +164,17 @@ public:
     const std::vector<std::unique_ptr<IAciaEndpoint>>  &  GetOwnedAciaEndpoints () const noexcept { return m_ownedAciaEndpoints; }
     const std::vector<std::unique_ptr<VideoOutput>>    &  GetVideoModes         () const noexcept { return m_videoModes; }
 
-    //  A //c's built-in serial ports, by port number, 1 or 2. A stream
-    //  attached to one replaces the port's endpoint with a bridge that runs
-    //  at the line's speed, ticked after every instruction.
+    //  The serial ports, by number: a //c's built-in ports 1 and 2, or a
+    //  Super Serial Card's slot. A stream attached to one replaces the port's
+    //  endpoint with a bridge that runs at the line's speed, ticked after
+    //  every instruction.
     //
     //  ConnectSerialPort plugs a port's device in while the machine runs, as
     //  a cable is: the old device's stream is closed first, so a TCP port can
-    //  be opened again at once, and the port loops back when the new device
-    //  is empty or cannot be opened. Called on the CPU thread.
-    void     SetSerialPort      (int port, Acia6551 * acia);
+    //  be opened again at once. A //c's port loops back when the new device
+    //  is empty or cannot be opened; a card's connector is then empty.
+    //  Called on the CPU thread.
+    void     SetSerialPort      (int port, Acia6551 * acia, bool onCard = false);
     HRESULT  ConnectSerialPort  (int port, const std::string & device, class IByteStreamFactory * factory, class SerialTrafficLog * log);
     HRESULT  AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr);
     void     DetachSerialPorts  ();
@@ -295,10 +297,11 @@ private:
     std::vector<std::unique_ptr<IAciaEndpoint>>  m_ownedAciaEndpoints;
     std::vector<std::unique_ptr<VideoOutput>>    m_videoModes;
 
-    static constexpr int                 s_kSerialPortCount = 2;
+    static constexpr int                 s_kSerialPortCount = 7;
     std::array<Acia6551 *, s_kSerialPortCount + 1>                        m_serialPorts     = {};
     std::array<std::unique_ptr<IAciaEndpoint>, s_kSerialPortCount + 1>   m_serialEndpoints;
     std::array<AciaBridgeEndpoint *, s_kSerialPortCount + 1>              m_serialBridges   = {};
+    std::array<bool, s_kSerialPortCount + 1>                              m_serialOnCard    = {};
 
     // 4K of glyphs; on the heap, see m_diskStore.
     std::unique_ptr<CharacterRomData>  m_charRom;

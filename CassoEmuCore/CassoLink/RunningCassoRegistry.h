@@ -13,7 +13,8 @@ class IProcessProbe;
 //
 //  RunningCasso
 //
-//  One running Casso's serial port on TCP, as its file has it (FR-083b).
+//  One running Casso's serial port on TCP, as its file has it (FR-083b). The
+//  port is a //c's port number, or with `onCard`, a Super Serial Card's slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,6 +24,7 @@ struct RunningCasso
     uint64_t     started    = 0;
     std::string  machine;
     int          serialPort = 0;
+    bool         onCard     = false;
     std::string  address;
 };
 
@@ -57,7 +59,7 @@ public:
 
     const std::wstring &  GetFolder () const { return m_folder; }
 
-    HRESULT  Publish   (DWORD pid, int serialPort, const std::string & machine, uint16_t tcpPort);
+    HRESULT  Publish   (DWORD pid, int serialPort, const std::string & machine, uint16_t tcpPort, bool onCard = false);
     void     Withdraw  (DWORD pid, int serialPort);
 
     //  The running Cassos, by process id and then port.

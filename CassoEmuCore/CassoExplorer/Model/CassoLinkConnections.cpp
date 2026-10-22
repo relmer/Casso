@@ -172,6 +172,7 @@ void CassoLinkConnections::Merge()
         settings.name      = MakeRunningName (running);
         settings.transport = LinkTransport::Emulated;
         settings.address   = running.address;
+        settings.slot      = running.onCard ? running.serialPort : CassoLinkSettings::kDefaultSlot;
 
         covered = std::any_of (links.begin(), links.end(), [&settings] (const CassoLinkSettings & link)
         {
@@ -185,7 +186,7 @@ void CassoLinkConnections::Merge()
             continue;
         }
 
-        if (running.serialPort != 2)
+        if (!running.onCard && running.serialPort != 2)
         {
             m_unusable[settings.name] = std::format (L"Serial port {} of this Casso is on TCP, and the CassoLink program uses port 2. "
                                                      L"Connect port 2 in Casso's Hardware settings.", running.serialPort);
@@ -921,6 +922,29 @@ std::string CassoLinkConnections::MakeDialCommand (const std::wstring & pcName, 
     }
 
     return dial;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::MakeShimOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LinkShimOptions CassoLinkConnections::MakeShimOptions (const std::wstring & pcName, const CassoLinkSettings & settings)
+{
+    LinkShimOptions  options;
+
+
+
+    options.baud = settings.baud;
+    options.slot = settings.slot;
+    options.dial = MakeDialCommand (pcName, settings);
+
+    return options;
 }
 
 

@@ -6,6 +6,11 @@
 #include "Devices/AciaEndpoints.h"
 #include "Devices/IAciaEndpoint.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
+#include "CassoLink/RunningCassoRegistry.h"
+#include "Seams/IByteStreamFactory.h"
+#include "Seams/IProcessProbe.h"
+#include "Seams/InProcessByteStream.h"
+#include "../UiTests/InMemoryFileSystem.h"
 #include "TestMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -334,6 +339,92 @@ namespace SuperSerialCardMachineTestNs
             Assert::AreEqual<Byte> (Acia6551::kStatusOverrun,
                                     static_cast<Byte> (machine.GetCpu()->ReadByte (0x02) & Acia6551::kStatusOverrun),
                                     L"a reader slower than the line reads an overrun");
+        }
+
+        //  The card's connector on a TCP port is written to Casso Explorer's
+        //  file as a card's slot, and connected elsewhere it is empty, not
+        //  looped back as a //c's port is (FR-095, FR-083b).
+        TEST_METHOD (ACardOnTcp_IsRecordedAsItsSlot_AndEmptyOnceDisconnected)
+        {
+            struct Handle : IByteStream
+            {
+                std::shared_ptr<InProcessByteStream>  end;
+
+                explicit Handle (std::shared_ptr<InProcessByteStream> e) : end (std::move (e)) {}
+
+                HRESULT  Write            (const Byte * bytes, size_t count) override                                  { return end->Write (bytes, count); }
+                HRESULT  Read             (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead) override { return end->Read (buffer, capacity, timeoutMs, outRead); }
+                size_t   GetReadableCount() override                                                                  { return end->GetReadableCount(); }
+                bool     IsClosed() const override                                                                    { return end->IsClosed(); }
+                void     Close() override                                                                             { end->Close(); }
+            };
+
+            struct Listener : IByteStreamFactory
+            {
+                std::vector<std::shared_ptr<InProcessByteStream>>  ends;
+                uint16_t                                           port = 0;
+
+                HRESULT  ListComPorts (std::vector<std::wstring> & outPorts) override                                      { outPorts.clear(); return S_OK; }
+                HRESULT  OpenComPort  (const std::wstring &, const ComSettings &, std::unique_ptr<IByteStream> &) override { return E_NOTIMPL; }
+                HRESULT  ConnectTcp   (const std::string &, uint16_t, std::unique_ptr<IByteStream> &) override             { return E_NOTIMPL; }
+
+                HRESULT  ListenTcp (uint16_t tcpPort, LinkTransport, std::unique_ptr<IByteStream> & outStream) override
+                {
+                    std::shared_ptr<InProcessByteStream>  machineEnd;
+                    std::shared_ptr<InProcessByteStream>  pcEnd;
+
+                    InProcessByteStream::CreatePair (machineEnd, pcEnd);
+                    ends.push_back (pcEnd);
+                    port      = tcpPort;
+                    outStream = std::make_unique<Handle> (machineEnd);
+                    return S_OK;
+                }
+            };
+
+            struct Probe : IProcessProbe
+            {
+                bool  TryGetStartTime (DWORD, uint64_t & outStarted) override { outStarted = 77; return true; }
+            };
+
+            TestMachine                machine ("Apple2e", [] (MachineConfig & config)
+            {
+                for (SlotConfig & slot : config.slots)
+                {
+                    if (slot.device == kpszSuperSerialCardDevice)
+                    {
+                        slot.slot    = 5;
+                        slot.enabled = true;
+                    }
+                }
+            });
+            InMemoryFileSystem         fs;
+            Probe                      probe;
+            Listener                   factory;
+            RunningCassoRegistry       registry (fs, probe, L"C:\\Links");
+            std::vector<RunningCasso>  running;
+            Word                       data = 0xC0D8;   // slot 5's 6551
+
+
+
+            machine.PowerCycle();
+            machine.SetRunningRegistry (&registry);
+
+            Assert::AreEqual (S_OK, machine.ConnectSerialPort (5, "tcp:6505", &factory, nullptr));
+            Assert::AreEqual<uint16_t> (6505, factory.port);
+            AssertSucceeded (registry.Enumerate (running));
+            Assert::AreEqual ((size_t) 1, running.size());
+            Assert::AreEqual (5, running[0].serialPort);
+            Assert::IsTrue   (running[0].onCard);
+
+            Assert::AreEqual (S_OK, machine.ConnectSerialPort (5, "", &factory, nullptr));
+
+            machine.GetMemoryBus().WriteByte ((Word) (data + Acia6551::kRegCommand), 0x0B);
+            machine.GetMemoryBus().WriteByte (data, 0x11);
+            machine.RunCycles (20000);
+            Assert::AreEqual<Byte> (0, (Byte) (machine.GetMemoryBus().ReadByte ((Word) (data + Acia6551::kRegStatus)) & Acia6551::kStatusRxFull),
+                                    L"an empty connector, not a loopback plug");
+
+            machine.SetRunningRegistry (nullptr);
         }
 
     private:

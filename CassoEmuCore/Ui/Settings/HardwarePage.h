@@ -64,6 +64,7 @@ public:
 
     // The PC's COM ports, offered for a //c serial port to connect to.
     void  SetComPorts (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
+    const std::vector<std::wstring> &  GetComPorts () const { return m_comPorts; }
 
     // Routes the machine + speed dropdown menus through the supplied host's
     // popup pool so the menu HWND escapes the page's clipping bounds.

@@ -708,6 +708,7 @@ HRESULT SettingsSheet::OpenModeless (
     Show();
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
+    m_serialPage->SetComPorts (m_hardwarePage->GetComPorts());
     m_serialPage->Rebuild();
     m_displayPage->Rebuild();
     m_networkPage->Rebuild();

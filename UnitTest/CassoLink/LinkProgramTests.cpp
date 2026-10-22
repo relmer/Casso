@@ -130,4 +130,41 @@ public:
         Assert::AreEqual (std::string ("115200"), std::string (fast.begin() + LinkProgram::kSpeedTextOffset, fast.begin() + LinkProgram::kSpeedTextOffset + LinkProgram::kSpeedTextLength));
         Assert::AreEqual (HRESULT (E_INVALIDARG), LinkProgram::BuildShim (300, fast), L"a speed the //c's port does not have");
     }
+
+
+
+    TEST_METHOD (BuildShim_WritesTheSlot_AndRefusesOneNoCardHas)
+    {
+        std::vector<Byte>  shim;
+        LinkShimOptions    options;
+
+        AssertSucceeded (LinkProgram::BuildShim (115200, shim));
+        Assert::AreEqual<int> (2, shim[LinkProgram::kSlotOffset], L"the //c's port 2, as assembled");
+
+        options.slot = 5;
+        AssertSucceeded (LinkProgram::BuildShim (options, shim));
+        Assert::AreEqual<int> (5, shim[LinkProgram::kSlotOffset]);
+
+        options.slot = 0;
+        Assert::AreEqual (HRESULT (E_INVALIDARG), LinkProgram::BuildShim (options, shim));
+        options.slot = 8;
+        Assert::AreEqual (HRESULT (E_INVALIDARG), LinkProgram::BuildShim (options, shim));
+    }
+
+
+
+    TEST_METHOD (BootDisk_LoadsTheShimForItsSlot)
+    {
+        std::vector<Byte>  disk;
+        std::vector<Byte>  shim;
+        LinkShimOptions    options;
+        bool               found = false;
+
+        options.slot = 4;
+        AssertSucceeded (LinkProgram::BuildBootDisk (options, disk));
+        AssertSucceeded (LinkProgram::BuildShim (options, shim));
+
+        found = std::search (disk.begin(), disk.end(), shim.begin(), shim.begin() + 0x40) != disk.end();
+        Assert::IsTrue (found, L"the shim's header, with slot 4, is on the disk");
+    }
 };

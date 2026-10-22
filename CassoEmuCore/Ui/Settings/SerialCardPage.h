@@ -37,11 +37,18 @@ class SerialCardPage : public DxuiPropertyPage
 public:
     static constexpr int  kMaxRows = 8;
 
-    // What a connector attachment choice is, in drop-down order.
+    // What a connector attachment choice is, in drop-down order. After these
+    // come a TCP port on this PC and then each of the PC's COM ports, as a
+    // //c's serial port offers.
     static constexpr const char *  kAttachmentDevices[] = { "", "serial-loopback", "serial-file-out", "serial-file-in" };
     static constexpr int           kLoopbackChoice      = 1;
     static constexpr int           kFileOutChoice       = 2;
     static constexpr int           kFileInChoice        = 3;
+    static constexpr int           kTcpChoice           = 4;
+
+    // The card's TCP port is this plus its slot, so slot 2's is 6502, as the
+    // //c's port 2's is.
+    static constexpr uint16_t      kTcpBasePort         = 6500;
 
     // `forOutput` is true for the file the card sends into, false for the file sent into the card.
     using BrowseFn = std::function<bool (bool forOutput, std::string & inOutPath)>;
@@ -54,6 +61,15 @@ public:
     void  SetOnDownload     (std::function<void()> fn) { m_onDownload = std::move (fn); }
     void  SetOnBrowse       (BrowseFn fn)              { m_onBrowse   = std::move (fn); }
 
+    // The PC's COM ports, offered for the connector.
+    void  SetComPorts       (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
+
+    // The attachments offered for a card in `slot`, as devices and as the
+    // drop-down's labels. A current device that is none of them is added at
+    // the end, so it is not lost.
+    static void  BuildAttachments (int slot, const std::vector<std::wstring> & comPorts, const std::string & current,
+                                   std::vector<std::wstring> & outLabels, std::vector<std::string> & outDevices);
+
     void  Layout   (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild  ();
 
@@ -65,12 +81,15 @@ public:
     SscSwitchesView     & GetSwitchesView   ()        { return m_switchesView; }
     const std::wstring  & GetRowNote        (int row) const { return m_rowNoteText[row]; }
     const std::wstring  & GetAttachNote     () const  { return m_attachNoteText; }
+    const std::vector<string> & GetAttachDevices () const { return m_devices; }
     DxuiInfoTip         & GetRowInfoTip     (int row) { return m_rowTips[row]; }
     DxuiButton          & GetRestoreButton  ()        { return m_restore; }
 
 private:
     static RECT          MakeRect          (int l, int t, int w, int h);
-    static std::wstring  GetAttachmentNote (int choice);
+    static std::wstring  GetAttachmentNote (const std::string & device);
+
+    std::string          GetAttachedDevice (int choice) const;
 
     IDxuiTextRenderer  * GetMeasuringRenderer () const;
     int                  GetLabelColumnPx     (const DxuiDpiScaler & scaler) const;
@@ -107,6 +126,8 @@ private:
 
     DxuiLabel                m_attachLabel;
     DxuiComboBox             m_attach;
+    std::vector<string>      m_devices;
+    std::vector<wstring>     m_comPorts;
     DxuiLabel                m_attachNote;
     std::wstring             m_attachNoteText;
     DxuiLabel                m_pathLabel;

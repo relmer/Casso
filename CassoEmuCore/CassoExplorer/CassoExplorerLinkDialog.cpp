@@ -58,6 +58,30 @@ std::vector<std::wstring> CassoExplorerLinkChoices::GetSpeedLabels()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerLinkChoices::GetSlotLabels
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> CassoExplorerLinkChoices::GetSlotLabels()
+{
+    std::vector<std::wstring>  labels;
+
+
+
+    for (int slot : kSlots)
+    {
+        labels.push_back (slot == CassoLinkSettings::kDefaultSlot ? std::format (L"//c port 2, or slot {}", slot) : std::format (L"Slot {}", slot));
+    }
+
+    return labels;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerLinkChoices::GetTransportIndex
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,6 +122,33 @@ int CassoExplorerLinkChoices::GetSpeedIndex (DWORD baud)
     for (int i = 0; i < (int) ARRAYSIZE (kSpeeds); i++)
     {
         if (kSpeeds[i] == baud)
+        {
+            index = i;
+        }
+    }
+
+    return index;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerLinkChoices::GetSlotIndex
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerLinkChoices::GetSlotIndex (int slot)
+{
+    int  index = 0;
+
+
+
+    for (int i = 0; i < (int) ARRAYSIZE (kSlots); i++)
+    {
+        if (kSlots[i] == slot)
         {
             index = i;
         }
@@ -327,11 +378,12 @@ std::wstring CassoExplorerLinkChoices::ValidateAddressFor (LinkTransport transpo
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & name, int transportIndex, const std::wstring & port, const std::wstring & address,
-                                                          int speedIndex, int bootstrapIndex, bool hardwareHandshake)
+                                                          int speedIndex, int bootstrapIndex, bool hardwareHandshake, int slotIndex)
 {
     CassoLinkSettings  settings;
     int                transports = (int) ARRAYSIZE (kTransports);
     int                speeds     = (int) ARRAYSIZE (kSpeeds);
+    int                slots      = (int) ARRAYSIZE (kSlots);
 
 
 
@@ -358,6 +410,11 @@ CassoLinkSettings CassoExplorerLinkChoices::MakeSettings (const std::wstring & n
     }
 
     settings.hardwareHandshake = UsesHandshake (settings.transport) && hardwareHandshake;
+
+    if (UsesSlot (settings.transport))
+    {
+        settings.slot = kSlots[(slotIndex >= 0 && slotIndex < slots) ? slotIndex : 0];
+    }
 
     //  The label is the kind of connection, with a name typed for it in
     //  parentheses after it.
@@ -423,6 +480,7 @@ void CassoExplorerLinkPanel::Init (const Children & children)
              children.transportLabel, children.transport,
              children.portLabel, children.port, children.portError,
              children.addressLabel, children.address, children.addressError,
+             children.slotLabel, children.slot,
              children.speedLabel, children.speed,
              children.bootstrapLabel, children.bootstrap,
              children.handshake })
@@ -476,6 +534,7 @@ int CassoExplorerLinkPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScale
     y = PlaceRow (bounds, y, m_kids.transportLabel, m_kids.transport, nullptr,             scaler, place);
     y = PlaceRow (bounds, y, m_kids.portLabel,      m_kids.port,      m_kids.portError,    scaler, place);
     y = PlaceRow (bounds, y, m_kids.addressLabel,   m_kids.address,   m_kids.addressError, scaler, place);
+    y = PlaceRow (bounds, y, m_kids.slotLabel,      m_kids.slot,      nullptr,             scaler, place);
     y = PlaceRow (bounds, y, m_kids.speedLabel,     m_kids.speed,     nullptr,             scaler, place);
     y = PlaceRow (bounds, y, m_kids.bootstrapLabel, m_kids.bootstrap, nullptr,             scaler, place);
 
@@ -581,7 +640,7 @@ int CassoExplorerLinkPanel::GetErrorHeightPx (const DxuiFieldError & error, int 
 
 bool CassoExplorerLinkPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    IDxuiControl *  fields[] = { m_kids.transport, m_kids.speed, m_kids.bootstrap, m_kids.name, m_kids.port, m_kids.address, m_kids.handshake };
+    IDxuiControl *  fields[] = { m_kids.transport, m_kids.slot, m_kids.speed, m_kids.bootstrap, m_kids.name, m_kids.port, m_kids.address, m_kids.handshake };
     bool            handled  = false;
 
 
@@ -625,7 +684,7 @@ void CassoExplorerLinkDialog::OnCreate()
 
 
 
-    for (DxuiLabel * label : { &m_nameLabel, &m_transportLabel, &m_portLabel, &m_addressLabel, &m_speedLabel, &m_bootstrapLabel })
+    for (DxuiLabel * label : { &m_nameLabel, &m_transportLabel, &m_portLabel, &m_addressLabel, &m_slotLabel, &m_speedLabel, &m_bootstrapLabel })
     {
         label->SetTextRole  (DxuiTextRole::Body);
         label->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
@@ -635,6 +694,7 @@ void CassoExplorerLinkDialog::OnCreate()
     m_transportLabel.SetText (L"Connection:");
     m_portLabel.SetText      (L"COM port:");
     m_addressLabel.SetText   (L"Address:");
+    m_slotLabel.SetText      (L"Apple's port:");
     m_speedLabel.SetText     (L"Speed:");
     m_bootstrapLabel.SetText (L"Bootstrap speed:");
 
@@ -655,7 +715,7 @@ void CassoExplorerLinkDialog::OnCreate()
     m_address.SetText        (CassoExplorerLinkChoices::GetAddressText (m_initial));
     m_shownTransport = m_initial.transport;
 
-    for (DxuiComboBox * combo : { &m_transport, &m_speed, &m_bootstrap })
+    for (DxuiComboBox * combo : { &m_transport, &m_slot, &m_speed, &m_bootstrap })
     {
         combo->SetPopupHost (GetPopupHost());
         combo->SetSelect    ([this] (int) { Revalidate(); });
@@ -667,6 +727,8 @@ void CassoExplorerLinkDialog::OnCreate()
     m_speed.SetSelected     (CassoExplorerLinkChoices::GetSpeedIndex (m_initial.baud));
     m_bootstrap.SetItems    (CassoExplorerLinkChoices::GetSpeedLabels());
     m_bootstrap.SetSelected (CassoExplorerLinkChoices::GetSpeedIndex (m_initial.bootstrapBaud));
+    m_slot.SetItems         (CassoExplorerLinkChoices::GetSlotLabels());
+    m_slot.SetSelected      (CassoExplorerLinkChoices::GetSlotIndex (m_initial.slot));
 
     m_handshake.SetSingleLineLabel (true);
     m_handshake.SetChecked         (m_initial.hardwareHandshake);
@@ -682,6 +744,8 @@ void CassoExplorerLinkDialog::OnCreate()
     kids.addressLabel   = &m_addressLabel;
     kids.address        = &m_address;
     kids.addressError   = &m_addressError;
+    kids.slotLabel      = &m_slotLabel;
+    kids.slot           = &m_slot;
     kids.speedLabel     = &m_speedLabel;
     kids.speed          = &m_speed;
     kids.bootstrapLabel = &m_bootstrapLabel;
@@ -700,14 +764,16 @@ void CassoExplorerLinkDialog::OnCreate()
     {
         m_outcome.confirmed = true;
         m_outcome.settings  = CassoExplorerLinkChoices::MakeSettings (m_name.GetText(), m_transport.GetSelectedIndex(), m_port.GetText(), m_address.GetText(),
-                                                                      m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked());
+                                                                      m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked(),
+                                                                      m_slot.GetSelectedIndex());
         EndDialog (IDOK);
     });
 
     m_validator.AddField ([this]()
     {
         CassoLinkSettings  settings = CassoExplorerLinkChoices::MakeSettings (m_name.GetText(), m_transport.GetSelectedIndex(), m_port.GetText(), m_address.GetText(),
-                                                                             m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked());
+                                                                             m_speed.GetSelectedIndex(), m_bootstrap.GetSelectedIndex(), m_handshake.IsChecked(),
+                                                                             m_slot.GetSelectedIndex());
 
         return CassoExplorerLinkChoices::ValidateName (TextEncoding::NarrowToWide (settings.name), m_otherNames);
     }, &m_nameError);
@@ -852,6 +918,8 @@ void CassoExplorerLinkDialog::ShowTransportRows()
     m_addressLabel.SetVisible   (Choices::UsesAddress (transport));
     m_address.SetVisible        (Choices::UsesAddress (transport));
     m_addressError.SetVisible   (Choices::UsesAddress (transport));
+    m_slotLabel.SetVisible      (Choices::UsesSlot (transport));
+    m_slot.SetVisible           (Choices::UsesSlot (transport));
     m_speedLabel.SetVisible     (Choices::UsesSpeed (transport));
     m_speed.SetVisible          (Choices::UsesSpeed (transport));
     m_bootstrapLabel.SetVisible (Choices::UsesBootstrap (transport));

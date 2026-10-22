@@ -50,7 +50,7 @@ std::wstring RunningCassoRegistry::GetDefaultFolder()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT RunningCassoRegistry::Publish (DWORD pid, int serialPort, const std::string & machine, uint16_t tcpPort)
+HRESULT RunningCassoRegistry::Publish (DWORD pid, int serialPort, const std::string & machine, uint16_t tcpPort, bool onCard)
 {
     HRESULT       hr      = S_OK;
     RunningCasso  running;
@@ -64,6 +64,7 @@ HRESULT RunningCassoRegistry::Publish (DWORD pid, int serialPort, const std::str
     running.pid        = pid;
     running.machine    = machine;
     running.serialPort = serialPort;
+    running.onCard     = onCard;
     running.address    = std::format ("127.0.0.1:{}", tcpPort);
 
     hr = m_fileSystem.WriteAllText (MakePath (pid, serialPort), ToJson (running));
@@ -179,6 +180,7 @@ std::string RunningCassoRegistry::ToJson (const RunningCasso & running)
     fields.emplace_back ("started",    JsonValue (std::to_string (running.started)));
     fields.emplace_back ("machine",    JsonValue (running.machine));
     fields.emplace_back ("serialPort", JsonValue ((double) running.serialPort));
+    fields.emplace_back ("onCard",     JsonValue (running.onCard));
     fields.emplace_back ("address",    JsonValue (running.address));
 
     return JsonWriter::Write (JsonValue (std::move (fields)));
@@ -216,6 +218,7 @@ bool RunningCassoRegistry::FromJson (const std::string & text, RunningCasso & ou
     if (usable)
     {
         root.HasString ("machine", outRunning.machine);
+        root.HasBool   ("onCard",  outRunning.onCard);
 
         outRunning.pid     = (DWORD) pid;
         outRunning.started = std::strtoull (started.c_str(), nullptr, 10);

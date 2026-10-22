@@ -98,6 +98,23 @@ public:
 
 
 
+    TEST_METHOD (TheApplesPort_IsAnySlot_ForEveryTransportToAnApple)
+    {
+        using C = CassoExplorerLinkChoices;
+
+        CassoLinkSettings  serial = C::MakeSettings (L"S", C::GetTransportIndex (LinkTransport::Serial), L"COM3", L"", 0, 0, false, C::GetSlotIndex (5));
+        CassoLinkSettings  tcp    = C::MakeSettings (L"T", C::GetTransportIndex (LinkTransport::Tcp), L"", L"a:1", 0, 0, false, C::GetSlotIndex (5));
+
+        Assert::IsTrue  (C::UsesSlot (LinkTransport::Serial) && C::UsesSlot (LinkTransport::Emulated) && C::UsesSlot (LinkTransport::WifiModem));
+        Assert::IsFalse (C::UsesSlot (LinkTransport::Tcp), L"ADTPro's serial over IP has a program at its far end");
+        Assert::AreEqual (5, serial.slot);
+        Assert::AreEqual (CassoLinkSettings::kDefaultSlot, tcp.slot, L"a hidden row takes its default");
+        Assert::AreEqual (0, C::GetSlotIndex (2), L"the //c's port 2 first");
+        Assert::AreEqual ((size_t) 7, C::GetSlotLabels().size());
+    }
+
+
+
     TEST_METHOD (MakeSettings_GivesHiddenRowsTheirDefaults)
     {
         using C = CassoExplorerLinkChoices;

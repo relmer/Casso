@@ -4,6 +4,7 @@
 
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/CassoLinkSettings.h"
+#include "CassoLink/LinkProgram.h"
 #include "CassoLink/RunningCassoRegistry.h"
 #include "CassoExplorer/Model/TreeModel.h"
 
@@ -160,6 +161,10 @@ public:
     //  The dial command itself, as the shim on a boot disk sends it to the
     //  modem; empty for any transport but the Wi-Fi modem.
     static std::string   MakeDialCommand (const std::wstring & pcName, const CassoLinkSettings & settings);
+
+    //  What a boot disk's shim is given for a link: its speed, its slot and
+    //  the dial command.
+    static LinkShimOptions  MakeShimOptions (const std::wstring & pcName, const CassoLinkSettings & settings);
 
     //  A connection's name when none is given: COM3, Casso on port 6502,
     //  Wi-Fi modem on port 6400, or TCP and the address, with no colon.

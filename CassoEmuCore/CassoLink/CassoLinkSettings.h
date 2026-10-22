@@ -15,7 +15,8 @@
 //  One link, as CassoExplorerPrefs.json stores it. The port is a COM port's
 //  name, or empty to search the ports for the Apple. The address is
 //  host:port for the TCP transports; for Emulated it is Casso's own serial
-//  port on 127.0.0.1.
+//  port on 127.0.0.1. The slot is the Apple's serial port: a //c's port
+//  number, 2 for the link, or a Super Serial Card's slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,9 +29,11 @@ struct CassoLinkSettings
     DWORD          baud              = kDefaultBaud;
     DWORD          bootstrapBaud     = kDefaultBootstrapBaud;
     bool           hardwareHandshake = false;
+    int            slot              = kDefaultSlot;
 
     static constexpr DWORD  kDefaultBaud          = 115200;
     static constexpr DWORD  kDefaultBootstrapBaud = 9600;
+    static constexpr int    kDefaultSlot          = 2;
 
     //  The transport's name in the file, and back; false for a name that is
     //  none of them.

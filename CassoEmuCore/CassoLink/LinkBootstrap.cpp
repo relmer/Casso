@@ -14,16 +14,20 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkBootstrap::BuildLines (DWORD baud, std::vector<std::string> & outLines)
+HRESULT LinkBootstrap::BuildLines (DWORD baud, std::vector<std::string> & outLines, int slot)
 {
     HRESULT            hr = S_OK;
     std::vector<Byte>  shim;
+    LinkShimOptions    options;
 
 
 
     outLines.clear();
 
-    hr = LinkProgram::BuildShim (baud, shim);
+    options.baud = baud;
+    options.slot = slot;
+
+    hr = LinkProgram::BuildShim (options, shim);
     CHR (hr);
 
     outLines.push_back (kCancelLine);

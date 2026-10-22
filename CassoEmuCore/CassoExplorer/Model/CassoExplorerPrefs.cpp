@@ -312,6 +312,7 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
     fields.emplace_back ("baud",              JsonValue ((double) link.baud));
     fields.emplace_back ("bootstrapBaud",     JsonValue ((double) link.bootstrapBaud));
     fields.emplace_back ("hardwareHandshake", JsonValue (link.hardwareHandshake));
+    fields.emplace_back ("slot",              JsonValue ((double) link.slot));
 
     return JsonValue (std::move (fields));
 }
@@ -333,6 +334,7 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
 {
     std::string  transport;
     int          baud      = 0;
+    int          slot      = 0;
     bool         usable    = false;
 
 
@@ -357,6 +359,11 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
         if (value.HasInt ("bootstrapBaud", baud) && baud > 0)
         {
             outLink.bootstrapBaud = (DWORD) baud;
+        }
+
+        if (value.HasInt ("slot", slot) && slot >= 1 && slot <= 7)
+        {
+            outLink.slot = slot;
         }
     }
 

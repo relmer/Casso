@@ -37,12 +37,19 @@ public:
 
     static constexpr DWORD  kSpeeds[] = { 115200, 19200, 9600, 4800, 2400, 1200 };
 
+    //  The Apple's serial port: a //c's port 2, which is at slot 2's
+    //  addresses, or a Super Serial Card's slot.
+    static constexpr int    kSlots[]  = { 2, 1, 3, 4, 5, 6, 7 };
+
     static std::vector<std::wstring>  GetTransportLabels ();
     static std::vector<std::wstring>  GetSpeedLabels     ();
+    static std::vector<std::wstring>  GetSlotLabels      ();
 
-    //  The index of a transport or a speed in the lists; 0 for one not there.
+    //  The index of a transport, a speed or a slot in the lists; 0 for one
+    //  not there.
     static int   GetTransportIndex (LinkTransport transport);
     static int   GetSpeedIndex     (DWORD baud);
+    static int   GetSlotIndex      (int slot);
 
     //  The rows each transport has (FR-083c). A serial link has a COM port,
     //  speed, bootstrap speed and handshaking; TCP and an emulated machine,
@@ -53,6 +60,10 @@ public:
     static bool  UsesSpeed     (LinkTransport transport) { return transport == LinkTransport::Serial || transport == LinkTransport::WifiModem; }
     static bool  UsesBootstrap (LinkTransport transport) { return transport == LinkTransport::Serial; }
     static bool  UsesHandshake (LinkTransport transport) { return transport == LinkTransport::Serial || transport == LinkTransport::WifiModem; }
+
+    //  Every transport to an Apple has the Apple's port; plain TCP is ADTPro's
+    //  serial over IP, whose far end is a program rather than an Apple.
+    static bool  UsesSlot      (LinkTransport transport) { return transport != LinkTransport::Tcp; }
 
     //  The address row's label and its value when nothing is entered. A
     //  Wi-Fi modem's row is the TCP port alone, as it listens on every
@@ -75,7 +86,7 @@ public:
     //  The settings for the chosen values. An index out of range takes the
     //  list's first choice.
     static CassoLinkSettings  MakeSettings (const std::wstring & name, int transportIndex, const std::wstring & port, const std::wstring & address,
-                                            int speedIndex, int bootstrapIndex, bool hardwareHandshake);
+                                            int speedIndex, int bootstrapIndex, bool hardwareHandshake, int slotIndex = 0);
 
     //  The Name box's text for a link: the part in parentheses after the kind
     //  of connection, empty for none, or the whole label of one saved before
@@ -114,6 +125,8 @@ public:
         DxuiLabel       * addressLabel   = nullptr;
         DxuiTextInput   * address        = nullptr;
         DxuiFieldError  * addressError   = nullptr;
+        DxuiLabel       * slotLabel      = nullptr;
+        DxuiComboBox    * slot           = nullptr;
         DxuiLabel       * speedLabel     = nullptr;
         DxuiComboBox    * speed          = nullptr;
         DxuiLabel       * bootstrapLabel = nullptr;
@@ -141,7 +154,7 @@ public:
     static constexpr int  kLabelWidthDip    = 130;
     static constexpr int  kFallbackErrorDip = 20;
     static constexpr int  kErrorTopDip      = 4;
-    static constexpr int  kRowCount         = 7;
+    static constexpr int  kRowCount         = 8;
 
 private:
     int   ArrangeRows      (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const;
@@ -213,6 +226,8 @@ private:
     DxuiLabel                    m_addressLabel;
     DxuiTextInput                m_address;
     DxuiFieldError               m_addressError;
+    DxuiLabel                    m_slotLabel;
+    DxuiComboBox                 m_slot;
     DxuiLabel                    m_speedLabel;
     DxuiComboBox                 m_speed;
     DxuiLabel                    m_bootstrapLabel;

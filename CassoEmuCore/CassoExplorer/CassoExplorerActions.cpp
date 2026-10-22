@@ -3501,7 +3501,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkToDisk (const std::w
 
     path = TextEncoding::WideToNarrow (std::format (L"{}\\casso-link-{}.dsk", tempFolder, drive));
 
-    hr = LinkProgram::BuildBootDisk (chosen.baud, disk, CassoLinkConnections::MakeDialCommand (CassoLinkConnections::GetPcName(), chosen));
+    hr = LinkProgram::BuildBootDisk (CassoLinkConnections::MakeShimOptions (CassoLinkConnections::GetPcName(), chosen), disk);
 
     if (SUCCEEDED (hr))
     {
@@ -3630,7 +3630,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkDiskImage (const std
 {
     Outcome            outcome;
     std::vector<Byte>  disk;
-    HRESULT            hr = LinkProgram::BuildBootDisk (settings.baud, disk, CassoLinkConnections::MakeDialCommand (CassoLinkConnections::GetPcName(), settings));
+    HRESULT            hr = LinkProgram::BuildBootDisk (CassoLinkConnections::MakeShimOptions (CassoLinkConnections::GetPcName(), settings), disk);
 
 
 

@@ -74,4 +74,34 @@ public:
         Assert::AreEqual (SscSettingsModel::GetChoiceIndex (SscSetting::Mode, defaults), page.GetRowDropdown (0).GetSelectedIndex(),
                           L"the mode drop-down follows");
     }
+
+
+    //  After the fixed attachments, a TCP port for the card's slot and each
+    //  of the PC's COM ports, as a //c's port offers.
+    TEST_METHOD (TheConnectorOffersATcpPortForItsSlot_AndTheComPorts)
+    {
+        SettingsPanelState  state;
+        SerialCardPage      page;
+        JsonValue           shipped = ParseOrFail (kShipped);
+        int                 index   = -1;
+
+
+
+        AssertSucceeded (state.LoadFromMachine ("X", shipped, shipped));
+
+        page.SetComPorts ({ L"COM3" });
+        page.SetState (&state);
+        page.Rebuild();
+
+        Assert::AreEqual (std::string ("tcp:6502"), page.GetAttachDevices()[SerialCardPage::kTcpChoice]);
+        Assert::AreEqual (std::string ("com:COM3"), page.GetAttachDevices()[SerialCardPage::kTcpChoice + 1]);
+
+        page.GetAttachDropdown().SetSelected (SerialCardPage::kTcpChoice);
+        AssertSucceeded (state.SetSerialCardAttachment (page.GetAttachDevices()[SerialCardPage::kTcpChoice], ""));
+        page.Rebuild();
+
+        index = state.FindSerialCard();
+        Assert::AreEqual (std::string ("tcp:6502"), state.GetHardware()[static_cast<size_t> (index)].ports.front());
+        Assert::AreEqual (SerialCardPage::kTcpChoice, page.GetAttachDropdown().GetSelectedIndex(), L"the staged TCP port is selected");
+    }
 };

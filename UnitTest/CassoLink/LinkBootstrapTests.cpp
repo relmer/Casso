@@ -3,6 +3,7 @@
 #include "../EhmTestHelper.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkProgram.h"
+#include "Core/TextEncoding.h"
 #include "Seams/InProcessByteStream.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -59,6 +60,24 @@ public:
         Assert::IsTrue (typed == shim, L"the lines are the shim, at the bootstrap speed");
     }
 
+
+
+
+    TEST_METHOD (Lines_TypeTheShimForTheCardsSlot)
+    {
+        std::vector<std::string>  lines;
+        std::string               slotLine;
+        Word                      slotAt = (Word) (LinkProgram::kShimAddress + (LinkProgram::kSlotOffset & ~(LinkBootstrap::kBytesPerLine - 1)));
+
+        AssertSucceeded (LinkBootstrap::BuildLines (9600, lines, 5));
+
+        for (const std::string & line : lines)
+        {
+            slotLine = line.starts_with (std::format ("{:04X}:", slotAt)) ? line : slotLine;
+        }
+
+        Assert::IsTrue (slotLine.starts_with (std::format ("{:04X}: 05", slotAt)), TextEncoding::NarrowToWide (slotLine).c_str());
+    }
 
 
 
