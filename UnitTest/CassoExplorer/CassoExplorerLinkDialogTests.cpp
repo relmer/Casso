@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -108,6 +109,11 @@ public:
         Assert::IsTrue  (C::UsesSlot (LinkTransport::Serial) && C::UsesSlot (LinkTransport::Emulated) && C::UsesSlot (LinkTransport::WifiModem) && C::UsesSlot (LinkTransport::Uthernet));
         Assert::AreEqual (3, C::GetDefaultSlot (LinkTransport::Uthernet), L"the Uthernet II ships in slot 3");
         Assert::AreEqual (CassoLinkSettings::kDefaultSlot, C::GetDefaultSlot (LinkTransport::Serial));
+
+        CassoLinkSettings  uthernet = C::MakeSettings (L"", C::GetTransportIndex (LinkTransport::Uthernet), L"", L"192.168.1.20:6502", 0, 0, false, C::GetSlotIndex (3));
+
+        Assert::AreEqual (std::string ("Uthernet II at 192.168.1.20 port 6502"), uthernet.name, L"no colon, which a name cannot have");
+        Assert::IsTrue   (C::ValidateName (TextEncoding::NarrowToWide (uthernet.name), {}).empty());
         Assert::IsFalse (C::UsesSlot (LinkTransport::Tcp), L"ADTPro's serial over IP has a program at its far end");
         Assert::AreEqual (5, serial.slot);
         Assert::AreEqual (CassoLinkSettings::kDefaultSlot, tcp.slot, L"a hidden row takes its default");

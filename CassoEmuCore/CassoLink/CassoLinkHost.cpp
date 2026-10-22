@@ -1930,12 +1930,26 @@ Error:
 //  A Ready's versions and drives, and the program's ROM identification;
 //  the payload is 4 or 9 bytes.
 //
+//  The program sent is the build for the chip the Ready indicates, whatever
+//  the link's transport: a link of the wrong kind at the Apple's address,
+//  such as a Casso link to an emulated Uthernet II, would otherwise load a
+//  program built for another chip, and the line would go silent.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkHost::ReadClient (const CassoLinkPacket & packet)
 {
+    LinkChip  chip = (packet.payload[2] & LinkProgram::kW5100ReadyFlag) != 0 ? LinkChip::W5100 : LinkChip::Acia;
+
+
+
+    if (chip != m_programChip)
+    {
+        SetProgramChip (chip);
+    }
+
     m_client.programVersion = (Word) (packet.payload[0] | (packet.payload[1] << 8));
-    m_client.shimVersion    = packet.payload[2];
+    m_client.shimVersion    = (Byte) (packet.payload[2] & ~LinkProgram::kW5100ReadyFlag);
     m_client.driveMap       = packet.payload[3];
     m_client.hasRomId       = packet.payload.size() == 9;
     m_hasClient             = true;

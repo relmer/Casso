@@ -64,6 +64,14 @@ PROGVER = 1
 SHIMVER = 1
         endif
 
+; Ready's shim version: a W5100 build sets bit 7, so the host sends the
+; program built for the chip whatever the link it connected through.
+        ifdef W5100
+READYVER = SHIMVER + $80
+        else
+READYVER = SHIMVER
+        endif
+
 ; The 6551, through slotx: slot * 16, $20 for the //c's port 2.
 ACIADATA = $C088
 ACIASTAT = $C089
@@ -861,7 +869,7 @@ srloop: lda readypkt,x
         rts
 
 readypkt: .byte $C1, $09, $00, CMDREADY, $C1 ^ $09 ^ $00 ^ CMDREADY
-          .byte <PROGVER, >PROGVER, SHIMVER
+          .byte <PROGVER, >PROGVER, READYVER
 readymap: .byte $03                ; probe sets it
 readyrom: .byte 0, 0, 0, 0, 0       ; $FBB3, $FBC0, $FBBF, $FB1E, and 1 on a IIgs
 readychk: .byte 0
@@ -893,7 +901,7 @@ readid: lda $FBB3
         bcs ridsum
         lda #1
         sta readyrom+4
-ridsum: lda #<PROGVER ^ >PROGVER ^ SHIMVER
+ridsum: lda #<PROGVER ^ >PROGVER ^ READYVER
         eor readymap
         ldx #4
 ridnext: eor readyrom,x
@@ -2626,7 +2634,8 @@ pdu:    lda tmp2
         ora #'0'
         jmp putch
 
-; showconn: the port and the speed the 6551 is set to.
+; showconn: the port and the speed the 6551 is set to: a //c's port, or a
+; card's slot.
 showconn: ldx #<ROW2
         lda #>ROW2
         jsr field
@@ -2653,6 +2662,30 @@ showconn: ldx #<ROW2
         sta wnum+1
         jmp putword
         else
+        lda #<connslot
+        sta ptr
+        lda #>connslot
+        sta ptr+1
+        lda $FBB3               ; a //c has $06 here and $00 at $FBC0
+        eor #$06
+        ora $FBC0
+        bne scslot
+        lda #<connport
+        sta ptr
+        lda #>connport
+        sta ptr+1
+scslot: jsr puttext
+        lda slotx
+        lsr a
+        lsr a
+        lsr a
+        lsr a
+        jsr putdec
+        lda #<conncomma
+        sta ptr
+        lda #>conncomma
+        sta ptr+1
+        jsr puttext
         ldx slotx
         lda ACIACTL,x
         and #$0F
@@ -2712,7 +2745,12 @@ pwnext: dex
 pwtablo: .byte <1, <10, <100, <1000, <10000
 pwtabhi: .byte >1, >10, >100, >1000, >10000
         else
-conntext: .text "PORT 2, "
+conntext: .byte 0
+connport: .text "PORT "
+        .byte 0
+connslot: .text "SLOT "
+        .byte 0
+conncomma: .text ", "
         .byte 0
         endif
 

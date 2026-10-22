@@ -41,6 +41,14 @@
 SHIMVER = 1
         endif
 
+; Ready's shim version: a W5100 build sets bit 7, so the host sends the
+; program built for the chip whatever the link it connected through.
+        ifdef W5100
+READYVER = SHIMVER + $80
+        else
+READYVER = SHIMVER
+        endif
+
 ACIADATA = $C088                ; the 6551, + slot * 16
 ACIASTAT = $C089
 ACIACMD  = $C08A
@@ -836,6 +844,6 @@ msgdial: .text "DIALING THE PC"
 
 ; Ready with no program: version 0, the shim's version, no drives.
 readypkt: .byte $C1, $04, $00, CMDREADY, $C1 ^ $04 ^ $00 ^ CMDREADY
-          .byte $00, $00, SHIMVER, $00
-          .byte $00 ^ $00 ^ SHIMVER ^ $00
+          .byte $00, $00, READYVER, $00
+          .byte $00 ^ $00 ^ READYVER ^ $00
 readyend:

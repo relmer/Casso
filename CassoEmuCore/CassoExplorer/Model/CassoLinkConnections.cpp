@@ -139,7 +139,7 @@ std::string CassoLinkConnections::DescribeConnection (const CassoLinkSettings & 
         case LinkTransport::Serial:    return settings.port.empty() ? std::string ("Serial") : std::format ("Serial on {}", settings.port);
         case LinkTransport::Emulated:  return port.empty() ? std::string ("Casso") : std::format ("Casso on port {}", port);
         case LinkTransport::WifiModem: return port.empty() ? std::string ("Wi-Fi modem") : std::format ("Wi-Fi modem on port {}", port);
-        case LinkTransport::Uthernet:  return settings.address.empty() ? std::string ("Uthernet II") : std::format ("Uthernet II at {}", settings.address);
+        case LinkTransport::Uthernet:  return host.empty() ? std::string ("Uthernet II") : port.empty() ? std::format ("Uthernet II at {}", host) : std::format ("Uthernet II at {} port {}", host, port);
         default:                       return port.empty() ? std::format ("TCP {}", host) : std::format ("TCP {} port {}", host, port);
     }
 }

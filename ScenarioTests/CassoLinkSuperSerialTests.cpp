@@ -290,6 +290,9 @@ public:
             AssertSucceeded (image->result);
             AssertSucceeded (VolumeImage::Load (fileIo.files["drive2.dsk"], "drive2.dsk", sectors, report));
             Assert::IsTrue (sectors == written, L"the whole disk over the card");
+
+            screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+            Assert::IsTrue (screen[2].find ("SLOT 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (screen[2]).c_str());
         }
 
         Assert::AreEqual<Byte> (0x50, machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");

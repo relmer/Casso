@@ -111,6 +111,31 @@ public:
 
 
 
+
+    //  The host sends the program for the chip a Ready indicates, so a W5100
+    //  build's Ready differs from a 6551 build's.
+    TEST_METHOD (W5100Builds_SetTheReadyFlagInTheShimVersion)
+    {
+        std::vector<Byte>  shim;
+        std::vector<Byte>  program;
+        std::string        errors;
+        size_t             at = 0;
+
+        AssertSucceeded (LinkProgram::AssembleShim (shim, errors, LinkChip::W5100));
+        AssertSucceeded (LinkProgram::AssembleProgram (program, errors, LinkChip::W5100));
+
+        at = FindReady (shim);
+        Assert::IsTrue (at + 10 <= shim.size());
+        Assert::AreEqual<int> (LinkProgram::kShimVersion | LinkProgram::kW5100ReadyFlag, shim[at + 7]);
+        Assert::AreEqual<int> (CassoLinkCodec::ComputeEor (std::span<const Byte> (shim).subspan (at + 5, 4)), shim[at + 9]);
+
+        at = FindReady (program, 0x09);
+        Assert::IsTrue (at + 10 <= program.size());
+        Assert::AreEqual<int> (LinkProgram::kShimVersion | LinkProgram::kW5100ReadyFlag, program[at + 7]);
+    }
+
+
+
     TEST_METHOD (BuildShim_WritesTheSpeedAndItsText)
     {
         std::vector<Byte>  assembled;

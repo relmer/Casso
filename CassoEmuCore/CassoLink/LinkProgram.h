@@ -123,6 +123,9 @@ public:
     //  The slot of the 6551 or the W5100: for a 6551 on a //c, the port.
     static constexpr size_t  kSlotOffset        = 0x38;
 
+    //  Set by the W5100 builds in Ready's shim version byte.
+    static constexpr Byte    kW5100ReadyFlag    = 0x80;
+
     static Word         GetShimAddress   (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimAddress  : kShimAddress; }
     static Word         GetZeroPageSave  (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ZeroPageSave : kZeroPageSave; }
     static size_t       GetShimLimit     (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimLimit    : kShimLimit; }

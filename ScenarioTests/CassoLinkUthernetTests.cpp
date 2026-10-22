@@ -288,6 +288,56 @@ public:
         }
     }
 
+
+
+    //  A Casso link at the card's address, the wrong kind of link for it:
+    //  the shim's Ready indicates the W5100, so the program sent is the W5100
+    //  build, and not the 6551 build for the link's transport.
+    TEST_METHOD (ACassoLinkAtTheCardsAddress_LoadsTheW5100Program)
+    {
+        constexpr uint16_t     kOtherPort = kPort + 1;
+        Rig                    rig;
+        FixtureProvider        fixtures;
+        std::vector<uint8_t>   bytes;
+        std::vector<Byte>      dos;
+        std::vector<Byte>      boot;
+        LinkShimOptions        options;
+        CassoLinkSettings      settings;
+        VolumeListing          catalog;
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        dos.assign (bytes.begin(), bytes.end());
+        AssertSucceeded (Dos33Volume (dos).Enumerate (catalog));
+
+        options.chip            = LinkChip::W5100;
+        options.slot            = kSlot;
+        options.network.address = { 127, 0, 0, 1 };
+        options.network.port    = kOtherPort;
+
+        AssertSucceeded (LinkProgram::BuildBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
+        rig.machine.RunCycles (kBootCycles);
+
+        settings.name      = "Casso";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = std::format ("127.0.0.1:{}", kOtherPort);
+
+        {
+            CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
+
+            session.SetRetryInterval (kRetryMs);
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = rig.Finish (session.Enumerate (2, FilePath()));
+
+            AssertSucceeded (list->result);
+            Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog through a Casso link");
+            Assert::AreEqual (std::format ("SLOT 3, PORT {}", kOtherPort), rig.Row (kRow2, kField), L"the W5100 program's connection row");
+        }
+    }
+
     //  The program's Ready packet in memory: its envelope, with nine bytes.
     static Word  FindReady (TestMachine & machine)
     {

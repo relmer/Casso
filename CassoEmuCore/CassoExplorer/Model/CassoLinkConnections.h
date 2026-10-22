@@ -180,7 +180,8 @@ public:
     static constexpr int  kUthernetSlot = 3;
 
     //  A connection's name when none is given: COM3, Casso on port 6502,
-    //  Wi-Fi modem on port 6400, or TCP and the address, with no colon.
+    //  Wi-Fi modem on port 6400, Uthernet II at 192.168.1.20 port 6502, or
+    //  TCP and the address, with no colon.
     static std::string   DescribeConnection (const CassoLinkSettings & settings);
 
     //  This PC's DNS host name.
