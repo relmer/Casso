@@ -2,6 +2,7 @@
 
 #include "AciaEndpoints.h"
 #include "Acia6551.h"
+#include "Devices/Printer/PrinterByteRing.h"
 
 
 
@@ -39,6 +40,92 @@ void AciaLoopbackEndpoint::OnModemControlChanged (bool dtr, bool rts)
     {
         m_acia->SetModemInputs (rts, dtr, dtr);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AciaPrinterEndpoint::OnByteTransmitted
+//
+//  A byte sent while the line is down was already in the shift register
+//  when it dropped, so there is room for it above the busy mark. A byte that
+//  arrives at a full ring is dropped, as a byte sent into a real printer's
+//  full buffer is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AciaPrinterEndpoint::OnByteTransmitted (Byte value)
+{
+    bool  pushed = false;
+
+
+
+    if (m_ring == nullptr)
+    {
+        return;
+    }
+
+    pushed = m_ring->TryPush (value);
+    IGNORE_RETURN_VALUE (pushed, false);
+
+    Update();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AciaPrinterEndpoint::Tick
+//
+//  Only a busy line is checked: a ready one drops in OnByteTransmitted,
+//  the only place the ring fills.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AciaPrinterEndpoint::Tick (uint32_t cpuCycles)
+{
+    if (m_ready)
+    {
+        return;
+    }
+
+    m_checkWait -= cpuCycles;
+
+    if (m_checkWait <= 0)
+    {
+        m_checkWait = kCheckCycles;
+        Update();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AciaPrinterEndpoint::Update
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AciaPrinterEndpoint::Update()
+{
+    uint32_t  freeBytes = (m_ring != nullptr) ? m_ring->GetFreeBytes() : 0;
+    bool      ready     = m_ready ? freeBytes > kBusyFreeBytes : freeBytes >= kReadyFreeBytes;
+
+
+
+    if (ready != m_ready && m_acia != nullptr)
+    {
+        m_acia->SetModemInputs (ready, ready, ready);
+    }
+
+    m_ready = ready;
 }
 
 

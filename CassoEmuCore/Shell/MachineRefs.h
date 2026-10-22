@@ -33,8 +33,12 @@ struct MachineRefs
     class Disk2Controller *       diskController   = nullptr;
     class MockingboardCard *      mockingboard     = nullptr;
     class VideoOutput *           activeVideoMode  = nullptr;
-    class PrinterCard *           printerCard      = nullptr;
     class SuperSerialCard *       superSerialCard  = nullptr;
+
+    // The host's printer ring while the ImageWriter II is attached to one of
+    // the machine's connectors; null when it is attached to none, or the
+    // machine has nowhere to attach it.
+    class PrinterByteRing *       printerRing      = nullptr;
     class UthernetCard *          uthernet         = nullptr;
 
     // The $C800-$CFFF expansion space the slot cards share, created with the

@@ -601,9 +601,10 @@ bool SettingsPanelState::IsDirty() const
 //  RequiresReset
 //
 //  Per FR-010: a reset is required iff the hardware-enable bits
-//  changed, or a Super Serial Card's attachment did. Speed / color / sound
-//  / mechanism / write-protect, the //c's serial port devices and the
-//  Uthernet II's settings are all live-applicable.
+//  changed, a Super Serial Card's attachment did, or the ImageWriter II's
+//  connector did, since its drain starts when the machine is built. Speed /
+//  color / sound / mechanism / write-protect, the //c's other serial port
+//  devices and the Uthernet II's settings are all live-applicable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -626,6 +627,8 @@ bool SettingsPanelState::RequiresReset() const
         changed = before.enabled != after.enabled
                || (serial && (before.ports != after.ports || before.portPath != after.portPath));
     }
+
+    changed = changed || FindPrinterConnection (m_original) != FindPrinterConnection (m_current);
 
     return changed;
 }
@@ -980,6 +983,28 @@ std::string SettingsPanelState::GetSerialPortDevice (int port) const
 
 void SettingsPanelState::SetSerialPortDevice (int port, const std::string & device)
 {
+    if (device == kpszImageWriterDevice)
+    {
+        SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialPort, port });
+    }
+    else
+    {
+        StageSerialPortDevice (port, device);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StageSerialPortDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::StageSerialPortDevice (int port, const std::string & device)
+{
     if (port < 1 || port > (int) std::size (kpszSerialPortNames))
     {
         return;
@@ -993,6 +1018,161 @@ void SettingsPanelState::SetSerialPortDevice (int port, const std::string & devi
             break;
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPrinterChoices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<PrinterConnection> SettingsPanelState::GetPrinterChoices() const
+{
+    std::vector<PrinterConnection>  choices = { PrinterConnection() };
+
+
+
+    for (const HardwareEntry & entry : m_current.hardware)
+    {
+        if (entry.kind == HardwareEntryKind::Slot && entry.enabled && entry.type == kpszParallelPrinterDevice)
+        {
+            choices.push_back (PrinterConnection { PrinterConnection::Kind::ParallelCard, entry.slot });
+        }
+        else if (entry.kind == HardwareEntryKind::Slot && entry.enabled && entry.type == kpszSuperSerialCardDevice)
+        {
+            choices.push_back (PrinterConnection { PrinterConnection::Kind::SerialCard, entry.slot });
+        }
+    }
+
+    for (int port = 1; HasSerialPorts() && port <= (int) std::size (kpszSerialPortNames); port++)
+    {
+        choices.push_back (PrinterConnection { PrinterConnection::Kind::SerialPort, port });
+    }
+
+    return choices;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetPrinterConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PrinterConnection SettingsPanelState::GetPrinterConnection() const
+{
+    return FindPrinterConnection (m_current);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPrinterConnection
+//
+//  Every connector is set, chosen or not, so a turned-off parallel card that
+//  lists nothing does not take the printer back when it is turned on. A card
+//  whose connector was read listing nothing lists nothing again where that
+//  has the same meaning, so moving the printer back is no change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetPrinterConnection (const PrinterConnection & connection)
+{
+    for (size_t i = 0; i < m_current.hardware.size(); i++)
+    {
+        HardwareEntry &  entry    = m_current.hardware[i];
+        bool             readBare = i < m_original.hardware.size() && m_original.hardware[i].ports.empty();
+        bool             parallel = entry.kind == HardwareEntryKind::Slot && entry.type == kpszParallelPrinterDevice;
+        bool             serial   = entry.kind == HardwareEntryKind::Slot && entry.type == kpszSuperSerialCardDevice;
+        bool             has      = !entry.ports.empty() && entry.ports.front() == kpszImageWriterDevice;
+        bool             chosen   = entry.slot == connection.number
+                                 && ((parallel && connection.kind == PrinterConnection::Kind::ParallelCard)
+                                  || (serial   && connection.kind == PrinterConnection::Kind::SerialCard));
+
+        if (parallel && chosen)
+        {
+            entry.ports = readBare ? std::vector<std::string>() : std::vector<std::string> { kpszImageWriterDevice };
+        }
+        else if (parallel && (has || entry.ports.empty()))
+        {
+            entry.ports = { std::string() };
+        }
+        else if (serial && chosen)
+        {
+            entry.ports    = { kpszImageWriterDevice };
+            entry.portPath.clear();
+        }
+        else if (serial && has)
+        {
+            entry.ports = readBare ? std::vector<std::string>() : std::vector<std::string> { std::string() };
+        }
+    }
+
+    for (int port = 1; port <= (int) std::size (kpszSerialPortNames); port++)
+    {
+        bool  chosen = connection.kind == PrinterConnection::Kind::SerialPort && connection.number == port;
+
+        if (chosen)
+        {
+            StageSerialPortDevice (port, kpszImageWriterDevice);
+        }
+        else if (GetSerialPortDevice (port) == kpszImageWriterDevice)
+        {
+            StageSerialPortDevice (port, std::string());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindPrinterConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PrinterConnection SettingsPanelState::FindPrinterConnection (const Snapshot & snapshot)
+{
+    PrinterConnection  found;
+
+
+
+    for (const HardwareEntry & entry : snapshot.hardware)
+    {
+        bool  slot     = entry.kind == HardwareEntryKind::Slot && entry.enabled;
+        bool  has      = !entry.ports.empty() && entry.ports.front() == kpszImageWriterDevice;
+        bool  parallel = slot && entry.type == kpszParallelPrinterDevice && (has || entry.ports.empty());
+        bool  serial   = slot && entry.type == kpszSuperSerialCardDevice && has;
+
+        if (found.kind == PrinterConnection::Kind::None && (parallel || serial))
+        {
+            found.kind   = parallel ? PrinterConnection::Kind::ParallelCard : PrinterConnection::Kind::SerialCard;
+            found.number = entry.slot;
+        }
+    }
+
+    for (int port = 1; found.kind == PrinterConnection::Kind::None && port <= (int) std::size (kpszSerialPortNames); port++)
+    {
+        if (GetPortDevice (snapshot.machinePorts, kpszSerialPortNames[port - 1]) == kpszImageWriterDevice)
+        {
+            found.kind   = PrinterConnection::Kind::SerialPort;
+            found.number = port;
+        }
+    }
+
+    return found;
 }
 
 
@@ -1264,9 +1444,17 @@ HRESULT SettingsPanelState::SetSerialCardAttachment (const std::string & device,
 
     CBR (hasCard);
 
-    entry           = &m_current.hardware[static_cast<size_t> (index)];
-    entry->ports    = { device };
-    entry->portPath = path;
+    entry = &m_current.hardware[static_cast<size_t> (index)];
+
+    if (device == kpszImageWriterDevice)
+    {
+        SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, entry->slot });
+    }
+    else
+    {
+        entry->ports    = { device };
+        entry->portPath = path;
+    }
 
 Error:
     return hr;

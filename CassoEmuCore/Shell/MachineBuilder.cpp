@@ -440,11 +440,9 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             {
                 MemoryDevice *  raw = device.get();
 
-                // Cache the printer card so the background drain worker can
-                // reach its ring once the machine is built.
-                if (slot.device == "parallel-printer")
+                if (slot.device == kpszParallelPrinterDevice)
                 {
-                    m_host.GetRefs().printerCard = static_cast<PrinterCard *> (device.get());
+                    WireParallelPrinter (slot, *static_cast<PrinterCard *> (raw));
                 }
 
                 m_host.GetMemoryBus().AddDevice (device.get());
@@ -460,7 +458,7 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         // The parallel printer card ships embedded firmware (no rom file), so
         // its slot ROM is installed here from the checked-in byte array rather
         // than loaded from disk.
-        if (slot.device == "parallel-printer")
+        if (slot.device == kpszParallelPrinterDevice)
         {
             std::vector<Byte>  firmware (s_kParallelFirmwareBytes,
                                          s_kParallelFirmwareBytes + sizeof (s_kParallelFirmwareBytes));
@@ -721,17 +719,24 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
-    // Start the background printer drain once the card exists, seeding it with
-    // this machine's persisted pending strip if one exists (FR-026). A missing
-    // or corrupt sidecar falls back to empty paper. Symmetric save is in
-    // SwitchMachine teardown and OnDestroy.
-    if (m_host.GetRefs().printerCard != nullptr && m_services.printerWorker != nullptr)
+    // Bytes from the last machine that were never drained are not this
+    // machine's to print. The teardown before a build stops the drain.
+    if (m_services.printerWorker == nullptr || !m_services.printerWorker->IsRunning())
+    {
+        m_host.GetPrinterRing().Clear();
+    }
+
+    // Start the background printer drain once the printer is attached,
+    // seeding it with this machine's persisted pending strip if one exists
+    // (FR-026). A missing or corrupt sidecar falls back to empty paper.
+    // Symmetric save is in SwitchMachine teardown and OnDestroy.
+    if (m_host.GetRefs().printerRing != nullptr && m_services.printerWorker != nullptr)
     {
         PrintRaster   pending;
         HRESULT       hrLoad = PrintJobStore::Load (m_host.GetPendingPrintDir(), pending);
 
         m_services.printerWorker->Start (
-            m_host.GetRefs().printerCard->GetByteRing(),
+            *m_host.GetRefs().printerRing,
             SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
 
         // Pace the drain off the guest clock so the card applies real
@@ -1929,6 +1934,34 @@ void MachineBuilder::SelectVideoMode()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WireParallelPrinter
+//
+//  Attaches the ImageWriter II to a parallel card whose connector lists it,
+//  or lists nothing, unless an earlier connector already has it. Otherwise
+//  the card's connector is empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineBuilder::WireParallelPrinter (const SlotConfig & slot, PrinterCard & card)
+{
+    MachineRefs  & refs   = m_host.GetRefs();
+    bool           wanted = slot.ports.empty() || slot.ports.front().device == kpszImageWriterDevice;
+
+
+
+    if (wanted && refs.printerRing == nullptr)
+    {
+        refs.printerRing = &m_host.GetPrinterRing();
+        card.SetByteRing (refs.printerRing);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WireSuperSerialCard
 //
 //  Connects a Super Serial Card the registry just created: its firmware, its
@@ -2036,10 +2069,11 @@ void MachineBuilder::WireSuperSerialCard (const SlotConfig & slot, SuperSerialCa
 //
 //  Plugs the attachment the slot's first port specifies into the card's
 //  serial connector: nothing, a loopback plug, a file that receives what the
-//  card sends, a file whose bytes are sent into the card, or, as a //c's
-//  port, a TCP port on this PC or a COM port. A file, TCP port or COM port
-//  that cannot be opened results in an empty connector, and the problem is
-//  stored on the card for the shell to report.
+//  card sends, a file whose bytes are sent into the card, the ImageWriter
+//  II, or, as a //c's port, a TCP port on this PC or a COM port. A file,
+//  TCP port or COM port that cannot be opened, or a printer attached
+//  elsewhere, results in an empty connector, and the problem is stored on
+//  the card for the shell to report.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2061,7 +2095,16 @@ void MachineBuilder::AttachSerialEndpoint (const SlotConfig & slot, SuperSerialC
         path   = slot.ports.front().path;
     }
 
-    if (device.starts_with ("tcp:") || device.starts_with ("com:"))
+    if (device == kpszImageWriterDevice)
+    {
+        hr = m_host.ConnectSerialPort (slot.slot, device, m_services.streamFactory, nullptr);
+
+        if (FAILED (hr))
+        {
+            card.SetAttachmentProblem ("The ImageWriter II is attached to another connector.");
+        }
+    }
+    else if (device.starts_with ("tcp:") || device.starts_with ("com:"))
     {
         hr = m_host.ConnectSerialPort (slot.slot, device, m_services.streamFactory,
                                        (m_services.serialLog != nullptr) ? m_services.serialLog->get() : nullptr);

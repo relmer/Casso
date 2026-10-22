@@ -27,6 +27,7 @@ static constexpr const wchar_t *  s_kAttachmentLabels[] =
     L"Loopback plug",
     L"Write output to file",
     L"Read input from file",
+    L"ImageWriter II",
 };
 
 
@@ -355,6 +356,11 @@ std::wstring SerialCardPage::GetAttachmentNote (const std::string & device)
     {
         note = L"The file below is sent to the card at its baud rate, once a program turns "
                L"the card's receiver on.";
+    }
+    else if (device == kAttachmentDevices[kPrinterChoice])
+    {
+        note = L"The emulated ImageWriter II. Set the switches for printer mode, then type "
+               L"PR# and the card's slot to print.";
     }
     else if (device.starts_with ("tcp:"))
     {

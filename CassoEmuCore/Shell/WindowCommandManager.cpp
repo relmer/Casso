@@ -2145,7 +2145,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
     PrinterJob *   job   = nullptr;
     bool           known = (id == IDM_PRINTER_DISCARD || id == IDM_PRINTER_COPY ||
                             id == IDM_PRINTER_PRINT   || id == IDM_PRINTER_SAVEAS)
-                           && m_shell.m_machine.GetRefs().printerCard != nullptr;
+                           && m_shell.m_machine.GetRefs().printerRing != nullptr;
 
 
 
@@ -2215,11 +2215,11 @@ void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
 
     if (job != nullptr)
     {
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else
     {
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing());
     }
 }
 
@@ -2242,7 +2242,7 @@ void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
 
 
 
-    m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+    m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     m_shell.m_printer->NotePrinterDeliveryResult (FAILED (hr));
 
     if (FAILED (hr))
@@ -2281,7 +2281,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
     if (choice != IDYES)
     {
         // Canceled: keep the strip and resume on the same page.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else
     {
@@ -2289,7 +2289,7 @@ void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
         m_shell.m_audio->GetPrinterAudio().PlayTearOff();
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing());
         PrintJobStore::Clear (m_shell.GetPendingPrintDir());
         m_shell.m_printer->NotePrinterDeliveryResult (false);
     }
@@ -2350,7 +2350,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
     {
         // Modern session up, or the user canceled the print / save dialog:
         // keep the strip either way, no clear.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else if (SUCCEEDED (hr))
     {
@@ -2362,7 +2362,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
         DxuiMessageBox (m_shell.m_printer->GetPrinterDialogOwner(), &m_shell.m_chrome->GetTheme(), msg.c_str(), L"Casso printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
     else
     {
@@ -2388,7 +2388,7 @@ void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
-        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetRefs().printerCard->GetByteRing(), job->GetRaster());
+        m_shell.m_printer->GetWorker().Start (m_shell.m_machine.GetPrinterRing(), job->GetRaster());
     }
 }
 

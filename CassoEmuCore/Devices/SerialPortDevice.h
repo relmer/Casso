@@ -17,12 +17,13 @@
 //      "tcp:6502"          a TCP port on this PC that a program connects to
 //      "com:COM3"          a PC COM port, at 115,200 baud
 //      "com:COM3@9600"     a PC COM port at the speed given
+//      "imagewriter"       the emulated ImageWriter II
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct SerialPortDevice
 {
-    enum class Kind { Loopback, Tcp, Com };
+    enum class Kind { Loopback, Tcp, Com, Printer };
 
     static constexpr DWORD  kDefaultBaud = 115200;
 
@@ -39,4 +40,5 @@ private:
 
     static constexpr std::string_view  s_kTcpPrefix = "tcp:";
     static constexpr std::string_view  s_kComPrefix = "com:";
+    static constexpr std::string_view  s_kPrinter   = "imagewriter";
 };

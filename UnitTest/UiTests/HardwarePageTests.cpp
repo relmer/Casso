@@ -243,7 +243,7 @@ public:
         Assert::IsTrue (checkedRows > 0, L"the rows were looked at");
     }
 
-    TEST_METHOD (SerialChoices_AreNothingTheTcpPortAndEachComPort)
+    TEST_METHOD (SerialChoices_AreNothingThePrinterTheTcpPortAndEachComPort)
     {
         std::vector<std::wstring>  labels;
         std::vector<std::string>   devices;
@@ -251,8 +251,8 @@ public:
 
         HardwarePage::BuildSerialChoices (2, { L"COM3", L"COM4" }, "", labels, devices, selected);
 
-        Assert::IsTrue (devices == std::vector<std::string> ({ "", "tcp:6502", "com:COM3", "com:COM4" }));
-        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Not connected", L"TCP port 6502 on this PC", L"COM3", L"COM4" }));
+        Assert::IsTrue (devices == std::vector<std::string> ({ "", "imagewriter", "tcp:6502", "com:COM3", "com:COM4" }));
+        Assert::IsTrue (labels == std::vector<std::wstring> ({ L"Not connected", L"ImageWriter II", L"TCP port 6502 on this PC", L"COM3", L"COM4" }));
         Assert::AreEqual (0, selected);
     }
 
@@ -265,8 +265,8 @@ public:
 
         HardwarePage::BuildSerialChoices (1, { L"COM3" }, "com:COM3", labels, devices, selected);
 
-        Assert::AreEqual (2, selected);
-        Assert::AreEqual (std::string ("tcp:6501"), devices[1], L"port 1's own TCP port");
+        Assert::AreEqual (3, selected);
+        Assert::AreEqual (std::string ("tcp:6501"), devices[2], L"port 1's own TCP port");
     }
 
 
@@ -278,9 +278,9 @@ public:
 
         HardwarePage::BuildSerialChoices (2, {}, "com:COM9@9600", labels, devices, selected);
 
-        Assert::AreEqual<size_t> (3, devices.size());
-        Assert::AreEqual (2, selected);
-        Assert::AreEqual (std::wstring (L"COM9 at 9600 baud"), labels[2]);
+        Assert::AreEqual<size_t> (4, devices.size());
+        Assert::AreEqual (3, selected);
+        Assert::AreEqual (std::wstring (L"COM9 at 9600 baud"), labels[3]);
     }
 };
 

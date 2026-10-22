@@ -100,8 +100,9 @@ public:
                                                   bool supportsMouse  = false,
                                                   bool mouseConnected = true);
 
-    // Pure helper: what a //c serial port can connect to -- nothing, its own
-    // TCP port on this PC, or one of the PC's COM ports -- as labels and the
+    // Pure helper: what a //c serial port can connect to -- nothing, the
+    // ImageWriter II, its own TCP port on this PC, or one of the PC's COM
+    // ports -- as labels and the
     // device each writes, with the current device selected. A device that
     // is none of those, typed into the machine's configuration, is listed
     // as it is so a visit to the page does not change it. Exposed for unit

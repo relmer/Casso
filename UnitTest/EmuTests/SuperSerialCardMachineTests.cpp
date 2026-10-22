@@ -5,6 +5,7 @@
 #include "Devices/Acia6551.h"
 #include "Devices/AciaEndpoints.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "CassoLink/RunningCassoRegistry.h"
 #include "Seams/IByteStreamFactory.h"
@@ -427,7 +428,135 @@ namespace SuperSerialCardMachineTestNs
             machine.SetRunningRegistry (nullptr);
         }
 
+
+        //  On the card's connector the ImageWriter II gets what the card
+        //  sends. The parallel card, listed first, would take it otherwise.
+        TEST_METHOD (AnImageWriterOnTheCard_GetsWhatTheCardSends)
+        {
+            TestMachine        machine ("Apple2e", AttachPrinterToCard);
+            PrinterByteRing  * ring    = machine.GetRefs().printerRing;
+            Byte               out     = 0;
+
+
+
+            Assert::IsTrue (ring == &machine.GetPrinterRing(), L"the card has the printer");
+
+            machine.PowerCycle();
+            StartTransmitter (machine);
+            machine.GetMemoryBus().WriteByte (0xC0A8, 'P');
+            machine.RunCycles (5000);
+
+            Assert::IsTrue (ring->TryPop (out));
+            Assert::AreEqual<Byte> ('P', out);
+            Assert::IsFalse (machine.GetMemoryBus().ReadByte (0xC091) == PrinterCard::kStatusReady, L"the parallel card's connector is empty");
+        }
+
+
+        //  The printer's line drops near a full ring, which stops the card's
+        //  transmitter, and rises once the ring has room.
+        TEST_METHOD (TheSerialPrinter_DropsItsLineUntilTheRingHasRoom)
+        {
+            TestMachine        machine ("Apple2e", AttachPrinterToCard);
+            PrinterByteRing  & ring    = machine.GetPrinterRing();
+            Acia6551         & acia    = machine.GetRefs().superSerialCard->GetAcia();
+            Byte               out     = 0;
+            uint32_t           i       = 0;
+
+
+
+            machine.PowerCycle();
+            StartTransmitter (machine);
+
+            for (i = 0; i < PrinterByteRing::kByteRingCapacity - AciaPrinterEndpoint::kBusyFreeBytes; i++)
+            {
+                Assert::IsTrue (ring.TryPush (0));
+            }
+
+            machine.GetMemoryBus().WriteByte (0xC0A8, 'Q');
+            machine.RunCycles (5000);
+            Assert::IsFalse (acia.IsCtsTrue(), L"busy near full");
+
+            while (ring.TryPop (out))
+            {
+            }
+
+            machine.RunCycles (5000);
+            Assert::IsTrue (acia.IsCtsTrue(), L"ready once drained");
+        }
+
+
+        //  On a //c the printer is on one port at a time; unplugged from one,
+        //  it can go on the other.
+        TEST_METHOD (TheApple2csPrinter_IsOnOnePortAtATime)
+        {
+            TestMachine  machine ("Apple2c", [] (MachineConfig & config)
+            {
+                for (PortConfig & port : config.ports)
+                {
+                    port.device = (port.name == "serial1") ? std::string (kpszImageWriterDevice) : port.device;
+                }
+            });
+
+
+
+            Assert::IsTrue (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"port 1 has the printer");
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+
+            Assert::AreEqual (S_OK, machine.ConnectSerialPort (1, "", nullptr, nullptr));
+            Assert::IsNull (machine.GetRefs().printerRing, L"unplugged from port 1");
+
+            Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+            Assert::IsTrue (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"now on port 2");
+        }
+
+
+        TEST_METHOD (AParallelCardListingNothing_HasThePrinter_AndOneListingAnEmptyPortDoesNot)
+        {
+            TestMachine  bare  ("Apple2e");
+            TestMachine  empty ("Apple2e", [] (MachineConfig & config)
+            {
+                for (SlotConfig & slot : config.slots)
+                {
+                    if (slot.device == kpszParallelPrinterDevice)
+                    {
+                        slot.ports = { PortConfig {} };
+                    }
+                }
+            });
+
+
+
+            Assert::IsTrue (bare.GetRefs().printerRing == &bare.GetPrinterRing());
+            Assert::AreEqual (PrinterCard::kStatusReady, bare.GetMemoryBus().ReadByte (0xC091));
+
+            Assert::IsNull (empty.GetRefs().printerRing);
+            Assert::AreEqual (PrinterCard::kStatusBusy, empty.GetMemoryBus().ReadByte (0xC091));
+        }
+
     private:
+        static void AttachPrinterToCard (MachineConfig & config)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                if (slot.device == kpszSuperSerialCardDevice)
+                {
+                    slot.enabled = true;
+                    slot.ports   = { PortConfig { "", kpszImageWriterDevice, "" } };
+                }
+                else if (slot.device == kpszParallelPrinterDevice)
+                {
+                    slot.ports = { PortConfig {} };
+                }
+            }
+        }
+
+        //  19,200 baud 8N1, DTR on and the transmitter on, at slot 2.
+        static void StartTransmitter (TestMachine & machine)
+        {
+            machine.GetMemoryBus().WriteByte (0xC0AB, 0x1F);
+            machine.GetMemoryBus().WriteByte (0xC0AA, 0x0B);
+        }
+
         //  Programs 19,200 baud 8N1, then counts received bytes in $00/$01 and
         //  ORs every status read into $02.
         static constexpr Byte  kCountingReader[] =

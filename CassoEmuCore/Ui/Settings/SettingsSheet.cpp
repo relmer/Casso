@@ -626,9 +626,9 @@ HRESULT SettingsSheet::OpenModeless (
 
     // Printing page: bind global prefs (resolution + dot style). Edits persist
     // / revert through the apply controller (SnapshotBaselines captures the
-    // printing prefs too).
+    // printing prefs too). The printer's connector is staged machine state.
     m_printingPage->SetPrefs (&prefs);
-    m_printingPage->SetPrinterInfo (m_emuShell->GetPrinter().GetPrinterBannerMessage());
+    m_printingPage->SetState (&m_state);
 
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
@@ -712,6 +712,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_serialPage->Rebuild();
     m_displayPage->Rebuild();
     m_networkPage->Rebuild();
+    m_printingPage->Sync();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
     // Capture the CRT / color / theme baseline so OnCancel can revert any
@@ -1030,10 +1031,16 @@ void SettingsSheet::OnDialogTick()
     UpdateTickInterval();
 
     // The Machine tab's tree, a machine switch and Cancel all change the
-    // staged card behind the Network page.
+    // staged card behind the Network page, and the connectors the printer
+    // can be attached to.
     if (m_networkPage != nullptr)
     {
         m_networkPage->Sync();
+    }
+
+    if (m_printingPage != nullptr)
+    {
+        m_printingPage->Sync();
     }
 
     // Controllers that came or went while the sheet is open, then the

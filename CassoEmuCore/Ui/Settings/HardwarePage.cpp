@@ -697,6 +697,7 @@ void HardwarePage::BuildSerialChoices (int port, const std::vector<std::wstring>
     tcp.tcpPort = (uint16_t) (kSerialTcpBasePort + port);
 
     outDevices.push_back (std::string());
+    outDevices.push_back (kpszImageWriterDevice);
     outDevices.push_back (SerialPortDevice::Format (tcp));
 
     for (const std::wstring & comPort : comPorts)
@@ -744,6 +745,10 @@ std::wstring HardwarePage::DescribeSerialDevice (const std::string & device)
     if (SUCCEEDED (hr) && parsed.kind == SerialPortDevice::Kind::Loopback)
     {
         label = L"Not connected";
+    }
+    else if (SUCCEEDED (hr) && parsed.kind == SerialPortDevice::Kind::Printer)
+    {
+        label = L"ImageWriter II";
     }
     else if (SUCCEEDED (hr) && parsed.kind == SerialPortDevice::Kind::Tcp)
     {

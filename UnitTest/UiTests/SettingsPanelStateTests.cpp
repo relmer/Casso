@@ -1056,6 +1056,79 @@ public:
         Assert::IsFalse (st.RequiresReset());
     }
 
+
+    // The printer is on one connector at a time: on a //c, putting it on
+    // port 2 empties port 1, and moving it rebuilds the machine.
+    TEST_METHOD (Printer_OnAnApple2c_IsOnOnePortAtATime)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "ports": [ { "name": "disk", "device": "" },
+                       { "name": "serial1", "device": "imagewriter" },
+                       { "name": "serial2", "device": "" } ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.GetPrinterChoices() == std::vector<PrinterConnection> ({
+                            PrinterConnection(),
+                            PrinterConnection { PrinterConnection::Kind::SerialPort, 1 },
+                            PrinterConnection { PrinterConnection::Kind::SerialPort, 2 } }));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialPort, 1 });
+
+        st.SetSerialPortDevice (2, kpszImageWriterDevice);
+
+        Assert::AreEqual (std::string(), st.GetSerialPortDevice (1), L"port 1 is emptied");
+        Assert::AreEqual (std::string (kpszImageWriterDevice), st.GetSerialPortDevice (2));
+        Assert::IsTrue (st.RequiresReset(), L"the printer's drain starts with the machine");
+    }
+
+
+    // On a machine with cards, the printer moves between the parallel card
+    // and the Super Serial Card. A parallel card read listing nothing has
+    // it, and lists nothing again when it is chosen back.
+    TEST_METHOD (Printer_MovesBetweenTheCards)
+    {
+        SettingsPanelState  st;
+        JsonValue           outJson;
+        RecordingSink       sink;
+        std::string         text;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "slots": [
+                { "slot": 1, "device": "parallel-printer" },
+                { "slot": 2, "device": "super-serial-card", "enabled": true },
+                { "slot": 6, "device": "disk-ii" }
+            ]
+        })JSON");
+
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue (st.GetPrinterChoices() == std::vector<PrinterConnection> ({
+                            PrinterConnection(),
+                            PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 },
+                            PrinterConnection { PrinterConnection::Kind::SerialCard, 2 } }));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        Assert::IsTrue (st.RequiresReset());
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+        Assert::IsTrue (text.find ("\"device\":\"parallel-printer\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"ports\":[\"\"]") != std::string::npos, L"the parallel card's connector is written empty");
+        Assert::IsTrue (text.find ("\"ports\":[\"imagewriter\"]") != std::string::npos, L"and the card's has the printer");
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
+        Assert::IsFalse (st.RequiresReset(), L"back where it was read");
+        Assert::IsFalse (st.IsDirty());
+    }
+
     // Detaching must write BOTH connectors. A one-element list would take
     // drive 1 away as a side effect of removing drive 2.
     TEST_METHOD (SecondDrive_DetachingWritesBothConnectors)

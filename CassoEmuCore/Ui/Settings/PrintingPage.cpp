@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "PrintingPage.h"
+#include "SettingsPanelState.h"
+#include "Core/TextEncoding.h"
 
 
 
@@ -68,6 +70,8 @@ PrintingPage::PrintingPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
     Adopt (m_printerBanner);
+    Adopt (m_connectionLabel);
+    Adopt (m_connection);
     Adopt (m_dpiLabel);
     Adopt (m_dpi);
     Adopt (m_styleLabel);
@@ -110,8 +114,197 @@ void PrintingPage::SetPrefs (GlobalUserPrefs * prefs)
 
 void PrintingPage::SetPopupHost (DxuiHwndSource * host)
 {
+    m_connection.SetPopupHost (host);
     m_dpi.SetPopupHost      (host);
     m_dotStyle.SetPopupHost (host);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::SetState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintingPage::SetState (SettingsPanelState * state)
+{
+    m_state = state;
+    m_choices.clear();
+    SyncConnection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::Sync
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintingPage::Sync()
+{
+    SyncConnection();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::SyncConnection
+//
+//  The list is replaced only when the connectors differ, so an open list is
+//  not rebuilt under the pointer each tick. The selection and the banner
+//  follow the staged connector, which the Machine tab or the Serial card
+//  page may also have changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintingPage::SyncConnection()
+{
+    std::vector<PrinterConnection>  choices;
+    std::vector<std::wstring>       labels;
+    PrinterConnection               current;
+    std::wstring                    banner;
+    int                             selected = 0;
+
+
+
+    if (m_state == nullptr)
+    {
+        return;
+    }
+
+    choices = m_state->GetPrinterChoices();
+    current = m_state->GetPrinterConnection();
+
+    if (choices != m_choices)
+    {
+        m_choices = choices;
+
+        for (const PrinterConnection & choice : m_choices)
+        {
+            labels.push_back (GetConnectionLabel (choice));
+        }
+
+        m_connection.SetItems (labels);
+        m_connection.SetSelect ([this] (int index)
+        {
+            if (m_state != nullptr && index >= 0 && index < (int) m_choices.size())
+            {
+                m_state->SetPrinterConnection (m_choices[(size_t) index]);
+                SyncConnection();
+                MarkDirty();
+            }
+        });
+    }
+
+    selected = (int) (std::find (m_choices.begin(), m_choices.end(), current) - m_choices.begin());
+
+    if (selected >= (int) m_choices.size())
+    {
+        selected = 0;
+    }
+
+    if (m_connection.GetSelectedIndex() != selected)
+    {
+        m_connection.SetSelected (selected);
+    }
+
+    banner = GetBannerText (current, TextEncoding::NarrowToWide (m_state->GetMachineInfo().name));
+
+    if (banner != m_bannerText)
+    {
+        m_bannerText = banner;
+        m_printerBanner.SetText (banner);
+
+        if (m_hasLayout)
+        {
+            Layout (m_lastRect, m_lastScaler);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::GetConnectionLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PrintingPage::GetConnectionLabel (const PrinterConnection & connection)
+{
+    std::wstring  label = L"Not connected";
+
+
+
+    switch (connection.kind)
+    {
+        case PrinterConnection::Kind::ParallelCard:
+            label = std::format (L"Parallel card in slot {}", connection.number);
+            break;
+
+        case PrinterConnection::Kind::SerialCard:
+            label = std::format (L"Super Serial Card in slot {}", connection.number);
+            break;
+
+        case PrinterConnection::Kind::SerialPort:
+            label = std::format (L"Serial port {}", connection.number);
+            break;
+
+        default:
+            break;
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::GetBannerText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring PrintingPage::GetBannerText (const PrinterConnection & connection, const std::wstring & machineName)
+{
+    std::wstring  text;
+
+
+
+    switch (connection.kind)
+    {
+        case PrinterConnection::Kind::ParallelCard:
+            text = std::format (L"Emulating an Apple ImageWriter II on the parallel card in slot {}.", connection.number);
+            break;
+
+        case PrinterConnection::Kind::SerialCard:
+            text = std::format (L"Emulating an Apple ImageWriter II on the Super Serial Card in slot {}.", connection.number);
+            break;
+
+        case PrinterConnection::Kind::SerialPort:
+            text = std::format (L"Emulating an Apple ImageWriter II on serial port {}.", connection.number);
+            break;
+
+        default:
+            text = machineName.empty() ? std::wstring (L"No printer is connected.")
+                                       : L"No printer is connected to this " + machineName + L".";
+            break;
+    }
+
+    return text;
 }
 
 
@@ -168,6 +361,12 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_printerBanner.SetDpi  (dpi);
     y += bannerHeight + sectionGap;
 
+    // Its items follow the staged machine, so SyncConnection sets them.
+    m_connectionLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_connectionLabel.SetText (L"Connected to:");
+    m_connection.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
     m_dpiLabel.SetRect  (MakeRect (x, y, labelWidth, rowHeight));
     m_dpiLabel.SetText  (L"Output resolution:");
     m_dpi.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
@@ -206,6 +405,8 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.Layout   (MakeRect (controlsX, y, resetWidth, rowHeight));
     y += rowHeight + sectionGap;
 
+    m_connectionLabel.SetDpi (dpi);
+    m_connection.SetDpi    (dpi);
     m_dpiLabel.SetDpi      (dpi);
     m_dpi.SetDpi           (dpi);
     m_styleLabel.SetDpi    (dpi);
@@ -220,6 +421,10 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_reset.SetDpi         (dpi);
 
     DxuiPanel::SetBounds (rect);
+
+    m_hasLayout  = true;
+    m_lastRect   = rect;
+    m_lastScaler = scaler;
 
     // Every control here is a fixed height, so the lowest one is where the
     // content ends, whatever the rect.

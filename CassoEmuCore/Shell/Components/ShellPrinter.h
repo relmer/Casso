@@ -23,9 +23,9 @@ struct MachineBuildServices;
 //  ShellPrinter
 //
 //  The emulated ImageWriter as the emulator presents it: the worker that
-//  drains the printer card's ring into a raster, the print preview window,
-//  the toolbar's status light, and the system print dialog. The card itself
-//  is the machine's.
+//  drains the machine's printer ring into a raster, the print preview window,
+//  the toolbar's status light, and the system print dialog. The connector
+//  the printer is attached to is the machine's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,8 +63,8 @@ public:
     void    UpdatePrinterPreview ();
     HRESULT RenderPanelFrame     ();
 
-    // Stops the drain thread before the card it reads is freed, and keeps the
-    // pending strip for the machine's next run, or clears a stale one.
+    // Stops the drain thread before the CPU that paces it is freed, and saves
+    // the pending strip for the machine's next run, or clears a stale one.
     void    StopAndSavePendingStrip ();
 
     // Delivery outcome -> the printer status LED: failed=true lights the red
@@ -76,10 +76,6 @@ public:
     // panel when it is open and visible (so the box centers on the dialog the
     // user is acting in), otherwise the main window.
     HWND    GetPrinterDialogOwner () const;
-
-    // One-line printer summary for the Settings > Printing info banner: what
-    // printer this machine emulates and how it connects, or that it has none.
-    std::wstring  GetPrinterBannerMessage () const;
 
 private:
     EmulatorShell                 & m_shell;

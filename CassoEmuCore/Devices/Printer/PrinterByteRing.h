@@ -67,6 +67,10 @@ public:
     // bit; reads the consumer head with acquire so freed slots are seen.
     uint32_t   GetFreeBytes  () const noexcept;
 
+    // Empties the ring. Neither thread may push or pop while it runs: the
+    // machine calls it while it is built, with the drain thread stopped.
+    void       Clear         () noexcept;
+
 private:
     alignas(64) std::atomic<uint32_t>   m_head  { 0 };   // consumer-owned
     alignas(64) std::atomic<uint32_t>   m_tail  { 0 };   // producer-owned

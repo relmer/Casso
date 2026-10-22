@@ -23,6 +23,10 @@ class MemoryBus;
 //  byte with the ready convention asserted. Reads are tolerant across the
 //  window (drivers poke different offsets); writes above +$0 are ignored.
 //
+//  The ring is the machine's, set when the ImageWriter II is attached to
+//  this card. With none set the connector is empty: the card reads busy and
+//  drops what is written, as a card with no printer cable does.
+//
 //  The ready bit de-asserts within a high-water margin of the ring capacity
 //  so a guest honoring the handshake stalls rather than overflowing when the
 //  UI-thread drain is delayed (FR-002). In normal operation the drain keeps
@@ -66,8 +70,10 @@ public:
     Word GetEnd() const override { return m_ioEnd; }
     void Reset() override;
 
-    // Host (presenter) drains bytes the guest has written.
-    PrinterByteRing & GetByteRing() { return m_ring; }
+    // The ring the printer drains, or null for an empty connector. Caller
+    // owned; it outlives the card.
+    void              SetByteRing (PrinterByteRing * ring) { m_ring = ring; }
+    PrinterByteRing * GetByteRing () const                 { return m_ring; }
 
     // FR-020: true once the guest first writes a data byte. The host reveals
     // the panel on the rising edge.
@@ -82,5 +88,5 @@ private:
     Word              m_ioStart     = 0;
     Word              m_ioEnd       = 0;
     bool              m_everTouched = false;
-    PrinterByteRing   m_ring;
+    PrinterByteRing * m_ring        = nullptr;
 };

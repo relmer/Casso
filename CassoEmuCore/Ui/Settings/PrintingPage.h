@@ -3,10 +3,12 @@
 #include "Pch.h"
 
 #include "Config/GlobalUserPrefs.h"
+#include "Core/MachineConfig.h"
 
 
 
 class DxuiHwndSource;
+class SettingsPanelState;
 
 
 
@@ -21,6 +23,11 @@ class DxuiHwndSource;
 //  keyboard). Edits write straight into GlobalUserPrefs; the sheet's apply
 //  controller persists them on OK and reverts them on Cancel. None have a live
 //  effect -- they bind at the next delivery.
+//
+//  The one machine setting comes first: the connector the ImageWriter II is
+//  attached to (DxuiComboBox), staged in SettingsPanelState like the Machine
+//  tab's hardware. A change rebuilds the machine on OK. The banner above it
+//  is set from the staged choice.
 //
 //      * Resolution     (DxuiComboBox: 288 / 576 dpi, FR-028)
 //      * Dot style      (DxuiComboBox: ink / plain, FR-027)
@@ -53,17 +60,27 @@ public:
     // Backing store; seeds the controls and wires their change callbacks.
     void  SetPrefs             (GlobalUserPrefs * prefs);
 
-    // The current machine's printer summary, shown in the info banner at the top
-    // of the page (e.g. "Emulating an Apple ImageWriter II ..." or "No printer is
-    // connected to this <machine>."). Set by the sheet when it opens the page.
-    void  SetPrinterInfo       (const std::wstring & message) { m_printerBanner.SetText (message); }
+    // The staged machine, whose printer connector the page edits.
+    void  SetState             (SettingsPanelState * state);
+
+    // Picks up a change made elsewhere in the sheet that adds or removes a
+    // connector, such as a card turned on in the Machine tab. Called each
+    // dialog tick; rebuilds the list only when it differs.
+    void  Sync                 ();
 
     void  SetPopupHost         (DxuiHwndSource * host);
+
+    // Pure helpers: a connector as a choice in the list, and the banner for
+    // the staged connector. Exposed for unit tests.
+    static std::wstring  GetConnectionLabel (const PrinterConnection & connection);
+    static std::wstring  GetBannerText      (const PrinterConnection & connection, const std::wstring & machineName);
 
     void  Layout               (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild              ();
 
     // Test / wiring accessors.
+    DxuiComboBox       & GetConnectionDropdown  ()       { return m_connection;   }
+    const std::wstring & GetBannerTextShown     () const { return m_bannerText;   }
     DxuiComboBox       & GetResolutionDropdown  ()       { return m_dpi;         }
     DxuiComboBox       & GetDotStyleDropdown    ()       { return m_dotStyle;     }
     const DxuiComboBox & GetResolutionDropdown  () const { return m_dpi;         }
@@ -91,9 +108,23 @@ private:
     // replace this button's own OnClick closure while it is executing).
     void  ResetToDefaults       ();
 
-    GlobalUserPrefs *  m_prefs = nullptr;
+    void  SyncConnection        ();
+
+    GlobalUserPrefs *     m_prefs = nullptr;
+    SettingsPanelState *  m_state = nullptr;
 
     DxuiInfoBanner  m_printerBanner;
+    std::wstring    m_bannerText;
+
+    DxuiLabel                       m_connectionLabel;
+    DxuiComboBox                    m_connection;
+    std::vector<PrinterConnection>  m_choices;
+
+    // The last layout, for laying out again when the banner's text changes
+    // its height.
+    bool           m_hasLayout = false;
+    RECT           m_lastRect  = {};
+    DxuiDpiScaler  m_lastScaler;
 
     DxuiLabel     m_dpiLabel;
     DxuiComboBox  m_dpi;

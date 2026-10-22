@@ -12,6 +12,7 @@ class Disk2AudioSource;
 class JsonValue;
 class PrinterAudioSource;
 class PrinterWorker;
+class PrinterCard;
 class SuperSerialCard;
 class WasapiAudio;
 
@@ -150,6 +151,7 @@ public:
 
 private:
 
+    void     WireParallelPrinter  (const SlotConfig & slot, PrinterCard & card);
     void     WireSuperSerialCard  (const SlotConfig & slot, SuperSerialCard & card);
     void     AttachSerialEndpoint (const SlotConfig & slot, SuperSerialCard & card);
 

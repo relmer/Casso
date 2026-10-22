@@ -65,6 +65,54 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AciaPrinterEndpoint
+//
+//  The ImageWriter II on a serial cable. Every transmitted byte goes into the
+//  ring the printer drains. Its handshake line drops when the ring nears
+//  full and rises again once the drain has made room; the line is wired to
+//  CTS, DSR and DCD together, since cables and drivers differ in which input
+//  they watch, and CTS false stops the transmitter on every one of them.
+//
+//  The ring and the ACIA are caller-owned.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class AciaPrinterEndpoint : public IAciaEndpoint
+{
+public:
+    //  Free bytes at or below which the line drops, and at or above which it
+    //  rises again.
+    static constexpr uint32_t  kBusyFreeBytes  = 1024;
+    static constexpr uint32_t  kReadyFreeBytes = 4096;
+
+    AciaPrinterEndpoint (Acia6551 * acia, class PrinterByteRing * ring) : m_acia (acia), m_ring (ring) {}
+
+    void        OnByteTransmitted (Byte value) override;
+
+    //  Advance by the cycles the CPU has run, checking the ring now and then
+    //  to raise the line once there is room.
+    void        Tick              (uint32_t cpuCycles);
+
+    bool        IsReady           () const { return m_ready; }
+
+private:
+    //  Cycles between checks of a busy ring: about a millisecond.
+    static constexpr int64_t  kCheckCycles = 1000;
+
+    void        Update            ();
+
+    Acia6551                * m_acia      = nullptr;
+    class PrinterByteRing   * m_ring      = nullptr;
+    bool                      m_ready     = true;
+    int64_t                   m_checkWait = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AciaBridgeEndpoint
 //
 //  Joins the ACIA to a byte stream. The ACIA paces the line: it passes each

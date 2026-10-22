@@ -199,6 +199,29 @@ static constexpr const char *  kpszSerialLoopback = "serial-loopback";
 static constexpr const char *  kpszSerialFileOut  = "serial-file-out";
 static constexpr const char *  kpszSerialFileIn   = "serial-file-in";
 
+// The emulated ImageWriter II, as the device of a //c serial port, of a Super
+// Serial Card's connector or of a parallel card's connector. A parallel card
+// with no ports listed has it attached, as it did before a printer could be
+// moved.
+static constexpr const char *  kpszImageWriterDevice = "imagewriter";
+static constexpr const char *  kpszParallelPrinterDevice = "parallel-printer";
+
+
+//
+//  Where the machine's one ImageWriter II is connected: a parallel card's
+//  slot, a Super Serial Card's slot, or a //c serial port. `number` is the
+//  slot or the port; 0 with kind None.
+//
+struct PrinterConnection
+{
+    enum class Kind { None, ParallelCard, SerialCard, SerialPort };
+
+    Kind  kind   = Kind::None;
+    int   number = 0;
+
+    bool  operator== (const PrinterConnection &) const = default;
+};
+
 
 //
 //  The state of a slot's optional firmware file. None means the slot entry
@@ -362,6 +385,13 @@ struct MachineConfig
 
         return false;
     }
+
+
+    // The connector the ImageWriter II is attached to. When more than one
+    // lists it, the printer is attached to the first in build order: the
+    // enabled slots, in the order they are listed, then the //c's ports 1
+    // and 2.
+    PrinterConnection  FindPrinterConnection () const;
 
 
     // The machine's own named connector, or nullptr when it has none by that

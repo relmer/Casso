@@ -1333,3 +1333,48 @@ void MachineConfigLoader::LoadKeyboardConfig (const JsonValue & keyboard, Machin
 {
     keyboard.GetString ("type", outConfig.keyboardType);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineConfig::FindPrinterConnection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PrinterConnection MachineConfig::FindPrinterConnection() const
+{
+    PrinterConnection  found;
+    const PortConfig * port = nullptr;
+
+
+
+    for (const SlotConfig & entry : slots)
+    {
+        bool  parallel = entry.device == kpszParallelPrinterDevice
+                      && (entry.ports.empty() || entry.ports.front().device == kpszImageWriterDevice);
+        bool  serial   = entry.device == kpszSuperSerialCardDevice
+                      && !entry.ports.empty() && entry.ports.front().device == kpszImageWriterDevice;
+
+        if (found.kind == PrinterConnection::Kind::None && entry.enabled && (parallel || serial))
+        {
+            found.kind   = parallel ? PrinterConnection::Kind::ParallelCard : PrinterConnection::Kind::SerialCard;
+            found.number = entry.slot;
+        }
+    }
+
+    for (int number = 1; found.kind == PrinterConnection::Kind::None && number <= 2; number++)
+    {
+        port = FindPort (std::format ("serial{}", number));
+
+        if (port != nullptr && port->device == kpszImageWriterDevice)
+        {
+            found.kind   = PrinterConnection::Kind::SerialPort;
+            found.number = number;
+        }
+    }
+
+    return found;
+}

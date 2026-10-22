@@ -362,6 +362,16 @@ public:
     std::string  GetSerialPortDevice (int port) const;
     void         SetSerialPortDevice (int port, const std::string & device);
 
+    // Where the ImageWriter II is attached: nothing, or one of the staged
+    // machine's connectors that can take it, which are each turned-on
+    // parallel card and Super Serial Card, then a //c's ports 1 and 2. It is
+    // on one connector at a time, so staging it on one, here or as a serial
+    // port's or the card's device, empties the connector that had it. A
+    // change rebuilds the machine, which starts the printer.
+    std::vector<PrinterConnection>  GetPrinterChoices    () const;
+    PrinterConnection               GetPrinterConnection () const;
+    void                            SetPrinterConnection (const PrinterConnection & connection);
+
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
     // The staged Super Serial Card: its index in GetHardware(), or -1 when
@@ -435,6 +445,11 @@ private:
         std::vector<HardwareEntry>        hardware;
         std::vector<SettingsMachinePort>  machinePorts;
     };
+
+    // The rule MachineConfig::FindPrinterConnection applies, to staged state.
+    static PrinterConnection  FindPrinterConnection (const Snapshot & snapshot);
+
+    void  StageSerialPortDevice (int port, const std::string & device);
 
     // Appends every $cassoUiPrefs entry of `mergedJson` that `uiObj` does not
     // already carry, so a preference this dialog knows nothing about survives

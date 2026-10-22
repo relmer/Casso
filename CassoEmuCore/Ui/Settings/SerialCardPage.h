@@ -40,11 +40,12 @@ public:
     // What a connector attachment choice is, in drop-down order. After these
     // come a TCP port on this PC and then each of the PC's COM ports, as a
     // //c's serial port offers.
-    static constexpr const char *  kAttachmentDevices[] = { "", "serial-loopback", "serial-file-out", "serial-file-in" };
+    static constexpr const char *  kAttachmentDevices[] = { "", "serial-loopback", "serial-file-out", "serial-file-in", "imagewriter" };
     static constexpr int           kLoopbackChoice      = 1;
     static constexpr int           kFileOutChoice       = 2;
     static constexpr int           kFileInChoice        = 3;
-    static constexpr int           kTcpChoice           = 4;
+    static constexpr int           kPrinterChoice       = 4;
+    static constexpr int           kTcpChoice           = 5;
 
     // The card's TCP port is this plus its slot, so slot 2's is 6502, as the
     // //c's port 2's is.

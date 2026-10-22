@@ -261,10 +261,10 @@ void ShellPrinter::UpdatePrinterStatus()
 
 
 
-    if (m_shell.m_machine.GetRefs().printerCard == nullptr)
+    if (m_shell.m_machine.GetRefs().printerRing == nullptr)
     {
         m_printerLed.SetPresent (false);
-        return;   // no card: the toolbar's printer button disables
+        return;   // no printer attached: the toolbar's printer button disables
     }
 
     m_printerLed.SetPresent (true);
@@ -324,7 +324,7 @@ void ShellPrinter::UpdatePrinterPreview()
     int64_t    nowMs     = 0;
     bool       previewUp = false;
 
-    BAIL_OUT_IF (m_shell.m_machine.GetRefs().printerCard == nullptr, S_OK);   // machine has no printer card
+    BAIL_OUT_IF (m_shell.m_machine.GetRefs().printerRing == nullptr, S_OK);   // no printer attached
 
     activity = m_printerWorker.GetActivityCount();
     nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
@@ -441,37 +441,6 @@ Error:
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetPrinterBannerMessage
-//
-//  One-line printer summary for the Settings > Printing info banner. The
-//  machine-can-print fact comes from the config's enabled slots (core, tested);
-//  the wording is host UI copy. //c is slotless, so it reads as no printer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring ShellPrinter::GetPrinterBannerMessage() const
-{
-    std::wstring  message;
-
-
-
-    if (m_shell.m_machine.GetConfig().HasEnabledSlotDevice ("parallel-printer"))
-    {
-        message = L"Emulating an Apple ImageWriter II connected via parallel interface.";
-    }
-    else
-    {
-        message = L"No printer is connected to this " + fs::path (m_shell.m_machine.GetConfig().name).wstring() + L".";
-    }
-
-    return message;
-}
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -516,9 +485,10 @@ HRESULT ShellPrinter::RenderPanelFrame()
 //
 //  ShellPrinter::StopAndSavePendingStrip
 //
-//  Joins the printer drain thread before the card it reads is freed -- its job
-//  holds a reference into the card's ring -- then persists the pending strip
-//  for the outgoing machine (FR-026). An empty strip clears any stale sidecar.
+//  Joins the printer drain thread before the CPU whose cycle counter paces it
+//  is freed, and before the next build clears its ring, then persists the
+//  pending strip for the outgoing machine (FR-026). An empty strip clears any
+//  stale sidecar.
 //  The machine host still holds the outgoing machine's name here.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -582,7 +552,7 @@ void ShellPrinter::SnapshotStripToPanel()
 {
     int64_t   nowMs      = 0;
     bool      panelIsUp  = m_printerPanel != nullptr && m_printerPanel->IsOpen();
-    bool      hasCard    = m_shell.m_machine.GetRefs().printerCard != nullptr;
+    bool      hasCard    = m_shell.m_machine.GetRefs().printerRing != nullptr;
 
 
 

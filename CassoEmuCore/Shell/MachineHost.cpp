@@ -39,7 +39,8 @@ MachineHost::MachineHost() :
     m_charRom   (std::make_unique<CharacterRomData>()),
     m_diskStore (std::make_unique<DiskImageStore>()),
     m_config    (std::make_unique<MachineConfig>()),
-    m_tapeDeck  (std::make_unique<TapeDeck>())
+    m_tapeDeck  (std::make_unique<TapeDeck>()),
+    m_printerRing (std::make_unique<PrinterByteRing>())
 {
     m_memoryBus->SetFloatingBusSource ([this]() { return ReadFloatingBus(); });
 
@@ -260,6 +261,11 @@ Byte MachineHost::StepOne()
         }
     }
 
+    if (m_printerEndpoint != nullptr)
+    {
+        m_printerEndpoint->Tick (cycles);
+    }
+
     if (m_refs.uthernet != nullptr)
     {
         m_refs.uthernet->Tick (cycles);
@@ -302,12 +308,10 @@ void MachineHost::SetSerialPort (int port, Acia6551 * acia, bool onCard)
 
 HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IByteStreamFactory * factory, SerialTrafficLog * log)
 {
-    HRESULT                       hr     = S_OK;
-    bool                          known  = port >= 1 && port <= s_kSerialPortCount;
-    Acia6551                    * acia   = known ? m_serialPorts[(size_t) port] : nullptr;
-    SerialPortDevice              parsed;
-    std::unique_ptr<IByteStream>  stream;
-    AciaBridgeEndpoint          * bridge = nullptr;
+    HRESULT           hr     = S_OK;
+    bool              known  = port >= 1 && port <= s_kSerialPortCount;
+    Acia6551        * acia   = known ? m_serialPorts[(size_t) port] : nullptr;
+    SerialPortDevice  parsed;
 
 
 
@@ -324,15 +328,83 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
     hr = SerialPortDevice::Parse (device, parsed);
     CHR (hr);
     BAIL_OUT_IF (parsed.kind == SerialPortDevice::Kind::Loopback, S_OK);
-    CBREx (factory != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
-    if (parsed.kind == SerialPortDevice::Kind::Tcp)
+    if (parsed.kind == SerialPortDevice::Kind::Printer)
     {
-        hr = factory->ListenTcp (parsed.tcpPort, LinkTransport::Emulated, stream);
+        hr = AttachSerialPrinter (port);
+        CHR (hr);
     }
     else
     {
-        hr = factory->OpenComPort (parsed.comPort, ComSettings { parsed.baud }, stream);
+        hr = OpenSerialStream (port, parsed, factory, log);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachSerialPrinter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::AttachSerialPrinter (int port)
+{
+    HRESULT                               hr       = S_OK;
+    bool                                  attached = m_refs.printerRing != nullptr;
+    std::unique_ptr<AciaPrinterEndpoint>  printer;
+    AciaPrinterEndpoint                 * raw      = nullptr;
+
+
+
+    CBREx (!attached, HRESULT_FROM_WIN32 (ERROR_BUSY));
+
+    printer = std::make_unique<AciaPrinterEndpoint> (m_serialPorts[(size_t) port], m_printerRing.get());
+    raw     = printer.get();
+
+    InstallSerialEndpoint (port, std::move (printer), nullptr);
+
+    m_printerEndpoint  = raw;
+    m_printerPort      = port;
+    m_refs.printerRing = m_printerRing.get();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::OpenSerialStream
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::OpenSerialStream (int port, const SerialPortDevice & device, IByteStreamFactory * factory, SerialTrafficLog * log)
+{
+    HRESULT                       hr     = S_OK;
+    std::unique_ptr<IByteStream>  stream;
+    AciaBridgeEndpoint          * bridge = nullptr;
+
+
+
+    CBREx (factory != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
+
+    if (device.kind == SerialPortDevice::Kind::Tcp)
+    {
+        hr = factory->ListenTcp (device.tcpPort, LinkTransport::Emulated, stream);
+    }
+    else
+    {
+        hr = factory->OpenComPort (device.comPort, ComSettings { device.baud }, stream);
     }
 
     CHR (hr);
@@ -342,9 +414,9 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
 
     //  Casso Explorer finds the port by its file; one that cannot be written
     //  does not stop the port; the port is only unlisted.
-    if (m_runningRegistry != nullptr && parsed.kind == SerialPortDevice::Kind::Tcp)
+    if (m_runningRegistry != nullptr && device.kind == SerialPortDevice::Kind::Tcp)
     {
-        HRESULT  published = m_runningRegistry->Publish (GetCurrentProcessId(), port, m_config->name, parsed.tcpPort, m_serialOnCard[(size_t) port]);
+        HRESULT  published = m_runningRegistry->Publish (GetCurrentProcessId(), port, m_config->name, device.tcpPort, m_serialOnCard[(size_t) port]);
 
         IGNORE_RETURN_VALUE (published, S_OK);
     }
@@ -421,6 +493,15 @@ void MachineHost::InstallSerialEndpoint (int port, std::unique_ptr<IAciaEndpoint
         old->GetStream()->Close();
     }
 
+    // The printer the port had is unplugged with it. Its ring is the host's,
+    // so bytes not yet drained are printed.
+    if (m_printerPort == port)
+    {
+        m_printerPort      = 0;
+        m_printerEndpoint  = nullptr;
+        m_refs.printerRing = nullptr;
+    }
+
     m_serialPorts[(size_t) port]->SetEndpoint (endpoint.get());
 
     m_serialBridges[(size_t) port]   = bridge;
@@ -465,6 +546,8 @@ void MachineHost::DetachSerialPorts()
     m_serialBridges   = {};
     m_serialEndpoints = {};
     m_serialOnCard    = {};
+    m_printerPort     = 0;
+    m_printerEndpoint = nullptr;
     m_ownedAciaEndpoints.clear();
 }
 

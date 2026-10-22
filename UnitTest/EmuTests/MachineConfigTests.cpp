@@ -625,6 +625,35 @@ public:
     }
 
 
+    //  A parallel card listing nothing has the printer, as it did before the
+    //  printer could be moved. The printer is attached to the first
+    //  connector in build order.
+    TEST_METHOD (FindPrinterConnection_FollowsTheConnectorsInBuildOrder)
+    {
+        MachineConfig  config;
+        SlotConfig     serial = MakeSlot (2, kpszSuperSerialCardDevice, true);
+        PortConfig     port1;
+
+        config.slots.push_back (MakeSlot (1, kpszParallelPrinterDevice, true));
+        serial.ports = { PortConfig { "", kpszImageWriterDevice, "" } };
+        config.slots.push_back (serial);
+
+        Assert::IsTrue (config.FindPrinterConnection() == PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
+
+        config.slots[0].ports = { PortConfig {} };
+        Assert::IsTrue (config.FindPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialCard, 2 }, L"an empty parallel connector");
+
+        config.slots[1].enabled = false;
+        Assert::IsTrue (config.FindPrinterConnection() == PrinterConnection(), L"a turned-off card has none");
+
+        port1.name   = "serial1";
+        port1.device = kpszImageWriterDevice;
+        config.slots.clear();
+        config.ports.push_back (port1);
+        Assert::IsTrue (config.FindPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialPort, 1 }, L"a //c's port 1");
+    }
+
+
     TEST_METHOD (HasEnabledSlotDevice_EmptyConfigHasNone)
     {
         MachineConfig  config;   // slotless (like the //c)

@@ -11,9 +11,10 @@
 //
 //  SerialPortDevice::Parse
 //
-//  An empty device is loopback. Anything else must be one of the two forms in
-//  full; Parse fails on a port number of zero, a port name with nothing in
-//  it, or a speed that is not a number, rather than reading it as loopback.
+//  An empty device is loopback. Anything else must be the printer or one of
+//  the two forms in full; Parse fails on a port number of zero, a port name
+//  with nothing in it, or a speed that is not a number, rather than reading
+//  it as loopback.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +34,11 @@ HRESULT SerialPortDevice::Parse (const std::string & device, SerialPortDevice & 
 
     BAIL_OUT_IF (text.empty(), S_OK);
 
-    if (text.starts_with (s_kTcpPrefix))
+    if (text == s_kPrinter)
+    {
+        outDevice.kind = Kind::Printer;
+    }
+    else if (text.starts_with (s_kTcpPrefix))
     {
         hr = ParseNumber (text.substr (s_kTcpPrefix.size()), UINT16_MAX, number);
         CHR (hr);
@@ -109,6 +114,10 @@ std::string SerialPortDevice::Format (const SerialPortDevice & device)
                 text += "@" + std::to_string (device.baud);
             }
 
+            break;
+
+        case Kind::Printer:
+            text = s_kPrinter;
             break;
 
         default:

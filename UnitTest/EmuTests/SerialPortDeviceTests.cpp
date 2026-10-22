@@ -30,6 +30,16 @@ public:
     }
 
 
+    TEST_METHOD (TheImageWriterIsThePrinter_AndWritesBackTheSame)
+    {
+        SerialPortDevice  device;
+
+        Assert::AreEqual (S_OK, SerialPortDevice::Parse ("imagewriter", device));
+        Assert::IsTrue (device.kind == SerialPortDevice::Kind::Printer);
+        Assert::AreEqual (std::string ("imagewriter"), SerialPortDevice::Format (device));
+    }
+
+
     TEST_METHOD (TcpHasItsPortNumber)
     {
         SerialPortDevice  device;
