@@ -101,6 +101,9 @@ HRESULT Win32ByteStreamFactory::ListenTcp (uint16_t port, LinkTransport transpor
 
 
 
+    //  An emulated machine's serial port writes on its CPU thread.
+    stream->SetDropWhenFull (transport == LinkTransport::Emulated);
+
     hr = stream->Listen (ByteStreamSettings::GetBindAddress (transport), port);
     CHR (hr);
 
@@ -122,12 +125,27 @@ Error:
 
 HRESULT Win32ByteStreamFactory::ConnectTcp (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream)
 {
+    return ConnectTcp (host, port, std::stop_token(), outStream);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ByteStreamFactory::ConnectTcp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ByteStreamFactory::ConnectTcp (const std::string & host, uint16_t port, std::stop_token stop, std::unique_ptr<IByteStream> & outStream)
+{
     HRESULT                          hr     = S_OK;
     std::unique_ptr<Win32TcpStream>  stream = std::make_unique<Win32TcpStream>();
 
 
 
-    hr = stream->Connect (host, port);
+    hr = stream->Connect (host, port, stop);
     CHR (hr);
 
     outStream = std::move (stream);

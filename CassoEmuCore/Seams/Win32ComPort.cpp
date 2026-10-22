@@ -115,12 +115,14 @@ Error:
 
 HRESULT Win32ComPort::Read (Byte * buffer, size_t capacity, DWORD timeoutMs, size_t & outRead)
 {
-    HRESULT  hr     = S_OK;
-    DWORD    got    = 0;
-    DWORD    more   = 0;
-    size_t   queued = 0;
-    BOOL     result = FALSE;
-    bool     closed = IsClosed();
+    HRESULT    hr       = S_OK;
+    DWORD      got      = 0;
+    DWORD      more     = 0;
+    size_t     queued   = 0;
+    BOOL       result   = FALSE;
+    bool       closed   = IsClosed();
+    ULONGLONG  deadline = GetTickCount64() + timeoutMs;
+    ULONGLONG  now      = 0;
 
 
 
@@ -130,11 +132,20 @@ HRESULT Win32ComPort::Read (Byte * buffer, size_t capacity, DWORD timeoutMs, siz
     CBREx (!closed, HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
     BAIL_OUT_IF (capacity == 0, S_OK);
 
-    hr = SetReadTimeout (timeoutMs);
-    CHR (hr);
+    do
+    {
+        now = GetTickCount64();
 
-    result = ReadFile (m_handle, buffer, 1, &got, nullptr);
-    CWR (result);
+        hr = SetReadTimeout ((DWORD) std::min<ULONGLONG> (s_kReadSliceMs, (deadline > now) ? deadline - now : 0));
+        CHR (hr);
+
+        result = ReadFile (m_handle, buffer, 1, &got, nullptr);
+        CWR (result);
+
+        closed = IsClosed();
+        CBREx (!closed, HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE));
+    }
+    while (got == 0 && GetTickCount64() < deadline);
 
     outRead = got;
     queued  = GetReadableCount();

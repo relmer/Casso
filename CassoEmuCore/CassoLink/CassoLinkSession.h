@@ -281,7 +281,7 @@ private:
     void     Run           (std::stop_token stop);
     HRESULT  Connect       (std::stop_token stop, DWORD openAt = 0);
     HRESULT  RunBootstrap  (std::stop_token stop, LinkOperation & operation);
-    HRESULT  OpenStream    (DWORD baud);
+    HRESULT  OpenStream    (DWORD baud, std::stop_token stop);
     void     ServeUntilRetry (std::stop_token stop);
     bool     IsLineOpen    () const;
     HRESULT  LogOnApple    (const std::string & text);

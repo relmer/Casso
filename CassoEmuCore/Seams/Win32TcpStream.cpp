@@ -78,16 +78,25 @@ Error:
 //
 //  Win32TcpStream::Connect
 //
+//  The socket connects without blocking and is polled a slice at a time, so
+//  a stop ends a connect to an address that does not answer at once rather
+//  than at the system's timeout. It blocks again once connected.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32TcpStream::Connect (const std::string & host, uint16_t port)
+HRESULT Win32TcpStream::Connect (const std::string & host, uint16_t port, std::stop_token stop)
 {
-    HRESULT       hr      = S_OK;
-    addrinfo      hints   = {};
-    addrinfo    * found   = nullptr;
-    std::string   service = std::to_string (port);
-    SOCKET        client  = INVALID_SOCKET;
-    int           result  = 0;
+    HRESULT       hr       = S_OK;
+    addrinfo      hints    = {};
+    addrinfo    * found    = nullptr;
+    std::string   service  = std::to_string (port);
+    SOCKET        client   = INVALID_SOCKET;
+    int           result   = 0;
+    u_long        nonBlock = 1;
+    WSAPOLLFD     poll     = {};
+    int           error    = 0;
+    int           size     = sizeof (error);
+    ULONGLONG     deadline = 0;
 
 
 
@@ -104,7 +113,38 @@ HRESULT Win32TcpStream::Connect (const std::string & host, uint16_t port)
     client = ::socket (found->ai_family, found->ai_socktype, found->ai_protocol);
     CWR (client != INVALID_SOCKET);
 
+    result = ioctlsocket (client, FIONBIO, &nonBlock);
+    CWR (result == 0);
+
     result = ::connect (client, found->ai_addr, (int) found->ai_addrlen);
+    CBREx (result == 0 || WSAGetLastError() == WSAEWOULDBLOCK, HRESULT_FROM_WIN32 (WSAGetLastError()));
+
+    deadline = GetTickCount64() + s_kConnectTimeoutMs;
+
+    //  Writable means the connect ended; SO_ERROR is how it ended.
+    while (result != 0)
+    {
+        CBREx (!stop.stop_requested(), HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+        CBREx (GetTickCount64() < deadline, HRESULT_FROM_WIN32 (WSAETIMEDOUT));
+
+        poll   = { client, POLLWRNORM, 0 };
+        result = WSAPoll (&poll, 1, s_kConnectSliceMs);
+        CWR (result != SOCKET_ERROR);
+
+        if (result > 0)
+        {
+            result = getsockopt (client, SOL_SOCKET, SO_ERROR, (char *) &error, &size);
+            CWR (result == 0);
+            CBREx (error == 0, HRESULT_FROM_WIN32 (error));
+        }
+        else
+        {
+            result = -1;
+        }
+    }
+
+    nonBlock = 0;
+    result   = ioctlsocket (client, FIONBIO, &nonBlock);
     CWR (result == 0);
 
     {
@@ -150,16 +190,20 @@ Error:
 //  Win32TcpStream::Write
 //
 //  The socket is copied under the lock and written outside it, so a send
-//  delayed by a full window never blocks the receiving thread.
+//  delayed by a full window never blocks the receiving thread. A stream set
+//  to drop sends a byte at a time, each once the socket can take it, and
+//  drops the rest when it cannot: a blocking send larger than the room left
+//  would block.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32TcpStream::Write (const Byte * data, size_t count)
 {
-    HRESULT  hr     = S_OK;
-    SOCKET   client = INVALID_SOCKET;
-    size_t   sent   = 0;
-    int      result = 0;
+    HRESULT    hr     = S_OK;
+    SOCKET     client = INVALID_SOCKET;
+    size_t     sent   = 0;
+    int        result = 0;
+    WSAPOLLFD  poll   = {};
 
 
 
@@ -177,7 +221,15 @@ HRESULT Win32TcpStream::Write (const Byte * data, size_t count)
 
     while (sent < count)
     {
-        result = ::send (client, (const char *) data + sent, (int) (count - sent), 0);
+        if (m_dropWhenFull)
+        {
+            poll   = { client, POLLWRNORM, 0 };
+            result = WSAPoll (&poll, 1, 0);
+            CWR (result != SOCKET_ERROR);
+            BAIL_OUT_IF ((poll.revents & POLLWRNORM) == 0, S_OK);
+        }
+
+        result = ::send (client, (const char *) data + sent, m_dropWhenFull ? 1 : (int) (count - sent), 0);
         CWR (result > 0);
 
         sent += (size_t) result;
@@ -358,10 +410,28 @@ void Win32TcpStream::RunListener()
 
     for (client = ::accept (m_listener, nullptr, nullptr); client != INVALID_SOCKET; client = ::accept (m_listener, nullptr, nullptr))
     {
+        bool  closed = false;
+
+        //  A client accepted as Close runs is closed here, or nothing
+        //  would end its receive and Close's join would wait on it.
         {
             std::lock_guard<std::mutex>  guard (m_lock);
 
-            m_client = client;
+            closed = m_closed;
+
+            if (closed)
+            {
+                closesocket (client);
+            }
+            else
+            {
+                m_client = client;
+            }
+        }
+
+        if (closed)
+        {
+            break;
         }
 
         RunReceiver (client);

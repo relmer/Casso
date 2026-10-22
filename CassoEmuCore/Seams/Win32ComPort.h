@@ -41,6 +41,12 @@ private:
 
     static constexpr DWORD  s_kWriteTimeoutMs = 2000;
 
+    //  The longest timeout of one ReadFile. The handle is synchronous, so
+    //  Windows runs its reads and writes one at a time: a write from another
+    //  thread, such as a cancel, starts only when the read under way ends.
+    //  A long read is made of these short ones.
+    static constexpr DWORD  s_kReadSliceMs    = 100;
+
     HANDLE  m_handle      = INVALID_HANDLE_VALUE;
     DWORD   m_readTimeout = MAXDWORD;
 };

@@ -31,4 +31,14 @@ public:
     virtual HRESULT  OpenComPort  (const std::wstring & port, const ComSettings & settings, std::unique_ptr<IByteStream> & outStream) = 0;
     virtual HRESULT  ListenTcp    (uint16_t port, LinkTransport transport, std::unique_ptr<IByteStream> & outStream) = 0;
     virtual HRESULT  ConnectTcp   (const std::string & host, uint16_t port, std::unique_ptr<IByteStream> & outStream) = 0;
+
+    //  ConnectTcp that ends with ERROR_CANCELLED once `stop` is requested,
+    //  for a connect to an address that does not answer. A factory whose
+    //  connect returns at once does not override it.
+    virtual HRESULT  ConnectTcp   (const std::string & host, uint16_t port, std::stop_token stop, std::unique_ptr<IByteStream> & outStream)
+    {
+        (void) stop;
+
+        return ConnectTcp (host, port, outStream);
+    }
 };

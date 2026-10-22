@@ -30,9 +30,10 @@ class CassoLinkSearch
 public:
     static constexpr DWORD  kReplyTimeoutMs = 1000;
 
-    //  ERROR_NOT_FOUND when no port replies.
+    //  ERROR_NOT_FOUND when no port replies, and ERROR_CANCELLED once `stop`
+    //  is requested, checked before each port and speed.
     static HRESULT  Find (IByteStreamFactory & factory, const ComSettings & settings, std::span<const DWORD> speeds,
-                          DWORD replyTimeoutMs, std::wstring & outPort);
+                          DWORD replyTimeoutMs, std::wstring & outPort, std::stop_token stop = {});
 
 private:
     static HRESULT  Probe (IByteStream & stream, DWORD replyTimeoutMs, bool & outReplied);

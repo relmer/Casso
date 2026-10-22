@@ -801,7 +801,7 @@ HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
 
     SetState (LinkState::Bootstrapping);
 
-    hr = OpenStream (m_settings.bootstrapBaud);
+    hr = OpenStream (m_settings.bootstrapBaud, stop);
     CHR (hr);
 
     hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); }, LinkBootstrap::kCharPauseUs);
@@ -886,7 +886,7 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
 
         search.hardwareHandshake = m_settings.hardwareHandshake;
 
-        hr = CassoLinkSearch::Find (m_factory, search, speeds, CassoLinkSearch::kReplyTimeoutMs, m_port);
+        hr = CassoLinkSearch::Find (m_factory, search, speeds, CassoLinkSearch::kReplyTimeoutMs, m_port, stop);
         CHR (hr);
     }
 
@@ -901,7 +901,7 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
         {
             SetState (LinkState::Opening);
 
-            hr = OpenStream (speed);
+            hr = OpenStream (speed, stop);
             CHR (hr);
         }
 
@@ -927,7 +927,7 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
     //  Ready again after each second with no reply, so no Idle is sent.
     if (m_settings.transport == LinkTransport::Serial && opened != m_settings.baud)
     {
-        hr = OpenStream (m_settings.baud);
+        hr = OpenStream (m_settings.baud, stop);
         CHR (hr);
 
         m_prompted = true;
@@ -1086,7 +1086,7 @@ void CassoLinkSession::ServeUntilRetry (std::stop_token stop)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoLinkSession::OpenStream (DWORD baud)
+HRESULT CassoLinkSession::OpenStream (DWORD baud, std::stop_token stop)
 {
     HRESULT                       hr        = S_OK;
     std::unique_ptr<IByteStream>  stream;
@@ -1137,7 +1137,7 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud)
         }
         else
         {
-            hr = m_factory.ConnectTcp (host, port, stream);
+            hr = m_factory.ConnectTcp (host, port, stop, stream);
         }
 
         CHR (hr);
