@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/LinkProgram.h"
 
 class IByteStream;
 
@@ -188,6 +189,10 @@ public:
     using ActivityFn = std::function<void (const std::string & text)>;
     void     SetActivitySink (ActivityFn sink) { m_activity = std::move (sink); }
 
+    //  The chip the Apple's program is built for: a 6551, or an Uthernet II's
+    //  W5100.
+    void     SetProgramChip (LinkChip chip) { m_programChip = chip; m_program.clear(); }
+
     //  The activity line sent when the Apple-side program does not assemble.
     static std::string  DescribeAssemblyFailure (const std::string & errors);
 
@@ -362,6 +367,7 @@ private:
     std::atomic<bool>                 m_adtProClient       { false };
     CassoLinkClient                   m_client;
     std::vector<Byte>                 m_program;
+    LinkChip                          m_programChip        = LinkChip::Acia;
     std::atomic<bool>                 m_cancelRequested { false };
     std::atomic<bool>                 m_writing         { false };
     std::mutex                        m_sendLock;

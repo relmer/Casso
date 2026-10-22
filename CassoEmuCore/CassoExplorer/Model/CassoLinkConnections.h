@@ -4,12 +4,15 @@
 
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/CassoLinkSettings.h"
+#include "CassoLink/LinkProgram.h"
 #include "CassoLink/RunningCassoRegistry.h"
 #include "CassoExplorer/Model/TreeModel.h"
 
 class ICassoLinkFolder;
 class IByteStreamFactory;
 class IDiskFileIo;
+
+struct NetworkAdapter;
 
 
 
@@ -160,6 +163,21 @@ public:
     //  The dial command itself, as the shim on a boot disk sends it to the
     //  modem; empty for any transport but the Wi-Fi modem.
     static std::string   MakeDialCommand (const std::wstring & pcName, const CassoLinkSettings & settings);
+
+    //  What a link's boot disk writes into its shim: the link's speed and
+    //  dial command, or for an Uthernet II, the W5100 build, in the card's
+    //  slot, with the network for the link's address and the PC's adapters.
+    static LinkShimOptions  MakeShimOptions (const std::wstring & pcName, const CassoLinkSettings & settings);
+
+    //  An Uthernet II's network for a link's address: the address and port;
+    //  the mask and gateway of the PC's adapter on its subnet, or
+    //  255.255.255.0 and the subnet's .1; and a locally administered MAC
+    //  address ending in the address's last byte. Fails for a host that is
+    //  not an IPv4 address.
+    static HRESULT  MakeNetworkConfig (const CassoLinkSettings & settings, const std::vector<NetworkAdapter> & adapters, LinkNetworkConfig & outConfig);
+
+    //  The slot the Uthernet II ships in.
+    static constexpr int  kUthernetSlot = 3;
 
     //  A connection's name when none is given: COM3, Casso on port 6502,
     //  Wi-Fi modem on port 6400, or TCP and the address, with no colon.

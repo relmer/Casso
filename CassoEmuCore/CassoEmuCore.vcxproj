@@ -552,6 +552,7 @@
     <ClCompile Include="Shell\Layout\ChromeBandLayout.cpp" />
     <ClCompile Include="Seams\Win32HostSocket.cpp" />
     <ClCompile Include="Seams\Win32HostNetwork.cpp" />
+    <ClCompile Include="Seams\Win32NetworkAdapters.cpp" />
     <ClCompile Include="Devices\Network\W5100.cpp" />
     <ClCompile Include="Config\MacAddress.cpp" />
     <ClCompile Include="Config\NetworkCardSettings.cpp" />
@@ -1075,6 +1076,7 @@
     <ClInclude Include="Seams\IHostNetwork.h" />
     <ClInclude Include="Seams\Win32HostSocket.h" />
     <ClInclude Include="Seams\Win32HostNetwork.h" />
+    <ClInclude Include="Seams\Win32NetworkAdapters.h" />
     <ClInclude Include="Devices\Network\W5100.h" />
     <ClInclude Include="Devices\Network\W5100Registers.h" />
     <ClInclude Include="Devices\Network\IW5100Backend.h" />

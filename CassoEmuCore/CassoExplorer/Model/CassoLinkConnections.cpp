@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
+#include "Seams/Win32NetworkAdapters.h"
 
 
 
@@ -138,6 +139,7 @@ std::string CassoLinkConnections::DescribeConnection (const CassoLinkSettings & 
         case LinkTransport::Serial:    return settings.port.empty() ? std::string ("Serial") : std::format ("Serial on {}", settings.port);
         case LinkTransport::Emulated:  return port.empty() ? std::string ("Casso") : std::format ("Casso on port {}", port);
         case LinkTransport::WifiModem: return port.empty() ? std::string ("Wi-Fi modem") : std::format ("Wi-Fi modem on port {}", port);
+        case LinkTransport::Uthernet:  return settings.address.empty() ? std::string ("Uthernet II") : std::format ("Uthernet II at {}", settings.address);
         default:                       return port.empty() ? std::format ("TCP {}", host) : std::format ("TCP {} port {}", host, port);
     }
 }
@@ -929,6 +931,123 @@ std::string CassoLinkConnections::MakeDialCommand (const std::wstring & pcName, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::MakeShimOptions
+//
+//  For a link whose address cannot be used, the shim's network is zeros;
+//  the link dialog accepts only an IPv4 address for an Uthernet II.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LinkShimOptions CassoLinkConnections::MakeShimOptions (const std::wstring & pcName, const CassoLinkSettings & settings)
+{
+    HRESULT                      hr       = S_OK;
+    LinkShimOptions              options;
+    std::vector<NetworkAdapter>  adapters;
+
+
+
+    options.baud = settings.baud;
+    options.dial = MakeDialCommand (pcName, settings);
+
+    BAIL_OUT_IF (settings.transport != LinkTransport::Uthernet, S_OK);
+
+    options.chip = LinkChip::W5100;
+    options.slot = kUthernetSlot;
+
+    //  With no adapters listed, the defaults apply.
+    hr = Win32NetworkAdapters::List (adapters);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = MakeNetworkConfig (settings, adapters, options.network);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+Error:
+    return options;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::MakeNetworkConfig
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkConnections::MakeNetworkConfig (const CassoLinkSettings & settings, const std::vector<NetworkAdapter> & adapters, LinkNetworkConfig & outConfig)
+{
+    constexpr std::array<Byte, 5>         kMacPrefix   = { 0x02, 'C', 'A', 'S', 'S' };   // locally administered, unicast
+    constexpr Byte                        kGatewayHost = 1;
+    HRESULT                               hr           = S_OK;
+    size_t                                colon        = settings.address.rfind (':');
+    std::string                           host         = settings.address.substr (0, colon);
+    std::string                           port         = (colon == std::string::npos) ? std::string() : settings.address.substr (colon + 1);
+    IN_ADDR                               parsed       = {};
+    int                                   converted    = 0;
+    unsigned                              number       = 0;
+    std::from_chars_result                read         = {};
+    bool                                  numeric      = false;
+    bool                                  sameSubnet   = false;
+
+
+
+    outConfig = LinkNetworkConfig();
+
+    converted = inet_pton (AF_INET, host.c_str(), &parsed);
+    CBREx (converted == 1, E_INVALIDARG);
+
+    std::memcpy (outConfig.address.data(), &parsed, outConfig.address.size());
+
+    if (!port.empty())
+    {
+        read    = std::from_chars (port.data(), port.data() + port.size(), number);
+        numeric = read.ec == std::errc() && read.ptr == port.data() + port.size() && number >= 1 && number <= UINT16_MAX;
+        CBREx (numeric, E_INVALIDARG);
+
+        outConfig.port = (uint16_t) number;
+    }
+
+    for (const NetworkAdapter & adapter : adapters)
+    {
+        sameSubnet = true;
+
+        for (size_t i = 0; i < outConfig.address.size(); i++)
+        {
+            sameSubnet = sameSubnet && (adapter.address[i] & adapter.mask[i]) == (outConfig.address[i] & adapter.mask[i]);
+        }
+
+        if (sameSubnet)
+        {
+            outConfig.mask    = adapter.mask;
+            outConfig.gateway = adapter.gateway;
+            break;
+        }
+    }
+
+    if (!sameSubnet)
+    {
+        for (size_t i = 0; i < outConfig.address.size(); i++)
+        {
+            outConfig.gateway[i] = (Byte) (outConfig.address[i] & outConfig.mask[i]);
+        }
+
+        outConfig.gateway.back() |= kGatewayHost;
+    }
+
+    std::copy (kMacPrefix.begin(), kMacPrefix.end(), outConfig.mac.begin());
+    outConfig.mac.back() = outConfig.address.back();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::GetPcName
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1090,6 +1209,10 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, bool servingA
                 case LinkTransport::WifiModem:
                     text = std::format (L"Waiting for {} to dial {}.local:{}.\nBoot that Apple from a CassoLink disk saved from {}.",
                                         name, pcName, address.substr (address.rfind (L':') + 1), name);
+                    break;
+
+                case LinkTransport::Uthernet:
+                    text = std::format (L"Connecting to {} at {}.\nBoot that Apple from a CassoLink disk saved from {}.", name, address, name);
                     break;
 
                 default:

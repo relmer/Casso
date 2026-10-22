@@ -23,6 +23,7 @@ const char * CassoLinkSettings::GetTransportName (LinkTransport transport)
         case LinkTransport::Tcp:       name = "Tcp";       break;
         case LinkTransport::WifiModem: name = "WifiModem"; break;
         case LinkTransport::Emulated:  name = "Emulated";  break;
+        case LinkTransport::Uthernet:  name = "Uthernet";  break;
         default:                       name = "Serial";    break;
     }
 
@@ -45,7 +46,7 @@ bool CassoLinkSettings::TryParseTransport (const std::string & name, LinkTranspo
 
 
 
-    for (LinkTransport transport : { LinkTransport::Serial, LinkTransport::Tcp, LinkTransport::WifiModem, LinkTransport::Emulated })
+    for (LinkTransport transport : { LinkTransport::Serial, LinkTransport::Tcp, LinkTransport::WifiModem, LinkTransport::Emulated, LinkTransport::Uthernet })
     {
         if (!found && name == GetTransportName (transport))
         {

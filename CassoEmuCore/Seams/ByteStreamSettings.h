@@ -22,6 +22,7 @@ enum class LinkTransport
     Tcp,
     WifiModem,
     Emulated,
+    Uthernet,
 };
 
 
