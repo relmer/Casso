@@ -79,6 +79,22 @@ void CassoLinkConnections::SetRunning (const std::vector<RunningCasso> & running
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::SetAnnounced
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::SetAnnounced (const std::vector<LinkAnnouncement> & announced)
+{
+    m_announced = announced;
+    Merge();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::IsDiscovered
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,8 +168,9 @@ std::string CassoLinkConnections::DescribeConnection (const CassoLinkSettings & 
 //
 //  CassoLinkConnections::Merge
 //
-//  The saved links and the running Cassos into the one list the tree and
-//  the sessions use; a started link no longer in it, or changed, is stopped.
+//  The saved links, the running Cassos and the announcements' Apples into the
+//  one list the tree and the sessions use; a started link no longer in it, or
+//  changed, is stopped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,6 +204,27 @@ void CassoLinkConnections::Merge()
         }
 
         links.push_back (settings);
+    }
+
+    for (const LinkAnnouncement & announced : m_announced)
+    {
+        CassoLinkSettings  settings;
+        bool               covered  = false;
+
+        settings.transport = LinkTransport::Uthernet;
+        settings.address   = announced.GetAddressText();
+        settings.slot      = kUthernetSlot;
+        settings.name      = DescribeConnection (settings);
+
+        covered = std::any_of (links.begin(), links.end(), [&settings] (const CassoLinkSettings & link)
+        {
+            return link.name == settings.name || (link.transport == LinkTransport::Uthernet && link.address == settings.address);
+        });
+
+        if (!covered)
+        {
+            links.push_back (settings);
+        }
     }
 
     for (const std::unique_ptr<Link> & link : m_started)

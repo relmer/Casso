@@ -300,6 +300,63 @@ public:
 
 
 
+    //  The universal disk finds the card in slot 5 by its firmware's
+    //  identification bytes and links over it.
+    TEST_METHOD (TheUniversalDisk_FindsACardInSlot5_AndListsADisk)
+    {
+        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        InMemoryCassoLinkFolder               folder;
+        FakeDiskFileIo                        fileIo;
+        Sink                                  sink;
+        std::vector<Byte>                     boot;
+        std::vector<Byte>                     disk = LoadDos33();
+        LinkShimOptions                       options;
+        CassoLinkSettings                     settings;
+        std::vector<std::string>              screen;
+        VolumeListing                         expected;
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+
+        GuestSession::Mount (machine, boot);
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
+
+        machine.RunCycles (20'000'000ULL);
+
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
+        Assert::IsTrue (screen[4].starts_with ("SLOT 5 AT 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
+
+        settings.name      = "//e";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6505";
+        settings.slot      = 5;
+
+        AssertSucceeded (Dos33Volume (disk).Enumerate (expected));
+
+        {
+            CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
+
+            AssertSucceeded (list->result);
+            Assert::AreEqual (expected.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the card");
+        }
+
+        Assert::AreEqual<Byte> (0x50, machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
+    }
+
+
+
     //  The card's firmware in slot 2 has the //c's IN#2 and Ctrl-A 14B,
     //  except that it executes the command at the Return after it; the
     //  session then types the loader in through the card.

@@ -31,6 +31,7 @@
 class CassoLinkConnections;
 class CassoLinkFolder;
 class RunningCassoRegistry;
+class ILinkAnnouncements;
 struct CassoExplorerSessionWindow;
 
 
@@ -84,6 +85,10 @@ public:
 
         //  Optional: without it, running Cassos are not listed as links.
         RunningCassoRegistry * running = nullptr;
+
+        //  Optional: without it, no Apple is listed from a universal boot
+        //  disk's announcements.
+        ILinkAnnouncements   * announced = nullptr;
     };
 
     CassoExplorerWindow (CassoExplorerBrowser & browser, CassoExplorerActions & actions, CassoExplorerPrefs & prefs, Context context);
@@ -1021,6 +1026,7 @@ private:
     bool                                      m_dragArmed           = false;
     ULONGLONG                                 m_folderFirstChangeMs = 0;   // 0: no change waiting
     DWORD                                     m_driveMask           = 0;   // GetLogicalDrives at the last look
+    uint32_t                                  m_announcedChanges    = 0;   // ILinkAnnouncements::GetChangeCount at the last look
     std::string                               m_knownFoldersText;          // KnownFolders.json as last read
     std::wstring                              m_quickAccessDir;            // where File Explorer keeps Quick access
     int64_t                                   m_quickAccessStamp    = 0;   // its file's last write at the last look

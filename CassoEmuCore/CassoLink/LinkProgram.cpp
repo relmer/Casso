@@ -8,6 +8,7 @@
 
 #include "Shim.s.h"
 #include "Program.s.h"
+#include "Universal.s.h"
 
 
 
@@ -207,6 +208,91 @@ HRESULT LinkProgram::BuildBootDisk (DWORD baud, std::vector<Byte> & outDisk, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LinkProgram::AssembleUniversal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::AssembleUniversal (std::vector<Byte> & outBytes, std::string & outErrors)
+{
+    HRESULT  hr   = S_OK;
+    bool     fits = false;
+
+
+
+    hr = Assemble (GetUniversalSource(), kUniversalAddress, LinkChip::Acia, outBytes, outErrors);
+    CHR (hr);
+
+    fits = outBytes.size() <= kUniversalLimit;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildUniversalBootDisk
+//
+//  The stage, the 6551 shim and the W5100 shim, each padded to the next's
+//  address, loaded together at the stage's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, std::vector<Byte> & outDisk)
+{
+    HRESULT            hr      = S_OK;
+    LinkShimOptions    acia    = options;
+    LinkShimOptions    w5100   = options;
+    std::vector<Byte>  payload;
+    std::vector<Byte>  shim;
+    std::string        errors;
+    std::string        refusal;
+    DirectBootSpec     spec;
+
+
+
+    acia.chip  = LinkChip::Acia;
+    acia.slot  = 2;
+    w5100.chip = LinkChip::W5100;
+    w5100.slot = 3;
+
+    hr = AssembleUniversal (payload, errors);
+    CHR (hr);
+
+    payload.resize (kUniversalAcia - kUniversalAddress, 0);
+
+    hr = BuildShim (acia, shim);
+    CHR (hr);
+
+    payload.insert (payload.end(), shim.begin(), shim.end());
+    payload.resize (kUniversalW5100 - kUniversalAddress, 0);
+
+    hr = BuildShim (w5100, shim);
+    CHR (hr);
+
+    payload.insert (payload.end(), shim.begin(), shim.end());
+    payload.resize (kUniversalW5100 - kUniversalAddress + kW5100ShimLimit, 0);
+
+    spec.loadAddress  = kUniversalAddress;
+    spec.entryAddress = kUniversalAddress;
+
+    hr = DirectBootBuilder::Build (payload, spec, outDisk, refusal);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LinkProgram::GetShimSource
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,6 +315,21 @@ std::string LinkProgram::GetShimSource()
 std::string LinkProgram::GetProgramSource()
 {
     return std::string (reinterpret_cast<const char *> (s_kProgramSource), sizeof (s_kProgramSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetUniversalSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetUniversalSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kUniversalSource), sizeof (s_kUniversalSource) - 1);
 }
 
 

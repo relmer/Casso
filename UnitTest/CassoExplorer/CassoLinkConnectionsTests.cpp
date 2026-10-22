@@ -333,6 +333,37 @@ public:
 
 
 
+    //  An announcement's Apple is an Uthernet II root at the announcement's
+    //  address, never saved.
+    TEST_METHOD (AnAnnouncedApple_IsAnUthernetRoot)
+    {
+        Rig                         rig;
+        LinkAnnouncement            apple;
+        std::vector<LinkTreeEntry>  entries;
+        bool                        found = false;
+
+        apple.address = { 192, 168, 1, 77 };
+        apple.port    = 6502;
+        apple.mac     = { 0x00, 0x08, 0xDC, 0x01, 0x02, 0x03 };
+
+        rig.links->SetAnnounced ({ apple });
+        entries = rig.links->BuildTreeEntries();
+
+        Assert::AreEqual ((size_t) 2, entries.size());
+        Assert::AreEqual (std::wstring (L"Uthernet II at 192.168.1.77:6502"), entries[1].name);
+        Assert::IsTrue   (rig.links->IsDiscovered ("Uthernet II at 192.168.1.77:6502"));
+
+        for (const CassoLinkSettings & settings : rig.links->GetLinks())
+        {
+            found = found || (settings.transport == LinkTransport::Uthernet && settings.address == "192.168.1.77:6502");
+        }
+
+        Assert::IsTrue (found);
+    }
+
+
+
+
     TEST_METHOD (ARunningCassoThatExits_StopsItsLink)
     {
         Rig           rig;

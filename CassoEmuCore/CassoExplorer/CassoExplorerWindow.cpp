@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/RunningCassoRegistry.h"
+#include "Seams/ILinkAnnouncements.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
@@ -11413,8 +11414,9 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
         AddMenuCommand (items, L"Bootstrap from the c&assette input...", [this, name]() { PlayCassetteBootstrap (name); });
         AddMenuCommand (items, L"Save cassette boo&tstrap...", [this, name]() { SaveCassetteBootstrap (name); });
 
-        //  A boot disk is built for its link: a Wi-Fi modem's dials this PC,
-        //  and a card's shim has the card's slot. CassoLink.dsk is the //c's.
+        //  A boot disk is built for its link: at its speed, a Wi-Fi modem's
+        //  dialing this PC, and an Uthernet II's with the link's address for
+        //  when no DHCP reply comes.
         AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
 
         if (saved)
@@ -12171,6 +12173,12 @@ void CassoExplorerWindow::OnRunningChanged()
     CHR (hr);
 
     m_context.links->SetRunning (running);
+
+    if (m_context.announced != nullptr)
+    {
+        m_announcedChanges = m_context.announced->GetChangeCount();
+        m_context.links->SetAnnounced (m_context.announced->GetAnnounced());
+    }
 
     showing = TreeModel::TryParseLinkId (m_browser.GetLocation().path, link, slot, drive);
     gone    = showing && std::none_of (m_context.links->GetLinks().begin(), m_context.links->GetLinks().end(), [&link] (const CassoLinkSettings & settings)
@@ -16900,6 +16908,14 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (timerId == kDriveTimerId)
     {
         CheckDrives();
+
+        //  An announcement since the last look is listed, on the same poll
+        //  as a drive.
+        if (m_context.announced != nullptr && m_context.running != nullptr && m_context.links != nullptr
+            && m_context.announced->GetChangeCount() != m_announcedChanges)
+        {
+            OnRunningChanged();
+        }
 
         return DxuiMessageResult::Handled;
     }

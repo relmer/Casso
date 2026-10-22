@@ -94,7 +94,7 @@ SKPORT   = $04                  ; its port
 SKTXWR   = $24                  ; where the next byte to send goes
 SKRXRSR  = $26                  ; bytes received
 SKRXRD   = $28                  ; the next byte to read
-TXMEM    = $40                  ; the transmit memory's page, for 8 KB
+TXMEM    = $40                  ; socket 0's transmit memory's page, for 4 KB
 RXMEM    = $60                  ; the receive memory's
 CMOPEN   = $01
 CMLISTEN = $02
@@ -1332,8 +1332,8 @@ gbgot:  lda wbyte
 putb:   stx savex
         sty wsavy
         sta wbyte
-        lda txwr+1              ; at $4000 + (Sn_TX_WR & $1FFF)
-        and #$1F
+        lda txwr+1              ; at $4000 + (Sn_TX_WR & $0FFF)
+        and #$0F
         ora #TXMEM
         ldy txwr
         jsr wzptr

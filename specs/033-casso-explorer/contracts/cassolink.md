@@ -279,6 +279,57 @@ on a //c or `WAITING FOR THE PC IN SLOT <n> AT <speed>` on a card,
 with no reply; an error line with the last Status error until an operation
 succeeds; and the last Label.
 
+## The universal boot disk
+
+Casso Explorer's boot disk works on every interface, as ADTPro's does. It
+loads a first stage at $2000, with the 6551 shim at $2C00, built for $3D00,
+and the W5100 shim at $2F00, built for $3B00. The host writes both shims'
+headers as for their own disks.
+
+The stage finds:
+
+- on a //c, ports 1 and 2;
+- a Super Serial Card in any slot, by $Cn05 = $38, $Cn07 = $18, $Cn0B = $01
+  and $Cn0C = $31;
+- an Uthernet II in any other slot but a Disk II's, by the W5100 taking two
+  address pointer values and returning them.
+
+Each 6551 is set to the 6551 shim's speed with DTR on. The W5100 is reset,
+given the header's MAC address, 8 KB of receive memory and 4 KB of transmit
+memory to socket 0 and 4 KB of transmit memory to socket 1, and an address
+by DHCP: DISCOVER, OFFER, REQUEST and ACK from port 68 to port 67 broadcast,
+the transaction ID the MAC address's last four bytes, three attempts of about
+three seconds each. With no ACK the header's address is used. Socket 0 then
+listens on the header's port, and socket 1 broadcasts an announcement to UDP
+port 6510 from port 6511 about every two seconds:
+
+| Bytes | Field |
+|---|---|
+| 9 | `CASSOLINK` in ASCII |
+| 1 | version, 1 |
+| 4 | the W5100's address |
+| 2 | its TCP port, high byte first |
+| 6 | its MAC address |
+
+The screen: the title, `WAITING FOR THE PC ON:`, then a row for each
+interface: `PORT <n> AT <speed>` on a //c, `SLOT <n> AT <speed>` for a card,
+and `SLOT <n> AT <address>:<port>` for the Uthernet II.
+
+The stage waits on all of them. A $C1 byte, an envelope's start, on a 6551,
+or a connection to the W5100 chooses that interface: the stage copies the
+machine's zero page and reset vector into the chosen shim, which it saved
+before using any, sets the shim's zpsaved byte and slot, copies the shim to
+its address and starts it. Started this way, a shim starts as one from its
+own disk does, except that it saves nothing. A 6551 shim with a dial
+command is started at once on the first 6551, since no connection from the
+PC is possible until the modem dials it.
+
+Casso Explorer listens on UDP port 6510 on every interface, with the port
+bound for reuse, and lists the Apple of each announcement, by its MAC
+address, as an Uthernet II link at the announcement's address. An
+announcement from this PC is Casso's emulated card, whose listening socket
+is on 127.0.0.1, and is listed at 127.0.0.1.
+
 ## Session interface (Casso Explorer side)
 
 `CassoLinkSession` owns an `IByteStream`, the protocol engine, a

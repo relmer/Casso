@@ -429,8 +429,10 @@ public:
     {
         Rig                rig;
         std::vector<Byte>  disk;
+        LinkShimOptions    options;
 
-        AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, disk));
+        options.baud = CassoLinkSettings::kDefaultBaud;
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
 
         rig.Open (2);
         AssertSucceeded (rig.actions->SaveLinkToDisk (L"C:\\Temp").hr);
@@ -447,7 +449,7 @@ public:
 
         Assert::IsTrue (rig.links->RunCompletions().empty());
 
-        Assert::IsTrue (rig.Drive (2) == disk, L"the drive is the link's boot disk");
+        Assert::IsTrue (rig.Drive (2) == disk, L"the drive is the universal boot disk");
     }
 
 
@@ -542,10 +544,12 @@ public:
         Rig                rig;
         std::vector<Byte>  disk;
         CassoLinkSettings  serial;
+        LinkShimOptions    options;
 
-        serial.baud = 9600;
+        serial.baud  = 9600;
+        options.baud = 9600;
 
-        AssertSucceeded (LinkProgram::BuildBootDisk (9600, disk));
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
         AssertSucceeded (rig.actions->SaveLinkDiskImage (L"C:\\Disks\\link.dsk", serial).hr);
 
         Assert::IsTrue (rig.io.files["C:\\Disks\\link.dsk"] == disk);

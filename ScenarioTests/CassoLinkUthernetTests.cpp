@@ -14,8 +14,10 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "Devices/Network/VirtualSubnet.h"
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32HostNetwork.h"
+#include "Seams/Win32LinkAnnouncements.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -51,6 +53,7 @@ public:
     static constexpr DWORD     kRetryMs     = 500;
     static constexpr Word      kRow2        = 0x0500;
     static constexpr Word      kRow3        = 0x0580;
+    static constexpr Word      kRow4        = 0x0600;
     static constexpr int       kField       = 12;
 
     struct Sink : ICassoLinkSessionSink
@@ -335,6 +338,68 @@ public:
             AssertSucceeded (list->result);
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog through a Casso link");
             Assert::AreEqual (std::format ("SLOT 3, PORT {}", kOtherPort), rig.Row (kRow2, kField), L"the W5100 program's connection row");
+        }
+    }
+
+    //  The universal disk finds the card in slot 3, takes the address the
+    //  virtual DHCP server offers over the address it was built with,
+    //  broadcasts an announcement, and links.
+    TEST_METHOD (TheUniversalDisk_GetsAnAddressByDhcp_Announces_AndLinks)
+    {
+        constexpr uint16_t     kUniversalPort = kPort + 2;
+        Rig                    rig;
+        FixtureProvider        fixtures;
+        std::vector<uint8_t>   bytes;
+        std::vector<Byte>      dos;
+        std::vector<Byte>      boot;
+        LinkShimOptions        options;
+        CassoLinkSettings      settings;
+        VolumeListing          catalog;
+        Win32LinkAnnouncements listener;
+        std::string            row;
+        std::string            dhcp   = std::format ("SLOT 3 AT {}.{}.{}.{}:{}",
+                                                     VirtualSubnet::kGuestIp >> 24, (VirtualSubnet::kGuestIp >> 16) & 0xFF,
+                                                     (VirtualSubnet::kGuestIp >> 8) & 0xFF, VirtualSubnet::kGuestIp & 0xFF, kUniversalPort);
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
+        dos.assign (bytes.begin(), bytes.end());
+        AssertSucceeded (Dos33Volume (dos).Enumerate (catalog));
+
+        options.network.address = { 192, 168, 77, 77 };
+        options.network.mac     = { 0x00, 0x08, 0xDC, 0x11, 0x22, 0x33 };
+        options.network.port    = kUniversalPort;
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        GuestSession::Mount (rig.machine, boot);
+        AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
+
+        AssertSucceeded (listener.Start (LinkProgram::kAnnouncePort));
+
+        rig.RunUntil ([&] () { row = rig.Row (kRow4); return row.find (" AT ") != std::string::npos; }, kWaitMs);
+        Assert::AreEqual (dhcp, row, L"the address from DHCP, not the one built in");
+
+        rig.RunUntil ([&] () { return !listener.GetAnnounced().empty(); }, kWaitMs);
+        Assert::IsFalse (listener.GetAnnounced().empty(), L"an announcement");
+        Assert::AreEqual (std::format ("127.0.0.1:{}", kUniversalPort), listener.GetAnnounced()[0].GetAddressText(),
+                          L"from this PC, so at the address the card's socket is on");
+        Assert::IsTrue (listener.GetAnnounced()[0].mac == options.network.mac);
+        listener.Stop();
+
+        settings.name      = "Uthernet";
+        settings.transport = LinkTransport::Uthernet;
+        settings.address   = std::format ("127.0.0.1:{}", kUniversalPort);
+
+        {
+            CassoLinkSession  session (rig.factory, rig.folder, rig.fileIo, rig.sink);
+
+            session.SetRetryInterval (kRetryMs);
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = rig.Finish (session.Enumerate (2, FilePath()));
+
+            AssertSucceeded (list->result);
+            Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the card the disk found");
         }
     }
 

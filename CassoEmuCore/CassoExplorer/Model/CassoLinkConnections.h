@@ -4,6 +4,7 @@
 
 #include "CassoLink/CassoLinkSession.h"
 #include "CassoLink/CassoLinkSettings.h"
+#include "CassoLink/LinkAnnouncement.h"
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/RunningCassoRegistry.h"
 #include "CassoExplorer/Model/TreeModel.h"
@@ -52,10 +53,17 @@ public:
     //  the reason it cannot connect. A Casso that exits stops its link.
     void                                    SetRunning (const std::vector<RunningCasso> & running);
 
-    //  Every link: the saved ones, then the running Cassos.
+    //  The Apples of universal boot disks' announcements, each an Uthernet
+    //  II link at its announcement's address, never saved. One whose address
+    //  a saved link has is left out.
+    void                                    SetAnnounced (const std::vector<LinkAnnouncement> & announced);
+
+    //  Every link: the saved ones, then the running Cassos, then the Apples
+    //  of the announcements.
     const std::vector<CassoLinkSettings> &  GetLinks () const { return m_links; }
 
-    //  Whether a link is a running Casso's rather than a saved one.
+    //  Whether a link is a running Casso's or an announcement's rather than
+    //  a saved one.
     bool                                    IsDiscovered (const std::string & name) const;
 
     //  A running Casso's root name: its machine and TCP port.
@@ -229,6 +237,7 @@ private:
     IDiskFileIo                        & m_fileIo;
     std::vector<CassoLinkSettings>       m_saved;
     std::vector<RunningCasso>            m_running;
+    std::vector<LinkAnnouncement>        m_announced;
     std::vector<CassoLinkSettings>       m_links;
     std::set<std::string>                m_held;
     std::vector<std::unique_ptr<Link>>   m_started;

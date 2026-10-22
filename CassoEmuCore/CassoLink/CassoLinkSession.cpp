@@ -1727,9 +1727,10 @@ Error:
 //
 //  CassoLinkSession::ReadBootSector
 //
-//  Track 0's first sector against the link boot disk's. That sector is the
-//  loader, the same at every speed, but not for every chip: a W5100 shim
-//  loads lower. A drive whose track 0 cannot be read has no link disk.
+//  Track 0's first sector against a link boot disk's: the universal disk's,
+//  or the disk made for the link's chip. That sector is the loader, the same
+//  at every speed and setting, and different only where the payload loads.
+//  A drive whose track 0 cannot be read has no link disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1738,9 +1739,11 @@ HRESULT CassoLinkSession::ReadBootSector (LinkOperation & operation)
     HRESULT                           hr       = S_OK;
     std::vector<Byte>                 sectors (NibblizationLayer::kImageByteSize, 0);
     std::vector<Byte>                 boot;
+    std::vector<Byte>                 universal;
     std::vector<std::pair<int, int>>  unreadable;
     LinkShimOptions                   options;
     bool                              loader   = false;
+    bool                              matches  = false;
 
 
 
@@ -1750,11 +1753,15 @@ HRESULT CassoLinkSession::ReadBootSector (LinkOperation & operation)
     hr = LinkProgram::BuildBootDisk (options, boot);
     CHR (hr);
 
+    hr = LinkProgram::BuildUniversalBootDisk (options, universal);
+    CHR (hr);
+
     hr = ReadTrack (operation.drive, 0, sectors, unreadable);
     CHR (hr);
 
-    loader = std::none_of (unreadable.begin(), unreadable.end(), [] (const std::pair<int, int> & sector) { return sector.second == 0; })
-          && std::equal (boot.begin(), boot.begin() + NibblizationLayer::kSectorByteSize, sectors.begin());
+    matches = std::equal (boot.begin(),      boot.begin()      + NibblizationLayer::kSectorByteSize, sectors.begin())
+           || std::equal (universal.begin(), universal.begin() + NibblizationLayer::kSectorByteSize, sectors.begin());
+    loader  = matches && std::none_of (unreadable.begin(), unreadable.end(), [] (const std::pair<int, int> & sector) { return sector.second == 0; });
 
     operation.linkDisk = loader;
 

@@ -209,6 +209,7 @@
     <ClCompile Include="Seams\InProcessByteStream.cpp" />
     <ClCompile Include="Seams\ByteStreamSettings.cpp" />
     <ClCompile Include="Seams\Win32TcpStream.cpp" />
+    <ClCompile Include="Seams\Win32LinkAnnouncements.cpp" />
     <ClCompile Include="Seams\Win32ComPort.cpp" />
     <ClCompile Include="Seams\Win32ByteStreamFactory.cpp" />
     <ClCompile Include="Devices\SerialPortDevice.cpp" />
@@ -222,6 +223,7 @@
     <ClCompile Include="CassoLink\CassoLinkSettings.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
+    <ClCompile Include="CassoLink\LinkAnnouncement.cpp" />
     <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
     <ClCompile Include="Seams\Win32ProcessProbe.cpp" />
@@ -834,6 +836,8 @@
     <ClInclude Include="Seams\InProcessByteStream.h" />
     <ClInclude Include="Seams\ByteStreamSettings.h" />
     <ClInclude Include="Seams\Win32TcpStream.h" />
+    <ClInclude Include="Seams\ILinkAnnouncements.h" />
+    <ClInclude Include="Seams\Win32LinkAnnouncements.h" />
     <ClInclude Include="Seams\Win32ComPort.h" />
     <ClInclude Include="Seams\Win32ByteStreamFactory.h" />
     <ClInclude Include="Devices\SerialPortDevice.h" />
@@ -847,6 +851,7 @@
     <ClInclude Include="CassoLink\CassoLinkSettings.h" />
     <ClInclude Include="CassoLink\CassoLinkSearch.h" />
     <ClInclude Include="CassoLink\RunningCassoRegistry.h" />
+    <ClInclude Include="CassoLink\LinkAnnouncement.h" />
     <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />
     <ClInclude Include="CassoLink\LinkBootstrap.h" />
     <ClInclude Include="Seams\IProcessProbe.h" />
@@ -1100,6 +1105,7 @@
   <ItemGroup>
     <None Include="CassoLink\Apple\Program.s" />
     <None Include="CassoLink\Apple\Shim.s" />
+    <None Include="CassoLink\Apple\Universal.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>

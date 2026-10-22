@@ -241,6 +241,68 @@ public:
 
 
 
+    //  The universal disk lists both of the //c's ports and waits on both;
+    //  the PC on port 1 has the shim started there.
+    TEST_METHOD (TheUniversalDisk_ListsBothPorts_AndLinksOverPort1)
+    {
+        TestMachine                           machine ("Apple2c");
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        InMemoryCassoLinkFolder               folder;
+        FakeDiskFileIo                        fileIo;
+        Sink                                  sink;
+        std::vector<Byte>                     boot;
+        LinkShimOptions                       options;
+        CassoLinkSettings                     settings;
+        uint64_t                              spent = 0;
+        std::vector<std::string>              screen;
+
+
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+
+        GuestSession::Mount (machine, boot);
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (1, machineEnd));
+
+        machine.RunCycles (20'000'000ULL);
+
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
+        Assert::IsTrue (screen[4].starts_with ("PORT 1 AT 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
+        Assert::IsTrue (screen[5].starts_with ("PORT 2 AT 115200"), TextEncoding::NarrowToWide (screen[5]).c_str());
+
+        settings.name      = "//c";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6501";
+        settings.slot      = 1;
+
+        {
+            CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = session.Enumerate (1, FilePath());
+
+            while (!sink.IsDone (list) && spent < kBudget)
+            {
+                machine.RunCycles (kFrame);
+                spent += kFrame;
+            }
+
+            Assert::IsTrue (sink.IsDone (list));
+            Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (machine.GetCpu()->ReadByte (0x0803) | (machine.GetCpu()->ReadByte (0x0804) << 8)), L"the program was loaded");
+        }
+
+        Assert::AreEqual<Byte> (0x10, machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is port 1's");
+    }
+
+
+
     //  A Wi-Fi modem between the //c and the PC: it reads the dial command,
     //  replies CONNECT as a modem does, and then passes bytes both ways.
     struct Modem

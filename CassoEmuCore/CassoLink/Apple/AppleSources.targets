@@ -21,6 +21,9 @@
     <CassoAppleSource Include="$(MSBuildThisFileDirectory)Program.s">
       <Symbol>s_kProgramSource</Symbol>
     </CassoAppleSource>
+    <CassoAppleSource Include="$(MSBuildThisFileDirectory)Universal.s">
+      <Symbol>s_kUniversalSource</Symbol>
+    </CassoAppleSource>
   </ItemGroup>
 
   <ItemDefinitionGroup>

@@ -29,13 +29,13 @@
 ; The W5100 build, for an Uthernet II, loads at $3B00 with the same header.
 ; In the dial command's place are the card's address, subnet mask, gateway
 ; and MAC address, and the TCP port, high byte first; the speed is not used.
-; The shim sets the chip from them, assigns all 8 KB of the chip's transmit
-; and receive memory to socket 0, and listens on the port; Casso Explorer
-; connects to it. Bytes to send are put in the chip's transmit memory and
-; sent together, before each wait for a byte, rather than one segment per
-; byte. Back from the program's Load program with the PC connected, the
-; connection stays open. When the PC disconnects, the shim listens again
-; until the PC connects.
+; The shim sets the chip from them, assigns all 8 KB of the chip's receive
+; memory and 4 KB of its transmit memory to socket 0, and listens on the
+; port; Casso Explorer connects to it. Bytes to send are put in the chip's
+; transmit memory and sent together, before each wait for a byte, rather
+; than one segment per byte. Back from the program's Load program with the
+; PC connected, the connection stays open. When the PC disconnects, the shim
+; listens again until the PC connects.
 
         ifndef SHIMVER
 SHIMVER = 1
@@ -70,7 +70,7 @@ SKPORT   = $04                  ; its port
 SKTXWR   = $24                  ; where the next byte to send goes
 SKRXRSR  = $26                  ; bytes received
 SKRXRD   = $28                  ; the next byte to read
-TXMEM    = $40                  ; the transmit memory's page, for 8 KB
+TXMEM    = $40                  ; socket 0's transmit memory's page, for 4 KB
 RXMEM    = $60                  ; the receive memory's
 CMOPEN   = $01
 CMLISTEN = $02
@@ -556,8 +556,8 @@ gtgot:  pla
 putb:   stx savx
         sty savy
         pha
-        lda txwr+1              ; at $4000 + (Sn_TX_WR & $1FFF)
-        and #$1F
+        lda txwr+1              ; at $4000 + (Sn_TX_WR & $0FFF)
+        and #$0F
         ora #TXMEM
         ldy txwr
         jsr wzptr
@@ -643,11 +643,12 @@ wzcfg:  ldy cfgtab,x
         inx
         cpx #cfgend-cfgtab
         bne wzcfg
-        ldy #$1A                ; RMSR and TMSR: socket 0's 8 KB each
-        lda #$00
-        jsr wzptr
-        lda #$03
+        ldy #$1A                ; RMSR: all 8 KB of receive memory to socket 0;
+        lda #$00                ; TMSR: 4 KB of transmit memory to socket 0
+        jsr wzptr               ; and 4 KB to socket 1, which a universal
+        lda #$03                ; disk sends its announcements on
         jsr wzput
+        lda #$0A
         jsr wzput
 
 ; wzlisten: socket 0 closed, opened for TCP on the header's port, and

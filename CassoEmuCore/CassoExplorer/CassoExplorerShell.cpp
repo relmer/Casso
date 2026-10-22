@@ -710,13 +710,14 @@ std::vector<std::wstring> CassoExplorerShell::GetDriveRoots()
 
 HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerLaunchOptions & options, const CassoExplorerPrefs & prefs, int showCommand)
 {
-    HRESULT                                  hr        = S_OK;
-    HRESULT                                  hrSession = S_OK;
+    HRESULT                                  hr         = S_OK;
+    HRESULT                                  hrSession  = S_OK;
+    HRESULT                                  hrAnnounce = S_OK;
     std::vector<KnownFolderStore::Entry>     entries;
     std::vector<CassoExplorerSessionWindow>  session;
     std::vector<CassoExplorerWindowRequest>  requests;
-    CassoExplorerWindow                    * window    = nullptr;
-    bool                                     opened    = false;
+    CassoExplorerWindow                    * window     = nullptr;
+    bool                                     opened     = false;
 
 
 
@@ -743,6 +744,11 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
     }
 
     m_knownFolders = KnownFolderStore::ListRootFolders (m_fs, m_baseDir, entries);
+
+    //  With the port bound by another program without reuse, no Apple is
+    //  listed from an announcement; nothing else depends on them.
+    hrAnnounce = m_announcements.Start (LinkProgram::kAnnouncePort);
+    IGNORE_RETURN_VALUE (hrAnnounce, S_OK);
 
     //  A session that cannot be read is no session.
     hrSession = CassoExplorerSession::Load (m_fs, m_baseDir, session);
@@ -834,6 +840,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.links       = &m_links;
     context.linkFolder  = &m_linkFolder;
     context.running     = &m_running;
+    context.announced   = &m_announcements;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 

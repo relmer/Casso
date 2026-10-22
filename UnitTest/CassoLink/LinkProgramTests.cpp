@@ -2,6 +2,7 @@
 
 #include "../EhmTestHelper.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoLink/LinkAnnouncement.h"
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 
@@ -176,6 +177,73 @@ public:
         Assert::AreEqual (HRESULT (E_INVALIDARG), LinkProgram::BuildShim (options, shim));
     }
 
+
+
+    TEST_METHOD (Universal_AssemblesBelowTheShimImages)
+    {
+        std::vector<Byte>  bytes;
+        std::string        errors;
+        HRESULT            hr = LinkProgram::AssembleUniversal (bytes, errors);
+
+        Assert::IsTrue (SUCCEEDED (hr), std::format (L"{} bytes: {}", bytes.size(), TextEncoding::NarrowToWide (errors)).c_str());
+        Assert::IsTrue (bytes.size() <= LinkProgram::kUniversalLimit);
+        Assert::IsTrue (LinkProgram::kUniversalAddress + LinkProgram::kUniversalLimit <= LinkProgram::kUniversalAcia);
+    }
+
+
+    //  The universal disk has both shims, each with the header the host
+    //  wrote: the 6551's speed, and the W5100's network.
+    TEST_METHOD (UniversalBootDisk_HasBothShims)
+    {
+        std::vector<Byte>  disk;
+        std::vector<Byte>  acia;
+        std::vector<Byte>  w5100;
+        LinkShimOptions    options;
+        bool               hasAcia  = false;
+        bool               hasW5100 = false;
+
+        options.baud            = 19200;
+        options.network.address = { 192, 168, 1, 77 };
+        options.network.mac     = { 0x00, 0x08, 0xDC, 0x01, 0x02, 0x03 };
+        options.network.port    = 6504;
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, disk));
+
+        options.slot = 2;
+        AssertSucceeded (LinkProgram::BuildShim (options, acia));
+        options.chip = LinkChip::W5100;
+        options.slot = 3;
+        AssertSucceeded (LinkProgram::BuildShim (options, w5100));
+
+        hasAcia  = std::search (disk.begin(), disk.end(), acia.begin(),  acia.begin()  + 0x40) != disk.end();
+        hasW5100 = std::search (disk.begin(), disk.end(), w5100.begin(), w5100.begin() + 0x40) != disk.end();
+
+        Assert::IsTrue (hasAcia,  L"the 6551 shim's header, at 19,200 baud");
+        Assert::IsTrue (hasW5100, L"the W5100 shim's header, with its network");
+    }
+
+
+    TEST_METHOD (AnAnnouncement_IsParsed_AndAnythingElseIsNot)
+    {
+        std::vector<Byte>  datagram = { 'C', 'A', 'S', 'S', 'O', 'L', 'I', 'N', 'K', 1,
+                                        192, 168, 1, 77, 0x19, 0x66, 0x00, 0x08, 0xDC, 0x01, 0x02, 0x03 };
+        LinkAnnouncement   announcement;
+
+        Assert::IsTrue (LinkAnnouncement::Parse (datagram, announcement));
+        Assert::AreEqual (std::string ("192.168.1.77:6502"), announcement.GetAddressText());
+        Assert::IsTrue (announcement.mac == std::array<Byte, 6> { 0x00, 0x08, 0xDC, 0x01, 0x02, 0x03 });
+
+        datagram[9] = 2;
+        Assert::IsFalse (LinkAnnouncement::Parse (datagram, announcement), L"another version");
+
+        datagram[9] = 1;
+        datagram[0] = 'X';
+        Assert::IsFalse (LinkAnnouncement::Parse (datagram, announcement), L"not CASSOLINK");
+
+        datagram[0] = 'C';
+        datagram.pop_back();
+        Assert::IsFalse (LinkAnnouncement::Parse (datagram, announcement), L"short");
+    }
 
 
     TEST_METHOD (BootDisk_LoadsTheShimForItsSlot)

@@ -31,7 +31,10 @@ enum class LinkChip
 //  LinkNetworkConfig
 //
 //  The W5100's own address, subnet mask, gateway and MAC address, and the TCP
-//  port the shim listens on for Casso Explorer.
+//  port the shim listens on for Casso Explorer. The MAC address is a locally
+//  administered one, or for an Uthernet II link, one made from the link's
+//  address; a universal boot disk made for any other link has the first, and
+//  an address from DHCP.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +43,7 @@ struct LinkNetworkConfig
     std::array<Byte, 4>  address = {};
     std::array<Byte, 4>  mask    = { 255, 255, 255, 0 };
     std::array<Byte, 4>  gateway = {};
-    std::array<Byte, 6>  mac     = {};
+    std::array<Byte, 6>  mac     = { 0x02, 'C', 'A', 'S', 'S', 0x01 };
     uint16_t             port    = 6502;
 };
 
@@ -88,8 +91,8 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 48;
-    static constexpr Byte    kShimVersion       = 4;
+    static constexpr Word    kProgramVersion    = 49;
+    static constexpr Byte    kShimVersion       = 5;
     static constexpr Word    kShimAddress       = 0x3D00;
     static constexpr Word    kZeroPageSave      = 0x3C00;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
@@ -126,6 +129,17 @@ public:
     //  Set by the W5100 builds in Ready's shim version byte.
     static constexpr Byte    kW5100ReadyFlag    = 0x80;
 
+    //  The universal boot disk's payload: the first stage, which finds the
+    //  machine's interfaces and waits for the PC on all of them, then each
+    //  shim as built for its own address, which the stage copies there.
+    static constexpr Word    kUniversalAddress  = 0x2000;
+    static constexpr size_t  kUniversalLimit    = 0xC00;
+    static constexpr Word    kUniversalAcia     = 0x2C00;
+    static constexpr Word    kUniversalW5100    = 0x2F00;
+
+    //  The UDP port a universal disk's W5100 broadcasts its announcements to.
+    static constexpr uint16_t  kAnnouncePort  = 6510;
+
     static Word         GetShimAddress   (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimAddress  : kShimAddress; }
     static Word         GetZeroPageSave  (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ZeroPageSave : kZeroPageSave; }
     static size_t       GetShimLimit     (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimLimit    : kShimLimit; }
@@ -144,8 +158,17 @@ public:
     static HRESULT      BuildBootDisk    (const LinkShimOptions & options, std::vector<Byte> & outDisk);
     static HRESULT      BuildBootDisk    (DWORD baud, std::vector<Byte> & outDisk, const std::string & dial = std::string());
 
-    static std::string  GetShimSource    ();
-    static std::string  GetProgramSource ();
+    //  The universal boot disk: the stage and both shims, the 6551 shim at
+    //  the options' speed and with their dial command, the W5100 shim with
+    //  their network, whose address is used when no DHCP reply comes.
+    //  The slot and the chip in the options are not used: the stage finds
+    //  both.
+    static HRESULT      AssembleUniversal      (std::vector<Byte> & outBytes, std::string & outErrors);
+    static HRESULT      BuildUniversalBootDisk (const LinkShimOptions & options, std::vector<Byte> & outDisk);
+
+    static std::string  GetShimSource      ();
+    static std::string  GetProgramSource   ();
+    static std::string  GetUniversalSource ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
     //  rate. False for a speed the //c's port does not have.

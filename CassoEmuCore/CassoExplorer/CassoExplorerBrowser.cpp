@@ -874,8 +874,9 @@ void CassoExplorerBrowser::AddCassoLinkItems()
 //
 //  CassoExplorerBrowser::PrepareCassoLinkItems
 //
-//  The boot disk is built for 115,200 baud, the link's own speed; a Wi-Fi
-//  modem's disk, which dials this PC, is saved from its machine's menu.
+//  The boot disk is the universal one, at 115,200 baud on a serial port; a
+//  Wi-Fi modem's disk, which dials this PC, is saved from its connection's
+//  menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -902,7 +903,7 @@ bool CassoExplorerBrowser::PrepareCassoLinkItems()
 
         if (item->cassoLinkItem == CatalogRow::CassoLinkItem::BootDisk)
         {
-            hr = LinkProgram::BuildBootDisk (115200, bytes);
+            hr = LinkProgram::BuildUniversalBootDisk (LinkShimOptions(), bytes);
             CHR (hr);
         }
         else
@@ -1013,11 +1014,15 @@ const wchar_t * CassoExplorerBrowser::GetCassoLinkHelp()
            L"   - **Serial**: a null modem cable from the Apple //c's port 2, or a Super Serial Card, to a COM port "
            L"or a USB serial adapter.\r\n"
            L"   - **Wi-Fi modem**: a serial Wi-Fi modem on the Apple's port 2.\r\n"
+           L"   - **Uthernet II**: the card in a ][+ or //e on this PC's network. Booted from CassoLink.dsk, the Apple "
+           L"gets an address by DHCP and is listed under CassoLink without being added.\r\n"
            L"   - **Emulated**: an Apple running in Casso, with its serial port on TCP. A running Casso is listed "
            L"under CassoLink without being added.\r\n"
            L"2. **Start CassoLink on the Apple**, either way:\r\n"
-           L"   - Boot **CassoLink.dsk** from the CassoLink folder: drag it into Casso, or write it to a floppy. For "
-           L"a Wi-Fi modem, save the disk from the connection's menu instead, so it dials this PC.\r\n"
+           L"   - Boot **CassoLink.dsk** from the CassoLink folder: drag it into Casso, or write it to a floppy. "
+           L"The //c's serial ports, a Super Serial Card in any slot and an Uthernet II are all detected, and the "
+           L"link is made on the first one this PC connects to. For a Wi-Fi modem, save the disk from the "
+           L"connection's menu instead, so it dials this PC.\r\n"
            L"   - With no disk, on a serial cable: at the Apple's prompt, type `IN#2` (on a Super Serial Card, "
            L"`IN#` and its slot), then press Return; type "
            L"`Ctrl+A 14B`, then press Return; then choose *Bootstrap the Apple* from the connection's menu. The rest "
@@ -1203,8 +1208,9 @@ void CassoExplorerBrowser::PreviewCassoLinkItem (const CatalogRow & row)
 {
     std::wstring  text = (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help)       ? std::wstring (GetCassoLinkHelp())
                        : (row.cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine) ? std::wstring (L"Open it to add a connection to an Apple: a serial cable, a Wi-Fi modem, or a Casso on TCP.\r\n")
-                       : std::wstring (L"The CassoLink boot disk.\r\n\r\nBooting it starts CassoLink on the Apple, on port 2 at 115,200 baud. "
-                                       L"Drag it into Casso or onto a folder, or write it to a floppy.\r\n");
+                       : std::wstring (L"The CassoLink boot disk.\r\n\r\nBooting it starts CassoLink on the Apple, on each of its serial ports "
+                                       L"at 115,200 baud and on an Uthernet II, which gets its address by DHCP. The link is made on the "
+                                       L"first one this PC connects to. Drag it into Casso or onto a folder, or write it to a floppy.\r\n");
     size_t        start = 0;
     size_t        end   = 0;
 
