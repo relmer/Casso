@@ -441,6 +441,42 @@ public:
 
 
     //
+    //  The debugger's 520 DIP minimum height is 1040 px at 200%, taller than
+    //  a 1080p screen's 1040-line work area once the window's invisible
+    //  border is counted against it. The minimum yields to the work area;
+    //  the width, which fits, is left as it was.
+    //
+    TEST_METHOD (AMinimumLargerThanTheWorkAreaYieldsToIt)
+    {
+        MINMAXINFO  info   = {};
+        RECT        border = GetRect (7, 0, 7, 7);
+
+
+        info.ptMinTrackSize = POINT { 1520, 1100 };
+        DxuiHwndSource::ClampMinTrackToWorkArea (info, s_kWork, border);
+
+        Assert::AreEqual (1520L, info.ptMinTrackSize.x, L"a minimum width that fits is unchanged");
+        Assert::AreEqual (1047L, info.ptMinTrackSize.y, L"the height is the work area's plus the border below it");
+    }
+
+
+    //
+    //  A minimum that fits is untouched.
+    //
+    TEST_METHOD (AMinimumThatFitsIsLeftAlone)
+    {
+        MINMAXINFO  info = {};
+
+
+        info.ptMinTrackSize = POINT { 760, 520 };
+        DxuiHwndSource::ClampMinTrackToWorkArea (info, s_kWork, RECT {});
+
+        Assert::AreEqual (760L, info.ptMinTrackSize.x);
+        Assert::AreEqual (520L, info.ptMinTrackSize.y);
+    }
+
+
+    //
     //  A message box is placed when it is created, centered on its owner, as
     //  every other owned dialog is -- not created at the cascade position on
     //  whichever monitor that is and moved afterward.

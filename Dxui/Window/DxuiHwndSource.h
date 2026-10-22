@@ -292,6 +292,16 @@ public:
     static RECT   FitVisibleRectToWorkArea (const RECT & visible, const RECT & work, DxuiWorkAreaFit fit);
 
     //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Reduces `info`'s minimum track size to the work area plus
+    //  the window's invisible `border`, so no minimum, the application's or
+    //  the system's, keeps a window larger than the screen it is on. The
+    //  maximum is left alone: maximizing is clamped to it, and a maximized
+    //  window overhangs the work area by its frame.
+    //
+    static void   ClampMinTrackToWorkArea (MINMAXINFO & info, const RECT & work, const RECT & border);
+
+    //
     //  NO WINDOW IS EVER LARGER THAN ITS MONITOR'S WORK AREA. Reduces the
     //  window to the work area on each axis, then shifts it inside, in one
     //  SetWindowPos; a window that already fits is left alone. Content that
@@ -303,10 +313,10 @@ public:
     //  scales a window by the ratio of the two monitors and so can hand
     //  back one larger than the screen it just arrived on.
     //
-    //  A window whose minimum track size exceeds the work area cannot be
-    //  brought inside it, since WM_GETMINMAXINFO outranks SetWindowPos.
-    //  That is a minimum set too large for the display, not something this
-    //  can fix.
+    //  A minimum track size never holds a window larger than this: every
+    //  window's minimum yields to its monitor's work area (see
+    //  ClampMinTrackToWorkArea), since WM_GETMINMAXINFO outranks
+    //  SetWindowPos.
     //
     //  Maximized, minimized and fullscreen windows are left alone: the first
     //  two are sized by Windows, and fullscreen covers the taskbar by design.
@@ -812,6 +822,7 @@ private:
     void     TrackClientMouseLeave     ();
     void     DispatchNcUpToTrackedButton (LPARAM lp);
     void     HandleDpiChanged          (WPARAM wp, LPARAM lp);
+    void     ClampMinTrackToMonitor    (MINMAXINFO & info) const;
     void     HandleSize                (WPARAM wp, LPARAM lp);
     void     HandleSettingChange       ();
     void     HandleThemeChange         ();

@@ -820,6 +820,64 @@ RECT DxuiHwndSource::FitVisibleRectToWorkArea (const RECT & visible, const RECT 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::ClampMinTrackToWorkArea
+//
+//  Pure placement geometry (declared in the header). The minimum is a window
+//  rect, so the work area it is held to is widened by the invisible border
+//  the window carries outside its visible frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ClampMinTrackToWorkArea (MINMAXINFO & info, const RECT & work, const RECT & border)
+{
+    LONG  maxW = (work.right  - work.left) + border.left + border.right;
+    LONG  maxH = (work.bottom - work.top)  + border.top  + border.bottom;
+
+
+
+    if (maxW > 0) { info.ptMinTrackSize.x = (std::min) (info.ptMinTrackSize.x, maxW); }
+    if (maxH > 0) { info.ptMinTrackSize.y = (std::min) (info.ptMinTrackSize.y, maxH); }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::ClampMinTrackToMonitor
+//
+//  The work area of the monitor the window is on now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::ClampMinTrackToMonitor (MINMAXINFO & info) const
+{
+    HRESULT      hr      = S_OK;
+    HMONITOR     monitor = nullptr;
+    MONITORINFO  mi      = { sizeof (mi) };
+    BOOL         fOk     = FALSE;
+
+
+
+    monitor = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+    CWRA (monitor);
+
+    fOk = GetMonitorInfoW (monitor, &mi);
+    CWR (fOk);
+
+    ClampMinTrackToWorkArea (info, mi.rcWork, DxuiWindowFrame::GetBorder (m_hwnd));
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHwndSource::TryGetAnchorWorkArea
 //
 //  The monitor is found from the anchor's RECT rather than its window for the
@@ -3083,8 +3141,15 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
             //  was dropped in by the width of its own invisible border.
             DefWindowProcW (m_hwnd, msg, wp, lp);
 
-            isHandled = IsClaimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),
-                                   RepaintOnClaim::No);
+            (void) IsClaimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)), RepaintOnClaim::No);
+
+            //  Then no minimum larger than the work area, whoever set it.
+            //  WM_GETMINMAXINFO outranks SetWindowPos, so a minimum taller
+            //  than the screen kept a window taller than the screen however
+            //  it was fitted. Handled from here on: the default has run, and
+            //  a second pass could undo the clamp.
+            ClampMinTrackToMonitor (*reinterpret_cast<MINMAXINFO *> (lp));
+            isHandled = true;
             break;
         case WM_COMMAND:       isHandled = IsClaimed (m_client->OnCommandEx (LOWORD (wp),
                                                                           HIWORD (wp),
