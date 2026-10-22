@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  floats the pane at once (FR-125): the site asks the application to tear
 //  it off instead of showing its own drag, so the floating window carries
 //  the rest of the drag. A group of several panes dragged by its title bar
-//  still drags here.
+//  floats whole (FR-205), or drags here in a site with no handler for that.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,7 +164,7 @@ namespace DxuiDockSiteTearOffTests
         }
 
 
-        TEST_METHOD (AGroupOfSeveralPanesDraggedByItsTitleStaysInTheSite)
+        TEST_METHOD (WithNoGroupHandlerAGroupDraggedByItsTitleStaysInTheSite)
         {
             Rig             rig (true);
             DxuiTabGroup  * group = rig.FindGroup (2);
@@ -189,7 +189,48 @@ namespace DxuiDockSiteTearOffTests
         }
 
 
-        TEST_METHOD (AFloatingWindowsSiteNeverTearsOff)
+        //  FR-205: the whole group goes, in tab order, the pane shown still
+        //  the one shown; no pane is torn off on its own.
+        TEST_METHOD (AGroupDraggedByItsTitleTearsOffWhole)
+        {
+            Rig                        rig (true);
+            DxuiTabGroup             * group  = rig.FindGroup (2);
+            RECT                       title  = {};
+            POINT                      at     = {};
+            std::vector<std::wstring>  panes;
+            std::wstring               active;
+
+
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a group of two panes");
+                return;
+            }
+
+            rig.site.SetOnTearOffGroup ([&] (const std::vector<std::wstring> & torn, const std::wstring & shown, POINT)
+            {
+                panes  = torn;
+                active = shown;
+            });
+
+            title = group->GetTitleRect();
+            at    = POINT { title.left + 20, Center (title).y };
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, at));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { at.x + 30, at.y + 30 }));
+
+            Assert::AreEqual ((size_t) 2, panes.size(), L"both panes go");
+            Assert::AreEqual (std::wstring (L"regs"),  panes[0]);
+            Assert::AreEqual (std::wstring (L"stack"), panes[1]);
+            Assert::AreEqual (std::wstring (L"stack"), active, L"the one added last is shown");
+            Assert::AreEqual (0, rig.tears, L"no pane alone");
+            Assert::IsFalse  (rig.site.IsDragging(), L"and no drag stays in the site");
+        }
+
+
+        //  In a floating window a tab tears out of a group of several (FR-205,
+        //  any tab draggable); a lone pane is the window, and has no tab.
+        TEST_METHOD (AFloatingWindowsSiteTearsATabOutOfAGroupOfSeveral)
         {
             Rig             rig (false);
             DxuiTabGroup  * group = nullptr;
@@ -211,7 +252,8 @@ namespace DxuiDockSiteTearOffTests
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, Center (tab)));
             rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { Center (tab).x + 40, Center (tab).y + 40 }));
 
-            Assert::AreEqual (0, rig.tears);
+            Assert::AreEqual (1, rig.tears);
+            Assert::AreEqual (std::wstring (L"stack"), rig.torn);
         }
     };
 }

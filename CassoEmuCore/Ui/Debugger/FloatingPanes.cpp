@@ -21,7 +21,7 @@ bool FloatingPanes::IsRoutable (const std::wstring & pane) const
 {
     if (m_routingPane.empty())
     {
-        return pane.empty() || !m_windows.contains (pane);
+        return pane.empty() || !Contains (pane);
     }
 
     return pane == m_routingPane;
@@ -42,7 +42,7 @@ bool FloatingPanes::IsRoutable (const std::wstring & pane) const
 
 std::wstring FloatingPanes::GetBarRoutingPane (const std::wstring & pane) const
 {
-    return (!pane.empty() && m_windows.contains (pane)) ? pane : std::wstring();
+    return (!pane.empty() && Contains (pane)) ? pane : std::wstring();
 }
 
 
@@ -114,7 +114,7 @@ HWND FloatingPanes::GetRoutedHwnd() const
 
 IDxuiControl * FloatingPanes::GetRoutedFocus() const
 {
-    auto  found = m_focus.find (m_routingPane);
+    auto  found = m_focus.find (GetKeyOf (m_routingPane));
 
 
 
@@ -147,7 +147,7 @@ void FloatingPanes::SetRoutedFocus (IDxuiControl * control)
         old->OnFocusChanged (false);
     }
 
-    m_focus[m_routingPane] = control;
+    m_focus[GetKeyOf (m_routingPane)] = control;
 
     if (control != nullptr)
     {
@@ -195,11 +195,97 @@ void FloatingPanes::ForgetFocus (const std::vector<IDxuiControl *> & controls)
 
 DxuiDockedWindow * FloatingPanes::Find (const std::wstring & pane) const
 {
-    auto  found = m_windows.find (pane);
+    auto  found = m_windows.find (GetKeyOf (pane));
 
 
 
     return (found != m_windows.end()) ? found->second.get() : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::GetWindowOf
+//
+//  The key of the window a pane floats in, empty while it is in the
+//  debugger window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FloatingPanes::GetWindowOf (const std::wstring & pane) const
+{
+    for (const auto & [window, panes] : m_windowPanes)
+    {
+        if (std::ranges::find (panes, pane) != panes.end())
+        {
+            return window;
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::GetKeyOf
+//
+//  What a window's tip and focus are kept under: its key for a floating
+//  pane, and anything else as given, a window's own key, a pane slid out
+//  from an edge and the floating command bar's among them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FloatingPanes::GetKeyOf (const std::wstring & pane) const
+{
+    std::wstring  window = GetWindowOf (pane);
+
+
+
+    return window.empty() ? pane : window;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::GetActivePane
+//
+//  The tab a window shows, as its site has it now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring FloatingPanes::GetActivePane (const std::wstring & window) const
+{
+    DxuiDockedWindow          * found = nullptr;
+    const DxuiPaneLayoutNode  * root  = nullptr;
+    auto                        panes = m_windowPanes.find (window);
+
+
+
+    if (panes == m_windowPanes.end() || panes->second.empty())
+    {
+        return std::wstring();
+    }
+
+    found = m_windows.contains (window) ? m_windows.at (window).get() : nullptr;
+    root  = (found != nullptr) ? found->GetSite().GetPaneLayout().GetRoot() : nullptr;
+
+    if (root != nullptr && root->kind == DxuiPaneLayoutNode::Kind::Tabs &&
+        root->active >= 0 && root->active < (int) root->panes.size())
+    {
+        return root->panes[(size_t) root->active];
+    }
+
+    return panes->second.front();
 }
 
 
@@ -230,16 +316,20 @@ DxuiDockSite * FloatingPanes::FindSite (const std::wstring & pane) const
 //  FloatingPanes::Sync
 //
 //  Makes the floating windows match the layout: a window for each floating
-//  pane and none for the rest, each visible while the debugger window and
-//  its pane are. Run from the frame, never from inside a floating window's
-//  own message, which may be for the window about to be destroyed.
+//  window the layout has, holding the panes it lists, and none for the rest,
+//  each visible while the debugger window and any of its panes are. A window
+//  whose panes changed, one torn out of it or a group dropped together, is
+//  made again. Run from the frame, never from inside a floating window's own
+//  message, which may be for the window about to be destroyed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void FloatingPanes::Sync()
 {
-    const DxuiPaneLayout &  layout  = m_host.GetFloatDockSite()->GetPaneLayout();
-    bool                    visible = IsWindowVisible (m_host.GetFloatOwner()) != FALSE;
+    const DxuiPaneLayout &                             layout  = m_host.GetFloatDockSite()->GetPaneLayout();
+    bool                                               visible = IsWindowVisible (m_host.GetFloatOwner()) != FALSE;
+    std::map<std::wstring, std::vector<std::wstring>>  wanted;
+    std::vector<std::wstring>                          stale;
 
 
 
@@ -247,15 +337,31 @@ void FloatingPanes::Sync()
     {
         m_isSyncNeeded = false;
 
-        for (const std::wstring & pane : DebuggerLayout::GetPaneIds())
+        for (const DxuiPaneLayout::Floating & floating : layout.GetFloating())
         {
-            if (layout.IsFloating (pane) && !m_windows.contains (pane))
+            wanted[floating.window].push_back (floating.pane);
+        }
+
+        for (const auto & [window, panes] : m_windowPanes)
+        {
+            auto  found = wanted.find (window);
+
+            if (found == wanted.end() || !std::ranges::is_permutation (found->second, panes))
             {
-                Float (pane);
+                stale.push_back (window);
             }
-            else if (!layout.IsFloating (pane) && m_windows.contains (pane))
+        }
+
+        for (const std::wstring & window : stale)
+        {
+            Dock (window);
+        }
+
+        for (const auto & [window, panes] : wanted)
+        {
+            if (!m_windows.contains (window))
             {
-                Dock (pane);
+                Float (window);
             }
         }
 
@@ -264,7 +370,8 @@ void FloatingPanes::Sync()
 
     for (const auto & entry : m_windows)
     {
-        bool  shown = visible && m_host.IsPaneShown (entry.first);
+        const std::vector<std::wstring> &  panes = m_windowPanes[entry.first];
+        bool                               shown = visible && std::ranges::any_of (panes, [this] (const std::wstring & pane) { return m_host.IsPaneShown (pane); });
 
         if ((IsWindowVisible (entry.second->GetHwnd()) != FALSE) != shown)
         {
@@ -296,26 +403,22 @@ void FloatingPanes::Sync()
 
 void FloatingPanes::RequestFloat (const std::wstring & pane, POINT clientPx)
 {
-    const DxuiDpiScaler  & scaler  = m_host.GetFloatScaler();
     DxuiDockSite         & site    = *m_host.GetFloatDockSite();
     DxuiDockedWindow     * window  = Find (pane);
-    IDxuiControl         * content = m_host.GetPaneContent (pane);
-    RECT                   bounds  = (content != nullptr) ? content->GetBounds() : RECT {};
-    int                    width   = std::max ((int) (bounds.right - bounds.left), scaler.ToPx (320));
-    int                    height  = std::max ((int) (bounds.bottom - bounds.top), scaler.ToPx (220)) + scaler.ToPx (60);
-    POINT                  screen  = clientPx;
     RECT                   rect    = {};
 
 
 
-    if (window != nullptr)
+    //  A pane alone in its window stays where the window is; one of several
+    //  leaves them for a window of its own, the size theirs is, under the
+    //  cursor.
+    if (window != nullptr && site.GetPaneLayout().GetFloatingPanes (GetWindowOf (pane)).size() == 1)
     {
         rect = window->GetScreenRect();
     }
     else
     {
-        ClientToScreen (m_host.GetFloatOwner(), &screen);
-        rect = RECT { screen.x - width / 2, screen.y - scaler.ToPx (16), screen.x + width / 2, screen.y - scaler.ToPx (16) + height };
+        rect = GetTearOffRect (pane, clientPx);
     }
 
     if (site.EditPaneLayout().Float (pane, GetMonitorKey (rect), rect))
@@ -343,6 +446,9 @@ void FloatingPanes::RequestFloat (const std::wstring & pane, POINT clientPx)
 
 void FloatingPanes::TearOff (const std::wstring & pane, POINT clientPx)
 {
+    m_tearGrab    = m_host.GetFloatDockSite()->GetTearOffGrab();
+    m_tearFromTab = m_host.GetFloatDockSite()->WasTearOffFromTab();
+
     RequestFloat (pane, clientPx);
 
     if (m_host.GetFloatDockSite()->GetPaneLayout().IsFloating (pane))
@@ -350,6 +456,136 @@ void FloatingPanes::TearOff (const std::wstring & pane, POINT clientPx)
         m_tornOffPane = pane;
         ReleaseCapture();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::TearOffGroup
+//
+//  A group's title bar dragged (FR-205): every pane of the group floats in
+//  one window, at the size the group had docked, carried by the pointer as
+//  a lone pane torn off is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::TearOffGroup (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx)
+{
+    DxuiDockSite  & site = *m_host.GetFloatDockSite();
+    RECT            rect = GetTearOffRect (active, clientPx);
+
+
+
+    m_tearGrab    = site.GetTearOffGrab();
+    m_tearFromTab = false;
+
+    if (!site.EditPaneLayout().FloatGroup (panes, active, GetMonitorKey (rect), rect))
+    {
+        return;
+    }
+
+    site.Relayout();
+    m_isSyncNeeded = true;
+    m_host.SaveLayout();
+
+    m_tornOffPane = active;
+    ReleaseCapture();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::TearOut
+//
+//  A tab dragged off the strip of a floating window of several: that pane
+//  floats alone, the size of the window it left, carried by the pointer.
+//  The window it left is made again without it at the next Sync, from the
+//  frame, since this runs inside that window's own mouse message.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::TearOut (const std::wstring & window, const std::wstring & pane, POINT windowPx)
+{
+    DxuiDockedWindow  * from   = m_windows.contains (window) ? m_windows.at (window).get() : nullptr;
+    POINT               client = windowPx;
+
+
+
+    if (from == nullptr || from->GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    m_tearGrab    = from->GetSite().GetTearOffGrab();
+    m_tearFromTab = from->GetSite().WasTearOffFromTab();
+
+    ClientToScreen (from->GetHwnd(), &client);
+    ScreenToClient (m_host.GetFloatOwner(), &client);
+
+    RequestFloat (pane, client);
+
+    if (m_host.GetFloatDockSite()->GetPaneLayout().GetFloatingPanes (m_host.GetFloatDockSite()->GetPaneLayout().GetFloatingWindow (pane)).size() == 1)
+    {
+        m_tornOffPane = pane;
+        ReleaseCapture();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::GetTearOffRect
+//
+//  A pane floats at the size its group had docked, title bar and tabs
+//  included, since its window draws the same group (FR-205); a pane that
+//  is not docked, or a group too small to work in, at least 320 by 220.
+//  It is placed under the cursor here, and exactly under the spot pressed
+//  once the window exists (PlaceUnderGrab).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT FloatingPanes::GetTearOffRect (const std::wstring & pane, POINT clientPx) const
+{
+    const DxuiDpiScaler  & scaler  = m_host.GetFloatScaler();
+    DxuiDockSite         & site    = *m_host.GetFloatDockSite();
+    DxuiDockedWindow     * window  = Find (pane);
+    IDxuiControl         * content = m_host.GetPaneContent (pane);
+    RECT                   bounds  = {};
+    POINT                  screen  = clientPx;
+    int                    width   = 0;
+    int                    height  = 0;
+
+
+
+    if (window != nullptr)
+    {
+        bounds = window->GetScreenRect();
+    }
+    else if (site.TryGetPaneGroupRect (pane, bounds))
+    {
+        //  As the group is drawn in the site.
+    }
+    else if (content != nullptr)
+    {
+        bounds = content->GetBounds();
+        bounds.bottom += scaler.ToPx (60);
+    }
+
+    width  = std::max ((int) (bounds.right  - bounds.left), scaler.ToPx (320));
+    height = std::max ((int) (bounds.bottom - bounds.top),  scaler.ToPx (220));
+
+    ClientToScreen (m_host.GetFloatOwner(), &screen);
+
+    return RECT { screen.x - width / 2, screen.y - scaler.ToPx (16), screen.x + width / 2, screen.y - scaler.ToPx (16) + height };
 }
 
 
@@ -378,12 +614,12 @@ void FloatingPanes::CarryTornOff()
 
     m_tornOffPane.clear();
 
-    if (pane.empty() || !buttonDown || !m_windows.contains (pane))
+    if (pane.empty() || !buttonDown || Find (pane) == nullptr)
     {
         return;
     }
 
-    hwnd = m_windows[pane]->GetHwnd();
+    hwnd = Find (pane)->GetHwnd();
 
     if (hwnd != nullptr && IsWindowVisible (hwnd))
     {
@@ -417,6 +653,49 @@ void FloatingPanes::DockBack (const std::wstring & pane)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FloatingPanes::DockBackWindow
+//
+//  A window's pin docks every pane in it back, together: the first where its
+//  group came from, the rest tabbed with it in the window's order, the one
+//  it showed shown.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FloatingPanes::DockBackWindow (const std::wstring & window)
+{
+    DxuiPaneLayout             & layout = m_host.GetFloatDockSite()->EditPaneLayout();
+    std::vector<std::wstring>    panes  = layout.GetFloatingPanes (window);
+    std::wstring                 active = GetActivePane (window);
+    bool                         moved  = false;
+
+
+
+    if (panes.empty())
+    {
+        return;
+    }
+
+    moved = layout.DockBack (panes.front());
+
+    for (size_t i = 1; moved && i < panes.size(); i++)
+    {
+        (void) layout.TabWith (panes[i], panes.front());
+    }
+
+    if (moved)
+    {
+        (void) layout.Activate (active);
+        m_isSyncNeeded = true;
+        m_host.SaveLayout();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FloatingPanes::Show
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -429,6 +708,8 @@ void FloatingPanes::Show (const std::wstring & pane)
 
     if (window != nullptr && window->GetHwnd() != nullptr)
     {
+        //  Its tab in front, in a window of several.
+        window->GetSite().ActivatePane (pane);
         window->Show (true);
     }
 }
@@ -445,15 +726,20 @@ void FloatingPanes::Show (const std::wstring & pane)
 
 void FloatingPanes::SaveRects (DxuiPaneLayout & layout) const
 {
-    for (const auto & entry : m_windows)
+    for (const auto & [window, floating] : m_windows)
     {
-        RECT  rect = entry.second->GetScreenRect();
+        RECT                        rect  = floating->GetScreenRect();
+        const DxuiPaneLayoutNode  * root  = floating->GetSite().GetPaneLayout().GetRoot();
 
-        //  A window whose pane just docked is here until the next frame;
-        //  floating it again would undo the dock.
-        if (layout.IsFloating (entry.first))
+        //  Setting a window's place adds nothing, so a window whose panes
+        //  just docked, here until the next frame, cannot undo the dock.
+        (void) layout.SetFloatingRect (window, GetMonitorKey (rect), rect);
+
+        //  The tabs as the window has them: reordered along its strip, or
+        //  another shown.
+        if (root != nullptr && root->kind == DxuiPaneLayoutNode::Kind::Tabs && !root->panes.empty())
         {
-            (void) layout.Float (entry.first, GetMonitorKey (rect), rect);
+            (void) layout.SetFloatingTabs (window, root->panes, GetActivePane (window));
         }
     }
 }
@@ -496,7 +782,7 @@ void FloatingPanes::EraseTip (const std::wstring & key)
 
 DxuiTooltip * FloatingPanes::FindTip (const std::wstring & key) const
 {
-    auto  found = m_tips.find (key);
+    auto  found = m_tips.find (GetKeyOf (key));
 
 
 
@@ -622,10 +908,10 @@ void FloatingPanes::Tick (int64_t now)
 
 
 
-    for (const auto & [pane, window] : m_windows)
+    for (const auto & [key, window] : m_windows)
     {
         DxuiHwndSource  * host = window->GetPopupHost();
-        DxuiTooltip     * tip  = FindTip (pane);
+        DxuiTooltip     * tip  = FindTip (key);
 
         if (host != nullptr && host->GetContextMenu().WantsTick())
         {
@@ -668,7 +954,7 @@ void FloatingPanes::SetFocusedLooks (const std::wstring & focusedPane, const Dxu
 {
     for (const auto & entry : m_windows)
     {
-        entry.second->SetFocusedLook (entry.first == focusedPane, theme);
+        entry.second->SetFocusedLook (std::ranges::find (m_windowPanes.at (entry.first), focusedPane) != m_windowPanes.at (entry.first).end(), theme);
     }
 }
 
@@ -688,7 +974,7 @@ bool FloatingPanes::IsAnyMenuOpen() const
 
 
 
-    for (const auto & [pane, window] : m_windows)
+    for (const auto & [key, window] : m_windows)
     {
         DxuiHwndSource  * popups = (window != nullptr) ? window->GetPopupHost() : nullptr;
 
@@ -736,12 +1022,13 @@ std::wstring FloatingPanes::GetMonitorKey (const RECT & rectPx)
 //
 //  FloatingPanes::Float
 //
-//  A window for one floating pane, at the place the layout has for it,
-//  with the pane's controls moved into it.
+//  A window for a floating window the layout has, at the place it has for
+//  it, with the controls of every pane in it moved there and the panes as
+//  tabs, the one it shows in front.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FloatingPanes::Float (const std::wstring & pane)
+void FloatingPanes::Float (const std::wstring & key)
 {
     std::unique_ptr<DxuiDockedWindow>  window = std::make_unique<DxuiDockedWindow>();
     DxuiWindow::CreateParams           params;
@@ -749,12 +1036,20 @@ void FloatingPanes::Float (const std::wstring & pane)
     HRESULT                            hr     = S_OK;
     DxuiDockSite                     & site   = *m_host.GetFloatDockSite();
     const DxuiTheme                  * theme  = m_host.GetTheme();
+    std::vector<std::wstring>          panes  = site.GetPaneLayout().GetFloatingPanes (key);
+    std::wstring                       pane   = site.GetPaneLayout().GetFloatingActive (key);
+    DxuiPaneLayout                     tabs;
 
 
+
+    if (panes.empty())
+    {
+        return;
+    }
 
     for (const DxuiPaneLayout::Floating & floating : site.GetPaneLayout().GetFloating())
     {
-        rect = (floating.pane == pane) ? floating.rectDip : rect;
+        rect = (floating.window == key) ? floating.rectDip : rect;
     }
 
     params.title            = m_host.GetPaneTitle (pane);
@@ -774,59 +1069,83 @@ void FloatingPanes::Float (const std::wstring & pane)
 
     if (FAILED (hr))
     {
-        //  With no window to float in, the pane goes back where it was.
-        (void) site.EditPaneLayout().DockBack (pane);
+        //  With no window to float in, the panes go back where they were.
+        for (const std::wstring & each : panes)
+        {
+            (void) site.EditPaneLayout().DockBack (each);
+        }
+
         return;
     }
 
     window->SetTheme  (theme);
     window->SetKeyMap (m_host.GetFloatKeyMap());
 
-    for (IDxuiControl * control : m_host.GetPaneControls (pane))
-    {
-        std::unique_ptr<IDxuiControl>  owned = m_host.DetachFloatControl (control);
+    tabs = DxuiPaneLayout::MakeSingle (panes.front());
 
-        if (owned != nullptr)
+    for (const std::wstring & each : panes)
+    {
+        for (IDxuiControl * control : m_host.GetPaneControls (each))
         {
-            (void) window->AttachChild (std::move (owned));
+            std::unique_ptr<IDxuiControl>  owned = m_host.DetachFloatControl (control);
+
+            if (owned != nullptr)
+            {
+                (void) window->AttachChild (std::move (owned));
+            }
+        }
+
+        window->GetSite().AddPane (each, m_host.GetPaneTitle (each), m_host.GetPaneContent (each));
+
+        if (each != panes.front())
+        {
+            (void) tabs.TabWithAt (each, panes.front(), (int) tabs.GetGroup (panes.front()).size());
         }
     }
 
-    window->GetSite().AddPane       (pane, m_host.GetPaneTitle (pane), m_host.GetPaneContent (pane));
-    window->GetSite().SetPaneLayout (DxuiPaneLayout::MakeSingle (pane));
+    (void) tabs.Activate (pane);
+    window->GetSite().SetPaneLayout (tabs);
 
-    //  The pane's title bar is the window's only one: its menu is the pane's
-    //  Dock To menu, opened in this window; its pin docks the pane back; and
-    //  its close button closes the pane with its floating place saved, so the
-    //  View menu opens it there again.
-    window->GetSite().SetFloating    ([this] (const std::wstring & p) { DockBack (p); });
+    //  The group's title bar is the window's only one: its menu is the shown
+    //  pane's Dock To menu, opened in this window; its pin docks every pane
+    //  back; and its close button closes the shown pane with its floating
+    //  place saved, so the View menu opens it there again. A tab dragged off
+    //  the strip of a window of several floats that pane on its own.
+    window->GetSite().SetFloating    ([this, key] (const std::wstring &) { DockBackWindow (key); });
     window->GetSite().SetPaneGap     (DxuiDockSite::kPaneGapDip, 0);
-    window->GetSite().SetOnPaneMenu  ([this, pane] (const std::wstring & p, POINT clientPx)
+    window->GetSite().SetOnPaneMenu  ([this] (const std::wstring & p, POINT clientPx)
     {
-        RouteScope  scope (*this, pane);
+        RouteScope  scope (*this, p);
 
         m_host.ShowDockToMenu (p, clientPx);
     });
     window->GetSite().SetOnClosePane ([this] (const std::wstring & p) { m_host.ClosePane (p); },
                                       [this] (const std::wstring & p) { return m_host.CanClosePane (p); });
+    window->GetSite().SetOnTearOff   ([this, key] (const std::wstring & p, POINT windowPx) { TearOut (key, p, windowPx); });
 
-    window->SetOnContentMouse      ([this, pane] (const DxuiMouseEvent & ev) { return RouteMouse (pane, ev); });
-    window->SetOnContentKey        ([this, pane] (const DxuiKeyEvent & ev)   { return RouteKey   (pane, ev); });
-    window->SetOnMappedCommand     ([this]       (int commandId)             { return m_host.RunFloatedCommand (commandId); });
-    window->SetOnCaptionDrag       ([this, pane] (POINT screen)              { OnDrag (pane, screen, false); });
-    window->SetOnCaptionDragEnd    ([this, pane] (POINT screen)              { OnDrag (pane, screen, true);  });
-    window->SetOnCaptionDragCancel ([this, pane]
+    window->SetOnContentMouse      ([this, key] (const DxuiMouseEvent & ev) { return RouteMouse (GetActivePane (key), ev); });
+    window->SetOnContentKey        ([this, key] (const DxuiKeyEvent & ev)   { return RouteKey   (GetActivePane (key), ev); });
+    window->SetOnMappedCommand     ([this]      (int commandId)             { return m_host.RunFloatedCommand (commandId); });
+    window->SetOnCaptionDrag       ([this, key] (POINT screen)              { OnDrag (key, screen, false); });
+    window->SetOnCaptionDragEnd    ([this, key] (POINT screen)              { OnDrag (key, screen, true);  });
+    window->SetOnCaptionDragCancel ([this, key]
     {
-        DropCarriedTab (pane);
-        SetFade (pane, false);
+        DropCarriedTab (key);
+        SetFade (key, false);
         m_host.GetFloatDockSite()->CancelDrag();
         HideDragMarks();
         m_host.Repaint();
     });
-    window->SetOnClosed            ([this, pane]                             { m_host.ClosePane (pane); });
+    window->SetOnClosed            ([this, key]
+    {
+        for (const std::wstring & each : m_windowPanes[key])
+        {
+            m_host.ClosePane (each);
+        }
+    });
     window->SetOnFilesDropped      ([this] (const std::vector<std::wstring> & paths) { return m_host.DropFloatedFiles (paths); });
     window->SetAcceptsDroppedFiles (true);
-    window->SetOnFocusChanged      ([this, pane] (bool focused)              { m_host.OnFloatFocusChanged (pane, focused); });
+    window->SetOnFocusChanged      ([this, key] (bool focused)              { m_host.OnFloatFocusChanged (GetActivePane (key), focused); });
 
     if (rect.right > rect.left && rect.bottom > rect.top)
     {
@@ -842,10 +1161,11 @@ void FloatingPanes::Float (const std::wstring & pane)
         tip->SetTheme     (*theme);
         tip->SetDpi       (GetDpiForWindow (window->GetHwnd()));
         tip->ApplyVisualStudioLook();
-        m_tips[pane] = std::move (tip);
+        m_tips[key] = std::move (tip);
     }
 
-    m_windows[pane] = std::move (window);
+    m_windows[key]     = std::move (window);
+    m_windowPanes[key] = std::move (panes);
 }
 
 
@@ -856,37 +1176,43 @@ void FloatingPanes::Float (const std::wstring & pane)
 //
 //  FloatingPanes::Dock
 //
-//  The pane's controls come back to the debugger window and its floating
-//  window goes.
+//  The controls of every pane in a floating window come back to the
+//  debugger window and the window goes. A pane that is still floating, in
+//  another window now, floats again at the next Sync.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FloatingPanes::Dock (const std::wstring & pane)
+void FloatingPanes::Dock (const std::wstring & key)
 {
-    std::unique_ptr<DxuiDockedWindow>  window = std::move (m_windows[pane]);
+    std::unique_ptr<DxuiDockedWindow>  window = std::move (m_windows[key]);
+    std::vector<std::wstring>          panes  = std::move (m_windowPanes[key]);
 
 
 
-    m_windows.erase (pane);
-    m_focus.erase   (pane);
+    m_windows.erase     (key);
+    m_windowPanes.erase (key);
+    m_focus.erase       (key);
 
-    if (m_tips.contains (pane))
+    if (m_tips.contains (key))
     {
-        m_tips[pane]->HideImmediate();
-        EraseTip (pane);
+        m_tips[key]->HideImmediate();
+        EraseTip (key);
     }
 
-    for (IDxuiControl * control : m_host.GetPaneControls (pane))
+    for (const std::wstring & pane : panes)
     {
-        std::unique_ptr<IDxuiControl>  owned = window->DetachChild (control);
-
-        if (owned != nullptr)
+        for (IDxuiControl * control : m_host.GetPaneControls (pane))
         {
-            m_host.AttachFloatControl (std::move (owned));
-        }
-    }
+            std::unique_ptr<IDxuiControl>  owned = window->DetachChild (control);
 
-    m_host.OnFloatDocked (pane, window.get());
+            if (owned != nullptr)
+            {
+                m_host.AttachFloatControl (std::move (owned));
+            }
+        }
+
+        m_host.OnFloatDocked (pane, window.get());
+    }
 }
 
 
@@ -906,10 +1232,9 @@ void FloatingPanes::Dock (const std::wstring & pane)
 
 void FloatingPanes::PlaceUnderGrab (const std::wstring & pane)
 {
-    DxuiDockSite      & mainSite = *m_host.GetFloatDockSite();
-    DxuiDockedWindow  & window   = *m_windows[pane];
+    DxuiDockedWindow  & window   = *Find (pane);
     DxuiDockSite      & site     = window.GetSite();
-    POINT               grab     = mainSite.GetTearOffGrab();
+    POINT               grab     = m_tearGrab;
     RECT                grabbed  = {};
     RECT                rect     = window.GetScreenRect();
     POINT               anchor   = {};
@@ -917,7 +1242,7 @@ void FloatingPanes::PlaceUnderGrab (const std::wstring & pane)
 
 
 
-    if (mainSite.WasTearOffFromTab())
+    if (m_tearFromTab)
     {
         site.SetCarriedPane (pane);
         grabbed = site.GetCarriedTabRect();
@@ -990,13 +1315,14 @@ bool FloatingPanes::RouteKey (const std::wstring & pane, const DxuiKeyEvent & ev
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FloatingPanes::OnDrag (const std::wstring & pane, POINT screenPx, bool ended)
+void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool ended)
 {
-    DxuiDockSite    & site   = *m_host.GetFloatDockSite();
-    POINT             client = screenPx;
-    RECT              area   = site.GetBounds();
-    bool              inside = false;
-    DxuiMouseEvent    ev;
+    const std::wstring  & pane   = window;
+    DxuiDockSite        & site   = *m_host.GetFloatDockSite();
+    POINT                 client = screenPx;
+    RECT                  area   = site.GetBounds();
+    bool                  inside = false;
+    DxuiMouseEvent        ev;
 
 
 
@@ -1012,9 +1338,10 @@ void FloatingPanes::OnDrag (const std::wstring & pane, POINT screenPx, bool ende
 
     if (!ended)
     {
+        //  Every pane in the window goes where it is dropped, together.
         if (!site.IsDragging())
         {
-            site.BeginDrag (pane);
+            site.BeginGroupDrag (m_windowPanes[window], GetActivePane (window));
         }
 
         ev.kind        = DxuiMouseEventKind::Move;

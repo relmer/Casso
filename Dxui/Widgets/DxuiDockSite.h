@@ -107,8 +107,20 @@ public:
     //  A pane's tab dragged off its strip, or a lone pane's title bar dragged,
     //  floats the pane at once under the pointer instead of starting a drag
     //  here, so the floating window carries the rest of the drag. Without a
-    //  handler, or in a floating window's site, the drag stays in the site.
+    //  handler, or in a floating window's site holding one pane, the drag
+    //  stays in the site.
     void  SetOnTearOff        (FloatFn fn)            { m_onTearOff = std::move (fn); }
+
+    //  The title bar of a group of several panes dragged: the whole group
+    //  floats at once under the pointer, its tabs together in one window,
+    //  `active` the one shown. Without a handler the group is dragged in the
+    //  site, as before.
+    using GroupFloatFn = std::function<void (const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip)>;
+    void  SetOnTearOffGroup   (GroupFloatFn fn)       { m_onTearOffGroup = std::move (fn); }
+
+    //  The area of the group a docked pane is in, as drawn, title bar and
+    //  tabs included: what a floating window must be to show it the same.
+    bool  TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) const;
 
     //  Which panes are documents: a group holding one has its tabs along its
     //  top; any other group is a tool window, with a title bar. With no
@@ -353,6 +365,7 @@ private:
 
     void          WireGroup     (DxuiTabGroup * group);
     bool          TearOff       (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab);
+    bool          TearOffGroup  (DxuiTabGroup * group, const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip);
     void          UpdateStripTarget (POINT pointDip);
     void          ClearStripTarget  ();
     bool          DropOnStrip   (int group, int index);
@@ -411,6 +424,7 @@ private:
     DxuiTabGroup::NewTabFn                        m_newTab;
     FloatFn                                       m_onFloat;
     FloatFn                                       m_onTearOff;
+    GroupFloatFn                                  m_onTearOffGroup;
 
     std::wstring                   m_dragPane;
     std::vector<std::wstring>      m_dragPanes;

@@ -370,4 +370,193 @@ namespace DxuiPaneLayoutTests
             Assert::AreEqual ((long) -1800, layout.GetFloating().at (1).rectDip.left, L"a present monitor is left alone");
         }
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  FloatingGroupTests
+    //
+    //  A tab group torn off whole floats in one window, its tabs together
+    //  (FR-205): their order and the one shown, a tab taken out on its own,
+    //  docking back together, and the text form, which reads a layout saved
+    //  before windows held groups as it always did.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (FloatingGroupTests)
+    {
+    public:
+
+        //  code | regs+stack, with console below code.
+        static DxuiPaneLayout MakeGroupSample()
+        {
+            DxuiPaneLayout  layout = MakeSample();
+
+
+            layout.Add (L"stack", L"regs");
+            return layout;
+        }
+
+
+        TEST_METHOD (AGroupFloatsWholeInOneWindow)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+            std::wstring    window;
+
+
+
+            Assert::IsTrue (layout.FloatGroup ({ L"regs", L"stack" }, L"stack", L"mon1", RECT { 10, 20, 410, 320 }));
+
+            window = layout.GetFloatingWindow (L"regs");
+
+            Assert::IsFalse  (layout.IsDocked (L"regs"));
+            Assert::IsFalse  (layout.IsDocked (L"stack"));
+            Assert::AreEqual (window, layout.GetFloatingWindow (L"stack"), L"in the same window");
+            Assert::AreEqual (std::wstring (L"regs"), window, L"keyed by its first pane");
+            Assert::IsTrue   ((std::vector<std::wstring> { L"regs", L"stack" }) == layout.GetFloatingPanes (window), L"in tab order");
+            Assert::AreEqual (std::wstring (L"stack"), layout.GetFloatingActive (window), L"the one shown, still shown");
+
+            for (const DxuiPaneLayout::Floating & floating : layout.GetFloating())
+            {
+                Assert::IsTrue   (layout.IsDocked (floating.homePane), L"each goes back beside a docked pane next to the group, not a fellow member");
+                Assert::AreEqual (layout.GetFloating().front().homePane, floating.homePane, L"the same one");
+                Assert::AreEqual (410L, floating.rectDip.right);
+            }
+        }
+
+
+        TEST_METHOD (AGroupWithAPaneNotDockedIsRefused)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+
+
+            layout.Float (L"stack", L"mon1", RECT { 0, 0, 100, 100 });
+
+            Assert::IsFalse (layout.FloatGroup ({ L"regs", L"stack" }, L"regs", L"mon1", RECT { 0, 0, 100, 100 }));
+            Assert::IsTrue  (layout.IsDocked (L"regs"), L"and nothing moves");
+        }
+
+
+        //  Floating a pane that shares a window takes it out to one of its
+        //  own; the others stay together.
+        TEST_METHOD (APaneFloatedOutOfAGroupWindowTakesAWindowOfItsOwn)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+
+
+            layout.FloatGroup ({ L"regs", L"stack" }, L"regs", L"mon1", RECT { 10, 20, 410, 320 });
+            layout.Float      (L"stack", L"mon1", RECT { 500, 20, 900, 320 });
+
+            Assert::AreNotEqual (layout.GetFloatingWindow (L"regs"), layout.GetFloatingWindow (L"stack"));
+            Assert::AreEqual    (std::wstring (L"stack"), layout.GetFloatingWindow (L"stack"), L"keyed by its own name");
+            Assert::AreEqual    (std::wstring (L"stack"), layout.GetFloatingActive (L"stack"));
+            Assert::AreEqual    (std::wstring (L"regs"),  layout.GetFloatingActive (layout.GetFloatingWindow (L"regs")), L"the window it left shows what remains");
+        }
+
+
+        //  When the pane a window is keyed by leaves it, the window takes the
+        //  name of a pane it still holds: a pane's name, where it is a key,
+        //  is always its own window's.
+        TEST_METHOD (AWindowWhosePaneLeftIsRekeyed)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+
+
+            layout.FloatGroup ({ L"regs", L"stack" }, L"regs", L"mon1", RECT { 10, 20, 410, 320 });
+            layout.Float      (L"regs", L"mon1", RECT { 500, 20, 900, 320 });
+
+            Assert::AreEqual (std::wstring (L"regs"),  layout.GetFloatingWindow (L"regs"));
+            Assert::AreEqual (std::wstring (L"stack"), layout.GetFloatingWindow (L"stack"));
+
+            layout.DockBack (L"regs");
+
+            Assert::AreEqual (std::wstring (L"stack"), layout.GetFloatingWindow (L"stack"), L"docking another changes nothing");
+        }
+
+
+        TEST_METHOD (ClosingTheShownTabShowsAnother)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+
+
+            layout.FloatGroup ({ L"regs", L"stack" }, L"stack", L"mon1", RECT { 10, 20, 410, 320 });
+            layout.Close      (L"stack");
+
+            Assert::AreEqual (std::wstring (L"regs"), layout.GetFloatingWindow (L"regs"));
+            Assert::AreEqual (std::wstring (L"regs"), layout.GetFloatingActive (L"regs"));
+        }
+
+
+        TEST_METHOD (AWindowsTabsTakeItsOrderAndShownTab)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+
+
+            layout.FloatGroup ({ L"regs", L"stack" }, L"regs", L"mon1", RECT { 10, 20, 410, 320 });
+
+            Assert::IsTrue   (layout.SetFloatingTabs (L"regs", { L"stack", L"regs" }, L"stack"));
+            Assert::IsTrue   ((std::vector<std::wstring> { L"stack", L"regs" }) == layout.GetFloatingPanes (L"regs"), L"in its new order, under the same key");
+            Assert::AreEqual (std::wstring (L"stack"), layout.GetFloatingActive (L"regs"));
+            Assert::IsFalse  (layout.SetFloatingTabs (L"regs", { L"stack", L"regs" }, L"stack"), L"the same again is no change");
+            Assert::IsFalse  (layout.SetFloatingTabs (L"regs", { L"stack" }, L"stack"), L"a list that is not the window's is refused");
+        }
+
+
+        TEST_METHOD (AMoveOfTheWindowMovesEveryTab)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+
+
+            layout.FloatGroup ({ L"regs", L"stack" }, L"regs", L"mon1", RECT { 10, 20, 410, 320 });
+
+            Assert::IsTrue  (layout.SetFloatingRect (L"regs", L"mon2", RECT { 100, 100, 500, 400 }));
+            Assert::IsFalse (layout.SetFloatingRect (L"regs", L"mon2", RECT { 100, 100, 500, 400 }), L"the same place is no change");
+
+            for (const DxuiPaneLayout::Floating & floating : layout.GetFloating())
+            {
+                Assert::AreEqual (std::wstring (L"mon2"), floating.monitorKey);
+                Assert::AreEqual (100L, floating.rectDip.left);
+            }
+        }
+
+
+        TEST_METHOD (AGroupWindowRoundTripsThroughText)
+        {
+            DxuiPaneLayout  layout = MakeGroupSample();
+            DxuiPaneLayout  read;
+
+
+
+            layout.FloatGroup ({ L"regs", L"stack" }, L"stack", L"mon1", RECT { 10, 20, 410, 320 });
+
+            Assert::IsTrue   (DxuiPaneLayout::TryParse (layout.ToText(), read));
+            Assert::AreEqual (layout.ToText(), read.ToText());
+            Assert::AreEqual (std::wstring (L"regs"),  read.GetFloatingWindow (L"stack"));
+            Assert::AreEqual (std::wstring (L"stack"), read.GetFloatingActive (L"regs"));
+        }
+
+
+        //  A lone floating pane is written as it was before windows held
+        //  groups, and such a line reads as a window of its own.
+        TEST_METHOD (ALoneFloatingPaneKeepsTheOldText)
+        {
+            DxuiPaneLayout  layout = MakeSample();
+            DxuiPaneLayout  read;
+            std::wstring    text;
+
+
+
+            layout.Float (L"regs", L"mon1", RECT { 10, 20, 410, 320 });
+            text = layout.ToText();
+
+            Assert::IsTrue (text.find (std::format (L"float \"regs\" \"mon1\" 10 20 410 320 \"{}\"\n", layout.GetFloating().front().homePane)) != std::wstring::npos,
+                            text.c_str());
+
+            Assert::IsTrue   (DxuiPaneLayout::TryParse (L"dxui-layout 1\ntree (tabs 0 \"code\")\nfloat \"regs\" \"mon1\" 10 20 410 320 \"code\"\n", read));
+            Assert::AreEqual (std::wstring (L"regs"), read.GetFloatingWindow (L"regs"));
+            Assert::AreEqual (std::wstring (L"regs"), read.GetFloatingActive (L"regs"));
+        }
+    };
 }

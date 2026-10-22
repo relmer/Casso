@@ -588,6 +588,10 @@ void DebuggerWindow::ConfigureDockSite()
 
     m_dockSite->SetOnFloatRequested ([this] (const std::wstring & pane, POINT clientPx) { m_floating->RequestFloat (pane, clientPx); });
     m_dockSite->SetOnTearOff        ([this] (const std::wstring & pane, POINT clientPx) { m_floating->TearOff      (pane, clientPx); });
+    m_dockSite->SetOnTearOffGroup   ([this] (const std::vector<std::wstring> & panes, const std::wstring & active, POINT clientPx)
+    {
+        m_floating->TearOffGroup (panes, active, clientPx);
+    });
 
     //  Every change the user makes is saved as it happens, so a crash or a
     //  closed emulator loses nothing.

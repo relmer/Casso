@@ -378,6 +378,12 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
             return;
         }
 
+        //  FR-205: a group's title bar tears off the whole group.
+        if (panes.size() > 1 && TearOffGroup (group, panes, GetPaneOf (group->GetContent (index)), pointDip))
+        {
+            return;
+        }
+
         BeginGroupDrag (panes, GetPaneOf (group->GetContent (index)));
         m_pointerDrag = IsDragging();
     });
@@ -1827,13 +1833,15 @@ std::vector<RECT> DxuiDockSite::GetOutlineStrips (const DxuiDockDragMark & mark)
 //  DxuiDockSite::TearOff
 //
 //  The group forgets its press, since the floating window the application
-//  makes takes the button's release; a slid-out pane slides back first.
+//  makes takes the button's release; a slid-out pane slides back first. In a
+//  floating window a tab tears off only from a group of several: a lone
+//  pane is the window, and dragging it moves the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab)
 {
-    if (!m_onTearOff || IsFloatingSite() || pane.empty())
+    if (!m_onTearOff || pane.empty() || (IsFloatingSite() && m_layout.GetGroup (pane).size() < 2))
     {
         return false;
     }
@@ -1850,6 +1858,72 @@ bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POI
     }
 
     m_onTearOff (pane, pointDip);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TryGetPaneGroupRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) const
+{
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        if (!group->IsVisible())
+        {
+            continue;
+        }
+
+        for (int i = 0; i < (int) group->GetTabCount(); i++)
+        {
+            if (GetPaneOf (group->GetContent (i)) == pane)
+            {
+                rect = group->GetBounds();
+                return rect.right > rect.left && rect.bottom > rect.top;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TearOffGroup
+//
+//  As TearOff, for every pane of a group pulled by its title bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TearOffGroup (DxuiTabGroup * group, const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip)
+{
+    if (!m_onTearOffGroup || IsFloatingSite() || panes.empty() || active.empty())
+    {
+        return false;
+    }
+
+    m_tearGrab    = group->GetGrabOffset (false);
+    m_tearFromTab = false;
+
+    group->CancelPress();
+
+    if (std::ranges::find (panes, m_slidPane) != panes.end())
+    {
+        m_slidPane.clear();
+        Arrange();
+    }
+
+    m_onTearOffGroup (panes, active, pointDip);
     return true;
 }
 
@@ -2590,8 +2664,10 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
         return false;
     }
 
-    //  A group dropped outside floats only the pane shown: a floating window
-    //  holds one pane.
+    //  A group dropped outside floats only the pane shown. With a group
+    //  tear-off handler a group's title bar floats the whole group before
+    //  any drag starts here (TearOffGroup), so this is the drag of a site
+    //  without one.
     if (zone.has_value())
     {
         changed = DropOnZone (*zone, m_layout);

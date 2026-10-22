@@ -183,6 +183,11 @@ namespace DebuggerDockDragTests
             title     = tools->GetTitleRect();
             documents = GetCenter (code->GetBounds());
 
+            //  A group's title bar tears the group off (FR-205), and the
+            //  floating window carries the drag; these tests are of the drag
+            //  in the site, which a site without that handler still makes.
+            window.GetDockSite()->SetOnTearOffGroup (nullptr);
+
             Send (window, DxuiMouseEventKind::Down, POINT { title.left + 20, GetCenter (title).y });
             Send (window, DxuiMouseEventKind::Move, POINT { title.left + 60, GetCenter (title).y });
             Send (window, DxuiMouseEventKind::Move, documents);
