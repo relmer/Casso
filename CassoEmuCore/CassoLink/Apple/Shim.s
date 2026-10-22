@@ -1,7 +1,7 @@
 ; Casso's CassoLink: the shim.
 ;
 ; Resident at $3D00, below the program's first table at $4000. It sets the
-; //c's port 2 to its speed, sends Ready with no program loaded, and takes the
+; 6551 to its speed, sends Ready with no program loaded, and takes the
 ; reply. Load program brings the program as Sector data packets, one page
 ; each, the page number in the track field: each page is stored from $0800 up
 ; and checked against its CRC-16/XMODEM, and the shim sends a bare ACK or NAK
@@ -13,6 +13,10 @@
 ; command, ending in a zero byte: when it is not empty, the shim sends it
 ; and a carriage return, and waits for the end of the modem's reply line
 ; before its first Ready.
+;
+; The 6551's slot is at $3D38: 2 for the //c's port 2, as assembled, 1 for
+; its port 1, or a Super Serial Card's slot. The host writes it, and the
+; shim sets its own reads and writes of the 6551 from it.
 ;
 ; The shim draws its state on the text page: a title, then waiting for the
 ; PC, the program's loading as a percentage, and the version it starts. Each
@@ -26,10 +30,10 @@
 SHIMVER = 1
         endif
 
-ACIADATA = $C0A8                ; port 2's 6551
-ACIASTAT = $C0A9
-ACIACMD  = $C0AA
-ACIACTL  = $C0AB
+ACIADATA = $C088                ; the 6551, + slot * 16
+ACIASTAT = $C089
+ACIACMD  = $C08A
+ACIACTL  = $C08B
 RDRF     = $08                  ; status: a byte has arrived
 TDRE     = $10                  ; status: the transmitter is free
 
@@ -40,7 +44,11 @@ ACK      = $06
 NAK      = $15
 
 PROGRAM  = $0800
+        ifdef W5100
+ZPSAVE   = $3A00                ; the machine's zero page, as the shim found it,
+        else
 ZPSAVE   = $3C00                ; the machine's zero page, as the shim found it,
+        endif
                                 ; on the page below the shim, which runs to $3FFF
 PROGVERLO = $0803               ; the program's version, low byte
 
@@ -66,7 +74,11 @@ lead     = $16                  ; putdec: nonzero once a digit is drawn
 tmolo    = $17                  ; getbto: polls left, and $18
 tmohi    = $18
 
+        ifdef W5100
+        .org $3B00
+        else
         .org $3D00
+        endif
 
         sei
         lda #$1E                ; $3D02: 8 data bits, 1 stop bit, 9,600 baud
@@ -75,12 +87,13 @@ speedtxt: .text "9600  "        ; $3D06: the speed, six characters
 dialtxt: .ds 40                  ; $3D0C: the modem's dial command, or empty
 zpsaved: .byte 0                 ; $3D34: nonzero once the machine's state is saved
 oldreset: .byte 0, 0, 0          ; $3D35: the reset vector and its check byte
+slot:   .byte 2                  ; $3D38: the 6551's slot
 
 ; The first start saves the machine's zero page at ZPSAVE and its reset
 ; vector, for the program to put back when CassoLink ends. A bootstrap or a
 ; boot disk has zpsaved at 0; the program's Load program, back to the shim,
 ; finds it set and saves nothing.
-start:  sta ACIACTL
+start:  pha                     ; the control byte, for the 6551 once it is found
         cld
         lda zpsaved
         bne zpdone
@@ -89,18 +102,30 @@ zpsave: lda $00,x
         sta ZPSAVE,x
         inx
         bne zpsave
-        lda $03F2
-        sta oldreset
-        lda $03F3
-        sta oldreset+1
-        lda $03F4
-        sta oldreset+2
+        ldx #2
+rvsave: lda $03F2,x
+        sta oldreset,x
+        dex
+        bpl rvsave
         inc zpsaved
 zpdone:
-        lda #$20
+        lda slot
+        asl a
+        asl a
+        asl a
+        asl a
         sta slotx
+        ora #<ACIADATA          ; each read and write of the 6551 is absolute,
+        sta gtdata+1            ; set here for the slot
+        sta pbdata+1
+        ora #1
+        sta gtstat+1
+        sta pbstat+1
+        ldx slotx
+        pla
+        sta ACIACTL,x
         lda #$0B                ; DTR on, no parity, no interrupts
-        sta ACIACMD
+        sta ACIACMD,x
         jsr home
 
         lda dialtxt
@@ -121,6 +146,22 @@ modemreply: jsr getb               ; the modem's reply line, such as CONNECT,
 
 ready:  ldx #msgwait-msgs
         jsr drawstate
+        ldx #msgslot-msgs       ; a card's slot, or on a //c, its port
+        lda $FBB3               ; a //c has $06 here and $00 at $FBC0
+        eor #$06
+        ora $FBC0
+        bne rdport
+        ldx #msgport-msgs
+rdport: jsr shtext
+        iny                     ; the row is blank, so a column skipped is a space
+        lda slot
+        ora #$B0
+        sta ROW2,y
+        iny
+        iny
+        ldx #msgat-msgs
+        jsr shtext
+        iny
         ldx #0
 spdtext: lda speedtxt,x
         ora #$80
@@ -360,10 +401,8 @@ crcnext: dex
 
 ; getb and putb: one byte in or out through the 6551. A is the byte.
 
-getb:   lda ACIASTAT
-        and #RDRF
-        beq getb
-        lda ACIADATA
+getb:   jsr getbto
+        bcs getb
         rts
 
 ; getbto: getb with a time limit of about a second: 65,536 polls of 16
@@ -371,7 +410,8 @@ getb:   lda ACIASTAT
 getbto: lda #0
         sta tmolo
         sta tmohi
-gtwait: lda ACIASTAT
+gtwait:
+gtstat: lda ACIASTAT
         and #RDRF
         bne gtgot
         inc tmolo
@@ -380,23 +420,31 @@ gtwait: lda ACIASTAT
         bne gtwait
         sec
         rts
-gtgot:  lda ACIADATA
+gtgot:
+gtdata: lda ACIADATA
         clc
         rts
 
 putb:   pha
-putwait: lda ACIASTAT
+putwait:
+pbstat: lda ACIASTAT
         and #TDRE
         beq putwait
         pla
-        sta ACIADATA
+pbdata: sta ACIADATA
         rts
 
 
 title:  .text "CASSOLINK"
         .byte 0
 msgs:
-msgwait: .text "WAITING FOR THE PC ON PORT 2 AT "
+msgwait: .text "WAITING FOR THE PC "
+        .byte 0
+msgport: .text "ON PORT"
+        .byte 0
+msgslot: .text "IN SLOT"
+        .byte 0
+msgat:  .text "AT"
         .byte 0
 msgload: .text "LOADING PROGRAM "
         .byte 0

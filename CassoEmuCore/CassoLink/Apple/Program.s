@@ -94,13 +94,21 @@ CMDLABEL  = $DC
 CMDLOG    = $DD
 CMDTIME   = $DE
 CMDEXIT   = $DF
+        ifdef W5100
+SHIM      = $3B00
+        else
 SHIM      = $3D00
+        endif
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
 SHIMSAVED = SHIM + $34            ; nonzero once the shim saved the machine's state
 SHIMRESET = SHIM + $35            ; the reset vector the shim found, and its check
-ZPSAVE    = $3C00                 ; the zero page the shim found, below the shim
+        ifdef W5100
+ZPSAVE    = $3A00                 ; the zero page the shim found, below the shim
+        else
+ZPSAVE    = $3C00
+        endif
 ACK       = $06
 NAK       = $15
 
