@@ -1222,6 +1222,9 @@ void ShellChrome::ReflowChromeForMachineChange()
                       (rcWindow.bottom - rcWindow.top) + deltaPx,
                       SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
+        //  A window near the screen's foot grows past it with a band added.
+        DxuiHwndSource::FitWindowToWorkArea (m_shell.m_hwnd);
+
         // The WM_SIZE above already re-lays everything, so the relayout below
         // must not also run.
         didResize = true;
@@ -1366,6 +1369,10 @@ void ShellChrome::ApplyThemeToChrome (const CassoTheme & theme)
 
         SetWindowPos (m_shell.m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
+
+        //  Keeping the picture's size across a theme can need a window larger
+        //  than the screen; the picture gives way instead.
+        DxuiHwndSource::FitWindowToWorkArea (m_shell.m_hwnd);
     }
 
     // Re-run the authoritative layout unconditionally. The resize above only

@@ -597,6 +597,10 @@ void DxuiDockedWindow::SetScreenRect (const RECT & rectPx)
 {
     SetWindowPos (GetHwnd(), nullptr, rectPx.left, rectPx.top, rectPx.right - rectPx.left, rectPx.bottom - rectPx.top,
                   SWP_NOZORDER | SWP_NOACTIVATE);
+
+    //  A rect saved on a larger screen can exceed this one. Size only: a pane
+    //  torn off is put under the pointer, wherever on the screen that is.
+    DxuiHwndSource::FitWindowToWorkArea (GetHwnd(), DxuiWorkAreaFit::SizeOnly);
 }
 
 
