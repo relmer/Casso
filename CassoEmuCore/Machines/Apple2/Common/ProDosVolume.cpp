@@ -1717,6 +1717,7 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
     bool                   nameOk      = false;
     bool                   exists      = false;
     bool                   slotOk      = false;
+    bool                   rooted      = false;
     bool                   allocated   = false;
     bool                   fullyParsed = true;
     int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
@@ -1749,6 +1750,11 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
     CBREx (!exists, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
     slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
+
+    //  The volume directory is its four blocks: ProDOS 8 returns error $49
+    //  for one more entry there, where it adds a block to a subdirectory.
+    rooted = dirKeyBlock == ProDosSkeleton::kDirKeyBlock;
+    CBREx (slotOk || !rooted, HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE));
 
     hr = BuildIntegrityReport (report);
     CHRA (hr);
@@ -1930,6 +1936,7 @@ HRESULT ProDosVolume::AddFileWithCase (
     HRESULT                hr           = S_OK;
     size_t                 payloadSize  = bytes.size();
     bool                   slotOk       = false;
+    bool                   rooted       = false;
     bool                   allocated    = false;
     bool                   haveKeyBlock = false;
     int                    slotBlock    = 0;
@@ -1945,10 +1952,14 @@ HRESULT ProDosVolume::AddFileWithCase (
 
     slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
 
+    //  As in CreateDirectory: the volume directory does not grow.
+    rooted = dirKeyBlock == ProDosSkeleton::kDirKeyBlock;
+    CBREx (slotOk || !rooted, HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE));
+
     hr = BuildIntegrityReport (report);
     CHRA (hr);
 
-    dataBlocks = (payloadSize + (size_t) ProDosSkeleton::kBlockByteSize - 1)
+    dataBlocks =(payloadSize + (size_t) ProDosSkeleton::kBlockByteSize - 1)
                / (size_t) ProDosSkeleton::kBlockByteSize;
 
     // A file of no bytes still occupies its key block, which is what makes it a

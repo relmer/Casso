@@ -69,6 +69,7 @@ std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr)
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))            { return "is not a name this file system can store"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))           { return "is locked"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))               { return "does not fit: the volume has no room for it"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE))             { return "does not fit: the volume directory is full, with room for 51 entries"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))          { return "is larger than this file system can record"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED)) { return "is a directory, which this operation does not handle"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))       { return "needs a load address"; }

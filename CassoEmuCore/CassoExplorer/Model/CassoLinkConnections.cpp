@@ -1134,6 +1134,7 @@ std::wstring CassoLinkConnections::DescribeFailure (const LinkOperation & operat
         case HRESULT_FROM_WIN32 (ERROR_CRC):              why = L"a sector on the disk is damaged.";                                         break;
         case HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT):      why = L"a sector did not read back as written.";                                   break;
         case HRESULT_FROM_WIN32 (ERROR_DISK_FULL):        why = L"the disk is full.";                                                        break;
+        case HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE):      why = L"the volume directory is full. ProDOS has room for 51 entries there.";      break;
         case HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS):
         case HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS):   why = L"an entry with that name is already there.";                                break;
         case HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND):   why = L"it is not on the disk.";                                                   break;

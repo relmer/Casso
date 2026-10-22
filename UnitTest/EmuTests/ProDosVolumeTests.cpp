@@ -2640,4 +2640,38 @@ public:
         Assert::AreEqual (before.entries.size() + 1, listed.entries.size(),
             L"with every entry the disk shipped with still on it");
     }
+
+
+    //  The volume directory is its four blocks, 51 entries, as ProDOS 8 has
+    //  it; a subdirectory takes another block when full.
+    TEST_METHOD (Volume_AFullVolumeDirectory_TakesNoMore_AndASubdirectoryGrows)
+    {
+        vector<Byte>   disk    = MakeVolume();
+        vector<Byte>   next;
+        FilePayload    payload = MakeBinaryPayload (10, 0x6000);
+        VolumeListing  listed;
+        int            i       = 0;
+
+        for (i = 0; i < 51; i++)
+        {
+            AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse (std::format ("F{}", i)), payload, next));
+            disk = next;
+        }
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE), ProDosVolume (disk).Write (FilePath::Parse ("ONEMORE"), payload, next));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE), ProDosVolume (disk).CreateDirectory (FilePath::Parse ("DIR"), next));
+
+        disk = MakeVolume();
+        AssertSucceeded (ProDosVolume (disk).CreateDirectory (FilePath::Parse ("SUB"), next));
+        disk = next;
+
+        for (i = 0; i < 20; i++)
+        {
+            AssertSucceeded (ProDosVolume (disk).Write (FilePath::Parse (std::format ("SUB/F{}", i)), payload, next));
+            disk = next;
+        }
+
+        AssertSucceeded (ProDosVolume (disk).EnumerateDirectory (FilePath::Parse ("SUB"), listed));
+        Assert::AreEqual ((size_t) 20, listed.entries.size(), L"past the subdirectory's first block");
+    }
 };

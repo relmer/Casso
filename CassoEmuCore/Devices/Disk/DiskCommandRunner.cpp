@@ -418,6 +418,9 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
         { HRESULT_FROM_WIN32 (ERROR_DISK_FULL),
           "does not fit. The volume has no room for the file's contents or "
           "for another catalog entry" },
+        { HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE),
+          "does not fit. The volume directory is full: ProDOS has room for 51 "
+          "entries there. Put it in a subdirectory" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_NAME),
           "is not a valid name for this filesystem. It must be a single "
           "component starting with a letter, short enough for the catalog, "
