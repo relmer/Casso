@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Debugger/IoEventLog.h"
 #include "Devices/InputEvent.h"
 #include "Machines/Apple2/Common/Disk2Event.h"
 
@@ -19,7 +20,46 @@ enum class DebugLogKind
 {
     Disk,
     Input,
+    Video,
+    Sound,
 };
+
+//  Each log's name in the requests its pane sends the machine's thread
+//  (`disklog earlier`), and back.
+inline constexpr std::pair<DebugLogKind, const char *>  s_kDebugLogNames[] =
+{
+    { DebugLogKind::Disk,  "disklog"  },
+    { DebugLogKind::Input, "inputlog" },
+    { DebugLogKind::Video, "videolog" },
+    { DebugLogKind::Sound, "soundlog" },
+};
+
+inline const char * GetDebugLogName (DebugLogKind kind)
+{
+    for (const auto & [each, name] : s_kDebugLogNames)
+    {
+        if (each == kind)
+        {
+            return name;
+        }
+    }
+
+    return "";
+}
+
+inline bool TryGetDebugLogKind (std::string_view name, DebugLogKind & outKind)
+{
+    for (const auto & [each, text] : s_kDebugLogNames)
+    {
+        if (name == text)
+        {
+            outKind = each;
+            return true;
+        }
+    }
+
+    return false;
+}
 
 
 
@@ -71,6 +111,7 @@ struct DebugLogRow
 
 using DiskLogRow  = DebugLogRow<Disk2Event>;
 using InputLogRow = DebugLogRow<InputEvent>;
+using IoLogRow    = DebugLogRow<IoEvent>;
 
 
 
@@ -110,6 +151,7 @@ struct DebugLogDelta
 
 using DiskLogDelta  = DebugLogDelta<Disk2Event>;
 using InputLogDelta = DebugLogDelta<InputEvent>;
+using IoLogDelta    = DebugLogDelta<IoEvent>;
 
 
 
@@ -128,4 +170,10 @@ struct DebugLogDeltas
 {
     std::vector<DiskLogDelta>   disk;
     std::vector<InputLogDelta>  input;
+    std::vector<IoLogDelta>     video;
+    std::vector<IoLogDelta>     sound;
+
+    //  The video or sound log's.
+    std::vector<IoLogDelta> &        GetIo (DebugLogKind kind)       { return (kind == DebugLogKind::Video) ? video : sound; }
+    const std::vector<IoLogDelta> &  GetIo (DebugLogKind kind) const { return (kind == DebugLogKind::Video) ? video : sound; }
 };

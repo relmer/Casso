@@ -73,11 +73,22 @@ struct DebuggerSettings
     // HeatMapRangeSets' text; empty until the ranges pane first opens.
     std::string  heatMapRanges;
 
-    // The Disk II event log's and the input log's filters and columns, and
-    // whether each pane was open, in the panes' options text; empty is the
-    // defaults, closed.
+    // The Disk II event log's, the input log's, the video log's and the sound
+    // log's filters and columns, and whether each pane was open, in the
+    // panes' options text; empty is the defaults, closed. The logs in
+    // DebugLogKind's order, for code that takes a log by its kind.
     std::string  diskLogOptions;
     std::string  inputLogOptions;
+    std::string  videoLogOptions;
+    std::string  soundLogOptions;
+
+    std::string & GetLogOptions (int kind)
+    {
+        std::string *  logs[] = { &diskLogOptions, &inputLogOptions, &videoLogOptions, &soundLogOptions };
+
+
+        return *logs[(size_t) kind % std::size (logs)];
+    }
 
     // Whether the console lists each action taken in the window as the
     // command that does the same, with its reply. Off, the console has only a

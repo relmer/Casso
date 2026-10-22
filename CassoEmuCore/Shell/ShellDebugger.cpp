@@ -1274,7 +1274,7 @@ void ShellDebugger::SendDebuggerEventLogRequest (
     DebugLogKind          kind,
     const std::string   & request)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("{} {}", (kind == DebugLogKind::Disk) ? "disklog" : "inputlog", request));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("{} {}", GetDebugLogName (kind), request));
 }
 
 
@@ -1295,9 +1295,13 @@ void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
 
     deltas.disk.clear();
     deltas.input.clear();
+    deltas.video.clear();
+    deltas.sound.clear();
 
     deltas.disk.swap  (m_eventLogsPending.disk);
     deltas.input.swap (m_eventLogsPending.input);
+    deltas.video.swap (m_eventLogsPending.video);
+    deltas.sound.swap (m_eventLogsPending.sound);
 }
 
 
@@ -2335,8 +2339,10 @@ void ShellDebugger::CloseDebugger()
     }
 
     //  The panes went with the window; the logs record on.
-    m_eventLogs.SetOpen (DebugLogKind::Disk,  false);
-    m_eventLogs.SetOpen (DebugLogKind::Input, false);
+    for (const auto & [kind, name] : s_kDebugLogNames)
+    {
+        m_eventLogs.SetOpen (kind, false);
+    }
 
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
@@ -2592,8 +2598,12 @@ void ShellDebugger::ServiceEventLogs()
 {
     DiskLogDelta   disk;
     InputLogDelta  input;
+    IoLogDelta     video;
+    IoLogDelta     sound;
     bool           isDisk  = false;
     bool           isInput = false;
+    bool           isVideo = false;
+    bool           isSound = false;
 
 
 
@@ -2619,8 +2629,10 @@ void ShellDebugger::ServiceEventLogs()
 
     isDisk  = m_eventLogs.TakeDelta (disk);
     isInput = m_eventLogs.TakeDelta (input);
+    isVideo = m_eventLogs.TakeDelta (DebugLogKind::Video, video);
+    isSound = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
 
-    if (isDisk || isInput)
+    if (isDisk || isInput || isVideo || isSound)
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
@@ -2632,6 +2644,16 @@ void ShellDebugger::ServiceEventLogs()
         if (isInput)
         {
             m_eventLogsPending.input.push_back (std::move (input));
+        }
+
+        if (isVideo)
+        {
+            m_eventLogsPending.video.push_back (std::move (video));
+        }
+
+        if (isSound)
+        {
+            m_eventLogsPending.sound.push_back (std::move (sound));
         }
     }
 }
@@ -2648,7 +2670,7 @@ void ShellDebugger::ServiceEventLogs()
 
 std::string ShellDebugger::GetDebuggerEventLogOptions (DebugLogKind kind)
 {
-    return (kind == DebugLogKind::Disk) ? m_settings.diskLogOptions : m_settings.inputLogOptions;
+    return m_settings.GetLogOptions ((int) kind);
 }
 
 
@@ -2667,7 +2689,7 @@ void ShellDebugger::SetDebuggerEventLogOptions (
     DebugLogKind          kind,
     const std::string   & text)
 {
-    std::string  & options = (kind == DebugLogKind::Disk) ? m_settings.diskLogOptions : m_settings.inputLogOptions;
+    std::string  & options = m_settings.GetLogOptions ((int) kind);
 
 
 

@@ -358,3 +358,27 @@ bool DevicePanelController::TryGetTip (POINT clientPx, PaneTip & tip)
     tip.anchor = RECT { clientPx.x, clientPx.y, clientPx.x + 1, clientPx.y + 1 };
     return true;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DevicePanelController::AddContentMenuItems
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DevicePanelController::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
+{
+    (void) clientPx;
+
+    if (m_panelId == "video")
+    {
+        items.push_back ({ L"Open video log", [this] { m_host.OpenEventLog (DebugLogKind::Video); } });
+    }
+    else if (m_panelId == "mockingboard")
+    {
+        items.push_back ({ L"Open sound log", [this] { m_host.OpenEventLog (DebugLogKind::Sound); } });
+    }
+}

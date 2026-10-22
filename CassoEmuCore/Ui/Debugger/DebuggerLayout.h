@@ -39,6 +39,8 @@ public:
     static constexpr const wchar_t * kHeatRanges  = L"heatranges";
     static constexpr const wchar_t * kDiskLog     = L"disklog";
     static constexpr const wchar_t * kInputLog    = L"inputlog";
+    static constexpr const wchar_t * kVideoLog    = L"videolog";
+    static constexpr const wchar_t * kSoundLog    = L"soundlog";
     static constexpr const wchar_t * kBasicProgram   = L"basicprogram";
     static constexpr const wchar_t * kSymbols        = L"symbols";
     static constexpr const wchar_t * kBookmarks      = L"bookmarks";

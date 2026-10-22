@@ -144,7 +144,7 @@ bool DebuggerLayout::TryGetDiagnosticsId (const std::wstring & pane, std::string
 std::vector<std::wstring> DebuggerLayout::GetPaneIds()
 {
     std::vector<std::wstring>  ids = { kCode, kSource, kConsole, kRegisters, kBreakpoints, kWatches, kStack, kCallStack, kTrace, kHeatMap, kHeatRanges, kDiskLog, kInputLog,
-                                       kBasicProgram, kSymbols, kBookmarks, kProfiler, kDataBlocks };
+                                       kVideoLog, kSoundLog, kBasicProgram, kSymbols, kBookmarks, kProfiler, kDataBlocks };
 
 
 
@@ -355,7 +355,7 @@ std::wstring DebuggerLayout::GetDefaultTabHost (const DxuiPaneLayout & layout, c
         return kStack;
     }
 
-    if ((pane == kTrace || pane == kDiskLog || pane == kInputLog) && layout.Contains (kConsole))
+    if ((pane == kTrace || pane == kDiskLog || pane == kInputLog || pane == kVideoLog || pane == kSoundLog) && layout.Contains (kConsole))
     {
         return kConsole;
     }
@@ -432,7 +432,9 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
         { kHeatRanges,   124 },
         { kDiskLog,      125 },
         { kInputLog,     126 },
-        { kBasicProgram, 127 },
+        { kVideoLog,     127 },
+        { kSoundLog,     128 },
+        { kBasicProgram, 129 },
         { kConsole,      150 },
     };
     std::vector<std::wstring>  tools = GetToolPaneIds();
@@ -666,6 +668,8 @@ DxuiPaneLayout DebuggerLayout::MakeDefault()
     layout.Add (kTrace,    kConsole);
     layout.Add (kDiskLog,  kConsole);
     layout.Add (kInputLog, kConsole);
+    layout.Add (kVideoLog, kConsole);
+    layout.Add (kSoundLog, kConsole);
 
     //  The BASIC program is a tab of the disassembly, the profiler of the
     //  console, and the symbols, bookmarks and data ranges of the

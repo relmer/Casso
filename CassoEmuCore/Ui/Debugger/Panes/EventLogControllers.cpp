@@ -8,7 +8,11 @@
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
+#include "Ui/Debugger/Panes/IoLogPane.h"
 #include "Ui/Debugger/ToolbarBoxEntry.h"
+#include "Ui/Debugger/DebuggerActions.h"
+#include "Core/TextEncoding.h"
+#include "Seams/IHostDialogs.h"
 
 
 
@@ -20,6 +24,8 @@ static constexpr int  s_kDiskDrive         = 2;
 static constexpr int  s_kDiskSeverity      = 3;
 static constexpr int  s_kInputPair0        = 8;
 static constexpr int  s_kInputPair1        = 9;
+static constexpr int  s_kIoLogClear        = 10;
+static constexpr int  s_kIoLogSave         = 11;
 
 //  How far a warning or error row's fill is from the list's background
 //  toward the theme's warning or error color.
@@ -1191,3 +1197,308 @@ std::string  InputLogController::GetOptionsText() const                    { ret
 void         InputLogController::SetOptionsText (const std::string & text) { m_model->SetOptionsText (text); }
 void         InputLogController::SetModelShown (bool isShown)              { m_model->SetShown (isShown); }
 size_t       InputLogController::GetTextColumn() const                     { return InputLogPane::kMeaning; }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::IoLogController
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IoLogController::IoLogController (IDebuggerPaneHost & host, DebugLogKind kind) :
+    EventLogController (host,
+                        (kind == DebugLogKind::Video) ? DebuggerLayout::kVideoLog : DebuggerLayout::kSoundLog,
+                        (kind == DebugLogKind::Video) ? L"Video log" : L"Sound log",
+                        kind)
+{
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::~IoLogController
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IoLogController::~IoLogController() = default;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::CreateControls
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::CreateControls()
+{
+    CreateListAndBar();
+
+    m_model = std::make_unique<IoLogPane> (m_list, [this] (const std::string & request)
+    {
+        if (GetWindowHost() != nullptr)
+        {
+            GetWindowHost()->SendDebuggerEventLogRequest (m_kind, request);
+        }
+    }, IsVideo());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::Configure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::Configure()
+{
+    m_model->Configure();
+    (void) LoadOptions();
+
+    ConfigureBar();
+    SetBarEntries();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::AddToDock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::AddToDock (DxuiDockSite & dock)
+{
+    m_frame = std::make_unique<DebuggerPaneFrame> (m_title);
+    m_frame->AddPart (m_bar.GetSlot(), PaneBarSlot::GetHeightPx);
+    m_frame->AddPart (m_list);
+
+    dock.AddPane (m_id, m_title, m_frame.get());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::GetControls
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<IDxuiControl *> IoLogController::GetControls() const
+{
+    return { m_bar.GetSlot(), m_list, m_bar.GetBar() };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::SetBarEntries
+//
+//  Clear and Save, as glyphs, as the profiler's Reset and Save are. The
+//  sound log's sources are on the Source column's Filter cascade.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::SetBarEntries()
+{
+    std::vector<DxuiToolbar::Entry>  entries;
+    std::shared_ptr<DxuiCommand>     command;
+
+
+
+    m_commands.clear();
+
+    command           = AddEntry (entries, s_kIoLogClear, L"Clear", IsVideo() ? L"Clear: hide the video log's entries until now"
+                                                                              : L"Clear: hide the sound log's entries until now",
+                                  DxuiToolbar::Kind::Command, 0);
+    command->glyph    = s_kpszMdl2Broom;
+    command->dispatch = [this] { Clear(); };
+    entries.back().iconOnly = true;
+
+    command           = AddEntry (entries, s_kIoLogSave, L"Save...", L"Save...: save the log's entries to a text file", DxuiToolbar::Kind::Command, 0);
+    command->glyph    = s_kpszMdl2Save;
+    command->dispatch = [this] { Save(); };
+    entries.back().iconOnly = true;
+
+    m_bar.GetBar()->SetEntries (std::move (entries));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::Clear
+//
+//  As VIDEOLOG or SOUNDLOG CLEAR: the entries until now are hidden from the
+//  command and the pane alike, and the pane starts again from here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::Clear()
+{
+    m_host.RunAction (DebuggerActions::GetIoLog (IsVideo(), "CLEAR", m_host.GetMode()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::Save
+//
+//  As VIDEOLOG or SOUNDLOG SAVE, to a file chosen here: the same text the
+//  command writes, every entry since the log was cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::Save()
+{
+    HRESULT                hr      = S_OK;
+    IHostDialogs         * dialogs = m_host.GetHostDialogs();
+    FileDialogSpec         spec;
+    std::filesystem::path  chosen;
+    bool                   picked  = false;
+
+
+
+    BAIL_OUT_IF (dialogs == nullptr, S_OK);
+
+    spec.filters          = { { L"Text files", L"*.txt" }, { L"All files", L"*.*" } };
+    spec.defaultExtension = L"txt";
+    spec.defaultFileName  = IsVideo() ? L"VideoLog.txt" : L"SoundLog.txt";
+
+    hr = dialogs->PickFileToSave (m_host.GetOwnerHwnd(), spec, chosen, picked);
+    CHR (hr);
+    BAIL_OUT_IF (!picked, S_OK);
+
+    m_host.RunAction (DebuggerActions::GetIoLog (IsVideo(), std::format ("SAVE \"{}\"", TextEncoding::WideToNarrow (chosen.wstring())), m_host.GetMode()));
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::ApplyLogDeltas
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible)
+{
+    for (const IoLogDelta & delta : deltas.GetIo (m_kind))
+    {
+        m_model->Apply (delta);
+    }
+
+    ShowSourceFilter();
+
+    m_model->SetShown       (isWindowVisible && m_host.IsPaneOpen (m_id));
+    m_model->SetShownBefore (m_shownBefore);
+    m_model->Refresh();
+    m_model->FollowScroll();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::GetColumnFilterItems
+//
+//  The sound log's sources, on its Source column; the video log has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<DxuiPopupMenuItem> IoLogController::GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands)
+{
+    std::vector<DxuiPopupMenuItem>  items;
+    std::shared_ptr<DxuiCommand>    item;
+
+
+
+    if (list != m_list || column != IoLogPane::kSource || IsVideo())
+    {
+        return items;
+    }
+
+    for (IoLogPane::Lane lane : { IoLogPane::kSpeaker, IoLogPane::kVia, IoLogPane::kAy })
+    {
+        item = DebuggerMenuCommand::Make (IoLogPane::GetLaneLabel (lane), m_model->IsLaneShown (lane), [this, lane]
+        {
+            m_model->SetLaneShown (lane, !m_model->IsLaneShown (lane));
+            SaveOptions();
+            ShowSourceFilter();
+        });
+
+        commands.push_back (item);
+        items.push_back (DxuiPopupMenuItem::ForCommand (item));
+    }
+
+    return items;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController::ShowSourceFilter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void IoLogController::ShowSourceFilter()
+{
+    bool  isFiltered = false;
+
+
+
+    for (size_t lane = 0; lane < IoLogPane::kLaneCount; lane++)
+    {
+        isFiltered = isFiltered || !m_model->IsLaneShown ((IoLogPane::Lane) lane);
+    }
+
+    m_list->SetColumnFiltered (IoLogPane::kSource, isFiltered && !IsVideo());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController model access
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring IoLogController::GetModelText (bool isSelectedOnly) const  { return m_model->GetText (isSelectedOnly); }
+std::string  IoLogController::GetOptionsText() const                    { return m_model->GetOptionsText(); }
+void         IoLogController::SetOptionsText (const std::string & text) { m_model->SetOptionsText (text); }
+void         IoLogController::SetModelShown (bool isShown)              { m_model->SetShown (isShown); }
+size_t       IoLogController::GetTextColumn() const                     { return IoLogPane::kEvent; }

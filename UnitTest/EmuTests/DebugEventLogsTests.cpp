@@ -427,6 +427,62 @@ namespace DebugEventLogsTests
         }
 
 
+        //  The sound log's pane (FR-198) gets its rows as the other logs' panes
+        //  do. SOUNDLOG CLEAR starts it again from the machine's position: it
+        //  drops its rows, gets only what comes after, is at the log's start,
+        //  and a request for older rows rebuilds nothing from before the clear.
+        TEST_METHOD (AClearedSoundPaneStartsAgainFromTheClear)
+        {
+            Session     session;
+            IoLogDelta  first;
+            IoLogDelta  second;
+            IoLogDelta  third;
+            uint64_t    cleared = 0;
+
+
+
+            session.logs.Start (&session.controller);
+            Run (session.machine, 0, 30);
+
+            session.logs.SetOpen (DebugLogKind::Sound, true);
+            Assert::IsTrue  (session.logs.TakeDelta (DebugLogKind::Sound, first));
+            Assert::IsTrue  (first.isReset);
+            Assert::IsFalse (first.newer.empty(), L"the sound the machine made");
+
+            cleared = session.machine.GetPosition();
+            session.logs.ClearIoLog (IoLogKind::Sound);
+            Run (session.machine, 30, 2);
+
+            Assert::IsTrue  (session.logs.TakeDelta (DebugLogKind::Sound, second));
+            Assert::IsTrue  (second.isReset, L"the pane drops what it had");
+            Assert::IsFalse (second.newer.empty(), L"and gets the sound since");
+            Assert::IsTrue  (std::ranges::all_of (second.newer, [cleared] (const IoLogRow & row) { return row.position >= cleared; }), L"nothing from before the clear");
+            Assert::IsTrue  (second.isAtStart, L"the log starts at the clear");
+
+            session.logs.RequestEarlier (DebugLogKind::Sound);
+            (void) session.logs.TakeDelta (DebugLogKind::Sound, third);
+
+            Assert::IsTrue  (third.older.empty(), L"no rows rebuilt from before the clear");
+            Assert::IsFalse (third.isRebuilding);
+        }
+
+
+        //  The video and sound logs are only TakeDelta's I/O kinds.
+        TEST_METHOD (TheIoDeltaIsOnlyForTheVideoAndSoundLogs)
+        {
+            Session     session;
+            IoLogDelta  delta;
+
+
+
+            session.logs.Start (&session.controller);
+            session.logs.SetOpen (DebugLogKind::Disk, true);
+
+            Assert::IsFalse (session.logs.TakeDelta (DebugLogKind::Disk, delta));
+            Assert::IsTrue  (delta.IsEmpty());
+        }
+
+
         //  After a request for the rows before its oldest, the pane gets the
         //  rows of history rebuilt back from there, the events the machine
         //  reported then.

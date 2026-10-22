@@ -163,6 +163,10 @@ public:
     virtual void                   OpenSource       (int fileId, int line) = 0;
     virtual void                   ShowBasicLine    (Word line) = 0;
 
+    //  Puts an event log pane in front, opening it for good, as a device
+    //  panel's menu does for its log.
+    virtual void                   OpenEventLog     (DebugLogKind kind) = 0;
+
     //  Saves the open views, with the choices the panes save among them; and
     //  whether the views the window reopens at startup have yet to settle.
     virtual void                   SaveOpenViews    () = 0;

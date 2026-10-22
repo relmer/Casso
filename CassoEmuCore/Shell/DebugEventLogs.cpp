@@ -183,13 +183,33 @@ void DebugEventLogs::SetOpen (
     DebugLogKind  kind,
     bool          isOpen)
 {
-    bool &  logOpen  = (kind == DebugLogKind::Disk) ? m_disk.isOpen     : m_input.isOpen;
-    bool &  resetDue = (kind == DebugLogKind::Disk) ? m_disk.isResetDue : m_input.isResetDue;
+    ForLog (kind, [isOpen] (auto & log)
+    {
+        log.isResetDue = isOpen && !log.isOpen;
+        log.isOpen     = isOpen;
+    });
+}
 
 
 
-    resetDue = isOpen && !logOpen;
-    logOpen  = isOpen;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ForLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename Fn>
+void DebugEventLogs::ForLog (DebugLogKind kind, Fn && fn)
+{
+    switch (kind)
+    {
+    case DebugLogKind::Disk:  fn (m_disk);  break;
+    case DebugLogKind::Input: fn (m_input); break;
+    case DebugLogKind::Video: fn (m_video); break;
+    case DebugLogKind::Sound: fn (m_sound); break;
+    }
 }
 
 
@@ -207,14 +227,7 @@ void DebugEventLogs::SetOpen (
 
 void DebugEventLogs::RequestEarlier (DebugLogKind kind)
 {
-    if (kind == DebugLogKind::Disk)
-    {
-        m_disk.wantedBefore = m_disk.heldFrom;
-    }
-    else
-    {
-        m_input.wantedBefore = m_input.heldFrom;
-    }
+    ForLog (kind, [] (auto & log) { log.wantedBefore = log.heldFrom; });
 }
 
 
@@ -234,15 +247,13 @@ void DebugEventLogs::DropBefore (
     DebugLogKind  kind,
     uint64_t      position)
 {
-    uint64_t &  heldFrom     = (kind == DebugLogKind::Disk) ? m_disk.heldFrom     : m_input.heldFrom;
-    uint64_t    wantedBefore = (kind == DebugLogKind::Disk) ? m_disk.wantedBefore : m_input.wantedBefore;
-
-
-
-    if (wantedBefore == 0)
+    ForLog (kind, [position] (auto & log)
     {
-        heldFrom = std::max (heldFrom, position);
-    }
+        if (log.wantedBefore == 0)
+        {
+            log.heldFrom = std::max (log.heldFrom, position);
+        }
+    });
 }
 
 
@@ -257,7 +268,15 @@ void DebugEventLogs::DropBefore (
 
 bool DebugEventLogs::IsOpen (DebugLogKind kind) const
 {
-    return (kind == DebugLogKind::Disk) ? m_disk.isOpen : m_input.isOpen;
+    switch (kind)
+    {
+    case DebugLogKind::Disk:  return m_disk.isOpen;
+    case DebugLogKind::Input: return m_input.isOpen;
+    case DebugLogKind::Video: return m_video.isOpen;
+    case DebugLogKind::Sound: return m_sound.isOpen;
+    }
+
+    return false;
 }
 
 
@@ -288,6 +307,30 @@ bool DebugEventLogs::TakeDelta (DiskLogDelta & outDelta)
 bool DebugEventLogs::TakeDelta (InputLogDelta & outDelta)
 {
     return BuildDelta (m_input, outDelta);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeDelta
+//
+//  The video log's or the sound log's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugEventLogs::TakeDelta (DebugLogKind kind, IoLogDelta & outDelta)
+{
+    outDelta = IoLogDelta();
+
+    if (kind != DebugLogKind::Video && kind != DebugLogKind::Sound)
+    {
+        return false;
+    }
+
+    return BuildDelta ((kind == DebugLogKind::Video) ? m_video : m_sound, outDelta);
 }
 
 
@@ -432,6 +475,10 @@ void DebugEventLogs::OnDrop (KeyframeDrop drop)
 
 void DebugEventLogs::ClearIoLog (IoLogKind kind)
 {
+    Log<IoEvent>  & log = (kind == IoLogKind::Video) ? m_video : m_sound;
+
+
+
     if (kind == IoLogKind::Video)
     {
         m_videoClearedAt = m_machine.GetPosition();
@@ -442,6 +489,10 @@ void DebugEventLogs::ClearIoLog (IoLogKind kind)
         m_soundClearedAt = m_machine.GetPosition();
         m_isSoundCleared = true;
     }
+
+    //  The pane drops its rows and starts again from here.
+    log.floor      = m_machine.GetPosition();
+    log.isResetDue = log.isOpen;
 }
 
 
@@ -754,10 +805,16 @@ bool DebugEventLogs::BuildDelta (
     {
         log.isResetDue   = false;
         log.cutFrom      = DebugLogDelta<T>::kNoCut;
-        log.heldFrom     = log.cache.GetCoveredFrom();
+        log.heldFrom     = std::max (log.cache.GetCoveredFrom(), log.floor);
         log.sentSerial   = log.cache.GetFirstSerial();
         log.sentJournal  = FindJournalIndex (log.heldFrom);
         log.wantedBefore = 0;
+
+        //  A log cleared since the cache began sends only what came after.
+        for (size_t index = 0; index < log.cache.GetCount() && log.cache.GetAt (index).position < log.floor; index++)
+        {
+            log.sentSerial++;
+        }
 
         outDelta.isReset = true;
     }
@@ -773,7 +830,7 @@ bool DebugEventLogs::BuildDelta (
     SendOlder (log, outDelta);
 
     outDelta.heldFrom     = log.heldFrom;
-    outDelta.isAtStart    = log.heldFrom <= GetOldest();
+    outDelta.isAtStart    = log.heldFrom <= GetOldestOf (log);
     outDelta.isRebuilding = log.wantedBefore != 0;
 
     isNeeded = !outDelta.IsEmpty() ||
@@ -854,7 +911,7 @@ void DebugEventLogs::SendOlder (
     HRESULT                          hr       = S_OK;
     uint64_t                         from     = log.heldFrom;
     size_t                           i        = 0;
-    bool                             isAtTop  = log.heldFrom <= GetOldest();
+    bool                             isAtTop  = log.heldFrom <= GetOldestOf (log);
     std::vector<DebugEventBounds>    stretches;
     std::vector<DebugEventEntry<T>>  span;
 
@@ -888,7 +945,11 @@ void DebugEventLogs::SendOlder (
         from = stretches[i - 1].startPosition;
     }
 
-    BAIL_OUT_IF (from == log.heldFrom, S_OK);
+    //  A stretch can begin before the log was cleared; nothing from before
+    //  then is sent.
+    from = std::max (from, log.floor);
+
+    BAIL_OUT_IF (from >= log.heldFrom, S_OK);
 
     (void) log.replayer.GetSpan (from, log.heldFrom, span);
 
@@ -1008,7 +1069,7 @@ void DebugEventLogs::AppendEntries (
 //
 //  TryMakeRow
 //
-//  A journal entry as a row: resets and power cycles in both logs, and the
+//  A journal entry as a row: resets and power cycles in every log, and the
 //  host's input in the input log. A key's latch is a key down when its
 //  strobe is set; a strobe the guest cleared is not host input. A key down
 //  entry that clears the line is the last key coming up.
@@ -1019,11 +1080,49 @@ bool DebugEventLogs::TryMakeRow (
     const InputRecord  & record,
     DiskLogRow         & outRow)
 {
+    return TryMakeResetRow (record, outRow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryMakeRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugEventLogs::TryMakeRow (
+    const InputRecord  & record,
+    IoLogRow           & outRow)
+{
+    return TryMakeResetRow (record, outRow);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryMakeResetRow
+//
+//  A reset or a power cycle, the only journal entries the Disk II, video and
+//  sound logs list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+bool DebugEventLogs::TryMakeResetRow (
+    const InputRecord  & record,
+    DebugLogRow<T>     & outRow)
+{
     bool  isRow = record.kind == InputKind::Reset || record.kind == InputKind::PowerCycle;
 
 
 
-    outRow          = DiskLogRow();
+    outRow          = DebugLogRow<T>();
     outRow.kind     = (record.kind == InputKind::Reset) ? DebugLogRowKind::Reset : DebugLogRowKind::PowerCycle;
     outRow.position = record.position;
     outRow.cycle    = record.cycle;

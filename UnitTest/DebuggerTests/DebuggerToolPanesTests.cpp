@@ -11,6 +11,7 @@
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
+#include "Ui/Debugger/Panes/IoLogPane.h"
 
 #include "CppUnitTest.h"
 
@@ -66,6 +67,8 @@ namespace DebuggerToolPanesTests
 
         std::vector<std::string>  goTos;
         std::vector<std::string>  commands;
+
+        FakeHostDialogs &  GetFakeDialogs() { return m_dialogs; }
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -511,6 +514,45 @@ namespace DebuggerToolPanesTests
 
             commands[0]->dispatch();
             Assert::IsTrue   (list->IsColumnFiltered (InputLogPane::kSource), L"no funnel with the guest's keyboard left out");
+        }
+
+
+        //  FR-198: the sound log's Clear and Save run SOUNDLOG, so the pane
+        //  and the console agree on what the log holds; its Source column has
+        //  the sources' filter. The video log has no filter.
+        TEST_METHOD (TheIoLogsClearAndSaveRunTheLogCommand)
+        {
+            CassoTheme                                 theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost                          host;
+            ToolWindow                                 window (theme, host);
+            IoLogController                            sound  (window.GetPaneHostForTest(), DebugLogKind::Sound);
+            IoLogController                            video  (window.GetPaneHostForTest(), DebugLogKind::Video);
+            std::vector<std::shared_ptr<DxuiCommand>>  commands;
+
+
+
+            window.OnCreate();
+
+            for (IoLogController * log : { &sound, &video })
+            {
+                log->CreateControls();
+                log->Configure();
+            }
+
+            sound.Clear();
+            Assert::IsFalse  (host.commands.empty(), L"Clear runs a command");
+            Assert::AreEqual (std::string ("SOUNDLOG CLEAR"), host.commands.back());
+
+            host.GetFakeDialogs().path = L"C:\\Logs\\Sound log.txt";
+            sound.Save();
+            Assert::AreEqual (std::string ("SOUNDLOG SAVE \"C:\\Logs\\Sound log.txt\""), host.commands.back(), L"the file chosen, quoted");
+            Assert::AreEqual (std::wstring (L"SoundLog.txt"), host.GetFakeDialogs().lastSpec.defaultFileName);
+
+            video.Clear();
+            Assert::AreEqual (std::string ("VIDEOLOG CLEAR"), host.commands.back());
+
+            Assert::AreEqual ((size_t) 3, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522 and AY");
+            Assert::IsTrue   (video.GetColumnFilterItems (video.GetLists().front(), IoLogPane::kSource, commands).empty());
         }
 
 

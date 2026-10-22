@@ -169,32 +169,63 @@ void IoEventLog::FormatEntry (
     std::string    & line)
 {
     std::string  sinceText = hasSince ? std::format ("+{}", since) : std::string();
-    std::string  modes;
 
 
 
     switch (entry.kind)
     {
     case IoEventKind::VideoMode:
-        FormatModeBits (entry.turnedOn,  "on",  modes);
-        FormatModeBits (entry.turnedOff, "off", modes);
-        line = std::format ("  cycle {:>12}  line {:>3}  h {:>2}  ${:04X}  {}", entry.cycle, entry.scanline, entry.cycleInLine, entry.address, modes);
+        line = std::format ("  cycle {:>12}  line {:>3}  h {:>2}  ${:04X}  {}", entry.cycle, entry.scanline, entry.cycleInLine, entry.address, FormatEvent (entry));
         break;
 
     case IoEventKind::Speaker:
-        line = std::format ("cycle {:>12}  {:>8}  ${:04X}  speaker", entry.cycle, sinceText, entry.address);
-        break;
-
     case IoEventKind::ViaWrite:
-        line = std::format ("cycle {:>12}  {:>8}  ${:04X}  Mockingboard chip {} {} = ${:02X}",
-                            entry.cycle, sinceText, entry.address, entry.chip + 1, s_kViaRegisterNames[entry.reg & kRegisterMask], entry.value);
+        line = std::format ("cycle {:>12}  {:>8}  ${:04X}  {}", entry.cycle, sinceText, entry.address, FormatEvent (entry));
         break;
 
     case IoEventKind::AyWrite:
-        line = std::format ("cycle {:>12}  {:>8}         Mockingboard chip {} AY R{:02} = ${:02X}",
-                            entry.cycle, sinceText, entry.chip + 1, entry.reg, entry.value);
+        line = std::format ("cycle {:>12}  {:>8}         {}", entry.cycle, sinceText, FormatEvent (entry));
         break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventLog::FormatEvent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string IoEventLog::FormatEvent (const IoEvent & entry)
+{
+    std::string  text;
+
+
+
+    switch (entry.kind)
+    {
+    case IoEventKind::VideoMode:
+        FormatModeBits (entry.turnedOn,  "on",  text);
+        FormatModeBits (entry.turnedOff, "off", text);
+        break;
+
+    case IoEventKind::Speaker:
+        text = "speaker";
+        break;
+
+    case IoEventKind::ViaWrite:
+        text = std::format ("Mockingboard chip {} {} = ${:02X}", entry.chip + 1, s_kViaRegisterNames[entry.reg & kRegisterMask], entry.value);
+        break;
+
+    case IoEventKind::AyWrite:
+        text = std::format ("Mockingboard chip {} AY R{:02} = ${:02X}", entry.chip + 1, entry.reg, entry.value);
+        break;
+    }
+
+    return text;
 }
 
 

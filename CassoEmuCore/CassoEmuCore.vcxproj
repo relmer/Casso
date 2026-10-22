@@ -362,6 +362,7 @@
     <ClCompile Include="Ui\Debugger\Panes\DiskLogPane.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\EventLogText.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\InputLogPane.cpp" />
+    <ClCompile Include="Ui\Debugger\Panes\IoLogPane.cpp" />
     <ClCompile Include="Ui\Debugger\TrackSectorPredicate.cpp" />
     <ClCompile Include="Ui\Debugger\ToolbarBoxEntry.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\EventLogControllers.cpp" />
@@ -1001,6 +1002,7 @@
     <ClInclude Include="Ui\Debugger\Panes\EventLogRows.h" />
     <ClInclude Include="Ui\Debugger\Panes\EventLogText.h" />
     <ClInclude Include="Ui\Debugger\Panes\InputLogPane.h" />
+    <ClInclude Include="Ui\Debugger\Panes\IoLogPane.h" />
     <ClInclude Include="Ui\Debugger\TrackSectorPredicate.h" />
     <ClInclude Include="Ui\Debugger\ToolbarBoxEntry.h" />
     <ClInclude Include="Debugger\SymbolTable.h" />

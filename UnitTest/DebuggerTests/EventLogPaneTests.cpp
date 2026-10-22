@@ -2,6 +2,8 @@
 
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
+#include "Ui/Debugger/Panes/IoLogPane.h"
+#include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -824,6 +826,168 @@ namespace EventLogPaneTests
             Assert::AreEqual (std::wstring (L"HH:mm:s',007'"),   EventLogText::AddMilliseconds (L"HH:mm:s",        L",", 7));
             Assert::AreEqual (std::wstring (L"H'h's'.500' 'sec'"),    EventLogText::AddMilliseconds (L"H'h's 'sec'",    L".", 500));
             Assert::AreEqual (std::wstring (L"HH:mm"),                EventLogText::AddMilliseconds (L"HH:mm",          L".", 1), L"no seconds, nothing added");
+        }
+    };
+
+
+
+
+    //  A video or sound row at a position; its cycle is given.
+    static IoLogRow  MakeIoRow (uint64_t position, uint64_t cycle, IoEventKind kind, Word address = 0, Byte chip = 0)
+    {
+        IoLogRow  row;
+
+
+        row.position      = position;
+        row.cycle         = cycle;
+        row.event.cycle   = cycle;
+        row.event.kind    = kind;
+        row.event.address = address;
+        row.event.chip    = chip;
+
+        return row;
+    }
+
+
+    static IoLogRow  MakeGapRow (uint64_t position)
+    {
+        IoLogRow  row;
+
+
+        row.kind     = DebugLogRowKind::Gap;
+        row.position = position;
+
+        return row;
+    }
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  IoLogPaneTests
+    //
+    //  The video and sound log panes (FR-198): a video switch's frame, beam
+    //  and modes, a sound row's cycles since the last of the same as SOUNDLOG
+    //  gives them, the sound log's filter by source, and its options text.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (IoLogPaneTests)
+    {
+    public:
+
+        TEST_METHOD (AVideoRowHasItsFrameBeamAndModes)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, true);
+            IoLogDelta    delta;
+            IoLogRow      row = MakeIoRow (10, 1000, IoEventKind::VideoMode, 0xC057);
+
+
+
+            row.event.cycleInFrame = 400;
+            row.event.scanline     = 100;
+            row.event.cycleInLine  = 30;
+            row.event.turnedOn     = IoEventLog::kHires;
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { row };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (std::wstring (L"600"),   GetColumn (pane, IoLogPane::kFrame)[1],      L"the frame's first cycle");
+            Assert::AreEqual (std::wstring (L"100"),   GetColumn (pane, IoLogPane::kLine)[1]);
+            Assert::AreEqual (std::wstring (L"30"),    GetColumn (pane, IoLogPane::kHorizontal)[1]);
+            Assert::AreEqual (std::wstring (L"$C057"), GetColumn (pane, IoLogPane::kAddress)[1]);
+            Assert::AreEqual (TextEncoding::NarrowToWide (IoEventLog::FormatEvent (row.event)), GetColumn (pane, IoLogPane::kEvent)[1], L"as VIDEOLOG writes it");
+            Assert::IsTrue   (list.IsColumnVisible (IoLogPane::kLine) && !list.IsColumnVisible (IoLogPane::kSince), L"the beam shown, the gap between writes not");
+        }
+
+
+        //  As SOUNDLOG: the speaker's since its last toggle, a board's since
+        //  the last write to any board, and a gap starts both again.
+        TEST_METHOD (ASoundRowsSinceIsFromTheLastOfTheSame)
+        {
+            DxuiListView                list;
+            IoLogPane                   pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta                  delta;
+            std::vector<std::wstring>   since;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100, IoEventKind::Speaker,  0xC030),
+                                MakeIoRow (2, 150, IoEventKind::ViaWrite, 0xC401),
+                                MakeIoRow (3, 400, IoEventKind::Speaker,  0xC030),
+                                MakeIoRow (4, 450, IoEventKind::AyWrite),
+                                MakeGapRow (5),
+                                MakeIoRow (6, 900, IoEventKind::Speaker,  0xC030) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            since = GetColumn (pane, IoLogPane::kSince);
+
+            Assert::AreEqual (std::wstring (L""),     since[1], L"the first toggle");
+            Assert::AreEqual (std::wstring (L""),     since[2], L"the first board write");
+            Assert::AreEqual (std::wstring (L"+300"), since[3], L"from the speaker's last toggle, not the board's write");
+            Assert::AreEqual (std::wstring (L"+300"), since[4], L"from the board's last write");
+            Assert::AreEqual (std::wstring (L""),     since[6], L"a gap starts it again");
+            Assert::AreEqual (std::wstring (L"Speaker"),        GetColumn (pane, IoLogPane::kSource)[1]);
+            Assert::AreEqual (std::wstring (L"Mockingboard 1"), GetColumn (pane, IoLogPane::kSource)[2]);
+            Assert::AreEqual (std::wstring (L""),               GetColumn (pane, IoLogPane::kAddress)[4], L"an AY write has no address of its own");
+        }
+
+
+        TEST_METHOD (TheSoundLogsFilterLeavesOutASource)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta    delta;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100, IoEventKind::Speaker,  0xC030),
+                                MakeIoRow (2, 150, IoEventKind::ViaWrite, 0xC401),
+                                MakeIoRow (3, 200, IoEventKind::AyWrite) };
+
+            pane.SetLaneShown (IoLogPane::kSpeaker, false);
+            pane.Apply        (delta);
+            pane.Refresh();
+
+            Assert::AreEqual ((size_t) 3, pane.GetView().size(), L"the start row and the two board rows");
+            Assert::AreEqual (std::wstring (L"Mockingboard 1"), GetColumn (pane, IoLogPane::kSource)[1]);
+        }
+
+
+        TEST_METHOD (TheSoundLogsOptionsRoundTrip)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogPane     read (&list, [] (const std::string &) {}, false);
+
+
+
+            pane.Configure();
+            pane.SetLaneShown (IoLogPane::kAy, false);
+
+            read.SetOptionsText (pane.GetOptionsText());
+
+            Assert::IsTrue  (read.IsLaneShown (IoLogPane::kSpeaker));
+            Assert::IsTrue  (read.IsLaneShown (IoLogPane::kVia));
+            Assert::IsFalse (read.IsLaneShown (IoLogPane::kAy));
         }
     };
 }

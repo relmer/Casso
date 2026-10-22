@@ -187,6 +187,9 @@ public:
     static DebuggerAction  GetSaveSymbols    (const std::string & table, const std::string & path, CommandMode mode);
     static DebuggerAction  GetRemoveSymbol   (const std::string & table, const std::string & name, CommandMode mode);
     static DebuggerAction  GetProfile        (const std::string & words, CommandMode mode);
+
+    //  VIDEOLOG or SOUNDLOG with its words: CLEAR, or SAVE and a path.
+    static DebuggerAction  GetIoLog          (bool isVideo, const std::string & words, CommandMode mode);
     static DebuggerAction  GetRemoveSkip     (const StepFilterEntry & entry, CommandMode mode);
 
     //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as

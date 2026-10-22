@@ -892,6 +892,16 @@ rewinds to. A listing stops rebuilding after five seconds, and its first line
 then ends `older history was not searched:`. The cycle count and beam position
 are those at the access.
 
+The debugger window shows each log in a pane of its own, **Video log** and
+**Sound log**, opened from the View menu or from the Video and Mockingboard
+panels' menus. A row is an entry, with the same text the command lists, in
+columns that can be sorted, shown or hidden: the video log has the frame, line
+and position in the line; the sound log has the cycles since the last entry of
+its kind and its source, which the Source column's Filter narrows to the
+speaker, the 6522s or the AY-3-8910s. Scrolling to the top rebuilds older
+entries from history. Clear and Save on the pane's bar do what `CLEAR` and
+`SAVE` do, so the pane and the command always show the same log.
+
 A speaker toggle costs about fourteen nanoseconds of host time, so a program
 playing a note runs one to three percent slower at maximum speed, and a loop
 that toggles the speaker as fast as a 6502 can about a sixth slower. Other

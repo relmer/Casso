@@ -104,6 +104,8 @@ void DebuggerWindow::CreatePanes()
     m_panes.push_back (std::move (ranges));
     m_panes.push_back (std::make_unique<DiskLogController>  (host));
     m_panes.push_back (std::make_unique<InputLogController> (host));
+    m_panes.push_back (std::make_unique<IoLogController>    (host, DebugLogKind::Video));
+    m_panes.push_back (std::make_unique<IoLogController>    (host, DebugLogKind::Sound));
     m_panes.push_back (std::move (memory));
 
     for (std::unique_ptr<IDebuggerPane> & window : m_memoryGroup->CreateWindows())
@@ -168,7 +170,13 @@ IDebuggerPane * DebuggerWindow::FindPane (const std::wstring & pane) const
 
 void DebuggerWindow::OpenEventLog (DebugLogKind kind)
 {
-    ShowPane ((kind == DebugLogKind::Disk) ? DebuggerLayout::kDiskLog : DebuggerLayout::kInputLog);
+    switch (kind)
+    {
+    case DebugLogKind::Disk:  ShowPane (DebuggerLayout::kDiskLog);  break;
+    case DebugLogKind::Input: ShowPane (DebuggerLayout::kInputLog); break;
+    case DebugLogKind::Video: ShowPane (DebuggerLayout::kVideoLog); break;
+    case DebugLogKind::Sound: ShowPane (DebuggerLayout::kSoundLog); break;
+    }
 }
 
 

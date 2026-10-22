@@ -6,6 +6,7 @@
 
 class DiskLogPane;
 class InputLogPane;
+class IoLogPane;
 class ToolbarBoxEntry;
 
 
@@ -200,4 +201,55 @@ private:
     std::wstring  GetPairLabel    (int pair) const;
 
     std::unique_ptr<InputLogPane>   m_model;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogController
+//
+//  The video log or the sound log (FR-198): its bar has Clear and Save,
+//  which run VIDEOLOG or SOUNDLOG CLEAR and SAVE, so the pane and the
+//  console agree on what the log holds. The sound log's sources are chosen
+//  on the Source column's Filter cascade.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IoLogController : public EventLogController
+{
+public:
+    IoLogController (IDebuggerPaneHost & host, DebugLogKind kind);
+    ~IoLogController() override;
+
+    IoLogPane                   & GetModel       () const { return *m_model; }
+
+    void                          CreateControls () override;
+    void                          Configure      () override;
+    void                          AddToDock      (DxuiDockSite & dock) override;
+    std::vector<IDxuiControl *>   GetControls    () const override;
+    void                          ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWindowVisible) override;
+
+    std::vector<DxuiPopupMenuItem>  GetColumnFilterItems (DxuiListView * list, size_t column, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
+
+    //  What Clear and Save run, for the log this pane shows.
+    void                          Clear          ();
+    void                          Save           ();
+
+protected:
+    std::wstring                  GetModelText   (bool isSelectedOnly) const override;
+    std::string                   GetOptionsText () const override;
+    void                          SetOptionsText (const std::string & text) override;
+    void                          SetModelShown  (bool isShown) override;
+    size_t                        GetTextColumn  () const override;
+    void                          SetMenus       () override {}
+
+private:
+    bool          IsVideo          () const { return m_kind == DebugLogKind::Video; }
+    void          SetBarEntries    ();
+    void          ShowSourceFilter ();
+
+    std::unique_ptr<IoLogPane>    m_model;
 };

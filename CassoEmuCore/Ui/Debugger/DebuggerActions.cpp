@@ -1164,6 +1164,27 @@ DebuggerAction DebuggerActions::GetEnableSymbols (const std::string & table, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerActions::GetIoLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetIoLog (bool isVideo, const std::string & words, CommandMode mode)
+{
+    DebuggerAction  action = Make (isVideo ? DebugVerb::VideoLog : DebugVerb::SoundLog,
+                                   std::format ("{} {}", isVideo ? "VIDEOLOG" : "SOUNDLOG", words), mode);
+
+
+
+    action.command.text = words;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerActions::GetClearSymbols
 //
 ////////////////////////////////////////////////////////////////////////////////

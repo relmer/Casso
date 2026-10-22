@@ -27,9 +27,11 @@ class ReverseController;
 //  The Disk II event log, the input log, and the video and sound logs: each
 //  an event cache the running machine's History slot feeds from the start of
 //  the session, a rebuild of older stretches on a scratch machine, and what
-//  was sent to its pane. The video and sound logs have no pane; VIDEOLOG and
-//  SOUNDLOG list them through IIoEventSource, with history rebuilt on the
-//  calling thread for each listing.
+//  was sent to its pane. VIDEOLOG and SOUNDLOG also list the video and sound
+//  logs through IIoEventSource, with history rebuilt on the calling thread
+//  for each listing. Clearing one of those hides its entries before the
+//  machine's position from the command and the pane alike: the pane starts
+//  again from there, and asks for nothing older.
 //
 //  The caches take events only while the machine is live and recording, so
 //  nothing the machine does replaying its own history, or in a gap, goes in.
@@ -92,6 +94,7 @@ public:
     //  more are being rebuilt.
     bool  TakeDelta (DiskLogDelta & outDelta);
     bool  TakeDelta (InputLogDelta & outDelta);
+    bool  TakeDelta (DebugLogKind kind, IoLogDelta & outDelta);
 
     const DebugEventCache<Disk2Event>  & GetDiskCache  () const { return m_disk.cache; }
     const DebugEventCache<InputEvent>  & GetInputCache () const { return m_input.cache; }
@@ -130,7 +133,17 @@ private:
         uint64_t                 sentHeldFrom   = UINT64_MAX;   // the last delta sent to the pane
         bool                     sentAtStart    = false;
         bool                     sentRebuilding = false;
+        uint64_t                 floor          = 0;            // no row before this, since the log was cleared
     };
+
+    //  Calls fn with the log of that kind.
+    template <typename Fn>
+    void      ForLog       (DebugLogKind kind, Fn && fn);
+
+    //  Where a log's rows can go back to: where history begins, or where the
+    //  log was cleared when that is later.
+    template <typename T>
+    uint64_t  GetOldestOf  (const Log<T> & log) const { return std::max (GetOldest(), log.floor); }
 
     void      OnKeyframe   (uint64_t position);
     void      OnLive       (uint64_t position);
@@ -160,6 +173,10 @@ private:
 
     static bool  TryMakeRow (const InputRecord & record, DiskLogRow & outRow);
     static bool  TryMakeRow (const InputRecord & record, InputLogRow & outRow);
+    static bool  TryMakeRow (const InputRecord & record, IoLogRow & outRow);
+
+    template <typename T>
+    static bool  TryMakeResetRow (const InputRecord & record, DebugLogRow<T> & outRow);
 
     size_t    FindJournalIndex (uint64_t position) const;
 

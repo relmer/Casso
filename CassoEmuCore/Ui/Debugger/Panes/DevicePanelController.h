@@ -44,6 +44,10 @@ public:
     bool                             Tick           (int64_t nowMs) override;
     bool                             TryGetTip      (POINT clientPx, PaneTip & tip) override;
 
+    //  The Video panel's menu opens the video log, the Mockingboard panel's
+    //  the sound log.
+    void                             AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
+
 private:
     std::string                         m_panelId;
     std::wstring                        m_title;

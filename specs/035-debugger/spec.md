@@ -2950,7 +2950,10 @@ run something, switch back to the //e: it is where it was left.
   recording MUST cost no measurable emulation speed (SC-008). *(Amended
   2026-10-10)*: they MUST follow FR-210 and FR-211, their recorded entries a
   cache over history and their depth that of history, as MUST the trace
-  buffer.
+  buffer. *(Amended 2026-10-22, owner)*: each log MUST be shown in a pane of
+  its own, Video log and Sound log, as the Disk II and input logs are, opened
+  from the View menu and from the Video and Mockingboard panels; Clear and
+  Save MUST do what VIDEOLOG and SOUNDLOG CLEAR and SAVE do.
 - **FR-199**: Copy text from the emulator window MUST render inverse and
   flashing characters as the characters they show, not as other characters.
 - **FR-200**: DISASM MUST be reported as not available, as other AppleWin

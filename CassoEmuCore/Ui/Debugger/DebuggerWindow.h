@@ -135,7 +135,7 @@ public:
     void     SavePlacementIfMoved ();
 
     //  Puts an event log pane in front, opening it for good.
-    void     OpenEventLog         (DebugLogKind kind);
+    void     OpenEventLog         (DebugLogKind kind) override;
 
 protected:
     void     OnCreate        () override;
