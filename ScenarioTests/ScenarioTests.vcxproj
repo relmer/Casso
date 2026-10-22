@@ -177,6 +177,7 @@
     <ClCompile Include="CassoLinkSectorTests.cpp" />
     <ClCompile Include="CassoLinkSessionTests.cpp" />
     <ClCompile Include="CassoLinkSuperSerialTests.cpp" />
+    <ClCompile Include="CassoLinkUthernetTests.cpp" />
     <ClCompile Include="CassoLinkBootstrapTests.cpp" />
     <ClCompile Include="GuestVisibleApple2cSerialTests.cpp" />
     <ClCompile Include="GuestVisibleSuperSerialCardTests.cpp" />

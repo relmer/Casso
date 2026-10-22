@@ -48,6 +48,14 @@
 ; 32 cycles apart and each self-sync byte 40 cycles after the one before it.
 ;
 ; NMOS 6502 code throughout.
+;
+; The W5100 build, for an Uthernet II, has its own byte routines and its
+; own ends to Set speed, Load program and Exit; the rest is the same code.
+; The shim has socket 0 connected to the PC: bytes to send go in the chip's
+; transmit memory and are sent before each wait for a byte, or once 128 are
+; waiting. When the PC disconnects, the socket listens again, and the PC's
+; silence is reported as on a serial line. Set speed is acknowledged and
+; changes nothing, and Exit disconnects the socket.
 
         ifndef PROGVER
 PROGVER = 1
@@ -63,6 +71,34 @@ ACIACMD  = $C08A
 ACIACTL  = $C08B
 RDRF     = $08
 TDRE     = $10
+
+        ifdef W5100
+; The W5100, through slotx: slot * 16, $30 for slot 3.
+WZHI     = $C085                ; the pointer, high byte
+WZLO     = $C086                ; and low byte
+WZDATA   = $C087                ; the byte at the pointer, which then advances
+SKREG    = $04                  ; socket 0's registers' page
+SKMR     = $00                  ; its mode
+SKCR     = $01                  ; its command
+SKIR     = $02                  ; its interrupts
+SKSR     = $03                  ; its state
+SKPORT   = $04                  ; its port
+SKTXWR   = $24                  ; where the next byte to send goes
+SKRXRSR  = $26                  ; bytes received
+SKRXRD   = $28                  ; the next byte to read
+TXMEM    = $40                  ; the transmit memory's page, for 8 KB
+RXMEM    = $60                  ; the receive memory's
+CMOPEN   = $01
+CMLISTEN = $02
+CMDISCON = $08
+CMCLOSE  = $10
+CMSEND   = $20
+CMRECV   = $40
+STLISTEN = $14
+STSYNRCV = $16
+STESTAB  = $17
+IRSENDOK = $10
+        endif
 
 ; The Disk II, through diskx: slot * 16, $60 for slot 6.
 PHASEOFF = $C080                ; + phase * 2
@@ -102,6 +138,7 @@ SHIM      = $3D00
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
+SHIMPORT  = SHIM + $1E            ; a W5100 shim's TCP port, high byte first
 SHIMSAVED = SHIM + $34            ; nonzero once the shim saved the machine's state
 SHIMRESET = SHIM + $35            ; the reset vector the shim found, and its check
         ifdef W5100
@@ -197,6 +234,18 @@ envcmd   = $FB
 lenlo    = $FC
 lenhi    = $FD
 curhalf  = $FE                  ; and $FF: each drive's half-track, $FF unknown
+        ifdef W5100
+rxrd     = $24                  ; and $25: the next byte to read, as Sn_RX_RD counts
+rxn      = $26                  ; and $27: bytes received and not yet read
+txwr     = $28                  ; and $29: where the next byte goes, as Sn_TX_WR counts
+txn      = $2A                  ; bytes put since the last SEND
+wsavy    = $2B                  ; getbt and putb: Y as it came
+wbyte    = $2C                  ; putb: the byte; putword: a difference
+wrel     = $2D                  ; getbt: each second's rounds of 256 polls
+wnum     = $2E                  ; and $2F: putword's value
+wdig     = $30                  ; putword: the digit
+wlead    = $31                  ; putword: nonzero once a digit is drawn
+        endif
 
         .org $0800
 
@@ -211,13 +260,20 @@ entry:  sei
         bne slotok
         lda #$20
         sta slotx
-slotok: clc
+slotok:
+        ifdef W5100
+        ora #<WZDATA            ; each write of the data is absolute, as an
+        sta wzput+1             ; indexed store reads it first, which would
+        jsr wzsync              ; advance the pointer
+        else
+        clc
         adc #<ACIADATA
         sta pbsta+1
         sta sdsta+1             ; sendsector's own store and status read,
         clc                     ; absolute for the same reason as putb's
         adc #1
         sta sdwait+1
+        endif
         lda #$60
         sta diskx
         lda #$FF
@@ -333,10 +389,26 @@ exitlink: sei
         lda Q7L,x
         lda Q6L,x
         jsr motoroff
+        ifdef W5100
+        lda #CMDISCON           ; the PC's connection ended, then the socket
+        jsr wzcmd               ; closed, after at most a few seconds
+        lda #0
+        sta tmo
+        sta tmo+1
+xlwait: jsr wzstat
+        beq xlclose
+        inc tmo
+        bne xlwait
+        inc tmo+1
+        bne xlwait
+xlclose: lda #CMCLOSE
+        jsr wzcmd
+        else
         ldx slotx
         lda #$0A                ; DTR off, as the shim set it otherwise
         sta ACIACMD,x
-        lda SHIMSAVED           ; 1 once the shim saved them; an older shim
+        endif
+        lda SHIMSAVED          ; 1 once the shim saved them; an older shim
         cmp #1                  ; has code there, which is left alone
         bne lvbasic
         ldx #0
@@ -402,6 +474,9 @@ tmloop: jsr findsector
         bcs tmdone
         lda #$A5
         jsr putb
+        ifdef W5100
+        jsr flush               ; sent at once, as the PC times its arrival
+        endif
         dec revs
         bne tmloop
 tmdone: jmp opdone
@@ -423,7 +498,13 @@ ggdone: rts
 
 ; doload: back to the shim, at the speed the 6551 is at now, which is the
 ; speed the host sends the program at; and with no dial command, as a modem
-; link is connected already.
+; link is connected already. A W5100's connection is left open, with what
+; was read given back and what was put sent.
+        ifdef W5100
+doload: jsr flush
+        jsr rxdone
+        jmp SHIM
+        else
 doload: ldx slotx
         lda ACIACTL,x
         sta SHIMSPEED
@@ -456,6 +537,7 @@ dlpad:  lda #' '
 dlgo:   lda #0
         sta SHIMDIAL
         jmp SHIM
+        endif
 ; cancel: the operation stops where it is, and the loop starts again.
 cancel: jsr motoroff
         ldx #$FF
@@ -475,6 +557,9 @@ dospeed: lda #OPSPEED
         ldx #0
         ldy #0
         jsr sendack
+        ifdef W5100
+        jmp main                ; a W5100 has no speed to set
+        else
         ldx slotx
 spdwait: lda ACIASTAT,x
         and #TDRE
@@ -485,6 +570,7 @@ spdwait: lda ACIASTAT,x
         sta ACIACTL,x
         jsr showconn
         jmp main
+        endif
 
 ; Read sectors: the requested sectors read into TRKBUF in the order they pass
 ; under the head, then each one's data in the order of the request, then the status.
@@ -946,11 +1032,15 @@ sddata: lda (dstp),y             ; the byte: the value << 2 | its two bits
         asl a
 sdora:  ora AUXA0,x             ; the third's array, set before each pass
         sta sbyte
+        ifdef W5100
+        jsr putb
+        else
 sdwait: lda ACIASTAT            ; set for the port at startup
         and #TDRE
         beq sdwait
         lda sbyte
 sdsta:  sta ACIADATA            ; set for the port at startup
+        endif
         eor peor
         sta peor
         lda sbyte
@@ -1108,13 +1198,28 @@ gpfail: sec
 
 ; pollcancel: a Cancel the host sent during a read. The host sends nothing
 ; else then, and while the program is busy with the drive the 6551 has room
-; for only the packet's first byte, so any byte is taken as Cancel.
-pollcancel: ldx slotx
+; for only the packet's first byte, so any byte is taken as Cancel. A W5100
+; takes the one byte the same way.
+pollcancel:
+        ifdef W5100
+        lda rxn
+        ora rxn+1
+        bne pcany
+        ldy #SKRXRSR
+        jsr wzsock
+        lda WZDATA,x
+        ora WZDATA,x
+        beq pcdone
+pcany:  jsr getbtq
+        jmp cancel
+        else
+        ldx slotx
         lda ACIASTAT,x
         and #RDRF
         beq pcdone
         lda ACIADATA,x
         jmp cancel
+        endif
 pcdone: rts
 
 ; putpe: putb, adding A into peor.
@@ -1136,6 +1241,221 @@ crcupd: sty savex
         ldy savex
         rts
 
+        ifdef W5100
+; getbt: a byte from the W5100, waiting tmolen seconds; the bytes put are
+; sent first. The carry is set on a timeout, after which a socket that has
+; stopped listening, as when the PC disconnects, listens again. X and Y are saved
+; and restored. getbtq waits about a tenth of a second, for a byte inside a
+; packet. A poll of the chip takes about 58 cycles, so a second is 71
+; rounds of 256 polls.
+getbt:  stx savex
+        sty wsavy
+        lda tmolen
+        sta tmo+2
+        lda #$B9
+        bne gbset               ; always
+getbtq: stx savex
+        sty wsavy
+        lda #1
+        sta tmo+2
+        lda #$F7                ; 9 rounds
+gbset:  sta wrel
+        sta tmo+1
+        lda #0
+        sta tmo
+        lda rxn
+        ora rxn+1
+        bne gbread
+        jsr flush
+gbpoll: ldy #SKRXRSR
+        jsr wzsock
+        lda WZDATA,x
+        sta rxn+1
+        lda WZDATA,x
+        sta rxn
+        ora rxn+1
+        bne gbread
+        inc tmo
+        bne gbpoll
+        inc tmo+1
+        bne gbpoll
+        lda wrel
+        sta tmo+1
+        dec tmo+2
+        bne gbpoll
+        jsr wzstat
+        cmp #STESTAB
+        beq gbnone
+        cmp #STLISTEN
+        beq gbnone
+        cmp #STSYNRCV
+        beq gbnone
+        jsr wzlisten
+gbnone: ldx savex
+        ldy wsavy
+        sec
+        rts
+gbread: lda rxrd+1              ; at $6000 + (Sn_RX_RD & $1FFF)
+        and #$1F
+        ora #RXMEM
+        ldy rxrd
+        jsr wzptr
+        lda WZDATA,x
+        sta wbyte
+        inc rxrd
+        bne gbnext
+        inc rxrd+1
+gbnext: lda rxn
+        bne gbcount
+        dec rxn+1
+gbcount: dec rxn
+        lda rxn
+        ora rxn+1
+        bne gbgot
+        jsr rxdone
+gbgot:  lda wbyte
+        ldx savex
+        ldy wsavy
+        clc
+        rts
+
+; putb: A into the chip's transmit memory, sent with the next wait for a
+; byte, or once 128 bytes are waiting. A, X and Y are saved and restored.
+putb:   stx savex
+        sty wsavy
+        sta wbyte
+        lda txwr+1              ; at $4000 + (Sn_TX_WR & $1FFF)
+        and #$1F
+        ora #TXMEM
+        ldy txwr
+        jsr wzptr
+        lda wbyte
+        jsr wzput
+        inc txwr
+        bne pbcount
+        inc txwr+1
+pbcount: inc txn
+        bpl pbdone
+        jsr flush
+pbdone: lda wbyte
+        ldx savex
+        ldy wsavy
+        rts
+
+; flush: the bytes put, sent, once the chip has sent them all; with no PC
+; they are dropped.
+flush:  lda txn
+        beq fldone
+        jsr wzstat
+        cmp #STESTAB
+        bne fldrop
+        ldy #SKTXWR
+        jsr wzsock
+        lda txwr+1
+        jsr wzput
+        lda txwr
+        jsr wzput
+        lda #CMSEND
+        jsr wzcmd
+flwait: ldy #SKIR
+        jsr wzsock
+        lda WZDATA,x
+        and #IRSENDOK
+        bne flsent
+        jsr wzstat
+        cmp #STESTAB
+        beq flwait
+        bne fldrop
+flsent: ldy #SKIR
+        jsr wzsock
+        lda #IRSENDOK
+        jsr wzput
+        lda #0
+        sta txn
+fldone: rts
+fldrop: jmp wzsync
+
+; rxdone: the bytes read given back to the chip, Sn_RX_RD and RECV.
+rxdone: ldy #SKRXRD
+        jsr wzsock
+        lda rxrd+1
+        jsr wzput
+        lda rxrd
+        jsr wzput
+        lda #CMRECV
+        jmp wzcmd
+
+; wzlisten: socket 0 closed, opened for TCP on the shim's port, and
+; listening.
+wzlisten: lda #CMCLOSE
+        jsr wzcmd
+        ldy #SKMR
+        jsr wzsock
+        lda #$01                ; TCP
+        jsr wzput
+        ldy #SKPORT
+        jsr wzsock
+        lda SHIMPORT
+        jsr wzput
+        lda SHIMPORT+1
+        jsr wzput
+        lda #CMOPEN
+        jsr wzcmd
+        lda #CMLISTEN
+        jsr wzcmd
+
+; wzsync: where the chip's pointers are, with nothing read or put.
+wzsync: ldy #SKTXWR
+        jsr wzsock
+        lda WZDATA,x
+        sta txwr+1
+        lda WZDATA,x
+        sta txwr
+        ldy #SKRXRD
+        jsr wzsock
+        lda WZDATA,x
+        sta rxrd+1
+        lda WZDATA,x
+        sta rxrd
+        lda #0
+        sta rxn
+        sta rxn+1
+        sta txn
+        rts
+
+; wzcmd: the command in A to socket 0, and the wait until the chip takes it.
+wzcmd:  pha
+        ldy #SKCR
+        jsr wzsock
+        pla
+        jsr wzput
+wcwait: ldy #SKCR
+        jsr wzsock
+        lda WZDATA,x
+        bne wcwait
+        rts
+
+; wzstat: socket 0's state in A.
+wzstat: ldy #SKSR
+        jsr wzsock
+        lda WZDATA,x
+        rts
+
+; wzsock: the pointer at socket 0's register Y. X is slotx.
+wzsock: lda #SKREG
+
+; wzptr: the pointer at A (high) and Y (low). X is slotx.
+wzptr:  ldx slotx
+        sta WZHI,x
+        tya
+        sta WZLO,x
+        rts
+
+; wzput: A at the pointer, which then advances; the entry sets the address.
+wzput:  sta WZDATA
+        rts
+
+        else
 ; getbt: a byte through the 6551, waiting about three seconds. The carry is
 ; set on a timeout. X and Y are saved and restored. getbtq waits about a
 ; tenth of a second, for a byte inside a packet the host sends in one
@@ -1187,6 +1507,7 @@ pbwait: lda ACIASTAT,x
 pbsta:  sta ACIADATA
         ldx savex
         rts
+        endif
 
 
 ; ---------------------------------------------------------------------------
@@ -2314,6 +2635,24 @@ showconn: ldx #<ROW2
         lda #>conntext
         sta ptr+1
         jsr puttext
+        ifdef W5100
+        lda slotx               ; the card's slot and the port, as
+        lsr a                   ; SLOT 3, PORT 6502
+        lsr a
+        lsr a
+        lsr a
+        jsr putdec
+        lda #<connport
+        sta ptr
+        lda #>connport
+        sta ptr+1
+        jsr puttext
+        lda SHIMPORT+1
+        sta wnum
+        lda SHIMPORT
+        sta wnum+1
+        jmp putword
+        else
         ldx slotx
         lda ACIACTL,x
         and #$0F
@@ -2330,11 +2669,55 @@ scfound: lda speeds+1,x
         lda speeds+2,x
         sta ptr+1
         jmp puttext
+        endif
 
-conntext: .text "PORT 2, "
+        ifdef W5100
+conntext: .text "SLOT "
+        .byte 0
+connport: .byte $2C
+        .text " PORT "
         .byte 0
 
+; putword: wnum in decimal, without leading zeros, into the field from Y.
+putword: lda #0
+        sta wlead
+        ldx #4
+pwdigit: lda #0
+        sta wdig
+pwsub:  lda wnum
+        sec
+        sbc pwtablo,x
+        sta wbyte
+        lda wnum+1
+        sbc pwtabhi,x
+        bcc pwout
+        sta wnum+1
+        lda wbyte
+        sta wnum
+        inc wdig
+        bne pwsub
+pwout:  lda wdig
+        ora wlead
+        bne pwput
+        cpx #0
+        bne pwnext
+pwput:  lda wdig
+        ora #'0'
+        sta wlead
+        jsr putch
+pwnext: dex
+        bpl pwdigit
+        rts
 
+pwtablo: .byte <1, <10, <100, <1000, <10000
+pwtabhi: .byte >1, >10, >100, >1000, >10000
+        else
+conntext: .text "PORT 2, "
+        .byte 0
+        endif
+
+
+        ifndef W5100
 s9600:   .text "9600"
          .byte 0
 s19200:  .text "19200"
@@ -2359,6 +2742,7 @@ speeds: .byte $0E, <s9600, >s9600
         .byte $08, <s1200, >s1200
 speedend:
         .byte $FF, <sother, >sother
+        endif
 
 ; showstatus: the status row: the operation, and while one runs its drive,
 ; track and sector and how much of the request is done, as

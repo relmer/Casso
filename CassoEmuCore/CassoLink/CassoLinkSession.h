@@ -6,6 +6,7 @@
 #include "CassoLink/CassoLinkSettings.h"
 #include "CassoLink/LinkedDisk.h"
 #include "CassoLink/LinkBootstrap.h"
+#include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/FilePath.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 #include "Seams/ByteStreamSettings.h"
@@ -227,6 +228,10 @@ public:
     //  Whether the drive has the link's boot disk, by its boot sector: a write
     //  over it, the Apple has no disk to start the link from.
     std::shared_ptr<LinkOperation>  CheckLinkDisk (int drive);
+
+    //  The chip the Apple side talks through on a transport: the W5100 for
+    //  an Uthernet II, a 6551 for the rest.
+    static LinkChip  GetLinkChip (LinkTransport transport);
 
     //  Physical sector to DOS-logical and back, within a track.
     static int  GetLogicalSector  (int physical);

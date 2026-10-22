@@ -15,8 +15,10 @@
 //  One link, as CassoExplorerPrefs.json stores it. The port is a COM port's
 //  name, or empty to search the ports for the Apple. The address is
 //  host:port for the TCP transports; for Emulated it is Casso's own serial
-//  port on 127.0.0.1. The slot is the Apple's serial port: a //c's port
-//  number, 2 for the link, or a Super Serial Card's slot.
+//  port on 127.0.0.1, and for Uthernet the Apple's own address and the port
+//  its shim listens on. The slot is the Apple's serial port or card: a //c's
+//  port number, 2 for the link, or a Super Serial Card's or an Uthernet II's
+//  slot.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

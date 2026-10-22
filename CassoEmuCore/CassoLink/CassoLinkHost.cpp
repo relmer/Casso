@@ -2168,7 +2168,7 @@ HRESULT CassoLinkHost::LoadProgram()
 
     if (m_program.empty())
     {
-        hr = LinkProgram::AssembleProgram (m_program, errors);
+        hr = LinkProgram::AssembleProgram (m_program, errors, m_programChip);
 
         if (FAILED (hr))
         {

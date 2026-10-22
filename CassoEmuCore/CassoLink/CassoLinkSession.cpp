@@ -324,6 +324,21 @@ std::shared_ptr<LinkOperation> CassoLinkSession::WriteDisk (int drive, const std
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::GetLinkChip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LinkChip CassoLinkSession::GetLinkChip (LinkTransport transport)
+{
+    return (transport == LinkTransport::Uthernet) ? LinkChip::W5100 : LinkChip::Acia;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::GetLogicalSector
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -739,10 +754,19 @@ HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
     std::vector<std::string>   lines;
     std::vector<std::wstring>  ports;
     bool                       hasPort = m_settings.transport != LinkTransport::Serial || !m_port.empty();
+    bool                       typable = m_settings.transport != LinkTransport::Uthernet;
 
 
 
     operation.state = LinkOperationState::Running;
+
+    //  The loader is typed into a serial port; an Uthernet II has none.
+    if (!typable)
+    {
+        operation.message = "An Uthernet II link cannot be bootstrapped. Boot the link disk on the Apple instead.";
+    }
+
+    CBREx (typable, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
     if (!hasPort)
     {
@@ -885,10 +909,14 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
 
     CBREx (ready, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
 
-    LinkProgram::GetSpeedControl (m_settings.baud, control);
+    //  An Uthernet II has no speed to set.
+    if (m_settings.transport != LinkTransport::Uthernet)
+    {
+        LinkProgram::GetSpeedControl (m_settings.baud, control);
 
-    hr = m_host->SetSpeed (control);
-    CHR (hr);
+        hr = m_host->SetSpeed (control);
+        CHR (hr);
+    }
 
     //  A port opened again at the link's speed has a new host, and the link
     //  is ready once the program's Ready arrives on it. The program sends
@@ -1124,6 +1152,7 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud)
         });
 
         m_host->SetActivitySink ([this] (const std::string & text) { m_sink.OnActivity (text); });
+        m_host->SetProgramChip (GetLinkChip (m_settings.transport));
         m_openBaud = baud;
         m_prompted = false;
 
@@ -1695,8 +1724,8 @@ Error:
 //  CassoLinkSession::ReadBootSector
 //
 //  Track 0's first sector against the link boot disk's. That sector is the
-//  loader, the same at every speed; a drive whose track 0 cannot be read has
-//  no link disk.
+//  loader, the same at every speed, but not for every chip: a W5100 shim
+//  loads lower. A drive whose track 0 cannot be read has no link disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1706,11 +1735,15 @@ HRESULT CassoLinkSession::ReadBootSector (LinkOperation & operation)
     std::vector<Byte>                 sectors (NibblizationLayer::kImageByteSize, 0);
     std::vector<Byte>                 boot;
     std::vector<std::pair<int, int>>  unreadable;
+    LinkShimOptions                   options;
     bool                              loader   = false;
 
 
 
-    hr = LinkProgram::BuildBootDisk (m_settings.baud, boot);
+    options.chip = GetLinkChip (m_settings.transport);
+    options.baud = m_settings.baud;
+
+    hr = LinkProgram::BuildBootDisk (options, boot);
     CHR (hr);
 
     hr = ReadTrack (operation.drive, 0, sectors, unreadable);

@@ -3,6 +3,7 @@
 #include "CassoExplorer/CassoExplorerLinkDialog.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
+#include "Seams/Win32NetworkAdapters.h"
 
 
 
@@ -163,6 +164,21 @@ int CassoExplorerLinkChoices::GetSlotIndex (int slot)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerLinkChoices::GetDefaultSlot
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerLinkChoices::GetDefaultSlot (LinkTransport transport)
+{
+    return (transport == LinkTransport::Uthernet) ? CassoLinkConnections::kUthernetSlot : CassoLinkSettings::kDefaultSlot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerLinkChoices::ValidateName
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,6 +295,41 @@ std::wstring CassoExplorerLinkChoices::ValidateTcpPort (const std::wstring & por
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerLinkChoices::ValidateUthernetAddress
+//
+//  The card's own address is set into its chip, so it is an IPv4 address,
+//  not a name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerLinkChoices::ValidateUthernetAddress (const std::wstring & address)
+{
+    std::wstring       error = ValidateAddress (address);
+    CassoLinkSettings  settings;
+    LinkNetworkConfig  network;
+    HRESULT            hr    = S_OK;
+
+
+
+    settings.transport = LinkTransport::Uthernet;
+    settings.address   = TextEncoding::WideToNarrow (address);
+
+    hr = CassoLinkConnections::MakeNetworkConfig (settings, {}, network);
+
+    if (error.empty() && FAILED (hr))
+    {
+        error = L"Enter the card's IPv4 address and a port, such as 192.168.1.50:6502.";
+    }
+
+    return error;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerLinkChoices::GetAddressLabel
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -308,6 +359,7 @@ std::wstring CassoExplorerLinkChoices::GetDefaultAddress (LinkTransport transpor
     {
         case LinkTransport::Emulated:  address = L"127.0.0.1:6502"; break;
         case LinkTransport::WifiModem: address = L"6502";           break;
+        case LinkTransport::Uthernet:  address = L"127.0.0.1:6502"; break;
         default:                                                    break;
     }
 
@@ -358,6 +410,10 @@ std::wstring CassoExplorerLinkChoices::ValidateAddressFor (LinkTransport transpo
     if (transport == LinkTransport::WifiModem)
     {
         error = ValidateTcpPort (text);
+    }
+    else if (transport == LinkTransport::Uthernet)
+    {
+        error = ValidateUthernetAddress (text);
     }
     else if (UsesAddress (transport))
     {
@@ -889,7 +945,7 @@ void CassoExplorerLinkDialog::Revalidate()
 //
 //  Only the chosen transport's rows are visible (FR-083c). A change of
 //  transport replaces an address left empty or at the old transport's
-//  default with the new one's.
+//  default with the new one's, and the slot likewise.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -910,7 +966,13 @@ void CassoExplorerLinkDialog::ShowTransportRows()
         m_address.SetText (Choices::GetDefaultAddress (transport));
     }
 
+    if (transport != previous && m_slot.GetSelectedIndex() == Choices::GetSlotIndex (Choices::GetDefaultSlot (previous)))
+    {
+        m_slot.SetSelected (Choices::GetSlotIndex (Choices::GetDefaultSlot (transport)));
+    }
+
     m_addressLabel.SetText (Choices::GetAddressLabel (transport));
+    m_slotLabel.SetText    (transport == LinkTransport::Uthernet ? L"Card's slot:" : L"Apple's port:");
 
     m_portLabel.SetVisible      (Choices::UsesPort (transport));
     m_port.SetVisible           (Choices::UsesPort (transport));

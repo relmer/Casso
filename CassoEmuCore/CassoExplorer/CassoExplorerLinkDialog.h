@@ -33,6 +33,7 @@ public:
         { L"Casso (emulated)", LinkTransport::Emulated  },
         { L"TCP",              LinkTransport::Tcp       },
         { L"Wi-Fi modem",      LinkTransport::WifiModem },
+        { L"Uthernet II",      LinkTransport::Uthernet  },
     };
 
     static constexpr DWORD  kSpeeds[] = { 115200, 19200, 9600, 4800, 2400, 1200 };
@@ -51,10 +52,14 @@ public:
     static int   GetSpeedIndex     (DWORD baud);
     static int   GetSlotIndex      (int slot);
 
+    //  The slot a transport starts in: an Uthernet II's as it ships, and
+    //  otherwise the //c's port 2.
+    static int   GetDefaultSlot    (LinkTransport transport);
+
     //  The rows each transport has (FR-083c). A serial link has a COM port,
-    //  speed, bootstrap speed and handshaking; TCP and an emulated machine,
-    //  an address; a Wi-Fi modem, the TCP port it connects to, speed and
-    //  handshaking.
+    //  speed, bootstrap speed and handshaking; TCP, an emulated machine and
+    //  an Uthernet II, an address; a Wi-Fi modem, the TCP port it connects
+    //  to, speed and handshaking.
     static bool  UsesPort      (LinkTransport transport) { return transport == LinkTransport::Serial; }
     static bool  UsesAddress   (LinkTransport transport) { return transport != LinkTransport::Serial; }
     static bool  UsesSpeed     (LinkTransport transport) { return transport == LinkTransport::Serial || transport == LinkTransport::WifiModem; }
@@ -67,7 +72,9 @@ public:
 
     //  The address row's label and its value when nothing is entered. A
     //  Wi-Fi modem's row is the TCP port alone, as it listens on every
-    //  address; an emulated machine's is Casso's own serial port on this PC.
+    //  address; an emulated machine's is Casso's own serial port on this PC,
+    //  and an Uthernet II's the address of the Apple's card, which in Casso
+    //  listens on this PC.
     static const wchar_t *  GetAddressLabel   (LinkTransport transport);
     static std::wstring     GetDefaultAddress (LinkTransport transport);
 
@@ -82,6 +89,9 @@ public:
     static std::wstring  ValidatePort    (const std::wstring & port);
     static std::wstring  ValidateAddress (const std::wstring & address);
     static std::wstring  ValidateTcpPort (const std::wstring & port);
+
+    //  An Uthernet II's address: an IPv4 address, a colon and a port.
+    static std::wstring  ValidateUthernetAddress (const std::wstring & address);
 
     //  The settings for the chosen values. An index out of range takes the
     //  list's first choice.

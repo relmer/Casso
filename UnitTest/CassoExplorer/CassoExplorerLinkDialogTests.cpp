@@ -105,7 +105,9 @@ public:
         CassoLinkSettings  serial = C::MakeSettings (L"S", C::GetTransportIndex (LinkTransport::Serial), L"COM3", L"", 0, 0, false, C::GetSlotIndex (5));
         CassoLinkSettings  tcp    = C::MakeSettings (L"T", C::GetTransportIndex (LinkTransport::Tcp), L"", L"a:1", 0, 0, false, C::GetSlotIndex (5));
 
-        Assert::IsTrue  (C::UsesSlot (LinkTransport::Serial) && C::UsesSlot (LinkTransport::Emulated) && C::UsesSlot (LinkTransport::WifiModem));
+        Assert::IsTrue  (C::UsesSlot (LinkTransport::Serial) && C::UsesSlot (LinkTransport::Emulated) && C::UsesSlot (LinkTransport::WifiModem) && C::UsesSlot (LinkTransport::Uthernet));
+        Assert::AreEqual (3, C::GetDefaultSlot (LinkTransport::Uthernet), L"the Uthernet II ships in slot 3");
+        Assert::AreEqual (CassoLinkSettings::kDefaultSlot, C::GetDefaultSlot (LinkTransport::Serial));
         Assert::IsFalse (C::UsesSlot (LinkTransport::Tcp), L"ADTPro's serial over IP has a program at its far end");
         Assert::AreEqual (5, serial.slot);
         Assert::AreEqual (CassoLinkSettings::kDefaultSlot, tcp.slot, L"a hidden row takes its default");
@@ -156,5 +158,28 @@ public:
 
         older.name = "My //c";
         Assert::AreEqual (std::wstring (L"My //c"), C::GetNameText (older), L"a label saved as a name alone");
+    }
+
+
+
+    //  An Uthernet II has the Apple's address alone: no COM port, speed,
+    //  bootstrap speed or handshake. The address is the card's own, so it is
+    //  an IPv4 address.
+    TEST_METHOD (AnUthernetLink_HasTheApplesAddressAlone)
+    {
+        using C = CassoExplorerLinkChoices;
+
+        std::vector<std::wstring>  labels = C::GetTransportLabels();
+
+        Assert::IsTrue  (std::find (labels.begin(), labels.end(), std::wstring (L"Uthernet II")) != labels.end());
+        Assert::IsTrue  (C::UsesAddress (LinkTransport::Uthernet));
+        Assert::IsFalse (C::UsesPort (LinkTransport::Uthernet) || C::UsesSpeed (LinkTransport::Uthernet) || C::UsesBootstrap (LinkTransport::Uthernet) || C::UsesHandshake (LinkTransport::Uthernet));
+
+        Assert::AreEqual (std::wstring (L"127.0.0.1:6502"), C::GetDefaultAddress (LinkTransport::Uthernet));
+        Assert::AreEqual (std::wstring (L"Address:"),       std::wstring (C::GetAddressLabel (LinkTransport::Uthernet)));
+
+        Assert::IsTrue  (C::ValidateAddressFor (LinkTransport::Uthernet, L"192.168.1.50:6502").empty());
+        Assert::IsFalse (C::ValidateAddressFor (LinkTransport::Uthernet, L"apple.local:6502").empty(), L"a name cannot be set into the chip");
+        Assert::IsFalse (C::ValidateAddressFor (LinkTransport::Uthernet, L"192.168.1.50").empty(),      L"the port the shim listens on");
     }
 };
