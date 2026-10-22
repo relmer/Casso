@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "../EhmTestHelper.h"
+#include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/LinkBootstrap.h"
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
@@ -77,6 +78,51 @@ public:
         }
 
         Assert::IsTrue (slotLine.starts_with (std::format ("{:04X}: 05", slotAt)), TextEncoding::NarrowToWide (slotLine).c_str());
+    }
+
+
+
+    //  The cassette record: the leader, the two sync half-cycles, two equal
+    //  half-cycles per bit, the checksum's eight bits and one closing half.
+    TEST_METHOD (Cassette_IsTheShimAsOneRecord_ReadByItsMonitorCommand)
+    {
+        std::vector<Byte>    shim;
+        std::vector<double>  halves;
+        TapeAudio            audio;
+        std::string          command;
+        LinkShimOptions      options;
+        size_t               leader = 0;
+        Byte                 check  = LinkAudioBootstrap::kChecksumSeed;
+        Byte                 last   = 0;
+
+        AssertSucceeded (LinkProgram::BuildShim (options, shim));
+        AssertSucceeded (LinkAudioBootstrap::BuildAudio (options, audio, command));
+        Assert::AreEqual (std::format ("3D00.{:04X}R 3D00G\r", 0x3D00 + shim.size() - 1), command);
+        Assert::AreEqual (LinkAudioBootstrap::kSampleRate, audio.sampleRate);
+
+        LinkAudioBootstrap::AppendRecord (shim, halves);
+
+        while (leader < halves.size() && halves[leader] == LinkAudioBootstrap::kLeaderHalfUs)
+        {
+            leader++;
+        }
+
+        Assert::IsTrue (leader * LinkAudioBootstrap::kLeaderHalfUs >= 3.5e6, L"the leader covers the monitor's wait");
+        Assert::AreEqual (leader + 2 + (shim.size() + 1) * 16 + 1, halves.size());
+        Assert::AreEqual (LinkAudioBootstrap::kSyncFirstUs,  halves[leader]);
+        Assert::AreEqual (LinkAudioBootstrap::kSyncSecondUs, halves[leader + 1]);
+
+        for (Byte value : shim)
+        {
+            check ^= value;
+        }
+
+        for (size_t bit = 0; bit < 8; bit++)
+        {
+            last = (Byte) ((last << 1) | (halves[leader + 2 + shim.size() * 16 + bit * 2] == LinkAudioBootstrap::kOneHalfUs ? 1 : 0));
+        }
+
+        Assert::AreEqual (check, last, L"the checksum, seeded with $FF");
     }
 
 

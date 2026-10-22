@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/RunningCassoRegistry.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
@@ -31,6 +32,8 @@
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
 #include "resource.h"
+
+#pragma comment(lib, "winmm.lib")
 
 
 
@@ -87,6 +90,8 @@ CassoExplorerWindow::~CassoExplorerWindow()
     {
         m_context.watcher->Unwatch (m_context.running->GetFolder());
     }
+
+    PlaySoundW (nullptr, nullptr, 0);
 
     m_shellVerbs.UnwatchRecycleBin();
     m_dropTarget.Shutdown();
@@ -11154,6 +11159,122 @@ void CassoExplorerWindow::BootstrapLink (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::PlayCassetteBootstrap
+//
+//  The shim as audio from the PC's sound output into a ][+ or //e's
+//  cassette input (FR-092, US15/AC2). The user readies the monitor's read
+//  first. The link is started while the audio is sent, so its session is
+//  open when the shim sends Ready.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PlayCassetteBootstrap (const std::string & name)
+{
+    HRESULT            hr      = S_OK;
+    CassoLinkSettings  link;
+    std::string        command;
+    std::wstring       steps;
+    int                answer  = IDCANCEL;
+    BOOL               played  = FALSE;
+
+
+
+    for (const CassoLinkSettings & settings : m_context.links->GetLinks())
+    {
+        link = (settings.name == name) ? settings : link;
+    }
+
+    PlaySoundW (nullptr, nullptr, 0);
+
+    hr = LinkAudioBootstrap::BuildWav (CassoLinkConnections::MakeShimOptions (CassoLinkConnections::GetPcName(), link), m_cassetteWav, command);
+    CHR (hr);
+
+    command.pop_back();
+
+    steps  = std::format (L"Connect this PC's sound output to the cassette input of the ][+ or //e, and turn the volume up most of the way.\n\n"
+                          L"On the Apple, at the prompt, type:\n\n"
+                          L"1. **CALL -151**, then press Return\n"
+                          L"2. **{}**, then press Return\n\n"
+                          L"Then choose Send. The audio takes about 12 seconds.", TextEncoding::NarrowToWide (command));
+    answer = DxuiMessageBox (GetHwnd(), m_theme, steps.c_str(), L"Bootstrap from the cassette input",
+                             MB_OKCANCEL | MB_ICONINFORMATION, { L"Send", L"Cancel" });
+    BAIL_OUT_IF (answer != IDOK, S_OK);
+
+    played = PlaySoundW (reinterpret_cast<LPCWSTR> (m_cassetteWav.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
+    CBR (played);
+
+    if (!m_context.links->IsStarted (name))
+    {
+        ConnectLink (name);
+    }
+
+Error:
+    if (FAILED (hr))
+    {
+        ShowMessage (L"The cassette bootstrap could not be sent to this PC's sound output.", MB_ICONERROR);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::SaveCassetteBootstrap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::SaveCassetteBootstrap (const std::string & name)
+{
+    HRESULT                        hr     = S_OK;
+    std::filesystem::path          picked;
+    bool                           chosen = false;
+    FileDialogSpec                 spec;
+    CassoLinkSettings              link;
+    std::string                    command;
+    CassoExplorerActions::Outcome  outcome;
+
+
+
+    for (const CassoLinkSettings & settings : m_context.links->GetLinks())
+    {
+        link = (settings.name == name) ? settings : link;
+    }
+
+    spec.filters          = { FileDialogFilter { L"Sound files (*.wav)", L"*.wav" } };
+    spec.clientGuid       = s_kLinkDiskPickerGuid;
+    spec.defaultFileName  = L"CassoLink.wav";
+    spec.defaultExtension = L"wav";
+    spec.title            = L"Save cassette bootstrap";
+
+    hr = m_dialogs.PickFileToSave (GetHwnd(), spec, picked, chosen);
+    CHR (hr);
+    BAIL_OUT_IF (!chosen, S_OK);
+
+    outcome = m_actions.SaveCassetteBootstrap (picked.wstring(), link, command);
+
+    if (!outcome.Succeeded())
+    {
+        ShowMessage (outcome.message, MB_ICONERROR);
+    }
+    else
+    {
+        command.pop_back();
+        ShowMessage (std::format (L"To load it, type CALL -151 and then {} on the Apple, and play the file into its cassette input.",
+                                  TextEncoding::NarrowToWide (command)), MB_ICONINFORMATION);
+    }
+
+Error:
+    IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::ReleaseIdleLinks
 //
 //  A link connects only while its machine, or one of its drives, is the
@@ -11289,13 +11410,12 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
         }
 
         AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
+        AddMenuCommand (items, L"Bootstrap from the c&assette input...", [this, name]() { PlayCassetteBootstrap (name); });
+        AddMenuCommand (items, L"Save cassette boo&tstrap...", [this, name]() { SaveCassetteBootstrap (name); });
 
-        //  A Wi-Fi modem's boot disk dials this PC, so it is saved from
-        //  its machine; CassoLink.dsk serves every other link.
-        if (IsWifiModemLink (name))
-        {
-            AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
-        }
+        //  A boot disk is built for its link: a Wi-Fi modem's dials this PC,
+        //  and a card's shim has the card's slot. CassoLink.dsk is the //c's.
+        AddMenuCommand (items, L"Save CassoLink disk &image...", [this, name]() { SaveLinkDiskImage (name); });
 
         if (saved)
         {

@@ -8,9 +8,12 @@
 #include "CassoLink/InMemoryCassoLinkFolder.h"
 #include "EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/LinkProgram.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Tape/ITapeAudioDecoder.h"
+#include "Devices/Tape/TapeImageLoader.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
@@ -34,7 +37,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  other starts from the BASIC prompt with IN#2 and Ctrl-A 14B typed for
 //  the card's firmware, and is bootstrapped over the card (FR-092).
 //
-//  The bootstrap case requires Apple's firmware for the card, at
+//  A third case starts with no firmware involved: the monitor reads the shim
+//  from the cassette input as audio (FR-092, US15/AC2), and the shim then
+//  talks to the card's 6551 directly.
+//
+//  The typed bootstrap case requires Apple's firmware for the card, at
 //  %LOCALAPPDATA%\Casso\Devices\SuperSerialCard\SSC.rom, which is not
 //  committed; it fails without it, as the card's other guest-visible cases do.
 //
@@ -347,5 +354,72 @@ public:
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
         Assert::IsTrue (screen[0].starts_with ("CASSOLINK"), L"the program's status screen");
+    }
+
+
+
+    TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCassetteInput_AndListsADisk)
+    {
+        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 2, false); });
+        std::shared_ptr<InProcessByteStream>  machineEnd;
+        Factory                               factory;
+        InMemoryCassoLinkFolder               folder;
+        FakeDiskFileIo                        fileIo;
+        Sink                                  sink;
+        std::vector<Byte>                     disk    = LoadDos33();
+        std::vector<Byte>                     wav;
+        std::string                           command;
+        LinkShimOptions                       options;
+        NullTapeAudioDecoder                  mp3;
+        TapeImage                             image;
+        std::string                           error;
+        CassoLinkSettings                     settings;
+        std::vector<std::string>              screen;
+        double                                seconds = 0.0;
+
+        AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
+        Assert::AreEqual (std::string ("3D00.3FFFR 3D00G\r"), command);
+        Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
+
+        seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
+
+        machine.SetVideoTiming (std::make_unique<VideoTiming>());
+        machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
+        machine.PowerCycle();
+        machine.RunCycles (2'000'000ULL);
+
+        //  At the BASIC prompt, as the user finds it.
+        machine.GetCpu()->SetPC (0xE000);
+        machine.RunCycles (2'000'000ULL);
+
+        InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
+
+        Type (machine, "CALL -151\r");
+        Type (machine, command.c_str());
+
+        machine.GetTapeDeck().Insert (std::move (image));
+        machine.GetTapeDeck().Play (*machine.GetCpu()->GetBusCyclePtr());
+        machine.RunCycles ((uint64_t) ((seconds + 1.0) * machine.GetConfig().clockSpeed));
+        machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
+
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC IN SLOT 2 AT 115200"), TextEncoding::NarrowToWide (JoinRows (screen)).c_str());
+
+        settings.name      = "//e";
+        settings.transport = LinkTransport::Emulated;
+        settings.address   = "127.0.0.1:6502";
+
+        {
+            CassoLinkSession  session (factory, folder, fileIo, sink);
+
+            AssertSucceeded (session.Start (settings));
+
+            auto  list = Finish (machine, sink, session.Enumerate (2, FilePath()));
+
+            AssertSucceeded (list->result);
+            Assert::IsFalse (list->listing.entries.empty(), L"drive 2's catalog over the link the cassette started");
+        }
     }
 };

@@ -128,7 +128,7 @@ for the sector, $30 the data field did not decode, $40 the sector read back
 differently, $50 the host's data did not arrive whole, $60 no such drive.
 A sector is the physical sector, the number in its address field.
 
-The shim occupies $3D00 to $3FFF, with the 6551 control byte for its starting speed at $3D02, the speed's text at $3D06, and a Wi-Fi modem's dial command, ending in a zero byte, at $3D0C (R24); the program
+The shim occupies $3D00 to $3FFF, with the 6551 control byte for its starting speed at $3D02, the speed's text at $3D06, a Wi-Fi modem's dial command, ending in a zero byte, at $3D0C (R24), and the 6551's slot at $3D38: 2 for the //c's port 2, or a Super Serial Card's slot. The program
 runs from $0800 and uses $4000 to $92FF for buffers, with no DOS or ProDOS
 in memory.
 
@@ -261,9 +261,19 @@ sequenceDiagram
 At 9,600 baud, 250 ms after each line, into the //c's monitor through
 `IN#2`: `CALL -151`, the shim as `3D00:` lines of 8 bytes, `3D00G`. The shim
 then sends Ready at 9,600 baud and receives Load program. A shim on a boot
-disk starts at the link's speed instead.
+disk starts at the link's speed instead. On a Super Serial Card the user
+types `IN#` and the card's slot, and Ctrl-A `14B` then Return; the card's firmware executes the command at the
+Return.
 
-The shim's screen: a title, then `WAITING FOR THE PC ON PORT 2 AT <speed>`,
+On a ][+ or //e, the cassette bootstrap is the shim as one monitor tape
+record, sent as audio into the cassette input after `CALL -151` and
+`3D00.3FFFR 3D00G` are typed: a 770 Hz leader of 6 seconds, the sync
+half-cycles of 200 and 250 microseconds, the bytes most significant bit
+first, a 0 as one 2 kHz cycle and a 1 as one 1 kHz cycle, and the XOR
+checksum seeded with $FF. The shim starts at the link's speed.
+
+The shim's screen: a title, then `WAITING FOR THE PC ON PORT 2 AT <speed>`
+on a //c or `WAITING FOR THE PC IN SLOT <n> AT <speed>` on a card,
 `LOADING PROGRAM <n>%` and `STARTING VERSION <n>`. The program adds a PC line,
 `CONNECTED` or `NO REPLY FOR <n> S`, sending Ready again after each second
 with no reply; an error line with the last Status error until an operation

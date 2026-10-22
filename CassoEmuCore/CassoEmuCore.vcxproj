@@ -222,6 +222,7 @@
     <ClCompile Include="CassoLink\CassoLinkSettings.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
+    <ClCompile Include="CassoLink\LinkAudioBootstrap.cpp" />
     <ClCompile Include="CassoLink\LinkBootstrap.cpp" />
     <ClCompile Include="Seams\Win32ProcessProbe.cpp" />
     <ClCompile Include="Devices\AciaByteSourceEndpoint.cpp" />
@@ -845,6 +846,7 @@
     <ClInclude Include="CassoLink\CassoLinkSettings.h" />
     <ClInclude Include="CassoLink\CassoLinkSearch.h" />
     <ClInclude Include="CassoLink\RunningCassoRegistry.h" />
+    <ClInclude Include="CassoLink\LinkAudioBootstrap.h" />
     <ClInclude Include="CassoLink\LinkBootstrap.h" />
     <ClInclude Include="Seams\IProcessProbe.h" />
     <ClInclude Include="Machines\Apple2\Common\SectorReadObserver.h" />

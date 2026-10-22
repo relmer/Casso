@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/LinkProgram.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/CatalogModel.h"
@@ -3642,6 +3643,41 @@ CassoExplorerActions::Outcome CassoExplorerActions::SaveLinkDiskImage (const std
     if (FAILED (hr))
     {
         AppendMessage (outcome, hr, L"The CassoLink disk could not be saved.");
+    }
+    else
+    {
+        outcome.written++;
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::SaveCassetteBootstrap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand)
+{
+    Outcome            outcome;
+    std::vector<Byte>  wav;
+    HRESULT            hr = LinkAudioBootstrap::BuildWav (CassoLinkConnections::MakeShimOptions (CassoLinkConnections::GetPcName(), settings), wav, outCommand);
+
+
+
+    if (SUCCEEDED (hr))
+    {
+        hr = m_browser.GetOperations().GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (wavPath), wav);
+    }
+
+    if (FAILED (hr))
+    {
+        AppendMessage (outcome, hr, L"The cassette bootstrap could not be saved.");
     }
     else
     {

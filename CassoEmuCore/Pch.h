@@ -27,6 +27,10 @@
 #undef BitTestAndComplement
 
 #include <mmdeviceapi.h>
+
+//  PlaySound, for CassoLink's cassette bootstrap. With WIN32_LEAN_AND_MEAN,
+//  windows.h does not include mmsystem.h.
+#include <mmsystem.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>

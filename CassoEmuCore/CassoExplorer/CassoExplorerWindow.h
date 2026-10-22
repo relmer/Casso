@@ -810,6 +810,8 @@ private:
     void  ConnectLink         (const std::string & name);
     void  SearchLink          (const std::string & name);
     void  BootstrapLink       (const std::string & name);
+    void  PlayCassetteBootstrap (const std::string & name);
+    void  SaveCassetteBootstrap (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
     std::wstring  GetLatestActivity () const;
     std::wstring  FormatActivity (size_t lines) const;
@@ -1136,6 +1138,9 @@ private:
     bool                   m_archiveMenu     = false;   // a right press on one, whose menu opens on release
     POINT                  m_archivePress    = {};
     int                    m_previewBarFocus = 0;
+
+    //  The cassette bootstrap's audio, while PlaySound sends it from memory.
+    std::vector<Byte>        m_cassetteWav;
 
     //  The last search, as typed and as the bytes it matches.
     std::wstring             m_findTyped;

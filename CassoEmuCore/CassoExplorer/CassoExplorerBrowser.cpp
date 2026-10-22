@@ -1022,6 +1022,8 @@ const wchar_t * CassoExplorerBrowser::GetCassoLinkHelp()
            L"`IN#` and its slot), then press Return; type "
            L"`Ctrl+A 14B`, then press Return; then choose *Bootstrap the Apple* from the connection's menu. The rest "
            L"is typed in over the cable.\r\n"
+           L"   - With no disk, on a ][+ or //e: connect this PC's sound output to the Apple's cassette input, and "
+           L"choose *Bootstrap from the cassette input* from the connection's menu.\r\n"
            L"3. **Click the connection** under CassoLink. Its drives are listed once the connection is made.\r\n"
            L"\r\n"
            L"## Once connected\r\n"

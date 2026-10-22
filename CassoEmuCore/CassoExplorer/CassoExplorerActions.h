@@ -299,6 +299,11 @@ public:
     //  PC before its first Ready.
     Outcome  SaveLinkDiskImage (const std::wstring & imagePath, const CassoLinkSettings & settings);
 
+    //  The cassette bootstrap for a link as a WAV file on the PC, to send into
+    //  a ][+ or //e's cassette input from another device, or to insert in
+    //  Casso's own tape deck. outCommand is the monitor command that reads it.
+    Outcome  SaveCassetteBootstrap (const std::wstring & wavPath, const CassoLinkSettings & settings, std::string & outCommand);
+
     //  The open Apple drive as the menus and confirmations name it: its slot,
     //  its drive and its volume, as "Slot 6, Drive 1 (DOS 3.3 volume 254)".
     std::wstring  DescribeAppleDrive () const;
