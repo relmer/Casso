@@ -164,6 +164,35 @@ namespace W5100SocketBridgeTests
         }
 
 
+        //  Bytes waiting for a full host buffer, then the peer resets: the
+        //  failed send closes the socket, in a pump and in a DISCON.
+        TEST_METHOD (AResetWhileBytesWait_ClosesTheSocket)
+        {
+            for (bool disconnect : { false, true })
+            {
+                UthernetRig  rig;
+
+                auto  peer = rig.ConnectEstablished (1, UthernetRig::kLanPeer, kHttp);
+
+                peer->sendLimit = 0;
+                rig.bus.Send (1, MakePattern (0x40, 9));
+                peer->resetByPeer = true;
+
+                if (disconnect)
+                {
+                    rig.bus.Command (1, R::kCmdDisconnect);
+                }
+                else
+                {
+                    rig.Pump();
+                }
+
+                Assert::AreEqual (R::kSockClosed, rig.bus.Status (1));
+                Assert::IsTrue (peer->destroyed);
+            }
+        }
+
+
         TEST_METHOD (ReceiveIsLimitedToRxFreeSpace)
         {
             UthernetRig        rig;

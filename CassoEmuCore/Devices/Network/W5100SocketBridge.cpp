@@ -316,7 +316,11 @@ void W5100SocketBridge::OnDisconnect (int socket)
     if (connected)
     {
         PumpTcpTransfer (socket);
+    }
 
+    //  A failed send closes the slot, which releases its host socket.
+    if (connected && slot.host != nullptr)
+    {
         hr = slot.host->ShutdownSend();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
@@ -553,7 +557,13 @@ void W5100SocketBridge::PumpSocket (
 
         case Phase::Established:
             PumpTcpTransfer (socket);
-            PumpTcpReceive (socket);
+
+            //  A failed send closes the slot, which releases its host socket.
+            if (m_slots[socket].phase == Phase::Established)
+            {
+                PumpTcpReceive (socket);
+            }
+
             break;
 
         case Phase::PeerClosed:

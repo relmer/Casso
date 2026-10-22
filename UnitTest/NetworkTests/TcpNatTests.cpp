@@ -116,6 +116,22 @@ namespace TcpNatTests
     {
     public:
 
+        //  A host send that fails resets the connection and releases its
+        //  socket, and the rest of that pump does not use the socket.
+        TEST_METHOD (AFailedHostSend_ResetsWithoutUsingTheSocketAgain)
+        {
+            Connected  c;
+
+            c.nat.OnGuestSegment (FromGuest (P::kTcpAck | P::kTcpPsh, kGuestIsn + 1, c.ourNext, MakePattern (100)), ++c.now);
+            c.peer->resetByPeer = true;
+            c.nat.Pump (++c.now);
+
+            Assert::IsTrue (c.peer->destroyed, L"the host socket is released");
+            Assert::IsFalse (c.sink.tcp.empty());
+            Assert::AreEqual<int> (P::kTcpRst, c.sink.tcp.back().flags & P::kTcpRst, L"the guest is reset");
+        }
+
+
         TEST_METHOD (SynConnectsAndSynAckFollowsTheHostConnect)
         {
             RecordingPacketSink  sink;

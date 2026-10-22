@@ -311,10 +311,21 @@ void TcpNatConnection::Pump (uint64_t now)
         return;
     }
 
+    //  A failed host send or receive resets and closes the connection, which
+    //  releases the host socket, so each step after one runs only while the
+    //  connection is established.
     PumpHostWrite();
-    PumpHostRead();
-    PumpGuestSend (now);
-    PumpRetransmit (now);
+
+    if (m_state == State::Established)
+    {
+        PumpHostRead();
+    }
+
+    if (m_state == State::Established)
+    {
+        PumpGuestSend (now);
+        PumpRetransmit (now);
+    }
 
     if (m_state == State::Established && m_guestFin && m_finAcked && m_toHost.empty())
     {
