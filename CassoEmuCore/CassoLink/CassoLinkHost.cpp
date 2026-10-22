@@ -2177,6 +2177,7 @@ HRESULT CassoLinkHost::LoadProgram()
     bool               filled   = false;
     bool               acked    = false;
     bool               running  = false;
+    CassoLinkPacket    stray;
 
 
 
@@ -2236,8 +2237,19 @@ HRESULT CassoLinkHost::LoadProgram()
 
                 //  A packet in place of the last page's ACK is the program's
                 //  Ready: the program is running, and its Ready is left for
-                //  the next operation to read.
-                if (!running)
+                //  the next operation to read. A packet in place of another
+                //  page's, such as a second Ready from the shim, is read whole
+                //  and dropped, so that no byte of it is taken for the reply:
+                //  a Ready's check byte can be an ACK's.
+                if (reply == CassoLinkCodec::kStart && !running)
+                {
+                    hr = ReadPacket (m_operationTimeoutMs, stray);
+                    hr = (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_DATA)) ? S_OK : hr;
+                    CHR (hr);
+
+                    reply = 0;
+                }
+                else if (!running)
                 {
                     Consume (1);
                 }
