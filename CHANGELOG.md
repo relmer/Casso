@@ -76,6 +76,8 @@ Entries before versioning was introduced use dates only.
   from a larger screen or moved to a more scaled one. On a 1080p screen at 150%
   scaling, the debugger window's bottom edge had been off the screen.
 - On a first run the debugger window opens beside the emulator window.
+- In the debugger, a button's tooltip waits the usual delay when the pointer
+  comes to it from the heat map, instead of showing at once.
 
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 

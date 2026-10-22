@@ -180,6 +180,28 @@ public:
         Assert::IsTrue  (t.IsVisible());
     }
 
+    //  A control's tip reached from an instant tip waits its own dwell: the
+    //  heat map's tip is up the moment the pointer is over the map, and the
+    //  toggle above it showed its tip at once on leaving it (FR-209).
+    TEST_METHOD (RequestShow_FromAnInstantTipWaitsItsDwell)
+    {
+        DxuiTooltip  t;
+        t.SetDwellOpenMs (500);
+
+        t.RequestShowNow (MakeRect (0, 50, 10, 60), L"$0400", 0);
+        Assert::IsTrue (t.IsVisible(), L"the map's tip, at once");
+
+        t.RequestShow (MakeRect (0, 0, 50, 20), L"Skip unchanged writes", 100);
+        Assert::IsFalse (t.IsVisible(), L"the map's tip goes, and the control's waits");
+
+        t.Tick (599);
+        Assert::IsFalse (t.IsVisible(), L"still within the dwell");
+
+        t.Tick (600);
+        Assert::IsTrue   (t.IsVisible(), L"shown after the dwell");
+        Assert::AreEqual (std::wstring (L"Skip unchanged writes"), t.GetText());
+    }
+
     //  A pointer twenty pixels tall below its hot spot, and two above it.
     static DxuiTooltip::PointerExtent  GetTallPointer() { return DxuiTooltip::PointerExtent { 2, 20 }; }
 

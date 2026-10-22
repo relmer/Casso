@@ -1,5 +1,8 @@
 #include "Pch.h"
 
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 #include "Ui/Debugger/Panes/HeatMapView.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -295,6 +298,39 @@ namespace DebuggerTests
             Assert::AreEqual (kCold,       view.GetPixels()[(size_t) ((at.y - map.top) * width + (at.x - map.left))]);
             at    = { map.left + 1, view.GetHeaderRect (1).top + 2 };
             Assert::AreEqual (kBackground, view.GetPixels()[(size_t) ((at.y - map.top) * width + (at.x - map.left))], L"a header is the page");
+        }
+
+
+
+        //  The zero page at three-pixel cells is a row or two, shorter than its
+        //  first address label. The range still takes the label's whole line,
+        //  so the label ends before the next range's header (FR-209).
+        TEST_METHOD (AShortRangeIsAtLeastARowLabelTall)
+        {
+            HeatMapView           view;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            long                  label = 0;
+            long                  rows  = 0;
+            long                  room  = 0;
+
+
+
+            Place (view);
+            view.SetRanges ({ { L"Zero page", 0x0000, 0x0100 }, { L"Sprites", 0x6000, 0x0400 } });
+
+            //  The paint measures the row labels' face; a new set fits the
+            //  pane, so the zoom to small cells comes after both.
+            view.Paint  (painter, text, theme);
+            view.ZoomTo (3);
+
+            label = (long) std::ceil (theme.MonospaceFont().sizeDip * HeatMapView::kLabelLine);
+            rows  = view.GetCellRect (0x00FF).bottom - view.GetCellRect (0x0000).top;
+            room  = view.GetHeaderRect (1).top - view.GetCellRect (0x0000).top;
+
+            Assert::IsTrue (rows < label, L"the zero page's rows are shorter than a label, or this checks nothing");
+            Assert::IsTrue (room >= label, L"the next header starts below the zero page's first label");
         }
 
 

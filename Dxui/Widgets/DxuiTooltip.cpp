@@ -424,16 +424,28 @@ int DxuiTooltip::GetSystemVisibleMs()
 //  the tooltip is already up over a different anchor, swap text +
 //  anchor instantly.
 //
+//  ONLY FROM A TIP THAT WAITED ITS OWN DWELL. An instant tip -- the heat
+//  map's, which follows the pointer across the map -- is up the moment the
+//  pointer enters the map, so swapping from it made every control beside the
+//  map show its tip at once: the Skip unchanged writes toggle above it had no
+//  delay at all. That tip goes, and this one waits as though none were up.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, int64_t nowMs, bool isAtPointer)
 {
     bool  wasAtPointer = m_isPointerTip;
+    bool  wasInstant   = m_isInstant;
 
 
 
     m_isInstant        = false;
     m_isNextPointerTip = isAtPointer;
+
+    if (m_visible && wasInstant)
+    {
+        HideImmediate();
+    }
 
     if (m_visible)
     {
