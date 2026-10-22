@@ -211,6 +211,53 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerDragOut::DescribeCopyFailure
+//
+//  The clipboard cannot be opened while another program has it open, and
+//  in a session that is locked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerDragOut::DescribeCopyFailure (HRESULT hr)
+{
+    std::wstring  text;
+
+
+
+    if (hr == CLIPBRD_E_CANT_OPEN || hr == CLIPBRD_E_CANT_EMPTY || hr == CLIPBRD_E_CANT_SET || hr == CLIPBRD_E_CANT_CLOSE)
+    {
+        text = L"the clipboard could not be opened. Another program may have it open, or Windows may be locked.";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE) || hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT))
+    {
+        text = L"the Apple stopped answering while its files were read.";
+    }
+    else
+    {
+        text = TextEncoding::NarrowToWide (std::system_category().message ((int) hr));
+
+        while (!text.empty() && (text.back() == L'.' || text.back() == L'\r' || text.back() == L'\n' || text.back() == L' '))
+        {
+            text.pop_back();
+        }
+
+        if (!text.empty())
+        {
+            text[0] = (wchar_t) towlower (text[0]);
+        }
+
+        text = text.empty() ? std::format (L"error 0x{:08X}.", (uint32_t) hr) : text + L".";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerDragOut::MakeFileGroupDescriptor
 //
 ////////////////////////////////////////////////////////////////////////////////

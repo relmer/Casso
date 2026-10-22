@@ -625,7 +625,7 @@ void CassoLinkSession::Run (std::stop_token stop)
         {
             hr = m_host->ServeOne (kIdlePollMs);
 
-            m_lostReason = FAILED (hr)                          ? std::format ("the line failed with 0x{:08X}", (uint32_t) hr)
+            m_lostReason = FAILED (hr)                          ? DescribeLineFailure (hr)
                          : (m_host->GetSilenceMs() > kSilenceMs) ? std::format ("no packet in {} seconds", kSilenceMs / 1000)
                          : IsPeerGone()                          ? std::string ("DSR went off, the Apple's DTR on most cables")
                                                                  : std::string();
@@ -2084,4 +2084,51 @@ bool CassoLinkSession::IsSameCatalog (const VolumeListing & a, const VolumeListi
 bool CassoLinkSession::IsLineLost (HRESULT hr)
 {
     return hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT) || hr == HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::DescribeLineFailure
+//
+//  The system's text for an error starts with a capital and ends with a
+//  period, so it is fitted into the sentence it ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkSession::DescribeLineFailure (HRESULT hr)
+{
+    std::string  text;
+
+
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE) || hr == HRESULT_FROM_WIN32 (WSAECONNRESET) || hr == HRESULT_FROM_WIN32 (ERROR_NETNAME_DELETED))
+    {
+        text = "the connection closed";
+    }
+    else if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT))
+    {
+        text = "no reply";
+    }
+    else
+    {
+        text = std::system_category().message ((int) hr);
+
+        while (!text.empty() && (text.back() == '.' || text.back() == '\r' || text.back() == '\n' || text.back() == ' '))
+        {
+            text.pop_back();
+        }
+
+        if (!text.empty())
+        {
+            text[0] = (char) tolower ((unsigned char) text[0]);
+        }
+
+        text = text.empty() ? std::format ("the line failed with 0x{:08X}", (uint32_t) hr) : "the line failed: " + text;
+    }
+
+    return text;
 }

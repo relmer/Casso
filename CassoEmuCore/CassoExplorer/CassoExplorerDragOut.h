@@ -39,6 +39,11 @@ public:
     //  moved, so every file is read before the clipboard is set.
     static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style);
 
+    //  Why CopyToClipboard failed, as the end of a sentence: the clipboard
+    //  in use, the Apple gone while its files were read, or the system's
+    //  text for any other error.
+    static std::wstring  DescribeCopyFailure (HRESULT hr);
+
     //  The selected files written to a folder of their own under the user's
     //  temporary folder, as Explorer opens a file inside a zip: each by the
     //  name a copy out would give it.

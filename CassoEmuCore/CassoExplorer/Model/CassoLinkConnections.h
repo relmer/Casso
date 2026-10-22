@@ -180,8 +180,8 @@ public:
     static constexpr int  kUthernetSlot = 3;
 
     //  A connection's name when none is given: COM3, Casso on port 6502,
-    //  Wi-Fi modem on port 6400, Uthernet II at 192.168.1.20 port 6502, or
-    //  TCP and the address, with no colon.
+    //  Wi-Fi modem on port 6400, Uthernet II at 192.168.1.20:6502, or TCP
+    //  and the address.
     static std::string   DescribeConnection (const CassoLinkSettings & settings);
 
     //  This PC's DNS host name.
@@ -211,6 +211,7 @@ private:
         std::unique_ptr<Sink>                                      sink;
         std::unique_ptr<CassoLinkSession>                          session;
         std::map<std::string, std::shared_ptr<LinkOperation>>      requests;
+        bool                                                       connected = false;   // as ProbeDrives last found it
     };
 
     static std::string  MakeKey (int drive, const std::string & path, bool file);

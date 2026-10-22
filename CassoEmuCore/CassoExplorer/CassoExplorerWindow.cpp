@@ -12583,7 +12583,7 @@ void CassoExplorerWindow::CopyEntriesToClipboard (HostFileNaming::Style style)
 
     if (FAILED (hr))
     {
-        ShowMessage (L"The files could not be copied.", MB_ICONWARNING);
+        ShowMessage (L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr), MB_ICONWARNING);
     }
 }
 

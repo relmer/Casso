@@ -139,7 +139,7 @@ std::string CassoLinkConnections::DescribeConnection (const CassoLinkSettings & 
         case LinkTransport::Serial:    return settings.port.empty() ? std::string ("Serial") : std::format ("Serial on {}", settings.port);
         case LinkTransport::Emulated:  return port.empty() ? std::string ("Casso") : std::format ("Casso on port {}", port);
         case LinkTransport::WifiModem: return port.empty() ? std::string ("Wi-Fi modem") : std::format ("Wi-Fi modem on port {}", port);
-        case LinkTransport::Uthernet:  return host.empty() ? std::string ("Uthernet II") : port.empty() ? std::format ("Uthernet II at {}", host) : std::format ("Uthernet II at {} port {}", host, port);
+        case LinkTransport::Uthernet:  return settings.address.empty() ? std::string ("Uthernet II") : std::format ("Uthernet II at {}", settings.address);
         default:                       return port.empty() ? std::format ("TCP {}", host) : std::format ("TCP {} port {}", host, port);
     }
 }
@@ -575,10 +575,28 @@ void CassoLinkConnections::ProbeDrives()
 
     for (const std::unique_ptr<Link> & link : m_started)
     {
-        LinkState  state = link->session->GetState();
-        Byte       map   = link->session->GetDriveMap();
+        LinkState  state     = link->session->GetState();
+        Byte       map       = link->session->GetDriveMap();
+        bool       connected = state == LinkState::Ready || state == LinkState::Busy;
+        bool       again     = connected && !link->connected;
 
-        if (state != LinkState::Ready && state != LinkState::Busy)
+        link->connected = connected;
+
+        //  A link connected again drops the reads that finished before:
+        //  they may have failed with the line, and the Apple's disks may
+        //  have changed while it was gone. A drive read then has its volume
+        //  again, for its row and Write image's confirmation.
+        if (again)
+        {
+            std::erase_if (link->requests, [] (const auto & request)
+            {
+                LinkOperationState  done = request.second->state;
+
+                return done != LinkOperationState::Queued && done != LinkOperationState::Running;
+            });
+        }
+
+        if (!connected)
         {
             continue;
         }

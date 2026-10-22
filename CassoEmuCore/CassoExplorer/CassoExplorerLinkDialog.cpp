@@ -190,9 +190,17 @@ std::wstring CassoExplorerLinkChoices::ValidateName (const std::wstring & name, 
 
 
 
-    if (name.find_first_of (L"\\|:") != std::wstring::npos)
+    //  A backslash separates the name from its drives in the address bar, a
+    //  bar ends it in the tree's ids, and a letter and a colon at the start
+    //  would be read in the address bar as a PC drive. Any other colon is
+    //  allowed, as in an address.
+    if (name.find_first_of (L"\\|") != std::wstring::npos)
     {
-        error = L"A connection's name cannot contain \\, | or :.";
+        error = L"A connection's name cannot contain \\ or |.";
+    }
+    else if (name.size() >= 2 && iswalpha (name[0]) && name[1] == L':')
+    {
+        error = L"A connection's name cannot start with a drive letter and a colon.";
     }
     else if (taken)
     {

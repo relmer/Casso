@@ -257,6 +257,10 @@ public:
     //  D2 (/GAMES) or D2 (VOL 254), once its catalog is read; the label has 38 characters.
     static std::string  DescribeDrive     (int drive, const std::optional<VolumeListing> & listing);
 
+    //  Why the line failed, for the activity log and the status bar: the
+    //  connection closed, no reply, or the system's text for any other error.
+    static std::string  DescribeLineFailure (HRESULT hr);
+
 private:
     //  A drive's sectors over the link, for its LinkedDisk.
     class DriveSource : public ILinkedSectorSource

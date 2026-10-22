@@ -5,7 +5,9 @@
 #include "../CassoLink/InMemoryCassoLinkFolder.h"
 #include "../EmuTests/FakeDiskFileIo.h"
 #include "CassoLink/CassoLinkCodec.h"
+#include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
+#include "CassoLink/CassoLinkSession.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -389,6 +391,55 @@ public:
 
     //  A line that closes or goes quiet during an operation is reported as
     //  that, not as the Apple failing the operation.
+    //  A link connected again reads its drives again, so a disk changed while
+    //  it was gone has its own volume on the drive's row.
+    TEST_METHOD (ALinkConnectedAgain_ReadsItsDrivesAgain)
+    {
+        Rig                         rig;
+        std::vector<LinkTreeEntry>  entries;
+        std::vector<Byte>           other (NibblizationLayer::kImageByteSize, 0);
+        auto                        until = std::chrono::steady_clock::now() + std::chrono::seconds (30);
+
+        auto  volumeOf = [&rig, &entries] () -> std::wstring
+        {
+            rig.links->ProbeDrives();
+            entries = rig.links->BuildTreeEntries();
+            return entries[0].drives.empty() ? std::wstring() : entries[0].drives[0].volume;
+        };
+
+        AssertSucceeded (rig.links->Start ("Test"));
+
+        while (volumeOf() != L"DOS 3.3 volume 200" && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+
+        Assert::AreEqual (std::wstring (L"DOS 3.3 volume 200"), volumeOf());
+
+        rig.apple.Detach();
+
+        while (entries[0].replying && std::chrono::steady_clock::now() < until)
+        {
+            volumeOf();
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+
+        Assert::IsFalse (entries[0].replying, L"the line is lost");
+
+        AssertSucceeded (Dos33Skeleton::Write (other, 201));
+        rig.apple.drives[0] = other;
+
+        while (volumeOf() != L"DOS 3.3 volume 201" && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+
+        Assert::AreEqual (std::wstring (L"DOS 3.3 volume 201"), volumeOf(), L"the drive read again once connected again");
+    }
+
+
+
+
     TEST_METHOD (AFailure_FromALostLine_GivesTheReason)
     {
         LinkOperation  operation;
@@ -399,5 +450,25 @@ public:
 
         operation.result = HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
         Assert::AreEqual (std::wstring (L"Drive 2: the Apple stopped answering."), CassoLinkConnections::DescribeFailure (operation));
+    }
+
+
+
+
+    TEST_METHOD (ALostLine_IsDescribedInWords)
+    {
+        Assert::AreEqual (std::string ("the connection closed"), CassoLinkSession::DescribeLineFailure (HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE)));
+        Assert::AreEqual (std::string ("no reply"),              CassoLinkSession::DescribeLineFailure (HRESULT_FROM_WIN32 (ERROR_TIMEOUT)));
+        Assert::IsTrue   (CassoLinkSession::DescribeLineFailure (E_ACCESSDENIED).starts_with ("the line failed: access is denied"));
+    }
+
+
+
+
+    TEST_METHOD (AFailedCopy_SaysWhy)
+    {
+        Assert::IsTrue (CassoExplorerDragOut::DescribeCopyFailure (CLIPBRD_E_CANT_OPEN).starts_with (L"the clipboard could not be opened."));
+        Assert::IsTrue (CassoExplorerDragOut::DescribeCopyFailure (HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE)).starts_with (L"the Apple stopped answering"));
+        Assert::AreEqual (std::wstring (L"access is denied."), CassoExplorerDragOut::DescribeCopyFailure (E_ACCESSDENIED));
     }
 };
