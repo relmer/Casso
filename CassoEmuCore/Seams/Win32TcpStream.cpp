@@ -97,6 +97,8 @@ HRESULT Win32TcpStream::Connect (const std::string & host, uint16_t port, std::s
     int           error    = 0;
     int           size     = sizeof (error);
     ULONGLONG     deadline = 0;
+    bool          stopped  = false;
+    bool          late     = false;
 
 
 
@@ -117,15 +119,19 @@ HRESULT Win32TcpStream::Connect (const std::string & host, uint16_t port, std::s
     CWR (result == 0);
 
     result = ::connect (client, found->ai_addr, (int) found->ai_addrlen);
-    CBREx (result == 0 || WSAGetLastError() == WSAEWOULDBLOCK, HRESULT_FROM_WIN32 (WSAGetLastError()));
+    error  = (result == 0) ? 0 : WSAGetLastError();
+    CBREx (result == 0 || error == WSAEWOULDBLOCK, HRESULT_FROM_WIN32 (error));
 
     deadline = GetTickCount64() + s_kConnectTimeoutMs;
 
     //  Writable means the connect ended; SO_ERROR is how it ended.
     while (result != 0)
     {
-        CBREx (!stop.stop_requested(), HRESULT_FROM_WIN32 (ERROR_CANCELLED));
-        CBREx (GetTickCount64() < deadline, HRESULT_FROM_WIN32 (WSAETIMEDOUT));
+        stopped = stop.stop_requested();
+        late    = GetTickCount64() >= deadline;
+
+        CBREx (!stopped, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+        CBREx (!late, HRESULT_FROM_WIN32 (WSAETIMEDOUT));
 
         poll   = { client, POLLWRNORM, 0 };
         result = WSAPoll (&poll, 1, s_kConnectSliceMs);

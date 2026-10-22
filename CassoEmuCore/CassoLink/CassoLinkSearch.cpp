@@ -33,9 +33,10 @@ HRESULT CassoLinkSearch::Find (IByteStreamFactory & factory, const ComSettings &
         for (DWORD speed : speeds)
         {
             std::unique_ptr<IByteStream>  stream;
-            HRESULT                       opened = S_OK;
+            HRESULT                       opened  = S_OK;
+            bool                          stopped = stop.stop_requested();
 
-            CBREx (!stop.stop_requested(), HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+            CBREx (!stopped, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
             opening.baud = speed;
             opened       = factory.OpenComPort (port, opening, stream);
