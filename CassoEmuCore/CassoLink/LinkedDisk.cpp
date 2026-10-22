@@ -130,10 +130,15 @@ HRESULT LinkedDisk::Run (const ReadOperation & operation)
 //
 //  LinkedDisk::Write
 //
-//  The write's buffer is compared with the disk's sector by sector; a
-//  sector the write left as it was is not sent. The catalog's sectors go
-//  last, so a write that fails partway leaves no catalog entry or free map
-//  that points at data never written.
+//  A sector that was read is sent when the write changed it; one that was
+//  not is sent when the write filled it (see FindWritten). They go in three
+//  passes: the sectors not read, which are new data and new index or
+//  directory blocks; then the other changed sectors; then the catalog's.
+//  After a write that fails partway, no catalog entry, free map or directory
+//  on the disk points at data never written.
+//
+//  A failed send clears the buffer: the sectors already written differ from
+//  it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,20 +146,19 @@ HRESULT LinkedDisk::Write (const WriteOperation & operation, std::vector<size_t>
 {
     HRESULT              hr      = S_OK;
     std::vector<Byte>    result;
-    std::vector<size_t>  catalog = GetCatalogSectors (m_kind);
-    bool                 sized   = false;
+    std::vector<bool>    written;
+    std::vector<size_t>  catalog;
 
 
 
     outSent.clear();
 
-    hr = RunRounds ([&] (const IVolume & volume) { return operation (volume, result); });
+    hr = FindWritten (operation, result, written);
     CHR (hr);
 
-    sized = result.size() == m_sectors.size();
-    CBREx (sized, E_UNEXPECTED);
+    catalog = GetCatalogSectors (m_kind);
 
-    for (bool last : { false, true })
+    for (int pass = 0; pass < 3; pass++)
     {
         std::vector<size_t>  part;
         std::vector<Byte>    data;
@@ -163,8 +167,12 @@ HRESULT LinkedDisk::Write (const WriteOperation & operation, std::vector<size_t>
         {
             auto  from      = result.begin() + (ptrdiff_t) (sector * kSectorSize);
             bool  isCatalog = std::find (catalog.begin(), catalog.end(), sector) != catalog.end();
+            int   group     = isCatalog ? 2 : (m_present[sector] ? 1 : 0);
+            bool  changed   = m_present[sector]
+                            ? !std::equal (from, from + (ptrdiff_t) kSectorSize, m_sectors.begin() + (ptrdiff_t) (sector * kSectorSize))
+                            : written[sector];
 
-            if (isCatalog == last && !std::equal (from, from + (ptrdiff_t) kSectorSize, m_sectors.begin() + (ptrdiff_t) (sector * kSectorSize)))
+            if (changed && group == pass)
             {
                 part.push_back (sector);
                 data.insert (data.end(), from, from + (ptrdiff_t) kSectorSize);
@@ -174,7 +182,7 @@ HRESULT LinkedDisk::Write (const WriteOperation & operation, std::vector<size_t>
         if (!part.empty())
         {
             hr = m_source.WriteSectors (part, data);
-            CHR (hr);
+            CHRF (hr, Clear());
         }
 
         outSent.insert (outSent.end(), part.begin(), part.end());
@@ -186,6 +194,92 @@ HRESULT LinkedDisk::Write (const WriteOperation & operation, std::vector<size_t>
     {
         m_present[sector] = true;
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkedDisk::FindWritten
+//
+//  Runs the write until it reads nothing absent, then once more over a copy
+//  whose absent sectors are kProbeFill rather than zeros. An absent sector
+//  that comes out the same from both runs is written; one that comes out as
+//  each run's own fill is untouched. One that is neither was read in part
+//  after all, so it is fetched and the write runs again, as is anything the
+//  second run read that the first did not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkedDisk::FindWritten (const WriteOperation & operation, std::vector<Byte> & outResult, std::vector<bool> & outWritten)
+{
+    HRESULT              hr     = S_OK;
+    std::vector<Byte>    probe;
+    std::vector<Byte>    probed;
+    std::vector<size_t>  partly;
+    bool                 sized  = false;
+    int                  round  = 0;
+
+
+
+    for (round = 0; round < kMaxRounds; round++)
+    {
+        hr = RunRounds ([&] (const IVolume & volume) { return operation (volume, outResult); });
+        CHR (hr);
+
+        sized = outResult.size() == m_sectors.size();
+        CBREx (sized, E_UNEXPECTED);
+
+        probe = m_sectors;
+
+        for (size_t sector = 0; sector < kSectorCount; sector++)
+        {
+            if (!m_present[sector])
+            {
+                std::fill_n (probe.begin() + (ptrdiff_t) (sector * kSectorSize), kSectorSize, kProbeFill);
+            }
+        }
+
+        m_misses.clear();
+        hr = RunOn (probe, [&] (const IVolume & volume) { return operation (volume, probed); });
+        CHR (hr);
+
+        sized = probed.size() == m_sectors.size();
+        CBREx (sized, E_UNEXPECTED);
+
+        partly = m_misses;
+        outWritten.assign (kSectorCount, false);
+
+        for (size_t sector = 0; sector < kSectorCount; sector++)
+        {
+            auto  first   = outResult.begin() + (ptrdiff_t) (sector * kSectorSize);
+            auto  second  = probed.begin()    + (ptrdiff_t) (sector * kSectorSize);
+            bool  same    = std::equal (first, first + (ptrdiff_t) kSectorSize, second);
+            bool  zeros   = std::all_of (first,  first  + (ptrdiff_t) kSectorSize, [] (Byte b) { return b == 0; });
+            bool  filled  = std::all_of (second, second + (ptrdiff_t) kSectorSize, [] (Byte b) { return b == kProbeFill; });
+
+            if (!m_present[sector] && same)
+            {
+                outWritten[sector] = true;
+            }
+            else if (!m_present[sector] && !(zeros && filled))
+            {
+                partly.push_back (sector);
+            }
+        }
+
+        BAIL_OUT_IF (partly.empty(), S_OK);
+
+        hr = Fetch (partly);
+        CHR (hr);
+    }
+
+    CBREx (false, HRESULT_FROM_WIN32 (ERROR_RETRY));
 
 Error:
     return hr;
@@ -291,20 +385,7 @@ HRESULT LinkedDisk::RunRounds (const std::function<HRESULT (const IVolume & volu
     {
         m_misses.clear();
 
-        if (m_kind == VolumeKind::Dos33)
-        {
-            Dos33Volume  volume (m_sectors);
-
-            volume.SetReadObserver (this);
-            result = operation (volume);
-        }
-        else
-        {
-            ProDosVolume  volume (m_sectors);
-
-            volume.SetReadObserver (this);
-            result = operation (volume);
-        }
+        result = RunOn (m_sectors, operation);
 
         BAIL_OUT_IF (m_misses.empty(), result);
 
@@ -315,5 +396,41 @@ HRESULT LinkedDisk::RunRounds (const std::function<HRESULT (const IVolume & volu
     CBREx (false, HRESULT_FROM_WIN32 (ERROR_RETRY));
 
 Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkedDisk::RunOn
+//
+//  The operation's result, over a volume of the disk's kind on `sectors`.
+//  A read of a sector not here is added to the miss list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkedDisk::RunOn (const std::vector<Byte> & sectors, const std::function<HRESULT (const IVolume & volume)> & operation)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_kind == VolumeKind::Dos33)
+    {
+        Dos33Volume  volume (sectors);
+
+        volume.SetReadObserver (this);
+        hr = operation (volume);
+    }
+    else
+    {
+        ProDosVolume  volume (sectors);
+
+        volume.SetReadObserver (this);
+        hr = operation (volume);
+    }
+
     return hr;
 }

@@ -201,11 +201,68 @@ public:
 
         std::sort (sorted.begin(), sorted.end());
 
-        Assert::IsTrue (sorted == changed, L"exactly the sectors the write changed");
+        Assert::IsTrue (std::includes (sorted.begin(), sorted.end(), changed.begin(), changed.end()), L"every sector the write changed");
+        Assert::IsTrue (sorted.size() < changed.size() + 4, L"and the few it filled with what was there");
         Assert::IsTrue (std::all_of (first, sent.end(), [&] (size_t s) { return std::find (catalog.begin(), catalog.end(), s) != catalog.end(); }),
                         L"the catalog's sectors after the data's");
         Assert::AreEqual (2, drive.writes, L"the data, then the catalog");
         Assert::IsTrue (drive.image == expected, L"the drive has the written volume");
+    }
+
+    //  On a used disk, a new file goes in sectors a deleted file left its
+    //  bytes in, and the write fills them without reading them. The sectors
+    //  it fills with zeros -- a run of zeros in the file, the high half of a
+    //  ProDOS index block -- must be sent too, or the old bytes stay.
+    static void  CheckWriteOverFreedSectors (const std::vector<Byte> & image)
+    {
+        FakeDrive            drive;
+        LinkedDisk           disk (drive);
+        std::vector<Byte>    freed;
+        std::vector<Byte>    expected;
+        std::vector<size_t>  sent;
+        FilePayload          payload = Binary (6, 1024, 9);
+        bool                 dos33   = VolumeImage::DetectFilesystem (image) == VolumeKind::Dos33;
+
+        std::fill (payload.bytes.begin() + 256, payload.bytes.begin() + 768, (Byte) 0);
+
+        if (dos33)
+        {
+            payload.type = Dos33Volume::kTypeBinary;
+            AssertSucceeded (Dos33Volume (image).Delete (FilePath::Parse ("SECOND"), freed));
+            AssertSucceeded (Dos33Volume (freed).Write (FilePath::Parse ("FOURTH"), payload, expected));
+        }
+        else
+        {
+            AssertSucceeded (ProDosVolume (image).Delete (FilePath::Parse ("SECOND"), freed));
+            AssertSucceeded (ProDosVolume (freed).Write (FilePath::Parse ("FOURTH"), payload, expected));
+        }
+
+        drive.image = freed;
+
+        AssertSucceeded (disk.Write ([&] (const IVolume & volume, std::vector<Byte> & outBuffer) { return volume.Write (FilePath::Parse ("FOURTH"), payload, outBuffer); }, sent));
+
+        Assert::IsTrue (drive.image == expected, L"the drive has the written volume, with no old bytes left in the new file");
+    }
+
+    //  After a write whose sending fails partway, the drive's disk is unknown.
+    static void  CheckFailedWriteClears (const std::vector<Byte> & image)
+    {
+        struct FailingDrive : FakeDrive
+        {
+            HRESULT  WriteSectors (std::span<const size_t>, std::span<const Byte>) override { return HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE); }
+        };
+
+        FailingDrive         drive;
+        LinkedDisk           disk (drive);
+        std::vector<size_t>  sent;
+        FilePayload          payload = Binary (6, 700, 9);
+
+        drive.image  = image;
+        payload.type = VolumeImage::DetectFilesystem (image) == VolumeKind::Dos33 ? Dos33Volume::kTypeBinary : (Byte) 6;
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BROKEN_PIPE),
+                          disk.Write ([&] (const IVolume & volume, std::vector<Byte> & outBuffer) { return volume.Write (FilePath::Parse ("FOURTH"), payload, outBuffer); }, sent));
+        Assert::IsTrue (disk.GetKind() == VolumeKind::Unknown, L"read again next time");
     }
 
 
@@ -242,6 +299,31 @@ public:
     TEST_METHOD (ProDos_WriteSendsOnlyTheSectorsItChanged)
     {
         CheckWrite (BuildProDos());
+    }
+
+
+
+
+    TEST_METHOD (Dos33_WriteOverFreedSectors_SendsTheZerosItWrote)
+    {
+        CheckWriteOverFreedSectors (BuildDos33());
+    }
+
+
+
+
+    TEST_METHOD (ProDos_WriteOverFreedSectors_SendsTheZerosItWrote)
+    {
+        CheckWriteOverFreedSectors (BuildProDos());
+    }
+
+
+
+
+    TEST_METHOD (AFailedWrite_ClearsTheBuffer)
+    {
+        CheckFailedWriteClears (BuildDos33());
+        CheckFailedWriteClears (BuildProDos());
     }
 
 

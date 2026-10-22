@@ -48,7 +48,14 @@ public:
 //  rounds rather than a whole disk.
 //
 //  A write runs the same way, then sends only the sectors whose bytes it
-//  changed.
+//  changed, and every sector not read that it wrote: a sector a volume
+//  allocates is filled without being read, and zeros written there match
+//  the zeros of a sector not read. Those are found by running the write
+//  again with the sectors not read filled with another byte; a sector the
+//  write filled comes out the same both times.
+//
+//  After a write that fails partway the drive's disk is unknown, so the
+//  buffer is cleared and read again by the next operation.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,9 +86,10 @@ public:
     //  last run's.
     HRESULT  Run   (const ReadOperation & operation);
 
-    //  Runs `operation` the same way and sends the sectors its buffer
-    //  changed; the buffer then becomes the disk's sectors. outSent is the
-    //  sectors sent.
+    //  Runs `operation` the same way and sends the sectors it wrote: new
+    //  data first, then the other sectors it changed, then the catalog's.
+    //  The buffer then becomes the disk's sectors. outSent is the sectors
+    //  sent.
     HRESULT  Write (const WriteOperation & operation, std::vector<size_t> & outSent);
 
     //  Fetches the given sectors that are absent, in one request.
@@ -96,7 +104,12 @@ public:
     void     OnSectorRead (size_t sector) override;
 
 private:
-    HRESULT  RunRounds (const std::function<HRESULT (const IVolume & volume)> & operation);
+    //  The byte the sectors not read are filled with for the second run.
+    static constexpr Byte  kProbeFill = 0xA5;
+
+    HRESULT  RunRounds   (const std::function<HRESULT (const IVolume & volume)> & operation);
+    HRESULT  RunOn       (const std::vector<Byte> & sectors, const std::function<HRESULT (const IVolume & volume)> & operation);
+    HRESULT  FindWritten (const WriteOperation & operation, std::vector<Byte> & outResult, std::vector<bool> & outWritten);
 
     ILinkedSectorSource     & m_source;
     std::vector<Byte>         m_sectors;
