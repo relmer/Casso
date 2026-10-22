@@ -358,7 +358,12 @@ Findings:
 Findings 1 to 3 are fixed in `d42ab1b99`, with tests: the name is `Uthernet
 II at 127.0.0.1 port 6502`; the row reads `SLOT 2, 115200` on a card; and the
 W5100 builds set bit 7 of Ready's shim version, from which the host chooses
-the program. Findings 4 to 6 are open.
+the program. Findings 4 to 6 are fixed in `b0ba858d4`, with tests: a link connected
+again reads its drives again, so the confirmation has the volume; a failed
+Copy's message has its reason, such as the clipboard that could not be
+opened; and the status bar reads `the connection closed` when the line closes. The name in finding 1 is now
+`Uthernet II at 127.0.0.1:6502`, since a link's name may contain a colon
+that does not follow a drive letter at the start.
 
 ### File Explorer's menus beside Casso Explorer's, 2026-10-18
 
