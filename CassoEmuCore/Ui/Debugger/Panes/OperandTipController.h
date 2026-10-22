@@ -122,7 +122,12 @@ public:
 
     //  A color tip over a cell is placed below the operand and result where
     //  they lie whole over their cell, rather than over their lines.
-    RECT                 GetColorTipAnchor (const RECT & cell) const { return m_hasTip ? m_layout.rect : cell; }
+    //  Below the whole tip, from the cell's left: an L-shaped tip's rect
+    //  starts at the pane's edge, and the color tip is about the cell.
+    RECT                 GetColorTipAnchor (const RECT & cell) const
+    {
+        return m_hasTip ? RECT { m_layout.firstLeft, m_layout.rect.top, m_layout.rect.right, m_layout.rect.bottom } : cell;
+    }
 
     //  The renderer and screen the tip is measured with in a window that
     //  has no HWND, as a test builds it.

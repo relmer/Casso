@@ -72,9 +72,10 @@ bool OperandResultTip::TryMakeLayout (
     doesFit = TryWrapOnScreen (text, placement, (float) (cellRight - placement.padRightPx - textLeft), layout, widestPx);
     CBR (doesFit);
 
-    layout.fill   = MakeFill   (cell, placement.rowFill, placement.contentBackground);
-    layout.colors = MakeColors (cell, placement.ink, layout.fill);
-    layout.rect   = PlaceRect  (placement, layout, cellRight, widestPx);
+    layout.fill      = MakeFill   (cell, placement.rowFill, placement.contentBackground);
+    layout.colors    = MakeColors (cell, placement.ink, layout.fill);
+    layout.rect      = PlaceRect  (placement, layout, cellRight, widestPx);
+    layout.firstLeft = (std::max) ({ textLeft - placement.padLeftPx, placement.visibleLeft, (int) placement.workArea.left });
 
     out    = std::move (layout);
     isMade = true;
@@ -98,6 +99,7 @@ bool OperandResultTip::IsSame (
     const Layout  & b)
 {
     return a.rect.left    == b.rect.left    &&
+           a.firstLeft    == b.firstLeft    &&
            a.rect.top     == b.rect.top     &&
            a.rect.right   == b.rect.right   &&
            a.rect.bottom  == b.rect.bottom  &&
@@ -121,8 +123,10 @@ bool OperandResultTip::IsSame (
 //
 //  OperandResultTip::Paint
 //
-//  The popup is cleared to the layout's fill before this runs, so only the
-//  outline and the text are drawn.
+//  A rectangular tip's popup is cleared to the layout's fill before this
+//  runs, so only the outline and the text are drawn. An L-shaped tip's is
+//  cleared to transparent, so its row's own columns show left of its first
+//  line, and the fill is drawn here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,10 +139,32 @@ void OperandResultTip::Paint (
     float  height = (float) (layout.rect.bottom - layout.rect.top);
     float  x      = (float) (layout.textOrigin.x - layout.rect.left);
     float  y      = (float) (layout.textOrigin.y - layout.rect.top);
+    float  step   = (float) (layout.firstLeft - layout.rect.left);
+    float  below  = y + (float) layout.lineHeight;
+    float  edge   = (float) kBorderPx;
 
 
 
-    painter.OutlineRect (0.0f, 0.0f, width, height, (float) kBorderPx, layout.border);
+    if (!IsShaped (layout))
+    {
+        painter.OutlineRect (0.0f, 0.0f, width, height, edge, layout.border);
+    }
+    else
+    {
+        //  The first line from the cell's left, the lines below it across
+        //  the pane; then the L's six edges. The step's edge runs one pixel
+        //  past the first line's left edge, which ends at the step, to close
+        //  the corner between them.
+        painter.FillRect (step, 0.0f,  width - step, below,          layout.fill);
+        painter.FillRect (0.0f, below, width,        height - below, layout.fill);
+
+        painter.FillRect (step,         0.0f,          width - step, edge,           layout.border);
+        painter.FillRect (width - edge, 0.0f,          edge,         height,         layout.border);
+        painter.FillRect (0.0f,         height - edge, width,        edge,           layout.border);
+        painter.FillRect (0.0f,         below,         edge,         height - below, layout.border);
+        painter.FillRect (0.0f,         below,         step + edge,  edge,           layout.border);
+        painter.FillRect (step,         0.0f,          edge,         below,          layout.border);
+    }
 
     for (const Line & line : layout.lines)
     {
@@ -303,6 +329,10 @@ bool OperandResultTip::TryWrapOnScreen (
 //  what the list draws. The cell's padding and the outline give way at the
 //  pane's edge and the screen's.
 //
+//  The lines after the first start at the pane's left edge instead, so the
+//  rows they lie on show nothing of their own beside the tip's text; the
+//  layout's firstLeft keeps the cell's left for the first line.
+//
 //  Its width and height are ones its popup comes up at exactly, larger where
 //  the screen has room and smaller where it does not, so no strip of the
 //  popup's fill shows past the outline.
@@ -322,6 +352,12 @@ RECT OperandResultTip::PlaceRect (
 
 
     rect.left   = (std::max) ({ textLeft - placement.padLeftPx, placement.visibleLeft, (int) placement.workArea.left });
+
+    if (layout.lines.size() > 1)
+    {
+        rect.left = (std::max) (placement.visibleLeft, (int) placement.workArea.left);
+    }
+
     rect.top    = (std::max) ((int) layout.textOrigin.y - kBorderPx, (int) placement.workArea.top);
     rect.right  = (std::min) ((std::max) (cellRight, textRight), (int) placement.workArea.right);
     rect.bottom = GetBottomPx (layout);

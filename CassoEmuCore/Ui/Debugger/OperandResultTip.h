@@ -52,9 +52,15 @@ public:
     };
 
     //  The tip in the window's pixels, and all its paint needs.
+    //  A tip of more than one line covers the lines after its first from the
+    //  pane's left edge, so a wrapped line shows only the tip's text and not
+    //  the address, bytes and mnemonic of the row it lies on. Its first line
+    //  starts at the cell, leaving its own row's columns in view: the tip is
+    //  an L, `rect` its bounds and `firstLeft` where its first line starts.
     struct Layout
     {
         RECT                     rect       = {};
+        int                      firstLeft  = 0;
         POINT                    textOrigin = {};
         int                      lineHeight = 0;
         float                    fontPx     = 0.0f;
@@ -82,8 +88,13 @@ public:
     static bool  IsSame        (const Layout & a, const Layout & b);
 
     //  The tip's outline and lines, its top left at the origin, as a popup's
-    //  content is drawn.
+    //  content is drawn. An L-shaped tip also draws its own fill, on a popup
+    //  cleared to transparent.
     static void  Paint         (const Layout & layout, IDxuiPainter & painter, IDxuiTextRenderer & text);
+
+    //  Whether the tip is an L rather than a rectangle: its first line starts
+    //  right of the lines after it.
+    static bool  IsShaped      (const Layout & layout) { return layout.firstLeft > layout.rect.left; }
 
     //  The size, in pixels, of a popup sized `px` pixels once that size has
     //  been through DIPs and back at `dpi`, as an in-place tip's is.

@@ -227,7 +227,7 @@ namespace OperandResultTipTests
 
             Assert::AreEqual ((LONG) kTextLeft,          layout.textOrigin.x, L"the text starts where the cell's does");
             Assert::AreEqual ((LONG) kRowTop,            layout.textOrigin.y, L"on the cell's row");
-            Assert::AreEqual ((LONG) (kTextLeft - kPadPx), layout.rect.left,  L"the cell's padding is ahead of it");
+            Assert::AreEqual ((LONG) (kTextLeft - kPadPx), (LONG) layout.firstLeft, L"the cell's padding is ahead of it");
             Assert::AreEqual ((LONG) (kRowTop - OperandResultTip::kBorderPx), layout.rect.top, L"the outline lies past the row above");
 
             //  Drawn with the tip's top left at the origin, as a popup is: the
@@ -336,6 +336,73 @@ namespace OperandResultTipTests
             Assert::AreEqual (std::wstring (L"A=00 X=01 Y=02 $1234=41 C=1"), GetLineText (layout, 0));
 
             Assert::AreEqual ((LONG) GetEdgeFor (30), layout.rect.right, L"the tip stops short of the pane's edge, and the cut text shows beside it");
+        }
+
+
+        //  T768: the lines a tip wraps onto are covered from the pane's left
+        //  edge, so they show only the tip's text; its first line starts at
+        //  the cell, leaving its own row's address and mnemonic in view.
+        TEST_METHOD (AWrappedTipCoversTheRowsBelowFromThePanesEdge)
+        {
+            constexpr int                   kPaneLeft = 20;
+            DxuiListView::Cell              cell      = MakeCell ("A=00 X=01 $1234=41", "A=41");
+            OperandResultTip::Placement     placement = MakePlacement (GetEdgeFor (30));
+            MockDxuiTextRenderer            text;
+            MockDxuiPainter                 painter;
+            OperandResultTip::Layout        layout;
+            std::vector<RecordedPaintCall>  fills;
+            float                           width     = 0.0f;
+            float                           below     = 0.0f;
+
+
+
+            placement.visibleLeft = kPaneLeft;
+
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (cell, placement, text, layout));
+            Assert::IsTrue   (layout.lines.size() > 1, L"the result wraps onto a line of its own");
+            Assert::AreEqual ((LONG) kPaneLeft, layout.rect.left, L"the lines below start at the pane's edge");
+            Assert::AreEqual (kTextLeft - kPadPx, layout.firstLeft, L"the first starts at the cell");
+            Assert::IsTrue   (OperandResultTip::IsShaped (layout));
+
+            OperandResultTip::Paint (layout, painter, text);
+
+            std::ranges::copy_if (painter.Calls(), std::back_inserter (fills), [&layout] (const RecordedPaintCall & call)
+            {
+                return call.kind == RecordedPaintKind::FillRect && call.argb == layout.fill;
+            });
+
+            width = (float) (layout.rect.right - layout.rect.left);
+            below = (float) (kRowTop + kRowHeight - layout.rect.top);
+
+            Assert::AreEqual ((size_t) 2, fills.size(), L"the first line's fill and the lines' below");
+            Assert::AreEqual ((float) (layout.firstLeft - kPaneLeft), fills[0].x, L"the first line's fill starts at the cell");
+            Assert::AreEqual (0.0f,  fills[0].y);
+            Assert::AreEqual (below, fills[0].height, L"to the bottom of the cell's row");
+            Assert::AreEqual (0.0f,  fills[1].x,      L"the lines below are filled from the pane's edge");
+            Assert::AreEqual (below, fills[1].y);
+            Assert::AreEqual (width, fills[1].width,  L"across the whole tip");
+        }
+
+
+        //  A tip of one line is the cell's rectangle, as it was.
+        TEST_METHOD (AOneLineTipStaysARectangle)
+        {
+            DxuiListView::Cell           cell      = MakeCell ("A=00 X=01 Y=02 $1234=41", "");
+            OperandResultTip::Placement  placement = MakePlacement (kScreenRight);
+            MockDxuiTextRenderer         text;
+            OperandResultTip::Layout     layout;
+
+
+
+            //  Cut off at twenty characters by its column, and widened to the
+            //  tip's least width, which holds all twenty-three.
+            placement.visibleLeft    = 20;
+            placement.textRect.right = GetEdgeFor (20);
+
+            Assert::IsTrue   (OperandResultTip::TryMakeLayout (cell, placement, text, layout));
+            Assert::AreEqual ((size_t) 1, layout.lines.size(), L"the operand fits the tip's least width on one line");
+            Assert::IsFalse  (OperandResultTip::IsShaped (layout));
+            Assert::AreEqual ((LONG) (kTextLeft - kPadPx), layout.rect.left, L"the cell's left, not the pane's");
         }
 
 
@@ -472,9 +539,10 @@ namespace OperandResultTipTests
             Assert::AreEqual ((float) kRowHeight, text.Calls()[1].y - text.Calls()[0].y, L"the result a row below");
             Assert::IsTrue   (text.Calls()[0].fontSizeDip == kFontPx, L"the cell's size");
 
-            Assert::IsFalse  (painter.Calls().empty(), L"the tip is outlined");
-            Assert::IsTrue   (painter.Calls()[0].kind == RecordedPaintKind::OutlineRect);
-            Assert::AreEqual (kBorder, painter.Calls()[0].argb);
+            //  Two lines, so an L: its fill drawn first, then its outline.
+            Assert::IsFalse  (painter.Calls().empty(), L"the tip is filled and outlined");
+            Assert::AreEqual (kPage, painter.Calls()[0].argb, L"the fill first");
+            Assert::IsTrue   (std::ranges::any_of (painter.Calls(), [] (const RecordedPaintCall & call) { return call.argb == kBorder; }), L"then the outline");
         }
 
 
@@ -968,6 +1036,7 @@ namespace OperandResultTipTests
             TipWindow             window (theme, host);
             MockDxuiTextRenderer  text;
             RECT                  under = {};
+            RECT                  tip   = {};
 
 
 
@@ -977,10 +1046,12 @@ namespace OperandResultTipTests
             //  color tip, which waits out its dwell.
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
             under = window.GetTooltip().GetPendingAnchor();
+            tip   = window.GetOperandTips().GetLayout().rect;
+            tip.left = window.GetOperandTips().GetLayout().firstLeft;
 
             Assert::IsTrue (window.GetOperandTips().HasTip());
             Assert::IsTrue (window.GetTooltip().WantsTick(), L"the operand's color tip is not on its way");
-            Assert::IsTrue (EqualRect (&under, &window.GetOperandTips().GetLayout().rect) != FALSE, L"the color tip is placed by its cell, under the operand tip");
+            Assert::IsTrue (EqualRect (&under, &tip) != FALSE, L"the color tip is placed by its cell, under the operand tip");
 
             //  A plain row's operand has neither tip: the operand's colors are
             //  on the column's heading.
@@ -1082,6 +1153,47 @@ namespace OperandResultTipTests
 
             Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
             Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip of the row above lies over the selection");
+        }
+
+
+        //  Below its first line the tip covers the whole row, so a selection
+        //  in another column of a row it wraps over takes it away too (T768).
+        TEST_METHOD (NoTipCoversTextSelectedInAnyColumnOfARowItWrapsOver)
+        {
+            CassoTheme            theme  = CassoTheme::MakeSkeuomorphic();
+            TipHost               host;
+            TipWindow             window (theme, host);
+            MockDxuiTextRenderer  text;
+            DxuiListView        * list   = nullptr;
+            RECT                  bounds = {};
+            RECT                  cell   = {};
+            DxuiMouseEvent        ev;
+
+
+
+            Build (window, theme, text);
+            list   = window.GetCodeList (0);
+            bounds = list->GetBounds();
+
+            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
+            Assert::IsTrue (window.GetOperandTips().HasTip(), L"the first row has a tip before anything is selected");
+
+            Assert::IsTrue (list->GetCellTextRectPx (1, DisassemblyCells::kInstructionColumn, cell), L"the row below's mnemonic is in view");
+
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { bounds.left + cell.left + 1, bounds.top + (cell.top + cell.bottom) / 2 };
+            (void) window.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Move;
+            ev.positionDip.x = bounds.left + cell.right - 1;
+            (void) window.OnMouse (ev);
+            ev.kind = DxuiMouseEventKind::Up;
+            (void) window.OnMouse (ev);
+
+            Assert::IsTrue (list->IsCellTextSelected (1, DisassemblyCells::kInstructionColumn), L"the drag selects the mnemonic");
+
+            Send (window, DxuiMouseEventKind::Move, GetOperandPoint (window, 0));
+            Assert::IsFalse (window.GetOperandTips().HasTip(), L"the tip of the row above lies over the selected mnemonic");
         }
 
 

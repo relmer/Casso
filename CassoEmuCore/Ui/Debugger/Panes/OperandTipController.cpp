@@ -143,6 +143,16 @@ void OperandTipController::Show()
     }
 
     m_tip.SetPopupHost (m_popupHost);
+
+    if (OperandResultTip::IsShaped (layout))
+    {
+        m_tip.ShowShaped (layout.rect, [layout] (IDxuiPainter & painter, IDxuiTextRenderer & tipText)
+        {
+            OperandResultTip::Paint (layout, painter, tipText);
+        });
+        return;
+    }
+
     m_tip.Show (layout.rect, layout.fill, [layout] (IDxuiPainter & painter, IDxuiTextRenderer & tipText)
     {
         OperandResultTip::Paint (layout, painter, tipText);
@@ -478,16 +488,24 @@ Error:
 
 bool OperandTipController::IsTextSelectedUnderTip (const DxuiListView * list, int row, const OperandResultTip::Layout & layout)
 {
-    int   height     = (std::max) (layout.lineHeight, 1);
-    int   rowsAbove  = (layout.textOrigin.y - layout.rect.top + height - 1) / height;
-    int   rowsBelow  = (layout.rect.bottom - layout.textOrigin.y + height - 1) / height;
-    bool  isSelected = false;
+    int     height     = (std::max) (layout.lineHeight, 1);
+    int     rowsAbove  = (layout.textOrigin.y - layout.rect.top + height - 1) / height;
+    int     rowsBelow  = (layout.rect.bottom - layout.textOrigin.y + height - 1) / height;
+    bool    isShaped   = OperandResultTip::IsShaped (layout);
+    size_t  columns    = list->GetColumnCount();
+    bool    isSelected = false;
 
 
 
     for (int each = row - rowsAbove; each < row + rowsBelow && !isSelected; each++)
     {
         isSelected = list->IsCellTextSelected (each, DisassemblyCells::kOperandColumn);
+
+        //  Below its first line an L-shaped tip covers the whole row.
+        for (size_t column = 0; isShaped && each > row && column < columns && !isSelected; column++)
+        {
+            isSelected = list->IsCellTextSelected (each, column);
+        }
     }
 
     return isSelected;
