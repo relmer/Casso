@@ -301,6 +301,32 @@ hardware.
   to the drive as Write image to disk writes one, after a confirmation that
   everything on it is erased.
 
+### Session 2026-10-22
+
+- Q: Is there one link boot disk for every interface, or one per link? → A:
+  One universal disk, as ADTPro's: it detects a //c's ports 1 and 2, a Super
+  Serial Card in any slot by its firmware's identification bytes, and an
+  Uthernet II in any other slot but a Disk II's, and waits for the PC on all
+  of them at once. The first one the PC connects through is used.
+- Q: How does the PC find an Uthernet II booted from the universal disk? →
+  A: The disk gets its address by DHCP, or uses the address built into it
+  when no DHCP reply comes, and broadcasts an announcement to UDP port 6510
+  about every two seconds while it waits: CASSOLINK, a version, its address,
+  its port and its MAC address. Casso Explorer listens on that port and
+  lists each announcement's Apple as an Uthernet II link root, never saved.
+  An announcement from the PC itself is listed at 127.0.0.1, where Casso's
+  emulated card listens.
+- Q: What does a Wi-Fi modem link's disk do, since the PC cannot connect
+  first? → A: It dials the PC, starting at once on the first
+  serial port.
+- Q: Where can the emulated ImageWriter II be attached? → A: To a parallel
+  card, a Super Serial Card, or a //c serial port, one connector at a time,
+  chosen on Settings > Printing in Connected to, which the //c's port and
+  the Serial card page's connector also offer. A parallel card with no
+  ports listed has the printer. On a serial connector the
+  printer's handshake drops CTS, DSR and DCD together near a full buffer. A
+  change of connector reboots the machine.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -1025,6 +1051,14 @@ to Casso over TCP.
   Explorer reports that rather than offering them.
 - **Speeds differ at the two ends**: bootstrap runs at the slower bootstrap
   speed, and the link then moves both ends to the chosen speed.
+- **No DHCP server on an Uthernet II's network**: the boot disk uses the
+  address built into it, and its announcements and screen have that address.
+- **A device other than the PC on one of the Apple's serial ports**: bytes
+  from it that are not an envelope's start byte are dropped, and the boot
+  disk goes on waiting on every interface.
+- **Two connectors listing the ImageWriter II, as in a configuration file
+  edited in a text editor**: the first in build order has it, the slots in their
+  listed order and then the //c's ports, and the others are empty.
 - **Two operations at once**: one runs at a time per Apple; others queue,
   and when the running one is canceled the Apple is ready for the next.
 ## Requirements *(mandatory)*
@@ -1555,6 +1589,20 @@ to Casso over TCP.
   launch, compares its version with Casso's and loads the current program
   from the PC when they differ. Casso MUST offer to write the current shim
   and program onto a disk in an Apple drive, which then boots into the link.
+- **FR-091a**: The link boot disk MUST be one disk for every interface: it
+  MUST detect a //c's ports 1 and 2, a Super Serial Card in any slot by its
+  firmware's identification bytes, and an Uthernet II in any other slot but
+  a Disk II's, list each on its screen, and wait for the PC on all of them
+  at once, using the first one the PC connects through. A disk made for a
+  Wi-Fi modem link MUST dial the PC on the first serial port at once. With
+  no interface found, the disk MUST draw NO SERIAL PORT OR CARD FOUND.
+- **FR-091b**: On an Uthernet II the boot disk MUST get its address by DHCP,
+  using the address built into the disk when no DHCP reply comes, and MUST
+  broadcast an announcement to UDP port 6510 about every two seconds while it
+  waits: CASSOLINK, a version, its address, its TCP port and its MAC address.
+  Casso Explorer MUST listen on that port and list each announcement's Apple
+  as an Uthernet II link root, never saved, at the announcement's address, or at
+  127.0.0.1 for an announcement from the PC itself.
 - **FR-092**: Casso MUST start the link on an Apple with no copy of it: over
   serial, by typing a loader into the Apple's serial input, on a //c and on
   a ][+ or //e with a Super Serial Card; and on a ][+ or //e, by playing a
@@ -1575,6 +1623,14 @@ to Casso over TCP.
   program connects to, or to a PC COM port. Bytes MUST arrive at the emulated machine no faster than
   the speed set in its serial chip, so a program that runs at the speed of
   real hardware drops none.
+- **FR-095a**: The emulated ImageWriter II MUST be attachable to a parallel
+  card, a Super Serial Card, or a //c serial port, one connector at a time,
+  chosen on Settings > Printing in Connected to; the //c's serial port
+  settings and the Serial card page MUST offer it too, and choosing it on one
+  connector MUST empty the connector that had it. A parallel card with no
+  ports listed MUST have the printer. On a serial connector the printer's
+  handshake MUST drop CTS, DSR and DCD together near a full buffer and raise
+  them once it has room. A change of connector MUST reboot the machine.
 - **FR-096**: The Apple-side program MUST be assembled from source in the
   repository by Casso's own assembler, and a test MUST assemble it on every
   build, failing the build on any error. The protocol
@@ -1629,6 +1685,13 @@ to Casso over TCP.
 - **Running Casso**: a Casso instance whose emulated serial port is
   connected to a TCP port: its process, machine, serial port and address;
   written to a file while it runs, for Casso Explorer to list as a link.
+- **Link announcement**: a UDP broadcast from an Uthernet II booted from
+  the link boot disk: a version, the card's address, TCP port and MAC
+  address. Casso Explorer lists each Apple once, by its MAC address, at the
+  address of its latest announcement.
+- **Printer connection**: the one connector the emulated ImageWriter II is
+  attached to: a parallel card's slot, a Super Serial Card's slot, a //c
+  serial port, or none.
 
 ## Success Criteria *(mandatory)*
 
