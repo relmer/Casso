@@ -309,6 +309,57 @@ a probe outside the suite. The hardware findings are in
 | Step 5: Save link to disk, boot it | The link disk, program version 45, written to drive 2 over the link in 59.8 s, moved to drive 1 and booted: the shim waiting on port 2 at 115,200; the PC connected with no bootstrap in about 10 s, and both drives were listed |
 | Step 7: booting a written image | ADTPro 2.1.0's client disk, written to drive 2 over the link in 60.4 s, moved to drive 1 and booted to ADTPro's menu. Writing a `.woz` with a non-standard track fails with the track listed, in the scenario tests |
 
+### The link over a Super Serial Card and an Uthernet II, 2026-10-21
+
+x64 Debug, the working tree after merge `1e6d77a7f` (T215 to T217), on an
+emulated Enhanced //e. Casso and Casso Explorer ran minimized or on the
+portrait monitor, with the session locked, and were driven by posted
+messages: Explorer's command message, posted clicks, and sent messages into
+the file dialogs. Drive 2 had a copy of the DOS 3.3 System Master in it. The link
+disks were built with `CassoCli disk create --boot` from the assembled shims,
+with their headers written as `LinkProgram::BuildShim` writes them.
+
+| Check | Super Serial Card, slot 2, TCP port 6502 | Uthernet II, slot 3, port 6503 |
+|---|---|---|
+| The shim, booted from the link disk | `WAITING FOR THE PC IN SLOT 2 AT 115200` | `WAITING FOR PC AT 127.0.0.1:6503`, listening on 127.0.0.1:6503 |
+| Finding the Apple | Casso's link file has `"serialPort":2,"onCard":true`; the root `Casso on port 6502 (Apple //e enhanced)` appears with no setup, and connects | The saved Uthernet II link connects to the address |
+| Drives and catalog | Both drives; drive 2's whole catalog | Both drives; drive 2's whole catalog, with the file written over the card |
+| A file out, by its preview | HELLO's listing, 768 bytes | FROMPC's bytes at $6000, as written |
+| Disk to image | 31 s, byte for byte the disk | 43 s, byte for byte the disk |
+| Image to disk | Failed while the disk was write-protected, with the reason; with the disk writable, an image with a new file written, and Casso's disk file byte for byte the image | The original image written back, and the disk file byte for byte it |
+| The program's screen | Connected; history of each operation | `SLOT 3, PORT 6503`, connected; history of each operation |
+| Casso exits | Its link file is deleted; Casso relaunched is connected to again with no action in Explorer | |
+| The link dialog | Serial: COM port, Apple's port, speed, bootstrap speed, handshake | Uthernet II: address and the card's slot, Slot 3 |
+
+Copy and Paste were not checked live: in a locked session the clipboard
+cannot be opened, and Copy fails. The scenario tests copy files both ways over
+both cards.
+
+Findings:
+
+1. An Uthernet II link's name from its address, `Uthernet II at
+   127.0.0.1:6502`, contains a colon, which the dialog does not accept, so Add
+   is disabled until a name is typed.
+2. Over a Super Serial Card the program's connection row reads `PORT 2,
+   115200`, a //c's wording; the shim's state row reads `IN SLOT 2`.
+3. Two links at the same address, a saved Casso link and an Uthernet II link
+   at 127.0.0.1:6502, are both started. The Casso link connected first,
+   sent the 6551 program to the W5100 shim, and the Apple stopped answering
+   until it was booted again. The program sent is chosen by the link's
+   transport, not by the shim's Ready.
+4. Write image's confirmation includes the drive's volume only once the
+   drive has been read in the session: after a reconnect it read `Overwrite Slot 6,
+   Drive 2 with modified.dsk?`.
+5. A Copy that fails reports `The files could not be copied.` with no reason.
+6. When the emulated Apple's Casso exits, the status bar reads `The Apple
+   stopped answering: the line failed with 0x8007006D`, an error code rather
+   than a reason.
+
+Findings 1 to 3 are fixed in `d42ab1b99`, with tests: the name is `Uthernet
+II at 127.0.0.1 port 6502`; the row reads `SLOT 2, 115200` on a card; and the
+W5100 builds set bit 7 of Ready's shim version, from which the host chooses
+the program. Findings 4 to 6 are open.
+
 ### File Explorer's menus beside Casso Explorer's, 2026-10-18
 
 x64 Debug, the working tree after commit `0ff8f5ff`. Each menu was opened with a

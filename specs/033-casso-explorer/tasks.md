@@ -683,19 +683,19 @@ owner's walkthrough.
 **Purpose**: the link over a Super Serial Card and an Uthernet II, and
 audio bootstrap, once Casso emulates the cards.
 
-- [ ] T215 [US16] Merge the 042 Super Serial Card feature, then:
+- [X] T215 [US16] Merge the 042 Super Serial Card feature, then:
   - add a Super Serial Card driver to `Shim.s` (the 6551 at `$C0n8` for the card's slot);
   - make bootstrap use `IN#n` and the card's Ctrl-A command;
   - add a scenario test on a //e `TestMachine` with the card in a slot.
 
   Per FR-093, FR-092 and US16/AC2.
-- [ ] T216 [US16] Merge the 043 Uthernet II feature, then:
+- [X] T216 [US16] Merge the 043 Uthernet II feature, then:
   - add a W5100 transport to `Shim.s` and `Program.s`, a TCP connection to the PC's address;
   - accept it in Casso Explorer;
   - add a scenario test on a //e `TestMachine`.
 
   Per FR-093 and US16/AC3.
-- [ ] T217 [US15] Add audio bootstrap for a ][+ or //e: the loader sent as audio into the cassette input, with a scenario test sending it through Casso's cassette emulation (spec 037). Land it with whichever of T215 and T216 is first. Per FR-092 and US15/AC2.
+- [X] T217 [US15] Add audio bootstrap for a ][+ or //e: the loader sent as audio into the cassette input, with a scenario test sending it through Casso's cassette emulation (spec 037). Land it with whichever of T215 and T216 is first. Per FR-092 and US15/AC2.
 
 ## Phase 24: Section H validation
 
