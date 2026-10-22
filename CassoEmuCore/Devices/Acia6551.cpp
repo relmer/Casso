@@ -467,8 +467,10 @@ double Acia6551::GetBaudRate (int code)
 //
 //  A hardware (RESB) reset clears command and control, empties both transmit
 //  registers, clears RDRF and the error and IRQ bits, and sets TDRE. A
-//  program reset (a write to the status address) clears command bits 0-4 and
-//  the same status bits, and does not alter control or command bits 5-7.
+//  program reset (a write to the status address) clears command bits 0-4
+//  and the overrun bit only, as the R6551 data sheet's register table has
+//  it: control, command bits 5-7, RDRF, TDRE, a byte waiting to be sent and
+//  a character being received are as they were.
 //
 //  Neither empties the receive queue: bytes an attachment sent are on the
 //  wire, not in the chip. DTR and RTS are passed to the attachment afterward.
@@ -477,36 +479,36 @@ double Acia6551::GetBaudRate (int code)
 
 void Acia6551::ResetState (bool hardware)
 {
-    m_status = kStatusTxEmpty;
-    m_rxData = 0;
-
     if (hardware)
     {
+        m_status      = kStatusTxEmpty;
+        m_rxData      = 0;
         m_command     = 0;
         m_control     = 0;
         m_tdrFull     = false;
         m_tsrBusy     = false;
         m_txRemaining = 0;
+        m_rxActive    = false;
+        m_rxRemaining = 0;
+
+        if (!m_dsr)
+        {
+            m_status |= kStatusDsr;
+        }
+
+        if (!m_dcd)
+        {
+            m_status |= kStatusDcd;
+        }
+
+        LowerIrq();
     }
     else
     {
         m_command &= kCommandParityMask;
+        m_status  &= (Byte) ~kStatusOverrun;
     }
 
-    m_rxActive    = false;
-    m_rxRemaining = 0;
-
-    if (!m_dsr)
-    {
-        m_status |= kStatusDsr;
-    }
-
-    if (!m_dcd)
-    {
-        m_status |= kStatusDcd;
-    }
-
-    LowerIrq();
     NotifyModemControl();
 }
 
