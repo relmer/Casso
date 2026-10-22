@@ -1501,8 +1501,9 @@ to Casso over TCP.
   serial port is connected to a TCP port as a link root, with no setup, and
   MUST remove the root when that Casso exits. Each running Casso MUST record
   its machine, which serial port is connected and the TCP address where
-  Casso Explorer reads them. A machine connected through port 1 MUST be
-  listed with the reason, as the link program uses port 2.
+  Casso Explorer reads them. A machine connected through a //c's port 1 or a
+  Super Serial Card's slot MUST be listed and usable, its shim given that
+  port or slot.
 - **FR-083c**: The link dialog MUST contain only the settings that apply to the
   chosen transport. An emulated machine's address MUST default to
   127.0.0.1:6502. A Wi-Fi modem link's root MUST list the address the modem

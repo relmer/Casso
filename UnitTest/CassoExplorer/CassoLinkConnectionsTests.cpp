@@ -292,18 +292,21 @@ public:
         Assert::AreEqual (std::wstring (L"Test"),                    entries[0].name);
         Assert::AreEqual (std::wstring (L"Casso on port 6600"),   entries[1].name);
         Assert::AreEqual (std::wstring (L"Casso on port 6700"),   entries[2].name);
-        Assert::IsTrue   (entries[2].status.find (L"port 2") != std::wstring::npos, L"port 1 is listed with the reason");
+        Assert::IsTrue   (entries[2].status.find (L"port 2") == std::wstring::npos, L"port 1 is usable, as the shim is given the port");
 
         Assert::IsTrue  (rig.links->IsDiscovered ("Casso on port 6600"));
         Assert::IsFalse (rig.links->IsDiscovered ("Test"));
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED), rig.links->Start ("Casso on port 6700"));
+
+        for (const CassoLinkSettings & settings : rig.links->GetLinks())
+        {
+            Assert::IsTrue (settings.name != "Casso on port 6700" || settings.slot == 1, L"port 1's root has port 1's shim");
+        }
     }
 
 
 
 
-    //  A card in any slot is usable, since the shim is given the slot; only
-    //  a //c's port 1 is listed with the reason.
+    //  A card in any slot is usable, since the shim is given the slot.
     TEST_METHOD (ARunningCassosCard_IsARootForItsSlot)
     {
         Rig                         rig;

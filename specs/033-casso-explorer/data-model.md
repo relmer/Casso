@@ -169,7 +169,7 @@ contains only the fields its transport uses (FR-083c).
 | pid | int | The Casso process |
 | started | int64 | The process's start time as a FILETIME, so a reused pid is not mistaken for it |
 | machine | string | The machine's name, as in Casso's title, such as `Apple //c` |
-| serialPort | int | 1 or 2; the link program uses port 2 |
+| serialPort | int | a //c's port, 1 or 2, or with onCard a Super Serial Card's slot, 1 to 7 |
 | address | string | `127.0.0.1:<port>` |
 
 Written when Casso connects a serial port to TCP; deleted when the port is

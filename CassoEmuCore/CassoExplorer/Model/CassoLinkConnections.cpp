@@ -164,8 +164,6 @@ void CassoLinkConnections::Merge()
 
 
 
-    m_unusable.clear();
-
     for (const RunningCasso & running : m_running)
     {
         CassoLinkSettings  settings;
@@ -174,7 +172,7 @@ void CassoLinkConnections::Merge()
         settings.name      = MakeRunningName (running);
         settings.transport = LinkTransport::Emulated;
         settings.address   = running.address;
-        settings.slot      = running.onCard ? running.serialPort : CassoLinkSettings::kDefaultSlot;
+        settings.slot      = running.serialPort;
 
         covered = std::any_of (links.begin(), links.end(), [&settings] (const CassoLinkSettings & link)
         {
@@ -186,12 +184,6 @@ void CassoLinkConnections::Merge()
         if (covered)
         {
             continue;
-        }
-
-        if (!running.onCard && running.serialPort != 2)
-        {
-            m_unusable[settings.name] = std::format (L"Serial port {} of this Casso is on TCP, and the CassoLink program uses port 2. "
-                                                     L"Connect port 2 in Casso's Hardware settings.", running.serialPort);
         }
 
         links.push_back (settings);
@@ -282,7 +274,6 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
     CassoLinkSettings      opening;
     auto                   settings = std::find_if (m_links.begin(), m_links.end(), [&name] (const CassoLinkSettings & s) { return s.name == name; });
     bool                   known    = settings != m_links.end();
-    bool                   usable   = !m_unusable.contains (name);
 
 
 
@@ -294,7 +285,6 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
 
     BAIL_OUT_IF (IsStarted (name), S_OK);
     CBREx (known, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
-    CBREx (usable, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
     link           = std::make_unique<Link>();
     link->settings = *settings;
@@ -470,16 +460,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
         LinkTreeEntry  entry;
         auto           found = std::find_if (m_started.begin(), m_started.end(), [&settings] (const std::unique_ptr<Link> & link) { return link->settings.name == settings.name; });
 
-        auto           unusable = m_unusable.find (settings.name);
-
         entry.name = TextEncoding::NarrowToWide (settings.name);
-
-        if (unusable != m_unusable.end())
-        {
-            entry.status = unusable->second;
-            entries.push_back (entry);
-            continue;
-        }
 
         if (found == m_started.end())
         {

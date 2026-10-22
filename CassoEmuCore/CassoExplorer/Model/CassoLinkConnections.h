@@ -230,7 +230,6 @@ private:
     std::vector<CassoLinkSettings>       m_saved;
     std::vector<RunningCasso>            m_running;
     std::vector<CassoLinkSettings>       m_links;
-    std::map<std::string, std::wstring>  m_unusable;
     std::set<std::string>                m_held;
     std::vector<std::unique_ptr<Link>>   m_started;
 
