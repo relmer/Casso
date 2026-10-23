@@ -386,7 +386,7 @@ public:
     }
 
 
-    TEST_METHOD (Overflow_ShowsNoArrowsAndDoesNotScroll)
+    TEST_METHOD (StandardOverflow_ScrollsLikeTheExplorerStyle)
     {
         DxuiTabStrip          ts;
         DxuiMouseEvent        wheel;
@@ -397,20 +397,20 @@ public:
         ts.SetTabs (MakeTenTabs());
         LayOut (ts, 240);
 
-        Assert::IsFalse  (ts.HasScrollArrows());
-        Assert::AreEqual (0, ts.HitTest (10, 10),  L"The first tab starts at the strip's edge");
-        Assert::AreEqual (5, ts.HitTest (410, 10), L"and a tab past the strip's end is still a tab");
-        Assert::IsFalse  (ts.OnWheel (-1.0f),      L"The wheel scrolls nothing");
+        Assert::IsTrue   (ts.HasScrollArrows());
+        Assert::AreEqual (-1, ts.HitTest (10, 10), L"The left arrow is no tab");
+        Assert::AreEqual (0,  ts.HitTest (40, 10), L"The first tab starts after the left arrow");
 
         wheel.kind       = DxuiMouseEventKind::Wheel;
         wheel.wheelDelta = -1.0f;
-        Assert::IsFalse  (ts.OnMouse (wheel), L"and passes through to the host");
+        Assert::IsTrue   (ts.OnMouse (wheel), L"The wheel scrolls the tabs");
+        Assert::AreEqual (60, ts.GetScrollPx());
 
         ts.SetSelected (9);
-        Assert::AreEqual (0, ts.GetScrollPx(), L"Selecting a tab past the end scrolls nothing");
+        Assert::AreEqual (616, ts.GetScrollPx(), L"Selecting the last tab scrolls it into view");
 
         ts.Paint (painter, text, theme);
-        Assert::AreEqual ((size_t) 10, text.Calls().size(), L"Ten labels and nothing else: no clip and no arrows");
+        Assert::IsTrue   (text.Calls().size() > 2, L"The labels in view and both arrows are drawn");
     }
 };
 

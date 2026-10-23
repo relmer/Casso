@@ -43,12 +43,10 @@ enum class DxuiTabStripStyle
 //  tabs and a single selected index. Mouse activates whichever tab
 //  the click lands in; keyboard cycles Left / Right with wrap.
 //
-//  The style (DxuiTabStripStyle) sets how the tabs are drawn, and whether the
-//  strip scrolls. Only the Explorer style does: when its tabs do not fit, it
-//  shows a scroll arrow at each end, as File Explorer does, and the tabs
-//  between them scroll into reach by the arrows, the wheel, being selected,
-//  or a drag held past either end. A Standard strip draws tabs that do not
-//  fit past its end.
+//  The style (DxuiTabStripStyle) sets how the tabs are drawn. When the tabs do
+//  not fit, a strip in either style has a scroll arrow at each end, as File
+//  Explorer's does. The tabs between them scroll into view with the arrows,
+//  the wheel, a selection, or a drag past either end.
 //
 //  The rest is the host's to turn on, in either style. With a move handler
 //  set, a tab can be dragged, as File Explorer's are: the dragged tab is

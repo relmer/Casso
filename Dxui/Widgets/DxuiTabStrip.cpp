@@ -986,18 +986,13 @@ void DxuiTabStrip::MoveDraggedTab (int to)
 //
 //  IsOverflowing
 //
-//  Only the Explorer style scrolls; a Standard strip draws tabs that do not
-//  fit past its end, and never shows the arrows.
+//  A strip in either style scrolls when its tabs do not fit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTabStrip::IsOverflowing() const
 {
-    bool  scrolls = m_style == DxuiTabStripStyle::Explorer;
-
-
-
-    return scrolls && HasBounds() && !m_tabs.empty() && m_tabs.back().rect.right > m_boundsDip.right - GetNewTabWidthPx();
+    return HasBounds() && !m_tabs.empty() && m_tabs.back().rect.right > m_boundsDip.right - GetNewTabWidthPx();
 }
 
 
@@ -1640,6 +1635,13 @@ void DxuiTabStrip::PaintStandard (
 
 
 
+    if (IsOverflowing())
+    {
+        hr = text.PushClipRect ((float) GetViewLeft(), (float) m_boundsDip.top,
+                                (float) (GetViewRight() - GetViewLeft()), (float) (m_boundsDip.bottom - m_boundsDip.top));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     for (i = 0; i < (int) n; ++i)
     {
         const Tab  & t       = m_tabs[(size_t) i];
@@ -1701,6 +1703,15 @@ void DxuiTabStrip::PaintStandard (
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (IsOverflowing())
+    {
+        hr = text.PopClipRect();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        PaintArrow (painter, text, -1, hoverArgb, textArgb);
+        PaintArrow (painter, text,  1, hoverArgb, textArgb);
     }
 
     if (GetNewTabWidthPx() > 0)
