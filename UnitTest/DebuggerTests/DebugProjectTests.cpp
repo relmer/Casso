@@ -328,6 +328,33 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, notices.size(), L"the chosen file has gone");
         }
 
+        //  A save under the automatic file's path writes the project
+        //  there and no redirect over it, and opening a redirect file opens
+        //  the project it points at, not an empty one.
+        TEST_METHOD (TheAutomaticPathIsNeverARedirectToItself)
+        {
+            InMemoryFileSystem         files;
+            DebugProjectStore          store (files, L"C:\\Data\\DebugProjects");
+            ProjectScope               scope   = ProjectScope::Choose ("", "", "", "", "Apple //e", L"C:\\Disks\\Game.dsk");
+            DebugProject               project;
+            DebugProject               again;
+            std::vector<std::string>   notices;
+
+
+
+            AssertSucceeded (store.Open (scope, project, notices), L"store.Open");
+
+            project.engineScript = { "BPC *", "BP 0300" };
+            AssertSucceeded (store.SaveAs (project, store.GetAutomaticPath (scope)), L"store.SaveAs");
+            AssertSucceeded (store.Open (scope, again, notices), L"store.Open");
+            Assert::IsTrue (again.engineScript == project.engineScript, L"the project, not a redirect to itself");
+
+            AssertSucceeded (store.SaveAs (project, L"C:\\Work\\game.cassoproj"), L"store.SaveAs");
+            AssertSucceeded (store.OpenFile (store.GetAutomaticPath (scope), again, notices), L"store.OpenFile");
+            Assert::IsTrue   (again.engineScript == project.engineScript, L"the redirect's project");
+            Assert::AreEqual (std::wstring (L"C:\\Work\\game.cassoproj"), again.filePath);
+        }
+
         //  A file that is not a project is copied aside under a dated name,
         //  never deleted, and an empty project opens with a notice.
         TEST_METHOD (AnUnreadableFileIsCopiedAside)

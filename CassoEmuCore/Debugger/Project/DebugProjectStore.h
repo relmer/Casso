@@ -64,6 +64,7 @@ public:
 
 private:
     HRESULT       Read          (const std::wstring & path, DebugProject & project, std::vector<std::string> & notices, bool & isFound);
+    bool          TryReadRedirect (const std::wstring & path, std::string & redirect);
     std::string   GetStamp      () const;
 
     static std::wstring  GetFolder (const std::wstring & path);
