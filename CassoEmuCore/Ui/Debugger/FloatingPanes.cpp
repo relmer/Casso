@@ -1359,9 +1359,19 @@ void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool en
         return;
     }
 
-    //  Released outside the site, the pane stays floating where it was put;
-    //  released over a zone it docks there, which the site reports.
-    (void) site.EndDrag (inside ? client : POINT { area.right + 1, area.bottom + 1 });
+    //  Released over a zone, the window's panes dock there, which the site
+    //  reports. Released outside the site, the window is already where it
+    //  was put: the drag is canceled rather than ended, since ending it would
+    //  float the active tab on its own and split a window of tabs.
+    if (inside)
+    {
+        (void) site.EndDrag (client);
+    }
+    else
+    {
+        site.CancelDrag();
+    }
+
     HideDragMarks();
     m_host.Repaint();
 
