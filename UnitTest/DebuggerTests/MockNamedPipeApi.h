@@ -37,6 +37,7 @@ public:
     std::vector<HANDLE>           pipes;
     std::set<HANDLE>              open;
     int                           doubleCloses = 0;
+    int                           disconnects  = 0;
     std::vector<BYTE>             expectedSid;
 
     //  When set, writes go pending and never complete.
@@ -281,6 +282,7 @@ public:
 
     BOOL DisconnectPipe (HANDLE) override
     {
+        disconnects++;
         return TRUE;
     }
 

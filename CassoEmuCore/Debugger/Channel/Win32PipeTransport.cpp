@@ -553,9 +553,14 @@ void Win32PipeTransport::WriteLine (ChannelConnectionId connection, const std::s
 //
 //  Win32PipeTransport::ReleaseConnection
 //
+//  An orderly release closes the pipe without disconnecting it, so the
+//  client can read what was written to it, a closing record among it;
+//  DisconnectNamedPipe would discard that. A broken connection is
+//  disconnected.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void Win32PipeTransport::ReleaseConnection (Connection & connection)
+void Win32PipeTransport::ReleaseConnection (Connection & connection, bool isOrderly)
 {
     DWORD  transferred = 0;
 
@@ -570,7 +575,11 @@ void Win32PipeTransport::ReleaseConnection (Connection & connection)
             connection.isReadPending = false;
         }
 
-        m_api.DisconnectPipe (connection.pipe);
+        if (!isOrderly)
+        {
+            m_api.DisconnectPipe (connection.pipe);
+        }
+
         m_api.CloseHandleOf (connection.pipe);
         connection.pipe = INVALID_HANDLE_VALUE;
     }
@@ -630,7 +639,7 @@ void Win32PipeTransport::Disconnect (ChannelConnectionId connection)
     {
         if ((*it)->id == connection)
         {
-            ReleaseConnection (**it);
+            ReleaseConnection (**it, true);
             m_connections.erase (it);
             return;
         }
@@ -651,7 +660,7 @@ void Win32PipeTransport::Close()
 {
     for (auto & each : m_connections)
     {
-        ReleaseConnection (*each);
+        ReleaseConnection (*each, !each->isBroken);
     }
 
     m_connections.clear();

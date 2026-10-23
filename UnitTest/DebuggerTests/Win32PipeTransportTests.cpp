@@ -467,6 +467,25 @@ namespace Win32PipeTransportTests
 
 
 
+        //  Closing the channel closes each pipe without disconnecting it, so
+        //  a client can read what was written before, the closing record
+        //  among it; disconnecting would discard it.
+        TEST_METHOD (ClosingLeavesWhatWasWrittenReadable)
+        {
+            Rig  rig;
+
+
+
+            rig.ListenOk();
+            rig.Accept (0);
+
+            rig.transport.Close();
+
+            Assert::AreEqual (0, rig.api.disconnects);
+        }
+
+
+
         //  A failure at each call Listen makes returns that call's error and
         //  leaves nothing open.
         TEST_METHOD (AFailureWhileListeningReleasesWhatWasAcquired)
