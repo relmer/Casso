@@ -207,9 +207,9 @@ public:
 
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now     = 0;
+        HistoryThumbnails         thumbnails (renderer);
         uint64_t                  cycle   = 0;
         uint64_t                  wall    = 0;
         std::wstring              top;
@@ -254,10 +254,10 @@ public:
     {
         FakeHistoryFrameRenderer           renderer;
         InlineWorkQueue                    queue;
-        HistoryThumbnails                  thumbnails (renderer);
         KeyframeStore                      store;
         std::vector<HistoryThumbnailCell>  asked;
         uint64_t                           now = 0;
+        HistoryThumbnails                  thumbnails (renderer);
         HRESULT                            hr  = S_OK;
 
 
@@ -304,10 +304,10 @@ public:
 
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         std::vector<uint64_t>     scrubs;
         uint64_t                  now     = 0;
+        HistoryThumbnails         thumbnails (renderer);
         uint64_t                  labeled = 0;
         float                     offset  = 0.0f;
         std::wstring              top;
@@ -393,11 +393,11 @@ public:
 
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         KeyframeSettings          settings;
         std::vector<Byte>         state (s_kThumbStateBytes);
         uint64_t                  now     = 0;
+        HistoryThumbnails         thumbnails (renderer);
         uint64_t                  cycle   = 0;
         uint64_t                  wall    = 0;
         std::wstring              top;
@@ -472,11 +472,11 @@ public:
 
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         KeyframeSettings          settings;
         std::vector<Byte>         state (s_kThumbStateBytes);
         uint64_t                  now     = 0;
+        HistoryThumbnails         thumbnails (renderer);
         uint64_t                  cycle   = 0;
         size_t                    round   = 0;
         size_t                    added   = 0;
@@ -538,10 +538,10 @@ public:
     {
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         HistoryThumbnailCell      asked;
         uint64_t                  now   = 0;
+        HistoryThumbnails         thumbnails (renderer);
         int                       seeks = 0;
         HRESULT                   hr    = S_OK;
 
@@ -579,9 +579,9 @@ public:
     {
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now = 0;
+        HistoryThumbnails         thumbnails (renderer);
         HRESULT                   hr  = S_OK;
 
 
@@ -614,9 +614,9 @@ public:
 
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now   = 0;
+        HistoryThumbnails         thumbnails (renderer);
         int                       round = 0;
         HRESULT                   hr    = S_OK;
 
@@ -741,10 +741,10 @@ public:
     {
         FakeHistoryFrameRenderer           renderer;
         InlineWorkQueue                    queue;
-        HistoryThumbnails                  thumbnails (renderer);
         KeyframeStore                      store;
         std::vector<HistoryThumbnailCell>  cells;
         uint64_t                           now = 0;
+        HistoryThumbnails                  thumbnails (renderer);
         HRESULT                            hr  = S_OK;
 
 
@@ -772,9 +772,9 @@ public:
 
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now     = 0;
+        HistoryThumbnails         thumbnails (renderer);
         uint64_t                  spacing = kCostMs * HistoryThumbnails::kWorkShare;
         HRESULT                   hr      = S_OK;
 
@@ -836,11 +836,11 @@ public:
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           thumbQueue;
         InlineWorkQueue           storeQueue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         KeyframeSettings          settings;
         std::vector<Byte>         state (s_kThumbStateBytes);
         uint64_t                  now   = 0;
+        HistoryThumbnails         thumbnails (renderer);
         size_t                    i     = 0;
         HRESULT                   hr    = S_OK;
 
@@ -894,9 +894,9 @@ public:
     {
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now = 0;
+        HistoryThumbnails         thumbnails (renderer);
         HRESULT                   hr  = S_OK;
 
 
@@ -925,9 +925,9 @@ public:
     {
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
+        KeyframeStore             store;
+        uint64_t                  now      = 0;
         HistoryThumbnails         thumbnails (renderer);
-        KeyframeStore         store;
-        uint64_t              now   = 0;
         HistoryThumbnailCell  asked;
         int                   seeks = 0;
         HRESULT               hr    = S_OK;
@@ -965,11 +965,11 @@ public:
         FakeHistoryFrameRenderer           renderer;
         InlineWorkQueue                    thumbQueue;
         InlineWorkQueue                    storeQueue;
-        HistoryThumbnails                  thumbnails (renderer);
         KeyframeStore                      store;
         std::vector<HistoryThumbnailCell>  cells;
         HistoryThumbnails::Image           image;
         uint64_t                           now      = 0;
+        HistoryThumbnails                  thumbnails (renderer);
         uint64_t                           position = 0;
         uint32_t                           seed     = 1;
         size_t                             round    = 0;
@@ -1011,9 +1011,9 @@ public:
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           thumbQueue;
         InlineWorkQueue           storeQueue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now      = 0;
+        HistoryThumbnails         thumbnails (renderer);
         uint64_t                  position = 0;
         uint32_t                  seed     = 1;
         HRESULT                   hr       = S_OK;
@@ -1067,13 +1067,13 @@ public:
         FakeHistoryFrameRenderer           renderer;
         InlineWorkQueue                    thumbQueue;
         InlineWorkQueue                    storeQueue;
-        HistoryThumbnails                  thumbnails (renderer);
         KeyframeStore                      store;
         std::vector<HistoryThumbnailCell>  cells;
         std::set<uint64_t>                 previous;
         std::set<uint64_t>                 current;
         HistoryThumbnails::Image           image;
         uint64_t                           now      = 0;
+        HistoryThumbnails                  thumbnails (renderer);
         uint64_t                           position = 0;
         uint64_t                           dropped  = 0;
         uint32_t                           seed     = 1;
@@ -1167,9 +1167,9 @@ public:
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           thumbQueue;
         InlineWorkQueue           storeQueue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now      = 0;
+        HistoryThumbnails         thumbnails (renderer);
         uint64_t                  position = 0;
         uint32_t                  seed     = 1;
         size_t                    round    = 0;
@@ -1213,10 +1213,10 @@ public:
 
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         HistoryThumbnails::Image  image;
         uint64_t                  now   = 0;
+        HistoryThumbnails         thumbnails (renderer);
         int                       calls = 0;
         int                       i     = 0;
 
@@ -1248,10 +1248,10 @@ public:
     {
         FakeHistoryFrameRenderer           renderer;
         InlineWorkQueue                    queue;
-        HistoryThumbnails                  thumbnails (renderer);
         KeyframeStore                      store;
         std::vector<HistoryThumbnailCell>  cells;
         uint64_t                           now = 0;
+        HistoryThumbnails                  thumbnails (renderer);
         int                                i   = 0;
         HRESULT                            hr  = S_OK;
 
@@ -1291,10 +1291,10 @@ public:
 
         FakeHistoryFrameRenderer           renderer;
         InlineWorkQueue                    queue;
-        HistoryThumbnails                  thumbnails (renderer);
         KeyframeStore                      store;
         std::vector<HistoryThumbnailCell>  cells;
         uint64_t                           now     = 0;
+        HistoryThumbnails                  thumbnails (renderer);
         uint64_t                           labeled = 0;
         HRESULT                            hr      = S_OK;
         int                                round   = 0;
@@ -1361,9 +1361,9 @@ public:
     {
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now = 0;
+        HistoryThumbnails         thumbnails (renderer);
         HRESULT                   hr  = S_OK;
 
 
@@ -1387,9 +1387,9 @@ public:
     {
         FakeHistoryFrameRenderer  renderer;
         InlineWorkQueue           queue;
-        HistoryThumbnails         thumbnails (renderer);
         KeyframeStore             store;
         uint64_t                  now = 0;
+        HistoryThumbnails         thumbnails (renderer);
         HRESULT                   hr  = S_OK;
 
 
@@ -1414,9 +1414,9 @@ public:
     TEST_METHOD (LiveIsAccentedWhileLiveAndAClickReplayingGoesLive)
     {
         FakeHistoryFrameRenderer  renderer;
-        HistoryThumbnails         thumbnails (renderer);
         HistoryThumbnailCell      asked;
         int                       seeks = 0;
+        HistoryThumbnails         thumbnails (renderer);
 
 
 
@@ -1529,8 +1529,8 @@ private:
         FakeHistoryFrameRenderer   renderer;
         InlineWorkQueue            queue;
         KeyframeStore              store;                     // before the thumbnails, which detach from it as they go
-        HistoryThumbnails          thumbnails (renderer);
         uint64_t                   now    = 0;
+        HistoryThumbnails          thumbnails (renderer);
         uint64_t                   newest = 0;
         std::vector<Byte>          state (s_kThumbStateBytes);
         HistoryThumbnails::Image   live;
