@@ -157,6 +157,23 @@ namespace DebuggerTests
         }
 
 
+        //  A row wider than 16 bytes takes a phase of 16 or more, as Go to
+        //  $0315 with 24 bytes a row does: 21.
+        TEST_METHOD (APhaseCanPassSixteenBytes)
+        {
+            Rig  rig;
+
+
+
+            rig.Show (0x0310, MemoryRegion::MainRam);
+            rig.model.SetPhase (21);
+
+            Assert::AreEqual ((Word) 0x0315, rig.model.GetAddressOf (0x0300));
+            Assert::IsTrue   (rig.Write (0x0300, { 0x77 }));
+            Assert::AreEqual (std::string ("PATCH 0315 77"), rig.lines.back(), L"the edit lands where the row is labeled");
+        }
+
+
         TEST_METHOD (TheWholeAddressSpaceIsTheSource)
         {
             Rig  rig;

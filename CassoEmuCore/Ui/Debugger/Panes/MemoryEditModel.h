@@ -100,9 +100,10 @@ public:
     void      ReadRegions   (uint64_t offset, std::span<uint16_t> out) const override;
     bool      TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const override;
 
-    //  Where the view's rows start relative to a 16-byte boundary. Offset 0 is
-    //  address `phase`, so Go to can put any address at a row's start.
-    void  SetPhase     (Word phase) { m_phase = (Word) (phase & 0x000F); }
+    //  Where the view's rows start relative to a row boundary, less than a
+    //  row's bytes, which can be more than 16. Offset 0 is address `phase`, so
+    //  Go to can put any address at a row's start.
+    void  SetPhase     (Word phase) { m_phase = phase; }
     Word  GetPhase     () const     { return m_phase; }
     Word  GetAddressOf (uint64_t offset) const { return (Word) ((offset + m_phase) & 0xFFFF); }
 
