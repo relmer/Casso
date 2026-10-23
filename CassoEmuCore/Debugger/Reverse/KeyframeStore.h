@@ -273,6 +273,7 @@ private:
     HRESULT   TakeJob           (Job *& outJob);
     HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
     HRESULT   Collect           ();
+    HRESULT   DropPending       ();
     HRESULT   Place             (const std::vector<Byte> & packed, const std::vector<Byte> & side, size_t & outOffset);
     void      NotifyDrop        (KeyframeDrop drop);
 

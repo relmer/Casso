@@ -335,6 +335,13 @@ HRESULT KeyframeStore::Add (
     CHR (hr);
 
 Error:
+    //  After a failed add the next keyframe is due an interval later, not at
+    //  the next instruction.
+    if (FAILED (hr))
+    {
+        ScheduleAfter (cycle);
+    }
+
     return hr;
 }
 
@@ -376,6 +383,13 @@ HRESULT KeyframeStore::Add (
     CHR (hr);
 
 Error:
+    //  After a failed add the next keyframe is due an interval later, not at
+    //  the next instruction.
+    if (FAILED (hr))
+    {
+        ScheduleAfter (cycle);
+    }
+
     return hr;
 }
 
@@ -781,6 +795,8 @@ HRESULT KeyframeStore::SubmitJob (
     bool      isGroupFull = IsGroupDone();
     bool      isDropped   = false;
     bool      isGrown     = false;
+    bool      isQueued    = false;
+    HRESULT   hrSubmit    = E_FAIL;
 
 
 
@@ -833,10 +849,19 @@ HRESULT KeyframeStore::SubmitJob (
 
     if (m_queue != nullptr)
     {
-        hr = m_queue->Submit (RunJob, &job);
-        CHR (hr);
+        hrSubmit = m_queue->Submit (RunJob, &job);
     }
-    else
+
+    isQueued = SUCCEEDED (hrSubmit);
+
+    //  With no queue, or when Submit fails, the job runs here once the jobs
+    //  before it are done, so no job stays in flight with nothing to run it.
+    if (!isQueued && m_queue != nullptr)
+    {
+        m_queue->WaitAll();
+    }
+
+    if (!isQueued)
     {
         RunJob (&job);
     }
@@ -989,15 +1014,25 @@ HRESULT KeyframeStore::Collect()
             break;
         }
 
-        CHR (job->hr);
+        hr = job->hr;
 
-        hr = Place (job->packed, job->side, offset);
+        if (SUCCEEDED (hr))
+        {
+            hr = Place (job->packed, job->side, offset);
+        }
 
         if (hr == E_OUTOFMEMORY && !job->side.empty())
         {
             job->side.clear();
 
             hr = Place (job->packed, noSide, offset);
+        }
+
+        //  A failed job is retired with every job after it, so no later wait
+        //  is on it.
+        if (FAILED (hr))
+        {
+            (void) DropPending();
         }
 
         CHR (hr);
@@ -1023,6 +1058,52 @@ HRESULT KeyframeStore::Collect()
             m_groupDiffs += job->packed.size();
         }
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropPending
+//
+//  Drops every keyframe in flight, after a job failed: the failed one, and
+//  every one after it, which may be a difference against it. The newest
+//  group that stays is reloaded, so the next keyframe follows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::DropPending()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_queue != nullptr)
+    {
+        m_queue->WaitAll();
+    }
+
+    while (m_pendingCount > 0)
+    {
+        NotifyDrop (KeyframeDrop::Newest);
+
+        m_count--;
+        m_pendingCount--;
+    }
+
+    if (m_count == 0)
+    {
+        Clear();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = ReloadLatestWhole();
+    CHR (hr);
 
 Error:
     return hr;

@@ -4,6 +4,7 @@
 #include "HResultAssert.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Core/IWorkQueue.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/SnapshotCompressor.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -94,6 +95,44 @@ public:
             Assert::AreEqual<uint64_t> (i * s_kInterval, store.GetInfo (i).cycle,    L"cycle");
             Assert::AreEqual<uint64_t> (i * 10,          store.GetInfo (i).position, L"position");
         }
+    }
+
+
+    //  When Submit fails, the job runs in SubmitJob, so it is not in flight
+    //  with nothing to run it, and the store takes keyframes and restores
+    //  them.
+    TEST_METHOD (AJobWhoseSubmitFailsStillRuns)
+    {
+        class RefusingQueue : public IWorkQueue
+        {
+        public:
+            HRESULT  Submit  (WorkFunction, void *) override { return E_FAIL; }
+            void     WaitAll() override {}
+        };
+
+        KeyframeStore      store;
+        KeyframeSettings   settings;
+        RefusingQueue      queue;
+        std::vector<Byte>  restored;
+        HRESULT            hr       = S_OK;
+
+
+
+        settings.intervalCycles = s_kInterval;
+        store.Configure (settings);
+        store.SetWorkQueue (&queue);
+
+        for (size_t i = 0; i < 3; i++)
+        {
+            hr = store.Add (i * 10, i * s_kInterval, MakeState (i));
+            AssertSucceeded (hr, L"Add");
+        }
+
+        Assert::AreEqual ((size_t) 0, store.GetPendingCount(), L"nothing left in flight");
+
+        hr = store.Restore (2, restored);
+        AssertSucceeded (hr, L"Restore");
+        Assert::IsTrue (restored == MakeState (2));
     }
 
 
