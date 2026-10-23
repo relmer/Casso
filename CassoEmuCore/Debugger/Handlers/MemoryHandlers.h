@@ -4,6 +4,8 @@
 
 class IDebugTarget;
 class IFileSystem;
+struct BinaryImage;
+struct BinarySegment;
 
 
 
@@ -49,6 +51,7 @@ private:
     static void  ShowResults  (DebugSession & session, Reply & reply);
     static void  LoadBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static std::string  LoadCompanion (DebugSession & session, IFileSystem & files, const std::string & name);
+    static size_t       GetLoadCount  (const DebugCommand & command, const BinaryImage & image, const BinarySegment & segment);
     static void  SaveBinary   (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  SaveText     (DebugSession & session, const DebugCommand & command, Reply & reply);
     static void  ReadIo       (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -58,6 +61,7 @@ private:
     static void  Patch        (DebugSession & session, const DebugCommand & command, Reply & reply);
 
     static bool  TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply);
+    static bool  IsWritable   (const IDebugTarget & target, Word first, size_t count, Reply & reply);
     static bool  TryPeekByte  (IDebugTarget & target, Word address, Byte & value, Reply & reply);
     static bool  TryGetFiles  (DebugSession & session, Reply & reply, IFileSystem *& files);
     static Word  GetLast      (const DebugCommand & command);
