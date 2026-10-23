@@ -1170,15 +1170,25 @@ bool DxuiTextView::FindAllInRows (
 
         if (isRegex)
         {
-            for (std::wsregex_iterator it (text.begin(), text.end(), pattern), end; it != end; ++it)
+            //  The matcher throws once a pattern backtracks past its budget,
+            //  which a pattern typed, or half typed, into find can do.
+            try
             {
-                size_t  at     = (size_t) it->position (0);
-                size_t  length = (size_t) it->length (0);
-
-                if (length > 0 && (!wholeWord || IsWholeWordAt (text, at, length)))
+                for (std::wsregex_iterator it (text.begin(), text.end(), pattern), end; it != end; ++it)
                 {
-                    outMatches.push_back (FindMatch { Position { (int) r, (int) at }, (int) length });
+                    size_t  at     = (size_t) it->position (0);
+                    size_t  length = (size_t) it->length (0);
+
+                    if (length > 0 && (!wholeWord || IsWholeWordAt (text, at, length)))
+                    {
+                        outMatches.push_back (FindMatch { Position { (int) r, (int) at }, (int) length });
+                    }
                 }
+            }
+            catch (const std::regex_error &)
+            {
+                outMatches.clear();
+                return false;
             }
 
             continue;
