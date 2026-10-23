@@ -1034,6 +1034,7 @@ void SettingsSheet::OnDialogTick()
     UpdateNetworkTabVisibility();
     UpdateTabSparkles();
     UpdateTickInterval();
+    ShowPendingNotice();
 
     // The Machine tab's tree, a machine switch and Cancel all change the
     // staged card behind the Network page, and the connectors the printer
@@ -1898,7 +1899,34 @@ void SettingsSheet::ReportCrossTabChange (const std::wstring & notice)
     m_hardwarePage->Rebuild();
     Invalidate();
 
-    DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), notice.c_str(), L"Settings", MB_OK | MB_ICONINFORMATION);
+    m_pendingNotice = notice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowPendingNotice
+//
+//  On the tick after the change, so the drop-down the change was picked
+//  from is closed before the message box opens over it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::ShowPendingNotice()
+{
+    std::wstring  notice = std::move (m_pendingNotice);
+
+
+
+    m_pendingNotice.clear();
+
+    if (!notice.empty())
+    {
+        DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), notice.c_str(), L"Settings", MB_OK | MB_ICONINFORMATION);
+    }
 }
 
 

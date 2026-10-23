@@ -295,6 +295,9 @@ private:
     int            m_serialPageIndex  = -1;
     bool           m_serialTabVisible = true;
 
+    // A cross-tab change's notice, for a message box on the next tick.
+    std::wstring   m_pendingNotice;
+
     void           UpdateSerialTabVisibility ();
     bool           IsSerialFirmwareMissing   () const;
     std::wstring   GetSerialFirmwareStatus   () const;
@@ -305,9 +308,10 @@ private:
     // DownloadSerialFirmware returns true when the firmware was written.
     bool           DownloadSerialFirmware (const std::wstring & intro);
 
-    // Displays `notice`, a change one tab made to another's settings, and
-    // syncs the connector tabs to it.
+    // Displays `notice`, a change one tab made to another's settings, on the
+    // next tick, and syncs the connector tabs to it.
     void           ReportCrossTabChange   (const std::wstring & notice);
+    void           ShowPendingNotice      ();
     void           SetSerialCardEnabled   (bool enabled);
 
     // A tab appearing among the others is easy to miss, so when turning a
