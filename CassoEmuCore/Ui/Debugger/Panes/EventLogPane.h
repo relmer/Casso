@@ -23,11 +23,16 @@
 //  row, and the row at the top when older rows go in front, stay the same
 //  through each change.
 //
-//  The pane has at most kMaxRows rows: past that the oldest are dropped down
-//  to kRetainedRows, and the machine's thread is sent where the rows start now,
-//  so scrolling up rebuilds them from history. A delta that only adds newer
-//  rows extends the view with them, so a frame's work is the size of the
-//  delta, not of the log.
+//  While the list is at its newest row the pane has at most kMaxRows rows:
+//  past that the oldest are dropped down to kRetainedRows, and the machine's
+//  thread is sent where the rows start now, so scrolling up rebuilds them from
+//  history. While the list is on older rows, the rows scrolling up brought in
+//  are not dropped as they arrive: nothing is dropped until the list is back
+//  at its newest row or the rows pass kHardMaxRows. Nothing is dropped while a
+//  request for older rows is outstanding either, since the machine's thread
+//  sends the rows before where the rows started then. A delta that only adds
+//  newer rows extends the view with them, so a frame's work is the size of
+//  the delta, not of the log.
 //
 //  A pane for one kind of event defines its columns, its filter and its
 //  event cells, and may look over every row before the filter runs. Its
@@ -63,6 +68,7 @@ public:
     static constexpr size_t  kCycleColumn  = 1;
     static constexpr size_t  kMaxRows      = 200000;
     static constexpr size_t  kRetainedRows = 150000;
+    static constexpr size_t  kHardMaxRows  = 2 * kMaxRows;
 
     EventLogPane (DxuiListView * list, RequestFn request) :
         m_list    (list),
@@ -122,8 +128,9 @@ public:
             return;
         }
 
-        m_isShown     = isShown;
-        m_requestedAt = UINT64_MAX;
+        m_isShown          = isShown;
+        m_requestedAt      = UINT64_MAX;
+        m_isEarlierPending = false;
 
         m_request (isShown ? "open" : "close");
     }
@@ -132,7 +139,6 @@ public:
 
     void  Apply (const DebugLogDelta<T> & delta)
     {
-        std::optional<size_t>  top       = GetTopIndex();
         bool                   isAtTail  = m_list->IsAtBottom();
         bool                   isCut     = false;
         size_t                 prepended = 0;
@@ -152,7 +158,12 @@ public:
         //  row is yet; only a cut that drops rows changes the view's rows.
         isCut     = delta.cutFrom != DebugLogDelta<T>::kNoCut && !m_rows.GetRows().empty() && m_rows.GetRows().back().position >= delta.cutFrom;
         prepended = m_rows.Apply (delta);
-        dropped   = TrimRows();
+
+        //  The machine's thread has the request for older rows once it
+        //  rebuilds them or sends them.
+        m_isEarlierPending = m_isEarlierPending && !delta.isRebuilding && !delta.isReset && prepended == 0;
+
+        dropped   = TrimRows (isAtTail);
         count     = m_rows.GetRows().size();
 
         if (delta.isReset || isCut || prepended > 0 || dropped > 0)
@@ -165,7 +176,8 @@ public:
             m_selected.clear();
             m_anchor.reset();
             m_keyboardRow.reset();
-            top.reset();
+            m_viewTop.reset();
+            m_isTopKept = false;
         }
 
         std::erase_if (m_selected, [&] (size_t index) { return index + prepended < dropped || index + prepended - dropped >= count; });
@@ -178,13 +190,13 @@ public:
         moveOn (m_anchor);
         moveOn (m_keyboardRow);
 
-        m_keepTop.reset();
+        //  The top row is moved on through every delta since the view was
+        //  built, as the selection is, and Refresh scrolls back to it when any
+        //  of them put rows in front or dropped rows the list was not following.
+        moveOn (m_viewTop);
 
-        if (top.has_value() && (prepended > 0 || (dropped > 0 && !isAtTail)))
-        {
-            moveOn (top);
-            m_keepTop = top;
-        }
+        m_isTopKept = m_isTopKept || prepended > 0 || (dropped > 0 && !isAtTail);
+        m_keepTop   = m_isTopKept ? m_viewTop : std::nullopt;
 
         m_isDirty = true;
     }
@@ -268,6 +280,8 @@ public:
 
             m_keepTop.reset();
         }
+
+        m_isTopKept = false;
     }
 
     //  In position order, the row above the oldest coming into view requests
@@ -280,7 +294,8 @@ public:
 
         if (isTopShown && !m_rows.IsAtStart() && !m_rows.IsRebuilding() && m_rows.GetHeldFrom() != m_requestedAt)
         {
-            m_requestedAt = m_rows.GetHeldFrom();
+            m_requestedAt      = m_rows.GetHeldFrom();
+            m_isEarlierPending = true;
             m_request ("earlier");
         }
     }
@@ -591,16 +606,19 @@ private:
         return m_view.size() >= kept + removed.size() && std::equal (removed.begin(), removed.end(), m_view.begin() + (ptrdiff_t) kept);
     }
 
-    //  Past kMaxRows, the oldest rows dropped down to kRetainedRows, and a
+    //  Past kMaxRows with the list at its newest row, or past kHardMaxRows
+    //  wherever it is, the oldest rows dropped down to kRetainedRows, and a
     //  request to the machine's thread with where the rows start now. None
-    //  while older rows are being rebuilt. The count of rows dropped.
-    size_t  TrimRows()
+    //  while older rows are being rebuilt or a request for them is
+    //  outstanding. The count of rows dropped.
+    size_t  TrimRows (bool isAtTail)
     {
+        size_t  most    = isAtTail ? kMaxRows : kHardMaxRows;
         size_t  dropped = 0;
 
 
 
-        if (m_rows.GetRows().size() <= kMaxRows || m_rows.IsRebuilding())
+        if (m_rows.GetRows().size() <= most || m_rows.IsRebuilding() || m_isEarlierPending)
         {
             return 0;
         }
@@ -688,6 +706,9 @@ private:
 
         m_selected.clear();
 
+        m_viewTop   = GetTopIndex();
+        m_isTopKept = false;
+
         for (int row : m_list->GetSelectedRows())
         {
             if (std::optional<size_t> index = GetIndexOf (row); index.has_value())
@@ -739,6 +760,9 @@ private:
     std::optional<size_t>    m_anchor;
     std::optional<size_t>    m_keyboardRow;
     std::optional<size_t>    m_keepTop;
+    std::optional<size_t>    m_viewTop;                     // the top row's index, moved on by each delta since the view was built
+    bool                     m_isTopKept        = false;   // a delta since the view was built put rows in front or dropped rows above
+    bool                     m_isEarlierPending = false;   // "earlier" was sent and no delta has come from it yet
     uint64_t                 m_shownBefore      = UINT64_MAX;
     size_t                   m_viewRowCount     = 0;        // the rows the view was built over
     uint64_t                 m_requestedAt      = UINT64_MAX;

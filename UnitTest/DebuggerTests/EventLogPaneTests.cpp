@@ -772,6 +772,7 @@ namespace EventLogPaneTests
 
 
             pane.Configure();
+            list.SetRect (RECT { 0, 0, 600, 400 });
 
             delta.isReset = true;
 
@@ -783,6 +784,7 @@ namespace EventLogPaneTests
             pane.Apply   (delta);
             pane.Refresh();
 
+            list.SetTopRow       ((int) past);
             list.SetSelectedRows ({ (int) past - 1 }, (int) past - 1);
 
             delta       = DiskLogDelta();
@@ -796,6 +798,152 @@ namespace EventLogPaneTests
             Assert::IsTrue   (std::ranges::find (requests, std::format ("from {}", oldest)) != requests.end(), L"the machine's thread is sent the new oldest row");
             Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size());
             Assert::AreEqual (std::wstring (EventLogText::FormatCycle ((past - 1) * 100)), GetColumn (pane, DiskLogPane::kCycle)[(size_t) list.GetSelectedRows()[0]], L"the same row selected");
+        }
+
+
+        //  Rows brought in by scrolling up are not dropped as they arrive,
+        //  though they take the pane past kMaxRows, while the list is on
+        //  older rows.
+        TEST_METHOD (RowsScrollingUpBroughtInAreNotDropped)
+        {
+            constexpr size_t           kOlder   = 5000;
+            DxuiListView               list;
+            std::vector<std::string>   requests;
+            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogDelta               delta;
+            size_t                     i        = 0;
+            uint64_t                   first    = kOlder * 10;
+
+
+
+            pane.Configure();
+            pane.SetShown (true);
+            list.SetVisible (true);
+            list.SetRect    (RECT { 0, 0, 600, 400 });
+
+            delta.isReset  = true;
+            delta.heldFrom = first;
+
+            for (i = 0; i < DiskLogPane::kMaxRows - 1; i++)
+            {
+                delta.newer.push_back (MakeDiskRow (first + i * 10, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            list.SetTopRow (0);
+            pane.FollowScroll();
+            Assert::AreEqual (std::string ("earlier"), requests.back(), L"the start row is in view");
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = 0;
+
+            for (i = 0; i < kOlder; i++)
+            {
+                delta.older.push_back (MakeDiskRow (i * 10, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (DiskLogPane::kMaxRows - 1 + kOlder, pane.GetRows().GetRows().size(), L"nothing dropped");
+            Assert::AreEqual ((uint64_t) 0, pane.GetRows().GetRows().front().position, L"the rows brought in are first");
+        }
+
+
+        //  While a request for older rows is outstanding nothing is dropped,
+        //  even past kHardMaxRows, since the machine's thread sends the rows
+        //  before where the rows started then.
+        TEST_METHOD (NothingIsDroppedWhileEarlierRowsAreRequested)
+        {
+            DxuiListView               list;
+            std::vector<std::string>   requests;
+            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogDelta               delta;
+            size_t                     i        = 0;
+            uint64_t                   first    = 1000;
+
+
+
+            pane.Configure();
+            pane.SetShown (true);
+            list.SetVisible (true);
+            list.SetRect    (RECT { 0, 0, 600, 400 });
+
+            delta.isReset  = true;
+            delta.heldFrom = first;
+            delta.newer    = { MakeDiskRow (first, Disk2EventType::DriveSelect) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            pane.FollowScroll();
+            Assert::AreEqual (std::string ("earlier"), requests.back());
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = first;
+
+            for (i = 1; i <= DiskLogPane::kHardMaxRows; i++)
+            {
+                delta.newer.push_back (MakeDiskRow (first + i, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply (delta);
+
+            Assert::AreEqual (DiskLogPane::kHardMaxRows + 1, pane.GetRows().GetRows().size(), L"nothing dropped");
+            Assert::AreEqual (first, pane.GetRows().GetHeldFrom(), L"and no new start sent");
+        }
+
+
+        //  A frame can apply a delta of older rows and then one of newer rows
+        //  before one refresh; the row at the top stays the one the user was
+        //  reading.
+        TEST_METHOD (TheTopRowStaysThroughTwoDeltasInAFrame)
+        {
+            constexpr size_t           kRows   = 100;
+            constexpr size_t           kOlder  = 10;
+            DxuiListView               list;
+            DiskLogPane                pane (&list, [] (const std::string &) {});
+            DiskLogDelta               delta;
+            size_t                     i       = 0;
+            uint64_t                   first   = 1000;
+
+
+
+            pane.Configure();
+            pane.SetShown (true);
+            list.SetVisible (true);
+            list.SetRect    (RECT { 0, 0, 600, 400 });
+
+            delta.isReset  = true;
+            delta.heldFrom = first;
+
+            for (i = 0; i < kRows; i++)
+            {
+                delta.newer.push_back (MakeDiskRow (first + i, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            list.SetTopRow (1);
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = first - kOlder;
+
+            for (i = 0; i < kOlder; i++)
+            {
+                delta.older.push_back (MakeDiskRow (first - kOlder + i, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply (delta);
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = first - kOlder;
+            delta.newer    = { MakeDiskRow (first + kRows, Disk2EventType::MotorCommandOn) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (std::wstring (EventLogText::FormatCycle (first * 10)), GetColumn (pane, DiskLogPane::kCycle)[(size_t) list.GetTopRow()], L"the row at the top before");
         }
 
 
