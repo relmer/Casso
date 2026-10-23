@@ -1887,6 +1887,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [ ] T1071 ASan: stack-use-after-scope in 7 of 31 HistoryThumbnailModelTests; the test's clock and store are destroyed before the thumbnails that call them (HistoryThumbnailModelTests.cpp)
 - [ ] T1072 GetBlocks drops any span whose start has no keyframe, with no error and no mark, so the profile silently leaves those instructions out (ProfileHistory.cpp:304)
 - [ ] T1073 Build sets m_isBuilding and m_remaining before SubmitBlocks and returns on a failed BuildJob or Submit without canceling the runs already submitted, so the profile stays "building" for good (ProfileHistory.cpp:413)
+- [ ] T1143 A smaller history budget set while the machine is in the past can drop the keyframe at or before the machine's position, and the next step from there fails the assertion on TryFindStretch in ReplayHere; seen while writing T1027's test with a budget two thirds of the bytes in use (KeyframeStore::Relayout, ReverseController::ReplayHere)
 
 ### Low: edge cases, polish, cost
 

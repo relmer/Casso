@@ -1528,8 +1528,8 @@ private:
 
         FakeHistoryFrameRenderer   renderer;
         InlineWorkQueue            queue;
+        KeyframeStore              store;                     // before the thumbnails, which detach from it as they go
         HistoryThumbnails          thumbnails (renderer);
-        KeyframeStore              store;
         uint64_t                   now    = 0;
         uint64_t                   newest = 0;
         std::vector<Byte>          state (s_kThumbStateBytes);
