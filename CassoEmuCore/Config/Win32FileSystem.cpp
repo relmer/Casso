@@ -6,6 +6,14 @@
 
 
 
+//  Numbers each temp file WriteAllText stages, so two writes beside one
+//  target never share a temp file.
+static std::atomic<unsigned>  s_tempCounter { 0 };
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadAllText
@@ -87,9 +95,11 @@ Error:
 //
 //  Atomic write: stages content into a sibling temp file, then
 //  uses MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)
-//  to swap it into place. Any process reading `path` between the
-//  CreateFileW and the MoveFileExW sees the prior content; after
-//  the move, sees the new content.
+//  to swap it into place. A read of `path` between the CreateFileW and
+//  the MoveFileExW returns the prior content, and after the move the new
+//  content. The temp file's name has this process's id and a counter in it,
+//  and the file is opened with CREATE_NEW, so a file of the user's beside
+//  the target, such as one ending in .tmp, is never written over or deleted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,6 +107,10 @@ HRESULT Win32FileSystem::WriteAllText (
     const std::wstring  & path,
     const std::string   & content)
 {
+    constexpr int  kMaxTempAttempts = 16;
+
+
+
     HRESULT          hr             = S_OK;
     HANDLE           hTemp          = INVALID_HANDLE_VALUE;
     DWORD            bytesWritten   = 0;
@@ -106,6 +120,9 @@ HRESULT Win32FileSystem::WriteAllText (
     std::wstring     parentDir;
     size_t           lastSep        = 0;
     size_t           contentSize    = 0;
+    bool             created        = false;
+    bool             taken          = false;
+    int              attempt        = 0;
     std::error_code  ec;
 
 
@@ -121,17 +138,25 @@ HRESULT Win32FileSystem::WriteAllText (
         std::filesystem::create_directories (parentDir, ec);
     }
 
-    tempPath = path + L".tmp";
+    //  A name that is taken, as by another write in flight, is passed over.
+    do
+    {
+        tempPath = std::format (L"{}.{}-{}.tmp", path, GetCurrentProcessId(), s_tempCounter++);
+        hTemp    = CreateFileW (tempPath.c_str(),
+                                GENERIC_WRITE,
+                                0,
+                                nullptr,
+                                CREATE_NEW,
+                                FILE_ATTRIBUTE_NORMAL,
+                                nullptr);
 
-    hTemp = CreateFileW (tempPath.c_str(),
-                         GENERIC_WRITE,
-                         0,
-                         nullptr,
-                         CREATE_ALWAYS,
-                         FILE_ATTRIBUTE_NORMAL,
-                         nullptr);
+        taken = hTemp == INVALID_HANDLE_VALUE && GetLastError() == ERROR_FILE_EXISTS;
+        attempt++;
+    }
+    while (taken && attempt < kMaxTempAttempts);
 
     CWR (hTemp != INVALID_HANDLE_VALUE);
+    created = true;
 
     if (!content.empty())
     {
@@ -163,7 +188,7 @@ Error:
         CloseHandle (hTemp);
     }
 
-    if (FAILED (hr))
+    if (FAILED (hr) && created)
     {
         // Best-effort temp cleanup; don't override hr.
         DeleteFileW (tempPath.c_str());
