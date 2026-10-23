@@ -1820,7 +1820,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 ### Medium: wrong results a user can reach
 
 - [X] T1006 Start sets isResetDue and Stop clears wantedBefore only for the disk and input logs, so the video and sound logs keep stale rows across a restart (DebugEventLogs.cpp:76) Done: fixed with T995; Start sets isResetDue and Stop clears wantedBefore for the video and sound logs as well.
-- [ ] T1007 The new `debug --max-cycles` is parsed into a uint32_t through ParseDecimal (CommandLineParser.cpp:4234)
+- [X] T1007 The new `debug --max-cycles` is parsed into a uint32_t through ParseDecimal (CommandLineParser.cpp:4234) Done: a 64-bit CommandLineParser::ParseDecimal takes digits only and fails on ERANGE; the 32-bit one fails past UINT32_MAX instead of clamping, and debug --max-cycles parses into 64 bits. Test NumbersPastTheirRangeAreErrorsNotClamped.
 - [ ] T1008 BPR and comparison-BP conditions name the register as a bare word (`A`, `X`, `PC`) rather than `@A` (AppleWinParser.cpp:993)
 - [ ] T1009 TryParseCondition builds the condition by gluing strings together as `subject + op + rest`, with no parentheses around rest (AppleWinParser.cpp:2605)
 - [X] T1010 Add, Subtract, Multiply and Negate are plain int32 arithmetic, so overflow is undefined behavior (DebugExpressionEvaluator.cpp:930) Done: fixed with T987; negating INT_MIN is an overflow error too, and a condition check passes an overflow as it passes a zero divisor.
