@@ -7,6 +7,7 @@
 #include "../Dxui/MockDxuiPainter.h"
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
+#include "Ui/Chrome/CassoTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -122,6 +123,29 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 5, readFills, L"aux, main, I/O, main, ROM");
             Assert::IsTrue   (HasText (text, L"Main RAM"), L"the tall main run has no name");
             Assert::IsTrue   (HasText (text, L"$0000") && HasText (text, L"$FFFF"), L"the strips' ends have no labels");
+        }
+
+
+        //  A strip shorter than one label line has its first label at its
+        //  top, not over the heading above it.
+        TEST_METHOD (AMemoryMapShorterThanALabelHasItsLabelAtItsTop)
+        {
+            MemoryMapBar          bar;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();     // a font with a size, so a label has a height
+            auto                  first   = text.Calls().end();
+
+
+
+            bar.SetMap (MakeMap());
+            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), MemoryMapBar::kHeadingDip + 4 }, Scaler96());
+            bar.Paint  (painter, text, theme);
+
+            first = std::ranges::find_if (text.Calls(), [] (const RecordedTextCall & call) { return call.text == L"$0000"; });
+
+            Assert::IsTrue (first != text.Calls().end(), L"the first label");
+            Assert::IsTrue (first->y >= bar.GetPageY (0, false) - 0.01f, std::format (L"at {}, above the strip's top at {}", first->y, bar.GetPageY (0, false)).c_str());
         }
 
 

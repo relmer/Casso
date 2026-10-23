@@ -579,6 +579,7 @@ void MemoryMapBar::PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & the
     float           top      = GetPageY (0, isWrite);
     float           bottom   = GetPageY ((int) DiagnosticsMemoryMap::kPageCount, isWrite);
     float           line     = size * 1.3f;
+    float           lowest   = std::max (top, bottom - line);     // a strip shorter than a line has its labels at its top
     float           last     = -FLT_MAX;
     DxuiTextHAlign  align    = isWrite ? DxuiTextHAlign::Left : DxuiTextHAlign::Right;
     auto            draw     = [&] (const std::wstring & label, float at)
@@ -603,7 +604,7 @@ void MemoryMapBar::PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & the
     {
         if (page == 0 || GetSourceOf (page, isWrite) != GetSourceOf (page - 1, isWrite))
         {
-            draw (std::format (L"${:04X}", page * 0x100), std::clamp (GetPageY (page, isWrite) - line / 2.0f, top, bottom - line));
+            draw (std::format (L"${:04X}", page * 0x100), std::clamp (GetPageY (page, isWrite) - line / 2.0f, top, lowest));
         }
     }
 
