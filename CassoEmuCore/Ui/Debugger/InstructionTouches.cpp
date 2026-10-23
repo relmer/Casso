@@ -64,7 +64,7 @@ static void AddItem (std::vector<InstructionTouches::Item> & items, InstructionT
 InstructionTouches::Result InstructionTouches::Find (const IDebugExpressionContext & memory, const Microcode * instructionSet,
                                                      const Cpu6502Registers & registers, Word pc, Word length)
 {
-    ShadowCpu                cpu (memory);
+    ShadowCpu                cpu (memory, instructionSet);
     Cpu6502Registers                before     = registers;
     const Microcode               * microcode  = nullptr;
     InstructionSemantics::Effect    semantics;
@@ -207,7 +207,7 @@ InstructionTouches::Result InstructionTouches::Find (const IDebugExpressionConte
     //  unknown: the core's own execution determines what the byte feeds.
     before.pc = pc;
 
-    hr = RunTrial (memory, before, s_kFills[0], first);
+    hr = RunTrial (memory, instructionSet, before, s_kFills[0], first);
 
     if (SUCCEEDED (hr))
     {
@@ -219,7 +219,7 @@ InstructionTouches::Result InstructionTouches::Find (const IDebugExpressionConte
 
     for (size_t i = 1; SUCCEEDED (hr) && first.hasUnknownRead && i < std::size (s_kFills); i++)
     {
-        hr = RunTrial (memory, before, s_kFills[i], other);
+        hr = RunTrial (memory, instructionSet, before, s_kFills[i], other);
 
         if (SUCCEEDED (hr))
         {
@@ -242,10 +242,10 @@ InstructionTouches::Result InstructionTouches::Find (const IDebugExpressionConte
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT InstructionTouches::RunTrial (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Byte fill, Trial & trial)
+HRESULT InstructionTouches::RunTrial (const IDebugExpressionContext & memory, const Microcode * instructionSet, const Cpu6502Registers & registers, Byte fill, Trial & trial)
 {
     HRESULT    hr  = S_OK;
-    ShadowCpu  cpu (memory);
+    ShadowCpu  cpu (memory, instructionSet);
 
 
 

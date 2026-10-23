@@ -96,6 +96,6 @@ private:
         bool                           hasUnknownRead = false;
     };
 
-    static HRESULT  RunTrial    (const IDebugExpressionContext & memory, const Cpu6502Registers & registers, Byte fill, Trial & trial);
+    static HRESULT  RunTrial    (const IDebugExpressionContext & memory, const Microcode * instructionSet, const Cpu6502Registers & registers, Byte fill, Trial & trial);
     static void     MarkUnknown (const Trial & first, const Trial & other, Result & result);
 };

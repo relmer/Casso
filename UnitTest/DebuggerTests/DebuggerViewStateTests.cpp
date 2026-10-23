@@ -712,6 +712,38 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (4u, touches.cycles);
         }
 
+        //  On a 65C02 the instruction runs as the 65C02 runs it: STZ stores a
+        //  zero where the 6502 reads past a NOP, and BRK clears D.
+        TEST_METHOD (A65C02InstructionRunsAsThe65C02RunsIt)
+        {
+            TestMachine                  machine   ("Apple2eEnhanced", TestMachine::Slots::Empty);
+            MockExpressionContext        memory;
+            Cpu6502Registers             registers = {};
+            InstructionTouches::Result   touches;
+            const Microcode            * set       = machine.GetCpu()->GetCpu6502()->GetInstructionSet();
+
+
+
+            memory.memory[0x0300] = 0x64;     // STZ $10
+            memory.memory[0x0301] = 0x10;
+            memory.memory[0x0010] = 0x55;
+
+            registers.pc = 0x0300;
+            registers.sp = 0xFF;
+
+            touches = InstructionTouches::Find (memory, set, registers, 0x0300, 2);
+
+            Assert::AreEqual ((size_t) 1, touches.writes.size(), L"one write");
+            Assert::AreEqual ((Word) 0x0010, touches.writes[0].address);
+            Assert::AreEqual ((Byte) 0x00,   touches.writes[0].value);
+
+            memory.memory[0x0300] = 0x00;     // BRK
+            registers.p           = 0x08;
+
+            touches = InstructionTouches::Find (memory, set, registers, 0x0300, 1);
+            Assert::AreEqual (0, touches.after.p & 0x08, L"BRK clears D");
+        }
+
         //  The PC's line ends with the cycles its instruction will take with
         //  the registers as they are: a branch's count is for the way it goes.
         TEST_METHOD (ThePcLineEndsWithItsCycles)
