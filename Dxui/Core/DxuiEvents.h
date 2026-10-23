@@ -33,6 +33,29 @@ enum class DxuiMouseEventKind
 };
 
 
+//  Whole wheel notches from WM_MOUSEWHEEL deltas, the rest left in
+//  `remainder` for the next delta, so a high-resolution wheel or a precision
+//  touchpad, whose deltas are a part of WHEEL_DELTA, scrolls once its deltas
+//  add up to a notch.
+struct DxuiWheelNotches
+{
+    int  Take (int delta)
+    {
+        int  notches = 0;
+
+
+
+        remainder += delta;
+        notches    = remainder / WHEEL_DELTA;
+        remainder -= notches * WHEEL_DELTA;
+
+        return notches;
+    }
+
+    int  remainder = 0;
+};
+
+
 struct DxuiMouseEvent
 {
     DxuiMouseEventKind  kind            = DxuiMouseEventKind::Move;

@@ -188,6 +188,22 @@ public:
     }
 
 
+    //  Wheel deltas under a notch, as a precision touchpad sends, add up to
+    //  whole notches, the rest added to the next delta.
+    TEST_METHOD (WheelNotchesAddUpDeltasUnderANotch)
+    {
+        DxuiWheelNotches  wheel;
+
+
+        Assert::AreEqual (0, wheel.Take (40));
+        Assert::AreEqual (0, wheel.Take (40));
+        Assert::AreEqual (1, wheel.Take (60), L"a notch, with 20 over");
+        Assert::AreEqual (0, wheel.Take (-100));
+        Assert::AreEqual (-1, wheel.Take (-60), L"back down past a notch");
+        Assert::AreEqual (2, wheel.Take (2 * WHEEL_DELTA + 40));
+    }
+
+
     TEST_METHOD (HexView_ClaimsCopyAndSelectAllButNotPaste)
     {
         DxuiHexView  view;

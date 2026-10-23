@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "Core/DxuiEvents.h"
 #include "Core/IDxuiControl.h"
 #include "Core/DxuiTextElide.h"
 
@@ -88,7 +89,7 @@ public:
     void  SetDpi        (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     //
-    //  IDxuiControl overrides — additive shims for DxuiPanel trees.
+    //  IDxuiControl overrides ? additive shims for DxuiPanel trees.
     //  IDxuiControl::Paint invokes the existing Paint(painter, text)
     //  which renders PaintBase plus PaintMenu in z-slot. Legacy
     //  consumers that need the menu painted last across siblings
@@ -185,6 +186,7 @@ private:
     bool                         m_focused         = false;
     DxuiHwndSource             * m_popupHost       = nullptr;
     DxuiPopupHost              * m_activePopup     = nullptr;
+    DxuiWheelNotches             m_wheel;
     mutable bool                 m_hasThemeColors  = false;
     mutable ResolvedColors       m_themeColors     = {};
 };

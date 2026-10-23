@@ -517,7 +517,7 @@ void DxuiPopupMenu::AcquirePopup (const RECT & anchor, Anchoring anchoring)
     params.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
     params.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
     params.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
-    params.onWheel          = [this] (int delta)     { ScrollByRows (-(delta / WHEEL_DELTA) * s_kWheelRows); };
+    params.onWheel          = [this] (int delta)     { ScrollByRows (-m_wheel.Take (delta) * s_kWheelRows); };
     params.onClosed         = [this] () { Hide(); };
     params.onClickOutside   = m_onClickOutside;
 
