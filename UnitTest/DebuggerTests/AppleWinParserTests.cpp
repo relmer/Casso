@@ -460,6 +460,19 @@ namespace DebuggerTests
 
 
 
+        //  A move whose source range ends before its start fails to parse, as M
+        //  does, and is not run as a one-byte move.
+        TEST_METHOD (Shorthand_MoveWithAReversedRangeIsRefused)
+        {
+            AppleWinParseResult  move = ParseFails ("300<2000.1000M", ParseStatus::Invalid);
+
+
+
+            Assert::AreEqual (std::string ("The range ends at $1000, before its start at $2000."), move.error);
+        }
+
+
+
         TEST_METHOD (Shorthand_DepositAndGo)
         {
             AppleWinParseResult  deposit = ParseOk ("300:60");

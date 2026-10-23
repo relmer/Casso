@@ -279,6 +279,13 @@ bool AppleWinParser::TryParseMoveShorthand (const std::string & upper, const Arg
                            TryEvaluate (upper.substr (less + 1, period - less - 1), *args.context, result.command.a1, result.error) &&
                            TryEvaluate (upper.substr (period + 1, upper.size() - period - 2), *args.context, result.command.a2, result.error)
                          ? ParseStatus::Ok : ParseStatus::Invalid;
+
+    if (result.status == ParseStatus::Ok && result.command.a2 < result.command.a1)
+    {
+        result.status = ParseStatus::Invalid;
+        result.error  = std::format ("The range ends at ${:04X}, before its start at ${:04X}.", result.command.a2, result.command.a1);
+    }
+
     return true;
 }
 
@@ -625,7 +632,7 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
             return TryParseFreeCondition (Join (args.tokens, 1), command, error, args.context->GetNumberSyntax());
         }
 
-        return TryParseRegisterCondition (args.tokens, command, error);
+        return TryParseRegisterCondition (args.tokens, command, error, args.context->GetNumberSyntax());
 
     case DebugVerb::BreakOnOpcode:
         return TryParseOpcodes (args, command, error);
@@ -964,7 +971,7 @@ bool AppleWinParser::TryParseValueBreakpoint (const Arguments & args, DebugComma
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error)
+bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax)
 {
     static constexpr const char * kRegisters[] = { "A", "X", "Y", "P", "S", "PC" };
     std::string  joined = Join (tokens, 0);
@@ -990,10 +997,10 @@ bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugComm
 
     if (op == std::string::npos)
     {
-        return TryParseCondition (command.text, tokens, 1, command, error);
+        return TryParseCondition (command.text, tokens, 1, command, error, syntax);
     }
 
-    return TryParseCondition (command.text, Split (joined.substr (op)), 0, command, error);
+    return TryParseCondition (command.text, Split (joined.substr (op)), 0, command, error, syntax);
 }
 
 
