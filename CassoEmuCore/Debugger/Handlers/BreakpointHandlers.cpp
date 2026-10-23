@@ -1984,3 +1984,90 @@ WatchMode BreakpointHandlers::GetMode (const DebugCommand & command)
 {
     return command.text == "BEFORE" ? WatchMode::Before : WatchMode::After;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::IsDefinition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::IsDefinition (DebugVerb verb)
+{
+    switch (verb)
+    {
+    case DebugVerb::SetBreakpoint:
+    case DebugVerb::SetConditionalBreakpoint:
+    case DebugVerb::SetBreakpointAndWatchpoint:
+    case DebugVerb::SetRegisterBreakpoint:
+    case DebugVerb::SetMemoryWatchpoint:
+    case DebugVerb::SetReadWatchpoint:
+    case DebugVerb::SetWriteWatchpoint:
+    case DebugVerb::SetValueBreakpoint:
+    case DebugVerb::SetSourceBreakpoint:
+    case DebugVerb::BreakOnBrk:
+    case DebugVerb::BreakOnOpcode:
+    case DebugVerb::BreakOnInterrupt:
+    case DebugVerb::SetDiskBreakpoint:
+    case DebugVerb::SetBasicLineBreakpoint:
+    case DebugVerb::SetBasicVariableBreakpoint:
+    case DebugVerb::BreakOnBasicError:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::GetIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> BreakpointHandlers::GetIds (DebugSession & session)
+{
+    BreakpointListData  list;
+    std::vector<int>    ids;
+
+
+
+    BreakpointHandlers::ListAll (session, list);
+
+    for (const BreakpointInfo & info : list.breakpoints)
+    {
+        ids.push_back (info.id);
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::GetFirstAdded
+//
+//  The first id in after that is not in before, or -1 when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointHandlers::GetFirstAdded (
+    const std::vector<int>  & before,
+    const std::vector<int>  & after)
+{
+    auto  added = std::ranges::find_if (after, [&before] (int id) { return std::ranges::find (before, id) == before.end(); });
+
+
+
+    return (added != after.end()) ? *added : -1;
+}

@@ -21,8 +21,9 @@
 //  setting a breakpoint runs it; only when none does is it read as a change
 //  to one, so GSSquared's `bpd 400 r` is a read breakpoint rather than
 //  AppleWin's disable of breakpoint 400. Each definition line's new
-//  breakpoints are found as the ids that were not there before it, in order,
-//  so the script's numbers map onto them. The Monitor's only breakpoint
+//  breakpoint is found as the first id that was not there before it, so the
+//  script's numbers map onto them; a line that added none takes its number
+//  all the same, so no later number moves onto another breakpoint. The Monitor's only breakpoint
 //  command is a Casso command after its slash (/bpdisk), read without the
 //  slash.
 //
@@ -73,7 +74,7 @@ int BreakpointImport::Run (DebugSession & session, const std::string & script, c
                 continue;
             }
 
-            if (IsDefinition (command.verb))
+            if (BreakpointHandlers::IsDefinition (command.verb))
             {
                 setter = candidate;
             }
@@ -85,11 +86,11 @@ int BreakpointImport::Run (DebugSession & session, const std::string & script, c
 
         if (setter.has_value())
         {
-            before = GetIds (session);
+            before = BreakpointHandlers::GetIds (session);
             run (line, *setter);
-            after  = GetIds (session);
+            after  = BreakpointHandlers::GetIds (session);
 
-            std::ranges::copy_if (after, std::back_inserter (created), [&before] (int id) { return std::ranges::find (before, id) == before.end(); });
+            created.push_back (BreakpointHandlers::GetFirstAdded (before, after));
             continue;
         }
 
@@ -101,44 +102,6 @@ int BreakpointImport::Run (DebugSession & session, const std::string & script, c
 
     return skipped;
 }
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointImport::IsDefinition
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool BreakpointImport::IsDefinition (DebugVerb verb)
-{
-    switch (verb)
-    {
-    case DebugVerb::SetBreakpoint:
-    case DebugVerb::SetConditionalBreakpoint:
-    case DebugVerb::SetBreakpointAndWatchpoint:
-    case DebugVerb::SetRegisterBreakpoint:
-    case DebugVerb::SetMemoryWatchpoint:
-    case DebugVerb::SetReadWatchpoint:
-    case DebugVerb::SetWriteWatchpoint:
-    case DebugVerb::SetValueBreakpoint:
-    case DebugVerb::SetSourceBreakpoint:
-    case DebugVerb::BreakOnBrk:
-    case DebugVerb::BreakOnOpcode:
-    case DebugVerb::BreakOnInterrupt:
-    case DebugVerb::SetDiskBreakpoint:
-    case DebugVerb::SetBasicLineBreakpoint:
-    case DebugVerb::SetBasicVariableBreakpoint:
-    case DebugVerb::BreakOnBasicError:
-        return true;
-
-    default:
-        return false;
-    }
-}
-
 
 
 
@@ -275,7 +238,7 @@ bool BreakpointImport::TryApply (const std::string & line, const DebugCommand & 
         verb = "BPE";
     }
 
-    if (verb == nullptr || command.text == "*" || command.count >= created.size())
+    if (verb == nullptr || command.text == "*" || command.count >= created.size() || created[command.count] < 0)
     {
         return false;
     }
@@ -315,38 +278,11 @@ bool BreakpointImport::TryApplyFlags (const std::string & line, const std::vecto
 
     index = std::stoi (number);
 
-    if (index < 0 || index >= (int) created.size())
+    if (index < 0 || index >= (int) created.size() || created[(size_t) index] < 0)
     {
         return false;
     }
 
     run (std::format ("BPCHANGE {} {}", created[(size_t) index], flags), CommandMode::AppleWin);
     return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BreakpointImport::GetIds
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<int> BreakpointImport::GetIds (DebugSession & session)
-{
-    BreakpointListData  list;
-    std::vector<int>    ids;
-
-
-
-    BreakpointHandlers::ListAll (session, list);
-
-    for (const BreakpointInfo & info : list.breakpoints)
-    {
-        ids.push_back (info.id);
-    }
-
-    return ids;
 }

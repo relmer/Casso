@@ -111,6 +111,8 @@ struct DebugProject
 
 private:
     void  RestoreBreakpointIds (DebugSession & session) const;
+    static void  RunScriptLine (DebugSession & session, const std::string & line, std::vector<int> & created,
+                                const std::function<void (const std::string &)> & run);
     static void       RestoreWatchIds (WatchTable & table, const Ids & ids);
     static JsonValue  IdsToJson       (const Ids & ids);
     static void       IdsFromJson     (const JsonValue & object, const char * name, Ids & ids);

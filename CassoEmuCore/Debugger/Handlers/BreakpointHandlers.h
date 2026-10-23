@@ -55,6 +55,13 @@ public:
         Watchpoint  watchpoint;
     };
 
+    //  Whether a verb sets a breakpoint, as a saved or imported script's
+    //  definition lines do; every breakpoint's id, in list order; and the
+    //  first id a line added.
+    static bool              IsDefinition  (DebugVerb verb);
+    static std::vector<int>  GetIds        (DebugSession & session);
+    static int               GetFirstAdded (const std::vector<int> & before, const std::vector<int> & after);
+
     static bool            TrySave        (DebugSession & session, int id, SavedEntry & saved);
     static int             Add            (DebugSession & session, const SavedEntry & saved);
     static void            Replace        (DebugSession & session, int id, const SavedEntry & saved);

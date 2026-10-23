@@ -125,6 +125,32 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, session.rig.session.GetBreakpoints().GetAll().size());
         }
 
+        //  The script's numbers are its definition lines, so one that adds
+        //  nothing, as a breakpoint on a symbol no longer defined does, moves
+        //  no later disable or name onto another breakpoint.
+        TEST_METHOD (ADefinitionThatAddsNothingMovesNoLaterNumber)
+        {
+            std::unique_ptr<SessionRig>    rigHeap  = std::make_unique<SessionRig>();
+            SessionRig                   & session  = *rigHeap;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            project.engineScript       = { "BPC *", "BP NOSUCHLABEL", "BP 0400", "BP 0500", "BPD 2" };
+            project.breakpointNames[2] = "five";
+            project.ApplyEngine (session.rig.session, failures);
+
+            BreakpointHandlers::ListAll (session.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, failures.size(), L"the line that adds nothing");
+            Assert::AreEqual ((size_t) 2, list.breakpoints.size());
+            Assert::IsTrue   (list.breakpoints[0].enabled, L"BP 0400 is the script's 1");
+            Assert::IsFalse  (list.breakpoints[1].enabled, L"BP 0500 is its 2");
+            Assert::AreEqual (std::string ("five"), list.breakpoints[1].name);
+        }
+
         //  The session's other state comes back too: a symbol table turned
         //  off, the CD directory, the stopwatch, the profiler, the command
         //  mode and the trip count's mark; and the window's states by name.
