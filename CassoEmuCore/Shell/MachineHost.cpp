@@ -297,6 +297,10 @@ void MachineHost::SetJoyport (std::unique_ptr<SiriusJoyport> joyport)
 //
 //  MachineHost::SetVideoTiming
 //
+//  Before the machine is built: the build points the video scanner, the
+//  keyboard, the soft switches and the mouse at this timing, so one set
+//  after the build frees the timing they read.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::SetVideoTiming (std::unique_ptr<VideoTiming> videoTiming)
