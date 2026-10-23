@@ -22,18 +22,19 @@
 
 struct DebugViewCapture
 {
-    Cpu6502Registers          registers      = {};
-    uint64_t                  cycleCount     = 0;
-    VideoPosition             video;
-    Byte                      lastPenalties  = 0;
-    std::optional<Word>       lastBranch;
-    std::optional<Word>       lastBranchTo;
-    DebugCpuKind              cpuKind        = DebugCpuKind::M6502;
-    const Microcode         * instructionSet = nullptr;
-    DebugMachineInfo          machineInfo;
-    bool                      isKeyPending   = false;
-    std::vector<SoftSwitch>   softSwitches;
-    DebugMemoryImage          memory;
+    Cpu6502Registers                                 registers        = {};
+    uint64_t                                         cycleCount       = 0;
+    VideoPosition                                    video;
+    Byte                                             lastPenalties    = 0;
+    std::optional<Word>                              lastBranch;
+    std::optional<Word>                              lastBranchTo;
+    DebugCpuKind                                     cpuKind          = DebugCpuKind::M6502;
+    const Microcode                                * instructionSet   = nullptr;   // into instructionTable
+    std::shared_ptr<const std::vector<Microcode>>    instructionTable;   // a copy, so a build outlives the CPU
+    DebugMachineInfo                                 machineInfo;
+    bool                                             isKeyPending     = false;
+    std::vector<SoftSwitch>                          softSwitches;
+    DebugMemoryImage                                 memory;
 
     std::optional<DebugDiskState>  diskState;     // absent with no Disk II controller
 
@@ -51,4 +52,8 @@ struct DebugViewCapture
                        size_t                traceFirst,
                        size_t                traceCount,
                        DebugViewCapture    & out);
+
+    //  A copy of the live CPU's instruction set, shared with the last copy
+    //  while the set is the same.
+    static std::shared_ptr<const std::vector<Microcode>>  ShareInstructionSet (const Microcode * live);
 };

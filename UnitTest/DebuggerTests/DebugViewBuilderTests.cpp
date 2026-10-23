@@ -68,6 +68,7 @@ namespace DebugViewBuilderTests
             *built = builder->Build (*viewHeld, input);
 
             AssertSamePanes (*live, *built);
+            Assert::IsTrue  (built->instructionTable == capture->instructionTable, L"the snapshot shares the capture's instruction set");
         }
 
         //  Built at once on a pool, the panes are the panes built one after

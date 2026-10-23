@@ -215,7 +215,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     }
 
     snapshot.callStack      = session.GetCallStack();
-    snapshot.instructionSet = session.GetTarget().GetInstructionSet();
+    snapshot.instructionSet   = session.GetTarget().GetInstructionSet();
+    snapshot.instructionTable = session.GetTarget().GetInstructionTable();
 
     snapshot.searchHits    = session.GetSearchResults();
     snapshot.searchSerial  = session.GetSearchSerial();
@@ -675,7 +676,7 @@ void DebuggerViewState::ReadHeatMap (
     ReadHeatValues (target, map, state.bank, state.values);
     FindHeatMarks  (target, map, state);
 
-    state.opcodeForms = GetOpcodeForms (target.GetInstructionSet());
+    state.opcodeForms = GetOpcodeForms (target);
 }
 
 
@@ -853,9 +854,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms> DebuggerViewState::GetOpcodeForms (const Microcode * instructionSet) const
+std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms> DebuggerViewState::GetOpcodeForms (const IDebugTarget & target) const
 {
-    constexpr size_t                                    kOpcodeCount = 256;
+    constexpr size_t                                    kOpcodeCount   = 256;
+    const Microcode                                   * instructionSet = target.GetInstructionSet();
     std::shared_ptr<DebuggerViewSnapshot::OpcodeForms>  forms;
 
 
@@ -872,8 +874,9 @@ std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms> DebuggerViewState::GetO
         (*forms)[opcode] = GetOpcodeForm (instructionSet, (Byte) opcode);
     }
 
-    m_opcodeForms    = forms;
-    m_opcodeFormsSet = instructionSet;
+    m_opcodeForms      = forms;
+    m_opcodeFormsSet   = instructionSet;
+    m_opcodeFormsTable = target.GetInstructionTable();
     return m_opcodeForms;
 }
 

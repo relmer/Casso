@@ -2236,6 +2236,10 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
         m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
     }
 
+    //  The view is the old machine's, and a paused machine builds a new one
+    //  only when the view is dirty.
+    m_isDebugViewDirty = true;
+
     NoteBootDisk();
 }
 

@@ -257,8 +257,10 @@ struct DebuggerViewSnapshot
     std::string                  machine;
 
     //  The CPU's instruction set, which the code pane assembles an edited
-    //  instruction with.
-    const Microcode            * instructionSet = nullptr;
+    //  instruction with, and the copy that owns it when the snapshot was
+    //  built from a capture.
+    const Microcode                                * instructionSet   = nullptr;
+    std::shared_ptr<const std::vector<Microcode>>    instructionTable;
 
     //  Where the machine stands in its recorded history; the host fills it in.
     HistoryStatus                history;
@@ -878,7 +880,7 @@ private:
 
     //  Every opcode's form for the instruction set, made again only when the
     //  machine brings another.
-    std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>  GetOpcodeForms (const Microcode * instructionSet) const;
+    std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>  GetOpcodeForms (const IDebugTarget & target) const;
 
     //  The heat map ranges' copy of the symbols, taken again only when they
     //  have changed since the last.
@@ -969,9 +971,12 @@ private:
     mutable uint64_t                               m_heatMapSymbolsRevision = 0;
     std::optional<Word>                            m_heatMapHover;
 
-    //  Every opcode's form, and the instruction set they were made for.
+    //  Every opcode's form, and the instruction set they were made for. The
+    //  set's owner is stored with them, so its address is never reused while
+    //  the forms are.
     mutable std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>    m_opcodeForms;
     mutable const Microcode                                           * m_opcodeFormsSet = nullptr;
+    mutable std::shared_ptr<const std::vector<Microcode>>               m_opcodeFormsTable;
 
     //  The symbols as last read, and the symbol revision they were read at.
     mutable std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>   m_symbols;

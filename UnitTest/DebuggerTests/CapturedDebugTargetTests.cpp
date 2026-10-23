@@ -4,6 +4,7 @@
 #include "Debugger/DebugViewCapture.h"
 #include "Debugger/MachineDebugTarget.h"
 #include "EmuTests/TestMachine.h"
+#include "Ui/Debugger/DebuggerViewState.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -83,7 +84,31 @@ namespace CapturedDebugTargetTests
             Assert::IsFalse  (captured.TryPeek (0xC000, value), L"I/O is not read");
             Assert::AreEqual ((int) MemoryRegion::Io, (int) captured.GetRegion (0xC030));
             Assert::AreEqual (target.GetCycleCount(), captured.GetCycleCount());
-            Assert::IsTrue   (captured.GetInstructionSet() == target.GetInstructionSet());
+            Assert::IsTrue   (captured.GetInstructionSet() != target.GetInstructionSet(), L"the instruction set is a copy");
+        }
+
+
+        //  The capture's instruction set is its own, so a build on another
+        //  thread disassembles through it after a machine switch has freed
+        //  the CPU it came from.
+        TEST_METHOD (TheCapturedInstructionSetOutlivesTheMachine)
+        {
+            auto                 capture  = std::make_shared<DebugViewCapture>();
+            CapturedDebugTarget  captured (capture);
+            auto                 machine  = std::make_unique<TestMachine> ("Apple2e");
+            auto                 target   = std::make_unique<MachineDebugTarget> (*machine);
+            std::string          form;
+
+
+
+            DebugViewCapture::Take (*target, CallRecord(), 0, 0, *capture);
+            form = DebuggerViewState::GetOpcodeForm (target->GetInstructionSet(), 0xA9);
+
+            target.reset();
+            machine.reset();
+
+            Assert::IsNotNull (capture->instructionTable.get(), L"the capture owns a copy");
+            Assert::AreEqual  (form, DebuggerViewState::GetOpcodeForm (captured.GetInstructionSet(), 0xA9));
         }
 
 
