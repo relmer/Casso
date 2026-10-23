@@ -895,6 +895,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetLifetimeEnd
