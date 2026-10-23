@@ -1931,6 +1931,69 @@ public:
     }
 
 
+    //  The directory being removed is gated on the destroy-enable bit of its
+    //  record in the parent, as everything below it is: Merlin's disk ships
+    //  its subdirectories with the bit clear.
+    TEST_METHOD (Volume_RemoveDirectory_ALockedDirectoryStopsItUnlessForced)
+    {
+        vector<Byte>   vol = MakeVolume();
+        vector<Byte>   made;
+        vector<Byte>   emptied;
+        DeleteOutcome  outcome;
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), made));
+        }
+
+        //  UTIL's record is the first in the volume directory's key block.
+        made[ProDosSkeleton::GetBlockByteOffset (2, EntryOffset (1) + kEntOffAccess)] = 0x43;
+
+        {
+            ProDosVolume          volume (made);
+            DirectoryRemovalPlan  plan;
+
+            AssertSucceeded (volume.BuildRemovalPlan (FilePath::Parse ("UTIL"), plan));
+
+            Assert::IsTrue (plan.hasLockedEntries, L"the directory itself is locked");
+
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
+                              volume.RemoveDirectory (FilePath::Parse ("UTIL"), false, emptied, outcome));
+            Assert::AreEqual (size_t (0), emptied.size(), L"and nothing is written");
+
+            AssertSucceeded (volume.RemoveDirectory (FilePath::Parse ("UTIL"), true, emptied, outcome));
+        }
+    }
+
+
+    //  The volume directory is blocks 2 through 5, room for 51 entries. A
+    //  52nd fails with disk full instead of linking another block onto it.
+    TEST_METHOD (Volume_AFullVolumeDirectoryIsNotGrown)
+    {
+        constexpr int  kVolumeRecords = 51;
+
+        vector<Byte>   vol     = MakeVolume();
+        vector<Byte>   result;
+        FilePayload    payload = MakeBinaryPayload (10, 0x2000);
+        int            i       = 0;
+
+        for (i = 0; i < kVolumeRecords; i++)
+        {
+            AssertSucceeded (ProDosFileWriter::WriteFile (vol, std::format ("F{}", i), 0x06, 0x2000, MakePattern (10)));
+        }
+
+        {
+            ProDosVolume  volume (vol);
+
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), volume.Write (FilePath::Parse ("NEXT"), payload, result));
+            Assert::AreEqual (size_t (0), result.size(), L"nothing is written");
+
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_DISK_FULL), volume.CreateDirectory (FilePath::Parse ("SUB"), result));
+        }
+    }
+
+
     TEST_METHOD (Volume_CreateDirectory_ARepeatOrAMissingParent_IsRefused)
     {
         vector<Byte>  vol = MakeVolume();
