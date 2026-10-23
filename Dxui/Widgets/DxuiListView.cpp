@@ -4095,6 +4095,7 @@ bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly,
         ClickRow (row, ev.ctrl, ev.shift);
         m_dragSelecting = m_multiSelect;
         m_rowPressed    = true;
+        m_pressModified = m_multiSelect && (ev.ctrl || ev.shift);
 
         //  A press on text starts a selection there. Nothing is selected
         //  until the pointer moves, so a plain click only picks its row and
@@ -4308,17 +4309,19 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
 {
     bool  handled = true;
     int   row     = inside ? HitTestRow (lx, ly) : -1;
-    bool  ranged  = m_dragSelecting && m_selectedRows.size() > 1;
+    bool  ranged  = m_dragSelecting && (m_selectedRows.size() > 1 || m_pressModified);
     bool  dragged = m_textPressed && m_hasTextSel;
     bool  pressed = m_rowPressed;
 
 
 
-    //  A drag or a Shift or Ctrl click that left several rows selected keeps
-    //  them; only a plain click collapses the selection to its row.
+    //  The selection is left as a drag over several rows made it, and as a
+    //  Shift or Ctrl click made it, whatever that is; only a plain click
+    //  collapses the selection to its row.
     m_dragSelecting = false;
     m_textPressed   = false;
     m_rowPressed    = false;
+    m_pressModified = false;
 
     //  A drag that selected text is finished; it is not also a click.
     if (dragged)

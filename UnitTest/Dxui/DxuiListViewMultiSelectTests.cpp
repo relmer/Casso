@@ -99,6 +99,46 @@ public:
     }
 
 
+    //  A press and release on a row, with Ctrl or not.
+    static void  Click (DxuiListView & list, int row, bool ctrl)
+    {
+        DxuiMouseEvent  ev;
+        RECT            cell = {};
+
+        Assert::IsTrue (list.GetCellTextRectPx (row, 0, cell));
+
+        ev.button      = DxuiMouseButton::Left;
+        ev.positionDip = POINT { (cell.left + cell.right) / 2, (cell.top + cell.bottom) / 2 };
+        ev.ctrl        = ctrl;
+
+        ev.kind = DxuiMouseEventKind::Down;
+        (void) list.OnMouse (ev);
+
+        ev.kind = DxuiMouseEventKind::Up;
+        (void) list.OnMouse (ev);
+    }
+
+
+    //  A row a Ctrl+click takes out of the selection is out of it after the
+    //  button comes up, even when one row is left, or none.
+    TEST_METHOD (CtrlClickOffStaysOffOnRelease)
+    {
+        DxuiListView  list;
+
+        ConfigureList (list, 10);
+
+        Click (list, 2, false);
+        Click (list, 4, true);
+        Click (list, 4, true);
+
+        Assert::IsTrue (list.GetSelectedRows() == Rows ({ 2 }), L"the row taken out stays out");
+
+        Click (list, 2, true);
+
+        Assert::IsTrue (list.GetSelectedRows().empty(), L"the only row taken out too");
+    }
+
+
     TEST_METHOD (ShiftClick_ExtendsFromAnchorInEitherDirection)
     {
         DxuiListView  list;

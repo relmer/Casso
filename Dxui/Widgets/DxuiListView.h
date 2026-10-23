@@ -902,6 +902,7 @@ private:
     //  click; a release with no press here, as when a menu over the list
     //  closes on its press, selects nothing.
     bool                         m_rowPressed    = false;
+    bool                         m_pressModified = false;   // the row press had Ctrl or Shift in a multi-select list
 
     //  A rubber band in an item view: where the press was, in content pixels
     //  so it stays put as the view scrolls, where the pointer is now, and the
