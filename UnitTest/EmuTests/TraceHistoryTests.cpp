@@ -228,6 +228,48 @@ namespace TraceHistoryTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  ACycleFindsItsInstructionWhileTheMachineRuns
+        //
+        //  The stretch the cycle is in is rebuilt for the search even while
+        //  the machine runs, not taken as the start of the next stretch.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ACycleFindsItsInstructionWhileTheMachineRuns)
+        {
+            std::vector<TraceRecord>   window;
+            uint64_t                   cycle  = 0;
+            size_t                     index  = 0;
+
+            {
+                TraceRig  stopped;
+
+
+
+                stopped.trace.SetHistory (&stopped.logs.GetTraceHistory());
+                stopped.trace.GetWindow (1000, 1, window);
+                Assert::AreEqual ((size_t) 1, window.size());
+
+                cycle = window[0].cycles;
+            }
+
+            TraceRig  running;
+
+
+
+            running.logs.GetTraceHistory().SetIsStopped ([] { return false; });
+            running.trace.SetHistory (&running.logs.GetTraceHistory());
+
+            Assert::IsTrue   (running.trace.TryFindCycle (cycle, index));
+            Assert::AreEqual ((size_t) 1000, index, L"the same instruction as on the stopped machine");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  AfterTheRingStopsHistoryHasTheNewest
         //
         //  Off, the ring stops while the machine runs on, so it no longer has

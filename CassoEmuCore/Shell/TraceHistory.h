@@ -84,6 +84,7 @@ private:
     HRESULT     RequestAhead (const std::vector<DebugEventBounds> & stretches);
     void        Store        (const DebugEventBounds & bounds, DebugEventStretchResult<Cpu::TraceEntry> && result);
     bool        IsStopped    () const;
+    bool        TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceHistoryEntry> & outEntries, bool isRebuiltNow);
 
     MachineHost                                  & m_machine;
     DebugEventHistory                            & m_history;

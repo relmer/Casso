@@ -202,6 +202,24 @@ void TraceHistory::GetSpans (std::vector<TraceSpan> & outSpans)
 
 bool TraceHistory::TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceHistoryEntry> & outEntries)
 {
+    return TryGetEntries (from, to, outEntries, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TraceHistory::TryGetEntries (rebuilt now or not)
+//
+//  As TryGetEntries, and with isRebuiltNow the stretches not rebuilt yet are
+//  rebuilt at once even while the machine runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TraceHistory::TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceHistoryEntry> & outEntries, bool isRebuiltNow)
+{
     HRESULT                        hr      = S_OK;
     std::vector<DebugEventBounds>  bounds;
     std::vector<DebugEventBounds>  missing;
@@ -223,7 +241,7 @@ bool TraceHistory::TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceH
         }
     }
 
-    if (!missing.empty() && !IsStopped())
+    if (!missing.empty() && !isRebuiltNow && !IsStopped())
     {
         hr = RequestAhead (missing);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -281,12 +299,13 @@ Error:
 
 uint64_t TraceHistory::FindCycle (uint64_t cycle)
 {
-    std::vector<DebugEventBounds>    bounds;
-    std::vector<TraceHistoryEntry>   entries;
-    const KeyframeStore            * keyframes = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
-    size_t                           index     = 0;
-    size_t                           i         = 0;
-    uint64_t                         found     = UINT64_MAX;
+    std::vector<DebugEventBounds>     bounds;
+    std::vector<TraceHistoryEntry>    entries;
+    const KeyframeStore             * keyframes  = (m_controller != nullptr) ? &m_controller->GetKeyframes() : nullptr;
+    size_t                            index      = 0;
+    size_t                            i          = 0;
+    uint64_t                          found      = UINT64_MAX;
+    bool                              isComplete = false;
 
 
 
@@ -303,18 +322,19 @@ uint64_t TraceHistory::FindCycle (uint64_t cycle)
             continue;
         }
 
-        if (TryGetEntries (bounds[i - 1].startPosition, bounds[i - 1].endPosition, entries))
-        {
-            auto  at = std::ranges::find_if (entries, [cycle] (const TraceHistoryEntry & each) { return each.isAvailable && each.entry.cycles >= cycle; });
+        //  Rebuilt now even while the machine runs: a search is one stretch,
+        //  and taking a stretch not rebuilt yet for one past the cycle would
+        //  find the next one's start.
+        isComplete = TryGetEntries (bounds[i - 1].startPosition, bounds[i - 1].endPosition, entries, true) &&
+                     std::ranges::all_of (entries, [] (const TraceHistoryEntry & each) { return each.isAvailable; });
 
+        auto  at = std::ranges::find_if (entries, [cycle] (const TraceHistoryEntry & each) { return each.isAvailable && each.entry.cycles >= cycle; });
 
+        found = (at != entries.end()) ? bounds[i - 1].startPosition + (uint64_t) (at - entries.begin()) : found;
 
-            found = (at != entries.end()) ? bounds[i - 1].startPosition + (uint64_t) (at - entries.begin()) : found;
-        }
-
-        //  A cycle after the stretch's last instruction is at the next one's
-        //  start.
-        if (found == UINT64_MAX && i < bounds.size())
+        //  A cycle after the last instruction of a stretch rebuilt whole is
+        //  at the next one's start.
+        if (found == UINT64_MAX && isComplete && i < bounds.size())
         {
             found = bounds[i].startPosition;
         }
