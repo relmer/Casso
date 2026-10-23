@@ -1068,7 +1068,7 @@ HRESULT GlobalUserPrefs::Save (
 
     if (SUCCEEDED (hrDisk))
     {
-        merged.MergeUntouchedPlacements (onDisk);
+        merged.MergeUntouched (onDisk);
         WindowTrace::Log ("prefs.merge", "prefs",
                           "disk had " + std::to_string (onDisk.window.debuggerPlacements.size()) +
                           " debugger placement(s); writing " +
@@ -1129,16 +1129,23 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::MergeUntouchedPlacements
+//  GlobalUserPrefs::MergeUntouched
 //
 //  Placements this object never set come back from the file. A key is this
-//  object's own only once a window of THIS instance was put somewhere, which
-//  is what Touch records; everything else belongs to whoever wrote it.
+//  object's only once a window of THIS instance was put somewhere, which
+//  Touch marks; every other key takes the file's value. The debugger
+//  settings come back from the file too while they are as this object read
+//  them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GlobalUserPrefs::MergeUntouchedPlacements (const GlobalUserPrefs & onDisk)
+void GlobalUserPrefs::MergeUntouched (const GlobalUserPrefs & onDisk)
 {
+    if (debugger == debuggerAsRead)
+    {
+        debugger = onDisk.debugger;
+    }
+
     for (const auto & each : onDisk.window.placements)
     {
         if (std::find (window.touched.begin(), window.touched.end(), each.first) == window.touched.end())
@@ -1658,6 +1665,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             unknownPassthrough.emplace_back (entry.first, entry.second);
         }
     }
+
+    debuggerAsRead = debugger;
 
 Error:
     return hr;

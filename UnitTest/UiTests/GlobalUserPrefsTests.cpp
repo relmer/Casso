@@ -446,11 +446,48 @@ public:
         //  A writer that only ever set its own window, saving the whole
         //  document: the debugger map it never touched must come back.
         WindowPlacementProfile (writer).Save ("T", { 1, 2, 300, 200 });
-        writer.MergeUntouchedPlacements (onDisk);
+        writer.MergeUntouched (onDisk);
 
         Assert::AreEqual ((size_t) 1, writer.window.debuggerPlacements.size(), L"kept, not wiped");
         Assert::AreEqual (30, writer.window.debuggerPlacements["T"].x);
         Assert::AreEqual (1,  writer.window.placements["T"].x, L"its own window still wins");
+    }
+
+
+    //  The debugger's settings are another instance's too: a save from an
+    //  instance that never changed them writes what is on disk, and one that
+    //  did writes the change.
+    TEST_METHOD (DebuggerSettingsSurviveAWriterThatNeverChangedThem)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     bystander;
+        GlobalUserPrefs     arranger;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+
+
+
+        hr = bystander.Load (L"C:\\Casso", fs);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        arranger.debugger.layout = "arranged";
+        hr = arranger.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = bystander.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+        Assert::AreEqual (string ("arranged"), loaded.debugger.layout, L"the bystander wrote what was on disk");
+
+        bystander.debugger.layout = "mine";
+        hr = bystander.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+        Assert::AreEqual (string ("mine"), loaded.debugger.layout, L"a change of its own is written");
     }
 
 

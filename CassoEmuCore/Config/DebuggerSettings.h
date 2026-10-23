@@ -118,4 +118,6 @@ struct DebuggerSettings
     // window's text for it. A debug project saves these with the rest.
     std::map<std::string, std::string>                windowState;
     std::map<std::string, std::vector<std::string>>   programSourceFolders;
+
+    bool  operator== (const DebuggerSettings &) const = default;
 };
