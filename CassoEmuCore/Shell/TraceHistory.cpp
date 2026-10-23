@@ -194,7 +194,9 @@ void TraceHistory::GetSpans (std::vector<TraceSpan> & outSpans)
 //
 //  The stretches [from, to) overlaps, rebuilt at once while the machine is
 //  stopped; while it runs, the ones not rebuilt yet are queued for a
-//  background rebuild and this call returns nothing.
+//  background rebuild and this call returns nothing. No stretch the request
+//  overlaps is evicted from the cache, however many there are, so a request
+//  wider than kRebuiltStretches is met.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,6 +211,8 @@ bool TraceHistory::TryGetEntries (uint64_t from, uint64_t to, std::vector<TraceH
 
     outEntries.clear();
     GetBounds (bounds);
+
+    m_wanted = (size_t) std::ranges::count_if (bounds, [from, to] (const DebugEventBounds & each) { return each.startPosition < to && each.endPosition > from; });
 
     //  Newest first, as a job takes them.
     for (auto each = bounds.rbegin(); each != bounds.rend(); ++each)
@@ -534,7 +538,7 @@ void TraceHistory::Store (const DebugEventBounds & bounds, DebugEventStretchResu
 
     m_rebuilt.push_front (std::move (rebuilt));
 
-    while (m_rebuilt.size() > kRebuiltStretches)
+    while (m_rebuilt.size() > std::max (kRebuiltStretches, m_wanted))
     {
         m_rebuilt.pop_back();
     }
