@@ -1878,7 +1878,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [ ] T1062 SetColumnFiltered clears m_measuredWPx without calling RequeueFitTexts, unlike SetColumns and ResetAutoFit (DxuiListView.cpp:3130)
 - [ ] T1063 In a multi-select list, a Ctrl+click that deselects a row reverses itself on release (DxuiListView.cpp:4311)
 - [ ] T1064 The wheel handler computes -(delta / WHEEL_DELTA) * rows with integer division on the raw GET_WHEEL_DELTA_WPARAM value and keeps no remainder (DxuiPopupMenu.cpp:520)
-- [ ] T1065 SetText resets m_undoBase but leaves m_undo and m_redo intact (DxuiTextInput.h:54)
+- [X] T1065 SetText resets m_undoBase but leaves m_undo and m_redo intact (DxuiTextInput.h:54) Done: SetText clears m_undo and m_redo, so a field given a new value starts a new undo history.
 - [ ] T1066 SetRows replaces the rows but leaves m_highlights, m_scoped/m_scopeStart/m_scopeEnd and m_userAnchor/m_userCaret holding row/offset positions into the old text (DxuiTextView.cpp:24)
 - [ ] T1067 The box ends the DxuiTextInput drag only in OnClick (DxuiToolbarEditBox.cpp:310)
 - [ ] T1068 m_fadingOut is cleared only by FinishHide and RequestShowNow (DxuiTooltip.cpp:718)

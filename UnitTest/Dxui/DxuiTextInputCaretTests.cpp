@@ -56,6 +56,34 @@ public:
 
 
 
+    //  A field given a new value by SetText, as one editor reused for each
+    //  cell of a grid is, starts a new undo history: Undo does not bring
+    //  back the text typed for the value before.
+    TEST_METHOD (SetTextStartsANewUndoHistory)
+    {
+        DxuiTextInput  input;
+        DxuiKeyEvent   ev;
+
+
+
+        ev.kind = DxuiKeyEventKind::Char;
+        input.SetFocused (true);
+
+        for (wchar_t ch : std::wstring (L"foo"))
+        {
+            ev.vk = (WPARAM) ch;
+            (void) input.OnKey (ev);
+        }
+
+        Assert::AreEqual (std::wstring (L"foo"), input.GetText());
+
+        input.SetText (L"bar");
+        (void) input.InvokeCommand (DxuiStandardCommand::Undo);
+
+        Assert::AreEqual (std::wstring (L"bar"), input.GetText(), L"nothing of the earlier value to undo");
+    }
+
+
     TEST_METHOD (AFocusedFieldInAnActiveWindowDrawsItsCaret)
     {
         DxuiTextInput          input;

@@ -51,7 +51,7 @@ public:
     ~DxuiTextInput() override = default;
 
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
-    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undoBase = { m_text, m_caret, m_anchor }; m_lastTyping = false; }
+    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undoBase = { m_text, m_caret, m_anchor }; m_lastTyping = false; m_undo.clear(); m_redo.clear(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
 
     //  Selects every character, so a default value is replaced by the first
