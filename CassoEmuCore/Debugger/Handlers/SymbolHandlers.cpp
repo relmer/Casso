@@ -334,6 +334,13 @@ void SymbolHandlers::Load (DebugSession & session, const DebugCommand & command,
         return;
     }
 
+    //  The table's symbols are replaced, and with them the debug file loaded
+    //  into it: its lines and labels are a program no longer loaded.
+    if (session.GetDebugFileTable() == table)
+    {
+        session.ClearDebugFile();
+    }
+
     session.GetSymbols().AddOrigin (table, name.substr (name.find_last_of ("/\\") + 1));
     session.NoteSymbolLoad (table, session.ResolvePath (name), offset);
 

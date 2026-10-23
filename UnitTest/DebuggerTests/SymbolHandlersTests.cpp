@@ -145,6 +145,35 @@ namespace DebuggerTests
 
 
 
+        //  A plain symbol file loaded into the debug file's table replaces
+        //  the debug file too: its lines are a program no longer loaded.
+        TEST_METHOD (SYM_Load_SymbolFileOverTheDebugFilesTable_DropsTheDebugFile)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.dbg",
+                "version\tmajor=2,minor=0\n"
+                "file\tid=0,name=\"prog.a65\",size=10,mtime=0,mod=0\n"
+                "seg\tid=0,name=\"CODE\",start=0x0300,size=3,addrsize=absolute,type=rw\n"
+                "span\tid=0,seg=0,start=0,size=3\n"
+                "line\tid=0,file=0,line=4,span=0\n"
+                "sym\tid=0,name=\"start\",addrsize=absolute,scope=0,val=0x0300,seg=0,type=lab\n"
+                "scope\tid=0,name=\"\",mod=0\n");
+            rig.files.WriteAllText (L"C:\\Work\\other.sym", "0900 OTHER\n");
+
+            rig.RunOk ("SYMUSER LOAD \"prog.dbg\"");
+            rig.RunOk ("SYMUSER2 LOAD \"other.sym\"");
+            Assert::IsTrue (rig.session.HasDebugFile(), L"another table leaves the debug file");
+
+            rig.RunOk ("SYMUSER LOAD \"other.sym\"");
+            Assert::IsFalse (rig.session.HasDebugFile(), L"its own table drops it");
+            Assert::IsTrue  (rig.session.GetLineTable().GetPositionsAt (0x0302).empty(), L"and its lines");
+        }
+
+
+
         TEST_METHOD (SYM_Load_Cc65DebugFile_BadRecordIsAnError)
         {
             Rig  rig;
