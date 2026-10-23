@@ -231,6 +231,53 @@ namespace DebugEventLogsTests
         }
 
 
+        //  A machine made live at a point in history goes on with that point's
+        //  active drive: a keyframe's state is loaded with no drive select,
+        //  so the feed reads the drive again from the controller.
+        TEST_METHOD (GoingLiveInThePastTakesThatPointsDrive)
+        {
+            Session                                     session;
+            ReverseResult                               result;
+            std::vector<DebugEventEntry<Disk2Event>>    entries;
+            HRESULT                                     hr      = S_OK;
+            uint64_t                                    past    = 0;
+            uint64_t                                    live    = 0;
+            Disk2Controller                           * disk    = session.machine.GetRefs().diskController;
+
+
+
+            Assert::IsNotNull (disk, L"a Disk II");
+
+            session.logs.Start (&session.controller);
+            Run (session.machine, 0, 30);
+            session.WaitForKeyframes();
+
+            Assert::AreEqual (0, disk->GetActiveDrive(), L"drive 1 while the loop runs");
+
+            past = session.machine.GetPosition();
+            Run (session.machine, 30, 30);
+
+            (void) session.machine.GetMemoryBus().ReadByte (0xC0EB);
+            Assert::AreEqual (1, disk->GetActiveDrive(), L"drive 2 selected live");
+
+            hr = session.controller.SeekToPosition (past, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            Assert::AreEqual (0, disk->GetActiveDrive(), L"drive 1 again in the past");
+
+            hr = session.controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            live = session.machine.GetPosition();
+            (void) session.machine.GetMemoryBus().ReadByte (0xC0E9);
+
+            session.logs.GetDiskCache().CopySpan (live, UINT64_MAX, entries);
+
+            Assert::IsFalse  (entries.empty(), L"the motor command is logged");
+            Assert::AreEqual (0, (int) entries.back().event.drive, L"on drive 1");
+        }
+
+
         //  A listing of the sound log includes entries from before the cache,
         //  rebuilt from history on the spot; a clear hides the entries before it.
         TEST_METHOD (ASoundLogListingIsRebuiltFromHistoryBeforeTheCache)
