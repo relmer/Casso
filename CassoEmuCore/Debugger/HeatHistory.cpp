@@ -476,6 +476,14 @@ HeatAccessState HeatHistory::SearchHistory (
         hr = FindInStretch (index - 1, m_keyframes->GetInfo (index).position, m_keyframes->GetInfo (index).cycle, query, isFound, outAccess);
         CHR (hr);
 
+        //  A stretch the map started counting partway through has counts
+        //  that include accesses before that. The replay counts only from
+        //  where the map started, so finding none there means none since.
+        if (m_keyframes->GetInfo (index - 1).position <= m_heatFrom)
+        {
+            state = HeatAccessState::None;
+        }
+
         BAIL_OUT_IF (true, S_OK);
     }
 
