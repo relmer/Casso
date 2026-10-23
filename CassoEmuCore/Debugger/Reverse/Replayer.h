@@ -146,6 +146,7 @@ private:
     HRESULT   CheckKeyframe       (ReplayReport & report);
     HRESULT   Step                (IReverseStopTest * stopTest, uint64_t endPosition, ReplayReport & report, std::vector<ReplayStep> * steps, std::vector<Byte> * stackPointers);
     void      FindNextKeyframe    (uint64_t afterPosition);
+    void      SyncNextKeyframe    ();
 
     ReplayStep         MakeStep   (const EmuCpu & cpu) const;
 
@@ -158,6 +159,7 @@ private:
     StateWriter                    m_checkWriter;       // saves the machine at each keyframe a replay checks; kept for its capacity
     size_t                         m_journalCursor = 0;
     size_t                         m_nextKeyframe  = 0;
+    uint64_t                       m_nextAfter     = 0;                // the position m_nextKeyframe's keyframe follows, to find it again when the indices move
     uint64_t                       m_replayedCount = 0;                // instructions every replay has run, for tests and to find whether a command replayed any
     size_t                         m_restoreCount  = 0;                // keyframes loaded, likewise
     bool                           m_isReplaying   = false;

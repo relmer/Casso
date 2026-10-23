@@ -576,11 +576,14 @@ HRESULT Replayer::LoadBoundaryIfDue()
 {
     HRESULT       hr       = S_OK;
     uint64_t      position = m_machine.GetPosition();
-    bool          isDue    = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    bool          isDue    = false;
     KeyframeInfo  info;
 
 
 
+    SyncNextKeyframe();
+
+    isDue = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
     BAIL_OUT_IF (!isDue, S_OK);
 
     info = m_keyframes.GetInfo (m_nextKeyframe);
@@ -594,6 +597,7 @@ HRESULT Replayer::LoadBoundaryIfDue()
     CHR (hr);
 
     m_nextKeyframe++;
+    m_nextAfter = info.position;
 
 Error:
     return hr;
@@ -616,12 +620,15 @@ HRESULT Replayer::CheckKeyframe (ReplayReport & report)
 {
     HRESULT        hr       = S_OK;
     uint64_t       position = m_machine.GetPosition();
-    bool           isDue    = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
+    bool           isDue    = false;
     StateWriter  & writer   = m_checkWriter;
     bool           isMatch  = false;
 
 
 
+    SyncNextKeyframe();
+
+    isDue = m_nextKeyframe < m_keyframes.GetCount() && m_keyframes.GetInfo (m_nextKeyframe).position == position;
     BAIL_OUT_IF (!isDue, S_OK);
 
     writer.Reuse (writer.TakeBytes());
@@ -638,6 +645,7 @@ HRESULT Replayer::CheckKeyframe (ReplayReport & report)
     }
 
     m_nextKeyframe++;
+    m_nextAfter = position;
 
 Error:
     return hr;
@@ -662,9 +670,40 @@ void Replayer::FindNextKeyframe (uint64_t afterPosition)
 
 
     m_nextKeyframe = 0;
+    m_nextAfter    = afterPosition;
 
     while (m_nextKeyframe < count && m_keyframes.GetInfo (m_nextKeyframe).position <= afterPosition)
     {
         m_nextKeyframe++;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncNextKeyframe
+//
+//  A drop of the oldest keyframes, as a smaller budget makes while the
+//  machine is in the past, moves every index down, so m_nextKeyframe is
+//  checked against m_nextAfter: the keyframe before that index is at or
+//  before that position, and the keyframe at it is past it. When either
+//  fails, the index is found again by position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Replayer::SyncNextKeyframe()
+{
+    size_t  count    = m_keyframes.GetCount();
+    bool    isAfter  = m_nextKeyframe == 0 || (m_nextKeyframe <= count && m_keyframes.GetInfo (m_nextKeyframe - 1).position <= m_nextAfter);
+    bool    isBefore = m_nextKeyframe >= count || m_keyframes.GetInfo (m_nextKeyframe).position > m_nextAfter;
+
+
+
+    if (!isAfter || !isBefore)
+    {
+        FindNextKeyframe (m_nextAfter);
     }
 }

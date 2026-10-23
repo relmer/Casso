@@ -381,6 +381,78 @@ public:
     }
 
 
+    //  A smaller budget taken in the past drops the oldest keyframes, which
+    //  moves every keyframe's index. Stepping on from there loads the
+    //  boundary keyframe of an edit made live, since no input in the journal
+    //  makes that edit again.
+    TEST_METHOD (SteppingOnAfterASmallerBudgetInThePastLoadsAnEditsBoundary)
+    {
+        constexpr Word      kEdited     = 0x1F00;
+        constexpr Byte      kValue      = 0x5A;
+        constexpr uint64_t  kRunCycles  = 60000;
+
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        ReverseSettings    settings   = ReverseSessionRig::MakeSettings (1);
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           before     = 0;
+        Byte               original   = 0;
+        size_t             count      = 0;
+        size_t             here       = 0;
+        size_t             oldest     = 0;
+
+
+
+        settings.keyframes.wholeEvery   = 2;
+        settings.keyframes.longestGroup = 2;
+
+        ReverseSessionRig::Prepare (machine);
+
+        hr = controller.Start (settings);
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (kRunCycles);
+
+        before = machine.GetPosition();
+
+        machine.StepOne();
+
+        original = machine.GetMemoryBus().ReadByte (kEdited);
+        Assert::AreNotEqual ((int) kValue, (int) original);
+
+        machine.GetMemoryBus().WriteByte (kEdited, kValue);
+
+        hr = controller.OnMachineChanged();
+        AssertSucceeded (hr, L"OnMachineChanged");
+
+        machine.RunCycles (kRunCycles);
+
+        hr = controller.SeekToPosition (before, result);
+        AssertSucceeded (hr, L"SeekToPosition before the edit");
+
+        Assert::AreEqual ((int) original, (int) machine.GetMemoryBus().ReadByte (kEdited), L"not yet edited there");
+
+        //  Only the oldest group goes, older than the stretch at the
+        //  machine's position.
+        count  = controller.GetKeyframes().GetCount();
+        oldest = controller.GetKeyframes().GetInfo (0).storedBytes + controller.GetKeyframes().GetInfo (1).storedBytes;
+
+        Assert::IsTrue (controller.GetKeyframes().TryFindByPosition (before, here) && here >= 2, L"two keyframes older than the machine's");
+
+        hr = controller.GetKeyframes().ChangeBudget (controller.GetKeyframes().GetByteCount() - oldest);
+        AssertSucceeded (hr, L"ChangeBudget");
+
+        Assert::AreEqual (count - 2, controller.GetKeyframes().GetCount(), L"the oldest group was dropped");
+
+        machine.StepOne();
+        machine.StepOne();
+
+        Assert::AreEqual<uint64_t> (before + 2, machine.GetPosition(), L"the machine stepped past the edit");
+        Assert::AreEqual           ((int) kValue, (int) machine.GetMemoryBus().ReadByte (kEdited), L"the edit's boundary keyframe was loaded");
+    }
+
+
     //  One instruction at a time back over the whole recording, across at
     //  least one keyframe, then forward again to the live end: the whole
     //  machine must match the live run at every position, and each stretch's
