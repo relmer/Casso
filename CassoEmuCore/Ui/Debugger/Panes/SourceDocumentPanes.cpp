@@ -389,13 +389,21 @@ void SourceDocumentGroup::Apply()
         loadedFor = source->debugFilePath + SourcePathList::Utf8ToWide (source->programKey);
     }
 
+    //  Another debug file closes the last one's documents. A loose file is
+    //  no debug file's, so its document stays open.
     if (loadedFor != m_loadedFor)
     {
         m_loadedFor  = loadedFor;
-        m_files.Clear();
-        m_looseFiles.clear();
         m_pcPlace    = { -1, 0 };
         m_macroLevel = 0;
+
+        for (int slot = 0; slot < SourceDocuments::kMaxDocuments; slot++)
+        {
+            if (m_files.IsOpen (slot) && !m_looseFiles.contains (m_files.GetFileId (slot)))
+            {
+                m_files.Close (slot);
+            }
+        }
     }
 
     if (source.has_value())

@@ -119,6 +119,7 @@ namespace DebuggerLooseSourceTests
         using DebuggerWindow::OnFilesDropped;
         using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::IsPaneShown;
+        using DebuggerWindow::TakeSnapshot;
 
 
         //  The slot of the one document shown, or -1.
@@ -294,6 +295,29 @@ namespace DebuggerLooseSourceTests
             Assert::IsTrue   (host.commands.empty(), L"text is not loaded as symbols");
             Assert::IsTrue   (window.GetFirstRow().find (L"Remember the stack") != std::wstring::npos, window.GetFirstRow().c_str());
             Assert::IsTrue   (window.GetSourceGroup().GetDocument (window.GetShownSlot()).GetModel().GetBanner()->GetText().empty(), L"only a source offers symbols");
+        }
+
+
+        //  A loose file is no debug file's: its document stays open with its
+        //  text when a debug file loads.
+        TEST_METHOD (ALooseFileStaysOpenWhenADebugFileLoads)
+        {
+            CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
+            LooseSourceHost                        host;
+            LooseSourceWindow                      window   (theme, host);
+            std::shared_ptr<DebuggerViewSnapshot>  snapshot = std::make_shared<DebuggerViewSnapshot>();
+
+
+
+            host.files[L"C:\\Work\\notes.txt"] = "Remember the stack\n";
+            Assert::IsTrue (window.OnFilesDropped ({ L"C:\\Work\\notes.txt" }));
+
+            snapshot->source                = DebuggerViewSnapshot::SourceState();
+            snapshot->source->debugFilePath = L"C:\\Work\\game.dbg";
+            snapshot->source->programKey    = "game";
+            window.TakeSnapshot (snapshot);
+
+            Assert::IsTrue (window.GetFirstRow().find (L"Remember the stack") != std::wstring::npos, L"the loose document keeps its text");
         }
 
 
