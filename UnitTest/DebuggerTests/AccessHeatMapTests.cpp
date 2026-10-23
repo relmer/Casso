@@ -232,6 +232,49 @@ namespace DebuggerTests
 
 
 
+        //  History cut one keyframe at a time cuts the map again and again at
+        //  or after a cut already made, with no access stored between: only
+        //  the first walks the entries. An access stored after a cut is
+        //  cleared by the next cut before it.
+        TEST_METHOD (ACutRepeatedWithNoAccessBetweenIsQuick)
+        {
+            AccessHeatMap   map;
+            uint64_t        position = 10;
+            HeatLastAccess  access;
+            ULONGLONG       start    = 0;
+            ULONGLONG       elapsed  = 0;
+
+
+
+            map.SetPositionSource (&position);
+            map.Start (GetCpu65C02InstructionSet(), 0);
+
+            position = 50;
+            Run   (map, 0x0300, kStaAbsolute, 2);
+            Write (map, 0x2000);
+
+            start = GetTickCount64();
+
+            for (int i = 0; i < 2000; i++)
+            {
+                map.ForgetAccessesFrom (40);
+            }
+
+            elapsed = GetTickCount64() - start;
+
+            Assert::IsTrue (elapsed < 1000, std::format (L"{} ms for the cuts", elapsed).c_str());
+
+            position = 60;
+            Run   (map, 0x0500, kStaAbsolute, 2);
+            Write (map, 0x2000);
+
+            map.ForgetAccessesFrom (55);
+            position = 61;
+            Assert::AreEqual ((int) HeatAccessState::Unknown, (int) map.GetLastAccess (HeatSpace::Cpu, true, 0x2000, access), L"the write after the first cut is forgotten by the next");
+        }
+
+
+
         TEST_METHOD (AReadOfTheNextAddressAfterAOneByteInstructionIsData)
         {
             AccessHeatMap  map;
