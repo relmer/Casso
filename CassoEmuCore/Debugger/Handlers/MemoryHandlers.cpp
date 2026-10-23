@@ -194,7 +194,7 @@ void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command
         {
             reply.SetError (CommandStatus::Error, "memory not writable",
                             target.GetRegion (address) == MemoryRegion::Io
-                                ? std::format ("${:04X} is I/O. Use OUT to write it.", address)
+                                ? std::format ("${:04X} is I/O. Use OUT to write it. {} of {} bytes were written.", address, i, command.values.size())
                                 : std::format ("${:04X} cannot be written. {} of {} bytes were written.", address, i, command.values.size()));
             return;
         }

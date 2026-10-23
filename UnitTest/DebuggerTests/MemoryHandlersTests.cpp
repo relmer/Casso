@@ -154,6 +154,9 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 0, rig.target.ioWrites.size(), L"and nothing reached the device");
 
             rig.RunFails ("PATCH 300", "invalid arguments");
+
+            reply = rig.RunFails ("PATCH BFFE 01 02 03", "memory not writable");
+            Assert::IsTrue (reply.error.detail.find ("2 of 3 bytes were written") != std::string::npos, TextEncoding::NarrowToWide (reply.error.detail).c_str());
         }
 
 
