@@ -786,7 +786,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                 GoToCode               (Word address) override { ShowCode (address); }
     IDebuggerWindowHost * GetWindowHost         () override { return m_host; }
     bool                 IsPaneOpen             (const std::wstring & pane) const override { return IsPaneShown (pane); }
-    IDxuiControl       * GetFocusedControl      () const override { return m_focusMgr.GetFocusedControl(); }
+    IDxuiControl       * GetFocusedControl      () const override { return GetFocused(); }
     void                 FocusDefault           () override { m_focusMgr.SetFocused (m_consolePane->GetCommandLine().GetBox()); }
     void                 HideTooltip            () override { GetRoutedTooltip().HideImmediate(); }
     void                 ShowPcCode             () override { ShowCode (std::nullopt); }

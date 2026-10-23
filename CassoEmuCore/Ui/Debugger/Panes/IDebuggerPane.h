@@ -269,8 +269,9 @@ public:
     //  View menu's check has it.
     virtual bool                   IsPaneOpen       (const std::wstring & pane) const = 0;
 
-    //  The control with the keyboard focus, and the step that moves it to the
-    //  command line, for a pane whose focused control is hidden.
+    //  The control with the keyboard focus, the floating window's focused
+    //  control while an event from it is routed, and the step that moves it
+    //  to the command line, for a pane whose focused control is hidden.
     virtual IDxuiControl         * GetFocusedControl () const = 0;
     virtual void                   FocusDefault     () = 0;
 
