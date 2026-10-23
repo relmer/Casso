@@ -853,6 +853,31 @@ namespace DebuggerTests
 
 
 
+        //  Profiling is fed every instruction of a free run, but trace lines
+        //  are written only for a run the debugger starts.
+        TEST_METHOD (TF_WithProfilingOn_RecordsNoFreeRun)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("PROFILE ON");
+            rig.machine.RunCycles (200);
+            Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"the free run is profiled");
+
+            rig.RunOk ("= 300");
+            rig.RunOk ("G");
+            Assert::AreEqual ((size_t) 2, SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt")).size(), L"the G's two instructions alone");
+        }
+
+
+
         TEST_METHOD (TF_OffWithNothingRecorded_KeepsTheExistingFile)
         {
             MachineRig  rig;

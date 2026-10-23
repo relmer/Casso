@@ -54,12 +54,25 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
 //
 //  ExecutionHandlers::OnInstruction
 //
+//  Profiling is fed every instruction, a free run's too; the keys, the
+//  stopwatch and the trace only a run the debugger started.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 {
-    FeedKeys      (session);
+    bool  isDebuggerRun = session.GetRunState() == RunState::DebugRun || session.GetRunState() == RunState::Stepping;
+
+
+
     RecordProfile (session, pc);
+
+    if (!isDebuggerRun)
+    {
+        return;
+    }
+
+    FeedKeys (session);
 
     if (m_stopwatch.IsArmed())
     {
