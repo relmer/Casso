@@ -585,8 +585,16 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
             return formats;
         }
 
+        //  A folder's files are listed into the plan, so a drop gets them and
+        //  not an empty folder, and a move takes away only what was copied.
         plan = DragPayload::Build (DragPayload::SourceKind::CatalogEntries, image, browser.GetVolumeKind(), entries, style,
-                                   [] (const std::string &, VolumeListing &) { return E_NOTIMPL; }, {});
+                                   [&browser, image] (const std::string & directory, VolumeListing & outListing)
+                                   {
+                                       VolumeKind  listed = VolumeKind::Unknown;
+
+                                       return browser.GetOperations().List (image, directory, outListing, listed).hr;
+                                   },
+                                   {}, browser.GetLocation().innerPath);
 
         descriptors = std::make_shared<std::vector<DragPayload::Descriptor>> (plan.descriptors);
         group       = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (plan.descriptors));
@@ -654,16 +662,16 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
             }
 
             plan = DragPayload::Build (DragPayload::SourceKind::CatalogEntries, from, matches[first].kind, entries, style,
-                                       [] (const std::string &, VolumeListing &) { return E_NOTIMPL; }, {});
+                                       [&browser, from] (const std::string & directory, VolumeListing & outListing)
+                                       {
+                                           VolumeKind  listed = VolumeKind::Unknown;
 
-            //  The plan addresses files by name; one in a directory is read by its path.
+                                           return browser.GetOperations().List (from, directory, outListing, listed).hr;
+                                       },
+                                       {}, matches[first].directory);
+
             for (DragPayload::Descriptor & descriptor : plan.descriptors)
             {
-                if (!matches[first].directory.empty())
-                {
-                    descriptor.catalogPath = matches[first].directory + "/" + descriptor.catalogPath;
-                }
-
                 descriptors->push_back (descriptor);
                 images->push_back (from);
             }

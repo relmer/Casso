@@ -67,13 +67,17 @@ public:
     //  Lists one directory inside the source image, for the recursion.
     using DirectoryLister = std::function<HRESULT (const std::string & directoryPath, VolumeListing & outListing)>;
 
-    static Plan  Build (SourceKind                     source,
-                        const std::string            & sourceImage,
-                        VolumeKind                     kind,
-                        const std::vector<FileEntry> & entries,
-                        HostFileNaming::Style          style,
-                        const DirectoryLister        & listDirectory,
-                        const std::vector<std::wstring> & hostPaths);
+    //  Catalog entries are in catalogFolder, the directory inside the image
+    //  they are listed in, empty for the volume's top; each descriptor and the
+    //  private format address an entry by its path from the top.
+    static Plan  Build (SourceKind                        source,
+                        const std::string               & sourceImage,
+                        VolumeKind                        kind,
+                        const std::vector<FileEntry>    & entries,
+                        HostFileNaming::Style             style,
+                        const DirectoryLister           & listDirectory,
+                        const std::vector<std::wstring> & hostPaths,
+                        const std::string               & catalogFolder = std::string());
 
     //  The private format's bytes: the image path, the file system, and one
     //  catalog path per line. Text, so a receiver in another process reads

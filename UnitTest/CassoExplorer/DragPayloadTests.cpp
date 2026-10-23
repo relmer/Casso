@@ -84,6 +84,29 @@ public:
 
 
 
+    //  Entries listed in a folder inside the image are addressed by their
+    //  path from the volume's top, in the descriptors and the private format
+    //  both, so a copy or a move takes the folder's file and not one of the
+    //  same name at the top.
+    TEST_METHOD (CatalogEntriesInAFolder_AreAddressedByTheirPath)
+    {
+        std::vector<FileEntry>    entries = { MakeEntry ("PIC", ProDosVolume::kTypeBinary, false, true, 0x2000) };
+        DragPayload::Plan         plan    = DragPayload::Build (Source::CatalogEntries, "C:\\a.po", VolumeKind::ProDos,
+                                                                entries, Style::Descriptive, nullptr, {}, "GAMES/ART");
+        std::string               image;
+        VolumeKind                kind    = VolumeKind::Unknown;
+        std::vector<std::string>  paths;
+
+        Assert::AreEqual (std::string ("GAMES/ART/PIC"), plan.descriptors[0].catalogPath);
+        Assert::AreEqual (std::wstring (L"PIC.Binary.$2000.bin"), plan.descriptors[0].relativePath, L"the host name has no folders in it");
+
+        Assert::IsTrue   (DragPayload::DecodeCatalogEntries (plan.privateBytes, image, kind, paths));
+        Assert::AreEqual ((size_t) 1, paths.size());
+        Assert::AreEqual (std::string ("GAMES/ART/PIC"), paths[0]);
+    }
+
+
+
     TEST_METHOD (DiskImagesAndHostFiles_OfferOnlyHDrop)
     {
         DragPayload::Plan  images = DragPayload::Build (Source::DiskImages, "", VolumeKind::Unknown, {},

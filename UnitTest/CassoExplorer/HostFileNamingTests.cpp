@@ -163,6 +163,35 @@ public:
 
 
 
+    //  A stem Windows reads as a device gets an underscore, whatever follows.
+    TEST_METHOD (MakeHostLegal_MovesADeviceStemAside)
+    {
+        bool  substituted = false;
+
+        Assert::AreEqual (std::wstring (L"CON_"),      HostFileNaming::MakeHostLegal ("CON", substituted));
+        Assert::IsTrue   (substituted);
+        Assert::AreEqual (std::wstring (L"com1_.TXT"), HostFileNaming::MakeHostLegal ("com1.TXT", substituted));
+        Assert::AreEqual (std::wstring (L"CONSOLE"),   HostFileNaming::MakeHostLegal ("CONSOLE", substituted));
+        Assert::IsFalse  (substituted);
+    }
+
+
+
+    //  A folder's name is never a path, and a trailing period is replaced.
+    TEST_METHOD (MakeHostFolderName_ReplacesDotsAndTrailingPeriods)
+    {
+        bool  substituted = false;
+
+        Assert::AreEqual (std::wstring (L"__"),  HostFileNaming::MakeHostFolderName ("..", substituted));
+        Assert::IsTrue   (substituted);
+        Assert::AreEqual (std::wstring (L"_"),   HostFileNaming::MakeHostFolderName (".", substituted));
+        Assert::AreEqual (std::wstring (L"_"),   HostFileNaming::MakeHostFolderName ("", substituted));
+        Assert::AreEqual (std::wstring (L"A_"),  HostFileNaming::MakeHostFolderName ("A.", substituted));
+        Assert::AreEqual (std::wstring (L"SUB"), HostFileNaming::MakeHostFolderName ("SUB", substituted));
+        Assert::IsFalse  (substituted);
+    }
+
+
     TEST_METHOD (Dos33TypeTable_MapsBothWays)
     {
         Byte  type = 0;

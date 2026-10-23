@@ -450,6 +450,25 @@ public:
     }
 
 
+    //  A file of the same name in the folder is not written over, and the
+    //  copy is numbered ahead of the suffix with its type.
+    TEST_METHOD (Get_KeepsAFileThatIsThereAlready)
+    {
+        Host  host;
+
+        host.OpenImage();
+        AssertSucceeded (host.fs.MakeDirectory (L"C:\\Out"));
+        AssertSucceeded (host.fs.WriteAllText (L"C:\\Out\\HELLO.Applesoft BASIC.txt", "mine"));
+        host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+
+        CassoExplorerActions::Outcome  outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive);
+
+        Assert::IsTrue (outcome.Succeeded());
+        Assert::IsTrue (host.io.files.count ("C:\\Out\\HELLO (2).Applesoft BASIC.txt") == 1);
+        Assert::IsTrue (host.io.files.count ("C:\\Out\\HELLO.Applesoft BASIC.txt") == 0, L"the file there already is not written over");
+    }
+
+
     TEST_METHOD (ExtractImage_CopiesEveryFileIntoAFolderBesideTheImage)
     {
         Host          host;

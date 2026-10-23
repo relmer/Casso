@@ -83,6 +83,10 @@ public:
     //  the caller can tell the user the resulting name.
     static std::wstring  MakeHostLegal (const std::string & catalogName, bool & substituted);
 
+    //  MakeHostLegal for a folder, which has no suffix: an empty name, . and
+    //  .. and a trailing period or space are replaced by underscores too.
+    static std::wstring  MakeHostFolderName (const std::string & catalogName, bool & substituted);
+
     //  The DOS 3.3 type letter for a type byte, and the ProDOS type the
     //  CiderPress form writes for a DOS 3.3 type. Both directions live here
     //  so the two forms cannot disagree about a letter.

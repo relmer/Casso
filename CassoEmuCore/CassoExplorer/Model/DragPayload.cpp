@@ -258,7 +258,7 @@ void DragPayload::AppendEntry (
 
     if (entry.isDirectory)
     {
-        descriptor.relativePath = relativeFolder + HostFileNaming::MakeHostLegal (entry.name, substituted);
+        descriptor.relativePath = relativeFolder + HostFileNaming::MakeHostFolderName (entry.name, substituted);
     }
     else
     {
@@ -314,7 +314,8 @@ DragPayload::Plan DragPayload::Build (
     const std::vector<FileEntry>     & entries,
     HostFileNaming::Style              style,
     const DirectoryLister            & listDirectory,
-    const std::vector<std::wstring>  & hostPaths)
+    const std::vector<std::wstring>  & hostPaths,
+    const std::string                & catalogFolder)
 {
     Plan                      plan;
     std::vector<std::string>  catalogPaths;
@@ -326,9 +327,9 @@ DragPayload::Plan DragPayload::Build (
         case SourceKind::CatalogEntries:
             for (const FileEntry & entry : entries)
             {
-                catalogPaths.push_back (entry.name);
+                catalogPaths.push_back (catalogFolder.empty() ? entry.name : catalogFolder + "/" + entry.name);
 
-                AppendEntry (entry, kind, style, L"", "", listDirectory, 0, plan.descriptors);
+                AppendEntry (entry, kind, style, L"", catalogFolder, listDirectory, 0, plan.descriptors);
             }
 
             plan.privateBytes = EncodeCatalogEntries (sourceImage, kind, catalogPaths);

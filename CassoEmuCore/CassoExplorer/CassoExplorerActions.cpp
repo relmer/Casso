@@ -799,7 +799,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetSelected (const std::wstr
     for (const FileEntry & entry : entries)
     {
         std::wstring  hostName = DragPayload::GetHostName (entry, m_browser.GetVolumeKind(), style, converted);
-        std::wstring  hostPath = CassoExplorerBrowser::JoinPath (hostFolder, hostName);
+        std::wstring  hostPath = MakeFreeFilePath (hostFolder, hostName);
 
         if (entry.isDirectory)
         {
@@ -897,9 +897,9 @@ void CassoExplorerActions::ExtractDirectory (const std::string & image, VolumeKi
         std::string             catalogPath = directory.empty() ? entry.name : directory + "/" + entry.name;
         bool                    altered     = false;
         bool                    appleSingle = style == HostFileNaming::Style::AppleSingle;
-        std::wstring            hostName    = entry.isDirectory ? HostFileNaming::MakeHostLegal (entry.name, altered)
+        std::wstring            hostName    = entry.isDirectory ? HostFileNaming::MakeHostFolderName (entry.name, altered)
                                                                 : DragPayload::GetHostName (entry, kind, style, altered);
-        std::wstring            hostPath    = CassoExplorerBrowser::JoinPath (hostFolder, hostName);
+        std::wstring            hostPath    = entry.isDirectory ? CassoExplorerBrowser::JoinPath (hostFolder, hostName) : MakeFreeFilePath (hostFolder, hostName);
         DiskOperations::Result  result;
         AppleSingleFile         single;
         std::vector<Byte>       bytes;
@@ -985,7 +985,35 @@ std::wstring CassoExplorerActions::MakeFreeFolderPath (const std::wstring & pare
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerActions::TryGetAppleDrive
+//  CassoExplorerActions::MakeFreeFilePath
+//
+//  `name` in `folder`, or with " (2)", " (3)" and so on after its stem, the
+//  first that nothing is called, so a copy out never replaces a file. The
+//  number goes before the first period or hash, so the suffix with the
+//  file's type parses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerActions::MakeFreeFilePath (const std::wstring & folder, const std::wstring & name)
+{
+    size_t        split = name.find_first_of (L".#");
+    std::wstring  stem  = name.substr (0, split);
+    std::wstring  rest  = (split == std::wstring::npos) ? std::wstring() : name.substr (split);
+    std::wstring  path  = CassoExplorerBrowser::JoinPath (folder, name);
+
+
+
+    for (int copy = 2; m_fs.Exists (path) || m_fs.DirectoryExists (path); copy++)
+    {
+        path = CassoExplorerBrowser::JoinPath (folder, std::format (L"{} ({}){}", stem, copy, rest));
+    }
+
+    return path;
+}
+
+
+
+
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1185,7 +1213,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
 
     for (const FileEntry & entry : entries)
     {
-        std::wstring     hostPath    = CassoExplorerBrowser::JoinPath (hostFolder, DragPayload::GetHostName (entry, kind, style, converted));
+        std::wstring     hostPath    = MakeFreeFilePath (hostFolder, DragPayload::GetHostName (entry, kind, style, converted));
         std::string      entryPath   = m_browser.GetEntryPath (entry);
         Encoding         encoding    = GetEncoding (entry, kind);
         bool             appleSingle = style == HostFileNaming::Style::AppleSingle;
@@ -1325,6 +1353,10 @@ void CassoExplorerActions::PutItemsOnAppleDrive (const std::string & link, int d
             if (SUCCEEDED (hr))
             {
                 PutItemsOnAppleDrive (link, drive, path, {}, childPaths, askAddress, inOutOutcome);
+            }
+            else
+            {
+                AppendMessage (inOutOutcome, hr, GetLeafName (hostPath) + L" could not be read.");
             }
 
             continue;
@@ -1878,8 +1910,11 @@ void CassoExplorerActions::CopyEntry (
 
 
 
+    //  A failure, not a silent skip: a move takes the source away only when
+    //  the whole copy succeeded.
     if (depth > kMaxCopyDepth)
     {
+        AppendMessage (inOutOutcome, E_FAIL, TextEncoding::NarrowToWide (catalogPath) + L": folders nested this deep are not copied.");
         return;
     }
 
@@ -2301,6 +2336,11 @@ CassoExplorerActions::Outcome CassoExplorerActions::DeleteSelected()
     }
 
     m_browser.GetSelectedEntries (entries);
+
+    //  Last in the catalog first: deleting an entry moves the ones after it
+    //  up, so an earlier entry's index is good until it is deleted. A DOS 3.3
+    //  disk can have several entries with one name and different indexes.
+    std::ranges::stable_sort (entries, [] (const FileEntry & a, const FileEntry & b) { return a.catalogIndex > b.catalogIndex; });
 
     for (const FileEntry & entry : entries)
     {

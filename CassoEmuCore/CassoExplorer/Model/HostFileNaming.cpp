@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
 #include "Machines/Apple2/Common/VolumeImage.h"
+#include "Ui/FileBrowseModel.h"
 
 
 
@@ -297,14 +298,17 @@ std::wstring HostFileNaming::ToWide (const std::string & text)
 //  HostFileNaming::MakeHostLegal
 //
 //  A catalog name can hold anything printable, and a few of those characters
-//  end a Windows path or open a redirect. Each becomes an underscore, and the
-//  caller is told so the user sees the name the file actually got.
+//  end a Windows path or open a redirect. Each becomes an underscore, and
+//  substituted is set, so the caller can report the name the file got. A stem
+//  Windows reads as a device, such as CON or COM1, whatever follows it, gets
+//  an underscore after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring HostFileNaming::MakeHostLegal (const std::string & catalogName, bool & substituted)
 {
     std::wstring  legal;
+    std::wstring  stem;
 
 
 
@@ -323,6 +327,49 @@ std::wstring HostFileNaming::MakeHostLegal (const std::string & catalogName, boo
         {
             legal += (wchar_t) (Byte) c;
         }
+    }
+
+    stem = legal.substr (0, legal.find (L'.'));
+
+    if (!stem.empty() && !FileBrowseModel::IsValidFileName (stem))
+    {
+        legal.insert (stem.size(), L"_");
+        substituted = true;
+    }
+
+    return legal;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostFileNaming::MakeHostFolderName
+//
+//  A folder's name has no suffix after it, so more is replaced: an empty name,
+//  . and .., which Windows reads as a path that puts the folder's files in or
+//  above the folder they are extracted to, and a trailing period or space,
+//  which Windows drops, so A. and A would be one folder.
+//
+////////////////////////////////////////////////////////////////////////////////
+::wstring HostFileNaming::MakeHostFolderName (const std::string & catalogName, bool & substituted)
+{
+    std::wstring  legal  = MakeHostLegal (catalogName, substituted);
+    size_t        last   = legal.find_last_not_of (L". ");
+
+
+
+    if (last == std::wstring::npos)
+    {
+        legal       = std::wstring (std::max<size_t> (legal.size(), 1), L'_');
+        substituted = true;
+    }
+    else if (last + 1 < legal.size())
+    {
+        std::fill (legal.begin() + (ptrdiff_t) last + 1, legal.end(), L'_');
+        substituted = true;
     }
 
     return legal;
@@ -386,6 +433,7 @@ std::wstring HostFileNaming::ForRaw (
     Byte          proDosType  = isDos ? MapDos33ToProDosType (type) : type;
     Word          aux         = hasAddress ? address : 0;
     std::wstring  name        = MakeHostLegal (catalogName, substituted);
+    char          letter      = GetDos33TypeLetter (type);
 
 
 
@@ -406,9 +454,10 @@ std::wstring HostFileNaming::ForRaw (
         return name + L"." + kBinaryWord + L".$" + FormatHex (aux, 4) + kRawExtension;
     }
 
+    //  A type with no letter would write ?, which a Windows name cannot have.
     if (isDos)
     {
-        return name + L"." + kDosWord + L"." + (wchar_t) GetDos33TypeLetter (type) + kRawExtension;
+        return name + L"." + kDosWord + L"." + (wchar_t) (letter == '?' ? '_' : letter) + kRawExtension;
     }
 
     name += std::wstring (L".") + kProDosWord + L".$" + FormatHex (type, 2);

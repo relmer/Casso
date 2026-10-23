@@ -392,6 +392,7 @@ private:
     void  ExtractDirectory (const std::string & image, VolumeKind kind, const std::string & directory, const std::wstring & hostFolder,
                             HostFileNaming::Style style, int depth, Outcome & inOutOutcome);
     std::wstring  MakeFreeFolderPath (const std::wstring & parent, const std::wstring & name);
+    std::wstring  MakeFreeFilePath   (const std::wstring & folder, const std::wstring & name);
     bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);
     void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
                         const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress, Conversion conversion, Outcome & inOutOutcome);
