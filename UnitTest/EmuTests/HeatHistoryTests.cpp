@@ -1500,6 +1500,16 @@ private:
     }
 
 
+    static bool IsSanitizedBuild()
+    {
+#ifdef __SANITIZE_ADDRESS__
+        return true;
+#else
+        return false;
+#endif
+    }
+
+
     static bool IsCold (const AccessHeatMap & map)
     {
         for (float heat : map.GetHeatTable())
@@ -1914,6 +1924,9 @@ private:
             oldBytes += packed.size();
         }
 
+        //  The heat map's sides are a small share of the history's bytes.
+        Assert::IsTrue ((countBytes + bitBytes) * 20 < keyframes.GetByteCount() - keyframes.GetSideByteCount(), L"the heat sides take under 5% of the snapshots' bytes");
+
         return std::format ("{}: {} keyframes, {} bytes of snapshots; counts {} bytes ({} without the two new kinds), kept bits {} bytes, kept whole at {} keyframes\n",
                             name, keyframes.GetCount(), keyframes.GetByteCount() - keyframes.GetSideByteCount(), countBytes, oldBytes, bitBytes, whole);
     }
@@ -1937,18 +1950,23 @@ private:
     }
 
 
-    //  Not a pass or fail: what reads before written and changed values cost
-    //  history and memory, written to the test log, over the reverse rig's
-    //  busy loop and the fill guest, and what a fold of the larger map takes.
+    //  What reads before written and changed values cost history and memory,
+    //  written to the test log, over the reverse rig's busy loop and the fill
+    //  guest, and what a fold of the larger map takes with every entry hot.
+    //  The sides are gated at 5% of the snapshots and, in a Release build
+    //  without AddressSanitizer, a fold at a frame's time (1.8 ms measured
+    //  2026-10-23, 31 ms with the sanitizer).
     TEST_METHOD (TheNewChannelsCostIsLogged)
     {
         constexpr int      kFolds      = 20;
         constexpr double   kMs         = 1000.0;
+        constexpr double   kFrameMs    = 1000.0 / 60.0;
         constexpr size_t   kMapBytes   = sizeof (uint32_t) + sizeof (float) + sizeof (int64_t);
         constexpr size_t   kWalkBytes  = 3 * sizeof (int64_t);
         constexpr size_t   kOldEntries = AccessHeatMap::kEntryCount * 3 / AccessHeatMap::kKindCount;
         std::string        log;
         AccessHeatMap      map;
+        std::vector<float> hot         (AccessHeatMap::kEntryCount, 1.0e6f);
         double             ms          = 0.0;
 
         {
@@ -1973,6 +1991,8 @@ private:
 
         for (int i = 0; i < kFolds; i++)
         {
+            map.MergeHeat (hot, (uint64_t) i * AccessHeatMap::kCyclesPerFrame);
+
             auto  start = std::chrono::steady_clock::now();
 
 
@@ -1990,5 +2010,7 @@ private:
                             IsDebugBuild() ? "Debug" : "Release");
 
         Logger::WriteMessage (log.c_str());
+
+        Assert::IsTrue (IsDebugBuild() || IsSanitizedBuild() || ms / kFolds < kFrameMs, L"a fold of the whole map hot takes under a frame");
     }
 };

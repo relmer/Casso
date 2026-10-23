@@ -655,12 +655,17 @@ public:
     //
     //      scripts\RunTests.ps1 -Filter Diag_BasicInSevenHookTracksMotion
     //
-    //  and put a bootable, writable DOS 3.3 disk at
-    //  %LOCALAPPDATA%\Casso\Disks\DOS 3.3 Writable.woz first -- save one from
-    //  a running emulator, or build one with
+    //  after removing its TEST_IGNORE attribute locally, since an ignored test
+    //  is skipped even when picked by name, and put a bootable, writable DOS
+    //  3.3 disk at %LOCALAPPDATA%\Casso\Disks\DOS 3.3 Writable.woz first --
+    //  save one from a running emulator, or build one with
     //  `CassoCli disk create "<that path>" --format dos33 --bootable <master>`.
-    //  Absent that disk it skips, which is why it costs an ordinary suite run
-    //  nothing.
+    //  The attribute makes an ordinary suite run report it as skipped rather
+    //  than passed, and a run without that disk fails.
+    BEGIN_TEST_METHOD_ATTRIBUTE (Diag_BasicInSevenHookTracksMotion)
+        TEST_IGNORE()
+    END_TEST_METHOD_ATTRIBUTE()
+
     TEST_METHOD (Diag_BasicInSevenHookTracksMotion)
     {
         const std::string  kDiskPath = DiagWritableDiskPath();
@@ -668,7 +673,7 @@ public:
 
         if (!f.good())
         {
-            Logger::WriteMessage ("SKIPPED: local writable DOS 3.3 disk absent");
+            Assert::Fail (L"the writable DOS 3.3 disk is absent");
         }
         else
         {

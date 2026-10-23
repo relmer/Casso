@@ -812,6 +812,10 @@ TEST_CLASS (DxuiPopupHostPoolTests)
 {
 public:
 
+    BEGIN_TEST_METHOD_ATTRIBUTE (PoolInstrumentation_SkippedInRelease)
+        TEST_IGNORE()
+    END_TEST_METHOD_ATTRIBUTE()
+
     TEST_METHOD (PoolInstrumentation_SkippedInRelease)
     {
         Logger::WriteMessage (

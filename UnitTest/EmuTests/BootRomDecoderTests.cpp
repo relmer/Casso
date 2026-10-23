@@ -92,7 +92,7 @@ public:
     }
 
 
-    Byte PatternComplement (size_t index)
+    static Byte PatternComplement (size_t index)
     {
         return static_cast<Byte> (~static_cast<Byte> (index & 0xFF));
     }
@@ -303,21 +303,20 @@ public:
         AssertBootRomReadsSector0 (PatternIdentity, L"identity (i)");
     }
 
+    //  KNOWN ISSUE, so the test is ignored and reports as skipped: the
+    //  synthetic ~i pattern exposes a polling-cadence sensitivity in the boot
+    //  ROM's data-field decode loop that does not surface on real disks.
+    //  DiskReadbackTests::ReadComplementPatternSector_FromCustomDsk round-trips
+    //  this pattern through direct bus reads, and Identity and Mixed both boot.
+    //  Remove the attribute once the engine matches the Disk II's data-window
+    //  timing closely enough for ~i to boot as well.
+    BEGIN_TEST_METHOD_ATTRIBUTE (BootRom_LoadsSector0_ComplementPattern)
+        TEST_IGNORE()
+    END_TEST_METHOD_ATTRIBUTE()
+
     TEST_METHOD (BootRom_LoadsSector0_ComplementPattern)
     {
-        // KNOWN ISSUE: this synthetic ~i pattern exposes a polling-
-        // cadence sensitivity in the boot ROM's data-field decode loop
-        // that doesn't surface on real disks. The pipeline correctness
-        // is verified independently by
-        // DiskReadbackTests::ReadComplementPatternSector_FromCustomDsk,
-        // which round-trips this exact pattern via direct bus reads.
-        // Identity and Mixed patterns both pass through the boot ROM,
-        // so this is not a blocker for booting real images. Re-enable
-        // once the engine matches the real Disk II's data-window timing
-        // closely enough for ~i to also boot.
-        Logger::WriteMessage ("SKIPPED: complement pattern -- known boot-ROM "
-                              "polling-cadence sensitivity, pipeline "
-                              "correctness covered by DiskReadbackTests.\n");
+        AssertBootRomReadsSector0 (PatternComplement, L"complement (~i)");
     }
 
     TEST_METHOD (BootRom_LoadsSector0_MixedPattern)
