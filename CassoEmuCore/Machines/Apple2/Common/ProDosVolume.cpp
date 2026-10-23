@@ -572,12 +572,17 @@ Error:
 
 HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) const
 {
-    HRESULT  hr          = S_OK;
-    size_t   bufferBytes = m_sectors.size();
-    int      dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
-    bool     hasLeaf     = !path.IsEmpty();
-    Byte     fileType    = 0;
-    Word     auxType     = 0;
+    HRESULT              hr          = S_OK;
+    size_t               bufferBytes = m_sectors.size();
+    int                  dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
+    bool                 hasLeaf     = !path.IsEmpty();
+    Byte                 fileType    = 0;
+    Word                 auxType     = 0;
+    bool                 parsed      = true;
+    bool                 found       = false;
+    uint16_t             local       = 0;
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
 
 
 
@@ -603,6 +608,20 @@ HRESULT ProDosVolume::Read (const FilePath & path, FilePayload & outPayload) con
     {
         outPayload.loadAddress    = auxType;
         outPayload.hasLoadAddress = true;
+    }
+
+    CollectEntries (dirKeyBlock, entries, damage, parsed);
+    found = TryFindEntry (entries, path.GetLeaf(), local);
+
+    if (found)
+    {
+        outPayload.access       = entries[local].access;
+        outPayload.hasAccess    = true;
+        outPayload.createdDate  = ReadWord (entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffCreated);
+        outPayload.createdTime  = ReadWord (entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffCreated + 2);
+        outPayload.modifiedDate = entries[local].modDate;
+        outPayload.modifiedTime = entries[local].modTime;
+        outPayload.hasDates     = true;
     }
 
 Error:
@@ -2126,8 +2145,55 @@ HRESULT ProDosVolume::Write (
         CHR (hr);
     }
 
+    StampEntry (outBuffer, dirKeyBlock, name, payload);
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProDosVolume::StampEntry
+//
+//  The access byte and dates the payload came with, over the defaults a new
+//  record gets, so a copy is locked and dated as its original is. They take
+//  no blocks, so the record is changed after the file is placed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProDosVolume::StampEntry (vector<Byte> & buffer, int dirKeyBlock, const std::string & name, const FilePayload & payload)
+{
+    ProDosVolume         written (buffer);
+    vector<RawEntry>     entries;
+    vector<std::string>  damage;
+    bool                 parsed = true;
+    bool                 found  = false;
+    uint16_t             local  = 0;
+
+
+
+    if (payload.hasAccess || payload.hasDates)
+    {
+        written.CollectEntries (dirKeyBlock, entries, damage, parsed);
+        found = TryFindEntry (entries, name, local);
+    }
+
+    if (found && payload.hasAccess)
+    {
+        WriteByteAt (buffer, entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffAccess, payload.access);
+    }
+
+    if (found && payload.hasDates)
+    {
+        WriteWordAt (buffer, entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffCreated,      payload.createdDate);
+        WriteWordAt (buffer, entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffCreated + 2,  payload.createdTime);
+        WriteWordAt (buffer, entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffModified,     payload.modifiedDate);
+        WriteWordAt (buffer, entries[local].dirBlock, entries[local].entryOffset + ProDosSkeleton::kEntOffModified + 2, payload.modifiedTime);
+    }
 }
 
 
@@ -2460,6 +2526,12 @@ HRESULT ProDosVolume::BuildRemovalPlan (const FilePath & path, DirectoryRemovalP
     ChainWalkGuard         blockGuard ((uint32_t) ProDosSkeleton::kTotalBlocks);
     vector<uint32_t>       blocks;
     DirectoryRemovalEntry  itself;
+    int                    parentKey   = ProDosSkeleton::kDirKeyBlock;
+    vector<RawEntry>       siblings;
+    vector<std::string>    damage;
+    bool                   parsed      = true;
+    bool                   listed      = false;
+    uint16_t               local       = 0;
 
 
 
@@ -2476,11 +2548,21 @@ HRESULT ProDosVolume::BuildRemovalPlan (const FilePath & path, DirectoryRemovalP
     //  The directory itself goes last, after everything it holds.
     CollectDirectoryBlocks (keyBlock, blocks, blockGuard);
 
+    //  The directory's record is gated on destroy-enable as each entry
+    //  below it is.
+    hr = ResolveDirectory (GetParentPath (path), parentKey);
+    CHR (hr);
+
+    CollectEntries (parentKey, siblings, damage, parsed);
+    listed = TryFindEntry (siblings, path.GetLeaf(), local);
+
     itself.path        = path.ToString();
     itself.isDirectory = true;
     itself.blocks      = (uint32_t) blocks.size();
+    itself.isLocked    = listed && (siblings[local].access & kAccessDestroyEnable) == 0;
 
-    outPlan.blocksFreed += itself.blocks;
+    outPlan.blocksFreed      += itself.blocks;
+    outPlan.hasLockedEntries  = outPlan.hasLockedEntries || itself.isLocked;
 
     outPlan.entries.push_back (itself);
 

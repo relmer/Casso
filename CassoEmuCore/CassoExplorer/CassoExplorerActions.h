@@ -203,6 +203,9 @@ public:
     //  copy beside its original is "NAME - COPY" or "NAME.COPY" first.
     static std::string   MakeFreeEntryName (const std::string & desired, const std::vector<std::string> & taken, VolumeKind kind, bool copy);
 
+    //  Whether the catalog path `directory` is below `folder`, in any case.
+    static bool          IsInsideFolder (const std::string & directory, const std::string & folder);
+
     //  The unused name a new folder in the current location takes.
     std::wstring  GetNewFolderName () const;
 

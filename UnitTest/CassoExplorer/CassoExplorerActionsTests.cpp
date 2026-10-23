@@ -693,6 +693,75 @@ public:
     }
 
 
+    //  A copy to another disk is locked, and on ProDOS dated, as its
+    //  original is.
+    TEST_METHOD (ACopyBetweenImages_KeepsTheLockAndTheDates)
+    {
+        constexpr Word  kDate = 0x5A21;
+        constexpr Word  kTime = 0x0C1E;
+
+        Host                           host;
+        CassoExplorerActions::Outcome  outcome;
+        FilePayload                    locked;
+        FilePayload                    copied;
+
+        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+
+        locked.bytes        = { 1, 2, 3 };
+        locked.type         = 0x04;
+        locked.access       = FilePayload::kAccessLocked;
+        locked.hasAccess    = true;
+        locked.createdDate  = kDate;
+        locked.createdTime  = kTime;
+        locked.modifiedDate = kDate;
+        locked.modifiedTime = kTime;
+        locked.hasDates     = true;
+        Assert::IsTrue (host.browser.GetOperations().WritePayload ("C:\\Disks\\prodos.po", "LOCKED", locked).Succeeded(), L"the locked file is written");
+
+        outcome = host.actions.CopyEntriesInto ("C:\\Disks\\prodos.po", VolumeKind::ProDos, { "LOCKED" },
+                                                L"C:\\Disks\\dos33.dsk", VolumeKind::Dos33, "");
+        Assert::IsTrue (outcome.Succeeded(), outcome.message.c_str());
+        Assert::IsTrue (host.browser.GetOperations().Read ("C:\\Disks\\dos33.dsk", "LOCKED", copied).Succeeded(), L"and read from DOS 3.3");
+        Assert::IsTrue (copied.IsLocked(), L"locked on DOS 3.3");
+
+        Assert::IsTrue (host.browser.GetOperations().Mkdir ("C:\\Disks\\prodos.po", "SUB").Succeeded());
+        outcome = host.actions.CopyEntriesInto ("C:\\Disks\\prodos.po", VolumeKind::ProDos, { "LOCKED" },
+                                                L"C:\\Disks\\prodos.po", VolumeKind::ProDos, "SUB");
+        Assert::IsTrue   (outcome.Succeeded());
+        Assert::IsTrue   (host.browser.GetOperations().Read ("C:\\Disks\\prodos.po", "SUB/LOCKED", copied).Succeeded());
+        Assert::AreEqual ((int) FilePayload::kAccessLocked, (int) copied.access, L"locked on ProDOS");
+        Assert::AreEqual ((int) kDate, (int) copied.modifiedDate);
+        Assert::AreEqual ((int) kTime, (int) copied.createdTime);
+    }
+
+
+    //  A folder is not copied into itself or into a folder inside it, as a
+    //  paste there would otherwise copy its copies.
+    TEST_METHOD (AFolderIsNotCopiedIntoItself)
+    {
+        Host                           host;
+        CassoExplorerActions::Outcome  outcome;
+        VolumeListing                  listing;
+        VolumeKind                     kind    = VolumeKind::Unknown;
+
+        host.SeedFixture ("CassoExplorer/prodos.po", L"C:\\Disks\\prodos.po");
+        Assert::IsTrue (host.browser.GetOperations().Mkdir ("C:\\Disks\\prodos.po", "OUTER").Succeeded());
+        Assert::IsTrue (host.browser.GetOperations().Mkdir ("C:\\Disks\\prodos.po", "OUTER/INNER").Succeeded());
+
+        for (const char * into : { "OUTER", "outer/INNER" })
+        {
+            outcome = host.actions.CopyEntriesInto ("C:\\Disks\\prodos.po", VolumeKind::ProDos, { "OUTER" },
+                                                    L"C:\\Disks\\prodos.po", VolumeKind::ProDos, into);
+            Assert::IsFalse (outcome.Succeeded(), L"the copy fails");
+        }
+
+        Assert::IsTrue   (host.browser.GetOperations().List ("C:\\Disks\\prodos.po", "OUTER/INNER", listing, kind).Succeeded());
+        Assert::IsTrue   (listing.entries.empty(), L"and nothing was copied");
+        Assert::IsTrue   (CassoExplorerActions::IsInsideFolder ("A/B", "a"));
+        Assert::IsFalse  (CassoExplorerActions::IsInsideFolder ("AB", "A"), L"a name that starts the same is not inside");
+    }
+
+
     TEST_METHOD (NewDiskChoices_MapToTheRunnersNames)
     {
         DiskOperations::NewDiskRequest  request = CassoExplorerNewDiskChoices::MakeRequest (1, 2, L"MYVOL", true);

@@ -130,6 +130,25 @@ struct FilePayload
     bool               hasLoadAddress = false;
     bool               hasAuxType     = false;
     PayloadEncoding    encoding       = PayloadEncoding::Verbatim;
+
+    //  The access byte and dates the file had where it was read, so a copy
+    //  to another disk is locked, and dated, as the original is. ProDOS's
+    //  access byte, whose write-enable bit is a DOS 3.3 lock.
+    Byte               access         = 0;
+    bool               hasAccess      = false;
+    Word               createdDate    = 0;
+    Word               createdTime    = 0;
+    Word               modifiedDate   = 0;
+    Word               modifiedTime   = 0;
+    bool               hasDates       = false;
+
+    //  ProDOS's access bytes for a file unlocked and locked, and the
+    //  write-enable bit, which is clear in a locked file.
+    static constexpr Byte  kAccessUnlocked    = 0xC3;
+    static constexpr Byte  kAccessLocked      = 0x01;
+    static constexpr Byte  kAccessWriteEnable = 0x02;
+
+    bool  IsLocked() const { return hasAccess && (access & kAccessWriteEnable) == 0; }
 };
 
 

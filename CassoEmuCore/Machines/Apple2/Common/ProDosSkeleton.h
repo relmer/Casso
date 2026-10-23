@@ -81,6 +81,7 @@ private:
     static constexpr size_t  kEntOffKeyPointer    = 0x11;
     static constexpr size_t  kEntOffBlocksUsed    = 0x13;
     static constexpr size_t  kEntOffEof           = 0x15;
+    static constexpr size_t  kEntOffCreated       = 0x18;   // date word, then time word
     static constexpr size_t  kEntOffAccess        = 0x1E;
     static constexpr size_t  kEntOffAuxType       = 0x1F;
     static constexpr size_t  kEntOffModified      = 0x21;   // date word, then time word

@@ -257,6 +257,10 @@ private:
                                       int                  headerPointer,
                                       Word                 caseFlags);
 
+    //  The payload's access byte and dates written over the new record of
+    //  `name` in the directory, when the payload has them.
+    static void  StampEntry (vector<Byte> & buffer, int dirKeyBlock, const std::string & name, const FilePayload & payload);
+
     //  The tally of active entries in one directory's header. Every directory
     //  keeps its own, at the same offset in its key block.
     static void  AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int delta);

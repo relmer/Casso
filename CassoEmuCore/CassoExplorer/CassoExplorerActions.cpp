@@ -1853,11 +1853,24 @@ CassoExplorerActions::Outcome CassoExplorerActions::CopyEntriesInto (
 {
     Outcome      outcome;
     std::string  target = TextEncoding::WideToNarrow (targetImage);
+    bool         same   = _stricmp (sourceImage.c_str(), target.c_str()) == 0;
 
 
 
     for (const std::string & path : catalogPaths)
     {
+        //  A folder copied into itself, or into a folder inside it, would copy
+        //  its copies again until the depth limit or a full disk stopped it.
+        //  File Explorer does not allow it either.
+        bool  inside = same && (_stricmp (directory.c_str(), path.c_str()) == 0 || IsInsideFolder (directory, path));
+
+        if (inside)
+        {
+            AppendMessage (outcome, HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
+                           TextEncoding::NarrowToWide (path) + L": a folder cannot be copied into itself.");
+            continue;
+        }
+
         CopyEntry (sourceImage, sourceKind, path, target, targetKind, directory, 0, outcome);
     }
 
@@ -1869,6 +1882,26 @@ CassoExplorerActions::Outcome CassoExplorerActions::CopyEntriesInto (
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::IsInsideFolder
+//
+//  Whether the catalog path `directory` is below `folder`, without regard
+//  to case, the way both file systems compare entries.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::IsInsideFolder (const std::string & directory, const std::string & folder)
+{
+    return directory.size() > folder.size()
+        && directory[folder.size()] == '/'
+        && _strnicmp (directory.c_str(), folder.c_str(), folder.size()) == 0;
 }
 
 
@@ -2386,9 +2419,11 @@ CassoExplorerActions::Outcome CassoExplorerActions::DeleteEntries (const std::st
 
     for (const std::string & path : catalogPaths)
     {
+        //  Not forced: a move has no confirmation for a locked entry, so a locked
+        //  one stays where it was, and the failure is reported.
         if (m_browser.GetOperations().List (image, path, listing, kind).Succeeded())
         {
-            Append (outcome, m_browser.GetOperations().Rmdir (image, path, true));
+            Append (outcome, m_browser.GetOperations().Rmdir (image, path, false));
         }
         else
         {

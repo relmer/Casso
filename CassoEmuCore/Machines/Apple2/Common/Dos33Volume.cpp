@@ -694,9 +694,11 @@ HRESULT Dos33Volume::Read (const FilePath & path, FilePayload & outPayload) cons
 
     CBREx (walked, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
 
-    outPayload          = FilePayload();
-    outPayload.type     = (Byte) (entries[owner].typeByte & ~kLockedBit);
-    outPayload.encoding = PayloadEncoding::Verbatim;
+    outPayload           = FilePayload();
+    outPayload.type      = (Byte) (entries[owner].typeByte & ~kLockedBit);
+    outPayload.encoding  = PayloadEncoding::Verbatim;
+    outPayload.access    = (entries[owner].typeByte & kLockedBit) != 0 ? FilePayload::kAccessLocked : FilePayload::kAccessUnlocked;
+    outPayload.hasAccess = true;
 
     for (uint32_t unit : units)
     {
@@ -1500,7 +1502,7 @@ HRESULT Dos33Volume::Write (
     bool                 ambiguous   = false;
     bool                 isLocked    = false;
     bool                 fullyParsed = true;
-    Byte                 typeByte    = (Byte) (payload.type & ~kLockedBit);
+    Byte                 typeByte    = (Byte) ((payload.type & ~kLockedBit) | (payload.IsLocked() ? kLockedBit : 0));
     uint16_t             owner       = 0;
     vector<Byte>         nameBytes;
     vector<Byte>         stored;
