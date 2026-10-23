@@ -34,7 +34,7 @@ void DebuggerPaneFrame::SetPartBeside (IDxuiControl * control, IDxuiControl * be
         if (part.control == control)
         {
             part.beside = beside;
-            part.width  = std::move (width);
+            part.width  = width;
         }
     }
 }
