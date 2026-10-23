@@ -4,6 +4,7 @@
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -1130,6 +1131,39 @@ namespace EventLogPaneTests
             Assert::AreEqual (std::wstring (L"Speaker"),        GetColumn (pane, IoLogPane::kSource)[1]);
             Assert::AreEqual (std::wstring (L"Mockingboard 1"), GetColumn (pane, IoLogPane::kSource)[2]);
             Assert::AreEqual (std::wstring (L""),               GetColumn (pane, IoLogPane::kAddress)[4], L"an AY write has no address of its own");
+        }
+
+
+        //  A sort on Since orders by number, not by text, where +1000 would
+        //  come before +300; the frame and the gap have thousands separators.
+        TEST_METHOD (SinceSortsByNumberAndCountsAreGrouped)
+        {
+            DxuiListView                list;
+            IoLogPane                   pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta                  delta;
+            std::vector<std::wstring>   since;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100,  IoEventKind::Speaker, 0xC030),
+                                MakeIoRow (2, 1400, IoEventKind::Speaker, 0xC030),
+                                MakeIoRow (3, 1700, IoEventKind::Speaker, 0xC030) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            since = GetColumn (pane, IoLogPane::kSince);
+            Assert::AreEqual (L"+" + DebuggerStatusText::FormatCount (1300), since[2], L"grouped as other counts are");
+
+            pane.SortBy  (IoLogPane::kSince);
+            pane.Refresh();
+            since = GetColumn (pane, IoLogPane::kSince);
+
+            Assert::IsTrue (std::ranges::find (since, std::wstring (L"+300")) < std::ranges::find (since, L"+" + DebuggerStatusText::FormatCount (1300)), L"300 before 1,300");
         }
 
 

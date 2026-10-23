@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/IoLogPane.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -315,7 +316,7 @@ void IoLogPane::MakeCells (
 
     if (event.kind == IoEventKind::VideoMode)
     {
-        out[kFrame].text      = std::format (L"{}", event.cycle - event.cycleInFrame);
+        out[kFrame].text      = DebuggerStatusText::FormatCount (event.cycle - event.cycleInFrame);
         out[kLine].text       = std::format (L"{}", event.scanline);
         out[kHorizontal].text = std::format (L"{}", event.cycleInLine);
         out[kSource].text     = L"Display";
@@ -332,8 +333,37 @@ void IoLogPane::MakeCells (
 
     if (since.has_value())
     {
-        out[kSince].text = std::format (L"+{}", *since);
+        out[kSince].text = L"+" + DebuggerStatusText::FormatCount (*since);
     }
 
     out[kEvent].text = TextEncoding::NarrowToWide (IoEventLog::FormatEvent (event));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoLogPane::GetSortNumber
+//
+//  The frame, the beam's line and cycle, and the gap since the last of the
+//  same sort by number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<uint64_t> IoLogPane::GetSortNumber (const Row & row, size_t index, size_t column) const
+{
+    bool  isVideo = row.kind == DebugLogRowKind::Event && row.event.kind == IoEventKind::VideoMode;
+
+
+
+    switch (column)
+    {
+    case kFrame:      return isVideo ? std::optional<uint64_t> (row.event.cycle - row.event.cycleInFrame) : std::nullopt;
+    case kLine:       return isVideo ? std::optional<uint64_t> (row.event.scanline)                       : std::nullopt;
+    case kHorizontal: return isVideo ? std::optional<uint64_t> (row.event.cycleInLine)                    : std::nullopt;
+    case kSince:      return (row.kind == DebugLogRowKind::Event) ? GetSince (index) : std::nullopt;
+    default:          return std::nullopt;
+    }
 }

@@ -537,6 +537,10 @@ protected:
     virtual size_t       GetLabelColumn () const = 0;
     virtual size_t       GetTextColumn  () const = 0;
 
+    //  The number a row sorts by in a column of numbers, or none to sort it
+    //  by its text: "1,300" does not come before "300".
+    virtual std::optional<uint64_t>  GetSortNumber (const Row & row, size_t index, size_t column) const { (void) row; (void) index; (void) column; return std::nullopt; }
+
 private:
     const ColumnSpecs &  GetSpecs() const
     {
@@ -648,6 +652,7 @@ private:
 
         PrepareView (rows, from);
         m_sortKeys.resize (rows.size());
+        m_sortNumbers.resize (rows.size());
 
         for (i = from; i < rows.size(); i++)
         {
@@ -656,7 +661,8 @@ private:
                 continue;
             }
 
-            m_sortKeys[i] = GetSortKey ((int) i);
+            m_sortKeys[i]    = GetSortKey ((int) i);
+            m_sortNumbers[i] = GetSortNumber (rows[i], i, (size_t) m_sortColumn);
             m_view.insert (std::ranges::upper_bound (m_view, (int) i, [this] (int a, int b) { return IsSortedBefore (a, b); }), (int) i);
         }
 
@@ -694,11 +700,13 @@ private:
     //  rows that tie stay in position order.
     void  SortView()
     {
-        m_sortKeys.assign (m_rows.GetRows().size(), std::wstring());
+        m_sortKeys.assign    (m_rows.GetRows().size(), std::wstring());
+        m_sortNumbers.assign (m_rows.GetRows().size(), std::nullopt);
 
         for (int index : m_view)
         {
-            m_sortKeys[(size_t) index] = GetSortKey (index);
+            m_sortKeys[(size_t) index]    = GetSortKey (index);
+            m_sortNumbers[(size_t) index] = GetSortNumber (m_rows.GetRows()[(size_t) index], (size_t) index, (size_t) m_sortColumn);
         }
 
         std::ranges::stable_sort (m_view, [this] (int a, int b) { return IsSortedBefore (a, b); });
@@ -740,6 +748,18 @@ private:
         if (column == kTimeColumn)
         {
             return m_isSortDescending ? right.wallTime < left.wallTime : left.wallTime < right.wallTime;
+        }
+
+        //  Rows with a number go first, by number, and the rest by text, so
+        //  the order is one a sort can follow.
+        if (m_sortNumbers[(size_t) a].has_value() != m_sortNumbers[(size_t) b].has_value())
+        {
+            return m_isSortDescending ? m_sortNumbers[(size_t) b].has_value() : m_sortNumbers[(size_t) a].has_value();
+        }
+
+        if (m_sortNumbers[(size_t) a].has_value())
+        {
+            return m_isSortDescending ? *m_sortNumbers[(size_t) b] < *m_sortNumbers[(size_t) a] : *m_sortNumbers[(size_t) a] < *m_sortNumbers[(size_t) b];
         }
 
         return m_isSortDescending ? m_sortKeys[(size_t) b] < m_sortKeys[(size_t) a] : m_sortKeys[(size_t) a] < m_sortKeys[(size_t) b];
@@ -803,19 +823,20 @@ private:
         return std::nullopt;
     }
 
-    DxuiListView               * m_list;
-    RequestFn                    m_request;
-    EventLogRows<T>              m_rows;
-    std::vector<int>             m_view;
-    std::vector<std::wstring>    m_sortKeys;   // the sort column's text of each row in a sorted view, by row index
-    size_t                       m_buildCount  = 0;   // full builds of the view, for a test
-    mutable ColumnSpecs          m_specs;
-    std::vector<size_t>          m_selected;
-    std::optional<size_t>        m_anchor;
-    std::optional<size_t>        m_keyboardRow;
-    std::optional<size_t>        m_keepTop;
-    std::optional<size_t>        m_viewTop;   // the top row's index, moved on by each delta since the view was built
-    bool                         m_isTopKept   = false;   // a delta since the view was built put rows in front or dropped rows above
+    DxuiListView                          * m_list;
+    RequestFn                               m_request;
+    EventLogRows<T>                         m_rows;
+    std::vector<int>                        m_view;
+    std::vector<std::wstring>               m_sortKeys;   // the sort column's text of each row in a sorted view, by row index
+    std::vector<std::optional<uint64_t>>    m_sortNumbers;   // the sort column's number of each row, where it has one
+    size_t                                  m_buildCount  = 0;   // full builds of the view, for a test
+    mutable ColumnSpecs                     m_specs;
+    std::vector<size_t>                     m_selected;
+    std::optional<size_t>                   m_anchor;
+    std::optional<size_t>                   m_keyboardRow;
+    std::optional<size_t>                   m_keepTop;
+    std::optional<size_t>                   m_viewTop;   // the top row's index, moved on by each delta since the view was built
+    bool                                    m_isTopKept   = false;   // a delta since the view was built put rows in front or dropped rows above
     bool                     m_isEarlierPending = false;   // "earlier" was sent and no delta has come from it yet
     uint64_t                 m_shownBefore      = UINT64_MAX;
     size_t                   m_viewRowCount     = 0;        // the rows the view was built over
