@@ -181,6 +181,36 @@ bool CpuManagerRunDriver::OnSliceExecuted (uint32_t cyclesExecuted)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  LimitSlice
+//
+//  A budget is checked after each slice, so a slice longer than the budget
+//  left would run the machine past it. The slice is never cut to nothing: a
+//  budget already spent ends the run at the next OnSliceExecuted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t CpuManagerRunDriver::LimitSlice (uint32_t sliceTarget) const
+{
+    uint64_t  left = 0;
+
+
+
+    if (!m_isRunning || !m_budget.has_value())
+    {
+        return sliceTarget;
+    }
+
+    left = (*m_budget > m_spent) ? *m_budget - m_spent : 1;
+
+    return (uint32_t) std::min<uint64_t> (sliceTarget, left);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CpuManagerRunDriver::OnPausePointReached
 //
 //  The pass a pending pause shortened has run to its landing point. A run

@@ -81,7 +81,7 @@ namespace EmulatorDebugWiringTests
 
             while (executed < target)
             {
-                slice     = std::min (target - executed, FrameCycleBudget::kSliceCycles);
+                slice     = driver.LimitSlice (std::min (target - executed, FrameCycleBudget::kSliceCycles));
                 actual    = (uint32_t) machine.RunCycles (slice);
                 executed += actual;
 
@@ -321,6 +321,35 @@ namespace EmulatorDebugWiringTests
             Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Budget);
             Assert::AreEqual ((uint64_t) 3000, rig.observer.stops[0].cycles,
                               L"the stop reports what actually ran");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  ABudgetShortensTheSliceItEndsIn
+        //
+        //  A budget smaller than a slice ends the run at the first instruction
+        //  boundary at or past it, not a slice later, as the batch driver stops.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABudgetShortensTheSliceItEndsIn)
+        {
+            Rig  rig;
+
+
+
+            rig.StartOk (Rig::Go (50));
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            Assert::AreEqual ((size_t) 1, rig.observer.stops.size());
+            Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Budget);
+            Assert::IsTrue   (rig.observer.stops[0].cycles >= 50 && rig.observer.stops[0].cycles < 50 + 7,
+                              std::format (L"{} cycles: no more than an instruction past the budget", rig.observer.stops[0].cycles).c_str());
         }
 
 
