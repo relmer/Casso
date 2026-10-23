@@ -340,6 +340,8 @@ int DxuiMessageBox (HWND                                      owner,
     HINSTANCE                 hInst      = nullptr;
     std::vector<ButtonSpec>   specs;
     std::wstring              body       = (text != nullptr) ? text : L"";
+    UINT                      systemType = UINT_MAX;
+    bool                      isSystem   = false;
 
 
 
@@ -377,9 +379,17 @@ int DxuiMessageBox (HWND                                      owner,
     if (FAILED (hr))
     {
         // The Dxui backend could not be created -- fall back to the system box
-        // so the caller still gets a decision rather than a silent default.
-        choice = MessageBoxW (owner, text, caption, (uType & ~MB_TYPEMASK) | ((buttons.size() > 1) ? MB_OKCANCEL : MB_OK));
-        choice = (choice == IDOK && !buttons.empty()) ? buttons.front().id : IDCANCEL;
+        // so the caller gets a decision rather than a silent default. A set
+        // of buttons the system box has uses that system type, and its choice
+        // is returned; any other set is OK, for the first button, and Cancel.
+        systemType = DxuiGetSystemMessageBoxType (buttons);
+        isSystem   = systemType != UINT_MAX;
+        choice     = MessageBoxW (owner, text, caption, (uType & ~MB_TYPEMASK) | (isSystem ? systemType : ((buttons.size() > 1) ? MB_OKCANCEL : MB_OK)));
+
+        if (!isSystem)
+        {
+            choice = (choice == IDOK && !buttons.empty()) ? buttons.front().id : IDCANCEL;
+        }
     }
     else
     {
@@ -389,4 +399,44 @@ int DxuiMessageBox (HWND                                      owner,
     }
 
     return choice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiGetSystemMessageBoxType
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiGetSystemMessageBoxType (const std::vector<DxuiMessageBoxButton> & buttons)
+{
+    static const std::pair<UINT, std::vector<int>>  kTypes[] =
+    {
+        { MB_OK,          { IDOK } },
+        { MB_OKCANCEL,    { IDOK, IDCANCEL } },
+        { MB_YESNO,       { IDYES, IDNO } },
+        { MB_YESNOCANCEL, { IDYES, IDNO, IDCANCEL } },
+        { MB_RETRYCANCEL, { IDRETRY, IDCANCEL } },
+    };
+    std::vector<int>  ids;
+
+
+
+    for (const DxuiMessageBoxButton & button : buttons)
+    {
+        ids.push_back (button.id);
+    }
+
+    for (const auto & [type, set] : kTypes)
+    {
+        if (set == ids)
+        {
+            return type;
+        }
+    }
+
+    return UINT_MAX;
 }

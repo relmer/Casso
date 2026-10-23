@@ -74,3 +74,7 @@ int  DxuiMessageBox (HWND                                      owner,
 //  How the box's window is created for owner: centered on the owner, on the
 //  owner's monitor and at that monitor's DPI, as every other dialog is.
 DxuiWindow::CreateParams  DxuiMakeMessageBoxParams (HWND owner, const wchar_t * caption, int heightDip);
+
+//  The system box type with exactly these buttons, MB_YESNO for Yes and No
+//  and so on, or UINT_MAX for buttons that are no system set.
+UINT  DxuiGetSystemMessageBoxType (const std::vector<DxuiMessageBoxButton> & buttons);

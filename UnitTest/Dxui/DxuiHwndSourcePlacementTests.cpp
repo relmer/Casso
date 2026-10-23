@@ -510,6 +510,20 @@ public:
 
 
     //
+    //  The system box a message box falls back on has the same buttons when
+    //  they are a set it has, Yes and No among them; other buttons are
+    //  OK and Cancel.
+    //
+    TEST_METHOD (TheSystemBoxFallbackKeepsAStandardSetOfButtons)
+    {
+        Assert::AreEqual ((UINT) MB_YESNO,       DxuiGetSystemMessageBoxType ({ { L"Yes", IDYES }, { L"No", IDNO } }));
+        Assert::AreEqual ((UINT) MB_YESNOCANCEL, DxuiGetSystemMessageBoxType ({ { L"Yes", IDYES }, { L"No", IDNO }, { L"Cancel", IDCANCEL } }));
+        Assert::AreEqual ((UINT) MB_OK,          DxuiGetSystemMessageBoxType ({ { L"OK", IDOK } }));
+        Assert::AreEqual (UINT_MAX,              DxuiGetSystemMessageBoxType ({ { L"Save", 100 }, { L"Discard", 101 } }), L"no system set");
+    }
+
+
+    //
     //  A message box is placed when it is created, centered on its owner, as
     //  every other owned dialog is -- not created at the cascade position on
     //  whichever monitor that is and moved afterward.
