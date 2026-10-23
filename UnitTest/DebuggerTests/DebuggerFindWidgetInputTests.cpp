@@ -198,6 +198,34 @@ namespace DebuggerFindWidgetInputTests
         }
 
 
+        //  Options saved with the project are drawn on their toggles, as
+        //  options turned on by a click are.
+        TEST_METHOD (ASavedOptionIsDrawnOnItsToggle)
+        {
+            class SavedHost : public InputHost
+            {
+            public:
+                std::string  GetDebuggerWindowState (const std::string & name) override
+                {
+                    return (name == "find") ? std::string ("console\x1F" "CR\n") : std::string();
+                }
+            };
+
+            CassoTheme   theme  = CassoTheme::MakeSkeuomorphic();
+            SavedHost    host;
+            InputWindow  window (theme, host);
+
+
+
+            window.Build();
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
+
+            Assert::IsTrue  (static_cast<DxuiButton *> (window.GetFindControl (1))->IsEmphasized(), L"match case");
+            Assert::IsFalse (static_cast<DxuiButton *> (window.GetFindControl (2))->IsEmphasized(), L"whole word");
+            Assert::IsTrue  (static_cast<DxuiButton *> (window.GetFindControl (3))->IsEmphasized(), L"regex");
+        }
+
+
         TEST_METHOD (EachButtonHasItsOwnTip)
         {
             CassoTheme             theme  = CassoTheme::MakeSkeuomorphic();

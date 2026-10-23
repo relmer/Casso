@@ -115,6 +115,8 @@ void FindWidgetSet::Create (const std::wstring & pane, FindWidget & widget)
     widget.selButton   = parent.CreateChild<DxuiButton>      (s_kpszMdl2AlignLeft);
     widget.closeButton = parent.CreateChild<DxuiButton>      (s_kpszMdl2Cancel);
 
+    ShowOptions (widget);
+
     //  Icon glyphs at Visual Studio Code's 16 pixels, which read at a glance
     //  where a text face's arrows are thin and small.
     for (DxuiButton * button : { widget.chevron, widget.prevButton, widget.nextButton, widget.selButton, widget.closeButton })
@@ -186,6 +188,32 @@ void FindWidgetSet::ApplySaved (const std::wstring & pane, FindWidget & widget) 
     widget.wholeWord = saved->second.wholeWord;
     widget.isRegex   = saved->second.isRegex;
     widget.history   = saved->second.history;
+
+    ShowOptions (widget);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindWidgetSet::ShowOptions
+//
+//  The toggles drawn on for the options on, once the widget has them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FindWidgetSet::ShowOptions (FindWidget & widget)
+{
+    if (widget.caseButton == nullptr)
+    {
+        return;
+    }
+
+    widget.caseButton->SetEmphasis  (widget.matchCase);
+    widget.wordButton->SetEmphasis  (widget.wholeWord);
+    widget.regexButton->SetEmphasis (widget.isRegex);
 }
 
 
@@ -646,9 +674,7 @@ void FindWidgetSet::SetOptions (bool matchCase, bool wholeWord, bool isRegex)
     m_active->isRegex   = isRegex;
     Save();
 
-    m_active->caseButton->SetEmphasis  (matchCase);
-    m_active->wordButton->SetEmphasis  (wholeWord);
-    m_active->regexButton->SetEmphasis (isRegex);
+    ShowOptions (*m_active);
 
     RefindAfterOptionChange();
 }

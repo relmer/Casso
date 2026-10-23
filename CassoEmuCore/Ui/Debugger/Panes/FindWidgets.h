@@ -215,6 +215,7 @@ private:
 
     void                 Create         (const std::wstring & pane, FindWidget & widget);
     void                 ApplySaved     (const std::wstring & pane, FindWidget & widget) const;
+    static void          ShowOptions    (FindWidget & widget);
     void                 SetVisible     (FindWidget & widget, bool shown);
     void                 Move           (FindWidget & widget, DxuiWindow * to);
     void                 PlaceOne       (const std::wstring & pane, FindWidget & widget);
