@@ -79,6 +79,7 @@ public:
     bool             OnMouseMove   (int x, int y) override;
     void             OnMouseLeave  () override;
     bool             OnLButtonDown (int x, int y) override;
+    void             OnLButtonUp   (int x, int y) override;
 
     static constexpr int    kDefaultWidthDip = 220;
     static constexpr float  kFontDip         = 14.0f;

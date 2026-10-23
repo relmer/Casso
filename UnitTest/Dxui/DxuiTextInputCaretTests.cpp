@@ -84,6 +84,37 @@ public:
     }
 
 
+    //  A drag in a toolbar's edit box ends at any release over the strip,
+    //  the release the toolbar passes to every entry, though the pointer
+    //  left the box and disarmed it; a later move selects nothing.
+    TEST_METHOD (AToolbarEditBoxDragEndsAtAReleaseOutsideIt)
+    {
+        DxuiToolbarEditBox    box;
+        MockDxuiTextRenderer  text;
+        DxuiDpiScaler         scaler;
+        DxuiKeyEvent          ev;
+        RECT                  rc     = { 0, 0, 220, 24 };
+
+
+
+        scaler.SetDpi (96);
+        box.SetTextRenderer (&text);
+        box.Layout     (rc, false, scaler);
+        box.SetText    (L"hello world");
+        box.SetFocused (true);
+
+        (void) box.OnLButtonDown (rc.right - 10, 12);
+        box.OnLButtonUp (rc.right + 50, 12);
+        (void) box.OnMouseMove (rc.left + 5, 12);
+
+        ev.kind = DxuiKeyEventKind::Char;
+        ev.vk   = L'X';
+        (void) box.OnKey (ev);
+
+        Assert::AreEqual (std::wstring (L"hello worldX"), box.GetText(), L"no selection followed the pointer");
+    }
+
+
     TEST_METHOD (AFocusedFieldInAnActiveWindowDrawsItsCaret)
     {
         DxuiTextInput          input;
