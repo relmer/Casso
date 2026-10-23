@@ -243,13 +243,18 @@ void DxuiDockSite::Arrange()
 
         group->ReplaceTabs (tabs, active);
 
-        for (const auto & [title, content] : tabs)
+        for (size_t t = 0; t < tabs.size(); t++)
         {
-            const Pane  & entry = m_panes.find (GetPaneOf (content))->second;
+            Pane  & entry = m_panes.find (GetPaneOf (tabs[t].second))->second;
 
-            group->SetLeadingMark (content, entry.leadMark);
-            group->SetTabTip      (content, entry.tip);
-            group->SetTitleExtra  (content, entry.titleExtraDip);
+            //  The tab in front has no mark, which is for a change out of
+            //  sight; a pane moved to another group takes its mark with it.
+            entry.indicator = entry.indicator && (int) t != active;
+
+            group->SetLeadingMark (tabs[t].second, entry.leadMark);
+            group->SetTabTip      (tabs[t].second, entry.tip);
+            group->SetTitleExtra  (tabs[t].second, entry.titleExtraDip);
+            group->SetIndicator   (tabs[t].second, entry.indicator);
         }
 
         //  A floating window's title bar is its pane's, so every group there

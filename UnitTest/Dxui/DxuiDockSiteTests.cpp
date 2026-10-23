@@ -95,6 +95,41 @@ namespace DxuiDockSiteTests
         }
 
 
+        //  A marked tab brought to the front has its mark cleared, as a click on
+        //  it does: the dot is for a change in a pane out of sight.
+        TEST_METHOD (AMarkedTabActivatedHasNoMark)
+        {
+            Rig            rig;
+            DxuiTabGroup * group      = nullptr;
+            std::wstring   background = rig.regs.IsVisible() ? L"stack" : L"regs";
+
+
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
+            }
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a group of two tabs");
+                return;
+            }
+
+            rig.site.SetIndicator (background, true);
+            Assert::IsTrue (group->HasIndicator (0) || group->HasIndicator (1), L"the background tab is marked");
+
+            rig.site.ActivatePane (background);
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
+            }
+
+            Assert::IsFalse (group->HasIndicator (0) || group->HasIndicator (1), L"the tab in front has no mark");
+        }
+
+
         TEST_METHOD (APressOnATabShowsItAndIsReported)
         {
             Rig            rig;
