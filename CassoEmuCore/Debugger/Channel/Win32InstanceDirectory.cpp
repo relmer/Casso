@@ -308,14 +308,24 @@ std::vector<uint32_t> Win32InstanceDirectory::ListProcessIds()
 
 std::unique_ptr<IChannelClient> Win32InstanceDirectory::Connect (uint32_t processId)
 {
-    std::wstring  name  = Win32PipeTransport::GetPipeName (processId);
-    HANDLE        pipe  = CreateFileW (name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-    HANDLE        event = nullptr;
+    std::wstring  name     = Win32PipeTransport::GetPipeName (processId);
+    HANDLE        pipe     = CreateFileW (name.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+                                          FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, nullptr);
+    HANDLE        event    = nullptr;
+    ULONG         serverId = 0;
 
 
 
     if (pipe == INVALID_HANDLE_VALUE)
     {
+        return nullptr;
+    }
+
+    //  The server may identify the client but not act as it, and a pipe of
+    //  this name that another process created is not connected to.
+    if (!GetNamedPipeServerProcessId (pipe, &serverId) || serverId != processId)
+    {
+        CloseHandle (pipe);
         return nullptr;
     }
 
