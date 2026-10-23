@@ -92,6 +92,7 @@ void ShellDebugger::StartReverseRecording()
     //  heat map's rebuilds and its look-ups of last accesses, and the call
     //  record's rebuilds.
     m_historyThumbnails.Clear();
+    m_historyThumbnails.Attach (m_reverseHost->IsRecording() ? &m_reverseHost->GetController().GetKeyframes() : nullptr);
     m_historyRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatFinder.SetMachine      (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
@@ -115,6 +116,7 @@ void ShellDebugger::StartReverseRecording()
 void ShellDebugger::StopReverseRecording()
 {
     m_eventLogs.Stop();
+    m_historyThumbnails.Attach (nullptr);
 
     if (m_reverseHost != nullptr)
     {

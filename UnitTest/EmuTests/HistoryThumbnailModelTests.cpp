@@ -1518,6 +1518,51 @@ private:
     }
 
 
+    //  After history is cut at an edit in the past, a new keyframe is taken
+    //  at the position of one dropped: its cell is drawn again from the new
+    //  state, not left with the old picture.
+    TEST_METHOD (APointRecordedAgainAfterACutIsDrawnAgain)
+    {
+        constexpr Byte  kNewTag   = 0x77;
+        constexpr int   kLiveCell = 2;
+
+        FakeHistoryFrameRenderer   renderer;
+        InlineWorkQueue            queue;
+        HistoryThumbnails          thumbnails (renderer);
+        KeyframeStore              store;
+        uint64_t                   now    = 0;
+        uint64_t                   newest = 0;
+        std::vector<Byte>          state (s_kThumbStateBytes);
+        HistoryThumbnails::Image   live;
+        HRESULT                    hr     = S_OK;
+
+
+
+        Prepare (thumbnails, queue, store, now);
+        thumbnails.Attach (&store);
+        thumbnails.SetVisible (true);
+        DrawAll (thumbnails, queue, store, now);
+
+        newest = store.GetInfo (store.GetCount() - 1).position;
+
+        hr = store.DropAfterPosition (newest - 1);
+        AssertSucceeded (hr, L"DropAfterPosition");
+
+        state[0] = kNewTag;
+
+        hr = store.Add (newest, store.GetInfo (store.GetCount() - 1).cycle + s_kThumbInterval, state);
+        AssertSucceeded (hr, L"Add");
+
+        DrawAll (thumbnails, queue, store, now);
+
+        live = thumbnails.GetCellImage (kLiveCell);
+        Assert::IsTrue (renderer.drawn.contains (kNewTag), L"the new state is drawn");
+        Assert::IsNotNull (live.get());
+        Assert::AreEqual ((uint32_t) kNewTag, live->bgraPremul.at (0) & 0xFFu, L"the live cell shows the new state");
+    }
+
+
+
     //  Runs the strip until every cell's picture is drawn.
     static void DrawAll (HistoryThumbnails & thumbnails, InlineWorkQueue & queue, KeyframeStore & store, uint64_t & now)
     {
