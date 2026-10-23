@@ -31,6 +31,7 @@ class Win32DiskFileIo : public IDiskFileIo
 public:
     HRESULT  ReadAllBytes  (const std::string & path, std::vector<Byte> & outBytes) override;
     HRESULT  WriteAllBytes (const std::string & path, const std::vector<Byte> & bytes) override;
+    HRESULT  WriteAt       (const std::string & path, uint64_t offset, std::span<const Byte> bytes) override;
     HRESULT  Stat          (const std::string & path, FileStamp & outStamp) override;
 
     bool     Exists        (const std::string & path) override;

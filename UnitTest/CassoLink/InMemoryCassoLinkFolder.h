@@ -13,19 +13,20 @@
 //  InMemoryCassoLinkFolder
 //
 //  An image folder for CassoLinkHost's tests: files in a map, a path for the
-//  listing, and a count of writes, so a test can check that a transfer wrote
-//  nothing.
+//  listing, and counts of whole-file and block writes, so a test can check
+//  what a transfer wrote.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class InMemoryCassoLinkFolder : public ICassoLinkFolder
 {
 public:
-    bool                                        open   = true;
-    std::string                                 path   = "C:\\Images\\";
+    bool                                        open        = true;
+    std::string                                 path        = "C:\\Images\\";
     std::map<std::string, std::vector<Byte>>    files;
     std::vector<std::string>                    changes;
-    int                                         writes = 0;
+    int                                         writes      = 0;
+    int                                         blockWrites = 0;
 
     bool         IsOpen  () const override { return open; }
     std::string  GetPath () const override { return path; }
@@ -61,6 +62,22 @@ public:
         files[name] = bytes;
         writes++;
         return S_OK;
+    }
+
+    HRESULT  WriteAt (const std::string & name, uint64_t offset, std::span<const Byte> bytes) override
+    {
+        HRESULT  hr    = S_OK;
+        bool     found = files.contains (name);
+        bool     fits  = found && offset + bytes.size() <= files[name].size();
+
+        CBREx (found, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
+        CBREx (fits,  HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
+        std::copy (bytes.begin(), bytes.end(), files[name].begin() + (ptrdiff_t) offset);
+        blockWrites++;
+
+    Error:
+        return hr;
     }
 
     HRESULT  ChangeDirectory (const std::string & name) override

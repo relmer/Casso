@@ -67,6 +67,11 @@ public:
     virtual HRESULT  ReadAllBytes  (const std::string & path, std::vector<Byte> & outBytes) = 0;
     virtual HRESULT  WriteAllBytes (const std::string & path, const std::vector<Byte> & bytes) = 0;
 
+    //  The bytes written over the file's at offset, in place, in a file that is
+    //  there already and long enough to have them; for a drive served a block
+    //  at a time, where rewriting the whole image for each block is too slow.
+    virtual HRESULT  WriteAt       (const std::string & path, uint64_t offset, std::span<const Byte> bytes) = 0;
+
     //  Size and modification time, for the read-then-commit staleness check.
     virtual HRESULT  Stat          (const std::string & path, FileStamp & outStamp) = 0;
 

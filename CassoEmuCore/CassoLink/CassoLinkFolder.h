@@ -28,7 +28,9 @@ class IFileSystem;
 //
 //  The folder is set on the UI thread while the host reads it on the link's
 //  thread, so both go through a lock. A write goes through DurableCommit, so
-//  an interrupted transfer ends with the old file in place, or with none.
+//  an interrupted transfer ends with the old file in place, or with none. A
+//  VSDrive block goes in place, as ADTPro's server writes it, since rewriting
+//  the whole image for each block is too slow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +52,7 @@ public:
     bool         Exists          (const std::string & name) override;
     HRESULT      Read            (const std::string & name, std::vector<Byte> & outBytes) override;
     HRESULT      Write           (const std::string & name, const std::vector<Byte> & bytes) override;
+    HRESULT      WriteAt         (const std::string & name, uint64_t offset, std::span<const Byte> bytes) override;
     HRESULT      ChangeDirectory (const std::string & name) override;
 
 private:

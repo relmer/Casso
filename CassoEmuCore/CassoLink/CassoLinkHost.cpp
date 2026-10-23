@@ -1015,7 +1015,6 @@ HRESULT CassoLinkHost::ServeVirtualDrive()
     size_t             block    = 0;
     std::vector<Byte>  data (kBlockSize, 0);
     std::vector<Byte>  reply;
-    std::vector<Byte>  file;
 
 
 
@@ -1060,9 +1059,7 @@ HRESULT CassoLinkHost::ServeVirtualDrive()
         {
             std::copy (data.begin(), data.end(), m_driveImages[drive].begin() + (ptrdiff_t) (block * kBlockSize));
 
-            ToFileOrder (m_driveNames[drive], m_driveImages[drive], file);
-
-            hr = m_folder.Write (m_driveNames[drive], file);
+            hr = WriteDriveBlock (drive, block, data);
             CHR (hr);
         }
 
@@ -1093,6 +1090,49 @@ HRESULT CassoLinkHost::ServeVirtualDrive()
 
     hr = Send (reply);
     CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkHost::WriteDriveBlock
+//
+//  The block's bytes where the image file has them: one run in a block-order
+//  image, and in a DOS-order one its two sectors, each where ToFileOrder
+//  puts it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkHost::WriteDriveBlock (size_t drive, size_t block, std::span<const Byte> data)
+{
+    HRESULT              hr   = S_OK;
+    const std::string &  name = m_driveNames[drive];
+
+
+
+    if (!IsDosOrder (name, m_driveImages[drive].size()))
+    {
+        hr = m_folder.WriteAt (name, (uint64_t) block * kBlockSize, data);
+        CHR (hr);
+    }
+    else
+    {
+        for (size_t half = 0; half < kBlockSize / kSectorSize; half++)
+        {
+            size_t  sector = block * (kBlockSize / kSectorSize) + half;
+            size_t  track  = sector / kSectorsPerTrack;
+            size_t  to     = (track * kSectorsPerTrack + s_kBlockSectorToDos[sector % kSectorsPerTrack]) * kSectorSize;
+
+            hr = m_folder.WriteAt (name, to, data.subspan (half * kSectorSize, kSectorSize));
+            CHR (hr);
+        }
+    }
 
 Error:
     return hr;

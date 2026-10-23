@@ -63,6 +63,7 @@ public:
         //  its own seams, and this exists for the two questions above.
         HRESULT  ReadAllBytes  (const std::string &, std::vector<Byte> &) override { return E_NOTIMPL; }
         HRESULT  WriteAllBytes (const std::string &, const std::vector<Byte> &) override { return E_NOTIMPL; }
+        HRESULT  WriteAt       (const std::string &, uint64_t, std::span<const Byte>) override { return E_NOTIMPL; }
         HRESULT  Stat          (const std::string &, FileStamp &) override { return E_NOTIMPL; }
         HRESULT  Remove        (const std::string &) override { return E_NOTIMPL; }
         HRESULT  ReplaceAtomically (const std::string &, const std::string &) override { return E_NOTIMPL; }

@@ -224,7 +224,46 @@ public:
             return stamp;
         });
 
-        Assert::AreEqual (10, folder.writes, L"each block write is saved");
+        Assert::AreEqual (10, folder.blockWrites, L"each block write is saved in place");
+        Assert::AreEqual (0,  folder.writes,      L"and the image is not written again whole");
+    }
+
+
+    //  A block written to a DOS-order image goes in place as its two
+    //  sectors, each at its place in the image file.
+    TEST_METHOD (AVirtualDriveBlockIsWrittenWhereADosOrderImageHasIt)
+    {
+        constexpr size_t  kBlock = 0x13;
+
+        InMemoryCassoLinkFolder  folder;
+        std::vector<Byte>        data (512);
+        std::vector<Byte>        request = { CassoLinkCodec::kVirtualDrive, CassoLinkHost::kDriveWrite1, (Byte) kBlock, 0x00 };
+        std::vector<Byte>        blocks;
+
+        for (size_t i = 0; i < data.size(); i++)
+        {
+            data[i] = (Byte) (i * 7 + 1);
+        }
+
+        folder.files["Virtual.dsk"] = std::vector<Byte> (143360, 0);
+
+        request.push_back (CassoLinkCodec::ComputeEor (request));
+        request.insert (request.end(), data.begin(), data.end());
+        request.push_back (CassoLinkCodec::ComputeEor (data));
+
+        {
+            Session  session (folder);
+
+            session.host->SetVirtualDrive (1, "Virtual.dsk");
+            session.Send (request);
+            Assert::AreEqual ((size_t) 5, session.Receive (5).size(), L"the write is acknowledged");
+        }
+
+        CassoLinkHost::ToBlockOrder ("Virtual.dsk", folder.files["Virtual.dsk"], blocks);
+
+        Assert::IsTrue   (std::equal (data.begin(), data.end(), blocks.begin() + (ptrdiff_t) (kBlock * 512)));
+        Assert::AreEqual (2, folder.blockWrites, L"one write for each sector");
+        Assert::AreEqual (0, folder.writes);
     }
 
 

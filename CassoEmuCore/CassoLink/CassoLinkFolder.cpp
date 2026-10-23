@@ -256,6 +256,33 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkFolder::WriteAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkFolder::WriteAt (const std::string & name, uint64_t offset, std::span<const Byte> bytes)
+{
+    HRESULT      hr   = S_OK;
+    std::string  path = GetFilePath (name);
+    bool         open = !path.empty();
+
+
+
+    CBREx (open, HRESULT_FROM_WIN32 (ERROR_PATH_NOT_FOUND));
+
+    hr = m_fileIo.WriteAt (path, offset, bytes);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkFolder::ChangeDirectory
 //
 //  ".." is the parent; any other name is a folder inside the current one,

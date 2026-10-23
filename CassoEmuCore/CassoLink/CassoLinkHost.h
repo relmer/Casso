@@ -37,6 +37,9 @@ public:
     virtual bool         Exists          (const std::string & name)                                  = 0;
     virtual HRESULT      Read            (const std::string & name, std::vector<Byte> & outBytes)     = 0;
     virtual HRESULT      Write           (const std::string & name, const std::vector<Byte> & bytes)  = 0;
+
+    //  Bytes written over the file's at offset, for a VSDrive write of one block.
+    virtual HRESULT      WriteAt         (const std::string & name, uint64_t offset, std::span<const Byte> bytes) = 0;
     virtual HRESULT      ChangeDirectory (const std::string & name)                                  = 0;
 };
 
@@ -355,6 +358,7 @@ private:
 
     HRESULT  ReceiveImage      (std::vector<Byte> & image, bool untilSummary = true);
     HRESULT  LoadVirtualDrive  (int drive);
+    HRESULT  WriteDriveBlock   (size_t drive, size_t block, std::span<const Byte> data);
     HRESULT  ReadImage         (const std::string & name, std::vector<Byte> & outFile);
     std::string  GetBatchName  (const std::string & prefix, const std::string & extension);
     static std::string  AddImageExtension (const std::string & name, size_t bytes);

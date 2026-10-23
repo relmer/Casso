@@ -169,6 +169,66 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32DiskFileIo::WriteAt
+//
+//  OPEN_EXISTING, so a path that is not there is an error rather than a new
+//  file, and a write past the end fails rather than growing the file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::WriteAt (const std::string & path, uint64_t offset, std::span<const Byte> bytes)
+{
+    HRESULT        hr       = S_OK;
+    std::wstring   widePath = std::filesystem::path (path).wstring();
+    HANDLE         file     = INVALID_HANDLE_VALUE;
+    LARGE_INTEGER  size     = {};
+    LARGE_INTEGER  at       = {};
+    DWORD          written  = 0;
+    size_t         count    = bytes.size();
+    BOOL           ok       = FALSE;
+    bool           fits     = false;
+
+
+
+    CBRAEx (count <= MAXDWORD, E_INVALIDARG);
+
+    file = CreateFileW (widePath.c_str(), GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ,
+                        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (file != INVALID_HANDLE_VALUE);
+
+    ok = GetFileSizeEx (file, &size);
+    CWR (ok);
+
+    fits = offset + count <= (uint64_t) size.QuadPart;
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF));
+
+    at.QuadPart = (LONGLONG) offset;
+
+    ok = SetFilePointerEx (file, at, nullptr, FILE_BEGIN);
+    CWR (ok);
+
+    if (!bytes.empty())
+    {
+        ok = WriteFile (file, bytes.data(), (DWORD) count, &written, nullptr);
+        CWR (ok);
+        CBREx (written == (DWORD) count, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+    }
+
+Error:
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (file);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32DiskFileIo::Stat
 //
 ////////////////////////////////////////////////////////////////////////////////
