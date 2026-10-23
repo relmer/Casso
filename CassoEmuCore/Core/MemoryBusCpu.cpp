@@ -246,6 +246,7 @@ void MemoryBusCpu::PowerCycle (Prng & prng)
     A             = 0;
     X             = 0;
     Y             = 0;
+    m_cycleBase  += m_totalCycles;
     m_totalCycles = 0;
 
     status.status                 = 0;
@@ -301,6 +302,7 @@ HRESULT MemoryBusCpu::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_hasLastBranch);
     writer.WriteWord   (m_lastBranchTo);
     writer.WriteBool   (m_hasLastBranchTo);
+    writer.WriteUInt64 (m_cycleBase);
 
 
     m_pages.Save (writer, memory.data(), kStateRamSize);
@@ -354,6 +356,14 @@ HRESULT MemoryBusCpu::LoadState (StateReader & reader)
     {
         reader.ReadWord (m_lastBranchTo);
         reader.ReadBool (m_hasLastBranchTo);
+    }
+
+    //  Before version 3 history's cycles began at the CPU's.
+    m_cycleBase = 0;
+
+    if (version >= 3)
+    {
+        reader.ReadUInt64 (m_cycleBase);
     }
 
     reader.ReadBytes  (memory.data(), kStateRamSize);

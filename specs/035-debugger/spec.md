@@ -293,6 +293,10 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: What do Undo and Redo tips read? -> A: Exactly what they would undo or redo, in every pane that has them: "Undo delete all breakpoints" (FR-319).
 - Q: When does the breakpoint dialog check a field? -> A: As soon as the focus moves off it, with the reason under the fields; OK checks the whole breakpoint again (FR-320).
 
+### Session 2026-10-23 (owner decision during the branch code review)
+
+- Q: A power cycle sets the CPU's cycle count back to zero; what becomes of history across it? -> A: The count is reset as before, and history spans the power cycle: the user can rewind to before it, run in reverse across it, and seek by cycle on either side. History's cycles are the CPU's count plus a base that each power cycle grows by the count at that moment, so history's cycles never go back (FR-321).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3451,6 +3455,9 @@ run something, switch back to the //e: it is where it was left.
   or redo.
 - **FR-320**: The breakpoint dialog MUST check a field when the focus moves off
   it.
+- **FR-321**: History MUST span a power cycle: keyframes MUST be taken after it
+  as before it, and rewinding, reverse execution and seeks by cycle MUST work
+  across it, while the CPU's own cycle count is reset by the power cycle.
 
 ### Key Entities
 

@@ -977,7 +977,7 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
 
 void ExecutionHandlers::BuildProfileFromHistory (DebugSession & session, const std::string & argument, Reply & reply)
 {
-    uint64_t     now       = session.GetTarget().GetCycleCount();
+    uint64_t     now       = session.GetTarget().GetHistoryCycleCount();
     uint64_t     from      = 0;
     uint64_t     seconds   = 0;
     std::string  error;

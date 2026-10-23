@@ -143,4 +143,59 @@ public:
         Assert::AreEqual<uint64_t> (edited, machine.GetPosition(), L"history after the edit is there to go back into");
         Assert::IsTrue (controller.GetOldestPosition() < edited, L"and starts before it");
     }
+
+
+    //  A power cycle sets the CPU's cycle count back to zero, and history's
+    //  cycles continue across it: keyframes are taken after it in
+    //  order, a seek by cycle lands before it, and reverse continue runs
+    //  back across it to history's start.
+    TEST_METHOD (HistorySpansAPowerCycle)
+    {
+        TestMachine          machine    ("Apple2e");
+        ReverseController    controller (machine);
+        NeverStops             neverStops;
+        ReverseResult          result;
+        HRESULT                hr         = S_OK;
+        uint64_t               before     = 0;
+        uint64_t               cycled     = 0;
+        size_t                 after      = 0;
+        size_t                 i          = 0;
+        const KeyframeStore  & keyframes  = controller.GetKeyframes();
+
+
+
+        ReverseSessionRig::Prepare (machine);
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kPowerCycleWarmupCycles);
+        before = machine.GetCpu()->GetHistoryCycles();
+        cycled = machine.GetPosition();
+
+        machine.RecordInput (InputKind::PowerCycle, 0, 0, {});
+        machine.PowerCycle();
+
+        Assert::AreEqual<uint64_t> (0, machine.GetCpu()->GetTotalCycles(), L"the CPU's count starts again");
+        Assert::IsTrue (machine.GetCpu()->GetHistoryCycles() >= before, L"history's does not");
+
+        machine.RunCycles (s_kPowerCycleWarmupCycles * 2);
+
+        for (i = 0; i < keyframes.GetCount(); i++)
+        {
+            after += keyframes.GetInfo (i).position > cycled ? 1 : 0;
+            Assert::IsTrue (i == 0 || keyframes.GetInfo (i).cycle > keyframes.GetInfo (i - 1).cycle, L"the keyframes' cycles only go up");
+        }
+
+        Assert::IsTrue (after > 0, L"keyframes are taken after the power cycle");
+        Assert::IsTrue (controller.GetOldestPosition() < cycled, L"and history before it is kept");
+
+        hr = controller.SeekToCycle (before - KeyframeSettings::kFrameCycles, result);
+        AssertSucceeded (hr, L"SeekToCycle before the power cycle");
+        Assert::IsTrue (machine.GetPosition() < cycled, L"a seek by cycle lands before the power cycle");
+
+        hr = controller.ReverseContinue (neverStops, result);
+        AssertSucceeded (hr, L"ReverseContinue across the power cycle");
+        Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"back to history's start");
+    }
 };

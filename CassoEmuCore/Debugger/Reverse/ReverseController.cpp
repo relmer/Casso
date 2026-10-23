@@ -604,7 +604,7 @@ HRESULT ReverseController::StepBackCycles (
 
     CBRA (cpu);
 
-    now         = cpu->GetTotalCycles();
+    now         = cpu->GetHistoryCycles();
     oldestCycle = (m_keyframes.GetCount() > 0) ? m_keyframes.GetInfo (0).cycle : now;
     target      = (now > cycles) ? now - cycles : 0;
     isBeforeAll = target < oldestCycle;
@@ -885,7 +885,7 @@ HRESULT ReverseController::Seek (
     CBRA (cpu);
     CBRAEx (m_isRecording, E_UNEXPECTED);
 
-    isForward = isByCycle ? target.cycle >= cpu->GetTotalCycles() : target.position >= m_machine.GetPosition();
+    isForward = isByCycle ? target.cycle >= cpu->GetHistoryCycles() : target.position >= m_machine.GetPosition();
 
     result.outcome = ReverseOutcome::Moved;
 
@@ -932,7 +932,7 @@ HRESULT ReverseController::Seek (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    isShort = isByCycle ? cpu->GetTotalCycles() < target.cycle : m_machine.GetPosition() < target.position;
+    isShort = isByCycle ? cpu->GetHistoryCycles() < target.cycle : m_machine.GetPosition() < target.position;
 
     if (isShort && m_machine.GetPosition() < m_liveEndPosition)
     {
@@ -1692,7 +1692,7 @@ bool ReverseController::IsAtCallerLink (const CallerLink & link)
 
 
 
-    return cpu->GetTotalCycles() == link.cycle && cpu->GetPC() == link.callSite && cpu->GetSP() == link.stackLevel && isCall;
+    return cpu->GetHistoryCycles() == link.cycle && cpu->GetPC() == link.callSite && cpu->GetSP() == link.stackLevel && isCall;
 }
 
 
@@ -1788,7 +1788,7 @@ HRESULT ReverseController::CaptureNow (bool isNotifying)
 
     CBRA (cpu);
 
-    cycle = cpu->GetTotalCycles();
+    cycle = cpu->GetHistoryCycles();
 
     // The store orders keyframes by cycle, which a power cycle restarts. A
     // capture before the cycle count passes the newest keyframe's again (a
@@ -2114,7 +2114,7 @@ HRESULT ReverseController::LeaveLive()
     if (m_isLive)
     {
         m_liveEndPosition = position;
-        m_liveEndCycle    = m_machine.GetCpu()->GetTotalCycles();
+        m_liveEndCycle    = m_machine.GetCpu()->GetHistoryCycles();
         m_isLive          = false;
 
         m_machine.GetDiskStore().SetFlushHold (true);
@@ -2334,7 +2334,7 @@ void ReverseController::FillResult (ReverseResult & result) const
 
 
     result.position = m_machine.GetPosition();
-    result.cycle    = (cpu != nullptr) ? cpu->GetTotalCycles() : 0;
+    result.cycle    = (cpu != nullptr) ? cpu->GetHistoryCycles() : 0;
 }
 
 

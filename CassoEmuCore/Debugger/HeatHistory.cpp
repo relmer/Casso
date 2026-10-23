@@ -450,7 +450,7 @@ HeatAccessState HeatHistory::SearchHistory (
 
     if (hasCount && m_keyframes->GetInfo (here).position < position)
     {
-        hr = FindInStretch (here, position, cpu->GetTotalCycles(), query, isFound, outAccess);
+        hr = FindInStretch (here, position, cpu->GetHistoryCycles(), query, isFound, outAccess);
         CHR (hr);
 
         BAIL_OUT_IF (isFound, S_OK);
@@ -937,7 +937,7 @@ void HeatHistory::OnMoved (bool isInterim)
         return;
     }
 
-    m_map.ClearHeat (cpu->GetTotalCycles());
+    m_map.ClearHeat (cpu->GetHistoryCycles());
 
     if (m_rebuilder != nullptr && m_awaited != 0)
     {
@@ -1032,7 +1032,7 @@ void HeatHistory::RequestRebuild()
 
     BAIL_OUT_IF (!m_map.IsOn() || cpu == nullptr || m_keyframes == nullptr, S_OK);
 
-    m_map.ClearHeat (cpu->GetTotalCycles());
+    m_map.ClearHeat (cpu->GetHistoryCycles());
 
     job = std::make_shared<HeatRebuildJob>();
     CPRA (job);
@@ -1089,7 +1089,7 @@ HRESULT HeatHistory::MakeRebuildJob (
     CBRA (cpu);
     CBRA (m_keyframes);
 
-    cycle = cpu->GetTotalCycles();
+    cycle = cpu->GetHistoryCycles();
 
     hr = m_keyframes->WaitForPending();
     CHR (hr);

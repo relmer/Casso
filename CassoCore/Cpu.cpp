@@ -207,7 +207,7 @@ void Cpu::TracePush (Byte opcode)
 
 
 
-    e.cycles    = (m_traceCycles != nullptr) ? *m_traceCycles : 0;
+    e.cycles    = ((m_traceCycles != nullptr) ? *m_traceCycles : 0) + ((m_traceCycleBase != nullptr) ? *m_traceCycleBase : 0);
     e.pc        = PC;
     e.opcode    = opcode;
     e.op1       = PeekForTrace ((Word) (PC + 1));

@@ -322,6 +322,7 @@ protected:
     // table that always holds the mapped pages. Null means none and the read
     // table respectively.
     const uint64_t *         m_traceCycles      = nullptr;
+    const uint64_t *         m_traceCycleBase   = nullptr;    // added to m_traceCycles, so a trace counts on history's clock
     Byte * const *           m_tracePeekPages   = nullptr;
 
     // Called from the interrupt-dispatch path just before the vector is taken.

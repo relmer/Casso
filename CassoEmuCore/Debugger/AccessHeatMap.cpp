@@ -1541,7 +1541,7 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
     }
 
     position = (m_position != nullptr) ? *m_position : 0;
-    cycle    = (m_cycles   != nullptr) ? *m_cycles   : 0;
+    cycle    = ((m_cycles != nullptr) ? *m_cycles : 0) + ((m_cycleBase != nullptr) ? *m_cycleBase : 0);
 
     m_instruction  = HeatLastAccess::Make (pc, position, cycle);
     m_nextOperand  = (Word) (pc + 1);

@@ -300,7 +300,7 @@ private:
             BAIL_OUT_IF (IsAbandoned (job), E_ABORT);
 
             target.position = stretch.endPosition;
-            target.cycle    = cpu->GetTotalCycles() + kChunkCycles;
+            target.cycle    = cpu->GetHistoryCycles() + kChunkCycles;
 
             hr = replayer->RunTo (target, stretch.endPosition, m_probe->GetStopTest(), report);
             CHR (hr);
@@ -308,7 +308,7 @@ private:
 
         //  A replay that ends anywhere but the stretch's end went wrong; one
         //  before a gap has no end cycle to check.
-        isAtEnd = machine->GetPosition() == stretch.endPosition && (stretch.endCycle == 0 || cpu->GetTotalCycles() == stretch.endCycle);
+        isAtEnd = machine->GetPosition() == stretch.endPosition && (stretch.endCycle == 0 || cpu->GetHistoryCycles() == stretch.endCycle);
         CBREx (isAtEnd, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     Error:

@@ -58,6 +58,7 @@ public:
 
     VideoPosition       GetVideoPosition  () const override;
     uint64_t            GetCycleCount     () const override;
+    uint64_t            GetHistoryCycleCount () const override;
     Byte                GetLastPenalties  () const override;
     bool                TryGetLastBranch  (Word & from) const override;
     bool                TryGetLastBranchTarget (Word & to) const override;

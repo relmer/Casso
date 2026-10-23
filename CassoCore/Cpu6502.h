@@ -42,6 +42,12 @@ public:
     void                          ResetCycles        ()       { m_totalCycles = 0; m_busCycle = 0; }
     uint64_t *                    GetCycleCounterPtr ()       { return &m_totalCycles; }
 
+    // History's cycles: the cycle count plus a base that each power cycle
+    // grows by the count at that moment, so they never go back. The base is
+    // saved with the CPU's state.
+    uint64_t                      GetHistoryCycleCount () const { return m_cycleBase + m_totalCycles; }
+    const uint64_t *              GetCycleBasePtr      () const { return &m_cycleBase; }
+
     // Issue #67: sub-instruction bus-cycle estimate. Unlike m_totalCycles
     // (which only advances at the post-StepOne rollup), this is current to
     // the in-flight memory access, so a $C0Ex disk read sees rotational
@@ -129,4 +135,5 @@ protected:
     bool      m_nmiPending  = false;
     uint64_t  m_totalCycles = 0;
     uint64_t  m_busCycle    = 0;
+    uint64_t  m_cycleBase   = 0;     // the cycles counted before the last power cycle
 };

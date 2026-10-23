@@ -61,7 +61,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetVectorWriteSink  ([this] { ResolveDiskCalls(); });
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
     m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
-    m_callRecorder.SetClock           ([this] { return m_target.GetCycleCount(); });
+    m_callRecorder.SetClock           ([this] { return m_target.GetHistoryCycleCount(); });
     CallStackRecorder::MarkOpcodes    (m_callOpcodes.data());
     RefreshHookFilter();
     LoadRomSymbols();

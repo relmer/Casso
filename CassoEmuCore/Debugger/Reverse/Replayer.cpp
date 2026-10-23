@@ -181,7 +181,7 @@ HRESULT Replayer::RunTo (
     while (!isDone)
     {
         position = m_machine.GetPosition();
-        cycle    = cpu->GetTotalCycles();
+        cycle    = cpu->GetHistoryCycles();
 
         hr = ApplyInputs (position, false);
         CHR (hr);
@@ -354,7 +354,7 @@ ReplayStep Replayer::MakeStep (const EmuCpu & cpu) const
 
 
 
-    step.cycles = cpu.GetTotalCycles();
+    step.cycles = cpu.GetHistoryCycles();
     step.pc     = registers.pc;
     step.sp     = registers.sp;
     step.a      = registers.a;

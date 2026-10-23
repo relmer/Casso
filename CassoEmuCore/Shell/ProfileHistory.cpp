@@ -368,7 +368,7 @@ ProfileHistory::BlockKey ProfileHistory::GetKey (const Block & block)
 HRESULT ProfileHistory::Build (uint64_t fromCycle, std::string & error)
 {
     HRESULT              hr      = S_OK;
-    uint64_t             toCycle = (m_machine.GetCpu() != nullptr) ? m_machine.GetCpu()->GetTotalCycles() : 0;
+    uint64_t             toCycle = (m_machine.GetCpu() != nullptr) ? m_machine.GetCpu()->GetHistoryCycles() : 0;
     std::vector<size_t>  pending;
     bool                 isAny   = false;
 

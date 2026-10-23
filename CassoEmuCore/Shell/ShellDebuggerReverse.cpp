@@ -946,7 +946,7 @@ void ShellDebugger::UpdateReplayCaption()
 
     if (isBehind)
     {
-        cycle   = cpu->GetTotalCycles();
+        cycle   = cpu->GetHistoryCycles();
         caption = DebuggerStatusText::GetReplayCaption (m_reverseHost->GetController().GetWallTimeAt (cycle), cycle, LOCALE_NAME_USER_DEFAULT);
     }
 
@@ -1200,7 +1200,7 @@ bool ShellDebugger::TryPublishHistoryPlayhead()
         return false;
     }
 
-    cycle     = cpu->GetTotalCycles();
+    cycle     = cpu->GetHistoryCycles();
     isBehind  = m_reverseHost->IsBehindLive();
     keyframes = &m_reverseHost->GetController().GetKeyframes();
 

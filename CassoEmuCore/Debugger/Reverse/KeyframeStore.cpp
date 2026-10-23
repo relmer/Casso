@@ -399,7 +399,7 @@ HRESULT KeyframeStore::Capture (
     hr = machine.SaveState (writer);
     CHR (hr);
 
-    hr = Add (position, cpu->GetTotalCycles(), machine.GetInputJournal().GetEndIndex(), writer);
+    hr = Add (position, cpu->GetHistoryCycles(), machine.GetInputJournal().GetEndIndex(), writer);
     CHR (hr);
 
 Error:

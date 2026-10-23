@@ -339,7 +339,7 @@ HistoryStatus ReverseHost::GetStatus() const
     HistoryStatus    status;
     EmuCpu         * cpu      = m_machine.GetCpu();
     uint64_t         position = m_machine.GetPosition();
-    uint64_t         cycle    = (cpu != nullptr) ? cpu->GetTotalCycles() : 0;
+    uint64_t         cycle    = (cpu != nullptr) ? cpu->GetHistoryCycles() : 0;
     uint64_t         endPos   = m_controller.GetLiveEndPosition();
     uint64_t         endCycle = m_controller.GetLiveEndCycle();
 

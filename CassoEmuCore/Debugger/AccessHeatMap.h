@@ -137,7 +137,7 @@ public:
     //  position counts every access. Start counts from where it points then,
     //  or SetCountFrom from a position given.
     void       SetPositionSource (const uint64_t * position) { m_position = position; }
-    void       SetCycleSource    (const uint64_t * cycles)   { m_cycles   = cycles;   }
+    void       SetCycleSource    (const uint64_t * cycles, const uint64_t * base = nullptr) { m_cycles = cycles; m_cycleBase = base; }
     void       SetCountFrom      (uint64_t position)         { m_countFrom = position; m_lastFrom = position; }
 
     //  Where each access lands, beside the address the CPU used; cleared,
@@ -320,6 +320,7 @@ private:
     const Microcode                    * m_instructionSet = nullptr;
     const uint64_t                     * m_position       = nullptr;
     const uint64_t                     * m_cycles         = nullptr;
+    const uint64_t                     * m_cycleBase      = nullptr;     // added to m_cycles, for history's clock
     uint64_t                             m_countFrom      = 0;
     uint64_t                             m_lastFrom       = 0;
     std::vector<uint32_t>                m_counts;

@@ -100,12 +100,12 @@ void ProfileEventProbe::Detach (MachineHost & machine)
 
     if (cpu != nullptr)
     {
-        Bill (cpu->GetTotalCycles(), cpu->GetSP(), cpu->GetCpu6502()->GetLastPenalties());
+        Bill (cpu->GetHistoryCycles(), cpu->GetSP(), cpu->GetCpu6502()->GetLastPenalties());
     }
 
     if (m_entries != nullptr)
     {
-        m_entries->push_back ({ DebugEventEntryKind::Event, machine.GetPosition(), (cpu != nullptr) ? cpu->GetTotalCycles() : 0,
+        m_entries->push_back ({ DebugEventEntryKind::Event, machine.GetPosition(), (cpu != nullptr) ? cpu->GetHistoryCycles() : 0,
                                 std::make_shared<const ProfileCounts> (m_counts), nullptr });
     }
 
@@ -139,7 +139,7 @@ void ProfileEventProbe::OnWatchedFetch (Word pc, Byte sp, Byte opcode)
         return;
     }
 
-    cycle = cpu->GetTotalCycles();
+    cycle = cpu->GetHistoryCycles();
     Bill (cycle, sp, cpu->GetCpu6502()->GetLastPenalties());
     m_pending = Pending { pc, opcode, cycle };
 

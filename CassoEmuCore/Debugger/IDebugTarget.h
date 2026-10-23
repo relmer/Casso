@@ -140,6 +140,10 @@ public:
     virtual VideoPosition       GetVideoPosition  () const = 0;
     virtual uint64_t            GetCycleCount     () const = 0;
 
+    // The cycle count on history's clock, which a power cycle does not set
+    // back; the CPU's count for a target with no history.
+    virtual uint64_t            GetHistoryCycleCount () const { return GetCycleCount(); }
+
     // The Cpu::kPenalty bits the last instruction paid.
     virtual Byte                GetLastPenalties  () const = 0;
 
