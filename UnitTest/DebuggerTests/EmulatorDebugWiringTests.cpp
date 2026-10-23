@@ -1086,6 +1086,39 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  The instruction a stop left the PC on is skipped once, when the
+        //  machine resumes from it. Once the machine has run on, with the
+        //  breakpoints cleared, a breakpoint set again there stops it.
+        TEST_METHOD (ABreakpointSetAgainAfterRunningOnStops)
+        {
+            Rig   rig;
+            Byte  x = 0;
+
+
+
+            (void) rig.session.ExecuteLine ("BP 301");
+            rig.RunFrames (50);
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"stopped at the breakpoint");
+
+            (void) rig.session.ExecuteLine ("BPC *");
+            rig.cpuManager.SetPaused (false);
+
+            //  A slice of whole loops, five cycles each, ends where it began.
+            rig.RunFrames (1);
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"back at $0301 after running on");
+
+            x = rig.target.GetRegisters().x;
+
+            (void) rig.session.ExecuteLine ("BP 301");
+            rig.RunFrames (1);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused(), L"the breakpoint stops the machine");
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc);
+            Assert::AreEqual (x, rig.target.GetRegisters().x, L"before the loop ran again");
+        }
+
+
+
         //  PAUSE typed while the machine runs freely stops the machine and the
         //  session both, so commands that need a stopped machine then work.
         TEST_METHOD (PauseTypedWhileFreeRunningPausesTheSession)

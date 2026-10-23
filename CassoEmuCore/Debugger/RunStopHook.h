@@ -132,6 +132,7 @@ private:
     //  Where the last stop left the PC. The instruction there runs on the
     //  next resume without being asked about again.
     std::optional<Word>                  m_resumePc;
+    uint64_t                             m_resumeCycles = 0;     // the CPU's cycles when m_resumePc was set
     std::optional<std::pair<int, int>>   m_startLine;
 
     //  Where a watchpoint hit left the PC. The run ended before the
