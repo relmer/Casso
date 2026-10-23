@@ -90,6 +90,14 @@ void DxuiDockSite::SetTitle (const std::wstring & pane, const std::wstring & tit
     {
         group->SetTitle (found->second.content, title);
     }
+
+    m_slidGroup.SetTitle (found->second.content, title);
+
+    //  A hidden pane's edge tab is as long as its title.
+    if (m_layout.IsAutoHidden (pane))
+    {
+        Relayout();
+    }
 }
 
 
@@ -1196,6 +1204,8 @@ void DxuiDockSite::SetIndicator (const std::wstring & pane, bool on)
     {
         group->SetIndicator (found->second.content, on);
     }
+
+    m_slidGroup.SetIndicator (found->second.content, on);
 }
 
 
@@ -1225,6 +1235,8 @@ void DxuiDockSite::SetLeadingMark (const std::wstring & pane, const DxuiTabGroup
     {
         group->SetLeadingMark (found->second.content, mark);
     }
+
+    m_slidGroup.SetLeadingMark (found->second.content, mark);
 
     Relayout();
 }
@@ -1281,6 +1293,8 @@ void DxuiDockSite::SetTitleExtra (const std::wstring & pane, int widthDip)
     {
         group->SetTitleExtra (found->second.content, widthDip);
     }
+
+    m_slidGroup.SetTitleExtra (found->second.content, widthDip);
 }
 
 
