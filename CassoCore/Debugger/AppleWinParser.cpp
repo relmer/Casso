@@ -2602,6 +2602,16 @@ bool AppleWinParser::TryParseCondition (
         return false;
     }
 
-    hr = DebugExpressionEvaluator::Parse (subject + op + rest, command.expression, error, syntax);
+    //  Parsed as @subject, so a symbol of the register's name is never read
+    //  for it, and with the value in parentheses, so an operator in it that
+    //  binds looser than the comparison stays in the value. The text stays
+    //  as typed, which listings and saved definitions are built from.
+    hr = DebugExpressionEvaluator::Parse ("@" + subject + op + "(" + rest + ")", command.expression, error, syntax);
+
+    if (SUCCEEDED (hr))
+    {
+        command.expression.text = subject + op + rest;
+    }
+
     return SUCCEEDED (hr);
 }
