@@ -808,8 +808,8 @@ namespace DebuggerViewStateTests
                 //  on a //e, double hi-res -- not a read and a write. Neither
                 //  description claims a direction, so the first stands
                 //  whichever way the instruction touches it.
-                { L"LDA $C05E",                          { 0xAD, 0x5E, 0xC0 }, "SETAN3"     },
-                { L"STA $C05E",                          { 0x8D, 0x5E, 0xC0 }, "SETAN3"     },
+                { L"LDA $C05E",                          { 0xAD, 0x5E, 0xC0 }, "CLRAN3"     },
+                { L"STA $C05E",                          { 0x8D, 0x5E, 0xC0 }, "CLRAN3"     },
             };
 
 

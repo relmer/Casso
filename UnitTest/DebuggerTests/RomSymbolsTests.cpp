@@ -143,5 +143,32 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0xBF00, Resolve (table, SymbolTableId::ProDos, "MLI"));
             Assert::AreEqual ((Word) 0xBFFF, Resolve (table, SymbolTableId::ProDos, "KVERSION"));
         }
+
+
+
+        //  The even annunciator address turns the output off and the odd one
+        //  on; FADD and FSUB are Applesoft's memory entries, as FMULT and
+        //  FDIV are; the ProDOS global page ends IBAKVER, IVERSION, KBAKVER,
+        //  KVERSION.
+        TEST_METHOD (EachSymbolIsAtTheAddressItsDescriptionMatches)
+        {
+            SymbolTable  table;
+
+
+
+            Load (table, SymbolTableId::Main,   RomSymbols::GetMain ("Apple2e"));
+            Load (table, SymbolTableId::Basic,  RomSymbols::GetBasic());
+            Load (table, SymbolTableId::ProDos, RomSymbols::GetProDos());
+
+            Assert::AreEqual ((Word) 0xC058, Resolve (table, SymbolTableId::Main,   "CLRAN0"));
+            Assert::AreEqual ((Word) 0xC059, Resolve (table, SymbolTableId::Main,   "SETAN0"));
+            Assert::AreEqual ((Word) 0xC05E, Resolve (table, SymbolTableId::Main,   "CLRAN3"));
+            Assert::AreEqual ((Word) 0xC05F, Resolve (table, SymbolTableId::Main,   "SETAN3"));
+            Assert::AreEqual ((Word) 0xE7BE, Resolve (table, SymbolTableId::Basic,  "FADD"));
+            Assert::AreEqual ((Word) 0xE7A7, Resolve (table, SymbolTableId::Basic,  "FSUB"));
+            Assert::AreEqual ((Word) 0xBFFC, Resolve (table, SymbolTableId::ProDos, "IBAKVER"));
+            Assert::AreEqual ((Word) 0xBFFD, Resolve (table, SymbolTableId::ProDos, "IVERSION"));
+            Assert::AreEqual ((Word) 0xBFFE, Resolve (table, SymbolTableId::ProDos, "KBAKVER"));
+        }
     };
 }
