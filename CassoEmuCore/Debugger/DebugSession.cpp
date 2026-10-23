@@ -1387,6 +1387,9 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_target.ClearHeatMap();
     m_isStepOutOnRecord = false;
 
+    //  The new machine's bus has no watch sink.
+    m_target.SetWatchSink (&m_watchpoints);
+
     if (m_isRecordingEndDeferred)
     {
         SetCallRecording (false);
