@@ -103,6 +103,7 @@ private:
     void                 Add          (DebugSession & session, int handle, const Saved & saved);
     int                  GetHandle    (int id);
     std::optional<int>   GetLiveId    (DebugSession & session, int handle, const BreakpointInfo & expected) const;
+    bool                 IsDefined    (DebugSession & session, const BreakpointInfo & info) const;
 
     static std::map<int, BreakpointInfo>  ListById    (DebugSession & session);
     static std::map<int, Saved>           SaveAll     (DebugSession & session);

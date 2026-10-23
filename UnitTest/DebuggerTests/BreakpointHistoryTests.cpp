@@ -248,6 +248,56 @@ namespace BreakpointHistoryTests
         }
 
 
+        //  A breakpoint added back takes its old id only while no breakpoint
+        //  or watchpoint has it: the two tables share one run of ids.
+        TEST_METHOD (ABreakpointAddedBackTakesNoIdAWatchpointHas)
+        {
+            HistoryRig        rig;
+            int               id = 0;
+            std::set<int>     ids;
+
+
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            id = rig.List().at (0).id;
+            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
+
+            rig.Run ("BPC *");
+            rig.Run ("BPM 0400");
+            Assert::AreEqual (id, rig.List().at (0).id, L"the watchpoint has the breakpoint's old id");
+
+            rig.Do (BreakpointStep::Kind::Undo);
+
+            for (const BreakpointInfo & each : rig.List())
+            {
+                ids.insert (each.id);
+            }
+
+            Assert::AreEqual ((size_t) 2, rig.List().size());
+            Assert::AreEqual ((size_t) 2, ids.size(), L"no two share an id");
+        }
+
+
+        //  A redo whose breakpoint the console set again adds no second one.
+        TEST_METHOD (ARedoOfABreakpointSetAgainAddsNoDuplicate)
+        {
+            HistoryRig  rig;
+            int         id = 0;
+
+
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            id = rig.List().at (0).id;
+            rig.Run (std::format ("BPC {}", id));
+            rig.Run ("BP 0300");
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            rig.Do (BreakpointStep::Kind::Redo);
+
+            Assert::AreEqual ((size_t) 1, rig.List().size(), L"one BP 0300");
+        }
+
+
         TEST_METHOD (TheStepEchoesEachLineItRuns)
         {
             HistoryRig                rig;

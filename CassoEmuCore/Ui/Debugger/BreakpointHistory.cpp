@@ -259,7 +259,7 @@ std::wstring BreakpointHistory::DescribeStep (const Step & step)
 //  Takes one breakpoint from `from` to `to` straight from the table entry
 //  saved with the step, with no command built or run. A breakpoint that
 //  should exist and no longer does, or is no longer the one recorded, is
-//  left alone.
+//  left alone, and so is one to add back that is already defined.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,7 +276,7 @@ BreakpointHistory::Outcome BreakpointHistory::Apply (
 
     if (!from.has_value())
     {
-        if (!saved.has_value() || !to.has_value())
+        if (!saved.has_value() || !to.has_value() || IsDefined (session, *to))
         {
             return {};
         }
@@ -327,13 +327,15 @@ void BreakpointHistory::Add (DebugSession & session, int handle, const Saved & s
 {
     auto  previous = m_ids.find (handle);
     int   id       = BreakpointHandlers::Add (session, saved);
+    bool  isFree   = previous != m_ids.end() && !ListById (session).contains (previous->second);
 
 
 
-    //  The breakpoint comes back under the id it had, unless another took it.
-    //  The next id stays past it, since BPC * starts the ids over at 0 and
-    //  the next add would otherwise take it too.
-    if (previous != m_ids.end() && previous->second != id &&
+    //  The breakpoint comes back under the id it had, unless another took it:
+    //  a breakpoint or a watchpoint, since the two tables share one run of
+    //  ids. The next id stays past it, since BPC * starts the ids over at 0
+    //  and the next add would otherwise take it too.
+    if (isFree && previous->second != id &&
         (session.GetBreakpoints().TryChangeId (id, previous->second) || session.GetWatchpoints().TryChangeId (id, previous->second)))
     {
         id = previous->second;
@@ -406,6 +408,35 @@ std::optional<int> BreakpointHistory::GetLiveId (DebugSession & session, int han
     }
 
     return id->second;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::IsDefined
+//
+//  Whether a breakpoint with the definition of `info` is set now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHistory::IsDefined (DebugSession & session, const BreakpointInfo & info) const
+{
+    std::string  definition = BreakpointHandlers::MakeDefinition (info);
+
+
+
+    for (const auto & [id, each] : ListById (session))
+    {
+        if (BreakpointHandlers::MakeDefinition (each) == definition)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
