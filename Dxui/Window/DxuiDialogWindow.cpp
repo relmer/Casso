@@ -100,6 +100,7 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     if (m_content != nullptr)
     {
         m_content->Layout (content, scaler);
+        GrowToContent (content);
     }
 
     // Split by anchor; order the right group into the canonical button order
@@ -169,6 +170,52 @@ void DxuiDialogWindow::OnDialogShowing()
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialogWindow::GrowToContent
+//
+//  The height set before the window appeared was measured at one DPI and
+//  width; a move to a monitor with another DPI scales the window in
+//  proportion, and wrapped text does not scale that way. So every layout
+//  measures again, at the width and DPI it lays the content out at, and a
+//  window too short for its content grows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDialogWindow::GrowToContent (const RECT & content)
+{
+    HRESULT                 hr       = S_OK;
+    IDxuiMeasuredContent  * measured = dynamic_cast<IDxuiMeasuredContent *> (m_content);
+    IDxuiTextRenderer     * text     = GetTextRenderer();
+    const IDxuiTheme      * theme    = GetTheme();
+    int                     needPx   = 0;
+    bool                    ok       = false;
+    bool                    clipped  = false;
+
+
+
+    BAIL_OUT_IF (measured == nullptr || m_growing || GetHwnd() == nullptr || text == nullptr || theme == nullptr, S_OK);
+    BAIL_OUT_IF (content.right <= content.left, S_OK);
+
+    ok      = measured->TryMeasureHeightPx (*text, *theme, content.right - content.left, needPx);
+    clipped = ok && needPx > content.bottom - content.top;
+    BAIL_OUT_IF (!clipped, S_OK);
+
+    m_growing = true;
+
+    hr = FitHeightToContent();
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_growing = false;
+
+Error:
+    return;
 }
 
 

@@ -243,17 +243,23 @@ private:
 //  DxuiMessageBoxBody::TryMeasureHeightPx
 //
 //  The text wrapped at the width Paint draws it at, beside the glyph column
-//  when there is a glyph; the glyph row is the floor for a short message.
+//  when there is a glyph, measured as Paint lays it out: a message with
+//  semibold runs line by line, as PaintRuns draws it. The glyph row is the
+//  floor for a short message.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx)
 {
-    HRESULT         hr       = S_OK;
-    DxuiFontHandle  bf       = theme.BodyFont();
-    float           textW    = (float) widthPx;
-    float           measureW = 0.0f;
-    float           measureH = 0.0f;
+    HRESULT                                 hr       = S_OK;
+    DxuiFontHandle                          bf       = theme.BodyFont();
+    float                                   sizePx   = m_scaler.ToPxf (bf.sizeDip);
+    float                                   textW    = (float) widthPx;
+    float                                   measureW = 0.0f;
+    float                                   measureH = 0.0f;
+    float                                   lineH    = 0.0f;
+    float                                   h        = 0.0f;
+    std::vector<std::vector<DxuiTextRun>>   lines;
 
 
 
@@ -264,8 +270,31 @@ bool DxuiMessageBoxBody::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDx
 
     CBR (textW > 0.0f);
 
-    hr = text.MeasureStringWrapped (m_text.c_str(), m_scaler.ToPxf (bf.sizeDip), bf.face, textW, measureW, measureH);
-    CHR (hr);
+    if (m_text.find (L"**") == std::wstring::npos)
+    {
+        hr = text.MeasureStringWrapped (m_text.c_str(), sizePx, bf.face, textW, measureW, measureH);
+        CHR (hr);
+    }
+    else
+    {
+        DxuiParseTextRuns (m_text, lines);
+
+        hr = text.MeasureStringWeighted (L"Ag", sizePx, bf.face, bf.weight, measureW, lineH);
+        CHR (hr);
+
+        for (const std::vector<DxuiTextRun> & line : lines)
+        {
+            h = lineH;
+
+            if (line.size() == 1 && !line[0].semiBold)
+            {
+                hr = text.MeasureStringWrapped (line[0].text.c_str(), sizePx, bf.face, textW, measureW, h);
+                CHR (hr);
+            }
+
+            measureH += h;
+        }
+    }
 
     heightPx = (int) std::ceil (measureH);
 
