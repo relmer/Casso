@@ -186,7 +186,8 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
 //  BreakpointColumns::GetOrder
 //
 //  Hit count and Address sort by number, Kind by the order RowKind lists
-//  the kinds in; the rest by their text, ignoring case.
+//  the kinds in; the rest by their text, ignoring case. Address puts the
+//  rows with no address after the rest, by their text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -228,9 +229,17 @@ std::vector<size_t> BreakpointColumns::GetOrder (const DebuggerViewSnapshot & sn
             return descending ? kinds[b] < kinds[a] : kinds[a] < kinds[b];
         }
 
-        if (column == Column::Address && HasAddress (left) && HasAddress (right))
+        //  Rows with an address go first, by start and then end; the rest
+        //  by their text. Comparing number with text between two rows was
+        //  no strict weak ordering.
+        if (column == Column::Address && HasAddress (left) != HasAddress (right))
         {
-            return left.address < right.address;
+            return HasAddress (left);
+        }
+
+        if (column == Column::Address && HasAddress (left))
+        {
+            return std::tie (left.address, left.last) < std::tie (right.address, right.last);
         }
 
         return descending ? keys[b] < keys[a] : keys[a] < keys[b];

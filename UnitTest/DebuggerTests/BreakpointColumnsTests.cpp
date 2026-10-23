@@ -279,6 +279,26 @@ namespace BreakpointColumnsTests
         }
 
 
+        //  The Address sort puts the rows with an address first, by their
+        //  start and then their end, and the rest after them by their text,
+        //  so the comparison is a strict weak ordering.
+        TEST_METHOD (AddressSortsAddressedRowsFirstByStartThenEnd)
+        {
+            DebuggerViewSnapshot  snapshot;
+            std::vector<size_t>   order;
+
+
+
+            snapshot.breakpoints.push_back (MakeLine (1, BreakpointKind::Address, 0x0300, 0x0400));
+            snapshot.breakpoints.push_back (MakeLine (2, BreakpointKind::Opcode,  0));
+            snapshot.breakpoints.push_back (MakeLine (3, BreakpointKind::Address, 0x0300, 0x0300));
+            snapshot.breakpoints.push_back (MakeLine (4, BreakpointKind::Address, 0x0200, 0x0200));
+
+            order = BreakpointColumns::GetOrder (snapshot, Column::Address, false);
+            Assert::IsTrue (order == std::vector<size_t> { 3, 2, 0, 1 }, L"$0200, $0300, $0300-$0400, then the opcode");
+        }
+
+
         TEST_METHOD (KindSortsByKindThenTheEnginesOrder)
         {
             DebuggerViewSnapshot  snapshot;
