@@ -102,7 +102,14 @@ public:
         //  by catalog path, so an undo can take them out again.
         std::vector<std::string>  created;
 
+        //  A copy that completed from a damaged source: what could not be read
+        //  went over as zeros, or entries may be missing. The warning is for
+        //  the user, and a move does not take such a source away.
+        bool                      damaged = false;
+        std::wstring              warning;
+
         bool  Succeeded() const { return SUCCEEDED (hr); }
+        bool  IsWhole  () const { return Succeeded() && !damaged; }
     };
 
     //  How one host file goes into an image. A descriptive or CiderPress
@@ -132,6 +139,15 @@ public:
     //  address the content suggests. False skips the file.
     using AddressFn = std::function<bool (const std::wstring & hostName, Word suggested, Word & outAddress)>;
 
+    //  What a copy out does with a file of the same name in the folder, as
+    //  in File Explorer's question: write over it, copy nothing, or keep
+    //  both with the copy numbered.
+    enum class Collision { Replace, Skip, KeepBoth };
+
+    //  Asked once per file that is in the folder already, with its path and
+    //  its place among the count of such files. With none, both are kept.
+    using CollisionFn = std::function<Collision (const std::wstring & hostPath, int index, int count)>;
+
     CassoExplorerActions (CassoExplorerBrowser & browser, IFileSystem & fs);
 
     void  SetOnImageWritten (WrittenFn fn) { m_onWritten = std::move (fn); }
@@ -139,7 +155,7 @@ public:
     //  The verbs the list's context menu offers for the current selection.
     std::vector<Verb>  GetListVerbs() const;
 
-    Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style);
+    Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision = nullptr);
 
     //  Copy every file on the image into a new folder beside it, called after the
     //  image without its extension, and its directories as folders inside.
@@ -373,13 +389,20 @@ public:
 
 private:
     static void  AppendMessage (Outcome & inOutOutcome, HRESULT hr, const std::wstring & message);
+    static void  AppendWarning (Outcome & inOutOutcome, const std::wstring & warning);
 
     bool  IsHostFolder    (const std::wstring & path);
 
     //  The verbs on an Apple drive. Each queues its operations on the link
     //  and returns at once; each result is reported when the link's
     //  completions run.
-    Outcome  GetFromAppleDrive        (const std::wstring & hostFolder, HostFileNaming::Style style);
+    Outcome  GetFromAppleDrive        (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision);
+
+    //  Where a copy out of one file goes, by the collision choice when the
+    //  folder has a file of its name; empty to skip it.
+    std::wstring  ResolveCopyOutPath (const std::wstring & hostFolder, const std::wstring & hostName, const CollisionFn & collision,
+                                      int & inOutIndex, int count);
+    int           CountCollisions    (const std::wstring & hostFolder, const std::vector<std::wstring> & hostNames);
     Outcome  PutOnAppleDrive          (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress);
     Outcome  DeleteOnAppleDrive       ();
     Outcome  RenameOnAppleDrive       (const std::string & newName);

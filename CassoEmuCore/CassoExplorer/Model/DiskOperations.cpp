@@ -123,6 +123,38 @@ DiskOperations::Result DiskOperations::RunCommand (const CommandLineOptions & op
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskOperations::LostSectorCounter::OnSectorRead
+//
+//  The sector is the volume buffer's, which is the decode report's slot.
+//  Only a Partial track lost anything: a sector image has no tracks in the
+//  report, and an unformatted track is blank, not damaged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskOperations::LostSectorCounter::OnSectorRead (size_t sector)
+{
+    constexpr size_t  kSectorsPerTrack = 16;
+
+
+
+    int   track   = (int) (sector / kSectorsPerTrack);
+    bool  partial = track < m_report.GetTrackCount() && m_report.GetOutcome (track) == TrackDecodeOutcome::Partial;
+    bool  lost    = partial && !m_report.IsSectorRecovered (track, (int) (sector % kSectorsPerTrack));
+
+
+
+    if (lost)
+    {
+        m_lost.insert (sector);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskOperations::OpenVolume
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,6 +244,8 @@ DiskOperations::Result DiskOperations::List (const std::string & imagePath, cons
         outKind = opened.kind;
         hr      = volume.EnumerateDirectory (FilePath::Parse (directory), outListing);
 
+        result.listingDamaged = !outListing.damage.empty();
+
         if (FAILED (hr))
         {
             result.hr      = hr;
@@ -249,6 +283,12 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
         IVolume     & volume = (opened.kind == VolumeKind::Dos33)
                              ? static_cast<IVolume &> (dos)
                              : static_cast<IVolume &> (pro);
+        LostSectorCounter  lost (opened.report);
+
+        //  A bit-stream image's undecodable sectors read as zeros; the ones the
+        //  file touches are counted, so a copy of it is reported as damaged.
+        dos.SetReadObserver (&lost);
+        pro.SetReadObserver (&lost);
 
         hr = volume.Read (MakeEntryPath (opened.kind, name, catalogIndex), outPayload);
 
@@ -257,6 +297,8 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
             result.hr      = hr;
             result.message = DiskCommandResult::FormatFailure (imagePath, name, DescribeVolumeRefusal (hr));
         }
+
+        result.unreadSectors = lost.GetCount();
     }
 
     return result;

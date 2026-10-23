@@ -6,6 +6,7 @@
 #include "Devices/Disk/DiskCommandResult.h"
 #include "Devices/Disk/DiskImageSession.h"
 #include "Devices/Disk/FilePath.h"
+#include "Machines/Apple2/Common/SectorReadObserver.h"
 #include "Machines/Apple2/Common/VolumeTypes.h"
 
 
@@ -51,6 +52,12 @@ public:
         std::string        message;       // diagnostics, warnings included
         std::string        output;        // the runner's stdout text
         std::vector<Byte>  payload;       // a get's bytes when no file was written
+
+        //  For a Read, the sectors of the file the image could not be decoded
+        //  at, which read as zeros; for a List, whether the catalog chain was
+        //  damaged, so entries may be missing.
+        int                unreadSectors  = 0;
+        bool               listingDamaged = false;
 
         bool  Succeeded () const { return SUCCEEDED (hr); }
     };
@@ -120,6 +127,21 @@ public:
     static std::string  DescribeVolumeRefusal (HRESULT hr);
 
 private:
+    //  Counts the sectors a read touches that the image's decode did not
+    //  recover, each once.
+    class LostSectorCounter : public ISectorReadObserver
+    {
+    public:
+        explicit LostSectorCounter (const SectorDecodeReport & report) : m_report (report) {}
+
+        void  OnSectorRead (size_t sector) override;
+        int   GetCount     () const { return (int) m_lost.size(); }
+
+    private:
+        const SectorDecodeReport  & m_report;
+        std::set<size_t>            m_lost;
+    };
+
     Result  RunCommand (const CommandLineOptions & options);
     Result  OpenVolume (const std::string & imagePath, DiskImageSession::OpenedImage & outOpened);
     Result  CommitEdit (const std::string & imagePath, const DiskImageSession::OpenedImage & opened,

@@ -9047,8 +9047,9 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         outcome = m_actions.PutInto (location.path, targetKind, inner, source.hostPaths, MakeAddressPrompt());
     }
 
-    //  Only a copy that landed whole is taken from where it came.
-    if (effect == DROPEFFECT_MOVE && outcome.Succeeded())
+    //  Only a copy that landed whole is taken from where it came: one salvaged
+    //  from a damaged disk does not delete the original.
+    if (effect == DROPEFFECT_MOVE && outcome.IsWhole())
     {
         if (source.fromImage)
         {
@@ -9897,7 +9898,7 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
 
             if (SUCCEEDED (hr) && chosen)
             {
-                ReportOutcome (m_actions.GetSelected (picked.wstring(), style), L"Copy");
+                ReportOutcome (m_actions.GetSelected (picked.wstring(), style, MakeCollisionPrompt()), L"Copy");
             }
 
             break;
@@ -10173,6 +10174,13 @@ void CassoExplorerWindow::ReportOutcome (const CassoExplorerActions::Outcome & o
     if (outcome.Succeeded())
     {
         m_status->SetText (kStatusDetail, std::format (L"{}: {} file(s)", verbName, outcome.written));
+
+        //  For a copy salvaged from a damaged disk, what could not be read is shown.
+        if (!outcome.warning.empty())
+        {
+            ShowMessage (outcome.warning, MB_ICONWARNING);
+        }
+
         return;
     }
 
@@ -15852,6 +15860,37 @@ CassoExplorerActions::AddressFn CassoExplorerWindow::MakeAddressPrompt()
 
             ShowMessage (L"Type an address from $0000 to $FFFF.", MB_ICONWARNING);
         }
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::MakeCollisionPrompt
+//
+//  File Explorer's question for a file of the same name in the folder a
+//  copy goes into. Keep both is the default, so Enter or Escape writes over
+//  nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::CollisionFn CassoExplorerWindow::MakeCollisionPrompt()
+{
+    return [this] (const std::wstring & hostPath, int index, int count)
+    {
+        std::filesystem::path  path    (hostPath);
+        std::wstring           ofCount = (count > 1) ? std::format (L" ({} of {})", index, count) : std::wstring();
+        std::wstring           text    = std::format (L"{} already has a file called \"{}\".{}\n\nReplace it with the copy, skip this file, or keep both?",
+                                                      path.parent_path().filename().wstring(), path.filename().wstring(), ofCount);
+        int                    choice  = DxuiMessageBox (GetHwnd(), m_theme, text.c_str(), L"Replace or skip files", MB_YESNOCANCEL | MB_DEFBUTTON3,
+                                                         { L"Replace", L"Skip", L"Keep both" });
+
+        return (choice == IDYES) ? CassoExplorerActions::Collision::Replace
+             : (choice == IDNO)  ? CassoExplorerActions::Collision::Skip
+                                 : CassoExplorerActions::Collision::KeepBoth;
     };
 }
 

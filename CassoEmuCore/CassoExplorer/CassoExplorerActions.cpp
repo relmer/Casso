@@ -739,6 +739,13 @@ void CassoExplorerActions::Append (Outcome & inOutOutcome, const DiskOperations:
     {
         inOutOutcome.written++;
     }
+
+    //  The runner finished but complained, as a get from a disk with sectors
+    //  it could not decode does: the complaint is shown as a warning.
+    if (result.Succeeded() && result.exitStatus == DiskCommandResult::kWithComplaints && !result.message.empty())
+    {
+        AppendWarning (inOutOutcome, CassoExplorerBrowser::ShortenPaths (TextEncoding::NarrowToWide (result.message)));
+    }
 }
 
 
@@ -776,32 +783,51 @@ void CassoExplorerActions::FinishWrite (const std::wstring & imagePath)
 //  CassoExplorerActions::GetSelected
 //
 //  Directories are skipped: a directory copies out through a drag, which
-//  walks it.
+//  walks it. A file of the same name in the folder is replaced, skipped or
+//  kept beside the copy, by the choice `collision` returns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerActions::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style)
+CassoExplorerActions::Outcome CassoExplorerActions::GetSelected (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision)
 {
-    Outcome                 outcome;
-    std::vector<FileEntry>  entries;
-    std::string             image     = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
-    bool                    converted = false;
+    Outcome                    outcome;
+    std::vector<FileEntry>     entries;
+    std::vector<std::wstring>  hostNames;
+    std::string                image     = TextEncoding::WideToNarrow (m_browser.GetLocation().path);
+    bool                       converted = false;
+    int                        index     = 0;
+    int                        count     = 0;
+    size_t                     i         = 0;
 
 
 
     if (m_browser.IsAppleDriveLocation())
     {
-        return GetFromAppleDrive (hostFolder, style);
+        return GetFromAppleDrive (hostFolder, style, collision);
     }
 
     m_browser.GetSelectedEntries (entries);
 
     for (const FileEntry & entry : entries)
     {
-        std::wstring  hostName = DragPayload::GetHostName (entry, m_browser.GetVolumeKind(), style, converted);
-        std::wstring  hostPath = MakeFreeFilePath (hostFolder, hostName);
+        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, m_browser.GetVolumeKind(), style, converted));
+    }
+
+    count = CountCollisions (hostFolder, hostNames);
+
+    for (const FileEntry & entry : entries)
+    {
+        size_t        at       = i++;
+        std::wstring  hostPath;
 
         if (entry.isDirectory)
+        {
+            continue;
+        }
+
+        hostPath = ResolveCopyOutPath (hostFolder, hostNames[at], collision, index, count);
+
+        if (hostPath.empty())
         {
             continue;
         }
@@ -1014,6 +1040,82 @@ std::wstring CassoExplorerActions::MakeFreeFilePath (const std::wstring & folder
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::CountCollisions
+//
+//  How many of the names are files in the folder already; an empty name is
+//  a directory, which is not copied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerActions::CountCollisions (const std::wstring & hostFolder, const std::vector<std::wstring> & hostNames)
+{
+    int  count = 0;
+
+
+
+    for (const std::wstring & name : hostNames)
+    {
+        bool  taken = !name.empty() && m_fs.Exists (CassoExplorerBrowser::JoinPath (hostFolder, name));
+
+        count += taken ? 1 : 0;
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ResolveCopyOutPath
+//
+//  The name's path in the folder when nothing is there, and otherwise the
+//  collision choice: that path to write over the file, a numbered one to
+//  keep both, or none to skip the copy. With no choice to ask for, both are
+//  kept. A file an earlier copy in this one wrote counts as well, so the
+//  count grows to cover it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerActions::ResolveCopyOutPath (const std::wstring & hostFolder, const std::wstring & hostName, const CollisionFn & collision,
+                                                       int & inOutIndex, int count)
+{
+    std::wstring  path   = CassoExplorerBrowser::JoinPath (hostFolder, hostName);
+    bool          taken  = m_fs.Exists (path);
+    Collision     choice = Collision::KeepBoth;
+
+
+
+    if (taken)
+    {
+        inOutIndex++;
+        choice = collision ? collision (path, inOutIndex, std::max (count, inOutIndex)) : Collision::KeepBoth;
+    }
+
+    if (taken && choice == Collision::Skip)
+    {
+        path.clear();
+    }
+    else if (taken && choice == Collision::KeepBoth)
+    {
+        path = MakeFreeFilePath (hostFolder, hostName);
+    }
+
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::TryGetAppleDrive
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1191,15 +1293,19 @@ CassoExplorerActions::Outcome CassoExplorerActions::CopyEntriesToAppleDrive (con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std::wstring & hostFolder, HostFileNaming::Style style)
+CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision)
 {
-    Outcome                 outcome;
-    std::vector<FileEntry>  entries;
-    std::string             link;
-    std::string             directory;
-    int                     drive     = 0;
-    bool                    converted = false;
-    VolumeKind              kind      = m_browser.GetVolumeKind();
+    Outcome                    outcome;
+    std::vector<FileEntry>     entries;
+    std::vector<std::wstring>  hostNames;
+    std::string                link;
+    std::string                directory;
+    int                        drive     = 0;
+    bool                       converted = false;
+    VolumeKind                 kind      = m_browser.GetVolumeKind();
+    int                        index     = 0;
+    int                        count     = 0;
+    size_t                     i         = 0;
 
 
 
@@ -1213,14 +1319,22 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
 
     for (const FileEntry & entry : entries)
     {
-        std::wstring     hostPath    = MakeFreeFilePath (hostFolder, DragPayload::GetHostName (entry, kind, style, converted));
+        hostNames.push_back (entry.isDirectory ? std::wstring() : DragPayload::GetHostName (entry, kind, style, converted));
+    }
+
+    count = CountCollisions (hostFolder, hostNames);
+
+    for (const FileEntry & entry : entries)
+    {
+        size_t           at          = i++;
+        std::wstring     hostPath    = entry.isDirectory ? std::wstring() : ResolveCopyOutPath (hostFolder, hostNames[at], collision, index, count);
         std::string      entryPath   = m_browser.GetEntryPath (entry);
         Encoding         encoding    = GetEncoding (entry, kind);
         bool             appleSingle = style == HostFileNaming::Style::AppleSingle;
         AppleSingleFile  single      = appleSingle ? DragPayload::MakeAppleSingle (entry, kind) : AppleSingleFile();
         HRESULT          hr          = S_OK;
 
-        if (entry.isDirectory)
+        if (entry.isDirectory || hostPath.empty())
         {
             continue;
         }
@@ -1682,6 +1796,25 @@ void CassoExplorerActions::AppendMessage (Outcome & inOutOutcome, HRESULT hr, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerActions::AppendWarning
+//
+//  A warning about a copy that went ahead: the outcome stays a success,
+//  marked damaged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerActions::AppendWarning (Outcome & inOutOutcome, const std::wstring & warning)
+{
+    inOutOutcome.damaged  = true;
+    inOutOutcome.warning += (inOutOutcome.warning.empty() ? L"" : L"\n") + warning;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerActions::PutItems
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1940,6 +2073,7 @@ void CassoExplorerActions::CopyEntry (
     DiskOperations::Result  result;
     FilePayload             payload;
     Byte                    mapped  = 0;
+    DiskOperations::Result  listedResult;
 
 
 
@@ -1951,8 +2085,15 @@ void CassoExplorerActions::CopyEntry (
         return;
     }
 
-    if (sourceKind == VolumeKind::ProDos && m_browser.GetOperations().List (sourceImage, catalogPath, listing, listed).Succeeded())
+    listedResult = (sourceKind == VolumeKind::ProDos) ? m_browser.GetOperations().List (sourceImage, catalogPath, listing, listed) : DiskOperations::Result { E_NOTIMPL };
+
+    if (listedResult.Succeeded())
     {
+        if (listedResult.listingDamaged)
+        {
+            AppendWarning (inOutOutcome, TextEncoding::NarrowToWide (leaf) + L": the folder's catalog is damaged, so some of its entries may not have been copied.");
+        }
+
         if (targetKind != VolumeKind::ProDos)
         {
             AppendMessage (inOutOutcome, E_FAIL, TextEncoding::NarrowToWide (leaf) + L": DOS 3.3 has no folders, so a folder cannot go on this disk.");
@@ -1975,6 +2116,13 @@ void CassoExplorerActions::CopyEntry (
     {
         Append (inOutOutcome, result);
         return;
+    }
+
+    //  Salvaged: the copy is made, with zeros where the disk could not be read.
+    if (result.unreadSectors > 0)
+    {
+        AppendWarning (inOutOutcome, std::format (L"{}: {} {} could not be read from the disk, and {} zeros in the copy.", TextEncoding::NarrowToWide (leaf),
+                                                  result.unreadSectors, result.unreadSectors == 1 ? L"sector" : L"sectors", result.unreadSectors == 1 ? L"is" : L"are"));
     }
 
     //  The type means the same thing on the other file system.

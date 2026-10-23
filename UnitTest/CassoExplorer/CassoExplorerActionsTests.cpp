@@ -469,6 +469,43 @@ public:
     }
 
 
+    //  Each choice the collision prompt returns: the file there already is
+    //  written over, left with nothing copied, or kept beside a numbered copy.
+    TEST_METHOD (Get_FollowsTheCollisionChoice)
+    {
+        using Collision = CassoExplorerActions::Collision;
+
+        const wchar_t  * kMine  = L"C:\\Out\\HELLO.Applesoft BASIC.txt";
+        const char     * kMineN = "C:\\Out\\HELLO.Applesoft BASIC.txt";
+
+        for (Collision choice : { Collision::Replace, Collision::Skip, Collision::KeepBoth })
+        {
+            Host                           host;
+            CassoExplorerActions::Outcome  outcome;
+            int                            asked = 0;
+
+            host.OpenImage();
+            AssertSucceeded (host.fs.MakeDirectory (L"C:\\Out"));
+            AssertSucceeded (host.fs.WriteAllText (kMine, "mine"));
+            host.browser.SetSelectedRows ({ host.Find (L"HELLO") });
+
+            outcome = host.actions.GetSelected (L"C:\\Out", HostFileNaming::Style::Descriptive,
+                                                [&asked, choice] (const std::wstring &, int index, int count)
+                                                {
+                                                    asked++;
+                                                    Assert::AreEqual (1, index);
+                                                    Assert::AreEqual (1, count);
+                                                    return choice;
+                                                });
+
+            Assert::IsTrue   (outcome.Succeeded());
+            Assert::AreEqual (1, asked, L"asked once, for the one file there already");
+            Assert::AreEqual (choice == Collision::Replace,  host.io.files.count (kMineN) == 1, L"written over only on Replace");
+            Assert::AreEqual (choice == Collision::KeepBoth, host.io.files.count ("C:\\Out\\HELLO (2).Applesoft BASIC.txt") == 1, L"numbered only on Keep both");
+        }
+    }
+
+
     TEST_METHOD (ExtractImage_CopiesEveryFileIntoAFolderBesideTheImage)
     {
         Host          host;

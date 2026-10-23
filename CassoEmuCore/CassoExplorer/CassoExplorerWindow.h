@@ -800,7 +800,8 @@ private:
     static int64_t  GetNowMs();
     void  BeginDragOut();
     void  OnDropFile (const std::wstring & path);
-    CassoExplorerActions::AddressFn  MakeAddressPrompt();
+    CassoExplorerActions::AddressFn    MakeAddressPrompt();
+    CassoExplorerActions::CollisionFn  MakeCollisionPrompt();
     void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
 
     //  The menu below the tree's last node, and the pane options it sets.
