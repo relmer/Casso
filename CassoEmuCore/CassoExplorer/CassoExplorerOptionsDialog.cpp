@@ -22,14 +22,16 @@ static constexpr int  s_kSheetMinHeight = 320;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiCheckbox & registration)
+void CassoExplorerGeneralPage::Init (DxuiLabel & namingLabel, DxuiComboBox & naming, DxuiLabel & namingNote, DxuiCheckbox & registration)
 {
     m_namingLabel = &namingLabel;
     m_naming      = &naming;
+    m_namingNote  = &namingNote;
     m_register    = &registration;
 
     Adopt (namingLabel);
     Adopt (naming);
+    Adopt (namingNote);
     Adopt (registration);
 }
 
@@ -48,7 +50,9 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
     int  labelBottom = boundsDip.top + scaler.ToPx (kLabelHeightDip);
     int  fieldTop    = labelBottom + scaler.ToPx (kGapDip);
     int  fieldBottom = fieldTop + scaler.ToPx (kFieldHeightDip);
-    int  checkTop    = fieldBottom + scaler.ToPx (kGapDip * 3);
+    int  noteTop     = fieldBottom + scaler.ToPx (kGapDip);
+    int  noteBottom  = noteTop + scaler.ToPx (kNoteHeightDip);
+    int  checkTop    = noteBottom + scaler.ToPx (kGapDip * 3);
     int  checkBottom = checkTop + scaler.ToPx (kFieldHeightDip);
 
 
@@ -57,6 +61,7 @@ void CassoExplorerGeneralPage::Layout (const RECT & boundsDip, const DxuiDpiScal
 
     m_namingLabel->Layout (RECT { boundsDip.left, boundsDip.top, boundsDip.right, labelBottom }, scaler);
     m_naming->Layout      (RECT { boundsDip.left, fieldTop, boundsDip.right, fieldBottom }, scaler);
+    m_namingNote->Layout  (RECT { boundsDip.left, noteTop, boundsDip.right, noteBottom }, scaler);
     m_register->Layout    (RECT { boundsDip.left, checkTop, boundsDip.right, checkBottom }, scaler);
 
     SetContentHeightPx (checkBottom - boundsDip.top);
@@ -185,12 +190,19 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_naming.SetItems     (GetNamingLabels());
     m_naming.SetSelected  (m_choices.hostNaming);
 
+    m_namingNote.SetText      (L"An Apple file has a file type, and a program has the address it loads at. A Windows file name "
+                               L"has neither, so a file copied to this PC has them in one of these forms, and a copy back onto an "
+                               L"Apple disk restores them: words in the name, the six hex digits CiderPress uses, or an "
+                               L"AppleSingle file around the data. All three are read back, whichever is chosen here.");
+    m_namingNote.SetTextRole  (DxuiTextRole::Muted);
+    m_namingNote.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
     //  Writes the user's file types only when OK is pressed with it changed.
     m_register.SetLabel   (L"Open disk images in Casso (.dsk, .do, .po, .woz, .nib, .nb2)");
     m_register.SetChecked (m_choices.registered);
 
     m_general = CreatePage<CassoExplorerGeneralPage> (L"General");
-    m_general->Init (m_namingLabel, m_naming, m_register);
+    m_general->Init (m_namingLabel, m_naming, m_namingNote, m_register);
 
     m_emulateAdtPro.SetLabel   (L"Serve ADTPro's own Apple client");
     m_emulateAdtPro.SetChecked (m_choices.emulateAdtPro);
