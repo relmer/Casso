@@ -1798,7 +1798,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 ### High: crashes, corruption, lost or wrong state
 
 - [X] T987 The evaluator's / and % on int32 do not guard INT_MIN / -1, so `? 80000000/-1` (or an equivalent condition) raises a hardware exception and kills the process (DebugExpressionEvaluator.cpp:931) Done: binary arithmetic runs in 64 bits and a result past 32 bits is an overflow error; INT_MIN % -1 is 0. Test OverflowIsAnError.
-- [ ] T988 GetArrays and FindValue walk guest-controlled ARYTAB/STREND data with no bound, so a program whose array pointers loop hangs the debugger (ApplesoftProgram.cpp:223)
+- [X] T988 GetArrays and FindValue walk guest-controlled ARYTAB/STREND data with no bound, so a program whose array pointers loop hangs the debugger (ApplesoftProgram.cpp:223) Done: GetArrays and FindValue step through TryGetNextArray, which ends the walk at an offset that is zero, passes STREND or wraps past FFFF. Test AnArrayTableThatPassesItsEndIsNotWalkedPastIt.
 - [ ] T989 ReadSRecord's dataCount underflows on a record too short for its address, so a malformed S-record reads far past the buffer (BinaryImageReader.cpp:401)
 - [ ] T990 After a machine switch, the WatchpointTable is no longer the bus's watch sink, so watchpoints, value breakpoints, the call record's stack writes, the I/O log and disk-vector tracking stop working without any error (DebugSession.cpp:1358)
 - [ ] T991 With PROFILE ON every instruction of a free run goes to the observer, so TF appends a line per free-running instruction to a buffer nothing trims, tens of MB a second, until the CPU thread runs out of memory (ExecutionHandlers.cpp:71)

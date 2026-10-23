@@ -172,6 +172,8 @@ private:
     //  not exist.
     std::optional<Word>  FindValue    (const BasicReference & reference) const;
 
+    static bool          TryGetNextArray (Word at, Word next, Word end, Word & nextAt);
+
     static std::string  GetName    (Byte first, Byte second, BasicType type);
     static BasicType    GetType    (Byte first, Byte second);
     static bool         IsFunction (Byte first, Byte second);
