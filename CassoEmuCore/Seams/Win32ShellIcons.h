@@ -32,9 +32,14 @@ public:
 
     static constexpr int  kDefaultSizePx = 16;
 
+    //  Whether the item looks like every other file with its extension, so
+    //  its image is found by type instead of by opening the file.
+    static bool  IsFoundByType (const std::wstring & path, bool isDirectory);
+
 private:
     //  File types that carry an icon of their own rather than their extension's.
     static constexpr const wchar_t *  kOwnIconExtensions[] = { L".exe", L".lnk", L".ico", L".url" };
+    static constexpr const wchar_t *  kExtensionKeyPrefix  = L"*ext:";
 
     std::shared_ptr<const DxuiIconImage>  Remember (const std::wstring & key, HICON icon);
     HICON  LoadLargerForPath (const std::wstring & path, bool isDirectory);

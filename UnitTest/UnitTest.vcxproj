@@ -598,6 +598,7 @@
     <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
     <ClCompile Include="Cassque\DragPayloadTests.cpp" />
     <ClCompile Include="UiTests\IntentReplyTests.cpp" />
+    <ClCompile Include="UiTests\ShellIconsTests.cpp" />
     <ClCompile Include="UiTests\KnownFolderPickerTests.cpp" />
     <ClCompile Include="EmuTests\VolumeRenameTests.cpp" />
     <ClCompile Include="EmuTests\ProDosModifiedDateTests.cpp" />
