@@ -1504,11 +1504,15 @@ void DebugSession::OnUserResumed()
 //
 //  DebugSession::SetAttached
 //
+//  The bus reports to the watchpoints while the debugger is detached, so a
+//  pending hit is dropped on either change.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::SetAttached (bool isAttached)
 {
     m_isAttached = isAttached;
+    m_watchpoints.ClearPending();
     UpdateHookInstalled();
 }
 
@@ -1943,6 +1947,9 @@ bool DebugSession::TryMatchBeforeWatchpoint (Word pc)
 //
 //  DebugSession::HasPendingStop
 //
+//  None while the debugger is detached, which a run's stop conditions must
+//  not pause the machine for.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebugSession::HasPendingStop() const
@@ -1951,7 +1958,7 @@ bool DebugSession::HasPendingStop() const
 
 
 
-    return m_watchpoints.HasPendingStop() || (m_isUnwrittenBreak && m_target.TryGetUnwrittenStop (read));
+    return m_isAttached && (m_watchpoints.HasPendingStop() || (m_isUnwrittenBreak && m_target.TryGetUnwrittenStop (read)));
 }
 
 
