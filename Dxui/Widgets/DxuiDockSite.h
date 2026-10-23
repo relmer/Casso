@@ -278,14 +278,17 @@ public:
     bool  EndDrag    (POINT pointDip);
     void  CancelDrag ();
 
-    //  A drag the site's own pointer started, from a tab or a title bar. The
-    //  window gives it every mouse event until the button comes up, wherever
-    //  the pointer is, so nothing it crosses takes a move or shows a tip.
-    //  Escape cancels it, as does the window losing the mouse while the
-    //  button is still down, and either leaves every pane where it was. The
-    //  window releases the capture itself as the button comes up, before the
-    //  button-up arrives, so that is not a loss.
-    bool  HasPointerDrag  () const { return IsDragging() && m_pointerDrag; }
+    //  True during a drag that a press in the site started, from a tab or a
+    //  title bar, during a sash drag, and while a title bar press is armed,
+    //  which a move past the drag distance turns into a drag. The window
+    //  sends every mouse event to the site until the button comes up,
+    //  wherever the pointer is, so no control under the pointer receives a
+    //  move or draws a tip. Escape cancels the drag, as does a capture loss
+    //  with the button down: every pane goes back to where it was, and a sash
+    //  stays where the drag put it. The window releases the capture itself as
+    //  the button comes up, before the button-up arrives, so that is not a
+    //  loss.
+    bool  HasPointerDrag  () const;
     bool  OnDragKey       (const DxuiKeyEvent & ev);
     void  OnDragMouseLost (bool isButtonDown);
 

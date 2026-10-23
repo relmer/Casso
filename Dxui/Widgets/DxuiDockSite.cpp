@@ -2343,6 +2343,13 @@ void DxuiDockSite::CancelDrag()
     m_hoverZone    = -1;
     m_compassGroup = -1;
     m_pointerDrag  = false;
+
+    //  A sash moved as it was dragged, so it stays where it is.
+    if (m_sashDrag >= 0)
+    {
+        m_sashDrag = -1;
+        NotifyChanged();
+    }
 }
 
 
@@ -2385,6 +2392,30 @@ void DxuiDockSite::OnDragMouseLost (bool isButtonDown)
     {
         CancelDrag();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::HasPointerDrag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::HasPointerDrag() const
+{
+    bool  isTitlePressed = m_slidGroup.IsTitlePressed();
+
+
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        isTitlePressed = isTitlePressed || group->IsTitlePressed();
+    }
+
+    return (IsDragging() && m_pointerDrag) || m_sashDrag >= 0 || isTitlePressed;
 }
 
 

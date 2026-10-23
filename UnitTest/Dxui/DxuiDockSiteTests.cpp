@@ -181,6 +181,32 @@ namespace DxuiDockSiteTests
         }
 
 
+        //  A sash drag is a pointer drag, so the window sends the site its
+        //  button-up wherever the pointer is; a capture loss ends it at the
+        //  ratio it had, and a later move with the button up moves no sash.
+        TEST_METHOD (ASashDragEndsWhenTheMouseIsLost)
+        {
+            Rig   rig;
+            long  before = rig.stack.GetBounds().left;
+            POINT sash   = { before, 300 };
+            long  moved  = 0;
+
+
+
+            Assert::IsTrue (rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, sash)));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { 700, 300 }));
+            Assert::IsTrue (rig.site.HasPointerDrag(), L"the window routes the drag's events to the site");
+
+            moved = rig.stack.GetBounds().left;
+            rig.site.OnDragMouseLost (true);
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { 400, 300 }));
+
+            Assert::IsFalse  (rig.site.HasPointerDrag());
+            Assert::AreEqual (moved, rig.stack.GetBounds().left, L"no sash follows the bare pointer");
+            Assert::AreEqual (1, rig.changes, L"the ratio where the drag ended is reported");
+        }
+
+
         TEST_METHOD (ATabDraggedOntoAZoneDocksThere)
         {
             Rig                        rig;

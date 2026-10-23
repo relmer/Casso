@@ -146,6 +146,7 @@ public:
     //  Forgets a press on the title bar or its buttons, for a drag another
     //  window took over: that window gets the button's release, not this one.
     void  CancelPress () { m_titlePressed = false; m_titleDragged = false; m_pressButton = -1; }
+    bool  IsTitlePressed () const { return m_titlePressed; }
 
     //  Where the last press of a tab (`tab`) or of the title bar fell, from
     //  the top left of the tab or title bar it pressed.
