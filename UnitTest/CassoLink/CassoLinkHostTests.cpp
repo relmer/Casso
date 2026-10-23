@@ -386,6 +386,29 @@ public:
         Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "*.dsk"));
         Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "G?MES*"));
         Assert::IsFalse (CassoLinkHost::MatchesFilespec ("GAMES.PO",  "*.DSK"));
+        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "*A*.D*K"));
+        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "**"));
+        Assert::IsFalse (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "*S"));
+        Assert::IsFalse (CassoLinkHost::MatchesFilespec ("GAMES",     "GAMES?"));
+    }
+
+
+
+    //  A filespec of many stars that cannot match ends at once: a match that
+    //  backtracked through every star would stall the link.
+    TEST_METHOD (Filespec_OfManyStarsIsMatchedInLinearTime)
+    {
+        std::string  name     (40, 'A');
+        std::string  filespec;
+
+        for (int i = 0; i < 30; i++)
+        {
+            filespec += "*A";
+        }
+
+        filespec += "B";
+
+        Assert::IsFalse (CassoLinkHost::MatchesFilespec (name, filespec));
     }
 
 
@@ -572,6 +595,29 @@ public:
     }
 
 
+    //  Nothing is opened for a name Windows reads as a device: reading COM1
+    //  would open a serial port, and reading CON would wait on a console.
+    TEST_METHOD (TheServedFolderOpensNoDevice)
+    {
+        InMemoryFileSystem  fileSystem;
+        FakeDiskFileIo      fileIo;
+        CassoLinkFolder     folder (fileSystem, fileIo);
+        std::vector<Byte>   bytes;
+
+        AssertSucceeded (fileSystem.MakeDirectory (L"C:\\Disks"));
+        folder.SetFolder (L"C:\\Disks");
+
+        for (const char * name : { "COM1", "con", "NUL.DSK", "LPT1", "disk." })
+        {
+            Assert::IsFalse (SUCCEEDED (folder.Read (name, bytes)),        L"a device or an invalid name is not read");
+            Assert::IsFalse (SUCCEEDED (folder.Write (name, { 1, 2, 3 })), L"or written");
+            Assert::IsFalse (SUCCEEDED (folder.ChangeDirectory (name)),    L"or changed into");
+        }
+
+        Assert::IsTrue (fileIo.files.empty(), L"nothing was written");
+    }
+
+
     //  The image lands in one step, with no temporary file left beside it.
     TEST_METHOD (APutImageIsWrittenDurably)
     {
@@ -621,6 +667,31 @@ public:
         session.Send (Packet (CassoLinkCodec::kSummary, { 0x00 }));
         Assert::IsTrue (session.IsQuiet());
         Assert::IsTrue (folder.files["NEW.PO"] == image);
+    }
+
+
+    //  A data packet with no blocks is NAKed, even one that starts just past
+    //  the image's last block.
+    TEST_METHOD (AnEmptyDataPacketIsNaked)
+    {
+        InMemoryCassoLinkFolder  folder;
+        std::vector<Byte>        payload = Name ("NEW.PO");
+        std::vector<Byte>        wire;
+        Session                  session (folder);
+
+        payload.push_back (2);
+        payload.push_back (0);
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kPut, payload, wire));
+        session.Send (wire);
+        Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkHost::kReplyOk }));
+
+        for (Word start : { (Word) 0, (Word) 2 })
+        {
+            wire.clear();
+            AssertSucceeded (CassoLinkCodec::EncodeImageData (start, {}, wire));
+            session.Send (wire);
+            Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkCodec::kNak }));
+        }
     }
 
 

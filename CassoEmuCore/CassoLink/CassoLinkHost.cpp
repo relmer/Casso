@@ -184,30 +184,55 @@ std::vector<Byte> CassoLinkHost::BuildDirectoryPage (const std::string & path, c
 //
 //  CassoLinkHost::MatchesFilespec
 //
+//  * matches any run of characters and ? any one, without regard to case.
+//  On a mismatch the run the last * matches is extended by one character,
+//  with no backtracking to earlier stars, so a filespec of many stars cannot
+//  stall the link.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoLinkHost::MatchesFilespec (const std::string & name, const std::string & filespec)
 {
-    std::function<bool (size_t, size_t)>  match;
+    size_t  n       = 0;
+    size_t  f       = 0;
+    size_t  star    = std::string::npos;
+    size_t  mark    = 0;
+    bool    matched = true;
 
 
 
-    match = [&] (size_t n, size_t f) -> bool
+    while (matched && n < name.size())
     {
-        if (f == filespec.size())
+        bool  literal = f < filespec.size() && filespec[f] != '*'
+                     && (filespec[f] == '?' || toupper ((unsigned char) filespec[f]) == toupper ((unsigned char) name[n]));
+
+        if (literal)
         {
-            return n == name.size();
+            n++;
+            f++;
         }
-
-        if (filespec[f] == '*')
+        else if (f < filespec.size() && filespec[f] == '*')
         {
-            return match (n, f + 1) || (n < name.size() && match (n + 1, f));
+            star = f++;
+            mark = n;
         }
+        else if (star != std::string::npos)
+        {
+            f = star + 1;
+            n = ++mark;
+        }
+        else
+        {
+            matched = false;
+        }
+    }
 
-        return n < name.size() && (filespec[f] == '?' || toupper ((unsigned char) filespec[f]) == toupper ((unsigned char) name[n])) && match (n + 1, f + 1);
-    };
+    while (f < filespec.size() && filespec[f] == '*')
+    {
+        f++;
+    }
 
-    return filespec.empty() || match (0, 0);
+    return filespec.empty() || (matched && f == filespec.size());
 }
 
 
@@ -1142,7 +1167,7 @@ HRESULT CassoLinkHost::ReceiveImage (std::vector<Byte> & image, bool untilSummar
 
         start = (size_t) packet.payload[0] | ((size_t) packet.payload[1] << 8);
         size  = packet.payload.size() - 2;
-        fits  = size % kBlockSize == 0 && (start * kBlockSize) + size <= image.size();
+        fits  = size != 0 && size % kBlockSize == 0 && (start * kBlockSize) + size <= image.size();
 
         if (!fits)
         {

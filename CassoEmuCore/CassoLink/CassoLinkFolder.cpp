@@ -5,6 +5,7 @@
 #include "Core/TextEncoding.h"
 #include "Devices/Disk/DurableCommit.h"
 #include "Devices/Disk/IDiskFileIo.h"
+#include "Ui/FileBrowseModel.h"
 
 
 
@@ -258,8 +259,8 @@ Error:
 //  CassoLinkFolder::ChangeDirectory
 //
 //  ".." is the parent; any other name is a folder inside the current one,
-//  and must not contain a separator. The folder must exist, and be the root
-//  or inside it.
+//  and must be a valid Windows file name, so not a path or a device such as
+//  COM1. The folder must exist, and be the root or inside it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,7 +272,7 @@ HRESULT CassoLinkFolder::ChangeDirectory (const std::string & name)
     bool                        open     = !current.empty();
     bool                        exists   = false;
     bool                        confined = false;
-    bool                        plain    = name.find_first_of ("\\/:") == std::string::npos;
+    bool                        plain    = name == ".." || FileBrowseModel::IsValidFileName (TextEncoding::NarrowToWide (name));
 
 
 
@@ -331,15 +332,15 @@ std::wstring CassoLinkFolder::GetFolder() const
 //  CassoLinkFolder::GetFilePath
 //
 //  Empty with no folder open, or for a name that is not one file in the
-//  folder: one with a separator in it, "..", or a link to a file outside the
-//  root.
+//  folder: one that is not a valid Windows file name, as with a separator,
+//  ".." or a device such as COM1, or a link to a file outside the root.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::string CassoLinkFolder::GetFilePath (const std::string & name) const
 {
     std::wstring  folder = GetFolder();
-    bool          plain  = !name.empty() && name.find_first_of ("\\/:") == std::string::npos && name != "..";
+    bool          plain  = FileBrowseModel::IsValidFileName (TextEncoding::NarrowToWide (name));
     std::string   path;
 
 
