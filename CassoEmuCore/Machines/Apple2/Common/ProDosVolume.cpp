@@ -1216,11 +1216,13 @@ bool ProDosVolume::TryFindEntry (
 //  The first record in the volume directory chain whose storage-type nibble is
 //  zero. That nibble is ProDOS's own statement of occupancy, so unlike the
 //  DOS 3.3 catalog -- where an entry claiming no sectors is still an entry --
-//  there is nothing here to infer from what the record points at.
+//  there is nothing here to infer from what the record points at. A chain
+//  that breaks, at a block out of range or one already visited, sets
+//  outIsBroken: the directory is damaged, not full.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProDosVolume::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset) const
+bool ProDosVolume::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset, bool & outIsBroken) const
 {
     ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
     int             dirBlock = dirKeyBlock;
@@ -1233,6 +1235,8 @@ bool ProDosVolume::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, si
         bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
         int   first   = (dirBlock == dirKeyBlock) ? 1 : 0;
+
+        outIsBroken = !stepOk;
 
         if (!stepOk)
         {
@@ -1703,6 +1707,7 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
     bool                   exists      = false;
     bool                   slotOk      = false;
     bool                   isGrowable  = false;
+    bool                   isBroken    = false;
     bool                   allocated   = false;
     bool                   fullyParsed = true;
     int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
@@ -1734,7 +1739,8 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
     exists = TryFindEntry (entries, name, holder);
     CBREx (!exists, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
-    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset, isBroken);
+    CBREx (!isBroken, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
     //  The volume directory is fixed at blocks 2 through 5; only a
     //  subdirectory takes another block for a record.
@@ -1922,6 +1928,7 @@ HRESULT ProDosVolume::AddFileWithCase (
     size_t                 payloadSize  = bytes.size();
     bool                   slotOk       = false;
     bool                   isGrowable   = false;
+    bool                   isBroken     = false;
     bool                   allocated    = false;
     bool                   haveKeyBlock = false;
     int                    slotBlock    = 0;
@@ -1935,7 +1942,8 @@ HRESULT ProDosVolume::AddFileWithCase (
 
 
 
-    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset, isBroken);
+    CBREx (!isBroken, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
 
     //  The volume directory is fixed at blocks 2 through 5; only a
     //  subdirectory takes another block for a record.

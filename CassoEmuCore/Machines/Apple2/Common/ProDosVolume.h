@@ -205,7 +205,7 @@ private:
     //  A directory record is reusable exactly when its storage-type nibble is
     //  zero. Unlike the DOS 3.3 catalog there is no decorative-entry practice
     //  here to work around: ProDOS states occupancy in a field of its own.
-    bool  TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset) const;
+    bool  TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset, bool & outIsBroken) const;
 
     //  Hands out `count` blocks, or none at all. A block must be free in the
     //  bitmap AND unclaimed by the directory -- a bitmap calling a block free

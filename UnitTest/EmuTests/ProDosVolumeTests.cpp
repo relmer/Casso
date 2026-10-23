@@ -1994,6 +1994,51 @@ public:
     }
 
 
+    //  A subdirectory whose chain breaks past its full blocks is damaged,
+    //  not full: a write into it fails, and no block is linked over the
+    //  broken pointer, which would orphan the blocks past it.
+    TEST_METHOD (Volume_ADirectoryWithABrokenChainIsNotGrown)
+    {
+        constexpr int     kRecordsInKeyBlock = 12;
+        constexpr size_t  kOffNextBlock      = 0x02;     // a directory block's next-block pointer
+
+        vector<Byte>   vol     = MakeVolume();
+        vector<Byte>   current;
+        vector<Byte>   next;
+        FilePayload    payload = MakeBinaryPayload (10, 0x2000);
+        Word           key     = 0;
+        size_t         at      = 0;
+
+        {
+            ProDosVolume  volume (vol);
+
+            AssertSucceeded (volume.CreateDirectory (FilePath::Parse ("UTIL"), current));
+        }
+
+        for (int i = 0; i < kRecordsInKeyBlock; i++)
+        {
+            ProDosVolume  volume (current);
+
+            AssertSucceeded (volume.Write (FilePath::Parse (std::format ("UTIL/F{}", i)), payload, next));
+            current.swap (next);
+        }
+
+        key = WordAt (current, kDirKeyBlock, EntryOffset (1) + kEntOffKeyPointer);
+        at  = ProDosSkeleton::GetBlockByteOffset (key, kOffNextBlock);
+
+        current[at]     = 0x2C;     // block 300, past the volume's end
+        current[at + 1] = 0x01;
+
+        {
+            ProDosVolume  volume (current);
+
+            next.clear();
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT), volume.Write (FilePath::Parse ("UTIL/NEXT"), payload, next));
+            Assert::AreEqual (size_t (0), next.size(), L"nothing is written");
+        }
+    }
+
+
     TEST_METHOD (Volume_CreateDirectory_ARepeatOrAMissingParent_IsRefused)
     {
         vector<Byte>  vol = MakeVolume();
