@@ -361,7 +361,7 @@ bool BreakpointsPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems 
     if (bp.id >= 0)
     {
         items.push_back ({ bp.enabled ? L"Disable" : L"Enable", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { DebuggerActions::GetEnableBreakpoint (bp.id, !bp.enabled, m_host.GetMode()) }, {} }); } });
-        items.push_back ({ L"Rename",                           [this, row] { BeginNameEdit (row); } });
+        items.push_back ({ L"Rename",                           [this, bp] { BeginNameEdit (GetRowOfId (bp.id)); } });
     }
 
     items.push_back ({ L"Remove", [this, bp] { RunStep ({ BreakpointStep::Kind::Actions, { GetClearAction (bp) }, {} }); } });
@@ -1054,12 +1054,23 @@ void BreakpointsPane::ApplyRows()
 {
     const DebuggerViewSnapshot                    * snapshot = m_host.GetLatestSnapshot();
     std::vector<std::vector<DxuiListView::Cell>>    rows;
+    std::vector<int>                                selectedIds;
+    std::vector<int>                                selectedRows;
+    int                                             anchorId = GetIdOfRow (m_list->GetAnchorRow());
+    int                                             rowId    = GetIdOfRow (m_list->GetSelectedRow());
 
 
 
     if (snapshot == nullptr)
     {
         return;
+    }
+
+    //  The selection is taken by breakpoint before the rows move, and set
+    //  again by breakpoint after, since a sort can put each in another row.
+    for (int row : m_list->GetSelectedRows())
+    {
+        selectedIds.push_back (GetIdOfRow (row));
     }
 
     if (m_sort >= 0 && m_sort < (int) BreakpointColumns::kCount)
@@ -1097,7 +1108,66 @@ void BreakpointsPane::ApplyRows()
         rows.push_back (std::move (row));
     }
 
+    m_rowIds.clear();
+
+    for (size_t index : m_order)
+    {
+        m_rowIds.push_back (snapshot->breakpoints[index].id);
+    }
+
     m_list->SetRows (std::move (rows));
+
+    for (int id : selectedIds)
+    {
+        if (GetRowOfId (id) >= 0)
+        {
+            selectedRows.push_back (GetRowOfId (id));
+        }
+    }
+
+    if (!selectedRows.empty() || rowId != kNoId)
+    {
+        m_list->RestoreSelectedRows (selectedRows, GetRowOfId (anchorId), GetRowOfId (rowId));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::GetIdOfRow
+//
+//  The id of the breakpoint in the row when the rows were last set;
+//  kNoId for no row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointsPane::GetIdOfRow (int row) const
+{
+    return (row >= 0 && row < (int) m_rowIds.size()) ? m_rowIds[(size_t) row] : kNoId;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointsPane::GetRowOfId
+//
+//  The row of the breakpoint with that id, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointsPane::GetRowOfId (int id) const
+{
+    auto  found = std::ranges::find (m_rowIds, id);
+
+
+
+    return (id != kNoId && found != m_rowIds.end()) ? (int) (found - m_rowIds.begin()) : -1;
 }
 
 

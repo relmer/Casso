@@ -260,5 +260,35 @@ namespace DebuggerBreakpointColumnsTests
             window.GetBreakpointsPane().Sort (Column::HitCount);
             Assert::AreEqual (1, window.GetBreakpointsPane().GetBreakpointOfRow (0)->id, L"a second click turns it around");
         }
+
+
+        //  The selection follows its breakpoint when a snapshot reorders the
+        //  rows, so Delete, Go to and Rename act on the breakpoint picked.
+        TEST_METHOD (TheSelectionFollowsItsBreakpointWhenTheRowsReorder)
+        {
+            CassoTheme                             theme    = CassoTheme::MakeSkeuomorphic();
+            ColumnsHost                            host;
+            ColumnsWindow                          window   (theme, host);
+            std::shared_ptr<DebuggerViewSnapshot>  snapshot = MakeSnapshot();
+            DxuiListView                         * list     = nullptr;
+
+
+
+            window.OnCreate();
+            window.SetSnapshotForTest (snapshot);
+            window.ApplyBreakpoints();
+            window.GetBreakpointsPane().Sort (Column::HitCount);
+
+            list = window.GetBreakpointsPane().GetList();
+            list->SetSelectedRow (0);
+            Assert::AreEqual (2, window.GetBreakpointsPane().GetBreakpointOfRow (list->GetSelectedRow())->id, L"the fewest hits, selected");
+
+            snapshot                                = MakeSnapshot();
+            snapshot->breakpoints[1].info.hits      = 20;
+            window.SetSnapshotForTest (snapshot);
+            window.ApplyBreakpoints();
+
+            Assert::AreEqual (2, window.GetBreakpointsPane().GetBreakpointOfRow (list->GetSelectedRow())->id, L"still breakpoint 2, now in another row");
+        }
     };
 }

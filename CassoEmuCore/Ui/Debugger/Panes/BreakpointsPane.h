@@ -87,6 +87,8 @@ public:
     bool                             AddColumnMenuItems (DxuiListView * list, std::vector<std::shared_ptr<DxuiCommand>> & commands) override;
 
 private:
+    static constexpr int  kNoId = INT_MIN;     // GetIdOfRow's id for no row; a session stop's id is negative
+
     struct NameEdit
     {
         int           row = -1;
@@ -104,6 +106,8 @@ private:
     DebuggerAction                   GetClearAction (const DebuggerViewSnapshot::BreakpointLine & bp) const;
     void                             RunStep        (BreakpointStep step);
     std::vector<DebuggerViewSnapshot::BreakpointLine>  GetSelected () const;
+    int                              GetIdOfRow     (int row) const;
+    int                              GetRowOfId     (int id) const;
 
     PaneBarSlot                              m_bar;
     DxuiListView                           * m_list       = nullptr;
@@ -113,6 +117,7 @@ private:
     std::unique_ptr<BreakpointBarCommands>   m_commands;
     Shown                                    m_shown      = BreakpointColumns::GetDefaultShown();
     std::vector<size_t>                      m_order;
+    std::vector<int>                         m_rowIds;          // each row's breakpoint id, as the rows were last set
     int                                      m_sort       = -1;
     bool                                     m_isReverse  = false;
 };
