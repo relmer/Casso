@@ -234,12 +234,13 @@ const wchar_t * CassoExplorerLinkChoices::GetNote (LinkTransport transport)
     {
         case LinkTransport::Serial:
             note = L"A null-modem cable from a //c's serial port, or a Super Serial Card, to a COM port or a USB "
-                   L"serial adapter on this PC. With Any, each port is searched in turn.";
+                   L"serial adapter on this PC.";
             break;
 
         case LinkTransport::Tcp:
-            note = L"A program on this or another PC at an address and port, such as Casso on another PC with its "
-                   L"serial port on a TCP port. A Casso on this PC is listed with no setup.";
+            note = L"An Apple's serial port over the network, at an address and port: Casso on another PC with a "
+                   L"serial card set to a TCP port, or a network serial adapter on a real Apple. Casso Explorer lists "
+                   L"Casso running on this PC automatically.";
             break;
 
         case LinkTransport::WifiModem:
@@ -248,13 +249,13 @@ const wchar_t * CassoExplorerLinkChoices::GetNote (LinkTransport transport)
             break;
 
         case LinkTransport::Uthernet:
-            note = L"An Uthernet II at a fixed address. One booted from a CassoLink disk on this PC's network is "
-                   L"listed with no setup.";
+            note = L"An Uthernet II card at a static IP address. An Apple on this PC's network that boots a CassoLink "
+                   L"disk broadcasts its address, and Casso Explorer lists it automatically.";
             break;
 
         case LinkTransport::AdtProServer:
-            note = L"For ADTPro's own client on the Apple: disks and files from a folder on this PC, as from ADTPro's "
-                   L"server. A request for anything outside the folder fails.";
+            note = L"This connection allows a standard ADTPro client on the Apple to transfer disk images to and from "
+                   L"this PC.";
             break;
 
         default:
@@ -455,12 +456,12 @@ void CassoExplorerLinkPanel::Init (const Children & children)
 
     for (IDxuiControl * control : std::initializer_list<IDxuiControl *> {
              children.transportLabel, children.transport, children.note,
-             children.portLabel, children.port,
+             children.portLabel, children.port, children.portNote,
              children.addressLabel, children.address, children.addressError,
-             children.bootstrapLabel, children.bootstrapTip, children.bootstrap,
+             children.bootstrapNote, children.bootstrapLabel, children.bootstrap,
              children.speedLabel, children.speed,
              children.handshakeLabel, children.handshakeTip, children.handshake,
-             children.folderLabel, children.folder, children.browse,
+             children.folderNote, children.folderLabel, children.folder, children.browse,
              children.duplicate })
     {
         Adopt (*control);
@@ -496,38 +497,61 @@ void CassoExplorerLinkPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerLinkPanel::TryMeasureHeightPx
+//
+//  The rows' height at the width, with the window's renderer and theme, so
+//  DxuiDialogWindow grows the window wherever a note or an error would
+//  otherwise run into the buttons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerLinkPanel::TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx)
+{
+    RECT  bounds = { m_boundsDip.left, m_boundsDip.top, m_boundsDip.left + widthPx, m_boundsDip.bottom };
+
+
+
+    m_text  = &text;
+    m_theme = &theme;
+
+    heightPx = ArrangeRows (bounds, m_scaler, false);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerLinkPanel::ArrangeRows
 //
 //  The transport's row, its note under it across the field's column, the
-//  transport's own rows, then the error for a connection listed already.
+//  rows the transport uses with their notes, then the error for a connection
+//  listed already.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int CassoExplorerLinkPanel::ArrangeRows (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const
 {
     int  y      = bounds.top;
-    int  note   = scaler.ToPx (kNoteHeightDip);
-    int  gap    = scaler.ToPx (kRowGapDip);
     int  fieldX = bounds.left + scaler.ToPx (kLabelWidthDip);
     int  fieldW = (std::max) ((int) bounds.right - fieldX, 1);
     int  err    = 0;
 
 
 
-    y = PlaceRow (bounds, y, m_kids.transportLabel, m_kids.transport, nullptr, scaler, place);
-
-    if (place)
-    {
-        m_kids.note->Layout (RECT { fieldX, y, bounds.right, y + note }, scaler);
-    }
-
-    y += note + gap;
-    y  = PlaceRow (bounds, y, m_kids.portLabel,      m_kids.port,      nullptr,              scaler, place);
-    y  = PlaceRow (bounds, y, m_kids.addressLabel,   m_kids.address,   m_kids.addressError,  scaler, place);
-    y  = PlaceRow (bounds, y, m_kids.bootstrapLabel, m_kids.bootstrap, nullptr,              scaler, place, m_kids.bootstrapTip);
-    y  = PlaceRow (bounds, y, m_kids.speedLabel,     m_kids.speed,     nullptr,              scaler, place);
-    y  = PlaceRow (bounds, y, m_kids.handshakeLabel, m_kids.handshake, nullptr,              scaler, place, m_kids.handshakeTip);
-    y  = PlaceRow (bounds, y, m_kids.folderLabel,    m_kids.folder,    nullptr,              scaler, place, nullptr, m_kids.browse);
+    y = PlaceRow  (bounds, y, m_kids.transportLabel, m_kids.transport, nullptr,             scaler, place);
+    y = PlaceNote (bounds, y, m_kids.note,                                                  scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.portLabel,      m_kids.port,      nullptr,             scaler, place);
+    y = PlaceNote (bounds, y, m_kids.portNote,                                              scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.addressLabel,   m_kids.address,   m_kids.addressError, scaler, place);
+    y = PlaceNote (bounds, y, m_kids.bootstrapNote,                                         scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.bootstrapLabel, m_kids.bootstrap, nullptr,             scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.speedLabel,     m_kids.speed,     nullptr,             scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.handshakeLabel, m_kids.handshake, nullptr,             scaler, place, m_kids.handshakeTip);
+    y = PlaceNote (bounds, y, m_kids.folderNote,                                            scaler, place);
+    y = PlaceRow  (bounds, y, m_kids.folderLabel,    m_kids.folder,    nullptr,             scaler, place, nullptr, m_kids.browse);
 
     err = GetErrorHeightPx (*m_kids.duplicate, fieldW, scaler);
 
@@ -614,6 +638,43 @@ int CassoExplorerLinkPanel::PlaceRow (const RECT & bounds, int y, DxuiLabel * la
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerLinkPanel::PlaceNote
+//
+//  A note across the field's column at its wrapped height; returns where
+//  the next row starts. A hidden or empty note takes no room.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerLinkPanel::PlaceNote (const RECT & bounds, int y, DxuiLabel * note, const DxuiDpiScaler & scaler, bool place) const
+{
+    int  gap    = scaler.ToPx (kRowGapDip);
+    int  fieldX = bounds.left + scaler.ToPx (kLabelWidthDip);
+    int  fieldW = (std::max) ((int) bounds.right - fieldX, 1);
+    int  height = 0;
+
+
+
+    if (!note->IsVisible() || note->GetText().empty())
+    {
+        return y;
+    }
+
+    height = GetNoteHeightPx (*note, fieldW, scaler);
+
+    if (place)
+    {
+        note->Layout (RECT { fieldX, y, bounds.right, y + height }, scaler);
+    }
+
+    return y + height + gap;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerLinkPanel::GetErrorHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -639,6 +700,43 @@ int CassoExplorerLinkPanel::GetErrorHeightPx (const DxuiFieldError & error, int 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerLinkPanel::GetNoteHeightPx
+//
+//  The note's text wrapped at the width in the body font, as DxuiLabel
+//  draws it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int CassoExplorerLinkPanel::GetNoteHeightPx (const DxuiLabel & note, int widthPx, const DxuiDpiScaler & scaler) const
+{
+    HRESULT  hr    = S_OK;
+    float    textW = 0.0f;
+    float    textH = 0.0f;
+
+
+
+    if (m_text == nullptr || m_theme == nullptr)
+    {
+        return scaler.ToPx (kFallbackNoteDip);
+    }
+
+    hr = m_text->MeasureStringWrapped (note.GetText().c_str(), scaler.ToPxf (m_theme->BodyFont().sizeDip), DxuiTheme::GetUiFace(),
+                                       (float) widthPx, textW, textH);
+
+    if (FAILED (hr))
+    {
+        return scaler.ToPx (kFallbackNoteDip);
+    }
+
+    return (int) std::ceil (textH);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerLinkPanel::OnMouse
 //
 //  The open dropdowns first, since their lists extend over the rows below.
@@ -648,7 +746,7 @@ int CassoExplorerLinkPanel::GetErrorHeightPx (const DxuiFieldError & error, int 
 bool CassoExplorerLinkPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     IDxuiControl *  fields[] = { m_kids.transport, m_kids.port, m_kids.speed, m_kids.bootstrap, m_kids.address, m_kids.handshake,
-                                 m_kids.folder, m_kids.browse, m_kids.bootstrapTip, m_kids.handshakeTip };
+                                 m_kids.folder, m_kids.browse, m_kids.handshakeTip };
     bool            handled  = false;
 
 
@@ -704,15 +802,20 @@ void CassoExplorerLinkDialog::OnCreate()
     m_portLabel.SetText      (L"COM port:");
     m_addressLabel.SetText   (L"Address:");
     m_bootstrapLabel.SetText (L"Bootstrap speed:");
-    m_speedLabel.SetText     (L"Speed:");
+    m_speedLabel.SetText     (L"Transfer speed:");
     m_handshakeLabel.SetText (L"Handshake:");
     m_folderLabel.SetText    (L"Folder:");
 
-    m_note.SetTextRole  (DxuiTextRole::Muted);
-    m_note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    for (DxuiLabel * note : { &m_note, &m_portNote, &m_bootstrapNote, &m_folderNote })
+    {
+        note->SetTextRole  (DxuiTextRole::Muted);
+        note->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+    }
 
-    m_bootstrapTip.SetText      (Choices::kBootstrapTip);
-    m_bootstrapTip.SetPopupHost (GetPopupHost());
+    m_portNote.SetText      (Choices::kPortNote);
+    m_bootstrapNote.SetText (Choices::kBootstrapNote);
+    m_folderNote.SetText    (Choices::kFolderNote);
+
     m_handshakeTip.SetText      (Choices::kHandshakeTip);
     m_handshakeTip.SetPopupHost (GetPopupHost());
 
@@ -762,17 +865,19 @@ void CassoExplorerLinkDialog::OnCreate()
     kids.note           = &m_note;
     kids.portLabel      = &m_portLabel;
     kids.port           = &m_port;
+    kids.portNote       = &m_portNote;
     kids.addressLabel   = &m_addressLabel;
     kids.address        = &m_address;
     kids.addressError   = &m_addressError;
+    kids.bootstrapNote  = &m_bootstrapNote;
     kids.bootstrapLabel = &m_bootstrapLabel;
-    kids.bootstrapTip   = &m_bootstrapTip;
     kids.bootstrap      = &m_bootstrap;
     kids.speedLabel     = &m_speedLabel;
     kids.speed          = &m_speed;
     kids.handshakeLabel = &m_handshakeLabel;
     kids.handshakeTip   = &m_handshakeTip;
     kids.handshake      = &m_handshake;
+    kids.folderNote     = &m_folderNote;
     kids.folderLabel    = &m_folderLabel;
     kids.folder         = &m_folder;
     kids.browse         = &m_browse;
@@ -954,17 +1059,19 @@ void CassoExplorerLinkDialog::ShowTransportRows()
 
     m_portLabel.SetVisible      (Choices::UsesPort (transport));
     m_port.SetVisible           (Choices::UsesPort (transport));
+    m_portNote.SetVisible       (transport == LinkTransport::Serial);
     m_addressLabel.SetVisible   (Choices::UsesAddress (transport, port));
     m_address.SetVisible        (Choices::UsesAddress (transport, port));
     m_addressError.SetVisible   (Choices::UsesAddress (transport, port));
+    m_bootstrapNote.SetVisible  (Choices::UsesBootstrap (transport));
     m_bootstrapLabel.SetVisible (Choices::UsesBootstrap (transport));
-    m_bootstrapTip.SetVisible   (Choices::UsesBootstrap (transport));
     m_bootstrap.SetVisible      (Choices::UsesBootstrap (transport));
     m_speedLabel.SetVisible     (Choices::UsesSpeed (transport, port));
     m_speed.SetVisible          (Choices::UsesSpeed (transport, port));
     m_handshakeLabel.SetVisible (Choices::UsesHandshake (transport, port));
     m_handshakeTip.SetVisible   (Choices::UsesHandshake (transport, port));
     m_handshake.SetVisible      (Choices::UsesHandshake (transport, port));
+    m_folderNote.SetVisible     (Choices::UsesFolder (transport));
     m_folderLabel.SetVisible    (Choices::UsesFolder (transport));
     m_folder.SetVisible         (Choices::UsesFolder (transport));
     m_browse.SetVisible         (Choices::UsesFolder (transport));

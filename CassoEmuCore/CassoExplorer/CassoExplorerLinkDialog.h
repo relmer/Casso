@@ -68,9 +68,13 @@ public:
     static const wchar_t *  GetNote              (LinkTransport transport);
     static const wchar_t *  GetAddressPlaceholder (LinkTransport transport);
 
-    //  The info tips beside the bootstrap speed and the handshake.
-    static constexpr const wchar_t *  kBootstrapTip = L"The speed of the loader typed into the Apple when it has no CassoLink disk, "
-                                                      L"after IN# and Ctrl+A 14B on the Apple. A boot disk starts at the speed below.";
+    //  The lines under the port, above the bootstrap speed and above the
+    //  folder, and the info tip beside the handshake.
+    static constexpr const wchar_t *  kPortNote      = L"With Any, each port is searched in turn.";
+    static constexpr const wchar_t *  kBootstrapNote = L"Bootstrapping gets CassoLink running on an Apple with no CassoLink boot disk. Choose "
+                                                       L"Bootstrap the Apple on the connection's menu, and Casso Explorer types a small loader "
+                                                       L"into the Apple at this speed. Transfers then run at the transfer speed.";
+    static constexpr const wchar_t *  kFolderNote    = L"ADTPro's client reads and writes disk images in this folder and its subfolders only.";
     static constexpr const wchar_t *  kHandshakeTip = L"Start with it off. Many null-modem cables do not connect RTS and CTS, or "
                                                       L"connect each end's to each other, and a //c's serial chip has CTS tied on. A "
                                                       L"cable without the lines stops every transfer while handshake is on.";
@@ -112,7 +116,7 @@ public:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class CassoExplorerLinkPanel : public DxuiPanel
+class CassoExplorerLinkPanel : public DxuiPanel, public IDxuiMeasuredContent
 {
 public:
     struct Children
@@ -122,17 +126,19 @@ public:
         DxuiLabel       * note           = nullptr;
         DxuiLabel       * portLabel      = nullptr;
         DxuiComboBox    * port           = nullptr;
+        DxuiLabel       * portNote       = nullptr;
         DxuiLabel       * addressLabel   = nullptr;
         DxuiTextInput   * address        = nullptr;
         DxuiFieldError  * addressError   = nullptr;
+        DxuiLabel       * bootstrapNote  = nullptr;
         DxuiLabel       * bootstrapLabel = nullptr;
-        DxuiInfoTip     * bootstrapTip   = nullptr;
         DxuiComboBox    * bootstrap      = nullptr;
         DxuiLabel       * speedLabel     = nullptr;
         DxuiComboBox    * speed          = nullptr;
         DxuiLabel       * handshakeLabel = nullptr;
         DxuiInfoTip     * handshakeTip   = nullptr;
         DxuiCheckbox    * handshake      = nullptr;
+        DxuiLabel       * folderNote     = nullptr;
         DxuiLabel       * folderLabel    = nullptr;
         DxuiTextInput   * folder         = nullptr;
         DxuiButton      * browse         = nullptr;
@@ -147,6 +153,7 @@ public:
 
     //  The height of the rows at the panel's width, errors included.
     int   GetRequiredHeightPx () const { return ArrangeRows (m_boundsDip, m_scaler, false); }
+    bool  TryMeasureHeightPx  (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) override;
 
     void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
 
@@ -157,7 +164,7 @@ public:
     static constexpr int  kRowHeightDip     = 30;
     static constexpr int  kRowGapDip        = 8;
     static constexpr int  kLabelWidthDip    = 150;
-    static constexpr int  kNoteHeightDip    = 52;
+    static constexpr int  kFallbackNoteDip  = 40;
     static constexpr int  kBrowseWidthDip   = 90;
     static constexpr int  kFallbackErrorDip = 20;
     static constexpr int  kErrorTopDip      = 4;
@@ -167,7 +174,9 @@ private:
     int   ArrangeRows      (const RECT & bounds, const DxuiDpiScaler & scaler, bool place) const;
     int   PlaceRow         (const RECT & bounds, int y, DxuiLabel * label, IDxuiControl * field, DxuiFieldError * error,
                             const DxuiDpiScaler & scaler, bool place, DxuiInfoTip * tip = nullptr, DxuiButton * trailing = nullptr) const;
+    int   PlaceNote        (const RECT & bounds, int y, DxuiLabel * note, const DxuiDpiScaler & scaler, bool place) const;
     int   GetErrorHeightPx (const DxuiFieldError & error, int widthPx, const DxuiDpiScaler & scaler) const;
+    int   GetNoteHeightPx  (const DxuiLabel & note, int widthPx, const DxuiDpiScaler & scaler) const;
 
     Children                               m_kids;
     std::function<void (IDxuiControl *)>   m_onPressed;
@@ -237,17 +246,19 @@ private:
     DxuiLabel                    m_note;
     DxuiLabel                    m_portLabel;
     DxuiComboBox                 m_port;
+    DxuiLabel                    m_portNote;
     DxuiLabel                    m_addressLabel;
     DxuiTextInput                m_address;
     DxuiFieldError               m_addressError;
+    DxuiLabel                    m_bootstrapNote;
     DxuiLabel                    m_bootstrapLabel;
-    DxuiInfoTip                  m_bootstrapTip;
     DxuiComboBox                 m_bootstrap;
     DxuiLabel                    m_speedLabel;
     DxuiComboBox                 m_speed;
     DxuiLabel                    m_handshakeLabel;
     DxuiInfoTip                  m_handshakeTip;
     DxuiCheckbox                 m_handshake { L"RTS and CTS" };
+    DxuiLabel                    m_folderNote;
     DxuiLabel                    m_folderLabel;
     DxuiTextInput                m_folder;
     DxuiButton                   m_browse { L"Browse..." };
