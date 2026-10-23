@@ -1893,7 +1893,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 
 - [X] T1074 The `dest<start.endM` move shorthand evaluates a1 and a2 but never checks a2 >= a1, unlike the `M` command (which goes through TryParseRange) and the Monitor and GSSquared range checks (AppleWinParser.cpp:278) Done: TryParseMoveShorthand returns Invalid for a source range that ends before its start, with M's message
 - [X] T1075 TryParseRegisterCondition calls TryParseCondition without passing the context's NumberSyntax, so it uses the default, AppleWin (AppleWinParser.cpp:996) Done: TryParseRegisterCondition takes the context's NumberSyntax and passes it to TryParseCondition
-- [ ] T1076 AddUnique does a linear case-insensitive scan of every symbol already added, so loading a file is O(n^2) in the symbol count (SymbolFileReader.cpp:320)
+- [X] T1076 AddUnique does a linear case-insensitive scan of every symbol already added, so loading a file is O(n^2) in the symbol count (SymbolFileReader.cpp:320) Done: SymbolFileReader::Add appends, and DropDuplicates removes duplicates once per read with a stable sort of upper-cased keys (40,000 symbols twice: 33 s before, under half a second after)
 - [ ] T1077 The topology key no longer includes the work area, flags or active monitor (WindowPlacementProfile.cpp:191)
 - [ ] T1078 The Intel HEX reader keeps parsing after the 01 end-of-file record, and SplitLines keeps any non-whitespace byte (BinaryImageReader.cpp:299)
 - [ ] T1079 Close clears m_pending but not m_causeId, and Open does not reset it either (DebugChannelServer.cpp:113)
