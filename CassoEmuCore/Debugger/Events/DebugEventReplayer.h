@@ -157,6 +157,13 @@ public:
     {
         std::erase_if (m_rebuilt, [position] (const Rebuilt & rebuilt) { return rebuilt.result.endPosition > position; });
 
+        Cancel();
+    }
+
+    //  The job under way is dropped, and its stretches can be requested
+    //  again.
+    void  Cancel()
+    {
         m_pending.clear();
         m_generation = 0;
         m_runner.Cancel();

@@ -75,6 +75,8 @@ void DebugEventLogs::Start (ReverseController * controller)
 
     m_disk.isResetDue  = m_disk.isOpen;
     m_input.isResetDue = m_input.isOpen;
+    m_video.isResetDue = m_video.isOpen;
+    m_sound.isResetDue = m_sound.isOpen;
 
     m_videoClearedAt = 0;
     m_soundClearedAt = 0;
@@ -141,6 +143,8 @@ void DebugEventLogs::Stop()
 
     m_disk.wantedBefore  = 0;
     m_input.wantedBefore = 0;
+    m_video.wantedBefore = 0;
+    m_sound.wantedBefore = 0;
 
     m_trace.Stop();
     m_profile.Stop();
@@ -163,6 +167,8 @@ bool DebugEventLogs::Pump()
 {
     m_disk.replayer.Pump();
     m_input.replayer.Pump();
+    m_video.replayer.Pump();
+    m_sound.replayer.Pump();
 
     return m_trace.Pump();
 }
@@ -600,7 +606,7 @@ HRESULT DebugEventLogs::RebuildIoBefore (
         next--;
     }
 
-    log.runner.Cancel();
+    log.replayer.Cancel();
     log.runner.WaitForWork();
 
     while (next > 0 && found < targetCount && reached > from && !isLate)

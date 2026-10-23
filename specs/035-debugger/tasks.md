@@ -1805,7 +1805,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T992 Read() takes a project file it failed to read for one that is not a project, so a locked or unreadable project is replaced by an empty one and its contents lost (DebugProjectStore.cpp:227) Done: a read failure marks the project DebugProject::isUnreadable with no aside copy, and DebugProjectStore::Save fails for such a project; SaveAs clears the mark. Test AFileThatCannotBeReadIsNotSavedOver.
 - [ ] T993 Keyframe scheduling is keyed on the absolute cycle counter, which a power cycle resets to 0, so no keyframe is taken until the counter climbs back past the last one (ReverseController.cpp:2237)
 - [X] T994 RunService waits on notification handles copied under the lock, which Unwatch can close meanwhile; the failed wait ends the service thread for good, and no watched folder is reported changed again (Win32FolderWatcher.cpp:177) Done: while the service thread runs, Unwatch puts the handle on Win32FolderWatcher::m_retired, and RunService closes retired handles under the lock before it builds the wait set. No unit test: the window is a thread race in a Win32 seam, and tests may not call FindFirstChangeNotification.
-- [ ] T995 DebugEventLogs::Pump never pumps the video and sound replayers, so the Video and Sound log panes never receive history they ask for (T749) (DebugEventLogs.cpp:164)
+- [X] T995 DebugEventLogs::Pump never pumps the video and sound replayers, so the Video and Sound log panes never receive history they ask for (T749) (DebugEventLogs.cpp:164) Done: DebugEventLogs::Pump pumps the video and sound replayers too, and RebuildIoBefore cancels through the new DebugEventReplayer::Cancel, which clears the pending stretches with the job. Test EarlierSoundRowsAreRebuiltFromHistory.
 - [ ] T996 On the //c GetRomIdentity hashes the internal ROM's active bank, so the identity a saved state or keyframe records depends on which bank was switched in (MachineHost.cpp:1597)
 - [ ] T997 A settings change that needs a reboot switches to the same machine, which saves the old machine's auto state and resumes it onto the rebuilt one instead of cold rebooting (MachineManager.cpp:582)
 - [ ] T998 The debug view capture and its snapshot hold `instructionSet`, a raw pointer into the live CPU's table, which a machine switch frees while the pane-build thread still disassembles through it (ShellDebugger.cpp:2106, CapturedDebugTarget.h:57, DebuggerViewState.h:261)
@@ -1819,7 +1819,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 
 ### Medium: wrong results a user can reach
 
-- [ ] T1006 Start sets isResetDue and Stop clears wantedBefore only for the disk and input logs, so the video and sound logs keep stale rows across a restart (DebugEventLogs.cpp:76)
+- [X] T1006 Start sets isResetDue and Stop clears wantedBefore only for the disk and input logs, so the video and sound logs keep stale rows across a restart (DebugEventLogs.cpp:76) Done: fixed with T995; Start sets isResetDue and Stop clears wantedBefore for the video and sound logs as well.
 - [ ] T1007 The new `debug --max-cycles` is parsed into a uint32_t through ParseDecimal (CommandLineParser.cpp:4234)
 - [ ] T1008 BPR and comparison-BP conditions name the register as a bare word (`A`, `X`, `PC`) rather than `@A` (AppleWinParser.cpp:993)
 - [ ] T1009 TryParseCondition builds the condition by gluing strings together as `subject + op + rest`, with no parentheses around rest (AppleWinParser.cpp:2605)

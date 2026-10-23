@@ -547,5 +547,43 @@ namespace DebugEventLogsTests
                 Assert::AreEqual (reported[i].cycle,    older[i].cycle);
             }
         }
+
+
+        //  The sound log's pane gets rows rebuilt from history as the disk
+        //  log's does, and the rebuild finishes.
+        TEST_METHOD (EarlierSoundRowsAreRebuiltFromHistory)
+        {
+            Session     session;
+            IoLogDelta  delta;
+            size_t      tries    = 0;
+            size_t      older    = 0;
+
+
+
+            Run (session.machine, 0, 200);
+
+            session.logs.Start (&session.controller);
+            session.logs.SetOpen (DebugLogKind::Sound, true);
+
+            Run (session.machine, 200, 30);
+            session.WaitForKeyframes();
+
+            session.logs.TakeDelta (DebugLogKind::Sound, delta);
+            Assert::IsFalse (delta.isAtStart, L"history starts earlier");
+
+            session.logs.RequestEarlier (DebugLogKind::Sound);
+
+            for (tries = 0; tries < 10 && (older == 0 || delta.isRebuilding); tries++)
+            {
+                session.logs.TakeDelta (DebugLogKind::Sound, delta);
+                session.queue.WaitAll();
+                session.logs.Pump();
+
+                older += delta.older.size();
+            }
+
+            Assert::IsTrue  (older > 0, L"rows were rebuilt");
+            Assert::IsFalse (delta.isRebuilding, L"and the rebuild finished");
+        }
     };
 }
