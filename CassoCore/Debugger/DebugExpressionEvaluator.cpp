@@ -842,6 +842,7 @@ bool DebugExpressionEvaluator::TryResolveName (
 //  ~ complements within 16 bits, since values are addresses and bytes, and
 //  ! is logical: 1 for zero, 0 for anything else.
 //  < and > take the low and high byte. * reads one byte through the context.
+//  Negating INT_MIN is an error, as a binary operator's overflow is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -857,12 +858,17 @@ bool DebugExpressionEvaluator::TryApplyUnary (
     static constexpr int      kByteBits = 8;
     Byte                      byte      = 0;
     bool                      isRead    = true;
+    bool                      isInRange = true;
 
 
 
     switch (op)
     {
-    case ExpressionOperator::Negate:     result = -operand;                            break;
+    case ExpressionOperator::Negate:
+        isInRange = operand != std::numeric_limits<int32_t>::min();
+        result    = isInRange ? -operand : 0;
+        break;
+
     case ExpressionOperator::Complement: result = ~operand & kWordMask;                break;
     case ExpressionOperator::LogicalNot: result = operand == 0;                        break;
     case ExpressionOperator::LowByte:    result = operand & kByteMask;                 break;
@@ -883,7 +889,12 @@ bool DebugExpressionEvaluator::TryApplyUnary (
         error = std::format ("The byte at ${:04X} cannot be read.", (Word) operand);
     }
 
-    return isRead;
+    if (!isInRange)
+    {
+        error = "The expression overflows 32 bits.";
+    }
+
+    return isRead && isInRange;
 }
 
 
@@ -895,7 +906,10 @@ bool DebugExpressionEvaluator::TryApplyUnary (
 //  DebugExpressionEvaluator::TryApplyBinary
 //
 //  Comparisons and the logical operators produce 1 or 0. Both sides of && and
-//  || are always evaluated.
+//  || are always evaluated. The arithmetic is done in 64 bits, so a result
+//  past 32 bits, INT_MIN / -1 among them, is an error rather than a wrapped
+//  value or a hardware fault. A check passes an overflow and a zero divisor,
+//  since the values at a hit can differ.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -907,7 +921,9 @@ bool DebugExpressionEvaluator::TryApplyBinary (
     int32_t            & result,
     std::string        & error)
 {
-    bool  isDivision = op == ExpressionOperator::Divide || op == ExpressionOperator::Modulo;
+    bool     isDivision = op == ExpressionOperator::Divide || op == ExpressionOperator::Modulo;
+    bool     isInRange  = true;
+    int64_t  wide       = 0;
 
 
 
@@ -925,24 +941,39 @@ bool DebugExpressionEvaluator::TryApplyBinary (
 
     switch (op)
     {
-    case ExpressionOperator::Add:            result = lhs + rhs;   break;
-    case ExpressionOperator::Subtract:       result = lhs - rhs;   break;
-    case ExpressionOperator::Multiply:       result = lhs * rhs;   break;
-    case ExpressionOperator::Divide:         result = lhs / rhs;   break;
-    case ExpressionOperator::Modulo:         result = lhs % rhs;   break;
-    case ExpressionOperator::And:            result = lhs & rhs;   break;
-    case ExpressionOperator::Or:             result = lhs | rhs;   break;
-    case ExpressionOperator::Xor:            result = lhs ^ rhs;   break;
-    case ExpressionOperator::Less:           result = lhs <  rhs;  break;
-    case ExpressionOperator::Greater:        result = lhs >  rhs;  break;
-    case ExpressionOperator::LessOrEqual:    result = lhs <= rhs;  break;
-    case ExpressionOperator::GreaterOrEqual: result = lhs >= rhs;  break;
-    case ExpressionOperator::Equal:          result = lhs == rhs;  break;
-    case ExpressionOperator::NotEqual:       result = lhs != rhs;  break;
-    case ExpressionOperator::LogicalAnd:     result = lhs && rhs;  break;
-    case ExpressionOperator::LogicalOr:      result = lhs || rhs;  break;
-    default:                                 result = 0;           break;
+    case ExpressionOperator::Add:            wide = (int64_t) lhs + rhs;  break;
+    case ExpressionOperator::Subtract:       wide = (int64_t) lhs - rhs;  break;
+    case ExpressionOperator::Multiply:       wide = (int64_t) lhs * rhs;  break;
+    case ExpressionOperator::Divide:         wide = (int64_t) lhs / rhs;  break;
+    case ExpressionOperator::Modulo:         wide = (int64_t) lhs % rhs;  break;
+    case ExpressionOperator::And:            wide = lhs & rhs;            break;
+    case ExpressionOperator::Or:             wide = lhs | rhs;            break;
+    case ExpressionOperator::Xor:            wide = lhs ^ rhs;            break;
+    case ExpressionOperator::Less:           wide = lhs <  rhs;           break;
+    case ExpressionOperator::Greater:        wide = lhs >  rhs;           break;
+    case ExpressionOperator::LessOrEqual:    wide = lhs <= rhs;           break;
+    case ExpressionOperator::GreaterOrEqual: wide = lhs >= rhs;           break;
+    case ExpressionOperator::Equal:          wide = lhs == rhs;           break;
+    case ExpressionOperator::NotEqual:       wide = lhs != rhs;           break;
+    case ExpressionOperator::LogicalAnd:     wide = lhs && rhs;           break;
+    case ExpressionOperator::LogicalOr:      wide = lhs || rhs;           break;
+    default:                                 wide = 0;                    break;
     }
 
+    isInRange = wide >= std::numeric_limits<int32_t>::min() && wide <= std::numeric_limits<int32_t>::max();
+
+    if (!isInRange && mode == EvaluationMode::Check)
+    {
+        result = 0;
+        return true;
+    }
+
+    if (!isInRange)
+    {
+        error = "The expression overflows 32 bits.";
+        return false;
+    }
+
+    result = (int32_t) wide;
     return true;
 }

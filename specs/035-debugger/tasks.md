@@ -1797,7 +1797,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 
 ### High: crashes, corruption, lost or wrong state
 
-- [ ] T987 The evaluator's / and % on int32 do not guard INT_MIN / -1, so `? 80000000/-1` (or an equivalent condition) raises a hardware exception and kills the process (DebugExpressionEvaluator.cpp:931)
+- [X] T987 The evaluator's / and % on int32 do not guard INT_MIN / -1, so `? 80000000/-1` (or an equivalent condition) raises a hardware exception and kills the process (DebugExpressionEvaluator.cpp:931) Done: binary arithmetic runs in 64 bits and a result past 32 bits is an overflow error; INT_MIN % -1 is 0. Test OverflowIsAnError.
 - [ ] T988 GetArrays and FindValue walk guest-controlled ARYTAB/STREND data with no bound, so a program whose array pointers loop hangs the debugger (ApplesoftProgram.cpp:223)
 - [ ] T989 ReadSRecord's dataCount underflows on a record too short for its address, so a malformed S-record reads far past the buffer (BinaryImageReader.cpp:401)
 - [ ] T990 After a machine switch, the WatchpointTable is no longer the bus's watch sink, so watchpoints, value breakpoints, the call record's stack writes, the I/O log and disk-vector tracking stop working without any error (DebugSession.cpp:1358)
@@ -1823,7 +1823,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [ ] T1007 The new `debug --max-cycles` is parsed into a uint32_t through ParseDecimal (CommandLineParser.cpp:4234)
 - [ ] T1008 BPR and comparison-BP conditions name the register as a bare word (`A`, `X`, `PC`) rather than `@A` (AppleWinParser.cpp:993)
 - [ ] T1009 TryParseCondition builds the condition by gluing strings together as `subject + op + rest`, with no parentheses around rest (AppleWinParser.cpp:2605)
-- [ ] T1010 Add, Subtract, Multiply and Negate are plain int32 arithmetic, so overflow is undefined behavior (DebugExpressionEvaluator.cpp:930)
+- [X] T1010 Add, Subtract, Multiply and Negate are plain int32 arithmetic, so overflow is undefined behavior (DebugExpressionEvaluator.cpp:930) Done: fixed with T987; negating INT_MIN is an overflow error too, and a condition check passes an overflow as it passes a zero divisor.
 - [ ] T1011 Both prefs writers (Save, and UserConfigStore::BuildCombinedJson at line 1871) merge only window placements from disk (GlobalUserPrefs.cpp:1078)
 - [ ] T1012 PollBoundary skips disabled variable entries without refreshing or dropping their m_values (BasicStopMonitor.cpp:249)
 - [ ] T1013 Intel HEX record types 02 and 04 read bytes[4] and bytes[5] without checking count == 2 (BinaryImageReader.cpp:302)
