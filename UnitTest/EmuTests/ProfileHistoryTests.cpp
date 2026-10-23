@@ -186,6 +186,54 @@ namespace ProfileHistoryTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  AnEditsBoundaryStartsABound
+        //
+        //  A memory edit made live takes a boundary keyframe, whose state does
+        //  not follow from the one before it, so the bounds are cut there and
+        //  a replay starts at it.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (AnEditsBoundaryStartsABound)
+        {
+            constexpr Word      kEdited     = 0x1F00;
+            constexpr uint64_t  kMoreCycles = 500'000;
+
+            ProfileRig                      rig;
+            std::vector<DebugEventBounds>   bounds;
+            const KeyframeStore           & keyframes = rig.controller.GetKeyframes();
+            uint64_t                        boundary  = 0;
+            bool                            isCut     = false;
+            HRESULT                         hr        = S_OK;
+
+
+
+            rig.machine.GetMemoryBus().WriteByte (kEdited, 0x5A);
+
+            hr = rig.controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            boundary = keyframes.GetInfo (keyframes.GetCount() - 1).position;
+            Assert::IsTrue (keyframes.GetInfo (keyframes.GetCount() - 1).isBoundary, L"the edit took a boundary keyframe");
+
+            rig.machine.RunCycles (kMoreCycles);
+
+            hr = rig.controller.GetKeyframes().WaitForPending();
+            AssertSucceeded (hr, L"WaitForPending");
+
+            rig.logs.GetProfileHistory().GetBounds (0, bounds);
+
+            isCut = std::any_of (bounds.begin(), bounds.end(), [boundary] (const DebugEventBounds & b) { return b.startPosition == boundary; });
+
+            Assert::IsTrue (isCut, L"a bound starts at the boundary keyframe");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  NoHistoryIsAnError
         //
         ////////////////////////////////////////////////////////////////////////////////

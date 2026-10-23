@@ -198,9 +198,10 @@ bool ProfileHistory::IsStopped() const
 //
 //  History's stretches from the keyframe at or before fromCycle to the
 //  machine's position, the one it is in cut there, joined wherever no gap
-//  divides them; then the stretch since the newest keyframe, unless the
-//  machine runs live, so it grows, or recording is paused, so it ends where
-//  history has no record.
+//  divides them and the second does not start at a boundary keyframe, whose
+//  state does not follow from the one before it; then the stretch since the
+//  newest keyframe, unless the machine runs live, so it grows, or recording
+//  is paused, so it ends where history has no record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -213,6 +214,14 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
     uint64_t                         start     = 0;
     uint64_t                         newest    = 0;
     std::vector<DebugEventBounds>    stretches;
+    auto                             isBoundary = [keyframes] (uint64_t at)
+    {
+        size_t  index = 0;
+
+
+
+        return keyframes->TryFindByPosition (at, index) && keyframes->GetInfo (index).position == at && keyframes->GetInfo (index).isBoundary;
+    };
 
 
 
@@ -245,7 +254,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
             bounds.hasGapAfter = false;
         }
 
-        if (!outBounds.empty() && !outBounds.back().hasGapAfter && outBounds.back().endPosition == bounds.startPosition)
+        if (!outBounds.empty() && !outBounds.back().hasGapAfter && outBounds.back().endPosition == bounds.startPosition && !isBoundary (bounds.startPosition))
         {
             outBounds.back().endPosition = bounds.endPosition;
             outBounds.back().hasGapAfter = bounds.hasGapAfter;
@@ -260,7 +269,7 @@ void ProfileHistory::GetBounds (uint64_t fromCycle, std::vector<DebugEventBounds
 
     if (newest < position && newest >= start && !(m_controller->IsRecordingLive() && !IsStopped()) && !m_controller->IsPaused())
     {
-        if (!outBounds.empty() && !outBounds.back().hasGapAfter && outBounds.back().endPosition == newest)
+        if (!outBounds.empty() && !outBounds.back().hasGapAfter && outBounds.back().endPosition == newest && !isBoundary (newest))
         {
             outBounds.back().endPosition = position;
         }
