@@ -1144,6 +1144,9 @@ void FloatingPanes::Float (const std::wstring & key)
         m_host.GetFloatDockSite()->CancelDrag();
         HideDragMarks();
         m_host.Repaint();
+
+        //  A resize of the window ends here too, and its new size is saved.
+        m_host.SaveLayout();
     });
     window->SetOnClosed            ([this, key]
     {
@@ -1416,10 +1419,9 @@ void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool en
     HideDragMarks();
     m_host.Repaint();
 
-    if (!inside)
-    {
-        m_host.SaveLayout();
-    }
+    //  The window's place is saved whether or not the drop docked it: a
+    //  drop over the debugger away from any zone moves the window too.
+    m_host.SaveLayout();
 }
 
 

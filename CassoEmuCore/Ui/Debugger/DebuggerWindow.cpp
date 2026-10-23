@@ -844,6 +844,9 @@ void DebuggerWindow::OnWindowClose()
     SavePlacementIfMoved();
     SaveFocusedPane();
 
+    //  The floating windows' places are saved before they are hidden.
+    SaveLayout();
+
     for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
     {
         pane->OnWindowClose();
