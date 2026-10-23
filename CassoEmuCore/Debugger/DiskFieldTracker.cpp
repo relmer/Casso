@@ -410,6 +410,9 @@ void DiskFieldTracker::StepWritten (DriveState & state, int drive, const Disk2Ni
         event.dataInstruction = entry.address;
         event.lastInstruction = entry.address;
 
+        //  A write ends any field being read: what is read after it is not
+        //  that field's.
+        state.phase = Phase::Idle;
         state.lastAddress.reset();
     }
 

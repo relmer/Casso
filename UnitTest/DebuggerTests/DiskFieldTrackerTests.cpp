@@ -453,6 +453,34 @@ namespace DebuggerTests
             Assert::AreEqual (kWriter,   written.lastInstruction);
         }
 
+        //  A data prologue written while a data field is being read ends the
+        //  read field: the nibbles read after it are no data field's.
+        TEST_METHOD (APrologueWrittenDuringADataFieldEndsTheField)
+        {
+            RecordBuilder     b;
+            DiskFieldTracker  tracker;
+
+
+
+            b.AddressField (DiskFieldKind::Sixteen, 9, 4, kRdadr16);
+            b.Read ({ 0xD5, 0xAA, 0xAD }, kRead16Mark);
+
+            for (Byte nibble : { (Byte) 0xFF, (Byte) 0xFF, (Byte) 0xD5, (Byte) 0xAA, (Byte) 0xAD })
+            {
+                b.Write (nibble, kWriter);
+            }
+
+            for (int i = 0; i < 400; i++)
+            {
+                b.Read (0x96, kRead16Body);
+            }
+
+            auto  events = FeedAll (tracker, b);
+
+            Assert::AreEqual ((size_t) 1, CountOf (events, DiskFieldEventKind::WritePrologue));
+            Assert::AreEqual ((size_t) 0, CountOf (events, DiskFieldEventKind::DataChecksum), L"no data field after the write");
+        }
+
         //  A tracker primed from a record that ends partway through a data
         //  field reports the same events after it as one fed every nibble,
         //  one at a time.
