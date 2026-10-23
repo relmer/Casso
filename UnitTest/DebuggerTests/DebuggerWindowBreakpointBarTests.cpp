@@ -126,6 +126,36 @@ namespace DebuggerBreakpointBarTests
             SetSnapshotForTest (snapshot);
             ApplyBreakpoints();
         }
+
+        //  One breakpoint, disabled, and a BPV stop, which is listed as
+        //  enabled and is no table entry.
+        void  BuildWithASessionStop()
+        {
+            std::shared_ptr<DebuggerViewSnapshot>  snapshot = std::make_shared<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot::BreakpointLine   bp;
+            DebuggerViewSnapshot::BreakpointLine   stop;
+
+
+
+            OnCreate();
+
+            bp.id           = 1;
+            bp.address      = 0x0300;
+            bp.enabled      = false;
+            bp.info.id      = 1;
+            bp.info.address = 0x0300;
+            bp.info.last    = 0x0300;
+            bp.info.enabled = false;
+
+            stop.id           = -1;
+            stop.enabled      = true;
+            stop.info.id      = -1;
+            stop.info.enabled = true;
+
+            snapshot->breakpoints = { bp, stop };
+            SetSnapshotForTest (snapshot);
+            ApplyBreakpoints();
+        }
     };
 
 
@@ -282,6 +312,24 @@ namespace DebuggerBreakpointBarTests
             Assert::AreEqual (std::string ("BPC 1"), host.actions[0].breakpointStep->actions[0].echo);
             Assert::AreEqual (std::string ("BPC 3"), host.actions[0].breakpointStep->actions[1].echo);
             Assert::AreEqual (3u, host.actions[0].breakpointStep->actions[1].command.count, L"by id, with no line to parse");
+        }
+
+
+        //  BPD * changes no session stop, so with every table breakpoint off
+        //  Disable all enables them, whatever the stops are.
+        TEST_METHOD (DisableAllEnablesWhenOnlySessionStopsAreOn)
+        {
+            CassoTheme  theme  = CassoTheme::MakeSkeuomorphic();
+            BarHost     host;
+            BarWindow   window (theme, host);
+
+
+
+            window.BuildWithASessionStop();
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDisableAll);
+
+            Assert::AreEqual ((size_t) 1, host.actions.size());
+            Assert::AreEqual (std::string ("BPE *"), host.actions[0].breakpointStep->actions.at (0).echo);
         }
 
 

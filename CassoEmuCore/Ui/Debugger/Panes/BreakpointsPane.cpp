@@ -451,7 +451,7 @@ void BreakpointsPane::RunBarEntry (int id)
     int                                                  fileId     = -1;
     int                                                  line       = 0;
     bool                                                 anyEnabled = snapshot != nullptr && std::ranges::any_of (snapshot->breakpoints,
-                                                                          [] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.enabled; });
+                                                                          [] (const DebuggerViewSnapshot::BreakpointLine & bp) { return bp.id >= 0 && bp.enabled; });
 
 
 
