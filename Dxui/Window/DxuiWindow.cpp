@@ -271,6 +271,14 @@ Error:
     if (ownerDisabled)
     {
         EnableWindow (m_ownerHwnd, TRUE);
+
+        //  When the active dialog is hidden, Windows chooses the next active
+        //  window, which after an Alt+Tab away and back can be another
+        //  program's. The owner is activated first, as DialogBox does.
+        if (GetActiveWindow() == GetHwnd())
+        {
+            SetActiveWindow (m_ownerHwnd);
+        }
     }
 
     if (m_source != nullptr)
