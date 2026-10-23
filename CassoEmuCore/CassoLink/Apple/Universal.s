@@ -18,8 +18,9 @@
 ; shim is copied to its address with the slot in its header, and started.
 ; The machine's zero page and reset vector are saved first, as a shim saves
 ; them, and the chosen shim is given them with its zpsaved byte set. A shim
-; with a modem's dial command is started at once on the first 6551, since no
-; connection from the PC is possible before the modem dials it.
+; with a modem's dial command is started at once on the last 6551 found, a
+; //c's port 2 or the card in the highest slot, since no connection from the
+; PC is possible before the modem dials it.
 ;
 ; NMOS 6502 code throughout.
 
@@ -170,12 +171,12 @@ found:  lda nacia
         jsr drawstate
 hang:   jmp hang
 
-foundany: lda ACIMG+HDIAL       ; a modem's dial command: the first 6551, now
+foundany: lda ACIMG+HDIAL       ; a modem's dial command: the last 6551, now
         beq showall
-        lda nacia
+        ldx nacia
         beq showall
-        lda #0
-        sta sel
+        dex
+        stx sel
         jmp acgo
 
 showall: ldx #msgwait-msgs

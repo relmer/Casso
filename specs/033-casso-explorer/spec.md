@@ -317,8 +317,8 @@ hardware.
   An announcement from the PC itself is listed at 127.0.0.1, where Casso's
   emulated card listens.
 - Q: What does a Wi-Fi modem link's disk do, since the PC cannot connect
-  first? → A: It dials the PC, starting at once on the first
-  serial port.
+  first? → A: It dials the PC at once, on a //c's port 2, where
+  the modem is, or on the Super Serial Card in the highest slot.
 - Q: Where can the emulated ImageWriter II be attached? → A: To a parallel
   card, a Super Serial Card, or a //c serial port, one connector at a time,
   chosen on Settings > Printing in Connected to, and only there. A parallel
@@ -1655,7 +1655,8 @@ to Casso over TCP.
   firmware's identification bytes, and an Uthernet II in any other slot but
   a Disk II's, list each on its screen, and wait for the PC on all of them
   at once, using the first one the PC connects through. A disk made for a
-  Wi-Fi modem link MUST dial the PC on the first serial port at once. With
+  Wi-Fi modem link MUST dial the PC at once on a //c's port 2, or on the
+  Super Serial Card in the highest slot. With
   no interface found, the disk MUST draw NO SERIAL PORT OR CARD FOUND.
 - **FR-091b**: On an Uthernet II the boot disk MUST get its address by DHCP,
   using the address built into the disk when no DHCP reply comes, and MUST

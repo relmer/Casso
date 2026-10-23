@@ -333,8 +333,9 @@ machine's zero page and reset vector into the chosen shim, which it saved
 before using any, sets the shim's zpsaved byte and slot, copies the shim to
 its address and starts it. Started this way, a shim starts as one from its
 own disk does, except that it saves nothing. A 6551 shim with a dial
-command is started at once on the first 6551, since no connection from the
-PC is possible until the modem dials it.
+command is started at once on the last 6551 found, a //c's port 2 or the
+card in the highest slot, since no connection from the PC is possible until
+the modem dials it.
 
 Casso Explorer listens on UDP port 6510 on every interface, with the port
 bound for reuse, and lists the Apple of each announcement, by its MAC
