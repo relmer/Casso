@@ -161,6 +161,7 @@ struct DebuggerViewSnapshot
         std::string  expression;
         bool         isValueEditable = true;
         std::string  error;
+        bool         isRegister      = false;
     };
 
     //  One thing the instruction at the PC, or the one just executed, reads or

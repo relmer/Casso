@@ -230,7 +230,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
                            :                               std::string ("--");
 
         snapshot.watches.push_back ({ entry.id, entry.address, value, entry.enabled, entry.basicName, entry.expression,
-                                      entry.isValueEditable, entry.error });
+                                      entry.isValueEditable, entry.error, entry.isRegister });
     }
 
     for (const WatchEntry & entry : pointers.entries)
@@ -2049,12 +2049,8 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
 
 bool DebuggerViewState::IsRegisterWatch (const DebuggerViewSnapshot::WatchLine & watch)
 {
-    static constexpr const char *  kRegisters[] = { "A", "X", "Y", "S", "P", "PC" };
-    std::string                    upper        = GetUpper (watch.expression);
-
-
-
-    return watch.basicName.empty() && std::ranges::any_of (kRegisters, [&upper] (const char * reg) { return upper == reg; });
+    //  By the watch's kind, not its text: a symbol called X or PC is memory.
+    return watch.isRegister;
 }
 
 

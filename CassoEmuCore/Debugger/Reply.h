@@ -209,6 +209,7 @@ struct WatchEntry
     std::string                 expression;
     std::optional<std::string>  valueText;
     bool                        isValueEditable = true;
+    bool                        isRegister      = false;   // a register watch, whose value is the register's
     std::string                 error;      // why a typed watch has no value
 };
 

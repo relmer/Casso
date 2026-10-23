@@ -110,6 +110,7 @@ public:
         snapshot.watches                    = { { 3, 0x0000, "12" } };
         snapshot.watches[0].expression      = "a";
         snapshot.watches[0].isValueEditable = true;
+        snapshot.watches[0].isRegister      = true;
 
         actions = DebuggerViewState::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "41", CommandMode::AppleWin);
         undo    = DebuggerViewState::GetWatchUndo (snapshot, 3, std::nullopt, 1, CommandMode::AppleWin);
@@ -121,6 +122,27 @@ public:
         Assert::AreEqual ((Byte) 0x41, rig.controller.GetSession().GetTarget().GetRegisters().a);
 
         Assert::IsTrue (undo.has_value() && undo->actions.size() == 1 && undo->actions[0].command.verb == DebugVerb::SetRegister);
+    }
+
+
+
+    //  A symbol watch whose symbol has a register's name is memory: its value
+    //  edits as a word at the symbol's address, not as the register.
+    TEST_METHOD (ASymbolWatchWithARegistersNameEditsMemory)
+    {
+        DebuggerViewSnapshot         snapshot;
+        std::vector<DebuggerAction>  actions;
+
+
+
+        snapshot.watches                    = { { 3, 0x0400, "0000" } };
+        snapshot.watches[0].expression      = "x";
+        snapshot.watches[0].isValueEditable = true;
+
+        actions = DebuggerViewState::GetWatchEditActions (snapshot, 3, std::nullopt, 1, "BEEF", CommandMode::AppleWin);
+
+        Assert::AreEqual ((size_t) 1, actions.size());
+        Assert::AreEqual ((int) DebugVerb::EnterWords, (int) actions[0].command.verb, L"the word at the symbol, not register X");
     }
 
 

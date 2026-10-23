@@ -122,6 +122,7 @@ WatchListData WatchHandlers::MakeList (DebugSession & session, WatchListKind kin
         entry.enabled    = item.enabled;
         entry.basicName  = item.basicName;
         entry.expression = item.expression;
+        entry.isRegister = item.kind == WatchItem::Kind::Register;
 
         if (!item.basicName.empty())
         {
