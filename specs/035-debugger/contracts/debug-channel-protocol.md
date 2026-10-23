@@ -116,7 +116,7 @@ Clients format them.
 | `symbols` | `symbols`: `[{"name","address","table","constant"}]`, where `constant` is true for an equate, a value that is not an address |
 | `cycles` | `count` |
 | `mode` | `mode` |
-| `fileIo` | `path`, `requested`, `transferred`, `mismatch`: bool |
+| `fileIo` | `path`, `requested`, `transferred`, `address`, `isLoad`: bool, `mismatch`: bool, and `companion` when a file beside it was loaded too |
 | `profile` | `on`: bool, `instructions`, `cycles` (penalties included), `opcodes`: `[{"mnemonic","mode","count","cycles"}]` with base cycles only, `penalties`: `{"pageCross","branchTaken","branchCross"}` in cycles, `addresses`: `[{"address","symbol","cycles"}]` with `symbol` null where none holds the address (filled by `PROFILE LIST ADDR`, the hottest twenty) |
 | `callStack` | `mechanism`: `"RECORDED"`, `"WALK"` or `"HYBRID"`; `rows`, innermost first, each a frame `{"callSite","target","type":"JSR"|"BRK"|"IRQ"|"NMI","provenance":"recorded"|"guessed","stackLevel","verified":bool,"symbol":str|null,"note":str|null}` or a break `{"break":"txs"|"pulledReturn"|"endedByJump"|"returnMismatch"|"stackWrap"|"reset"|"trackingBegan"|"powerOn"|"historyBegan"|"trackingRestarted","pc","opcode","text"}`, where the `text` of a `historyBegan` break is `Calls before history starts at $xxxx are not available.` and that of a `trackingRestarted` break, where recording began again after a move through history that no rebuild replaced, is `Calls before $xxxx are not available.`; `lastReturn`: the last frame that returned with a note (past inline parameters), or `null` (`CALLS`) |
 | `callStackMode` | `mechanism` (`CALLS MODE`) |
