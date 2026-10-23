@@ -38,6 +38,7 @@
 #include <propvarutil.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <cfapi.h>
 #include <knownfolders.h>
 #include <wincodec.h>
 #include <wrl/client.h>

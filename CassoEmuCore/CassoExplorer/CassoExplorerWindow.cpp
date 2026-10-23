@@ -23,6 +23,8 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Config/FileAssociations.h"
 #include "Config/GlobalUserPrefs.h"
+#include "Devices/Disk/ChangePrompt.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32UserClasses.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -2346,7 +2348,7 @@ void CassoExplorerWindow::FillPreview()
 
     m_previewMessage->SetText (blank                   ? std::wstring (kSelectToPreview)
                                : !error                ? std::wstring()
-                               : (hostFile && !opened) ? FormatPreviewError (L"The file could not be read")
+                               : (hostFile && !opened) ? FormatPreviewError (L"The file could not be read. " + ChangePrompt::DescribeError (m_fileBytes.GetError()))
                                                        : FormatPreviewError (preview.message));
     m_previewMessage->SetVisible (visible && (error || blank));
 
@@ -3196,6 +3198,7 @@ void CassoExplorerWindow::ShowShellPreviewBytes()
 bool CassoExplorerWindow::FileBytes::Open (const std::wstring & path)
 {
     LARGE_INTEGER  size = {};
+    HRESULT        hr   = S_OK;
 
 
 
@@ -3203,8 +3206,15 @@ bool CassoExplorerWindow::FileBytes::Open (const std::wstring & path)
 
     m_file = CreateFileW (path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    m_error = (m_file == INVALID_HANDLE_VALUE) ? HRESULT_FROM_WIN32 (GetLastError()) : S_OK;
 
-    if (m_file == INVALID_HANDLE_VALUE || !GetFileSizeEx (m_file, &size))
+    if (m_file != INVALID_HANDLE_VALUE)
+    {
+        hr      = Win32DiskFileIo::HydrateIfPlaceholder (m_file);
+        m_error = SUCCEEDED (hr) && !GetFileSizeEx (m_file, &size) ? HRESULT_FROM_WIN32 (GetLastError()) : hr;
+    }
+
+    if (FAILED (m_error))
     {
         Close();
         return false;

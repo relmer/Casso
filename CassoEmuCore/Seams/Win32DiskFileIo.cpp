@@ -2,6 +2,8 @@
 
 #include "Seams/Win32DiskFileIo.h"
 
+#pragma comment(lib, "cldapi.lib")
+
 
 
 
@@ -37,6 +39,9 @@ HRESULT Win32DiskFileIo::ReadAllBytes (const std::string & path, std::vector<Byt
                         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     CWR (file != INVALID_HANDLE_VALUE);
 
+    hr = HydrateIfPlaceholder (file);
+    CHR (hr);
+
     ok = GetFileSizeEx (file, &size);
     CWR (ok);
 
@@ -62,6 +67,42 @@ Error:
         CloseHandle (file);
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::HydrateIfPlaceholder
+//
+//  A read of a file that is not on this PC downloads it implicitly, but some
+//  failures of that download come back from ReadFile as bytes never filled
+//  in. An explicit download returns the provider's error instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32DiskFileIo::HydrateIfPlaceholder (HANDLE file)
+{
+    HRESULT                     hr      = S_OK;
+    FILE_ATTRIBUTE_TAG_INFO     info    = {};
+    BOOL                        ok      = GetFileInformationByHandleEx (file, FileAttributeTagInfo, &info, sizeof (info));
+    bool                        partial = ok && (info.FileAttributes & (FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS | FILE_ATTRIBUTE_OFFLINE)) != 0;
+    LARGE_INTEGER               start   = {};
+    LARGE_INTEGER               length  = {};
+
+
+
+    BAIL_OUT_IF (!partial, S_OK);
+
+    length.QuadPart = -1;
+
+    hr = CfHydratePlaceholder (file, start, length, CF_HYDRATE_FLAG_NONE, nullptr);
+    CHR (hr);
+
+Error:
     return hr;
 }
 

@@ -515,7 +515,10 @@ private:
         //  Which character set the start of the file is text in, if any.
         HostCharset  GetCharset () const;
 
-        const std::wstring &  GetPath () const { return m_path; }
+        const std::wstring &  GetPath  () const { return m_path; }
+
+        //  Why the last Open failed, or S_OK.
+        HRESULT               GetError () const { return m_error; }
 
         uint64_t  GetByteCount () const override { return m_size; }
         void      ReadBytes    (uint64_t offset, std::span<uint8_t> out) const override;
@@ -527,6 +530,7 @@ private:
         void  ReadAt (uint64_t offset, std::span<uint8_t> out) const;
 
         HANDLE                        m_file       = INVALID_HANDLE_VALUE;
+        HRESULT                       m_error      = S_OK;
         std::wstring                  m_path;
         uint64_t                      m_size       = 0;
         mutable std::vector<uint8_t>  m_window;

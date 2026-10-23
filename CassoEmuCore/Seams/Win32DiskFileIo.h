@@ -46,6 +46,12 @@ public:
 
     HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) override;
 
+    //  Downloads the whole of a cloud file that is only partly or not at all
+    //  on this PC, such as a OneDrive file that is online only, before it is
+    //  read. A file that is all here is left as it is. Its error is the cloud
+    //  provider's, such as ERROR_CLOUD_FILE_PROVIDER_NOT_RUNNING.
+    static HRESULT  HydrateIfPlaceholder (HANDLE file);
+
     //  THE INTERRUPTION SWITCH FOR THE COMMIT PATH, AND IT IS NOT IN THIS
     //  BINARY.
     //
