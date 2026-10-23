@@ -3128,6 +3128,7 @@ void DxuiListView::SetColumnFiltered (size_t idx, bool isFiltered)
     m_columns[idx].isFiltered = isFiltered;
     m_measureDirty            = true;
     m_measuredWPx.clear();
+    RequeueFitTexts();
 }
 
 
