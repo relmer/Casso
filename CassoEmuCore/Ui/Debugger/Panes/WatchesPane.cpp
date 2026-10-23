@@ -149,12 +149,19 @@ void WatchesPane::Apply (const DebuggerViewSnapshot & snapshot)
 //  WatchesPane::EditAddedValue
 //
 //  After a Tab added a watch, its value is edited once a snapshot lists it:
-//  the watch whose id was not there before the add.
+//  the watch whose id was not there before the add. An add that failed in
+//  the engine lists no watch, so past kAddedWaitMs the edit is dropped; a
+//  watch added later, from anywhere, is not edited for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void WatchesPane::EditAddedValue (const DebuggerViewSnapshot & snapshot)
 {
+    if (m_isValueEditAfterAdd && GetTickCount64() > m_addedBy)
+    {
+        m_isValueEditAfterAdd = false;
+    }
+
     if (!m_isValueEditAfterAdd)
     {
         return;
@@ -598,6 +605,7 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
     }
 
     m_isValueEditAfterAdd = m_grid->IsTabCommit();
+    m_addedBy             = GetTickCount64() + kAddedWaitMs;
     SetError ({});
     m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
     return true;

@@ -74,6 +74,7 @@ private:
 
     static constexpr int  kEditMaxChars     = 64;
     static constexpr int  kFirstFieldColumn = 1;      // the ID column comes before the watch's cells
+    static constexpr int  kAddedWaitMs      = 2000;   // the milliseconds after a Tab's add before its value edit is dropped
 
     std::vector<DxuiListView::Cell>  MakeHeading    (const std::wstring & title) const;
     DxuiListView::Cell               MakeIdCell     (const std::wstring & text) const;
@@ -92,6 +93,7 @@ private:
     DxuiEditableGrid   * m_grid                     = nullptr;
     std::vector<int>     m_idsBeforeAdd;
     bool                 m_isValueEditAfterAdd      = false;
+    ULONGLONG            m_addedBy                  = 0;        // when the value edit after an add is dropped
     std::vector<Row>     m_rows;
     Edit                 m_edit;
     bool                 m_isBasicVariablesExpanded = false;
