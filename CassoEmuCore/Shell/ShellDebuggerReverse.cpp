@@ -170,7 +170,7 @@ void ShellDebugger::ApplyReverseOptions (
     }
     else
     {
-        hr = m_reverseHost->GetController().GetKeyframes().ChangeBudget (budgetBytes);
+        hr = m_reverseHost->GetController().ChangeBudget (budgetBytes);
         CHR (hr);
     }
 

@@ -288,6 +288,33 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ChangeBudget
+//
+//  Takes a new byte budget for the keyframes. In the past, the group of the
+//  keyframe at or before the machine's position is not dropped, since every
+//  step from there replays from that keyframe.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::ChangeBudget (size_t budgetBytes)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_keyframes.ChangeBudget (budgetBytes, m_machine.GetPosition());
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMachineChanged
 //
 //  Something outside the recorded inputs changed the machine: the recorded

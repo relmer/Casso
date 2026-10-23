@@ -61,11 +61,12 @@ void KeyframeStore::Configure (const KeyframeSettings & settings)
 //  store when it is first reserved. After it, the oldest groups are dropped
 //  until what is held fits the new table and arena, then the keyframes kept
 //  are copied, oldest first, into memory sized from the new budget: smaller
-//  or larger, the store takes its new size now.
+//  or larger, the store takes its new size now. The group of the keyframe at
+//  or before keepPosition is not dropped, nor any newer one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
+HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes, uint64_t keepPosition)
 {
     HRESULT  hr         = S_OK;
     bool     isReserved = !m_entries.empty();
@@ -86,7 +87,7 @@ HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
 
     ComputeLayout (m_wholeBytes, slotCount, arenaBytes);
 
-    hr = Relayout (slotCount, arenaBytes);
+    hr = Relayout (slotCount, arenaBytes, keepPosition);
     CHR (hr);
 
 Error:
@@ -106,13 +107,15 @@ Error:
 //  keyframes kept are copied, oldest first, to the start of the new arena.
 //  The newest group is never dropped, and its side bytes are not bounded by
 //  the least arena, so the table and arena grow to fit what is left when it
-//  is more than the sizes given. Call it with nothing in flight.
+//  is more than the sizes given, and so do the groups left in for keepPosition.
+//  Call it with nothing in flight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT KeyframeStore::Relayout (
-    size_t  slotCount,
-    size_t  arenaBytes)
+    size_t    slotCount,
+    size_t    arenaBytes,
+    uint64_t  keepPosition)
 {
     HRESULT                  hr         = S_OK;
     bool                     isDropped  = true;
@@ -127,7 +130,7 @@ HRESULT KeyframeStore::Relayout (
 
     while (isDropped && (GetByteCount() > m_settings.budgetBytes || m_storedBytes > arenaBytes || m_count > slotCount))
     {
-        isDropped = TryDropOldestGroup();
+        isDropped = TryDropOldestGroup (keepPosition);
     }
 
     arenaBytes = (std::max) (arenaBytes, m_storedBytes);
@@ -1682,11 +1685,13 @@ size_t KeyframeStore::FindGroupStart (size_t index) const
 //
 //  Drops the oldest group, its whole snapshot and every difference against
 //  it, when a collected whole snapshot follows it; false when none does, so
-//  the newest group and every keyframe in flight stay.
+//  the newest group and every keyframe in flight stay. False too when the
+//  next group starts past keepPosition, so the keyframe at or before it
+//  stays.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool KeyframeStore::TryDropOldestGroup()
+bool KeyframeStore::TryDropOldestGroup (uint64_t keepPosition)
 {
     size_t  collected = m_count - m_pendingCount;
     size_t  nextGroup = 1;
@@ -1699,7 +1704,7 @@ bool KeyframeStore::TryDropOldestGroup()
         nextGroup++;
     }
 
-    isDropped = nextGroup < collected;
+    isDropped = nextGroup < collected && GetEntry (nextGroup).info.position <= keepPosition;
 
     for (; isDropped && nextGroup > 0; nextGroup--)
     {

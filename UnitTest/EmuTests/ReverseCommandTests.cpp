@@ -453,6 +453,52 @@ public:
     }
 
 
+    //  A budget too small for the history before the machine's position
+    //  drops the oldest groups only up to the one the machine is in, so the
+    //  machine steps on from a keyframe at or before it.
+    TEST_METHOD (ASmallerBudgetInThePastKeepsTheMachinesKeyframe)
+    {
+        constexpr uint64_t  kRunCycles = 120000;
+
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        ReverseSettings    settings   = ReverseSessionRig::MakeSettings (1);
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           position   = 0;
+        size_t             here       = 0;
+
+
+
+        settings.keyframes.wholeEvery   = 2;
+        settings.keyframes.longestGroup = 2;
+
+        ReverseSessionRig::Prepare (machine);
+
+        hr = controller.Start (settings);
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (kRunCycles);
+
+        Assert::IsTrue (controller.GetKeyframes().GetCount() > 4, L"several groups recorded");
+
+        position = controller.GetKeyframes().GetInfo (1).position + 1;
+
+        hr = controller.SeekToPosition (position, result);
+        AssertSucceeded (hr, L"SeekToPosition");
+
+        hr = controller.ChangeBudget (controller.GetKeyframes().GetByteCount() * 2 / 3);
+        AssertSucceeded (hr, L"ChangeBudget");
+
+        Assert::IsTrue (controller.GetKeyframes().TryFindByPosition (position, here), L"a keyframe at or before the machine's position");
+
+        machine.StepOne();
+
+        Assert::AreEqual<uint64_t> (position + 1, machine.GetPosition(), L"the machine stepped on");
+        Assert::IsTrue             (controller.IsInHistory(), L"still in history");
+    }
+
+
     //  One instruction at a time back over the whole recording, across at
     //  least one keyframe, then forward again to the live end: the whole
     //  machine must match the live run at every position, and each stretch's
