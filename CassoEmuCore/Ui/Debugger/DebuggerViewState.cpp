@@ -3051,7 +3051,13 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     }
 
     stream.str (text);
-    stream >> name >> argument;
+    stream >> name;
+
+    //  The argument is the rest of the line, so an expression with spaces is
+    //  read whole.
+    std::getline (stream, argument);
+    argument.erase (0, std::min (argument.size(), argument.find_first_not_of (" \t")));
+    argument.erase (argument.find_last_not_of (" \t") + 1);
 
     if (!name.empty() && !session.IsAssembling())
     {

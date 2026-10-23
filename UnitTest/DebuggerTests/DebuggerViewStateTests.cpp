@@ -2872,6 +2872,9 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue   (RunInWindow (rig, "MA1 PC").status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x0300, rig.view.GetMemoryAddress(), L"a register");
+
+            Assert::IsTrue   (RunInWindow (rig, "MD1 300 + 10").status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x0310, rig.view.GetMemoryAddress(), L"an expression with spaces, read whole");
         }
 
 
