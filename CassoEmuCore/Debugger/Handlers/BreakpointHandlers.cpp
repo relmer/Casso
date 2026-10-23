@@ -680,13 +680,19 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
         }
         else if (length == kBrkSelector && *isOn)
         {
-            //  BRK ON again, with or without IF, sets the condition.
+            //  BRK ON again, with or without IF, sets the condition, and a
+            //  condition that changed is reported with the entry.
             for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
             {
                 entry = (existing.kind == BreakpointKind::Brk) ? existing : entry;
             }
 
-            session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+            if (entry.condition.text != command.expression.text)
+            {
+                session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+                entry.condition = command.expression;
+                added.breakpoints.push_back (MakeInfo (entry));
+            }
         }
         else if (length == kBrkSelector && !*isOn)
         {

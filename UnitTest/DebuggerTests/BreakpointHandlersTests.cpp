@@ -84,6 +84,25 @@ namespace DebuggerTests
 
 
 
+        //  BRK ON with another condition on the BRK entry lists the entry with
+        //  its new condition; only the same condition again has nothing to add.
+        TEST_METHOD (BrkOnWithANewConditionListsTheEntry)
+        {
+            Rig          rig;
+            std::string  changed;
+
+
+
+            rig.RunOk ("BRK ON IF X == 2");
+
+            changed = rig.RunOk ("BRK ON IF X == 4").text.at (0);
+
+            Assert::IsTrue (changed.find ("X == 4") != std::string::npos, TextEncoding::NarrowToWide (changed).c_str());
+            Assert::IsTrue (rig.RunOk ("BRK ON IF X == 4").text.at (0).starts_with ("Nothing to add"));
+        }
+
+
+
         //  A second execution breakpoint over the same addresses with the same
         //  condition is an error with the first one's number; another
         //  condition or another range is a breakpoint of its own.
