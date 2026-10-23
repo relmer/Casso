@@ -368,6 +368,13 @@ void FloatingPanes::Sync()
         m_host.OnFloatsSynced();
     }
 
+    //  Windows hides a minimized debugger's floating windows and restores them
+    //  with it, so none is made visible or hidden here meanwhile.
+    if (IsIconic (m_host.GetFloatOwner()) != FALSE)
+    {
+        return;
+    }
+
     for (const auto & entry : m_windows)
     {
         const std::vector<std::wstring> &  panes = m_windowPanes[entry.first];
