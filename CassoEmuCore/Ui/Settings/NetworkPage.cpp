@@ -23,9 +23,9 @@ static constexpr int  s_kSectionGapDp    = 14;
 static constexpr int  s_kPagePadDp       = 16;
 
 static constexpr const wchar_t *  s_kpszCardBanner =
-    L"The Uthernet II in slot {} is an Ethernet card. Software that uses its raw Ethernet "
-    L"mode, such as ADTPro, receives the address 10.0.65.15 from the virtual network; the "
-    L"gateway address 10.0.65.1 is this PC.";
+    L"The Uthernet II in slot {} is an Ethernet card. Software that gets its address by "
+    L"DHCP, such as ADTPro and the CassoLink boot disk, is given 10.0.65.15. The gateway, "
+    L"10.0.65.1, is this PC.";
 
 
 
