@@ -67,6 +67,7 @@ private:
 
     std::mutex                                     m_lock;
     std::map<std::wstring, FolderEntry>            m_folders;
+    std::vector<HANDLE>                            m_retired;     // unwatched, for the service thread to close
     std::thread                                    m_service;
     HANDLE                                         m_stop = nullptr;
     HANDLE                                         m_wake = nullptr;
