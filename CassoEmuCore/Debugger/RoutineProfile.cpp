@@ -144,7 +144,13 @@ void RoutineProfile::Begin (Word pc)
         m_stack.erase (m_stack.begin());
     }
 
-    m_nodes[(size_t) node].calls++;
+    //  With the tree full, the call runs in its caller's node, which it does
+    //  not call again.
+    if (node != parent)
+    {
+        m_nodes[(size_t) node].calls++;
+    }
+
     m_stack.push_back (Active { node, m_depth + GetSpDrop (m_lastSp, m_pending->returnSp) });
     m_pending.reset();
 }
@@ -217,12 +223,19 @@ void RoutineProfile::Merge (const RoutineProfile & later)
 
     for (size_t i = 0; i < later.m_nodes.size(); i++)
     {
-        const Node  & node  = later.m_nodes[i];
-        int           index = (node.parent < 0) ? 0 : FindChild (nodes[(size_t) node.parent], routines[node.routine]);
+        const Node  & node   = later.m_nodes[i];
+        int           parent = (node.parent < 0) ? -1 : nodes[(size_t) node.parent];
+        int           index  = (node.parent < 0) ? 0 : FindChild (parent, routines[node.routine]);
 
         nodes[i]                     = index;
-        m_nodes[(size_t) index].self  += node.self;
-        m_nodes[(size_t) index].calls += node.calls;
+        m_nodes[(size_t) index].self += node.self;
+
+        //  A node the full tree folded into its parent adds its cycles, not
+        //  its calls, to the parent.
+        if (index != parent)
+        {
+            m_nodes[(size_t) index].calls += node.calls;
+        }
     }
 
     m_bucket = std::max (m_bucket, later.m_bucket);

@@ -201,6 +201,39 @@ namespace DebuggerTests
 
 
 
+        //  With the tree full, a call to a routine not yet in it runs in its
+        //  caller's node, and the caller is not counted as called again; a
+        //  merge into a full tree is the same.
+        TEST_METHOD (ACallPastAFullTreeIsNotTheCallersCall)
+        {
+            Feed            feed;
+            RoutineProfile  later;
+            uint64_t        calls = 0;
+
+
+
+            for (size_t i = 0; feed.profile.GetNodes().size() < RoutineProfile::kMaxNodes; i++)
+            {
+                feed.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+                feed.Run ((Word) (0x1000 + i), kRts, 6, 0xFF);
+            }
+
+            calls = feed.profile.GetNodes()[0].calls;
+
+            feed.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            feed.Run (0xF000, kRts, 6, 0xFF);
+
+            Assert::AreEqual (calls, feed.profile.GetNodes()[0].calls, L"Top level is not called again");
+
+            later.Record (0x0300, RoutineProfile::kJsr, 6, 0xFD, 0, kFrame);
+            later.Record (0xF100, kRts, 6, 0xFF, 6, kFrame);
+            feed.profile.Merge (later);
+
+            Assert::AreEqual (calls, feed.profile.GetNodes()[0].calls, L"nor by a merge");
+        }
+
+
+
         TEST_METHOD (AnInterruptAndABrkAreRoutinesOfTheirOwn)
         {
             Feed  feed;
