@@ -1172,6 +1172,8 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud, std::stop_token stop)
     std::string                   host;
     uint16_t                      port      = 0;
     size_t                        colon     = m_settings.address.rfind (':');
+    unsigned                      parsed    = 0;
+    std::from_chars_result        digits    = {};
     bool                          addressed = false;
     bool                          reusable  = IsLineOpen() && (!m_settings.IsComPort() || m_openBaud == baud);
 
@@ -1203,11 +1205,19 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud, std::stop_token stop)
     }
     else
     {
-        addressed = colon != std::string::npos;
+        //  The address comes from the saved settings, so a damaged one fails
+        //  the connection rather than throwing.
+        if (colon != std::string::npos)
+        {
+            digits = std::from_chars (m_settings.address.data() + colon + 1, m_settings.address.data() + m_settings.address.size(), parsed);
+        }
+
+        addressed = colon != std::string::npos && digits.ec == std::errc() && digits.ptr == m_settings.address.data() + m_settings.address.size()
+                 && parsed >= 1 && parsed <= 65535;
         CBREx (addressed, E_INVALIDARG);
 
         host = m_settings.address.substr (0, colon);
-        port = (uint16_t) std::stoul (m_settings.address.substr (colon + 1));
+        port = (uint16_t) parsed;
 
         if (m_settings.transport == LinkTransport::WifiModem)
         {
