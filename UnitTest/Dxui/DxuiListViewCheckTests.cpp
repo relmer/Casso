@@ -88,6 +88,28 @@ public:
     }
 
 
+    //  On the header sub-stop Space sorts the focused column, as Enter
+    //  does, instead of toggling the selected rows' checkboxes.
+    TEST_METHOD (SpaceOnTheHeaderSortsAndTogglesNothing)
+    {
+        DxuiListView         list;
+        std::vector<Toggle>  toggles;
+        std::vector<int>     sorts;
+
+        ConfigureList (list, 5);
+        list.SetOnCheckToggled ([&] (int row, size_t column, bool checked) { toggles.push_back ({ row, column, checked }); });
+        list.SetOnSortColumn   ([&] (int column) { sorts.push_back (column); });
+        list.ClickRow (0, false, false);
+
+        (void) list.OnKey (MakeKey (DxuiKeyEventKind::Down, VK_TAB));
+        (void) list.OnKey (MakeKey (DxuiKeyEventKind::Down, VK_TAB));
+        (void) list.OnKey (MakeKey (DxuiKeyEventKind::Down, VK_SPACE));
+
+        Assert::IsTrue   (toggles.empty(), L"no checkbox toggled");
+        Assert::AreEqual ((size_t) 1, sorts.size(), L"the focused column sorted");
+    }
+
+
     TEST_METHOD (APressOnTheCheckboxReportsTheToggleAndKeepsTheSelection)
     {
         DxuiListView         list;

@@ -4943,7 +4943,8 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
 
     //  Space toggles the checkboxes of the selected rows, as it does a lone
     //  checkbox; the character it also sends is then spent, not a type-ahead.
-    if (ev.vk == VK_SPACE && !ev.ctrl && !ev.alt && ToggleChecks (false))
+    //  On the header sub-stop it sorts instead, as Enter does there.
+    if (ev.vk == VK_SPACE && !ev.ctrl && !ev.alt && m_focusedHeaderCol < 0 && ToggleChecks (false))
     {
         return (ev.kind == DxuiKeyEventKind::Down) ? ToggleChecks (true) : true;
     }
