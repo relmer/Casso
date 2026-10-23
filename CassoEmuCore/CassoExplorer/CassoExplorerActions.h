@@ -286,7 +286,7 @@ public:
 
     //  The link's boot disk written to the open Apple drive over the link,
     //  through an image in tempFolder: its boot sector loads the shim at the
-    //  link's speed (FR-091).
+    //  link's speed.
     Outcome  SaveLinkToDisk   (const std::wstring & tempFolder);
 
     //  The open Apple drive formatted as DOS 3.3 or ProDOS, bootable or not,

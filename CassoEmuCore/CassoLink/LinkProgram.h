@@ -157,7 +157,7 @@ public:
     static HRESULT      BuildShim        (DWORD baud, std::vector<Byte> & outShim, const std::string & dial = std::string());
 
     //  A boot disk, as a .dsk's bytes, whose boot sector loads the shim at its
-    //  address and runs it at the given speed (FR-091). Nothing else is on
+    //  address and runs it at the given speed. Nothing else is on
     //  the disk; the shim loads the program from the PC.
     static HRESULT      BuildBootDisk    (const LinkShimOptions & options, std::vector<Byte> & outDisk);
     static HRESULT      BuildBootDisk    (DWORD baud, std::vector<Byte> & outDisk, const std::string & dial = std::string());
@@ -172,7 +172,7 @@ public:
 
     //  What a bootstrap loads, typed in or from tape, and where it starts:
     //  for a 6551, the slot finder at kSlotFinderAddress, zeros to the shim,
-    //  then the shim, so the shim takes its slot from the Apple (R29); for a
+    //  then the shim, so the shim takes its slot from the Apple; for a
     //  W5100, the shim alone.
     static HRESULT      AssembleSlotFinder     (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildBootstrapImage    (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart);

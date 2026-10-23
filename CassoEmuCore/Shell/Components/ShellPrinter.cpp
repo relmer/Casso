@@ -486,7 +486,7 @@ HRESULT ShellPrinter::RenderPanelFrame()
 //
 //  Joins the printer drain thread before the CPU whose cycle counter paces it
 //  is freed, and before the next build clears its ring, then persists the
-//  pending strip for the outgoing machine (FR-026). An empty strip clears any
+//  pending strip for the outgoing machine. An empty strip clears any
 //  stale sidecar.
 //  The machine host still holds the outgoing machine's name here.
 //

@@ -1767,7 +1767,7 @@ void DxuiTabStrip::PaintExplorer (
 
 
 
-    //  File Explorer's tabs (research R13): the selected one is filled with the
+    //  File Explorer's tabs: the selected one is filled with the
     //  row below and joins it, rounded at the top and square at the bottom;
     //  the rest are unfilled, split by short dividers, with dimmer labels.
     if (HasBounds())

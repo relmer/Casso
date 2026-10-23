@@ -136,8 +136,8 @@ public:
 //  CassoLinkSession
 //
 //  One open link: the stream, the host engine, a LinkedDisk per drive and a
-//  queue of operations, run one at a time on the session's own thread
-//  (FR-098). Every request returns at once with its queued operation.
+//  queue of operations, run one at a time on the session's thread.
+//  Every request returns at once with its queued operation.
 //
 //  The stream is opened when the session starts. With no Apple on it, the
 //  line stays open and is served until the next attempt, kRetryMs later or
@@ -178,7 +178,7 @@ public:
     void       SetConnectTimeout (DWORD timeoutMs) { m_connectTimeoutMs = timeoutMs; }
 
     //  Starts the session on an Apple with no link program: the loader is
-    //  typed in first (FR-092), and the returned operation finishes when the
+    //  typed in first, and the returned operation finishes when the
     //  program is running or the Apple does not answer.
     HRESULT    StartWithBootstrap (const CassoLinkSettings & settings, std::shared_ptr<LinkOperation> & outOperation);
 
@@ -219,8 +219,7 @@ public:
     std::shared_ptr<LinkOperation>  RemoveDirectory (int drive, const FilePath & path);
 
     //  Every track's standard sectors into an image file, in the format of
-    //  its extension, replaced atomically and only when the read succeeds
-    //  (FR-086, FR-087).
+    //  its extension, replaced atomically and only when the read succeeds.
     std::shared_ptr<LinkOperation>  ReadDisk      (int drive, const std::string & imagePath, bool blankUnreadable);
 
     //  An image file onto the disk: every track formatted, written and read
@@ -244,7 +243,7 @@ public:
     //  A Status error code as an HRESULT.
     static HRESULT  FromStatusError (Byte error);
 
-    //  The Label text the program draws for an operation (FR-090), or with
+    //  The Label text the program draws for an operation, or with
     //  `finished`, the past tense for the history line of one that succeeded.
     static std::string  DescribeOperation (const LinkOperation & operation, const std::optional<VolumeListing> & listing = std::nullopt, bool finished = false);
 

@@ -405,7 +405,7 @@ public:
     }
 
     //  The disk's MAC address is salted with the Apple's own memory, so two
-    //  Apples booted from copies of one disk have two addresses (FR-091c).
+    //  Apples booted from copies of one disk have two addresses.
     TEST_METHOD (TheUniversalDisksMac_DiffersBetweenTwoApples)
     {
         std::array<std::array<Byte, 6>, 2>  macs = {};

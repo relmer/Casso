@@ -12,8 +12,8 @@ class IByteStream;
 //
 //  LinkBootstrap
 //
-//  Starts the link on an Apple with no copy of it, over serial (FR-092,
-//  R23). At the BASIC prompt, the user types IN#2 on a //c, or IN# and a
+//  Starts the link on an Apple with no copy of it, over serial. At the
+//  BASIC prompt, the user types IN#2 on a //c, or IN# and a
 //  Super Serial Card's slot, and then Ctrl-A 14B, which sets the port to
 //  9,600 baud and takes the keyboard's input from it; on the card, Return
 //  follows. The //c's firmware and the card's have the same commands. What

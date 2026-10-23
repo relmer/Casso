@@ -17,7 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  LinkBootstrapTests
 //
-//  The text typed into the Apple's monitor to start the link (FR-092, R23):
+//  The text typed into the Apple's monitor to start the link:
 //  Ctrl-X, CALL -151, the shim as lines of eight bytes from its address, and the
 //  command that runs it; and the typing itself.
 //

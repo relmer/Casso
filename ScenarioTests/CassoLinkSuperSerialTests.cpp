@@ -32,13 +32,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  CassoLinkSuperSerialScenarioTests
 //
 //  The link on a //e with a Super Serial Card, over the in-process bridge to
-//  the card's 6551 (FR-093, US16/AC2). One case boots the link disk with the
+//  the card's 6551. One case boots the link disk with the
 //  card in slot 5, and copies files both ways and reads the whole disk. The
 //  other starts from the BASIC prompt with IN#2 and Ctrl-A 14B typed for
-//  the card's firmware, and is bootstrapped over the card (FR-092).
+//  the card's firmware, and is bootstrapped over the card.
 //
 //  A third case starts with no firmware involved: the monitor reads the shim
-//  from the cassette input as audio (FR-092, US15/AC2), and the shim then
+//  from the cassette input as audio, and the shim then
 //  talks to the card's 6551 directly.
 //
 //  The typed bootstrap case requires Apple's firmware for the card, at

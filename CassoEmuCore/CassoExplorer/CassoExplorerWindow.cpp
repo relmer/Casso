@@ -2898,7 +2898,7 @@ bool CassoExplorerWindow::TryGetAppleDropDrive (int tag, POINT screen, Location 
 //  CassoExplorerWindow::SaveLinkToDisk
 //
 //  The link's boot disk onto the open Apple drive, once the user confirms,
-//  since everything on the disk is replaced (FR-091).
+//  since everything on the disk is replaced.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11116,7 +11116,7 @@ void CassoExplorerWindow::SearchLink (const std::string & name)
 //  CassoExplorerWindow::BootstrapLink
 //
 //  The user readies the Apple first; the loader is then typed into it
-//  over the link (FR-092).
+//  over the link.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11162,7 +11162,7 @@ void CassoExplorerWindow::BootstrapLink (const std::string & name)
 //  CassoExplorerWindow::PlayCassetteBootstrap
 //
 //  The shim as audio from the PC's sound output into a ][+ or //e's
-//  cassette input (FR-092, US15/AC2). The user readies the monitor's read
+//  cassette input. The user readies the monitor's read
 //  first. The link is started while the audio is sent, so its session is
 //  open when the shim sends Ready.
 //

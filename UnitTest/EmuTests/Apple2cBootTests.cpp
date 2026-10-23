@@ -501,7 +501,7 @@ public:
 
     //  A port on TCP is written where Casso Explorer finds it, and deleted
     //  when the port is connected elsewhere and when the machine's ports are
-    //  detached (FR-083b).
+    //  detached.
     TEST_METHOD (APortOnTcp_IsRecordedForCassoExplorer_UntilItIsNot)
     {
         struct Handle : IByteStream

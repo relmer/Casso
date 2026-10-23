@@ -28,7 +28,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  A //c with no link program, at the BASIC prompt with IN#2 and Control-A
 //  14B typed as the user would: the session types the loader into it over
 //  the in-process bridge, the shim loads the program, and the program's
-//  status screen comes up and lists a disk (FR-092, US15/AC1).
+//  status screen comes up and lists a disk.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,8 +182,7 @@ public:
 
 
     //  The disk Save link to disk makes boots into the shim at the link's
-    //  speed; the shim has no program, so the session loads it (FR-091,
-    //  US15/AC3 and AC4).
+    //  speed; the shim has no program, so the session loads it.
     TEST_METHOD (TheLinkBootDisk_Boots_AndTheProgramIsLoaded)
     {
         TestMachine                           machine ("Apple2c");

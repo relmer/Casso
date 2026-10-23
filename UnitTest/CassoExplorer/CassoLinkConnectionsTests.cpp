@@ -214,7 +214,7 @@ public:
 
 
     //  ADTPro's client is served by an ADTPro-compatible server, which lists
-    //  no drives, and not by any other connection (FR-088).
+    //  no drives, and not by any other connection.
     TEST_METHOD (AnAdtProServer_ServesAdtProsClient_AndNoOtherConnectionDoes)
     {
         Rig                         rig;

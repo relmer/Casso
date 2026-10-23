@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  CassoLinkSearchTests
 //
 //  The COM search over FakeAppleFactory's ports, and a link's ports open
-//  only while it is started (FR-083a, FR-097).
+//  only while it is started.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

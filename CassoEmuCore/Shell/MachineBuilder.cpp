@@ -1026,7 +1026,7 @@ void MachineBuilder::WireLanguageCard()
 //  StartPrinterDrain
 //
 //  Starts the background printer drain on the host's ring, seeding it with
-//  this machine's persisted pending strip if one exists (FR-026). A missing
+//  this machine's persisted pending strip if one exists. A missing
 //  or corrupt sidecar falls back to empty paper. Symmetric save is in
 //  SwitchMachine teardown and OnDestroy. A drain already running is left
 //  as it is, so the printer can move between connectors mid-page.

@@ -600,7 +600,7 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  Per FR-010: a reset is required iff the hardware-enable bits changed.
+//  A reset is required iff the hardware-enable bits changed.
 //  Speed / color / sound / mechanism / write-protect, every serial
 //  connector's attachment, the ImageWriter II's connector and the Uthernet
 //  II's settings are all live-applicable.

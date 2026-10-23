@@ -29,7 +29,7 @@ struct NetworkAdapter;
 //  it, a message is posted to the window, and the same request then returns
 //  the result. Nothing here waits on a line.
 //
-//  A link's port is open only while it is started (FR-097): the first
+//  A link's port is open only while it is started: the first
 //  request starts it, and Stop, or the link's removal, closes it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,7 +54,7 @@ public:
     void                                    SetLinks (const std::vector<CassoLinkSettings> & links);
 
     //  The running Cassos with a serial port on TCP, each an Emulated link
-    //  with its machine and port as its name, never saved (FR-083b). One whose
+    //  with its machine and port as its name, never saved. One whose
     //  address a saved link has is left out, and one on port 1 is listed with
     //  the reason it cannot connect. A Casso that exits stops its link.
     void                                    SetRunning (const std::vector<RunningCasso> & running);
@@ -76,11 +76,11 @@ public:
     static std::string                      MakeRunningName (const RunningCasso & running);
 
     //  A search starts a serial link by searching the COM ports for the
-    //  Apple, as a link with no port set does (FR-083a).
+    //  Apple, as a link with no port set does.
     HRESULT  Start     (const std::string & name, bool search = false);
 
     //  Starts a link on an Apple with no link program, typing the loader in
-    //  first (FR-092). The completion runs when the program is running or the
+    //  first. The completion runs when the program is running or the
     //  Apple does not answer.
     HRESULT  Bootstrap (const std::string & name, std::function<std::wstring (const LinkOperation & operation)> completion);
     void     Stop      (const std::string & name);
@@ -171,7 +171,7 @@ public:
     static std::wstring  FormatBaud    (DWORD baud);
 
     //  The command a Wi-Fi modem dials for a link: ATDT, this PC's name with
-    //  .local, and the link's TCP port (FR-083c).
+    //  .local, and the link's TCP port.
     static std::wstring  DescribeDial  (const std::wstring & pcName, const CassoLinkSettings & settings);
 
     //  The dial command itself, as the shim on a boot disk sends it to the

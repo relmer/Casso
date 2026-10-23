@@ -524,8 +524,8 @@ public:
 
 
 
-    //  A whole 140 KB disk at 115,200 baud, at the //c's own speed. SC-027
-    //  sets 30 seconds; the line alone takes about 12.5.
+    //  A whole 140 KB disk at 115,200 baud within 30 seconds; the line alone
+    //  takes about 12.5.
     TEST_METHOD (ReadDisk_At115200_TakesUnder30Seconds)
     {
         Rig       rig (true, 115200);

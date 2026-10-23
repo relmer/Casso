@@ -1029,7 +1029,7 @@ void CassoExplorerLinkDialog::Revalidate()
 //
 //  CassoExplorerLinkDialog::ShowTransportRows
 //
-//  Only the chosen transport's rows are visible (FR-083c). A change of
+//  Only the chosen transport's rows are visible. A change of
 //  transport lists the port drop-down's choices for the new one, keeping
 //  the port chosen.
 //

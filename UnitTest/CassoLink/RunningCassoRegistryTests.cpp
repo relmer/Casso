@@ -17,8 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The files Casso writes for each serial port on TCP, and Casso Explorer's
 //  reading of them: a running Casso is listed, and a file whose process has
-//  exited, or whose process id is a newer process's, is deleted
-//  (FR-083b).
+//  exited, or whose process id is a newer process's, is deleted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

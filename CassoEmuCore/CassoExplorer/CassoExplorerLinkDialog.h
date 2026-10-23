@@ -14,7 +14,7 @@
 //
 //  What the connection dialog offers, the settings a set of choices becomes,
 //  and the rule for each field's value, apart from the dialog so they are
-//  testable without a window (FR-083c).
+//  testable without a window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

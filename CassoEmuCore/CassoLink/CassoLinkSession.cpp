@@ -844,7 +844,7 @@ Error:
 //  A serial line is opened at the bootstrap speed, where a typed-in shim
 //  starts, and then at the link's speed, where a shim from a boot disk or a
 //  program already loaded runs. A TCP line has no speed of its own; it is
-//  opened once, as the Apple end starts at the link's speed (FR-094). The
+//  opened once, as the Apple end starts at the link's speed. The
 //  program is then set to the link's speed, and a serial port opened again
 //  at it.
 //

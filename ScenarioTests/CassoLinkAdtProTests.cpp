@@ -464,7 +464,7 @@ public:
 
 
     //  An ADTPro-compatible server's session opens its line once and serves
-    //  ADTPro's client on it while the client boots and after (FR-088).
+    //  ADTPro's client on it while the client boots and after.
     TEST_METHOD (AnAdtProServersSession_KeepsTheLineOpen_AndServesAdtPro)
     {
         Rig                 rig (false);

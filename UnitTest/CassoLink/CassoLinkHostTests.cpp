@@ -536,7 +536,7 @@ public:
 
 
     //  ADTPro's CD moves within the folder served, and a CD or a file
-    //  request for a path outside it, by "..", a separator or a junction, fails (FR-088).
+    //  request for a path outside it, by "..", a separator or a junction, fails.
     TEST_METHOD (TheServedFolderConfinesCdAndFiles)
     {
         InMemoryFileSystem  fileSystem;

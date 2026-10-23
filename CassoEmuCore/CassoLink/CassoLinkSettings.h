@@ -42,7 +42,7 @@ struct CassoLinkSettings
     static const char *  GetTransportName  (LinkTransport transport);
     static bool          TryParseTransport (const std::string & name, LinkTransport & outTransport);
 
-    //  The connection's name, made from its settings (FR-083c): "Serial (any
+    //  The connection's name, made from its settings: "Serial (any
     //  port)" or the COM port, "TCP" and the address, "Wi-Fi modem on port
     //  6400", "Uthernet II at" and the address, "ADTPro server on" the COM
     //  port or "at" the address, and for a running Casso, "Casso on port" and

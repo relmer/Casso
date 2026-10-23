@@ -120,7 +120,7 @@ public:
 
     //  Which client the host serves. A request from the other is skipped as
     //  noise, so an ADTPro-compatible server connection serves only ADTPro's
-    //  client and every other connection only Casso's (FR-088).
+    //  client and every other connection only Casso's.
     enum class Clients
     {
         Both,

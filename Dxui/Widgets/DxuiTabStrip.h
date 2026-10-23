@@ -211,7 +211,7 @@ private:
     static constexpr int  s_kWheelStepDip     = 60;   // scroll per wheel notch
     static constexpr int  s_kArrowWidthDip    = 28;   // each scroll arrow
 
-    //  File Explorer's tab, measured at 120 dpi (research R13).
+    //  File Explorer's tab, measured at 120 dpi.
     static constexpr int  s_kIconInsetDip     = 8;    // icon from the tab's left edge
     static constexpr int  s_kIconDip          = 16;
     static constexpr int  s_kLabelInsetDip    = 34;   // label from the tab's left edge

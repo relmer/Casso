@@ -72,7 +72,7 @@ public:
 
 
     //  A write that times out with the handshake on and CTS off indicates
-    //  a cable that may not connect CTS (FR-083d).
+    //  a cable that may not connect CTS.
     TEST_METHOD (AStalledWrite_WithTheHandshakeOnAndCtsOff_IsTheCable)
     {
         Assert::AreEqual (ByteStreamSettings::kCtsOff,          ByteStreamSettings::ClassifyWriteStall (true,  false));

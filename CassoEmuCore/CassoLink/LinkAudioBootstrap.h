@@ -14,7 +14,7 @@
 //  LinkAudioBootstrap
 //
 //  Starts the link on a ][+ or //e with no copy of it, through the cassette
-//  input (FR-092, US15/AC2). At the BASIC prompt, the user types CALL -151
+//  input. At the BASIC prompt, the user types CALL -151
 //  for the monitor, then the monitor command this builds, such as
 //  3CA0.3FFFR 3CA0G, and Return; the monitor reads the slot finder and the
 //  shim from the tape input and runs them, the finder taking the Super

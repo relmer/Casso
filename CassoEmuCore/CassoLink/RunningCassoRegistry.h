@@ -13,7 +13,7 @@ class IProcessProbe;
 //
 //  RunningCasso
 //
-//  One running Casso's serial port on TCP, as its file has it (FR-083b). The
+//  One running Casso's serial port on TCP, as its file has it. The
 //  port is a //c's port number, or with `onCard`, a Super Serial Card's slot.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,7 +55,7 @@ public:
     static const char *  GetBindAddress (LinkTransport transport);
 
     //  A COM port's write that did not finish within its timeout: with the
-    //  handshake on and CTS off, the cable may not connect CTS (FR-083d), and
+    //  handshake on and CTS off, the cable may not connect CTS, and
     //  otherwise the line timed out.
     static constexpr HRESULT  kCtsOff = HRESULT_FROM_WIN32 (ERROR_DEVICE_NOT_CONNECTED);
     static HRESULT       ClassifyWriteStall (bool hardwareHandshake, bool ctsOn);

@@ -344,7 +344,7 @@ namespace SuperSerialCardMachineTestNs
 
         //  The card's connector on a TCP port is written to Casso Explorer's
         //  file as a card's slot, and connected elsewhere it is empty, not
-        //  looped back as a //c's port is (FR-095, FR-083b).
+        //  looped back as a //c's port is.
         TEST_METHOD (ACardOnTcp_IsRecordedAsItsSlot_AndEmptyOnceDisconnected)
         {
             struct Handle : IByteStream

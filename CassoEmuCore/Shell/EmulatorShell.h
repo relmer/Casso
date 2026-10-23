@@ -727,7 +727,7 @@ private:
     std::unique_ptr<class SerialTrafficLog>    m_serialLog;       // --serial-log; null without it
 
     //  The files through which Casso Explorer finds this Casso's serial ports
-    //  on TCP (FR-083b).
+    //  on TCP.
     std::unique_ptr<class IFileSystem>           m_linkFileSystem;
     std::unique_ptr<class IProcessProbe>         m_processProbe;
     std::unique_ptr<class RunningCassoRegistry>  m_runningRegistry;

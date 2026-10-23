@@ -13,7 +13,7 @@
 //  CassoLinkSearch
 //
 //  Finds the COM port an CassoLink is on, for a serial link with no port
-//  set (FR-083a). Each listed port is opened in turn at each of the given
+//  set. Each listed port is opened in turn at each of the given
 //  speeds, the bootstrap speed and then the link's; a port another program
 //  has open fails to open and is skipped. Idle is sent, and the port is the
 //  link's when Casso's shim or program replies Ready within the timeout.

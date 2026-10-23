@@ -22,7 +22,7 @@ class IFileSystem;
 //
 //  The folder set is the root: ADTPro's CD moves within it, and a request
 //  for a file or folder outside its subtree, by "..", a separator, or a
-//  junction or symbolic link, fails (FR-088). Paths are compared once every
+//  junction or symbolic link, fails. Paths are compared once every
 //  junction in them is followed.
 //
 //  The folder is set on the UI thread while the host reads it on the link's
