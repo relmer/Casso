@@ -493,7 +493,7 @@ CassoExplorerActions::DropKind CassoExplorerActions::DescribeDrop (const std::ve
 
         if (IsHostFolder (hostPath))
         {
-            label = L"the files it holds";
+            label = L"the files it contains";
         }
         else
         {
@@ -2118,7 +2118,7 @@ std::wstring CassoExplorerActions::CheckFitsNewDisk (VolumeKind kind, const std:
 
     if (needed > free)
     {
-        return std::format (L"The selection needs {} {} and a new disk has room for {}.",
+        return std::format (L"The selected files take up {} {}, and a new disk has room for {}.",
                             needed, (kind == VolumeKind::ProDos) ? L"blocks" : L"sectors", free);
     }
 
@@ -2597,7 +2597,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateImage (const std::wstr
     if (fileName.empty() || m_fs.Exists (path))
     {
         outcome.hr      = HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS);
-        outcome.message = fileName.empty() ? L"The new disk needs a file name." : fileName + L" already exists.";
+        outcome.message = fileName.empty() ? L"Enter a file name for the new disk." : fileName + L" already exists.";
         return outcome;
     }
 

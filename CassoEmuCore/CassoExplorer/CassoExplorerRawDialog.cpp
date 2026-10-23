@@ -126,7 +126,7 @@ std::wstring CassoExplorerRawChoices::ValidateCount (const std::wstring & text, 
         return std::wstring();
     }
 
-    return L"Enter a count from 1 to " + std::to_wstring (available) + L", which reaches the end of the disk.";
+    return L"Enter a count from 1 to " + std::to_wstring (available) + L", the number left before the end of the disk.";
 }
 
 
@@ -414,7 +414,7 @@ void CassoExplorerRawDialog::OnCreate()
 
     m_note.SetTextRole  (DxuiTextRole::Muted);
     m_note.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-    m_note.SetText      (m_sectors ? (m_reading ? L"Starts at track 17, sector 0, where a DOS 3.3 disk keeps its catalog."
+    m_note.SetText      (m_sectors ? (m_reading ? L"Starts at track 17, sector 0, where a DOS 3.3 disk's catalog begins."
                                                 : L"Writing past the end of a sector goes on into the next.")
                                    : (m_reading ? L"Starts at block 2, where a ProDOS disk's volume directory begins."
                                                 : L"Writing past the end of a block goes on into the next."));

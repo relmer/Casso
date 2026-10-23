@@ -1041,14 +1041,14 @@ const wchar_t * CassoExplorerBrowser::GetAdtProHelp()
 {
     return L"# What's an ADTPro-compatible server?\r\n"
            L"\r\n"
-           L"[ADTPro](https://adtpro.com) is a program for an Apple II that sends and receives whole disks, "
-           L"and files, over a serial cable or a network. This connection serves ADTPro's own Apple program "
-           L"as ADTPro's server does, from the folder listed under it.\r\n"
+           L"[ADTPro](https://adtpro.com) is a program for an Apple II that sends and receives whole disks as "
+           L"image files, over a serial cable or a network. This connection serves the standard ADTPro client "
+           L"on the Apple as ADTPro's server does, from the folder listed under it.\r\n"
            L"\r\n"
            L"## Using it\r\n"
            L"\r\n"
            L"1. Start ADTPro on the Apple, set to this connection's speed.\r\n"
-           L"2. Use ADTPro's menu on the Apple as with its own server:\r\n"
+           L"2. Use ADTPro's menu on the Apple as with ADTPro's server:\r\n"
            L"   - **Send** puts a disk from the Apple into the folder as an image.\r\n"
            L"   - **Receive** writes an image from the folder onto a disk in the Apple.\r\n"
            L"   - **Dir** lists the folder, and **CD** moves into a folder inside it.\r\n"
@@ -1060,8 +1060,9 @@ const wchar_t * CassoExplorerBrowser::GetAdtProHelp()
            L"- The connection is open while Casso Explorer runs, so the PC is there when the Apple starts ADTPro.\r\n"
            L"- A request for a file or folder outside the folder fails, so the Apple cannot read or write "
            L"anything else on this PC.\r\n"
-           L"- CassoLink's own program can do more: browse catalogs, copy single files, and read or write whole "
-           L"disks from Casso Explorer. Boot CassoLink.dsk on the Apple, over a CassoLink connection, for it.\r\n";}
+           L"- A CassoLink connection can do more: browse catalogs, copy single files, and read or write whole "
+           L"disks from Casso Explorer. Boot CassoLink.dsk on the Apple for it.\r\n";
+}
 
 
 
@@ -1867,7 +1868,7 @@ void CassoExplorerBrowser::UpdatePreview()
         if (entry->isDirectory)
         {
             m_preview.kind    = PreviewContent::Kind::Error;
-            m_preview.message = L"A folder. Open it to see what it holds.";
+            m_preview.message = L"A folder. Open it to see what it contains.";
             return;
         }
 
@@ -2794,7 +2795,7 @@ void CassoExplorerBrowser::PreviewSearchMatch (const CatalogRow & row)
     if (match.entry.isDirectory)
     {
         m_preview.kind    = PreviewContent::Kind::Error;
-        m_preview.message = L"A folder. Open it to see what it holds.";
+        m_preview.message = L"A folder. Open it to see what it contains.";
         return;
     }
 

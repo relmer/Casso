@@ -1641,7 +1641,7 @@ void WindowCommandManager::OpenCassoExplorer()
     }
     else if (outcome == LaunchCommand::Outcome::Failed)
     {
-        message = L"Casso Explorer could not be started\nWindows refused to start "
+        message = L"Casso Explorer could not be started\nWindows could not start "
                 + LaunchCommand::GetSiblingPath (moduleDir, LaunchCommand::kCassoExplorerExe) + L".";
         EhmNotifyUser (message.c_str());
     }
