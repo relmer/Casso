@@ -86,7 +86,8 @@ public:
     static bool  IsApplesoftVisible (const IDebugExpressionContext & context);
 
     //  The pages the enabled entries are tested on.
-    void  MarkPages (DebugHookFilter::Table & pages) const;
+    void  MarkPages            (DebugHookFilter::Table & pages) const;
+    void  ForgetDisabledValues ();
 
     //  A step to the next statement, the next line, or the statement after
     //  the newest GOSUB returns; false, with the reason, where Applesoft is

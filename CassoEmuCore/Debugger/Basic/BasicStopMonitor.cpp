@@ -49,6 +49,32 @@ bool BasicStopMonitor::IsApplesoftVisible (const IDebugExpressionContext & conte
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BasicStopMonitor::ForgetDisabledValues
+//
+//  A disabled variable breakpoint is not polled, so the value taken for it
+//  goes stale; it is dropped, and once enabled again the entry starts from
+//  the value at the next boundary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicStopMonitor::ForgetDisabledValues()
+{
+    std::erase_if (m_values, [this] (const auto & value)
+    {
+        Breakpoint  entry;
+
+
+
+        return !m_table.TryFind (value.first, entry) || !entry.enabled;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BasicStopMonitor::MarkPages
 //
 ////////////////////////////////////////////////////////////////////////////////

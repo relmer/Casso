@@ -183,6 +183,27 @@ namespace DebuggerTests
             Assert::IsTrue (basic.Go ("G").reason == StopReason::Budget, L"no other change");
         }
 
+        //  A variable breakpoint enabled again compares with the value from
+        //  then on, never with the one it had before it was disabled.
+        TEST_METHOD (AReenabledVariableBreakpointStartsFromTheValueNow)
+        {
+            BasicRig   basic ({ "10 A = 1", "20 A = 2", "30 A = 3", "40 B = 1", "50 B = 2", "60 END" });
+            StopEvent  stop;
+
+
+
+            basic.rig.RunOk ("BPBASICVAR A");
+            AssertBasicStop (basic.Run(), StopReason::Breakpoint, 20, L"after line 10");
+
+            basic.rig.RunOk ("BPD 0");
+            basic.rig.RunOk ("BPBASIC 40");
+            AssertBasicStop (basic.Go ("G"), StopReason::Breakpoint, 40, L"A changed twice while disabled");
+
+            basic.rig.RunOk ("BPE 0");
+            stop = basic.Go ("G");
+            Assert::IsTrue (stop.reason == StopReason::Budget, L"A does not change again");
+        }
+
         //  Array elements and strings, by their first two characters.
         TEST_METHOD (ElementsAndStringsAreWatched)
         {

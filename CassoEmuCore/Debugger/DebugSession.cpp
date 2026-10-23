@@ -3653,6 +3653,7 @@ void DebugSession::RefreshHookFilter()
         m_hookFilter.pages[*m_monitorReturn >> 8] = true;
     }
 
+    m_basicMonitor.ForgetDisabledValues();
     m_basicMonitor.MarkPages (m_hookFilter.pages);
 
     //  With only opcode breakpoints armed, the host asks about an instruction
