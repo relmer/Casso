@@ -225,6 +225,37 @@ namespace DebuggerTests
 
 
 
+        //  However fast a client writes, one pump runs kMaxLinesPerPump lines,
+        //  so the pump returns to the machine; the rest run on later pumps, in
+        //  order.
+        TEST_METHOD (APumpRunsABoundedNumberOfLines)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client = 0;
+            size_t                 i      = 0;
+
+
+
+            Assert::AreEqual (S_OK, server.Open());
+
+            client = transport.Connect();
+
+            for (i = 0; i < DebugChannelServer::kMaxLinesPerPump + 10; i++)
+            {
+                transport.Send (client, Command ("r", (int) i + 1));
+            }
+
+            server.Pump();
+            Assert::AreEqual (DebugChannelServer::kMaxLinesPerPump, runner.ran.size(), L"one pump's worth");
+
+            server.Pump();
+            Assert::AreEqual (DebugChannelServer::kMaxLinesPerPump + 10, runner.ran.size(), L"the rest on the next");
+        }
+
+
+
         //  A reply goes only to the client that asked, which is what makes the
         //  id worth echoing.
         TEST_METHOD (AReplyGoesOnlyToTheClientThatAsked)

@@ -354,10 +354,17 @@ void Win32PipeTransport::PollRead (Connection & connection)
 
     //  StartRead stops after a bounded number of reads that completed at once,
     //  so a flood cannot hold one pump. Such a connection has no read pending,
-    //  and the next one has to be started here or it would never be read again.
-    if (!connection.isReadPending)
+    //  and the next one has to be started here or it would never be read again,
+    //  but only once the lines already read are taken, so the queued lines
+    //  stay bounded however fast a client writes.
+    if (!connection.isReadPending && connection.lines.empty())
     {
         StartRead (connection);
+        return;
+    }
+
+    if (!connection.isReadPending)
+    {
         return;
     }
 

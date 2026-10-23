@@ -80,7 +80,9 @@ void DebugChannelServer::Pump()
     //  it sent next.
     FlushNotifications();
 
-    while (m_transport.TryReadLine (connection, line))
+    //  At most kMaxLinesPerPump lines, so the pump returns to the machine
+    //  however fast a client writes; the rest run on the next pump.
+    for (size_t handled = 0; handled < kMaxLinesPerPump && m_transport.TryReadLine (connection, line); handled++)
     {
         HandleLine (connection, line);
         FlushNotifications();
