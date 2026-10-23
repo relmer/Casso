@@ -104,7 +104,9 @@ Error:
 //  Moves the store into a new table and arena of the sizes given: the oldest
 //  groups are dropped until what is held fits them and the budget, then the
 //  keyframes kept are copied, oldest first, to the start of the new arena.
-//  Call it with nothing in flight.
+//  The newest group is never dropped, and its side bytes are not bounded by
+//  the least arena, so the table and arena grow to fit what is left when it
+//  is more than the sizes given. Call it with nothing in flight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +129,9 @@ HRESULT KeyframeStore::Relayout (
     {
         isDropped = TryDropOldestGroup();
     }
+
+    arenaBytes = (std::max) (arenaBytes, m_storedBytes);
+    slotCount  = (std::max) (slotCount, m_count);
 
     buffer = new (std::nothrow) Byte[arenaBytes];
     CPRA (buffer);

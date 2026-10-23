@@ -133,6 +133,49 @@ public:
     }
 
 
+    //  The newest group is never dropped, and its side bytes are not bounded
+    //  by the least arena, so a smaller budget moves it into an arena large
+    //  enough for it rather than past the end of one sized from the budget.
+    TEST_METHOD (ASmallerBudgetMakesRoomForTheNewestGroupsSideBytes)
+    {
+        constexpr size_t   kCount     = 200;
+        constexpr size_t   kSideBytes = 64 * 1024;
+        constexpr size_t   kSmall     = 1024 * 1024;
+        constexpr uint32_t kLong      = 1000;
+        constexpr uint32_t kLeast     = 4;
+
+        KeyframeStore      store;
+        KeyframeSettings   settings;
+        std::vector<Byte>  side (kSideBytes);
+        HRESULT            hr       = S_OK;
+        size_t             i        = 0;
+
+
+
+        settings.intervalCycles = s_kSideInterval;
+        settings.wholeEvery     = kLeast;
+        settings.longestGroup   = kLong;
+        store.Configure (settings);
+
+        for (i = 0; i < kCount; i++)
+        {
+            std::fill (side.begin(), side.end(), static_cast<Byte> (i));
+
+            hr = store.Add (i, (i + 1) * s_kSideInterval, 0, MakeState (i), side);
+            AssertSucceeded (hr, L"Add");
+        }
+
+        hr = store.ChangeBudget (kSmall);
+        AssertSucceeded (hr, L"ChangeBudget");
+
+        Assert::AreEqual (kCount, store.GetCount(), L"the one group is the newest, so it stays");
+        Assert::IsTrue   (store.GetArenaBytes() >= store.GetSideByteCount(), L"the arena holds what it was given");
+
+        std::fill (side.begin(), side.end(), static_cast<Byte> (kCount - 1));
+        Assert::IsTrue (ReadSide (store, kCount - 1) == side, L"the last side bytes moved whole");
+    }
+
+
     TEST_METHOD (TheDropListenerReadsEachKeyframeBeforeItGoes)
     {
         constexpr size_t                 kCount  = 40;
