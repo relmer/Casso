@@ -1550,7 +1550,9 @@ void MachineHost::GetStateParts (std::vector<IMachineState *> & outParts)
 //  A hash over every ROM image the machine reads: the ROM devices in device
 //  order, the //e internal $Cxxx ROM and the slot ROMs, then the //c
 //  firmware banks. A debugger ROM patch changes it: a patched ROM is a
-//  different ROM.
+//  different ROM. On the //c the internal $Cxxx ROM is a slice of whichever
+//  bank is switched in, so it is left out of the hash for the banks
+//  themselves, and a state saved in one bank loads in the other.
 //
 //  Every snapshot carries it, so the hash is kept and taken again only once
 //  RomGeneration says a ROM image changed since.
@@ -1592,7 +1594,7 @@ uint64_t MachineHost::GetRomIdentity() const
         hash = HashBytes (hash, router->GetSlotRom (index));
     }
 
-    if (router != nullptr)
+    if (router != nullptr && m_apple2cRomBank == nullptr)
     {
         hash = HashBytes (hash, router->GetInternalRom());
     }
