@@ -398,7 +398,7 @@ bool DisassemblyViewPane::AddMenuItems (DxuiListView * list, int row, PaneMenuIt
         m_host.AddShowInMemoryItems (std::format (L"${:04X}", at), std::format ("{:04X}", at), items);
     }
 
-    items.push_back ({ snapshot->code[(size_t) row].hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
+    items.push_back ({ line.hasBreakpoint ? L"Remove breakpoint" : L"Insert breakpoint",
                        [this, at] { m_host.RunAction (DebuggerActions::GetToggleBreakpoint (*m_host.GetLatestSnapshot(), at, m_host.GetMode())); } });
     items.push_back ({ L"Run to cursor",       [this, at] { m_host.RunAction (DebuggerActions::GetRunToCursor (at)); } });
 

@@ -8,6 +8,7 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -94,6 +95,7 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::GetCodeEdits;
+        using DebuggerWindow::GetCodeGroup;
 
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
         {
@@ -270,6 +272,40 @@ namespace DebuggerCodeMenuTests
             Run (items, L"Undo edit at $0300");
 
             Assert::AreEqual (std::string ("PATCH 0300 A9 41 20 ED FD"), host.commands.back(), L"the bytes that were there");
+        }
+
+
+
+        //  The breakpoint entry is labeled from the line right-clicked in that
+        //  view, not from the first view's line at the same row.
+        TEST_METHOD (TheBreakpointEntryIsLabeledFromTheViewsOwnLine)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler          scaler;
+            auto                   snapshot = MakeSnapshot();
+            Items                  items;
+            DisassemblyViewPane  * second   = nullptr;
+
+
+
+            snapshot->codeViews[1]                  = snapshot->codeViews[0];
+            snapshot->codeViews[1][2].hasBreakpoint = true;
+            snapshot->codeViews[0].resize (1);
+            snapshot->code                          = snapshot->codeViews[0];
+            snapshot->codeOpen[1]                   = true;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            second = &window.GetCodeGroup().GetView (1);
+            Assert::IsTrue (second->AddMenuItems (second->GetList(), 2, items));
+
+            Assert::IsTrue  (Has (items, L"Remove breakpoint"), L"the RTS in the second view has a breakpoint");
+            Assert::IsFalse (Has (items, L"Insert breakpoint"));
         }
 
 
