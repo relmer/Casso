@@ -542,6 +542,31 @@ void HeatMapPane::SendIgnore()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeatMapPane::RenameIgnoreSet
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HeatMapPane::RenameIgnoreSet (const std::string & from, const std::string & to)
+{
+    HeatMapOptions  options = m_view->GetOptions();
+
+
+
+    if (options.ignoreSet != from || from == to)
+    {
+        return;
+    }
+
+    options.ignoreSet = to;
+    SetOptions (options);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeatMapPane::GetBanks
 //
 //  The banks the machine has, as the last snapshot gave them; the CPU's

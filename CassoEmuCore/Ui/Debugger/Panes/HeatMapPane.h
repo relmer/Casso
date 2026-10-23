@@ -51,6 +51,10 @@ public:
     void                                 SetOptions   (const HeatMapOptions & options);
     void                                 SetBarMenus  ();
     void                                 SendIgnore   ();
+
+    //  A set renamed: the set left out of the reads before written follows
+    //  the new name when it was that set.
+    void                                 RenameIgnoreSet (const std::string & from, const std::string & to);
     void                                 RunBarEntry  (int id);
     bool                                 IsBarEnabled (int id) const;
     bool                                 IsBarChecked (int id) const;

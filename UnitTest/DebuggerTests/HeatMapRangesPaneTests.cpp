@@ -325,6 +325,34 @@ namespace HeatMapRangesPaneTests
 
 
 
+        //  The heat map's ignoreSet option, the set whose uninitialized reads are
+        //  ignored is changed to the set's new name, so they are ignored after
+        //  the rename too.
+        TEST_METHOD (RenamingASetKeepsItLeftOut)
+        {
+            CassoTheme      theme   = CassoTheme::MakeSkeuomorphic();
+            RangesHost      host;
+            RangesWindow    window  (theme, host);
+            HeatMapOptions  options;
+
+
+
+            BuildWithSet (window, L"Game");
+
+            options           = window.GetHeatMapPane().GetView()->GetOptions();
+            options.ignoreSet = "Game";
+            window.GetHeatMapPane().SetOptions (options);
+
+            window.GetHeatRangesPane().RunBarEntry (HeatMapRangeBarCommands::kRenameSet);
+            window.GetHeatRangesPane().GetEditor()->SetText (L"ZP");
+            window.GetHeatRangesPane().EndEdit (true);
+
+            Assert::AreEqual (std::string ("ZP"), window.GetHeatRangesPane().GetEditedSetName());
+            Assert::AreEqual (std::string ("ZP"), window.GetHeatMapPane().GetView()->GetOptions().ignoreSet);
+        }
+
+
+
         TEST_METHOD (ARangeIsAddedEditedInPlaceAndShownAsItReads)
         {
             CassoTheme     theme = CassoTheme::MakeSkeuomorphic();

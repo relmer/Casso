@@ -853,8 +853,9 @@ void HeatRangesPane::BeginSetNameEdit (bool isNew)
 
 void HeatRangesPane::EndEdit (bool commit)
 {
-    std::string        typed = TextEncoding::WideToUtf8 (m_editor->GetText());
-    HeatMapRangeSet  * set   = GetEditedSet();
+    std::string        typed   = TextEncoding::WideToUtf8 (m_editor->GetText());
+    HeatMapRangeSet  * set     = GetEditedSet();
+    std::string        renamed = m_editedSet;
     std::string        error;
 
 
@@ -875,6 +876,7 @@ void HeatRangesPane::EndEdit (bool commit)
     if (commit)
     {
         m_editedSet = (set != nullptr) ? set->name : m_editedSet;
+        m_heatMap.RenameIgnoreSet (renamed, m_editedSet);
     }
 
     m_edit = Edit {};
