@@ -240,6 +240,7 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
+    uint64_t                     cycles = 0;     // the CPU's cycles since power-on
     //  Where the branch, jump or call that brought the machine to the PC is,
     //  by a step or a run that stopped there; none where the machine came to
     //  the PC otherwise, or while running.

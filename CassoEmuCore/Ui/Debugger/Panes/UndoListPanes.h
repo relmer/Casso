@@ -127,6 +127,7 @@ protected:
     int              m_editRow  = -1;
     bool             m_isPaused = false;
     Word             m_pc       = 0;
+    uint64_t         m_cycles   = 0;
 };
 
 

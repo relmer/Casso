@@ -143,6 +143,7 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());
 
     snapshot.pc        = r.pc;
+    snapshot.cycles    = session.GetTarget().GetCycleCount();
     snapshot.registers = { { "A",  std::format ("{:02X}", r.a) },
                            { "X",  std::format ("{:02X}", r.x) },
                            { "Y",  std::format ("{:02X}", r.y) },

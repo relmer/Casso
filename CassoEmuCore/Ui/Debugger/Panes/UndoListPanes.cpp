@@ -302,6 +302,7 @@ void ValueEditPane::Apply (const DebuggerViewSnapshot & snapshot)
 {
     m_isPaused = snapshot.isPaused;
     m_pc       = snapshot.pc;
+    m_cycles   = snapshot.cycles;
 }
 
 
@@ -678,7 +679,7 @@ void RegistersPane::Apply (const DebuggerViewSnapshot & snapshot)
 
     m_list->SetRows (std::move (rows));
 
-    m_history.OnSnapshot (snapshot.isPaused, snapshot.pc);
+    m_history.OnSnapshot (snapshot.isPaused, snapshot.pc, snapshot.cycles);
 
     //  The band follows the snapshot's place in history, and the pane is
     //  laid out again when the band appears or goes.
@@ -813,7 +814,7 @@ void RegistersPane::CommitRegister (const std::string & name, Byte typed)
         return;
     }
 
-    m_history.Record (name, *value, typed, m_pc);
+    m_history.Record (name, *value, typed, m_pc, m_cycles);
     m_host.RunAction (DebuggerActions::GetSetRegister (name, typed, m_host.GetMode()));
 }
 
@@ -1243,7 +1244,7 @@ void StackPane::Apply (const DebuggerViewSnapshot & snapshot)
     }
 
     m_list->SetRows (std::move (rows));
-    m_history.OnSnapshot (snapshot.isPaused, snapshot.pc);
+    m_history.OnSnapshot (snapshot.isPaused, snapshot.pc, snapshot.cycles);
 }
 
 
@@ -1288,7 +1289,7 @@ void StackPane::CommitEdit (int row, Byte typed)
     at    = m_stack[m_stack.size() - 1 - (size_t) row].address;
     value = m_stack[m_stack.size() - 1 - (size_t) row].value;
 
-    m_history.Record (at, value, typed, m_pc);
+    m_history.Record (at, value, typed, m_pc, m_cycles);
     m_host.RunAction (DebuggerActions::GetEnterByte (at, typed, m_host.GetMode()));
 }
 

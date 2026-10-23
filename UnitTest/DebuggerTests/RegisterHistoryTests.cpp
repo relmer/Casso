@@ -27,6 +27,30 @@ namespace RegisterHistoryTests
     {
     public:
 
+        //  A run that stops again at the same PC within one frame is never
+        //  seen running, but its cycles differ from those of the stop the
+        //  edit was made at, and the history goes.
+        TEST_METHOD (AStopAgainAtTheSamePcClearsTheHistory)
+        {
+            RegisterHistory  registers;
+            StackHistory     stack;
+
+
+
+            registers.Record ("X", 0x05, 0x07, 0x0300, 1000);
+            stack.Record     (0x01FD, 0x12, 0x34, 0x0300, 1000);
+
+            registers.OnSnapshot (true, 0x0300, 1000);
+            stack.OnSnapshot     (true, 0x0300, 1000);
+            Assert::IsTrue (registers.CanUndo() && stack.CanUndo(), L"the same stop");
+
+            registers.OnSnapshot (true, 0x0300, 1006);
+            stack.OnSnapshot     (true, 0x0300, 1006);
+            Assert::IsFalse (registers.CanUndo(), L"another stop at the same PC");
+            Assert::IsFalse (stack.CanUndo());
+        }
+
+
         TEST_METHOD (UndoAndRedoWriteTheValuesBack)
         {
             RegisterHistory                history;

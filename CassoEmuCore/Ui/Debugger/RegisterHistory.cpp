@@ -14,19 +14,20 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterHistory::Record (const std::string & name, Byte before, Byte after, Word pc)
+void RegisterHistory::Record (const std::string & name, Byte before, Byte after, Word pc, uint64_t cycles)
 {
     if (before == after)
     {
         return;
     }
 
-    if (!m_undo.empty() && pc != m_pc)
+    if (!m_undo.empty() && (pc != m_pc || !IsSameStop (cycles)))
     {
         m_undo.clear();
     }
 
-    m_pc = pc;
+    m_pc     = pc;
+    m_cycles = cycles;
     m_undo.push_back ({ name, before, after });
     m_redo.clear();
 }
@@ -41,11 +42,18 @@ void RegisterHistory::Record (const std::string & name, Byte before, Byte after,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterHistory::OnSnapshot (bool isPaused, Word pc)
+void RegisterHistory::OnSnapshot (bool isPaused, Word pc, uint64_t cycles)
 {
-    if (!isPaused || pc != m_pc)
+    //  A run that stops again at the same PC within one frame is seen only
+    //  as a paused snapshot at that PC, but its cycles differ from those of
+    //  the stop the steps were made at.
+    if (!isPaused || pc != m_pc || !IsSameStop (cycles))
     {
         Clear();
+    }
+    else if (m_cycles == kAnyCycles)
+    {
+        m_cycles = cycles;
     }
 }
 
