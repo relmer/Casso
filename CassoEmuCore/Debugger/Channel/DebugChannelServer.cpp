@@ -117,6 +117,7 @@ void DebugChannelServer::Close()
 
         m_isOpen = false;
         m_pending.clear();
+        m_causeId.reset();
     }
 
     m_transport.Close();

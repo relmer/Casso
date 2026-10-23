@@ -422,6 +422,43 @@ namespace DebuggerTests
 
 
 
+        //  A run a client started before the channel closed ends with no
+        //  cause once the channel is open again: the request id is from a
+        //  client that is gone, and a new client numbering its requests the
+        //  same way could mistake the stop for one it caused.
+        TEST_METHOD (ACauseDoesNotOutliveAClose)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client  = 0;
+            StopEvent              stop;
+            int                    ignored = 0;
+
+
+
+            server.Open();
+            client = transport.Connect();
+
+            runner.startsRun = true;
+            transport.Send (client, Command ("g", 5));
+            server.Pump();
+
+            server.Close();
+            server.Open();
+            client = transport.Connect();
+            server.Pump();
+
+            stop.reason = StopReason::Breakpoint;
+            server.OnStopped (stop);
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 1, transport.Written (client).size());
+            Assert::IsFalse  (Parsed (transport.Written (client)[0]).HasInt ("causeId", ignored), L"no cause from before the close");
+        }
+
+
+
         //  A run a command started that is still going when the command returns
         //  -- the emulator's case -- is named by the stop that ends it later.
         TEST_METHOD (ARunStillGoingNamesItsCommandWhenItStops)
