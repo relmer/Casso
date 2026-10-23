@@ -1207,9 +1207,9 @@ void EmulatorShell::OnDestroy()
 
     m_cpuManager.Stop();
 
-    // The machine is quiet once the CPU thread has stopped, and the window is
-    // up for a notice if the write fails.
-    SaveAutoState();
+    // The machine is quiet once the CPU thread has stopped. The window is
+    // being destroyed, so a failed write is reported in a system box.
+    SaveAutoState (true);
 
     // IDxuiHostClient::OnDestroy is notification-only — the host
     // does NOT call PostQuitMessage. EmulatorShell is the

@@ -339,11 +339,13 @@ std::filesystem::path EmulatorShell::GetAutoStatePath() const
 //  command-line launch started with its own media, an earlier automatic
 //  state is replaced only if the user chose to in the prompt. The file is
 //  written whole and renamed over the old one, so after a failure the
-//  earlier state is intact.
+//  earlier state is intact. At exit the window is being destroyed and a
+//  notice posted to it never appears, so a failure is reported in a system
+//  box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SaveAutoState()
+void EmulatorShell::SaveAutoState (bool isExiting)
 {
     HRESULT                hr         = S_OK;
     std::filesystem::path  path       = GetAutoStatePath();
@@ -378,7 +380,11 @@ void EmulatorShell::SaveAutoState()
     CHRF (hr, error = MachineStateFile::MakeError ("file not written", "The automatic state file could not be written in full."));
 
 Error:
-    if (FAILED (hr))
+    if (FAILED (hr) && isExiting)
+    {
+        MessageBoxW (nullptr, FormatStateError (L"saved", error).c_str(), L"Casso", MB_OK | MB_ICONWARNING | MB_TASKMODAL);
+    }
+    else if (FAILED (hr))
     {
         m_chrome->PostNotice (FormatStateError (L"saved", error));
     }

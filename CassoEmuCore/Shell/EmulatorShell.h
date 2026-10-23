@@ -308,7 +308,7 @@ private:
     // PromptToReplaceAutoState runs on the UI thread before an exit or a
     // switch away from a machine a command-line launch started.
     std::filesystem::path  GetAutoStatePath         () const;
-    void                   SaveAutoState            ();
+    void                   SaveAutoState            (bool isExiting = false);
     void                   ResumeAutoState          (bool isStartup);
     void                   PromptToReplaceAutoState ();
 
