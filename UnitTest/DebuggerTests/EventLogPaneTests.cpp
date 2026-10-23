@@ -541,6 +541,44 @@ namespace EventLogPaneTests
         }
 
 
+        //  Newer rows come into a sorted view in their places, with no full
+        //  build, and the selected row stays selected.
+        TEST_METHOD (NewerRowsGoInTheirPlacesInASortedView)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogDelta   delta;
+            size_t         builds = 0;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeDiskRow (100, Disk2EventType::MotorEngaged), MakeDiskRow (110, Disk2EventType::DriveSelect) };
+
+            pane.Apply   (delta);
+            pane.SortBy  (DiskLogPane::kEvent);
+            pane.Refresh();
+
+            list.SetSelectedRows ({ 1 }, 1);
+            builds = pane.GetBuildCount();
+
+            delta           = DiskLogDelta();
+            delta.isAtStart = true;
+            delta.newer     = { MakeDiskRow (120, Disk2EventType::MotorCommandOn), MakeDiskRow (130, Disk2EventType::DriveSelect) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (builds, pane.GetBuildCount(), L"no full build");
+            Assert::IsTrue   (GetColumn (pane, DiskLogPane::kEvent) == std::vector<std::wstring> { L"Drive select", L"Drive select", L"Motor command on", L"Motor engaged" },
+                              L"in their places");
+            Assert::AreEqual (std::wstring (EventLogText::FormatCycle (1000)), GetColumn (pane, DiskLogPane::kCycle)[(size_t) list.GetSelectedRows().at (0)], L"the same row selected");
+        }
+
+
         TEST_METHOD (CopyGivesTheShownColumnsOfEachRow)
         {
             DxuiListView   list;

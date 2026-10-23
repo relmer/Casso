@@ -32,7 +32,8 @@
 //  request for older rows is outstanding either, since the machine's thread
 //  sends the rows before where the rows started then. A delta that only adds
 //  newer rows extends the view with them, so a frame's work is the size of
-//  the delta, not of the log.
+//  the delta, not of the log; in a sorted view each newer row is put in its
+//  place by the sort column's text, which is made once for each row.
 //
 //  A pane for one kind of event defines its columns, its filter and its
 //  event cells, and may look over every row before the filter runs. Its
@@ -223,6 +224,7 @@ public:
         int               anchor      = -1;
         int               keyboardRow = -1;
         size_t            i           = 0;
+        bool              isExtended  = false;
 
 
 
@@ -242,10 +244,23 @@ public:
             return;
         }
 
-        m_isFullBuildDue = false;
-
         TakeSelection();
-        BuildView();
+
+        //  Only newer rows came to a sorted view: each goes in its place, and
+        //  the row at the top stays at the top.
+        isExtended = !m_isFullBuildDue && m_sortColumn >= 0 && m_shownBefore == UINT64_MAX && ExtendSortedView();
+
+        if (isExtended && !m_keepTop.has_value())
+        {
+            m_keepTop = m_viewTop;
+        }
+
+        if (!isExtended)
+        {
+            BuildView();
+        }
+
+        m_isFullBuildDue = false;
         m_list->SetVirtualRowCount ((int) m_view.size());
 
         for (i = 0; i < m_view.size(); i++)
@@ -271,7 +286,7 @@ public:
         {
             for (i = 0; i < m_view.size(); i++)
             {
-                if (m_view[i] != kTopRow && (size_t) m_view[i] >= *m_keepTop)
+                if (m_view[i] != kTopRow && (m_sortColumn < 0 ? (size_t) m_view[i] >= *m_keepTop : (size_t) m_view[i] == *m_keepTop))
                 {
                     m_list->SetTopRow ((int) i);
                     break;
@@ -441,23 +456,29 @@ public:
     //  pane's rows, kTopRow for the row above the oldest.
     const std::vector<int>         &  GetView () const { return m_view; }
     const EventLogRows<T>          &  GetRows () const { return m_rows; }
+    size_t                            GetBuildCount () const { return m_buildCount; }
 
     void  ProvideRow (int viewRow, Cells & out) const
     {
+        if (viewRow < 0 || (size_t) viewRow >= m_view.size())
+        {
+            out.assign (GetSpecs().size(), DxuiListView::Cell());
+            return;
+        }
+
+        MakeRowCells (m_view[(size_t) viewRow], out);
+    }
+
+    //  The cells of the row at `index` in the pane's rows, or of the row
+    //  above the oldest for kTopRow.
+    void  MakeRowCells (int index, Cells & out) const
+    {
         const ColumnSpecs  & specs = GetSpecs();
         const Row          * row   = nullptr;
-        int                  index = 0;
 
 
 
         out.assign (specs.size(), DxuiListView::Cell());
-
-        if (viewRow < 0 || (size_t) viewRow >= m_view.size())
-        {
-            return;
-        }
-
-        index = m_view[(size_t) viewRow];
 
         if (index == kTopRow)
         {
@@ -545,6 +566,7 @@ private:
 
 
         m_view.clear();
+        m_buildCount++;
 
         if (m_sortColumn < 0)
         {
@@ -606,6 +628,43 @@ private:
         return m_view.size() >= kept + removed.size() && std::equal (removed.begin(), removed.end(), m_view.begin() + (ptrdiff_t) kept);
     }
 
+    //  The sorted view with the rows added since it was built each put in its
+    //  place, after the rows that sort the same, which are older. False when
+    //  the new rows can change the filtering of a row already in the view,
+    //  and a full build follows.
+    bool  ExtendSortedView()
+    {
+        const std::vector<Row>  & rows    = m_rows.GetRows();
+        size_t                    from    = GetSettledCount (rows, std::min (m_viewRowCount, rows.size()));
+        size_t                    i       = 0;
+        bool                      isMoved = std::ranges::any_of (m_view, [from] (int index) { return index != kTopRow && (size_t) index >= from; });
+
+
+
+        if (isMoved)
+        {
+            return false;
+        }
+
+        PrepareView (rows, from);
+        m_sortKeys.resize (rows.size());
+
+        for (i = from; i < rows.size(); i++)
+        {
+            if (rows[i].kind == DebugLogRowKind::Event && !Matches (rows[i], i))
+            {
+                continue;
+            }
+
+            m_sortKeys[i] = GetSortKey ((int) i);
+            m_view.insert (std::ranges::upper_bound (m_view, (int) i, [this] (int a, int b) { return IsSortedBefore (a, b); }), (int) i);
+        }
+
+        m_viewRowCount = rows.size();
+
+        return true;
+    }
+
     //  Past kMaxRows with the list at its newest row, or past kHardMaxRows
     //  wherever it is, the oldest rows dropped down to kRetainedRows, and a
     //  request to the machine's thread with where the rows start now. None
@@ -635,62 +694,55 @@ private:
     //  rows that tie stay in position order.
     void  SortView()
     {
-        const std::vector<Row>     & rows    = m_rows.GetRows();
-        size_t                       column  = (size_t) m_sortColumn;
-        bool                         isTime  = column == kTimeColumn;
-        bool                         isCycle = column == kCycleColumn;
-        std::vector<std::wstring>    keys;
-        std::vector<size_t>          order;
-        Cells                        cells;
-        std::vector<int>             sorted;
-        size_t                       i       = 0;
+        m_sortKeys.assign (m_rows.GetRows().size(), std::wstring());
 
-
-
-        if (!isCycle && !isTime)
+        for (int index : m_view)
         {
-            keys.resize (m_view.size());
-
-            for (i = 0; i < m_view.size(); i++)
-            {
-                ProvideRow ((int) i, cells);
-                keys[i] = (column < cells.size()) ? cells[column].text : std::wstring();
-            }
+            m_sortKeys[(size_t) index] = GetSortKey (index);
         }
 
-        for (i = 0; i < m_view.size(); i++)
+        std::ranges::stable_sort (m_view, [this] (int a, int b) { return IsSortedBefore (a, b); });
+    }
+
+    //  The text a row sorts by: its cell in the sort column, none for the
+    //  time and cycle columns, which sort by number.
+    std::wstring  GetSortKey (int index) const
+    {
+        size_t  column = (size_t) m_sortColumn;
+        Cells   cells;
+
+
+
+        if (column == kTimeColumn || column == kCycleColumn)
         {
-            order.push_back (i);
+            return {};
         }
 
-        std::ranges::stable_sort (order, [&] (size_t a, size_t b)
+        MakeRowCells (index, cells);
+
+        return (column < cells.size()) ? cells[column].text : std::wstring();
+    }
+
+    //  Whether the row at index a sorts before the row at index b.
+    bool  IsSortedBefore (int a, int b) const
+    {
+        const Row  & left   = m_rows.GetRows()[(size_t) a];
+        const Row  & right  = m_rows.GetRows()[(size_t) b];
+        size_t       column = (size_t) m_sortColumn;
+
+
+
+        if (column == kCycleColumn)
         {
-            const Row  & left  = rows[(size_t) m_view[a]];
-            const Row  & right = rows[(size_t) m_view[b]];
-            bool         less  = false;
-
-            if (isCycle)
-            {
-                less = m_isSortDescending ? right.cycle < left.cycle : left.cycle < right.cycle;
-            }
-            else if (isTime)
-            {
-                less = m_isSortDescending ? right.wallTime < left.wallTime : left.wallTime < right.wallTime;
-            }
-            else
-            {
-                less = m_isSortDescending ? keys[b] < keys[a] : keys[a] < keys[b];
-            }
-
-            return less;
-        });
-
-        for (size_t each : order)
-        {
-            sorted.push_back (m_view[each]);
+            return m_isSortDescending ? right.cycle < left.cycle : left.cycle < right.cycle;
         }
 
-        m_view = std::move (sorted);
+        if (column == kTimeColumn)
+        {
+            return m_isSortDescending ? right.wallTime < left.wallTime : left.wallTime < right.wallTime;
+        }
+
+        return m_isSortDescending ? m_sortKeys[(size_t) b] < m_sortKeys[(size_t) a] : m_sortKeys[(size_t) a] < m_sortKeys[(size_t) b];
     }
 
     //  The rows behind the list's selection, its anchor and its keyboard
@@ -751,17 +803,19 @@ private:
         return std::nullopt;
     }
 
-    DxuiListView           * m_list;
-    RequestFn                m_request;
-    EventLogRows<T>          m_rows;
-    std::vector<int>         m_view;
-    mutable ColumnSpecs      m_specs;
-    std::vector<size_t>      m_selected;
-    std::optional<size_t>    m_anchor;
-    std::optional<size_t>    m_keyboardRow;
-    std::optional<size_t>    m_keepTop;
-    std::optional<size_t>    m_viewTop;                     // the top row's index, moved on by each delta since the view was built
-    bool                     m_isTopKept        = false;   // a delta since the view was built put rows in front or dropped rows above
+    DxuiListView               * m_list;
+    RequestFn                    m_request;
+    EventLogRows<T>              m_rows;
+    std::vector<int>             m_view;
+    std::vector<std::wstring>    m_sortKeys;   // the sort column's text of each row in a sorted view, by row index
+    size_t                       m_buildCount  = 0;   // full builds of the view, for a test
+    mutable ColumnSpecs          m_specs;
+    std::vector<size_t>          m_selected;
+    std::optional<size_t>        m_anchor;
+    std::optional<size_t>        m_keyboardRow;
+    std::optional<size_t>        m_keepTop;
+    std::optional<size_t>        m_viewTop;   // the top row's index, moved on by each delta since the view was built
+    bool                         m_isTopKept   = false;   // a delta since the view was built put rows in front or dropped rows above
     bool                     m_isEarlierPending = false;   // "earlier" was sent and no delta has come from it yet
     uint64_t                 m_shownBefore      = UINT64_MAX;
     size_t                   m_viewRowCount     = 0;        // the rows the view was built over
