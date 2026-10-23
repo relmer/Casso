@@ -75,6 +75,24 @@ public:
     }
 
 
+    HRESULT AppendAllText        (const std::wstring & path,
+                                  const std::string  & content) override
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        std::wstring                 key  = Normalize (path);
+        auto                         it   = m_files.find (key);
+
+        if (it != m_files.end() && it->second.readOnly)
+        {
+            return E_ACCESSDENIED;
+        }
+
+        m_files[key].content  += content;
+        m_files[key].original  = NormalizeSeparators (path);
+        return S_OK;
+    }
+
+
     bool    Exists               (const std::wstring & path) override
     {
         std::lock_guard<std::mutex>  lock (m_mutex);

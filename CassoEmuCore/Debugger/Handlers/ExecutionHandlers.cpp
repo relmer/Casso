@@ -1364,8 +1364,11 @@ void ExecutionHandlers::RecordTrace (DebugSession & session, Word pc)
 //
 //  ExecutionHandlers::FlushTrace
 //
-//  A failed write is remembered, so turning the trace off reports it even
-//  when the write that failed was made at a stop, where no reply is sent.
+//  The first flush of a trace writes the file, and each after it adds the
+//  lines since the last; the lines written are dropped either way, so the
+//  trace takes no more memory than one run's lines. A failed write sets
+//  m_trace.hasFailed, so turning the trace off reports it even when the write
+//  that failed was made at a stop, where no reply is sent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1377,12 +1380,16 @@ HRESULT ExecutionHandlers::FlushTrace (DebugSession & session)
 
     if (m_trace.isOn && !m_trace.lines.empty() && session.GetFileSystem() != nullptr)
     {
-        hr = session.GetFileSystem()->WriteAllText (m_trace.path, m_trace.lines);
+        hr = m_trace.isStarted ? session.GetFileSystem()->AppendAllText (m_trace.path, m_trace.lines)
+                               : session.GetFileSystem()->WriteAllText  (m_trace.path, m_trace.lines);
 
         if (FAILED (hr))
         {
             m_trace.hasFailed = true;
         }
+
+        m_trace.isStarted = m_trace.isStarted || SUCCEEDED (hr);
+        m_trace.lines.clear();
     }
 
     return hr;

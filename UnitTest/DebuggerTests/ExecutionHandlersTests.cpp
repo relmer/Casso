@@ -853,6 +853,32 @@ namespace DebuggerTests
 
 
 
+        //  Each stop adds the lines since the last one to the file and drops
+        //  them from memory, so the trace neither grows without bound nor
+        //  writes the whole file again at every stop.
+        TEST_METHOD (TF_AppendsEachStopsLinesAndDropsThem)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("G");
+            Assert::AreEqual ((size_t) 0, rig.handlers.GetPendingTraceBytes(), L"the stop's lines are written and dropped");
+
+            rig.RunOk ("= 300");
+            rig.RunOk ("G");
+            Assert::AreEqual ((size_t) 0, rig.handlers.GetPendingTraceBytes());
+            Assert::AreEqual ((size_t) 4, SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt")).size(), L"both runs' lines, in order");
+        }
+
+
+
         //  Profiling is fed every instruction of a free run, but trace lines
         //  are written only for a run the debugger starts.
         TEST_METHOD (TF_WithProfilingOn_RecordsNoFreeRun)

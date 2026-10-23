@@ -54,6 +54,9 @@ public:
     //  Whether PROFILE ON is in force.
     bool  IsProfiling () const override { return m_profile.IsOn(); }
 
+    //  The trace lines not yet written to the file; for a test.
+    size_t  GetPendingTraceBytes () const { return m_trace.lines.size(); }
+
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;
     void  OnInterrupt      (DebugSession & session) override;
@@ -75,6 +78,7 @@ private:
         bool          isOn      = false;
         bool          withVideo = false;
         bool          hasFailed = false;
+        bool          isStarted = false;     // the file was written this trace, so a flush appends
         std::wstring  path;
         std::string   name;
         std::string   lines;
