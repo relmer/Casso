@@ -321,11 +321,56 @@ hardware.
   serial port.
 - Q: Where can the emulated ImageWriter II be attached? → A: To a parallel
   card, a Super Serial Card, or a //c serial port, one connector at a time,
-  chosen on Settings > Printing in Connected to, which the //c's port and
-  the Serial card page's connector also offer. A parallel card with no
-  ports listed has the printer. On a serial connector the
+  chosen on Settings > Printing in Connected to, and only there. A parallel
+  card with no ports listed has the printer. On a serial connector the
   printer's handshake drops CTS, DSR and DCD together near a full buffer. A
-  change of connector reboots the machine.
+  change of connector applies to the running machine.
+- Q: How does a user serve ADTPro's own Apple client? → A: Through a
+  CassoLink connection of the type ADTPro-compatible server, added in the
+  same Add connection dialog as any other, on a COM port or a TCP port, with
+  the folder it shares. There is none until the user adds one. The Options
+  dialog's CassoLink page, its option to serve ADTPro's client, and the
+  answering of ADTPro's requests on other CassoLink connections are
+  removed. The server's help is a virtual item under its root, written to a
+  temporary file only when it is opened or dragged out, never to the user's
+  Documents folder. A request for a path outside the shared folder's subtree fails.
+- Q: Which settings does the Add connection dialog have? → A: The
+  transport first, then only the settings it uses. There is no name field:
+  the name is made from the settings, such as "Serial (any port)", "COM3",
+  "TCP 192.168.1.5:6502", "Wi-Fi modem on port 6400" or "ADTPro server on
+  COM3", and a connection identical to an existing one cannot be added. The COM
+  port is a drop-down of Any and the ports found. No transport has an
+  Apple-side port or slot setting, since the Apple side detects it. The
+  bootstrap speed is above the transfer speed, and both it and hardware
+  handshake have info tips. No error is displayed for an empty TCP address.
+  The Wi-Fi modem transport has a description in the dialog and listens on TCP
+  port 6400, which has no field. The Emulated transport is removed: running
+  Cassos are listed by themselves, and a Casso on another PC is a TCP
+  connection. Saved Emulated connections are dropped.
+- Q: What happens when hardware handshake is on and the cable does not
+  connect CTS? → A: Many null-modem cables do not connect RTS and CTS, or loop
+  each end's back on itself, and a //c's 6551 has CTS tied to ground. A
+  connection with handshake on whose CTS never rises within a timeout
+  reports that the cable may not connect CTS and suggests turning handshake
+  off.
+- Q: What does a change to a serial connector on the Settings sheet do? →
+  A: It applies to the running machine with no reset. The ImageWriter II is
+  not offered in a serial connector's drop-down. On a Super Serial Card it
+  sets the card to printer mode and saves the previous mode in the machine's
+  configuration. Moving the printer away restores that mode only if the
+  card is in printer mode then, and switching the card out of printer mode
+  disconnects the printer. Each such change to another tab's setting is
+  reported in a message box.
+- Q: How does the Uthernet II boot disk pick its address and find the
+  card? → A: Its built-in MAC address is salted with the monitor's RNDL and
+  RNDH ($4E and $4F) and a hash of $4000-$BFFF. The card is detected by
+  reading its mode register first, and its address pointer is written only
+  when that read is plausible.
+- Q: How are the Settings sheet's tabs scrolled and its info tips closed? → A: When
+  the tabs do not fit, the strip scrolls with an arrow at each end, as
+  Casso Explorer's does. An info tip is up until a click elsewhere, a
+  change of focus, Escape, or a second click on its icon, and Escape
+  closes an open info tip before it cancels a dialog.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1538,10 +1583,23 @@ to Casso over TCP.
   Casso Explorer reads them. A machine connected through a //c's port 1 or a
   Super Serial Card's slot MUST be listed and usable, its shim given that
   port or slot.
-- **FR-083c**: The link dialog MUST contain only the settings that apply to the
-  chosen transport. An emulated machine's address MUST default to
-  127.0.0.1:6502. A Wi-Fi modem link's root MUST list the address the modem
-  dials: the PC's name with .local, and the port.
+- **FR-083c**: The Add connection dialog MUST begin with the transport, and
+  then contain only the settings that apply to it. It MUST NOT have a name
+  field: the connection's name MUST be made from its settings, and a
+  connection identical to an existing one MUST NOT be added. The COM port MUST
+  be a drop-down of Any and the ports found. No transport MUST have an
+  Apple-side port or slot setting. The bootstrap speed MUST come above the
+  transfer speed, and it and hardware handshake MUST each have an info tip,
+  the handshake's recommending a first attempt without it. No error MUST be
+  displayed for an empty TCP address. The Wi-Fi modem transport MUST have a
+  description in the dialog and MUST listen on TCP port 6400, with no port
+  field; a port already in use MUST be reported on its root. A Wi-Fi modem
+  link's root MUST list the address the boot disk dials: the PC's name with
+  .local, and the port. There MUST be no Emulated transport, and saved
+  Emulated connections MUST be dropped.
+- **FR-083d**: A serial connection with hardware handshake on whose CTS does
+  not rise within a timeout MUST report that the cable may not connect CTS
+  and suggest turning handshake off.
 - **FR-084**: An Apple drive MUST be browsable as an image is: DOS 3.3 and
   ProDOS catalogs, ProDOS directories, previews and Properties.
 - **FR-085**: Files MUST copy from an Apple drive to the host, and from the
@@ -1565,11 +1623,14 @@ to Casso over TCP.
   host file or a half-written image on the PC.
 - **FR-088**: Casso MUST serve ADTPro's published protocol, so that an
   unmodified ADTPro client sends and receives disks, and uses virtual
-  drives, against Casso as against ADTPro's own host. The image files it
-  lists, sends and receives are in the host folder open in Casso Explorer's
-  current tab, or, for a tab inside a disk image, the folder the image is
-  in. With no host folder open, such as This PC, a request fails
-  with the reason.
+  drives, against Casso as against ADTPro's own host, through a CassoLink
+  connection of the type ADTPro-compatible server, on a COM port or a TCP
+  port. The image files it lists, sends and receives MUST be in the folder
+  the connection shares, and a request for a path outside that folder's
+  subtree MUST fail. Other CassoLink connections MUST NOT answer ADTPro's requests.
+  The server's help MUST be a virtual item under its root, written to a
+  temporary file only when it is opened or dragged out, and nothing MUST be
+  written to the user's Documents folder for it.
 - **FR-089**: Casso's own Apple-side program MUST use ADTPro's framing,
   extended with operations the PC starts: list drives, read a catalog, read
   and write a file, delete, rename, make a directory, read and write a disk
@@ -1603,10 +1664,16 @@ to Casso over TCP.
   Casso Explorer MUST listen on that port and list each announcement's Apple
   as an Uthernet II link root, never saved, at the announcement's address, or at
   127.0.0.1 for an announcement from the PC itself.
+- **FR-091c**: The boot disk's built-in MAC address MUST be salted with the
+  monitor's RNDL and RNDH ($4E and $4F) and a hash of $4000-$BFFF. The disk
+  MUST detect an Uthernet II by reading its mode register first, and MUST
+  write its address pointer only when that read is plausible.
 - **FR-092**: Casso MUST start the link on an Apple with no copy of it: over
   serial, by typing a loader into the Apple's serial input, on a //c and on
   a ][+ or //e with a Super Serial Card; and on a ][+ or //e, by playing a
-  loader into the cassette input.
+  loader into the cassette input. The typed loader MUST take its port or
+  slot from the input hook that IN# set, and the cassette loader MUST find
+  a Super Serial Card by its firmware's identification bytes.
 - **FR-093**: The link MUST run over a //c's built-in serial ports to a PC
   COM port or USB-serial adapter; over a Super Serial Card; over an
   Uthernet II; over a serial Wi-Fi modem connected over TCP; and between
@@ -1625,12 +1692,24 @@ to Casso over TCP.
   real hardware drops none.
 - **FR-095a**: The emulated ImageWriter II MUST be attachable to a parallel
   card, a Super Serial Card, or a //c serial port, one connector at a time,
-  chosen on Settings > Printing in Connected to; the //c's serial port
-  settings and the Serial card page MUST offer it too, and choosing it on one
+  chosen on Settings > Printing in Connected to, and choosing it on one
   connector MUST empty the connector that had it. A parallel card with no
   ports listed MUST have the printer. On a serial connector the printer's
   handshake MUST drop CTS, DSR and DCD together near a full buffer and raise
-  them once it has room. A change of connector MUST reboot the machine.
+  them once it has room. A change of connector MUST apply to the running
+  machine. The printer MUST be chosen only on the Printing tab, and MUST NOT
+  be offered in a serial connector's drop-down. Chosen on a Super Serial
+  Card, it MUST set the card to printer mode and save the previous mode in
+  the machine's configuration; moved away, it MUST restore that mode only if
+  the card is in printer mode then; and switching the card out of printer
+  mode MUST disconnect it. Each such change to another tab's setting MUST be
+  reported in a message box.
+- **FR-095b**: A change to any serial connector's attachment on the Settings
+  sheet MUST apply to the running machine with no reset. When the sheet's
+  tabs do not fit, its tab strip MUST scroll with an arrow at each end, as
+  Casso Explorer's does. An info tip MUST be up until a click elsewhere, a
+  change of focus, Escape, or a second click on its icon, and Escape MUST
+  close an open info tip before it cancels a dialog.
 - **FR-096**: The Apple-side program MUST be assembled from source in the
   repository by Casso's own assembler, and a test MUST assemble it on every
   build, failing the build on any error. The protocol
@@ -1674,8 +1753,13 @@ to Casso over TCP.
   following File Explorer's setting or holding Casso Explorer's own value;
   persisted.
 - **CassoLink**: a connection to one Apple II: its transport (serial port,
-  TCP address, or an emulated machine), speed and handshaking, the machine
-  at the other end, and its drives; its settings persisted.
+  TCP address, Wi-Fi modem, or ADTPro-compatible server), speed and
+  handshaking, the machine at the other end, and its drives; its settings
+  persisted, and its name made from them. A running Casso or an Uthernet
+  II's announcement is listed as one with no settings saved.
+- **ADTPro-compatible server**: a CassoLink connection that serves an
+  unmodified ADTPro client on a COM port or a TCP port, with the folder it
+  shares; requests are confined to that folder's subtree.
 - **Apple drive**: one 5.25-inch drive on a linked Apple: its slot and
   drive, and the volume in it, with its file system.
 - **Link program**: the Apple-side shim and the program it loads, each with
