@@ -386,8 +386,8 @@ public:
     // given as the cycle within it, after passing it `passes - 1` times.
     // A break for one run goes at the run's stop, whatever stopped it.
     void   SetBeamBreak          (uint32_t cycleInFrame, uint32_t passes = 1, bool isForOneRun = false);
-    void   ClearBeamBreak        ();
-    bool   HasBeamBreak          () const { return m_beamBreak.has_value(); }
+    void   ClearBeamBreak        (bool isForOneRun = false);
+    bool   HasBeamBreak          () const { return m_beamBreak.has_value() || m_frameBreak.has_value(); }
 
     //  BPBEAM's place in the frame, as the cycle within it; none for no
     //  break, or for FRAME's, which goes with its run.
@@ -475,7 +475,7 @@ private:
     bool   TryMatchBeforeWatchpoint (Word pc);
     void   NoteCpuOwnReads       (Word pc);
     bool   HasEnteredVideoBreak  ();
-    bool   HasReachedBeamBreak   ();
+    bool   HasReachedBeamBreak   (std::optional<BeamBreak> & beamBreak);
     uint32_t  GetBeamCycle       () const;
     void   AttachDiskReport      (StopEvent & event);
     void   AttachDiskCallReport  (StopEvent & event);
@@ -548,6 +548,8 @@ private:
     bool                                  m_videoBreakHit = false;
     std::optional<BeamBreak>              m_beamBreak;
     bool                                  m_beamBreakHit  = false;
+    std::optional<BeamBreak>              m_frameBreak;                 // FRAME's, for one run beside BPBEAM's
+    bool                                  m_frameBreakHit = false;
 
     //  BRKUNINIT is on.
     bool                                  m_isUnwrittenBreak = false;

@@ -1156,6 +1156,8 @@ void DebugSession::ClearAllBreakpoints()
     m_videoBreakHit = false;
     m_beamBreak.reset();
     m_beamBreakHit  = false;
+    m_frameBreak.reset();
+    m_frameBreakHit = false;
     m_nextId        = 0;
 
     SetUnwrittenBreak (false);
@@ -1351,6 +1353,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_videoBreakHit = false;
     m_beamBreak.reset();
     m_beamBreakHit  = false;
+    m_frameBreak.reset();
+    m_frameBreakHit = false;
     m_nextId = 0;
     m_isUnwrittenBreak = false;
     m_target.SetUnwrittenBreak (false);
@@ -1577,9 +1581,12 @@ bool DebugSession::ShouldStopBefore (Word pc)
         return true;
     }
 
-    if (HasReachedBeamBreak())
+    //  Both are tested, so each follows the beam on every instruction.
+    m_beamBreakHit  = HasReachedBeamBreak (m_beamBreak);
+    m_frameBreakHit = HasReachedBeamBreak (m_frameBreak);
+
+    if (m_beamBreakHit || m_frameBreakHit)
     {
-        m_beamBreakHit = true;
         return true;
     }
 
@@ -1756,13 +1763,15 @@ bool DebugSession::HasEnteredVideoBreak()
 //
 //  A beam already at the target has not reached it: the break waits for the
 //  beam to come round again, which is what makes FRAME run a whole frame.
+//  FRAME's break, for one run, is in m_frameBreak, separate from a BPBEAM's
+//  in m_beamBreak, so a BPBEAM set before FRAME stops the frame run too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::SetBeamBreak (uint32_t cycleInFrame, uint32_t passes, bool isForOneRun)
 {
-    m_beamBreak    = BeamBreak { cycleInFrame, std::max (passes, 1u), GetBeamCycle(), isForOneRun };
-    m_beamBreakHit = false;
+    (isForOneRun ? m_frameBreak : m_beamBreak)       = BeamBreak { cycleInFrame, std::max (passes, 1u), GetBeamCycle(), isForOneRun };
+    (isForOneRun ? m_frameBreakHit : m_beamBreakHit) = false;
     UpdateHookInstalled();
 }
 
@@ -1791,10 +1800,10 @@ std::optional<uint32_t> DebugSession::GetBeamBreak() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::ClearBeamBreak()
+void DebugSession::ClearBeamBreak (bool isForOneRun)
 {
-    m_beamBreak.reset();
-    m_beamBreakHit = false;
+    (isForOneRun ? m_frameBreak : m_beamBreak).reset();
+    (isForOneRun ? m_frameBreakHit : m_beamBreakHit) = false;
     UpdateHookInstalled();
 }
 
@@ -1855,7 +1864,7 @@ uint32_t DebugSession::GetBeamCycle() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugSession::HasReachedBeamBreak()
+bool DebugSession::HasReachedBeamBreak (std::optional<BeamBreak> & beamBreak)
 {
     uint32_t  now      = 0;
     uint32_t  previous = 0;
@@ -1865,16 +1874,16 @@ bool DebugSession::HasReachedBeamBreak()
 
 
 
-    if (!m_beamBreak.has_value())
+    if (!beamBreak.has_value())
     {
         return false;
     }
 
-    now                    = GetBeamCycle();
-    previous               = m_beamBreak->lastCycle;
-    target                 = m_beamBreak->target;
-    isWrap                 = now < previous;
-    m_beamBreak->lastCycle = now;
+    now                  = GetBeamCycle();
+    previous             = beamBreak->lastCycle;
+    target               = beamBreak->target;
+    isWrap               = now < previous;
+    beamBreak->lastCycle = now;
 
     if (now == previous)
     {
@@ -1889,8 +1898,8 @@ bool DebugSession::HasReachedBeamBreak()
         return false;
     }
 
-    m_beamBreak->passes--;
-    return m_beamBreak->passes == 0;
+    beamBreak->passes--;
+    return beamBreak->passes == 0;
 }
 
 
@@ -2128,11 +2137,14 @@ void DebugSession::OnStopped (const StopEvent & stop)
         m_videoBreakHit = false;
     }
 
-    if (m_beamBreakHit || (m_beamBreak.has_value() && m_beamBreak->isOneRun))
+    if (m_beamBreakHit)
     {
         m_beamBreak.reset();
         m_beamBreakHit = false;
     }
+
+    m_frameBreak.reset();
+    m_frameBreakHit = false;
 
     m_watchpoints.ClearPending();
     m_target.ClearUnwrittenStop();
@@ -3603,7 +3615,7 @@ void DebugSession::UpdateHookInstalled()
 
 void DebugSession::RefreshHookFilter()
 {
-    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() ||
+    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_frameBreak.has_value() ||
                     m_isUnwrittenBreak || IsProfiling();
 
 
@@ -3707,7 +3719,7 @@ bool DebugSession::IsProfiling() const
 
 bool DebugSession::HasStopConditions() const
 {
-    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_monitorReturn.has_value() ||
+    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_frameBreak.has_value() || m_monitorReturn.has_value() ||
            m_isUnwrittenBreak;
 }
 

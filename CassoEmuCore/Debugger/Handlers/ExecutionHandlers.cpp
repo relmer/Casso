@@ -476,7 +476,7 @@ void ExecutionHandlers::RunFrame (DebugSession & session, const DebugCommand & c
 
     if (reply.status != CommandStatus::Ok)
     {
-        session.ClearBeamBreak();
+        session.ClearBeamBreak (true);
     }
 }
 
