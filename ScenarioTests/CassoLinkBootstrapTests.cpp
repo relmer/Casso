@@ -279,7 +279,6 @@ public:
         settings.name      = "//c";
         settings.transport = LinkTransport::Emulated;
         settings.address   = "127.0.0.1:6501";
-        settings.slot      = 1;
 
         {
             CassoLinkSession  session (factory, folder, fileIo, sink);

@@ -293,7 +293,37 @@ public:
     }
 
 
+    // A junction: `path` and everything under it resolves to `target`.
+    HRESULT ResolveFinalPath     (const std::wstring & path,
+                                  std::wstring       & outPath) override
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        std::wstring                 key  = Normalize (path);
+
+        outPath = path;
+
+        for (const auto & [from, to] : m_links)
+        {
+            bool  under = key == from || (key.size() > from.size() && key.compare (0, from.size(), from) == 0 && key[from.size()] == L'/');
+
+            if (under)
+            {
+                outPath = to + path.substr (from.size());
+            }
+        }
+
+        return S_OK;
+    }
+
+
     // Test-only helpers
+
+    void        AddLink     (const std::wstring & path, const std::wstring & target)
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        m_links[Normalize (path)] = target;
+    }
+
 
     size_t      FileCount   ()
     {
@@ -395,7 +425,8 @@ private:
     }
 
 
-    std::mutex                     m_mutex;
-    std::map<std::wstring, Entry>  m_files;
-    std::set<std::wstring>         m_directories;
+    std::mutex                            m_mutex;
+    std::map<std::wstring, Entry>         m_files;
+    std::set<std::wstring>                m_directories;
+    std::map<std::wstring, std::wstring>  m_links;
 };

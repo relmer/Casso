@@ -463,10 +463,9 @@ public:
     }
 
 
-    //  With no Casso program on the line, the session makes attempt after
-    //  attempt while ADTPro's client boots; the line stays open across the
-    //  attempts, and the client's request between them is served.
-    TEST_METHOD (ASessionWithNoAppleAnswering_KeepsTheLineOpen_AndServesAdtPro)
+    //  An ADTPro-compatible server's session opens its line once and serves
+    //  ADTPro's client on it while the client boots and after (FR-088).
+    TEST_METHOD (AnAdtProServersSession_KeepsTheLineOpen_AndServesAdtPro)
     {
         Rig                 rig (false);
         ReopeningFactory    factory;
@@ -479,25 +478,14 @@ public:
 
         CassoLinkSession  session (factory, rig.folder, fileIo, sink);
 
-        settings.name      = "//c";
-        settings.transport = LinkTransport::Emulated;
+        settings.transport = LinkTransport::AdtProServer;
         settings.address   = "127.0.0.1:6502";
+        settings.name      = CassoLinkSettings::MakeName (settings);
 
-        session.SetConnectTimeout (200);
         session.SetRetryInterval (200);
         AssertSucceeded (session.Start (settings));
 
         rig.Start ('D');
-
-        auto  until = std::chrono::steady_clock::now() + std::chrono::seconds (10);
-
-        while (sink.misses < 3 && std::chrono::steady_clock::now() < until)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (50));
-        }
-
-        Assert::IsTrue (sink.misses >= 3, L"more than one attempt");
-
         rig.Type ("\r");
         Assert::IsTrue (rig.RunUntil ("SELECT WITH RETURN", 400'000'000), L"the listing arrives");
         Assert::AreEqual (std::string ("A.DSK"), rig.Highlighted (3));

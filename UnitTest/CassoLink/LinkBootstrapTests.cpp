@@ -27,64 +27,55 @@ TEST_CLASS (LinkBootstrapTests)
 {
 public:
 
-    TEST_METHOD (Lines_TypeTheShimIntoTheMonitor_AndRunIt)
+    //  The slot finder at $3CA0, then the shim from $3D00, with the zeros
+    //  between them not typed, and the finder run.
+    TEST_METHOD (Lines_TypeTheFinderAndTheShimIntoTheMonitor_AndRunTheFinder)
     {
         std::vector<std::string>  lines;
-        std::vector<Byte>         shim;
+        std::vector<Byte>         image;
         std::vector<Byte>         typed;
-        Word                      next = LinkProgram::kShimAddress;
+        Word                      start = 0;
+        Word                      next  = LinkProgram::kSlotFinderAddress;
+        LinkShimOptions           options;
+
+        options.baud = 9600;
 
         AssertSucceeded (LinkBootstrap::BuildLines (9600, lines));
-        AssertSucceeded (LinkProgram::BuildShim (9600, shim));
+        AssertSucceeded (LinkProgram::BuildBootstrapImage (options, image, start));
 
+        Assert::AreEqual (LinkProgram::kSlotFinderAddress, start);
         Assert::AreEqual (std::string ("\x18"),        lines[0], L"Ctrl-X cancels a partial line from stray bytes");
         Assert::AreEqual (std::string ("CALL -151\r"), lines[1]);
-        Assert::AreEqual (std::string ("3D00G\r"),     lines.back());
+        Assert::AreEqual (std::string ("3CA0G\r"),     lines.back());
+
+        typed.assign (image.size(), 0);
 
         for (size_t i = 2; i + 1 < lines.size(); i++)
         {
             const std::string  & line    = lines[i];
             Word                 address = (Word) std::stoul (line.substr (0, 4), nullptr, 16);
+            size_t               at      = (size_t) (address - start);
 
-            Assert::AreEqual (next, address, L"each line follows the last");
+            Assert::IsTrue   (address >= next, L"each line follows the last");
             Assert::AreEqual (':', line[4]);
             Assert::AreEqual ('\r', line.back());
 
-            for (size_t at = 5; at + 3 <= line.size(); at += 3)
+            for (size_t column = 5; column + 3 <= line.size(); column += 3)
             {
-                typed.push_back ((Byte) std::stoul (line.substr (at + 1, 2), nullptr, 16));
+                typed[at++] = (Byte) std::stoul (line.substr (column + 1, 2), nullptr, 16);
             }
 
-            next = (Word) (LinkProgram::kShimAddress + typed.size());
+            next = (Word) (start + at);
         }
 
-        Assert::IsTrue (typed == shim, L"the lines are the shim, at the bootstrap speed");
-    }
-
-
-
-
-    TEST_METHOD (Lines_TypeTheShimForTheCardsSlot)
-    {
-        std::vector<std::string>  lines;
-        std::string               slotLine;
-        Word                      slotAt = (Word) (LinkProgram::kShimAddress + (LinkProgram::kSlotOffset & ~(LinkBootstrap::kBytesPerLine - 1)));
-
-        AssertSucceeded (LinkBootstrap::BuildLines (9600, lines, 5));
-
-        for (const std::string & line : lines)
-        {
-            slotLine = line.starts_with (std::format ("{:04X}:", slotAt)) ? line : slotLine;
-        }
-
-        Assert::IsTrue (slotLine.starts_with (std::format ("{:04X}: 05", slotAt)), TextEncoding::NarrowToWide (slotLine).c_str());
+        Assert::IsTrue (typed == image, L"the lines are the finder and the shim, at the bootstrap speed");
     }
 
 
 
     //  The cassette record: the leader, the two sync half-cycles, two equal
     //  half-cycles per bit, the checksum's eight bits and one closing half.
-    TEST_METHOD (Cassette_IsTheShimAsOneRecord_ReadByItsMonitorCommand)
+    TEST_METHOD (Cassette_IsTheFinderAndTheShimAsOneRecord_ReadByItsMonitorCommand)
     {
         std::vector<Byte>    shim;
         std::vector<double>  halves;
@@ -95,9 +86,11 @@ public:
         Byte                 check  = LinkAudioBootstrap::kChecksumSeed;
         Byte                 last   = 0;
 
-        AssertSucceeded (LinkProgram::BuildShim (options, shim));
+        Word                 start  = 0;
+
+        AssertSucceeded (LinkProgram::BuildBootstrapImage (options, shim, start));
         AssertSucceeded (LinkAudioBootstrap::BuildAudio (options, audio, command));
-        Assert::AreEqual (std::format ("3D00.{:04X}R 3D00G\r", 0x3D00 + shim.size() - 1), command);
+        Assert::AreEqual (std::string ("3CA0.3FFFR 3CA0G\r"), command, L"the finder and the shim, to the shim's end");
         Assert::AreEqual (LinkAudioBootstrap::kSampleRate, audio.sampleRate);
 
         LinkAudioBootstrap::AppendRecord (shim, halves);

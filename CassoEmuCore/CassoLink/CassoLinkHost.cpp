@@ -65,7 +65,7 @@ HRESULT CassoLinkHost::ServeOne (DWORD timeoutMs)
     CHR (hr);
     BAIL_OUT_IF (!filled, S_OK);
 
-    if (m_buffer[0] == CassoLinkCodec::kVirtualDrive)
+    if (m_buffer[0] == CassoLinkCodec::kVirtualDrive && m_clients != Clients::Casso)
     {
         m_adtProClient = true;
 
@@ -500,11 +500,15 @@ Error:
 
 HRESULT CassoLinkHost::ServePacket (const CassoLinkPacket & packet)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    bool     casso  = packet.command == CassoLinkCodec::kReady;
+    bool     served = casso ? m_clients != Clients::AdtPro : m_clients != Clients::Casso;
 
 
 
-    m_adtProClient = m_adtProClient || packet.command != CassoLinkCodec::kReady;
+    BAIL_OUT_IF (!served, S_OK);
+
+    m_adtProClient = m_adtProClient || !casso;
 
     switch (packet.command)
     {

@@ -41,3 +41,18 @@ const char * ByteStreamSettings::GetBindAddress (LinkTransport transport)
 {
     return (transport == LinkTransport::WifiModem) ? kAnyAddress : kLoopbackAddress;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ByteStreamSettings::ClassifyWriteStall
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ByteStreamSettings::ClassifyWriteStall (bool hardwareHandshake, bool ctsOn)
+{
+    return (hardwareHandshake && !ctsOn) ? kCtsOff : HRESULT_FROM_WIN32 (ERROR_TIMEOUT);
+}

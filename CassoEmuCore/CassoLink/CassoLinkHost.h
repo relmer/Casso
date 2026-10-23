@@ -118,6 +118,16 @@ public:
     //  ProDOS date, low byte first.
     using ClockFn = std::function<std::array<Byte, 4> ()>;
 
+    //  Which client the host serves. A request from the other is skipped as
+    //  noise, so an ADTPro-compatible server connection serves only ADTPro's
+    //  client and every other connection only Casso's (FR-088).
+    enum class Clients
+    {
+        Both,
+        Casso,
+        AdtPro,
+    };
+
     static constexpr DWORD   kReplyTimeoutMs     = 3000;
     static constexpr int     kMaxResends         = 5;
 
@@ -165,6 +175,7 @@ public:
     //  The images virtual drives 1 and 2 serve, by name in the folder;
     //  ADTPro's defaults until set.
     void     SetVirtualDrive (int drive, const std::string & name);
+    void     SetClients      (Clients clients) { m_clients = clients; }
     void     SetReplyTimeout (DWORD timeoutMs) { m_replyTimeoutMs = timeoutMs; }
 
     //  How long an operation for Casso's client waits for each packet, and an
@@ -365,6 +376,7 @@ private:
     DWORD                             m_operationTimeoutMs = kOperationTimeoutMs;
     bool                              m_hasClient          = false;
     std::atomic<bool>                 m_adtProClient       { false };
+    Clients                           m_clients            = Clients::Both;
     CassoLinkClient                   m_client;
     std::vector<Byte>                 m_program;
     LinkChip                          m_programChip        = LinkChip::Acia;

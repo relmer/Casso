@@ -49,4 +49,5 @@ private:
 
     HANDLE  m_handle      = INVALID_HANDLE_VALUE;
     DWORD   m_readTimeout = MAXDWORD;
+    bool    m_handshake   = false;
 };

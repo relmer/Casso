@@ -204,6 +204,10 @@ public:
     //  before then.
     std::wstring  GetModelName () const { std::lock_guard<std::mutex>  lock (m_lock); return m_modelName; }
 
+    //  Why the line last failed to open, such as a TCP port another program
+    //  listens on; empty once it opens.
+    std::string   GetOpenFailure () const { std::lock_guard<std::mutex>  lock (m_lock); return m_openFailure; }
+
     std::shared_ptr<LinkOperation>  Enumerate     (int drive, const FilePath & directory);
     std::shared_ptr<LinkOperation>  ReadFile      (int drive, const FilePath & path);
     std::shared_ptr<LinkOperation>  WriteFile     (int drive, const FilePath & path, const FilePayload & payload);
@@ -283,6 +287,13 @@ private:
     HRESULT  RunBootstrap  (std::stop_token stop, LinkOperation & operation);
     HRESULT  OpenStream    (DWORD baud, std::stop_token stop);
     void     ServeUntilRetry (std::stop_token stop);
+
+    //  An ADTPro-compatible server's whole run: the line opened at the
+    //  link's speed and ADTPro's client served on it, opened again after
+    //  the retry interval when it fails or drops, until the stop.
+    void     ServeAdtPro     (std::stop_token stop);
+
+    static std::string  DescribeOpenFailure (HRESULT hr, uint16_t port);
     bool     IsLineOpen    () const;
     HRESULT  LogOnApple    (const std::string & text);
     HRESULT  AwaitProgram  (std::stop_token stop, DWORD timeoutMs, bool & outReady);
@@ -335,6 +346,7 @@ private:
     //  Why the line was dropped, for the activity text; the session's thread
     //  sets it just before Disconnect.
     std::string                      m_lostReason;
+    std::string                      m_openFailure;
     std::array<double, kDriveCount>  m_revolutionMs = {};   // each drive's, once timed this connection
     std::wstring                     m_modelName;
     std::shared_ptr<LinkOperation>   m_bootstrap;

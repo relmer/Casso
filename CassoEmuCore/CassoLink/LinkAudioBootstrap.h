@@ -16,8 +16,9 @@
 //  Starts the link on a ][+ or //e with no copy of it, through the cassette
 //  input (FR-092, US15/AC2). At the BASIC prompt, the user types CALL -151
 //  for the monitor, then the monitor command this builds, such as
-//  3D00.3FFFR 3D00G, and Return; the monitor reads the shim from the tape
-//  input and runs it. The audio is the shim as one cassette record: a 770 Hz
+//  3CA0.3FFFR 3CA0G, and Return; the monitor reads the slot finder and the
+//  shim from the tape input and runs them, the finder taking the Super
+//  Serial Card's slot. The audio is the two as one cassette record: a 770 Hz
 //  leader, the sync half-cycles, the bytes most significant bit first as one
 //  2 kHz cycle for a 0 and one 1 kHz cycle for a 1, and the XOR checksum
 //  seeded with $FF, as Apple's monitor writes and reads a tape.

@@ -29,7 +29,6 @@
 #include "CassoExplorer/Model/RefreshAnchor.h"
 
 class CassoLinkConnections;
-class CassoLinkFolder;
 class RunningCassoRegistry;
 class ILinkAnnouncements;
 struct CassoExplorerSessionWindow;
@@ -79,9 +78,6 @@ public:
 
         //  Optional: without them, no CassoLink connections are listed.
         CassoLinkConnections * links = nullptr;
-
-        //  The folder ADTPro's client is served from.
-        CassoLinkFolder      * linkFolder = nullptr;
 
         //  Optional: without it, running Cassos are not listed as links.
         RunningCassoRegistry * running = nullptr;
@@ -825,9 +821,7 @@ private:
     std::wstring  GetLatestActivity () const;
     std::wstring  FormatActivity (size_t lines) const;
     void  ShowActivityLog ();
-    void  ApplyAdtProSettings ();
-    void  StartLinksForAdtPro ();
-    std::wstring  GetAdtProFolder () const;
+    void  StartAdtProServers ();
     bool  IsLinkReplying        (const std::string & name) const;
     void  AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
     bool  IsWifiModemLink        (const std::string & name) const;

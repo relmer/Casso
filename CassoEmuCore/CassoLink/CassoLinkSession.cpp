@@ -567,11 +567,16 @@ void CassoLinkSession::Run (std::stop_token stop)
     HRESULT                         hr     = S_OK;
     HRESULT                         logged = S_OK;
     bool                            lost   = false;
+    bool                            server = m_settings.transport == LinkTransport::AdtProServer;
     std::shared_ptr<LinkOperation>  operation;
 
 
 
-    if (m_bootstrap)
+    if (server)
+    {
+        ServeAdtPro (stop);
+    }
+    else if (m_bootstrap)
     {
         hr = RunBootstrap (stop, *m_bootstrap);
         m_sink.OnDone (m_bootstrap);
@@ -582,7 +587,7 @@ void CassoLinkSession::Run (std::stop_token stop)
         hr = Connect (stop);
     }
 
-    while (!stop.stop_requested())
+    while (!server && !stop.stop_requested())
     {
         if (FAILED (hr) || m_state != LinkState::Ready)
         {
@@ -796,7 +801,7 @@ HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
 
     CBREx (hasPort, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
 
-    hr = LinkBootstrap::BuildLines (m_settings.bootstrapBaud, lines, m_settings.slot);
+    hr = LinkBootstrap::BuildLines (m_settings.bootstrapBaud, lines);
     CHR (hr);
 
     SetState (LinkState::Bootstrapping);
@@ -822,7 +827,7 @@ Error:
 
     if (FAILED (hr) && operation.message.empty())
     {
-        operation.message = std::format ("The Apple did not answer after the bootstrap. Check that IN#{} and Ctrl+A 14B were typed on it.", m_settings.slot);
+        operation.message = "The Apple did not answer after the bootstrap. Check that IN# with the port or the card's slot, and Ctrl+A 14B, were typed on it.";
     }
 
     return hr;
@@ -1078,6 +1083,79 @@ void CassoLinkSession::ServeUntilRetry (std::stop_token stop)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkSession::ServeAdtPro
+//
+//  Casso's operations have no client here, so any queued fails at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkSession::ServeAdtPro (std::stop_token stop)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    while (!stop.stop_requested())
+    {
+        {
+            std::lock_guard<std::mutex>  lock (m_lock);
+
+            for (const std::shared_ptr<LinkOperation> & queued : m_queue)
+            {
+                queued->result  = HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED);
+                queued->message = "An ADTPro-compatible server serves only ADTPro's client.";
+                queued->state   = LinkOperationState::Failed;
+                m_sink.OnDone (queued);
+            }
+
+            m_queue.clear();
+        }
+
+        if (!IsLineOpen())
+        {
+            SetState (LinkState::Opening);
+
+            hr = OpenStream (m_settings.baud, stop);
+
+            if (FAILED (hr))
+            {
+                m_lostReason = DescribeLineFailure (hr);
+                SetState (LinkState::Disconnected);
+
+                {
+                    std::unique_lock<std::mutex>  lock (m_lock);
+
+                    m_wake.wait_for (lock, stop, std::chrono::milliseconds (m_retryMs), [] () { return false; });
+                }
+
+                continue;
+            }
+
+            SetState (LinkState::WaitingForReady);
+        }
+
+        hr = m_host->ServeOne (kIdlePollMs);
+
+        if (FAILED (hr))
+        {
+            m_lostReason = DescribeLineFailure (hr);
+            Disconnect();
+            continue;
+        }
+
+        if (m_host->HasAdtProClient() && m_state != LinkState::Ready)
+        {
+            SetState (LinkState::Ready);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkSession::OpenStream
 //
 //  A serial port at the given speed; the TCP transports connect, or, for a
@@ -1095,7 +1173,7 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud, std::stop_token stop)
     uint16_t                      port      = 0;
     size_t                        colon     = m_settings.address.rfind (':');
     bool                          addressed = false;
-    bool                          reusable  = IsLineOpen() && (m_settings.transport != LinkTransport::Serial || m_openBaud == baud);
+    bool                          reusable  = IsLineOpen() && (!m_settings.IsComPort() || m_openBaud == baud);
 
 
 
@@ -1115,7 +1193,7 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud, std::stop_token stop)
         m_stream.reset();
     }
 
-    if (m_settings.transport == LinkTransport::Serial)
+    if (m_settings.IsComPort())
     {
         com.baud              = baud;
         com.hardwareHandshake = m_settings.hardwareHandshake;
@@ -1157,6 +1235,7 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud, std::stop_token stop)
 
         m_host->SetActivitySink ([this] (const std::string & text) { m_sink.OnActivity (text); });
         m_host->SetProgramChip (GetLinkChip (m_settings.transport));
+        m_host->SetClients (m_settings.transport == LinkTransport::AdtProServer ? CassoLinkHost::Clients::AdtPro : CassoLinkHost::Clients::Casso);
         m_openBaud = baud;
         m_prompted = false;
 
@@ -1168,7 +1247,41 @@ HRESULT CassoLinkSession::OpenStream (DWORD baud, std::stop_token stop)
     }
 
 Error:
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+        m_openFailure = FAILED (hr) ? DescribeOpenFailure (hr, port) : std::string();
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::DescribeOpenFailure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkSession::DescribeOpenFailure (HRESULT hr, uint16_t port)
+{
+    std::string  text;
+
+
+
+    if (hr == HRESULT_FROM_WIN32 (WSAEADDRINUSE))
+    {
+        text = std::format ("TCP port {} is in use by another program.", port);
+    }
+    else
+    {
+        text = "The connection could not be opened: " + DescribeLineFailure (hr) + ".";
+    }
+
+    return text;
 }
 
 
@@ -2123,6 +2236,10 @@ std::string CassoLinkSession::DescribeLineFailure (HRESULT hr)
     else if (hr == HRESULT_FROM_WIN32 (ERROR_TIMEOUT))
     {
         text = "no reply";
+    }
+    else if (hr == ByteStreamSettings::kCtsOff)
+    {
+        text = "the PC's CTS line is off, so the cable may not connect it; turn off hardware handshake in the connection's settings";
     }
     else
     {

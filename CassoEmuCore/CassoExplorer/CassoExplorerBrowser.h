@@ -300,8 +300,11 @@ public:
     //  CassoLink's help, as the What's CassoLink item has it.
     static const wchar_t *  GetCassoLinkHelp ();
 
-    //  ADTPro mode's help, written into the ADTPro folder.
+    //  An ADTPro-compatible server's help, its virtual item's text.
     static const wchar_t *  GetAdtProHelp ();
+
+    //  The help text a CassoLink root's or an ADTPro server's help item has.
+    static const wchar_t *  GetHelpText   (CatalogRow::CassoLinkItem item);
 
     //  The archive Extract all applies to, selected or open; empty for none.
     std::wstring  GetExtractTarget () const;
@@ -465,6 +468,8 @@ private:
     bool     PreviewAppleDrive (const CatalogRow & row);
     void     PreviewCassoLinkItem (const CatalogRow & row);
     void     AddCassoLinkItems ();
+    void     AddAdtProHelpItem ();
+    bool     IsAdtProServer    (const std::string & name) const;
     void     RevisitLink       (const Location & location);
     bool     CanListImage   (const std::wstring & imagePath);
 

@@ -140,6 +140,10 @@ public:
     //  The UDP port a universal disk's W5100 broadcasts its announcements to.
     static constexpr uint16_t  kAnnouncePort  = 6510;
 
+    //  The slot finder, which runs ahead of a 6551 shim typed in or read from
+    //  tape, in the page the shim's copy of the zero page later fills.
+    static constexpr Word    kSlotFinderAddress = 0x3CA0;
+
     static Word         GetShimAddress   (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimAddress  : kShimAddress; }
     static Word         GetZeroPageSave  (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ZeroPageSave : kZeroPageSave; }
     static size_t       GetShimLimit     (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimLimit    : kShimLimit; }
@@ -166,9 +170,17 @@ public:
     static HRESULT      AssembleUniversal      (std::vector<Byte> & outBytes, std::string & outErrors);
     static HRESULT      BuildUniversalBootDisk (const LinkShimOptions & options, std::vector<Byte> & outDisk);
 
-    static std::string  GetShimSource      ();
-    static std::string  GetProgramSource   ();
-    static std::string  GetUniversalSource ();
+    //  What a bootstrap loads, typed in or from tape, and where it starts:
+    //  for a 6551, the slot finder at kSlotFinderAddress, zeros to the shim,
+    //  then the shim, so the shim takes its slot from the Apple (R29); for a
+    //  W5100, the shim alone.
+    static HRESULT      AssembleSlotFinder     (std::vector<Byte> & outBytes, std::string & outErrors);
+    static HRESULT      BuildBootstrapImage    (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart);
+
+    static std::string  GetShimSource       ();
+    static std::string  GetProgramSource    ();
+    static std::string  GetUniversalSource  ();
+    static std::string  GetSlotFinderSource ();
 
     //  The 6551 control byte for a speed: 8 data bits, 1 stop bit and the
     //  rate. False for a speed the //c's port does not have.

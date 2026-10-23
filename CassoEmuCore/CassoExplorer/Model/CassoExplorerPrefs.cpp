@@ -312,7 +312,11 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
     fields.emplace_back ("baud",              JsonValue ((double) link.baud));
     fields.emplace_back ("bootstrapBaud",     JsonValue ((double) link.bootstrapBaud));
     fields.emplace_back ("hardwareHandshake", JsonValue (link.hardwareHandshake));
-    fields.emplace_back ("slot",              JsonValue ((double) link.slot));
+
+    if (!link.folder.empty())
+    {
+        fields.emplace_back ("folder",        JsonValue (TextEncoding::WideToNarrow (link.folder)));
+    }
 
     return JsonValue (std::move (fields));
 }
@@ -325,16 +329,17 @@ JsonValue CassoExplorerPrefs::LinkToJson (const CassoLinkSettings & link)
 //
 //  CassoExplorerPrefs::TryLinkFromJson
 //
-//  A link is read only with a name and one of Casso's transports; anything
-//  else left out takes its default.
+//  A link is read only with one of the transports a user adds; anything
+//  else left out takes its default. Its name is made from its settings, so
+//  a name saved by an older build, or edited, is not used.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSettings & outLink)
 {
     std::string  transport;
+    std::string  folder;
     int          baud      = 0;
-    int          slot      = 0;
     bool         usable    = false;
 
 
@@ -342,8 +347,8 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
     outLink = CassoLinkSettings();
 
     usable = value.GetType() == JsonType::Object
-          && value.HasString ("name", outLink.name) && !outLink.name.empty()
-          && value.HasString ("transport", transport) && CassoLinkSettings::TryParseTransport (transport, outLink.transport);
+          && value.HasString ("transport", transport) && CassoLinkSettings::TryParseTransport (transport, outLink.transport)
+          && CassoLinkSettings::IsSavable (outLink.transport);
 
     if (usable)
     {
@@ -361,10 +366,18 @@ bool CassoExplorerPrefs::TryLinkFromJson (const JsonValue & value, CassoLinkSett
             outLink.bootstrapBaud = (DWORD) baud;
         }
 
-        if (value.HasInt ("slot", slot) && slot >= 1 && slot <= 7)
+        if (value.HasString ("folder", folder))
         {
-            outLink.slot = slot;
+            outLink.folder = TextEncoding::NarrowToWide (folder);
         }
+
+        //  A Wi-Fi modem listens on the one port its boot disk dials.
+        if (outLink.transport == LinkTransport::WifiModem)
+        {
+            outLink.address = std::format ("{}:{}", ByteStreamSettings::kAnyAddress, CassoLinkSettings::kModemPort);
+        }
+
+        outLink.name = CassoLinkSettings::MakeName (outLink);
     }
 
     return usable;
@@ -470,8 +483,7 @@ JsonValue CassoExplorerPrefs::ToJson() const
     root.emplace_back ("theme",          JsonValue (theme));
     root.emplace_back ("previewVisible", JsonValue (previewVisible));
     root.emplace_back ("hostNaming",     JsonValue (hostNaming));
-    root.emplace_back ("emulateAdtPro",  JsonValue (emulateAdtPro));
-    root.emplace_back ("adtProFolder",   JsonValue (adtProFolder));
+
     root.emplace_back ("hexGrouping",    JsonValue ((double) hexGrouping));
     root.emplace_back ("lineAddresses",  JsonValue (lineAddresses));
     root.emplace_back ("hexColumns",     JsonValue ((double) hexColumns));
@@ -673,9 +685,6 @@ HRESULT CassoExplorerPrefs::FromJson (const JsonValue & root)
     {
         hostNaming = text;
     }
-
-    root.HasBool   ("emulateAdtPro", emulateAdtPro);
-    root.HasString ("adtProFolder",  adtProFolder);
 
     if (root.HasInt ("hexGrouping", grouping) && IsKnownHexGrouping (grouping))
     {

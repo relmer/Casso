@@ -330,34 +330,43 @@ public:
 
 
 
+    //  A link's name is made from its settings when it is read, and a running
+    //  Casso's, which an older build saved, is dropped.
     TEST_METHOD (Links_RoundTrip)
     {
         InMemoryFileSystem  fs;
         CassoExplorerPrefs  saved;
         CassoExplorerPrefs  loaded;
         CassoLinkSettings   serial;
+        CassoLinkSettings   server;
         CassoLinkSettings   emulated;
 
-        serial.name              = "Apple II (COM3)";
         serial.transport         = LinkTransport::Serial;
         serial.port              = "COM3";
         serial.baud              = 19200;
         serial.hardwareHandshake = true;
+        serial.name              = CassoLinkSettings::MakeName (serial);
+
+        server.transport         = LinkTransport::AdtProServer;
+        server.address           = "127.0.0.1:6502";
+        server.folder            = L"C:\\Disks\\\x00E9t\x00E9";
+        server.name              = "an old name";
 
         emulated.name      = "Apple II (Casso)";
         emulated.transport = LinkTransport::Emulated;
         emulated.address   = "127.0.0.1:6502";
-        emulated.slot      = 5;
 
-        saved.links = { serial, emulated };
-        saved.tabs  = { Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"Apple II (COM3)", 6, 1), "GAMES") };
+        saved.links = { serial, server, emulated };
+        saved.tabs  = { Location::MakeAppleDrive (TreeModel::MakeLinkDriveId (L"COM3", 6, 1), "GAMES") };
 
         AssertSucceeded (saved.Save (kBase, fs));
         AssertSucceeded (loaded.Load (kBase, fs));
 
+        server.name = "ADTPro server at 127.0.0.1:6502";
+
         Assert::AreEqual ((size_t) 2, loaded.links.size());
         Assert::IsTrue (loaded.links[0] == serial);
-        Assert::IsTrue (loaded.links[1] == emulated);
+        Assert::IsTrue (loaded.links[1] == server, L"its folder, and the name made from its settings");
         Assert::IsTrue (loaded.tabs.size() == 1 && loaded.tabs[0] == saved.tabs[0], L"a tab on an Apple drive");
     }
 
@@ -378,8 +387,9 @@ public:
         AssertSucceeded (fs.WriteAllText (CassoExplorerPrefs::GetFilePath (kBase), text));
         AssertSucceeded (loaded.Load (kBase, fs));
 
-        Assert::AreEqual ((size_t) 1, loaded.links.size(), L"one per name, with a name and a known transport");
-        Assert::AreEqual (std::string ("Plain"), loaded.links[0].name);
+        Assert::AreEqual ((size_t) 2, loaded.links.size(), L"one per name made from the settings, with a known transport");
+        Assert::AreEqual (std::string ("Serial (any port)"), loaded.links[0].name);
+        Assert::AreEqual (std::string ("TCP a:1"), loaded.links[1].name);
         Assert::IsTrue   (loaded.links[0].transport == LinkTransport::Serial);
         Assert::AreEqual ((DWORD) 115200, loaded.links[0].baud);
         Assert::AreEqual ((DWORD) 9600,   loaded.links[0].bootstrapBaud);

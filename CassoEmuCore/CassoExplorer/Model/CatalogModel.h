@@ -99,7 +99,7 @@ struct CatalogRow
     //  An item CassoLink's root lists that is not on the disk until it is
     //  opened or dragged: its boot disk, or its help, with hostPath where it
     //  is written; or the row that adds a machine, which is no file at all.
-    enum class CassoLinkItem { None, BootDisk, Help, AddMachine };
+    enum class CassoLinkItem { None, BootDisk, Help, AdtProHelp, AddMachine };
 
     CassoLinkItem  cassoLinkItem = CassoLinkItem::None;
 

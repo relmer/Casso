@@ -767,6 +767,11 @@ HRESULT CassoExplorerBrowser::LoadRoot (const std::wstring & id)
         AddCassoLinkItems();
     }
 
+    if (m_links != nullptr && TreeModel::TryParseLinkId (id, link, slot, drive) && drive == 0 && IsAdtProServer (TextEncoding::WideToNarrow (link)))
+    {
+        AddAdtProHelpItem();
+    }
+
 Error:
     return hr;
 }
@@ -872,6 +877,77 @@ void CassoExplorerBrowser::AddCassoLinkItems()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerBrowser::IsAdtProServer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerBrowser::IsAdtProServer (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name && settings.transport == LinkTransport::AdtProServer;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::AddAdtProHelpItem
+//
+//  The server's help, after its folder, a virtual file written to the
+//  temporary folder only when it is opened or dragged; nothing is written
+//  to the user's Documents for it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerBrowser::AddAdtProHelpItem()
+{
+    wchar_t           temp[MAX_PATH] = {};
+    DWORD             length         = GetTempPathW (MAX_PATH, temp);
+    FileSystemEntry   entry;
+
+
+
+    entry.name = L"What's an ADTPro-compatible server.md";
+    m_rows.push_back (CatalogModel::FromHostEntry (entry, false, m_rootChildren.size() + m_rows.size()));
+    m_rows.back().cassoLinkItem = CatalogRow::CassoLinkItem::AdtProHelp;
+    m_rows.back().sizeBytes     = wcslen (GetAdtProHelp());
+    m_rows.back().hostPath      = (length > 0) ? std::wstring (temp) + entry.name : std::wstring();
+
+    if (m_shellIcons != nullptr && !m_shellIcons->GetTypeName (m_rows.back().hostPath, false).empty())
+    {
+        m_rows.back().typeText = m_shellIcons->GetTypeName (m_rows.back().hostPath, false);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerBrowser::GetHelpText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CassoExplorerBrowser::GetHelpText (CatalogRow::CassoLinkItem item)
+{
+    return (item == CatalogRow::CassoLinkItem::AdtProHelp) ? GetAdtProHelp() : GetCassoLinkHelp();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerBrowser::PrepareCassoLinkItems
 //
 //  The boot disk is the universal one, at 115,200 baud on a serial port; a
@@ -908,7 +984,7 @@ bool CassoExplorerBrowser::PrepareCassoLinkItems()
         }
         else
         {
-            help  = TextEncoding::WideToNarrow (GetCassoLinkHelp());
+            help  = TextEncoding::WideToNarrow (GetHelpText (item->cassoLinkItem));
             bytes = std::vector<Byte> (help.begin(), help.end());
         }
 
@@ -963,32 +1039,29 @@ bool CassoExplorerBrowser::TryGetSelectedCassoLinkPaths (std::vector<std::wstrin
 
 const wchar_t * CassoExplorerBrowser::GetAdtProHelp()
 {
-    return L"# What's ADTPro mode?\r\n"
+    return L"# What's an ADTPro-compatible server?\r\n"
            L"\r\n"
            L"[ADTPro](https://adtpro.com) is a program for an Apple II that sends and receives whole disks, "
-           L"and files, over a serial cable. CassoLink serves ADTPro's own Apple program as ADTPro's server does, "
-           L"from this folder.\r\n"
+           L"and files, over a serial cable or a network. This connection serves ADTPro's own Apple program "
+           L"as ADTPro's server does, from the folder listed under it.\r\n"
            L"\r\n"
            L"## Using it\r\n"
            L"\r\n"
-           L"1. Add a CassoLink connection for the Apple's serial cable, with its COM port, in Casso Explorer.\r\n"
-           L"2. Start ADTPro on the Apple, set to the same speed.\r\n"
-           L"3. Use ADTPro's menu on the Apple as with its own server:\r\n"
-           L"   - **Send** puts a disk from the Apple into this folder as an image.\r\n"
-           L"   - **Receive** writes an image from this folder onto a disk in the Apple.\r\n"
-           L"   - **Dir** lists this folder, and **CD** moves into a folder inside it.\r\n"
-           L"   - **VSDrive** serves Virtual.po and Virtual2.po from this folder as drives the Apple can open.\r\n"
+           L"1. Start ADTPro on the Apple, set to this connection's speed.\r\n"
+           L"2. Use ADTPro's menu on the Apple as with its own server:\r\n"
+           L"   - **Send** puts a disk from the Apple into the folder as an image.\r\n"
+           L"   - **Receive** writes an image from the folder onto a disk in the Apple.\r\n"
+           L"   - **Dir** lists the folder, and **CD** moves into a folder inside it.\r\n"
+           L"   - **VSDrive** serves Virtual.po and Virtual2.po from the folder as drives the Apple can open.\r\n"
            L"\r\n"
            L"## Notes\r\n"
            L"\r\n"
-           L"- Files dropped onto the ADTPro node in Casso Explorer land here, ready for **Receive**.\r\n"
-           L"- While ADTPro mode is on, each CassoLink connection with a COM port or an address stays open, so the "
-           L"PC is there when the Apple starts ADTPro. Turn it off in Options, on the CassoLink page.\r\n"
-           L"- The PC distinguishes ADTPro's program from CassoLink's by the first request each sends, and serves each in "
-           L"its own way until the connection drops.\r\n"
+           L"- Files dropped onto the folder in Casso Explorer land there, ready for **Receive**.\r\n"
+           L"- The connection is open while Casso Explorer runs, so the PC is there when the Apple starts ADTPro.\r\n"
+           L"- A request for a file or folder outside the folder fails, so the Apple cannot read or write "
+           L"anything else on this PC.\r\n"
            L"- CassoLink's own program can do more: browse catalogs, copy single files, and read or write whole "
-           L"disks from Casso Explorer. Boot CassoLink.dsk on the Apple for it.\r\n";
-}
+           L"disks from Casso Explorer. Boot CassoLink.dsk on the Apple, over a CassoLink connection, for it.\r\n";}
 
 
 
@@ -1206,7 +1279,8 @@ bool CassoExplorerBrowser::PreviewAppleDrive (const CatalogRow & row)
 
 void CassoExplorerBrowser::PreviewCassoLinkItem (const CatalogRow & row)
 {
-    std::wstring  text = (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help)       ? std::wstring (GetCassoLinkHelp())
+    bool          help = row.cassoLinkItem == CatalogRow::CassoLinkItem::Help || row.cassoLinkItem == CatalogRow::CassoLinkItem::AdtProHelp;
+    std::wstring  text = help                                                          ? std::wstring (GetHelpText (row.cassoLinkItem))
                        : (row.cassoLinkItem == CatalogRow::CassoLinkItem::AddMachine) ? std::wstring (L"Open it to add a connection to an Apple: a serial cable, a Wi-Fi modem, or a Casso on TCP.\r\n")
                        : std::wstring (L"The CassoLink boot disk.\r\n\r\nBooting it starts CassoLink on the Apple, on each of its serial ports "
                                        L"at 115,200 baud and on an Uthernet II, which gets its address by DHCP. The link is made on the "
@@ -1216,8 +1290,8 @@ void CassoExplorerBrowser::PreviewCassoLinkItem (const CatalogRow & row)
 
 
 
-    std::string   help = TextEncoding::WideToNarrow (GetCassoLinkHelp());
-    HRESULT       hr   = S_OK;
+    std::string   bytes = TextEncoding::WideToNarrow (GetHelpText (row.cassoLinkItem));
+    HRESULT       hr    = S_OK;
 
 
 
@@ -1226,9 +1300,9 @@ void CassoExplorerBrowser::PreviewCassoLinkItem (const CatalogRow & row)
 
     //  The help is written out for Windows' own Markdown preview, where one
     //  is installed; otherwise the preview has the text as it is.
-    if (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help && m_shellVerbs != nullptr && !row.hostPath.empty())
+    if (help && m_shellVerbs != nullptr && !row.hostPath.empty())
     {
-        hr = m_operations.GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (row.hostPath), std::vector<Byte> (help.begin(), help.end()));
+        hr = m_operations.GetFileIo().WriteAllBytes (TextEncoding::WideToNarrow (row.hostPath), std::vector<Byte> (bytes.begin(), bytes.end()));
 
         if (SUCCEEDED (hr) && m_shellVerbs->HasShellPreview (row.hostPath))
         {
@@ -4709,7 +4783,7 @@ std::shared_ptr<const DxuiIconImage> CassoExplorerBrowser::GetRowIcon (const Cat
         return icons.GetForKind (row.offline ? IShellIcons::Kind::AppleMachineOffline : IShellIcons::Kind::AppleMachine);
     }
 
-    if (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help)
+    if (row.cassoLinkItem == CatalogRow::CassoLinkItem::Help || row.cassoLinkItem == CatalogRow::CassoLinkItem::AdtProHelp)
     {
         return icons.GetForPath (row.hostPath, false);
     }

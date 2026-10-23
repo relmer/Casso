@@ -2958,6 +2958,7 @@ JsonValue SettingsPanelState::BuildJson (
                         {
                             switches.emplace_back (kpszSw1BeforeKey, JsonValue (staged->switchesSw1BeforePrinter));
                         }
+
                         rebuilt.emplace_back (kpszSwitchesKey, JsonValue (std::move (switches)));
                     }
                 }

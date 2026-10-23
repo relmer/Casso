@@ -826,22 +826,6 @@ void TreeModel::SetLinks (std::vector<LinkTreeEntry> links)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TreeModel::SetAdtProFolder
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void TreeModel::SetAdtProFolder (const std::wstring & folder)
-{
-    m_adtProFolder = folder;
-    m_children.erase (kCassoLinkRootId);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  TreeModel::MakeLinkId
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1137,7 +1121,8 @@ bool TreeModel::IsLinkReplying (const std::wstring & name) const
 //  TreeModel::ListLink
 //
 //  A link's drives once its Apple replies, and nothing before; the list has
-//  the link's state then (GetLinkStatus).
+//  the link's state then (GetLinkStatus). An ADTPro server has the folder it
+//  shares.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1162,6 +1147,18 @@ HRESULT TreeModel::ListLink (const std::wstring & name, std::vector<TreeNode> & 
         node.canExpand = !drive.folders.empty();
 
         outNodes.push_back (node);
+    }
+
+    if (!found->folder.empty())
+    {
+        TreeNode  shared;
+
+        shared.id       = kAdtProId + found->folder;
+        shared.kind     = TreeNode::Kind::HostFolder;
+        shared.label    = std::filesystem::path (found->folder).filename().wstring();
+        shared.label    = shared.label.empty() ? found->folder : shared.label;
+        shared.location = Location::MakeHostFolder (found->folder);
+        outNodes.push_back (shared);
     }
 
 Error:
@@ -1728,17 +1725,6 @@ HRESULT TreeModel::GetChildren (const std::wstring & id, std::vector<TreeNode> &
     else if (id == kCassoLinkRootId)
     {
         AppendLinkRoots (outNodes, false);
-
-        if (!m_adtProFolder.empty())
-        {
-            TreeNode  adtPro;
-
-            adtPro.id       = kAdtProId + m_adtProFolder;
-            adtPro.kind     = TreeNode::Kind::HostFolder;
-            adtPro.label    = L"ADTPro";
-            adtPro.location = Location::MakeHostFolder (m_adtProFolder);
-            outNodes.push_back (adtPro);
-        }
 
         TreeNode  add;
 

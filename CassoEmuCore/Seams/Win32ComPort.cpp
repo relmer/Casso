@@ -45,6 +45,7 @@ HRESULT Win32ComPort::Open (const std::wstring & port, const ComSettings & setti
     CWR (m_handle != INVALID_HANDLE_VALUE);
 
     ByteStreamSettings::ToDcb (settings, dcb);
+    m_handshake = settings.hardwareHandshake;
 
     result = SetCommState (m_handle, &dcb);
     CWR (result);
@@ -78,6 +79,7 @@ HRESULT Win32ComPort::Write (const Byte * data, size_t count)
 {
     HRESULT  hr      = S_OK;
     DWORD    written = 0;
+    DWORD    modem   = 0;
     BOOL     result  = FALSE;
     bool     closed  = IsClosed();
 
@@ -88,7 +90,16 @@ HRESULT Win32ComPort::Write (const Byte * data, size_t count)
 
     result = WriteFile (m_handle, data, (DWORD) count, &written, nullptr);
     CWR (result);
-    CBREx (written == count, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
+
+    //  A write that does not finish within the timeout, with the handshake on
+    //  and CTS off, indicates a cable that may not connect CTS.
+    if (written != count)
+    {
+        result = GetCommModemStatus (m_handle, &modem);
+        modem  = result ? modem : MS_CTS_ON;
+    }
+
+    CBREx (written == count, ByteStreamSettings::ClassifyWriteStall (m_handshake, (modem & MS_CTS_ON) != 0));
 
 Error:
     if (FAILED (hr) && hr != E_INVALIDARG)

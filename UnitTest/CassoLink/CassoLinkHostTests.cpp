@@ -535,6 +535,43 @@ public:
     }
 
 
+    //  ADTPro's CD moves within the folder served, and a CD or a file
+    //  request for a path outside it, by "..", a separator or a junction, fails (FR-088).
+    TEST_METHOD (TheServedFolderConfinesCdAndFiles)
+    {
+        InMemoryFileSystem  fileSystem;
+        FakeDiskFileIo      fileIo;
+        CassoLinkFolder     folder (fileSystem, fileIo);
+        std::vector<Byte>   wire;
+        HRESULT             hr = S_OK;
+
+        for (const wchar_t * path : { L"C:\\Disks", L"C:\\Disks\\Sub", L"C:\\Disks\\Out", L"C:\\Secret" })
+        {
+            AssertSucceeded (fileSystem.MakeDirectory (path));
+        }
+
+        fileSystem.AddLink (L"C:\\Disks\\Out", L"C:\\Secret");
+        fileIo.files["C:\\Disks\\Out\\KEY.DSK"] = std::vector<Byte> (143360, 0);
+        folder.SetFolder (L"C:\\Disks");
+
+        AssertSucceeded (folder.ChangeDirectory ("Sub"));
+        AssertSucceeded (folder.ChangeDirectory (".."));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), folder.ChangeDirectory (".."),  L"the folder's parent");
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED), folder.ChangeDirectory ("Out"), L"a junction out of the folder");
+        hr = folder.ChangeDirectory ("C:\\Secret");
+        Assert::IsTrue   (FAILED (hr), L"a path");
+        Assert::AreEqual (std::string ("C:\\Disks\\"), folder.GetPath());
+
+        {
+            Session  session (folder);
+
+            AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kCd, Name (".."), wire));
+            session.Send (wire);
+            Assert::IsTrue (session.Receive (1) == std::vector<Byte> ({ CassoLinkHost::kReplyUnableToCd }), L"ADTPro's CD out of the folder fails");
+        }
+    }
+
+
     //  The image lands in one step, with no temporary file left beside it.
     TEST_METHOD (APutImageIsWrittenDurably)
     {

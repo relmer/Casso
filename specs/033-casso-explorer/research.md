@@ -874,7 +874,7 @@ not chosen, because it requires the dialog's slot field.
 ## R30. A cable that does not carry CTS
 
 **Decision**: a serial connection with hardware handshake on watches
-`GetCommModemStatus` while a write is pending. CTS low for 3 seconds fails
+`GetCommModemStatus` when a write does not finish within its 2-second timeout. CTS low then fails
 the connection with `The PC's CTS line is off, so the cable may not
 connect it. Turn off hardware handshake.`
 

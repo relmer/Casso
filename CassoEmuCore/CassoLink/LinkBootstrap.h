@@ -19,8 +19,9 @@ class IByteStream;
 //  follows. The //c's firmware and the card's have the same commands. What
 //  arrives on the port is then typed: Ctrl-X, which cancels any partial line
 //  that stray bytes on the port put in the input buffer, CALL -151 for the
-//  monitor, the shim as monitor lines of eight bytes from $3D00, and 3D00G.
-//  The shim runs at the bootstrap speed and sends Ready.
+//  monitor, the slot finder and the shim as monitor lines of eight bytes from
+//  $3CA0, and 3CA0G. The finder takes the slot IN# set, and the shim runs at
+//  the bootstrap speed and sends Ready.
 //
 //  Each line ends with a carriage return and is followed by a pause, as
 //  the monitor takes in a line and draws it before reading the next.
@@ -38,8 +39,9 @@ public:
     static constexpr const char *  kCancelLine = "\x18";
 
     //  The lines to type, each with its carriage return, for a shim starting
-    //  at the given speed on the given slot's 6551.
-    static HRESULT  BuildLines (DWORD baud, std::vector<std::string> & outLines, int slot = 2);
+    //  at the given speed. The zeros between the finder and the shim are not
+    //  typed.
+    static HRESULT  BuildLines (DWORD baud, std::vector<std::string> & outLines);
 
     //  Types the lines into the stream a character at a time, waiting
     //  charPauseUs after each character and pauseMs after each line. Stops

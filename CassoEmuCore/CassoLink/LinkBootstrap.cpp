@@ -14,38 +14,43 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LinkBootstrap::BuildLines (DWORD baud, std::vector<std::string> & outLines, int slot)
+HRESULT LinkBootstrap::BuildLines (DWORD baud, std::vector<std::string> & outLines)
 {
-    HRESULT            hr = S_OK;
-    std::vector<Byte>  shim;
+    HRESULT            hr    = S_OK;
+    std::vector<Byte>  image;
     LinkShimOptions    options;
+    Word               start = 0;
 
 
 
     outLines.clear();
 
     options.baud = baud;
-    options.slot = slot;
 
-    hr = LinkProgram::BuildShim (options, shim);
+    hr = LinkProgram::BuildBootstrapImage (options, image, start);
     CHR (hr);
 
     outLines.push_back (kCancelLine);
     outLines.push_back ("CALL -151\r");
 
-    for (size_t at = 0; at < shim.size(); at += kBytesPerLine)
+    for (size_t at = 0; at < image.size(); at += kBytesPerLine)
     {
-        std::string  line = std::format ("{:04X}:", LinkProgram::kShimAddress + at);
+        size_t       end  = std::min (at + kBytesPerLine, image.size());
+        bool         gap  = start + at < LinkProgram::kShimAddress && std::all_of (image.begin() + (ptrdiff_t) at, image.begin() + (ptrdiff_t) end, [] (Byte b) { return b == 0; });
+        std::string  line = std::format ("{:04X}:", start + at);
 
-        for (size_t i = at; i < at + kBytesPerLine && i < shim.size(); i++)
+        for (size_t i = at; i < end; i++)
         {
-            line += std::format (" {:02X}", shim[i]);
+            line += std::format (" {:02X}", image[i]);
         }
 
-        outLines.push_back (line + "\r");
+        if (!gap)
+        {
+            outLines.push_back (line + "\r");
+        }
     }
 
-    outLines.push_back (std::format ("{:04X}G\r", LinkProgram::kShimAddress));
+    outLines.push_back (std::format ("{:04X}G\r", start));
 
 Error:
     return hr;

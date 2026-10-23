@@ -413,25 +413,24 @@ public:
 
 
 
-    TEST_METHOD (CassoLink_ListsTheAdtProFolder_AfterTheLinks)
+    //  An ADTPro server lists the folder it shares under its root.
+    TEST_METHOD (AnAdtProServer_ListsItsFolder)
     {
         InMemoryFileSystem     fs;
         TreeModel              model (fs);
         std::vector<TreeNode>  nodes;
+        LinkTreeEntry          server;
 
-        model.SetLinks (TwoLinks());
-        model.SetAdtProFolder (L"C:\\Users\\me\\Documents\\ADTPro");
-        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
+        server.name   = L"ADTPro server on COM3";
+        server.folder = L"C:\\Disks\\ADTPro";
 
-        Assert::AreEqual ((size_t) 4, nodes.size(), L"the links, ADTPro, and Add a CassoLink connection");
-        Assert::AreEqual (std::wstring (L"adtpro:C:\\Users\\me\\Documents\\ADTPro"), nodes[2].id, L"its id ends in its path");
-        Assert::IsTrue   (nodes[3].kind == TreeNode::Kind::AddLink);
-        Assert::AreEqual (std::wstring (L"ADTPro"), nodes[2].label);
-        Assert::IsTrue   (nodes[2].location == Location::MakeHostFolder (L"C:\\Users\\me\\Documents\\ADTPro"));
+        model.SetLinks ({ server });
+        AssertSucceeded (model.GetChildren (TreeModel::MakeLinkId (server.name), nodes));
 
-        model.SetAdtProFolder (std::wstring());
-        AssertSucceeded (model.GetChildren (TreeModel::kCassoLinkRootId, nodes));
-        Assert::AreEqual ((size_t) 3, nodes.size(), L"no ADTPro with its client not served");
+        Assert::AreEqual ((size_t) 1, nodes.size());
+        Assert::AreEqual (std::wstring (L"adtpro:C:\\Disks\\ADTPro"), nodes[0].id, L"its id ends in its path");
+        Assert::AreEqual (std::wstring (L"ADTPro"), nodes[0].label);
+        Assert::IsTrue   (nodes[0].location == Location::MakeHostFolder (L"C:\\Disks\\ADTPro"));
     }
 
 

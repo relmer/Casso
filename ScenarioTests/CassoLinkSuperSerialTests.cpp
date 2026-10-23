@@ -253,7 +253,6 @@ public:
         settings.name      = "//e";
         settings.transport = LinkTransport::Emulated;
         settings.address   = "127.0.0.1:6505";
-        settings.slot      = 5;
 
         AssertSucceeded (Dos33Volume (disk).Enumerate (expected));
         Assert::IsFalse (expected.entries.empty());
@@ -337,7 +336,6 @@ public:
         settings.name      = "//e";
         settings.transport = LinkTransport::Emulated;
         settings.address   = "127.0.0.1:6505";
-        settings.slot      = 5;
 
         AssertSucceeded (Dos33Volume (disk).Enumerate (expected));
 
@@ -357,12 +355,13 @@ public:
 
 
 
-    //  The card's firmware in slot 2 has the //c's IN#2 and Ctrl-A 14B,
-    //  except that it executes the command at the Return after it; the
-    //  session then types the loader in through the card.
+    //  The card's firmware in slot 5 has the //c's IN# and Ctrl-A 14B, except
+    //  that it executes the command at the Return after it; the session then
+    //  types the loader in through the card, and the slot finder takes slot 5
+    //  from the input hook IN#5 set.
     TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCardsFirmware_AndListsADisk)
     {
-        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 2, true); });
+        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
         std::shared_ptr<InProcessByteStream>  machineEnd;
         Factory                               factory;
         InMemoryCassoLinkFolder               folder;
@@ -383,9 +382,9 @@ public:
         machine.RunCycles (2'000'000ULL);
 
         InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
 
-        Type (machine, "IN#2\r");
+        Type (machine, "IN#5\r");
         Type (machine, "\x01" "14B\r");
 
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
@@ -393,7 +392,6 @@ public:
         settings.name      = "//e";
         settings.transport = LinkTransport::Emulated;
         settings.address   = "127.0.0.1:6502";
-        settings.slot      = 2;
 
         {
             CassoLinkSession  session (factory, folder, fileIo, sink);
@@ -420,7 +418,7 @@ public:
 
     TEST_METHOD (ABareIIe_IsBootstrappedThroughTheCassetteInput_AndListsADisk)
     {
-        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 2, false); });
+        TestMachine                           machine ("Apple2e", [] (MachineConfig & config) { ConfigureCard (config, 5, true); });
         std::shared_ptr<InProcessByteStream>  machineEnd;
         Factory                               factory;
         InMemoryCassoLinkFolder               folder;
@@ -438,7 +436,7 @@ public:
         double                                seconds = 0.0;
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("3D00.3FFFR 3D00G\r"), command);
+        Assert::AreEqual (std::string ("3CA0.3FFFR 3CA0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
@@ -453,7 +451,7 @@ public:
         machine.RunCycles (2'000'000ULL);
 
         InProcessByteStream::CreatePair (machineEnd, factory.pcEnd);
-        Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+        Assert::AreEqual (S_OK, machine.AttachSerialStream (5, machineEnd));
         AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, disk));
 
         Type (machine, "CALL -151\r");
@@ -465,7 +463,7 @@ public:
         machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC IN SLOT 2 AT 115200"), TextEncoding::NarrowToWide (JoinRows (screen)).c_str());
+        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC IN SLOT 5 AT 115200"), TextEncoding::NarrowToWide (JoinRows (screen)).c_str());
 
         settings.name      = "//e";
         settings.transport = LinkTransport::Emulated;

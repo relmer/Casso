@@ -112,4 +112,15 @@ public:
                                           bool               & outReadOnly) = 0;
     virtual HRESULT SetReadOnlyAttribute (const std::wstring & path,
                                           bool                 readOnly) = 0;
+
+    // The full path `path` is at once every junction and symbolic link in it
+    // is followed. A file system with neither returns the path as it is.
+    // Fails for a path that does not exist.
+    virtual HRESULT ResolveFinalPath     (const std::wstring & path,
+                                          std::wstring       & outPath)
+    {
+        outPath = path;
+
+        return S_OK;
+    }
 };

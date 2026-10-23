@@ -614,3 +614,66 @@ HRESULT Win32FileSystem::SetReadOnlyAttribute (
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32FileSystem::ResolveFinalPath
+//
+//  Opened with backup semantics, so a folder opens as a file does, and with
+//  no access, so a file open elsewhere does not get in the way. The "\\?\"
+//  prefix of the result is removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::ResolveFinalPath (
+    const std::wstring  & path,
+    std::wstring        & outPath)
+{
+    HRESULT       hr     = S_OK;
+    HANDLE        handle = INVALID_HANDLE_VALUE;
+    DWORD         length = 0;
+    bool          fits   = false;
+    std::wstring  final (MAX_PATH, L'\0');
+
+
+
+    handle = CreateFileW (path.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                          nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    CWR (handle != INVALID_HANDLE_VALUE);
+
+    length = GetFinalPathNameByHandleW (handle, final.data(), (DWORD) final.size(), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+    CWR (length != 0);
+
+    if (length >= final.size())
+    {
+        final.resize (length + 1);
+        length = GetFinalPathNameByHandleW (handle, final.data(), (DWORD) final.size(), FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
+        fits   = length != 0 && length < final.size();
+        CWR (fits);
+    }
+
+    final.resize (length);
+
+    if (final.starts_with (L"\\\\?\\UNC\\"))
+    {
+        final = L"\\\\" + final.substr (8);
+    }
+    else if (final.starts_with (L"\\\\?\\"))
+    {
+        final = final.substr (4);
+    }
+
+    outPath = final;
+
+Error:
+    if (handle != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (handle);
+    }
+
+    return hr;
+}

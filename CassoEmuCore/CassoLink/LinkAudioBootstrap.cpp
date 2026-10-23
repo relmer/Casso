@@ -16,21 +16,21 @@
 HRESULT LinkAudioBootstrap::BuildAudio (const LinkShimOptions & options, TapeAudio & outAudio, std::string & outCommand)
 {
     HRESULT              hr    = S_OK;
-    std::vector<Byte>    shim;
+    std::vector<Byte>    image;
     std::vector<double>  halfCycles;
-    Word                 start = LinkProgram::GetShimAddress (options.chip);
+    Word                 start = 0;
 
 
 
     outCommand.clear();
 
-    hr = LinkProgram::BuildShim (options, shim);
+    hr = LinkProgram::BuildBootstrapImage (options, image, start);
     CHR (hr);
 
-    AppendRecord (shim, halfCycles);
+    AppendRecord (image, halfCycles);
     Render (halfCycles, outAudio);
 
-    outCommand = std::format ("{:04X}.{:04X}R {:04X}G\r", start, start + shim.size() - 1, start);
+    outCommand = std::format ("{:04X}.{:04X}R {:04X}G\r", start, start + image.size() - 1, start);
 
 Error:
     return hr;

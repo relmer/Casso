@@ -49,36 +49,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerCassoLinkPage
-//
-//  Whether CassoLink serves ADTPro's client, and the folder it serves.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-class CassoExplorerCassoLinkPage : public DxuiPropertyPage
-{
-public:
-    explicit CassoExplorerCassoLinkPage (std::wstring title) : DxuiPropertyPage (std::move (title)) {}
-
-    void  Init    (DxuiCheckbox & emulate, DxuiLabel & folderLabel, DxuiTextInput & folder, DxuiLabel & note);
-    void  Layout  (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
-
-    static constexpr int  kNoteHeightDip = 60;
-
-private:
-    DxuiCheckbox   * m_emulate     = nullptr;
-    DxuiLabel      * m_folderLabel = nullptr;
-    DxuiTextInput  * m_folder      = nullptr;
-    DxuiLabel      * m_note        = nullptr;
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerOptionsDialog
 //
 //  CassoExplorer's settings: the form a copy out of an image takes on the
@@ -101,10 +71,6 @@ public:
         //  Whether Casso is the program for its disk image types.
         bool  registered = false;
 
-        //  Whether CassoLink serves ADTPro's client, and from which folder;
-        //  an empty one is Documents\ADTPro.
-        bool          emulateAdtPro = true;
-        std::wstring  adtProFolder;
 
         //  The preview's monitor, as a PicturePreview::Monitor, the custom
         //  monitor's color, and the effects changed on each monitor, by its
@@ -161,11 +127,6 @@ private:
     DxuiComboBox                  m_naming;
     DxuiLabel                     m_namingNote;
     DxuiCheckbox                  m_register;
-    DxuiCheckbox                  m_emulateAdtPro;
-    DxuiLabel                     m_adtProLabel;
-    DxuiTextInput                 m_adtProFolder;
-    DxuiLabel                     m_adtProNote;
-    CassoExplorerCassoLinkPage  * m_linkPage      = nullptr;
     ColorPickerOverlay            m_colorPicker;
     CassoExplorerGeneralPage    * m_general       = nullptr;
     DisplayPage                 * m_displayPage   = nullptr;

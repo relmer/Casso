@@ -69,4 +69,14 @@ public:
         Assert::AreEqual ("127.0.0.1", ByteStreamSettings::GetBindAddress (LinkTransport::Emulated));
         Assert::AreEqual ("127.0.0.1", ByteStreamSettings::GetBindAddress (LinkTransport::Serial));
     }
+
+
+    //  A write that times out with the handshake on and CTS off indicates
+    //  a cable that may not connect CTS (FR-083d).
+    TEST_METHOD (AStalledWrite_WithTheHandshakeOnAndCtsOff_IsTheCable)
+    {
+        Assert::AreEqual (ByteStreamSettings::kCtsOff,          ByteStreamSettings::ClassifyWriteStall (true,  false));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TIMEOUT),   ByteStreamSettings::ClassifyWriteStall (true,  true));
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TIMEOUT),   ByteStreamSettings::ClassifyWriteStall (false, false));
+    }
 };

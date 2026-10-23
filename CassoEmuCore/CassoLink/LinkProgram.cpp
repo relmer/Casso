@@ -9,6 +9,7 @@
 #include "Shim.s.h"
 #include "Program.s.h"
 #include "Universal.s.h"
+#include "SlotFinder.s.h"
 
 
 
@@ -330,6 +331,89 @@ std::string LinkProgram::GetProgramSource()
 std::string LinkProgram::GetUniversalSource()
 {
     return std::string (reinterpret_cast<const char *> (s_kUniversalSource), sizeof (s_kUniversalSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::GetSlotFinderSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string LinkProgram::GetSlotFinderSource()
+{
+    return std::string (reinterpret_cast<const char *> (s_kSlotFinderSource), sizeof (s_kSlotFinderSource) - 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::AssembleSlotFinder
+//
+//  The finder must end before the shim starts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::AssembleSlotFinder (std::vector<Byte> & outBytes, std::string & outErrors)
+{
+    HRESULT  hr   = S_OK;
+    bool     fits = false;
+
+
+
+    hr = Assemble (GetSlotFinderSource(), kSlotFinderAddress, LinkChip::Acia, outBytes, outErrors);
+    CHR (hr);
+
+    fits = outBytes.size() <= (size_t) (kShimAddress - kSlotFinderAddress);
+    CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LinkProgram::BuildBootstrapImage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT LinkProgram::BuildBootstrapImage (const LinkShimOptions & options, std::vector<Byte> & outImage, Word & outStart)
+{
+    HRESULT            hr     = S_OK;
+    std::vector<Byte>  shim;
+    std::string        errors;
+
+
+
+    outImage.clear();
+    outStart = GetShimAddress (options.chip);
+
+    hr = BuildShim (options, shim);
+    CHR (hr);
+
+    if (options.chip == LinkChip::Acia)
+    {
+        hr = AssembleSlotFinder (outImage, errors);
+        CHR (hr);
+
+        outImage.resize (kShimAddress - kSlotFinderAddress, 0);
+        outStart = kSlotFinderAddress;
+    }
+
+    outImage.insert (outImage.end(), shim.begin(), shim.end());
+
+Error:
+    return hr;
 }
 
 

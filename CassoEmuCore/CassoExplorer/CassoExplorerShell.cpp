@@ -46,6 +46,9 @@ struct CassoExplorerShell::WindowSlot
 //
 //  CassoExplorerShell::CassoExplorerShell
 //
+//  Only an ADTPro server serves a folder, its own; every other connection is
+//  given the empty one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoExplorerShell::CassoExplorerShell()
@@ -53,6 +56,13 @@ CassoExplorerShell::CassoExplorerShell()
       m_links (m_streams, m_linkFolder, m_fileIo),
       m_running (m_fs, m_processProbe, RunningCassoRegistry::GetDefaultFolder())
 {
+    m_links.SetFolderMaker ([this] (const std::wstring & path) -> std::unique_ptr<ICassoLinkFolder>
+    {
+        auto  folder = std::make_unique<CassoLinkFolder> (m_fs, m_fileIo);
+
+        folder->SetFolder (path);
+        return folder;
+    });
 }
 
 
@@ -838,7 +848,6 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.host        = this;
     context.watcher     = slot->watcher.get();
     context.links       = &m_links;
-    context.linkFolder  = &m_linkFolder;
     context.running     = &m_running;
     context.announced   = &m_announcements;
 

@@ -16,16 +16,18 @@ class IFileSystem;
 //
 //  CassoLinkFolder
 //
-//  The host folder CassoLinkHost serves, following Casso Explorer's current
-//  tab: a host folder is served as it is; a disk image, or a directory inside
-//  one, serves the folder the image is in; a root such as This PC, the
-//  Recycle Bin or a shell folder serves nothing, and each of ADTPro's
-//  requests has its unable reply.
+//  The host folder CassoLinkHost serves an ADTPro-compatible server
+//  connection from. With none set, each of ADTPro's requests has its unable
+//  reply.
 //
-//  The tab sets the location on the UI thread while the host reads it on the
-//  link's thread, so both go through a lock. ADTPro's CD changes the folder
-//  the link serves, not the tab. A write goes through DurableCommit, so an
-//  interrupted transfer ends with the old file in place, or with none.
+//  The folder set is the root: ADTPro's CD moves within it, and a request
+//  for a file or folder outside its subtree, by "..", a separator, or a
+//  junction or symbolic link, fails (FR-088). Paths are compared once every
+//  junction in them is followed.
+//
+//  The folder is set on the UI thread while the host reads it on the link's
+//  thread, so both go through a lock. A write goes through DurableCommit, so
+//  an interrupted transfer ends with the old file in place, or with none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,10 +54,16 @@ public:
 private:
     std::wstring  GetFolder   () const;
     std::string   GetFilePath (const std::string & name) const;
+    bool          IsConfined  (const std::wstring & path) const;
+
+    //  A path as IsConfined compares it: lower case, backslashes, and no
+    //  trailing separator.
+    static std::wstring  MakeComparable (const std::wstring & path);
 
     IFileSystem         & m_fileSystem;
     IDiskFileIo         & m_fileIo;
     mutable std::mutex    m_lock;
     std::wstring          m_folder;
+    std::wstring          m_root;
     std::atomic<uint64_t> m_writeTag { 1 };
 };

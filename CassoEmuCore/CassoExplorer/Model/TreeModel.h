@@ -74,6 +74,7 @@ struct LinkTreeEntry
     bool                probing  = false;   // a drive's catalog being read; its row is left out until it arrives
     std::wstring        status;
     std::vector<Drive>  drives;
+    std::wstring        folder;   // an ADTPro server's shared folder, listed under it
 };
 
 
@@ -160,10 +161,6 @@ public:
     //  again on the next expand.
     void  SetLinks           (std::vector<LinkTreeEntry> links);
 
-    //  The ADTPro folder listed under CassoLink, or none.
-    void  SetAdtProFolder (const std::wstring & folder);
-    const std::wstring &  GetAdtProFolder () const { return m_adtProFolder; }
-
     //  A link's state while its Apple is not replying, for the list in place
     //  of its drives; false once it replies.
     bool  GetLinkStatus      (const std::wstring & name, std::wstring & outStatus) const;
@@ -219,8 +216,8 @@ public:
     //  linked Apple, with CassoLink.dsk and its help beside them in the list.
     static constexpr const wchar_t *  kCassoLinkRootId = L"cassolink:";
 
-    //  The ADTPro folder's node under CassoLink, adtpro:<path>, which lists
-    //  the folder under CassoLink rather than where the folder is.
+    //  An ADTPro server's folder node under its connection, adtpro:<path>,
+    //  which lists the folder there rather than where the folder is.
     static constexpr const wchar_t *  kAdtProId        = L"adtpro:";
 
     //  The node that adds a CassoLink connection; selecting it opens the
@@ -260,7 +257,7 @@ private:
     HRESULT  ListLink       (const std::wstring & name, std::vector<TreeNode> & outNodes);
     HRESULT  ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const;
     void     AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) const;
-    std::wstring             m_adtProFolder;
+
     HRESULT  ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
     HRESULT  ListDesktopRoot  (std::vector<TreeNode> & outNodes);
     TreeNode  MakeRootNode    (const std::wstring & id) const;

@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
+#include "Seams/IByteStreamFactory.h"
 #include "Seams/Win32NetworkAdapters.h"
 
 
@@ -138,26 +139,13 @@ std::string CassoLinkConnections::MakeRunningName (const RunningCasso & running)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoLinkConnections::DescribeConnection
+//  CassoLinkConnections::ListComPorts
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string CassoLinkConnections::DescribeConnection (const CassoLinkSettings & settings)
+HRESULT CassoLinkConnections::ListComPorts (std::vector<std::wstring> & outPorts)
 {
-    size_t       colon = settings.address.rfind (':');
-    std::string  host  = (colon == std::string::npos) ? settings.address : settings.address.substr (0, colon);
-    std::string  port  = (colon == std::string::npos) ? std::string() : settings.address.substr (colon + 1);
-
-
-
-    switch (settings.transport)
-    {
-        case LinkTransport::Serial:    return settings.port.empty() ? std::string ("Serial") : std::format ("Serial on {}", settings.port);
-        case LinkTransport::Emulated:  return port.empty() ? std::string ("Casso") : std::format ("Casso on port {}", port);
-        case LinkTransport::WifiModem: return port.empty() ? std::string ("Wi-Fi modem") : std::format ("Wi-Fi modem on port {}", port);
-        case LinkTransport::Uthernet:  return settings.address.empty() ? std::string ("Uthernet II") : std::format ("Uthernet II at {}", settings.address);
-        default:                       return port.empty() ? std::format ("TCP {}", host) : std::format ("TCP {} port {}", host, port);
-    }
+    return m_factory.ListComPorts (outPorts);
 }
 
 
@@ -189,7 +177,6 @@ void CassoLinkConnections::Merge()
         settings.name      = MakeRunningName (running);
         settings.transport = LinkTransport::Emulated;
         settings.address   = running.address;
-        settings.slot      = running.serialPort;
 
         covered = std::any_of (links.begin(), links.end(), [&settings] (const CassoLinkSettings & link)
         {
@@ -213,8 +200,7 @@ void CassoLinkConnections::Merge()
 
         settings.transport = LinkTransport::Uthernet;
         settings.address   = announced.GetAddressText();
-        settings.slot      = kUthernetSlot;
-        settings.name      = DescribeConnection (settings);
+        settings.name      = CassoLinkSettings::MakeName (settings);
 
         covered = std::any_of (links.begin(), links.end(), [&settings] (const CassoLinkSettings & link)
         {
@@ -327,7 +313,13 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
     link           = std::make_unique<Link>();
     link->settings = *settings;
     link->sink     = std::make_unique<Sink> (*this, name);
-    link->session  = std::make_unique<CassoLinkSession> (m_factory, m_folder, m_fileIo, *link->sink);
+
+    if (settings->transport == LinkTransport::AdtProServer && m_makeFolder)
+    {
+        link->folder = m_makeFolder (settings->folder);
+    }
+
+    link->session  = std::make_unique<CassoLinkSession> (m_factory, link->folder ? *link->folder : m_folder, m_fileIo, *link->sink);
 
     //  A search opens the ports in turn even when the link has one set.
     opening = link->settings;
@@ -498,20 +490,23 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
         LinkTreeEntry  entry;
         auto           found = std::find_if (m_started.begin(), m_started.end(), [&settings] (const std::unique_ptr<Link> & link) { return link->settings.name == settings.name; });
 
-        entry.name = TextEncoding::NarrowToWide (settings.name);
+        entry.name   = TextEncoding::NarrowToWide (settings.name);
+        entry.folder = (settings.transport == LinkTransport::AdtProServer) ? settings.folder : std::wstring();
 
         if (found == m_started.end())
         {
             entry.status = m_held.contains (settings.name) ? std::format (L"{} is disconnected.", entry.name)
-                                                           : DescribeState (LinkState::Closed, false, settings, GetPcName());
+                                                           : DescribeState (LinkState::Closed, settings, GetPcName());
         }
         else
         {
             LinkState  state = (*found)->session->GetState();
 
+            std::string  failure = (*found)->session->GetOpenFailure();
+
             entry.replying = state == LinkState::Ready || state == LinkState::Busy;
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
-            entry.status   = DescribeState (state, (*found)->session->IsServingAdtPro(), settings, GetPcName());
+            entry.status   = failure.empty() ? DescribeState (state, settings, GetPcName()) : TextEncoding::NarrowToWide (failure);
         }
 
         if (found == m_started.end())
@@ -985,7 +980,7 @@ LinkShimOptions CassoLinkConnections::MakeShimOptions (const std::wstring & pcNa
 
 
     options.baud = settings.baud;
-    options.slot = settings.slot;
+    options.slot = (settings.transport == LinkTransport::Uthernet) ? kUthernetSlot : options.slot;
     options.dial = MakeDialCommand (pcName, settings);
 
     BAIL_OUT_IF (settings.transport != LinkTransport::Uthernet, S_OK);
@@ -1203,23 +1198,18 @@ bool CassoLinkConnections::TakeChanged()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoLinkConnections::DescribeState (LinkState state, bool servingAdtPro, const CassoLinkSettings & settings, const std::wstring & pcName)
+std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName)
 {
     std::wstring  name    = TextEncoding::NarrowToWide (settings.name);
     std::wstring  address = TextEncoding::NarrowToWide (settings.address);
     std::wstring  port    = TextEncoding::NarrowToWide (settings.port);
     std::wstring  baud    = FormatBaud (settings.baud);
     std::wstring  text;
+    bool          server  = settings.transport == LinkTransport::AdtProServer;
 
 
 
-    if (servingAdtPro)
-    {
-        return std::format (L"ADTPro's own Apple program is running on {}. Browsing and copying work only with Casso's program: "
-                            L"choose Bootstrap the Apple from {}'s menu to load it.", name, name);
-    }
-
-    switch (state)
+    switch (server ? LinkState::Opening : state)
     {
         case LinkState::Closed:          text = std::format (L"Click {} to connect.", name);                     break;
         case LinkState::Bootstrapping:   text = std::format (L"Typing the loader into {}...", name);              break;
@@ -1252,6 +1242,13 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, bool servingA
 
                 case LinkTransport::Uthernet:
                     text = std::format (L"Connecting to {} at {}.\nBoot that Apple from a CassoLink disk saved from {}.", name, address, name);
+                    break;
+
+                case LinkTransport::AdtProServer:
+                    text = (state == LinkState::Closed)
+                         ? std::format (L"Click {} to serve ADTPro's client from {}.", name, settings.folder)
+                         : std::format (L"Serving ADTPro's client from {}.\nStart ADTPro's client on the Apple, and choose {} in its configuration.",
+                                        settings.folder, settings.IsComPort() ? port : address);
                     break;
 
                 default:

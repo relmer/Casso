@@ -45,6 +45,8 @@ public:
                                   bool               & outReadOnly) override;
     HRESULT SetReadOnlyAttribute (const std::wstring & path,
                                   bool                 readOnly) override;
+    HRESULT ResolveFinalPath     (const std::wstring & path,
+                                  std::wstring       & outPath) override;
 
 private:
     static HRESULT  ListEntries (const std::wstring           & directory,

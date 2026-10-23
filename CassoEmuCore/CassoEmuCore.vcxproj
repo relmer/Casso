@@ -1106,6 +1106,7 @@
     <None Include="CassoLink\Apple\Program.s" />
     <None Include="CassoLink\Apple\Shim.s" />
     <None Include="CassoLink\Apple\Universal.s" />
+    <None Include="CassoLink\Apple\SlotFinder.s" />
     <None Include="CassoLink\Apple\AppleSources.targets" />
     <None Include="Machines\Apple2\Common\ParallelFirmware.a65" />
   </ItemGroup>

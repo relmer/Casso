@@ -1019,8 +1019,8 @@ void CassoExplorerWindow::ConfigureWidgets()
         m_context.links->SetLinks (m_prefs.links);
         m_browser.SetLinks (m_context.links);
         m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
-        ApplyAdtProSettings();
         RefreshTree();
+        StartAdtProServers();
     }
 
     //  Each running Casso with a serial port on TCP is a root as well, read
@@ -1520,7 +1520,6 @@ void CassoExplorerWindow::RevealLocationInTree()
     std::wstring          link;
     int                   slot     = 0;
     int                   drive    = 0;
-    bool                  inAdtPro = false;
 
 
 
@@ -1564,30 +1563,12 @@ void CassoExplorerWindow::RevealLocationInTree()
         return;
     }
 
-    //  The ADTPro node is where the folder and everything in it are, under
-    //  CassoLink, as the address bar has them.
-    inAdtPro = m_addressRoot.adtProPath.size() > 0 && path.size() >= m_addressRoot.adtProPath.size()
-            && _wcsnicmp (path.c_str(), m_addressRoot.adtProPath.c_str(), m_addressRoot.adtProPath.size()) == 0
-            && (path.size() == m_addressRoot.adtProPath.size() || path[m_addressRoot.adtProPath.size()] == L'\\');
-
-    if (inAdtPro && TreeModel::StripLinkCopy (current).starts_with (TreeModel::kAdtProId))
+    //  A click on an ADTPro server's folder node, under its connection,
+    //  highlights that node, so no other is searched for.
+    if (TreeModel::StripLinkCopy (current) == TreeModel::kAdtProId + path)
     {
         ScrollTreeToRow (m_tree->GetHighlight());
         return;
-    }
-
-    if (inAdtPro)
-    {
-        m_tree->SetRowExpanded (m_tree->FindRowById (TreeModel::kCassoLinkRootId), true);
-        row = m_tree->FindRowById (TreeModel::kAdtProId + m_addressRoot.adtProPath);
-        row = (row >= 0 && path.size() > m_addressRoot.adtProPath.size() + 1) ? WalkTreeLabels (row, path.substr (m_addressRoot.adtProPath.size() + 1)) : row;
-
-        if (row >= 0)
-        {
-            m_tree->HighlightRow (row);
-            ScrollTreeToRow (row);
-            return;
-        }
     }
 
     //  Casso's known folders come first: the deepest one that holds the
@@ -9367,8 +9348,7 @@ void CassoExplorerWindow::ShowOptions()
 
     choices.hostNaming   = (int) GetNamingStyle();
     choices.registered   = wasRegistered;
-    choices.emulateAdtPro = m_prefs.emulateAdtPro;
-    choices.adtProFolder  = TextEncoding::NarrowToWide (m_prefs.adtProFolder);
+
     choices.monitor      = (int) GetPreviewMonitor();
     choices.customArgb   = m_prefs.previewCustomArgb;
     choices.crtOverrides = m_prefs.crtOverrides;
@@ -9395,9 +9375,6 @@ void CassoExplorerWindow::ShowOptions()
         m_prefs.hostNaming = kNamings[choices.hostNaming];
     }
 
-    m_prefs.emulateAdtPro = choices.emulateAdtPro;
-    m_prefs.adtProFolder  = TextEncoding::WideToNarrow (choices.adtProFolder);
-    ApplyAdtProSettings();
 
     //  The user's file types change only when the box was changed.
     if (choices.registered != wasRegistered)
@@ -10990,20 +10967,18 @@ void CassoExplorerWindow::ShowTreeEmptyMenu (int x, int y)
 
 void CassoExplorerWindow::EditLink (const std::string & name)
 {
+    HRESULT                           hr      = S_OK;
     CassoLinkSettings                 initial;
     std::vector<std::wstring>         others;
+    std::vector<std::wstring>         ports;
     CassoExplorerLinkDialog::Outcome  outcome;
-    auto                              found = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), [&name] (const CassoLinkSettings & link) { return link.name == name; });
+    auto                              found   = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), [&name] (const CassoLinkSettings & link) { return link.name == name; });
 
 
 
     if (found != m_prefs.links.end())
     {
         initial = *found;
-    }
-    else
-    {
-        initial.name = "Apple II";
     }
 
     for (const CassoLinkSettings & link : m_prefs.links)
@@ -11014,7 +10989,27 @@ void CassoExplorerWindow::EditLink (const std::string & name)
         }
     }
 
-    outcome = CassoExplorerLinkDialog::Ask (GetHwnd(), m_theme, initial, others, found == m_prefs.links.end());
+    //  With no ports listed, the drop-down has Any alone.
+    if (m_context.links != nullptr)
+    {
+        hr = m_context.links->ListComPorts (ports);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    outcome = CassoExplorerLinkDialog::Ask (GetHwnd(), m_theme, initial, others, ports, found == m_prefs.links.end(),
+                                            [this] (HWND owner, std::wstring & inOutFolder) -> bool
+    {
+        std::filesystem::path  picked;
+        bool                   chosen = false;
+        HRESULT                result = m_dialogs.PickFolder (owner, picked, chosen);
+
+        if (SUCCEEDED (result) && chosen)
+        {
+            inOutFolder = picked.wstring();
+        }
+
+        return SUCCEEDED (result) && chosen;
+    });
 
     if (!outcome.confirmed)
     {
@@ -11128,21 +11123,15 @@ void CassoExplorerWindow::SearchLink (const std::string & name)
 void CassoExplorerWindow::BootstrapLink (const std::string & name)
 {
     HRESULT       hr      = S_OK;
-    int           slot    = CassoLinkSettings::kDefaultSlot;
     std::wstring  steps;
     int           answer  = IDCANCEL;
 
 
 
-    for (const CassoLinkSettings & link : m_context.links->GetLinks())
-    {
-        slot = (link.name == name) ? link.slot : slot;
-    }
-
-    steps  = std::format (L"On the Apple, at the prompt, type:\n\n"
-                          L"1. **IN#{}**, then press Return\n"
-                          L"2. **Ctrl+A 14B**, then press Return\n\n"
-                          L"The loader is then typed into the Apple, which takes about 40 seconds.", slot);
+    steps  = L"On the Apple, at the prompt, type:\n\n"
+             L"1. **IN#2** on a //c, or IN# and the Super Serial Card's slot, then press Return\n"
+             L"2. **Ctrl+A 14B**, then press Return\n\n"
+             L"The loader is then typed into the Apple, which takes about 40 seconds.";
     answer = DxuiMessageBox (GetHwnd(), m_theme, steps.c_str(), L"Bootstrap the Apple",
                              MB_OKCANCEL | MB_ICONINFORMATION, { L"Bootstrap", L"Cancel" });
 
@@ -11304,8 +11293,7 @@ void CassoExplorerWindow::ReleaseIdleLinks()
 
 
 
-    //  ADTPro's client speaks first, so each connection stays open for it.
-    if (m_context.links == nullptr || m_prefs.emulateAdtPro)
+    if (m_context.links == nullptr)
     {
         return;
     }
@@ -11319,7 +11307,8 @@ void CassoExplorerWindow::ReleaseIdleLinks()
         bool                connected = state == LinkState::Ready || state == LinkState::Busy
                                      || state == LinkState::Bootstrapping || state == LinkState::LoadingProgram;
 
-        if (session != nullptr && !connected && TextEncoding::NarrowToWide (settings.name) != current)
+        //  ADTPro's client speaks first, so an ADTPro server stays open for it.
+        if (session != nullptr && !connected && settings.transport != LinkTransport::AdtProServer && TextEncoding::NarrowToWide (settings.name) != current)
         {
             release.push_back (settings.name);
         }
@@ -11457,117 +11446,27 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CassoExplorerWindow::GetAdtProFolder
+//  CassoExplorerWindow::StartAdtProServers
 //
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring CassoExplorerWindow::GetAdtProFolder() const
-{
-    PWSTR         documents = nullptr;
-    std::wstring  folder    = TextEncoding::NarrowToWide (m_prefs.adtProFolder);
-    HRESULT       hr        = S_OK;
-
-
-
-    if (folder.empty())
-    {
-        hr = SHGetKnownFolderPath (FOLDERID_Documents, 0, nullptr, &documents);
-
-        if (SUCCEEDED (hr))
-        {
-            folder = std::wstring (documents) + L"\\ADTPro";
-        }
-
-        CoTaskMemFree (documents);
-    }
-
-    return folder;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::ApplyAdtProSettings
-//
-//  With ADTPro's client served, its folder is made if it is missing, with
-//  its help, and listed under CassoLink, and the connections are opened for
+//  ADTPro's client speaks first, so each ADTPro-compatible server is open
+//  from the start, and from when it is added, unless the user disconnected
 //  it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::ApplyAdtProSettings()
-{
-    HRESULT       hr      = S_OK;
-    std::wstring  folder  = m_prefs.emulateAdtPro ? GetAdtProFolder() : std::wstring();
-    std::string   help    = TextEncoding::WideToNarrow (CassoExplorerBrowser::GetAdtProHelp());
-    std::string   helpPath;
-    int           made    = 0;
-
-
-
-    if (!folder.empty())
-    {
-        made     = SHCreateDirectoryExW (nullptr, folder.c_str(), nullptr);
-        helpPath = TextEncoding::WideToNarrow (folder + L"\\What's ADTPro mode.md");
-
-        if ((made == ERROR_SUCCESS || made == ERROR_ALREADY_EXISTS || made == ERROR_FILE_EXISTS)
-            && !m_browser.GetOperations().GetFileIo().Exists (helpPath))
-        {
-            hr = m_browser.GetOperations().GetFileIo().WriteAllBytes (helpPath, std::vector<Byte> (help.begin(), help.end()));
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-
-    if (m_context.linkFolder != nullptr)
-    {
-        m_context.linkFolder->SetFolder (folder);
-    }
-
-    m_browser.GetTreeModel().SetAdtProFolder (folder);
-    m_addressRoot.adtProPath = folder;
-
-    for (const std::wstring & node : { std::wstring (TreeModel::kCassoLinkRootId), TreeModel::kLinkCopyTag + std::wstring (TreeModel::kCassoLinkRootId) })
-    {
-        if (m_tree != nullptr && m_tree->FindRowById (node) >= 0)
-        {
-            m_tree->ReplaceChildren (node, m_browser.GetTreeChildren (node));
-        }
-    }
-
-    StartLinksForAdtPro();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerWindow::StartLinksForAdtPro
-//
-//  With ADTPro's client served, every connection with a port or an address
-//  is opened, a running Casso found on its own included, so an Apple that
-//  starts ADTPro finds the PC. A serial connection with no port is left
-//  alone: opening it searches every COM port.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CassoExplorerWindow::StartLinksForAdtPro()
+void CassoExplorerWindow::StartAdtProServers()
 {
     HRESULT  hr = S_OK;
 
 
 
-    BAIL_OUT_IF (m_context.links == nullptr || !m_prefs.emulateAdtPro, S_OK);
+    BAIL_OUT_IF (m_context.links == nullptr, S_OK);
 
     for (const CassoLinkSettings & settings : m_context.links->GetLinks())
     {
-        bool  addressed = settings.transport != LinkTransport::Serial || !settings.port.empty();
+        bool  idle = settings.transport == LinkTransport::AdtProServer && !m_context.links->IsStarted (settings.name) && !m_context.links->IsHeld (settings.name);
 
-        if (addressed && !m_context.links->IsStarted (settings.name))
+        if (idle)
         {
             hr = m_context.links->Start (settings.name);
             IGNORE_RETURN_VALUE (hr, S_OK);
@@ -12203,7 +12102,7 @@ void CassoExplorerWindow::OnRunningChanged()
 
     m_browser.GetTreeModel().SetLinks (m_context.links->BuildTreeEntries());
     RefreshTree();
-    StartLinksForAdtPro();
+    StartAdtProServers();
 
 Error:
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -16502,7 +16401,7 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
     anchor.top    = tree.top + (row - m_tree->GetTopRow()) * m_tree->GetRowHeight();
     anchor.bottom = anchor.top + m_tree->GetRowHeight();
 
-    ShowHoverTip (TipOwner::Tree, anchor, adtPro       ? m_browser.GetTreeModel().GetAdtProFolder().c_str()
+    ShowHoverTip (TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
                                         : broken       ? m_treeTipText.c_str()
                                         : node->dimmed ? kMissingNodeTip : kCassoNodeTip);
 }

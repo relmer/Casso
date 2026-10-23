@@ -8,6 +8,7 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoLink/CassoLinkSession.h"
+#include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
@@ -212,13 +213,25 @@ public:
 
 
 
-    TEST_METHOD (AnAdtProClient_ListsTheReason_AndNoDrives)
+    //  ADTPro's client is served by an ADTPro-compatible server, which lists
+    //  no drives, and not by any other connection (FR-088).
+    TEST_METHOD (AnAdtProServer_ServesAdtProsClient_AndNoOtherConnectionDoes)
     {
         Rig                         rig;
+        CassoLinkSettings           ordinary = rig.links->GetLinks()[0];
+        CassoLinkSettings           server;
         std::vector<Byte>           wire;
         std::vector<LinkTreeEntry>  entries;
-        auto                        until  = std::chrono::steady_clock::now() + std::chrono::seconds (10);
-        bool                        served = false;
+        auto                        until    = std::chrono::steady_clock::now() + std::chrono::seconds (10);
+        bool                        logged   = false;
+        int                         opened   = 0;
+
+        server.transport = LinkTransport::AdtProServer;
+        server.address   = "127.0.0.1:6502";
+        server.name      = CassoLinkSettings::MakeName (server);
+
+        //  A Directory request, as ADTPro's client sends for its Dir command.
+        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kDirectory, std::vector<Byte> { 0 }, wire));
 
         rig.factory.answer = false;
         AssertSucceeded (rig.links->Start ("Test"));
@@ -228,29 +241,41 @@ public:
             std::this_thread::sleep_for (std::chrono::milliseconds (10));
         }
 
-        //  A Directory request, as ADTPro's client sends for its Dir command.
-        AssertSucceeded (CassoLinkCodec::Encode (CassoLinkCodec::kDirectory, std::vector<Byte> { 0 }, wire));
+        rig.factory.GetUnansweredEnd()->Write (wire.data(), wire.size());
+        std::this_thread::sleep_for (std::chrono::milliseconds (500));
+
+        for (const CassoLinkConnections::Activity & activity : rig.links->GetActivity())
+        {
+            Assert::IsFalse (activity.text.starts_with (L"ADTPro:"), L"an ordinary connection ignores ADTPro's request");
+        }
+
+        rig.links->Stop ("Test");
+        rig.links->SetLinks ({ ordinary, server });
+        opened = rig.factory.connections.load();
+        AssertSucceeded (rig.links->Start (server.name));
+
+        while (rig.factory.connections.load() == opened && std::chrono::steady_clock::now() < until)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (10));
+        }
+
         rig.factory.GetUnansweredEnd()->Write (wire.data(), wire.size());
 
-        while (!served && std::chrono::steady_clock::now() < until)
+        while (!logged && std::chrono::steady_clock::now() < until)
         {
-            entries = rig.links->BuildTreeEntries();
-            served  = entries[0].status.find (L"ADTPro") != std::wstring::npos;
+            for (const CassoLinkConnections::Activity & activity : rig.links->GetActivity())
+            {
+                logged = logged || (activity.connection == TextEncoding::NarrowToWide (server.name) && activity.text.starts_with (L"ADTPro: listed the folder"));
+            }
+
             std::this_thread::sleep_for (std::chrono::milliseconds (10));
         }
 
-        Assert::IsTrue  (served, L"the reason names ADTPro's client");
-        Assert::IsFalse (entries[0].replying);
-        Assert::IsTrue  (entries[0].drives.empty());
+        Assert::IsTrue (logged, L"the server's request is in the activity log");
 
-        while (rig.links->GetActivity().empty() && std::chrono::steady_clock::now() < until)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds (10));
-        }
-
-        Assert::IsFalse  (rig.links->GetActivity().empty(), L"the request is in the activity log");
-        Assert::AreEqual (std::wstring (L"Test"), rig.links->GetActivity().back().connection);
-        Assert::IsTrue   (rig.links->GetActivity().back().text.starts_with (L"ADTPro: listed the folder"));
+        entries = rig.links->BuildTreeEntries();
+        Assert::IsTrue (entries[1].drives.empty(), L"a server lists no drives");
+        Assert::IsTrue (entries[1].status.find (L"ADTPro") != std::wstring::npos);
     }
 
 
@@ -292,21 +317,16 @@ public:
         Assert::AreEqual (std::wstring (L"Test"),                    entries[0].name);
         Assert::AreEqual (std::wstring (L"Casso on port 6600"),   entries[1].name);
         Assert::AreEqual (std::wstring (L"Casso on port 6700"),   entries[2].name);
-        Assert::IsTrue   (entries[2].status.find (L"port 2") == std::wstring::npos, L"port 1 is usable, as the shim is given the port");
+        Assert::IsTrue   (entries[2].status.find (L"port 2") == std::wstring::npos, L"port 1 is usable, as the shim finds its port");
 
         Assert::IsTrue  (rig.links->IsDiscovered ("Casso on port 6600"));
         Assert::IsFalse (rig.links->IsDiscovered ("Test"));
-
-        for (const CassoLinkSettings & settings : rig.links->GetLinks())
-        {
-            Assert::IsTrue (settings.name != "Casso on port 6700" || settings.slot == 1, L"port 1's root has port 1's shim");
-        }
     }
 
 
 
 
-    //  A card in any slot is usable, since the shim is given the slot.
+    //  A card in any slot is usable, since the shim finds the slot.
     TEST_METHOD (ARunningCassosCard_IsARootForItsSlot)
     {
         Rig                         rig;
@@ -324,10 +344,10 @@ public:
 
         for (const CassoLinkSettings & settings : rig.links->GetLinks())
         {
-            found = found || (settings.name == "Casso on port 6505" && settings.slot == 5);
+            found = found || settings.name == "Casso on port 6505";
         }
 
-        Assert::IsTrue (found, L"the root's shim is for slot 5");
+        Assert::IsTrue (found, L"the card's Casso is a root");
     }
 
 
@@ -405,19 +425,19 @@ public:
         link.port = "COM3";
 
         Assert::AreEqual (std::wstring (L"Searching for My //c on COM3 at 115,200 baud.\nBoot a CassoLink disk on the Apple, or choose Bootstrap the Apple from My //c's menu."),
-                          CassoLinkConnections::DescribeState (LinkState::Disconnected, false, link, L"pc"));
+                          CassoLinkConnections::DescribeState (LinkState::Disconnected, link, L"pc"));
 
         link.transport = LinkTransport::Emulated;
         link.address   = "127.0.0.1:6502";
         Assert::AreEqual (std::wstring (L"Waiting for My //c on 127.0.0.1:6502.\nBoot a CassoLink disk in that Casso to connect."),
-                          CassoLinkConnections::DescribeState (LinkState::WaitingForReady, false, link, L"pc"));
+                          CassoLinkConnections::DescribeState (LinkState::WaitingForReady, link, L"pc"));
 
         link.transport = LinkTransport::WifiModem;
         link.address   = "0.0.0.0:6400";
         Assert::AreEqual (std::wstring (L"Waiting for My //c to dial relmer-pc.local:6400.\nBoot that Apple from a CassoLink disk saved from My //c."),
-                          CassoLinkConnections::DescribeState (LinkState::Opening, false, link, L"relmer-pc"));
+                          CassoLinkConnections::DescribeState (LinkState::Opening, link, L"relmer-pc"));
 
-        Assert::AreEqual (std::wstring (L"Click My //c to connect."), CassoLinkConnections::DescribeState (LinkState::Closed, false, link, L"pc"));
+        Assert::AreEqual (std::wstring (L"Click My //c to connect."), CassoLinkConnections::DescribeState (LinkState::Closed, link, L"pc"));
         Assert::AreEqual (std::wstring (L"1,200"), CassoLinkConnections::FormatBaud (1200));
     }
 

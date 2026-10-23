@@ -43,6 +43,12 @@ public:
     //  Where a finished operation or a change of state is posted.
     void  SetTarget (HWND hwnd, UINT message) { m_hwnd = hwnd; m_message = message; }
 
+    //  Makes the folder an ADTPro-compatible server serves, for each one
+    //  started. With none set, every link is served the folder given at
+    //  construction.
+    using FolderMaker = std::function<std::unique_ptr<ICassoLinkFolder> (const std::wstring & path)>;
+    void  SetFolderMaker (FolderMaker maker) { m_makeFolder = std::move (maker); }
+
     //  The links, as the preferences have them. A link removed or changed is
     //  stopped.
     void                                    SetLinks (const std::vector<CassoLinkSettings> & links);
@@ -159,7 +165,7 @@ public:
     bool  TakeChanged ();
 
     //  The text under a link's root in place of its drives.
-    static std::wstring  DescribeState (LinkState state, bool servingAdtPro, const CassoLinkSettings & settings, const std::wstring & pcName);
+    static std::wstring  DescribeState (LinkState state, const CassoLinkSettings & settings, const std::wstring & pcName);
 
     //  A speed with its thousands separated, as 115,200.
     static std::wstring  FormatBaud    (DWORD baud);
@@ -184,16 +190,14 @@ public:
     //  not an IPv4 address.
     static HRESULT  MakeNetworkConfig (const CassoLinkSettings & settings, const std::vector<NetworkAdapter> & adapters, LinkNetworkConfig & outConfig);
 
-    //  The slot the Uthernet II ships in, which the link dialog starts it in.
+    //  The slot the Uthernet II ships in, which a W5100 shim is built for.
     static constexpr int  kUthernetSlot = 3;
-
-    //  A connection's name when none is given: COM3, Casso on port 6502,
-    //  Wi-Fi modem on port 6400, Uthernet II at 192.168.1.20:6502, or TCP
-    //  and the address.
-    static std::string   DescribeConnection (const CassoLinkSettings & settings);
 
     //  This PC's DNS host name.
     static std::wstring  GetPcName ();
+
+    //  The PC's COM ports, for the connection dialog.
+    HRESULT  ListComPorts (std::vector<std::wstring> & outPorts);
 
     static constexpr DWORD  kWaitPollMs = 20;
 
@@ -216,6 +220,7 @@ private:
     struct Link
     {
         CassoLinkSettings                                          settings;
+        std::unique_ptr<ICassoLinkFolder>                          folder;      // an ADTPro server's, before the session that serves it
         std::unique_ptr<Sink>                                      sink;
         std::unique_ptr<CassoLinkSession>                          session;
         std::map<std::string, std::shared_ptr<LinkOperation>>      requests;
@@ -234,6 +239,7 @@ private:
 
     IByteStreamFactory                 & m_factory;
     ICassoLinkFolder                   & m_folder;
+    FolderMaker                          m_makeFolder;
     IDiskFileIo                        & m_fileIo;
     std::vector<CassoLinkSettings>       m_saved;
     std::vector<RunningCasso>            m_running;
