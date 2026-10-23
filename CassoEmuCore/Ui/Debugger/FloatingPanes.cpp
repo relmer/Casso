@@ -1201,8 +1201,17 @@ void FloatingPanes::Dock (const std::wstring & key)
     m_windows.erase     (key);
     m_windowPanes.erase (key);
 
+    //  A docked pane's focused control gets OnFocusChanged (false), as in
+    //  ForgetFocus; otherwise it draws itself focused.
     for (const std::wstring & pane : panes)
     {
+        auto  focused = m_focus.find (pane);
+
+        if (focused != m_focus.end() && focused->second != nullptr)
+        {
+            focused->second->OnFocusChanged (false);
+        }
+
         m_focus.erase (pane);
     }
 
