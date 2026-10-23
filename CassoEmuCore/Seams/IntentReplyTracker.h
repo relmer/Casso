@@ -34,6 +34,12 @@
 class IntentReplyTracker
 {
 public:
+    using Clock = std::function<ULONGLONG()>;
+
+    //  The milliseconds a reload note lasts before it is dropped.
+    static constexpr ULONGLONG  kReloadLifetimeMs = 30000;
+
+    void  SetClock   (Clock clock) { m_clock = std::move (clock); }
     void  NoteInsert (int drive, const std::string & path, HWND replyTo);
     void  NoteReload (const std::string & path, HWND replyTo);
 
@@ -64,8 +70,10 @@ private:
         int          drive   = 0;
         std::string  path;
         HWND         replyTo = nullptr;
+        ULONGLONG    notedAt = 0;
     };
 
+    Clock                 m_clock = [] { return GetTickCount64(); };
     std::mutex            m_mutex;
     std::vector<Pending>  m_inserts;
     std::vector<Pending>  m_reloads;

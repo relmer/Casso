@@ -79,7 +79,7 @@ void IntentReplyTracker::NoteReload (const std::string & path, HWND replyTo)
 
     std::erase_if (m_reloads, [&path] (const Pending & pending) { return ArePathsEqual (pending.path, path); });
 
-    m_reloads.push_back (Pending { 0, path, replyTo });
+    m_reloads.push_back (Pending { 0, path, replyTo, m_clock() });
 }
 
 
@@ -127,10 +127,15 @@ bool IntentReplyTracker::TryTakeInsert (int drive, const std::string & path, HWN
 bool IntentReplyTracker::TryTakeReload (const std::string & path, HWND & outReplyTo)
 {
     std::lock_guard<std::mutex>  guard (m_mutex);
+    ULONGLONG                    now   = m_clock();
 
 
 
     outReplyTo = nullptr;
+
+    //  A broadcast is sent to every emulator, and one without the image notes a
+    //  reload that no decision consumes: a note past its lifetime is dropped.
+    std::erase_if (m_reloads, [now] (const Pending & pending) { return now - pending.notedAt > kReloadLifetimeMs; });
 
     for (auto it = m_reloads.begin(); it != m_reloads.end(); ++it)
     {
