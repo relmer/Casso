@@ -8,6 +8,9 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 #include "Ui/Debugger/Panes/ProfileTimeline.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "../Dxui/MockDxuiTheme.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
 #include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
@@ -411,6 +414,42 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual (1000.0f, find (bars, 1).width, 0.01f, L"DRAW zoomed");
             Assert::AreEqual (571.43f, find (bars, 2).width, 0.01f, L"PLOT: 40 of DRAW's 70");
             Assert::AreEqual (2,       find (bars, 2).row);
+        }
+
+
+
+        //  A bar that covers several frames, once the frames are joined into
+        //  wider bars, is as tall as its cycles are a share of those frames'.
+        TEST_METHOD (ABarOfSeveralFramesIsScaledByThem)
+        {
+            static constexpr uint64_t  kFrames = 4;
+
+            ProfileTimeline       timeline;
+            ProfileData           profile;
+            ProfileFrameEntry     frame;
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            float                 tall     = -1.0f;
+
+
+
+            frame.count  = kFrames;
+            frame.shares = { { 0, 2 * RoutineProfile::kCyclesPerFrame } };
+            profile.frames.push_back (frame);
+
+            scaler.SetDpi (96);
+            timeline.SetData (profile);
+            timeline.Layout  (RECT { 0, 0, 600, 100 }, scaler);
+            timeline.Paint   (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                tall = (call.argb == FlameGraphView::GetRoutineColor (0)) ? call.height : tall;
+            }
+
+            Assert::AreEqual (50.0f, tall, 0.5f, L"two frames' cycles in a bar of four frames");
         }
 
 

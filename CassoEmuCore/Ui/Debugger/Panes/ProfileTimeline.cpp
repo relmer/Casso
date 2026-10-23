@@ -225,7 +225,7 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
         for (const auto & [routine, cycles] : shares)
         {
-            float  tall = height * (float) cycles / (float) RoutineProfile::kCyclesPerFrame;
+            float  tall = height * (float) cycles / ((float) RoutineProfile::kCyclesPerFrame * (float) std::max<uint64_t> (m_frames[i].count, 1));
 
             tall = std::min (tall, y - (float) m_boundsDip.top);
 
