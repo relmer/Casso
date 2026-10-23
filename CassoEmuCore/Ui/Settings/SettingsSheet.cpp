@@ -1605,13 +1605,8 @@ void SettingsSheet::UpdateSerialTabVisibility()
         m_serialPage->Rebuild();
     }
 
-    // The user turned this card on a moment ago and waited for its download,
-    // so its tab is opened, not just marked.
-    if (fetched)
-    {
-        SetActivePage (m_serialPageIndex);
-    }
-
+    // The Machine tab stays open, as it does for any card turned on, and the
+    // new tab is marked.
     if (turnedOn)
     {
         StartTabSparkle (m_serialPageIndex);
