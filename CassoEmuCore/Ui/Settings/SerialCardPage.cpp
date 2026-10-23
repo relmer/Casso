@@ -27,7 +27,6 @@ static constexpr const wchar_t *  s_kAttachmentLabels[] =
     L"Loopback plug",
     L"Write output to file",
     L"Read input from file",
-    L"ImageWriter II",
 };
 
 
@@ -357,10 +356,10 @@ std::wstring SerialCardPage::GetAttachmentNote (const std::string & device)
         note = L"The file below is sent to the card at its baud rate, once a program turns "
                L"the card's receiver on.";
     }
-    else if (device == kAttachmentDevices[kPrinterChoice])
+    else if (device == kpszImageWriterDevice)
     {
-        note = L"The emulated ImageWriter II. Set the switches for printer mode, then type "
-               L"PR# and the card's slot to print.";
+        note = L"The emulated ImageWriter II, connected on the Printing tab. Type PR# and the "
+               L"card's slot to print.";
     }
     else if (device.starts_with ("tcp:"))
     {
@@ -431,10 +430,12 @@ void SerialCardPage::BuildAttachments (int slot, const std::vector<std::wstring>
         outLabels.push_back  (comPort);
     }
 
+    //  The ImageWriter II is connected on the Printing tab, so it is listed
+    //  only while it is the card's.
     if (std::find (outDevices.begin(), outDevices.end(), current) == outDevices.end())
     {
         outDevices.push_back (current);
-        outLabels.push_back  (TextEncoding::NarrowToWide (current));
+        outLabels.push_back  ((current == kpszImageWriterDevice) ? std::wstring (L"ImageWriter II") : TextEncoding::NarrowToWide (current));
     }
 }
 
@@ -782,7 +783,8 @@ SscSwitches SerialCardPage::ReadStagedSwitches() const
 
 void SerialCardPage::StageSwitches (const SscSwitches & switches)
 {
-    HRESULT  hr = S_OK;
+    HRESULT       hr = S_OK;
+    std::wstring  notice;
 
 
 
@@ -791,9 +793,16 @@ void SerialCardPage::StageSwitches (const SscSwitches & switches)
         hr = m_state->SetSerialCardSwitches (switches.GetBankText (SscBank::Sw1),
                                              switches.GetBankText (SscBank::Sw2));
         IGNORE_RETURN_VALUE (hr, S_OK);
+
+        notice = m_state->TakeNotice();
     }
 
     SyncSwitches (switches);
+
+    if (!notice.empty() && m_onNotice)
+    {
+        m_onNotice (notice);
+    }
 }
 
 

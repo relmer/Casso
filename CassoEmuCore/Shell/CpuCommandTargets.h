@@ -58,7 +58,8 @@ public:
     virtual void     PowerCycle                ()                                  = 0;
     virtual void     StepInstruction           ()                                  = 0;
     virtual void     SaveTrace                 ()                                  = 0;
-    virtual HRESULT  ConnectSerialPort         (int port, const std::string & device) = 0;
+    virtual HRESULT  ConnectSerialPort         (int port, const std::string & device, const std::string & path) = 0;
+    virtual HRESULT  ConnectParallelPrinter    (int slot, bool attached)          = 0;
 
     // The Super Serial Card's DIP switches, as "on off ..." text per bank.
     virtual void     SetSerialCardSwitches     (const std::string & sw1,

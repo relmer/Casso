@@ -67,20 +67,38 @@ public:
     }
 
 
-    //  The device after the port is passed whole, colons and all, and a
-    //  payload with no port 1 or 2 in front connects nothing.
+    //  The device after the port is passed whole, colons and all, with the
+    //  path after a tab, and a payload with no port from 1 to 7 in front
+    //  connects nothing.
     TEST_METHOD (SerialConnectPassesThePortAndTheWholeDevice)
     {
         Notebook  target;
 
         Dispatch (IDM_SERIAL_CONNECT, "2:tcp:6502", target);
         Dispatch (IDM_SERIAL_CONNECT, "1:", target);
-        Dispatch (IDM_SERIAL_CONNECT, "3:tcp:6503", target);
+        Dispatch (IDM_SERIAL_CONNECT, "3:serial-file-out\tC:\\out.txt", target);
+        Dispatch (IDM_SERIAL_CONNECT, "8:tcp:6508", target);
         Dispatch (IDM_SERIAL_CONNECT, "tcp:6502", target);
 
-        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual ((size_t) 3, target.calls.size());
         Assert::AreEqual (std::string ("ConnectSerialPort 2 tcp:6502"), target.calls[0]);
         Assert::AreEqual (std::string ("ConnectSerialPort 1 "), target.calls[1]);
+        Assert::AreEqual (std::string ("ConnectSerialPort 3 serial-file-out C:\\out.txt"), target.calls[2]);
+    }
+
+
+    TEST_METHOD (ParallelPrinterPassesTheSlotAndWhetherItIsAttached)
+    {
+        Notebook  target;
+
+        Dispatch (IDM_PRINTER_PARALLEL, "1:1", target);
+        Dispatch (IDM_PRINTER_PARALLEL, "1:0", target);
+        Dispatch (IDM_PRINTER_PARALLEL, "1:2", target);
+        Dispatch (IDM_PRINTER_PARALLEL, "9:1", target);
+
+        Assert::AreEqual ((size_t) 2, target.calls.size());
+        Assert::AreEqual (std::string ("ConnectParallelPrinter 1 true"), target.calls[0]);
+        Assert::AreEqual (std::string ("ConnectParallelPrinter 1 false"), target.calls[1]);
     }
 
 
@@ -329,9 +347,15 @@ private:
         void     StepInstruction() override { calls.push_back ("StepInstruction"); }
         void     SaveTrace() override       { calls.push_back ("SaveTrace"); }
 
-        HRESULT  ConnectSerialPort (int port, const std::string & device) override
+        HRESULT  ConnectSerialPort (int port, const std::string & device, const std::string & path) override
         {
-            calls.push_back (std::format ("ConnectSerialPort {} {}", port, device));
+            calls.push_back (std::format ("ConnectSerialPort {} {}{}", port, device, path.empty() ? std::string() : " " + path));
+            return S_OK;
+        }
+
+        HRESULT  ConnectParallelPrinter (int slot, bool attached) override
+        {
+            calls.push_back (std::format ("ConnectParallelPrinter {} {}", slot, attached));
             return S_OK;
         }
 

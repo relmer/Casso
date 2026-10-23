@@ -6,6 +6,7 @@
 #include "Controllers/ControllerTypes.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
+#include "Machines/Apple2/Common/SscSwitches.h"
 
 
 
@@ -149,6 +150,11 @@ struct HardwareEntry
     std::string  switchesSw2;
     std::string  portPath;
 
+    // A Super Serial Card's SW1 bank as it was before the ImageWriter II's
+    // connection set the card to printer mode; empty when the mode was not
+    // changed for the printer.
+    std::string  switchesSw1BeforePrinter;
+
     // The network card's settings; defaults for every other device.
     NetworkCardSettings  network;
 };
@@ -230,7 +236,8 @@ public:
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void ApplyMouseConnected         (bool connected)        = 0;
-    virtual void ApplySerialPortDevice       (int port, const std::string & device) = 0;
+    virtual void ApplySerialPortDevice       (int port, const std::string & device, const std::string & path) = 0;
+    virtual void ApplyParallelPrinter        (int slot, bool attached)       = 0;
     virtual void ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
     virtual void ApplyNetworkCard    (const NetworkCardSettings & settings) = 0;
     virtual void QueueMachineReset   ()                              = 0;
@@ -367,10 +374,21 @@ public:
     // parallel card and Super Serial Card, then a //c's ports 1 and 2. It is
     // on one connector at a time, so staging it on one, here or as a serial
     // port's or the card's device, empties the connector that had it. A
-    // change rebuilds the machine, which starts the printer.
+    // change is applied to the running machine, with no reset.
+    //
+    // A Super Serial Card the printer is staged on is set to printer mode,
+    // and its previous mode is saved. When the printer moves off the card,
+    // the saved mode is restored if the card is in printer mode then. A mode
+    // change away from printer mode on a card with the printer disconnects
+    // the printer.
     std::vector<PrinterConnection>  GetPrinterChoices    () const;
     PrinterConnection               GetPrinterConnection () const;
     void                            SetPrinterConnection (const PrinterConnection & connection);
+
+    // The text of the last change staged on one page for a setting on
+    // another, such as the card's mode, for the sheet to report; empty when
+    // there is none. Taking it clears it.
+    std::wstring  TakeNotice ();
 
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
@@ -450,6 +468,19 @@ private:
     static PrinterConnection  FindPrinterConnection (const Snapshot & snapshot);
 
     void  StageSerialPortDevice (int port, const std::string & device);
+    void  ApplyConnectors       (ISettingsApplySink & sink) const;
+
+    // The staged card's switches, or the card's defaults where a bank is
+    // unset or does not parse, and the switches staged back as text.
+    static SscSwitches  ReadSwitches  (const HardwareEntry & entry);
+    static void         WriteSwitches (HardwareEntry & entry, const SscSwitches & switches);
+
+    static const wchar_t *  GetModeName (SscMode mode);
+
+    HardwareEntry *  FindSlotEntry          (int slot, const char * type);
+    void             SetCardPrinterMode     (int slot);
+    void             RestoreCardMode        (int slot);
+    void             StageCardPrinterChange (const PrinterConnection & from, const PrinterConnection & to);
 
     // Appends every $cassoUiPrefs entry of `mergedJson` that `uiObj` does not
     // already carry, so a preference this dialog knows nothing about survives
@@ -475,6 +506,7 @@ private:
     static constexpr const char *  kpszSwitchesKey   = "switches";
     static constexpr const char *  kpszSw1Key        = "sw1";
     static constexpr const char *  kpszSw2Key        = "sw2";
+    static constexpr const char *  kpszSw1BeforeKey  = "sw1BeforePrinter";
     static constexpr const char *  kpszDiskPortName = "disk";
     static constexpr const char *  kpszSerialPortNames[] = { "serial1", "serial2" };
     static constexpr const char *  kpszDiskIicDrive = "disk-iic-drive";
@@ -535,4 +567,5 @@ private:
 
     Snapshot     m_original;
     Snapshot     m_current;
+    std::wstring m_notice;
 };

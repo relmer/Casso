@@ -5,6 +5,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellRenderer.h"
+#include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
@@ -276,14 +277,43 @@ void EmulatorShell::HoldAppleKeysThroughReset (bool openApple, bool closedApple)
 //
 //  ConnectSerialPort
 //
-//  A machine without the port, anything but a //c, returns an error the
-//  dispatcher ignores.
+//  A machine without the port returns an error the dispatcher ignores. A
+//  Super Serial Card's connector reports a device that cannot be attached,
+//  as it does when the machine is built.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::ConnectSerialPort (int port, const std::string & device)
+HRESULT EmulatorShell::ConnectSerialPort (int port, const std::string & device, const std::string & path)
 {
-    return m_machine.ConnectSerialPort (port, device, m_streamFactory.get(), m_serialLog.get());
+    HRESULT            hr   = S_OK;
+    SuperSerialCard  * card = m_machine.GetRefs().superSerialCard;
+
+
+
+    hr = m_machine.ConnectSerialPort (port, device, m_streamFactory.get(), m_serialLog.get(), path);
+
+    if (card != nullptr && card->GetSlot() == port)
+    {
+        card->SetAttachmentProblem (FAILED (hr) ? MachineHost::DescribeAttachmentFailure (device, path) : std::string());
+        m_serialCard->NoteMachineBuilt();
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConnectParallelPrinter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ConnectParallelPrinter (int slot, bool attached)
+{
+    return m_machine.ConnectParallelPrinter (slot, attached);
 }
 
 

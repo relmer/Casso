@@ -63,7 +63,8 @@ namespace NetworkSettingsTests
         void  ApplyWriteProtect           (int, bool)                    override {}
         void  ApplyExternalDriveConnected (bool)                         override {}
         void  ApplyMouseConnected         (bool)                         override {}
-        void  ApplySerialPortDevice       (int, const std::string &)     override {}
+        void  ApplySerialPortDevice       (int, const std::string &, const std::string &) override {}
+        void  ApplyParallelPrinter        (int, bool)                    override {}
         void  ApplySerialCardSwitches     (const std::string &, const std::string &) override {}
         void  ApplyNetworkCard            (const NetworkCardSettings & settings) override { last = settings; ++applied; }
         void  QueueMachineReset           ()                             override { ++resets; }

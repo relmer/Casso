@@ -174,12 +174,26 @@ public:
     //  ConnectSerialPort plugs a port's device in while the machine runs, as
     //  a cable is: the old device's stream is closed first, so a TCP port can
     //  be opened again at once. A //c's port loops back when the new device
-    //  is empty or cannot be opened; a card's connector is then empty.
+    //  is empty or cannot be opened; a card's connector is then empty. A
+    //  card's connector also takes a loopback plug and the two file
+    //  attachments, whose file is `path`.
     //  The ImageWriter II is attached to one connector at a time, so it
     //  fails with ERROR_BUSY on a port while another connector has it.
     //  Called on the CPU thread.
     void     SetSerialPort      (int port, Acia6551 * acia, bool onCard = false);
-    HRESULT  ConnectSerialPort  (int port, const std::string & device, class IByteStreamFactory * factory, class SerialTrafficLog * log);
+    HRESULT  ConnectSerialPort  (int port, const std::string & device, class IByteStreamFactory * factory, class SerialTrafficLog * log,
+                                 const std::string & path = std::string());
+
+    //  The text a card reports for a connector ConnectSerialPort could not
+    //  attach `device` to.
+    static std::string  DescribeAttachmentFailure (const std::string & device, const std::string & path);
+
+    //  The parallel card in each slot, and the ImageWriter II attached to the
+    //  card in `slot` or taken off it while the machine runs. Attaching fails
+    //  with ERROR_BUSY while another connector has the printer. Called on the
+    //  CPU thread.
+    void     SetParallelCard        (int slot, class PrinterCard * card);
+    HRESULT  ConnectParallelPrinter (int slot, bool attached);
     HRESULT  AttachSerialStream (int port, std::shared_ptr<IByteStream> stream, AciaBridgeEndpoint ** outBridge = nullptr);
     void     DetachSerialPorts  ();
 
@@ -292,6 +306,7 @@ private:
     //  The two kinds of device ConnectSerialPort opens: the ImageWriter II,
     //  and a stream to a TCP or COM port.
     HRESULT  AttachSerialPrinter (int port);
+    HRESULT  AttachCardEndpoint  (int port, const std::string & device, const std::string & path);
     HRESULT  OpenSerialStream    (int port, const struct SerialPortDevice & device, class IByteStreamFactory * factory, class SerialTrafficLog * log);
 
     // 4K of page tables; on the heap, see m_diskStore.
@@ -317,6 +332,11 @@ private:
     //  endpoint, ticked with the bridges.
     int                                  m_printerPort     = 0;
     AciaPrinterEndpoint                * m_printerEndpoint = nullptr;
+
+    //  The parallel cards by slot, and the slot whose card has the printer,
+    //  or 0.
+    std::array<class PrinterCard *, s_kSerialPortCount + 1>               m_parallelCards   = {};
+    int                                  m_printerSlot     = 0;
 
     // 4K of glyphs; on the heap, see m_diskStore.
     std::unique_ptr<CharacterRomData>  m_charRom;

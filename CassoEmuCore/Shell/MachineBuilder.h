@@ -134,6 +134,9 @@ public:
     void     WireLanguageCard     ();
     void     WireBankedRom        ();
     static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
+
+    //  Starts the printer drain on the host's ring unless it is running.
+    static void    StartPrinterDrain (MachineHost & host, PrinterWorker * worker, uint64_t * autoOpenActivity);
     void     WirePageTable        ();
     void     MarkVideoWatchPages  ();
     void     RebuildBankingPages  ();

@@ -600,11 +600,10 @@ bool SettingsPanelState::IsDirty() const
 //
 //  RequiresReset
 //
-//  Per FR-010: a reset is required iff the hardware-enable bits
-//  changed, a Super Serial Card's attachment did, or the ImageWriter II's
-//  connector did, since its drain starts when the machine is built. Speed /
-//  color / sound / mechanism / write-protect, the //c's other serial port
-//  devices and the Uthernet II's settings are all live-applicable.
+//  Per FR-010: a reset is required iff the hardware-enable bits changed.
+//  Speed / color / sound / mechanism / write-protect, every serial
+//  connector's attachment, the ImageWriter II's connector and the Uthernet
+//  II's settings are all live-applicable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -615,20 +614,10 @@ bool SettingsPanelState::RequiresReset() const
 
 
 
-    // A serial attachment is opened when the machine is built, so changing
-    // it takes a rebuild too. The card's switches do not: they are register
-    // reads, applied live.
     for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        const HardwareEntry &  before = m_original.hardware[i];
-        const HardwareEntry &  after  = m_current.hardware[i];
-        bool                   serial = after.type == kpszSuperSerialCardDevice;
-
-        changed = before.enabled != after.enabled
-               || (serial && (before.ports != after.ports || before.portPath != after.portPath));
+        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
     }
-
-    changed = changed || FindPrinterConnection (m_original) != FindPrinterConnection (m_current);
 
     return changed;
 }
@@ -1088,6 +1077,10 @@ PrinterConnection SettingsPanelState::GetPrinterConnection() const
 
 void SettingsPanelState::SetPrinterConnection (const PrinterConnection & connection)
 {
+    PrinterConnection  previous = FindPrinterConnection (m_current);
+
+
+
     for (size_t i = 0; i < m_current.hardware.size(); i++)
     {
         HardwareEntry &  entry    = m_current.hardware[i];
@@ -1130,6 +1123,234 @@ void SettingsPanelState::SetPrinterConnection (const PrinterConnection & connect
         {
             StageSerialPortDevice (port, std::string());
         }
+    }
+
+    StageCardPrinterChange (previous, connection);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeNotice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SettingsPanelState::TakeNotice()
+{
+    std::wstring  notice = std::move (m_notice);
+
+
+
+    m_notice.clear();
+
+    return notice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadSwitches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SscSwitches SettingsPanelState::ReadSwitches (const HardwareEntry & entry)
+{
+    SscSwitches  switches = SscSwitches::MakeDefault();
+    bool         parsed   = false;
+
+
+
+    parsed = switches.TryParseBankText (SscBank::Sw1, entry.switchesSw1);
+    IGNORE_RETURN_VALUE (parsed, false);
+    parsed = switches.TryParseBankText (SscBank::Sw2, entry.switchesSw2);
+    IGNORE_RETURN_VALUE (parsed, false);
+
+    return switches;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteSwitches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::WriteSwitches (HardwareEntry & entry, const SscSwitches & switches)
+{
+    entry.switchesSw1 = switches.GetBankText (SscBank::Sw1);
+    entry.switchesSw2 = switches.GetBankText (SscBank::Sw2);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetModeName
+//
+//  As a notice's sentence has it, after "set back to".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * SettingsPanelState::GetModeName (SscMode mode)
+{
+    const wchar_t  * name = L"communications mode";
+
+
+
+    switch (mode)
+    {
+        case SscMode::Printer:  name = L"printer mode";                       break;
+        case SscMode::SicP8:    name = L"its Serial Interface Card P8 mode";  break;
+        case SscMode::SicP8A:   name = L"its Serial Interface Card P8A mode"; break;
+        default:                                                              break;
+    }
+
+    return name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindSlotEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HardwareEntry * SettingsPanelState::FindSlotEntry (int slot, const char * type)
+{
+    HardwareEntry  * found = nullptr;
+
+
+
+    for (HardwareEntry & entry : m_current.hardware)
+    {
+        if (found == nullptr && entry.kind == HardwareEntryKind::Slot && entry.slot == slot && entry.type == type)
+        {
+            found = &entry;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCardPrinterMode
+//
+//  The card's SW1 bank is saved first, so the mode can be restored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetCardPrinterMode (int slot)
+{
+    HardwareEntry  * entry    = FindSlotEntry (slot, kpszSuperSerialCardDevice);
+    SscSwitches      switches = (entry != nullptr) ? ReadSwitches (*entry) : SscSwitches::MakeDefault();
+
+
+
+    if (entry != nullptr && switches.GetMode() != SscMode::Printer)
+    {
+        entry->switchesSw1BeforePrinter = switches.GetBankText (SscBank::Sw1);
+
+        switches.SetOn (SscBank::Sw1, 5, false);
+        switches.SetOn (SscBank::Sw1, 6, true);
+        WriteSwitches (*entry, switches);
+
+        m_notice = std::format (L"The Super Serial Card in slot {} is set to printer mode for the ImageWriter II. "
+                                L"Its previous mode is restored when the printer moves to another connector.", slot);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RestoreCardMode
+//
+//  Only a card in printer mode gets its saved mode back. A mode the user
+//  chose since then is left as it is. Switches restored to what was
+//  read are staged as they were read, so the round trip is no change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::RestoreCardMode (int slot)
+{
+    HardwareEntry  * entry    = FindSlotEntry (slot, kpszSuperSerialCardDevice);
+    bool             saved    = entry != nullptr && !entry->switchesSw1BeforePrinter.empty();
+    SscSwitches      switches = saved ? ReadSwitches (*entry) : SscSwitches::MakeDefault();
+    SscSwitches      before   = SscSwitches::MakeDefault();
+    bool             parsed   = saved && before.TryParseBankText (SscBank::Sw1, entry->switchesSw1BeforePrinter);
+
+
+
+    if (parsed && switches.GetMode() == SscMode::Printer)
+    {
+        switches.SetOn (SscBank::Sw1, 5, before.IsOn (SscBank::Sw1, 5));
+        switches.SetOn (SscBank::Sw1, 6, before.IsOn (SscBank::Sw1, 6));
+        WriteSwitches (*entry, switches);
+
+        for (const HardwareEntry & read : m_original.hardware)
+        {
+            if (read.kind == entry->kind && read.slot == slot && read.type == entry->type && ReadSwitches (read) == switches)
+            {
+                entry->switchesSw1 = read.switchesSw1;
+                entry->switchesSw2 = read.switchesSw2;
+            }
+        }
+
+        m_notice = std::format (L"The Super Serial Card in slot {} is set back to {}, the mode it had before the "
+                                L"ImageWriter II was connected to it.", slot, GetModeName (switches.GetMode()));
+    }
+
+    if (saved)
+    {
+        entry->switchesSw1BeforePrinter.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StageCardPrinterChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::StageCardPrinterChange (const PrinterConnection & from, const PrinterConnection & to)
+{
+    bool  moved = from != to;
+
+
+
+    if (moved && from.kind == PrinterConnection::Kind::SerialCard)
+    {
+        RestoreCardMode (from.number);
+    }
+
+    if (moved && to.kind == PrinterConnection::Kind::SerialCard)
+    {
+        SetCardPrinterMode (to.number);
     }
 }
 
@@ -1405,9 +1626,12 @@ bool SettingsPanelState::HasEnabledSerialCard() const
 
 HRESULT SettingsPanelState::SetSerialCardSwitches (const std::string & sw1, const std::string & sw2)
 {
-    HRESULT  hr      = S_OK;
-    int      index   = FindSerialCard();
-    bool     hasCard = index >= 0;
+    HRESULT            hr         = S_OK;
+    int                index      = FindSerialCard();
+    bool               hasCard    = index >= 0;
+    PrinterConnection  connection;
+    int                slot       = 0;
+    bool               leaves     = false;
 
 
 
@@ -1415,6 +1639,21 @@ HRESULT SettingsPanelState::SetSerialCardSwitches (const std::string & sw1, cons
 
     m_current.hardware[static_cast<size_t> (index)].switchesSw1 = sw1;
     m_current.hardware[static_cast<size_t> (index)].switchesSw2 = sw2;
+
+    connection = FindPrinterConnection (m_current);
+    slot       = m_current.hardware[static_cast<size_t> (index)].slot;
+    leaves     = connection.kind == PrinterConnection::Kind::SerialCard
+              && connection.number == slot
+              && ReadSwitches (m_current.hardware[static_cast<size_t> (index)]).GetMode() != SscMode::Printer;
+
+    if (leaves)
+    {
+        m_current.hardware[static_cast<size_t> (index)].switchesSw1BeforePrinter.clear();
+        SetPrinterConnection (PrinterConnection());
+
+        m_notice = std::format (L"The ImageWriter II is now not connected, as the Super Serial Card in slot {} is no "
+                                L"longer in printer mode. Connect it again on the Printing tab.", slot);
+    }
 
 Error:
     return hr;
@@ -1655,14 +1894,12 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
     sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
 
-    // A serial port is reconnected only when its device changed, since
-    // reconnecting drops whatever is connected to it.
-    for (int port = 1; port <= (int) std::size (kpszSerialPortNames); ++port)
+    // A connector is reconnected only when its device changed, since
+    // reconnecting drops whatever is connected to it. A reset rebuilds them
+    // all from the saved configuration instead.
+    if (!RequiresReset())
     {
-        if (GetSerialPortDevice (port) != GetPortDevice (m_original.machinePorts, kpszSerialPortNames[port - 1]))
-        {
-            sink.ApplySerialPortDevice (port, GetSerialPortDevice (port));
-        }
+        ApplyConnectors (sink);
     }
 
     // The Super Serial Card's switches take effect without a reset: they are
@@ -1700,6 +1937,67 @@ HRESULT SettingsPanelState::Apply (
                                 m_current.machinePorts);
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyConnectors
+//
+//  The //c's serial ports, each Super Serial Card's connector and each
+//  parallel card's printer. The connectors whose new device is not the
+//  ImageWriter II go first, and the one whose new device is the printer
+//  last, so the printer is free when it is attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::ApplyConnectors (ISettingsApplySink & sink) const
+{
+    PrinterConnection  before = FindPrinterConnection (m_original);
+    PrinterConnection  after  = FindPrinterConnection (m_current);
+
+
+
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        bool  printerPass = pass == 1;
+
+        for (int port = 1; port <= (int) std::size (kpszSerialPortNames); ++port)
+        {
+            std::string  device  = GetSerialPortDevice (port);
+            bool         changed = device != GetPortDevice (m_original.machinePorts, kpszSerialPortNames[port - 1]);
+
+            if (changed && (device == kpszImageWriterDevice) == printerPass)
+            {
+                sink.ApplySerialPortDevice (port, device, std::string());
+            }
+        }
+
+        for (size_t i = 0; i < m_current.hardware.size() && i < m_original.hardware.size(); ++i)
+        {
+            const HardwareEntry &  now      = m_current.hardware[i];
+            const HardwareEntry &  was      = m_original.hardware[i];
+            bool                   slot     = now.kind == HardwareEntryKind::Slot && now.enabled;
+            bool                   serial   = slot && now.type == kpszSuperSerialCardDevice;
+            bool                   parallel = slot && now.type == kpszParallelPrinterDevice;
+            std::string            device   = now.ports.empty() ? std::string() : now.ports.front();
+            bool                   had      = before.kind == PrinterConnection::Kind::ParallelCard && before.number == now.slot;
+            bool                   has      = after.kind  == PrinterConnection::Kind::ParallelCard && after.number  == now.slot;
+
+            if (serial && (now.ports != was.ports || now.portPath != was.portPath) && (device == kpszImageWriterDevice) == printerPass)
+            {
+                sink.ApplySerialPortDevice (now.slot, device, now.portPath);
+            }
+
+            if (parallel && had != has && has == printerPass)
+            {
+                sink.ApplyParallelPrinter (now.slot, has);
+            }
+        }
+    }
 }
 
 
@@ -2395,6 +2693,7 @@ HRESULT SettingsPanelState::ExtractHardware (
                 {
                     hw.switchesSw1 = GetStringOpt (*switches, kpszSw1Key, "");
                     hw.switchesSw2 = GetStringOpt (*switches, kpszSw2Key, "");
+                    hw.switchesSw1BeforePrinter = GetStringOpt (*switches, kpszSw1BeforeKey, "");
                 }
             }
 
@@ -2654,6 +2953,11 @@ JsonValue SettingsPanelState::BuildJson (
 
                         switches.emplace_back (kpszSw1Key, JsonValue (staged->switchesSw1));
                         switches.emplace_back (kpszSw2Key, JsonValue (staged->switchesSw2));
+
+                        if (!staged->switchesSw1BeforePrinter.empty())
+                        {
+                            switches.emplace_back (kpszSw1BeforeKey, JsonValue (staged->switchesSw1BeforePrinter));
+                        }
                         rebuilt.emplace_back (kpszSwitchesKey, JsonValue (std::move (switches)));
                     }
                 }
@@ -2879,6 +3183,7 @@ bool SettingsPanelState::AreHardwareEqual (
              && a[i].portPath    == b[i].portPath
              && a[i].switchesSw1 == b[i].switchesSw1
              && a[i].switchesSw2 == b[i].switchesSw2
+             && a[i].switchesSw1BeforePrinter == b[i].switchesSw1BeforePrinter
              && a[i].network     == b[i].network;
     }
 

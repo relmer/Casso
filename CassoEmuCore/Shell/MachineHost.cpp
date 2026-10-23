@@ -8,6 +8,7 @@
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/VideoScanner.h"
 #include "Devices/Acia6551.h"
+#include "Devices/AciaByteSourceEndpoint.h"
 #include "Devices/AciaEndpoints.h"
 #include "Devices/SerialPortDevice.h"
 #include "Devices/SerialTrafficLog.h"
@@ -20,6 +21,8 @@
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
+#include "Machines/Apple2/Common/PrinterCard.h"
+#include "Shell/MachineBuilder.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 #include "Devices/Acia6551.h"
@@ -306,11 +309,14 @@ void MachineHost::SetSerialPort (int port, Acia6551 * acia, bool onCard)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IByteStreamFactory * factory, SerialTrafficLog * log)
+HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IByteStreamFactory * factory, SerialTrafficLog * log,
+                                        const std::string & path)
 {
     HRESULT           hr     = S_OK;
     bool              known  = port >= 1 && port <= s_kSerialPortCount;
     Acia6551        * acia   = known ? m_serialPorts[(size_t) port] : nullptr;
+    bool              onCard = known && m_serialOnCard[(size_t) port];
+    bool              cardly = onCard && (device == kpszSerialLoopback || device == kpszSerialFileOut || device == kpszSerialFileIn);
     SerialPortDevice  parsed;
 
 
@@ -318,16 +324,25 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
     CBRAEx (known, E_INVALIDARG);
     CBREx (acia != nullptr, HRESULT_FROM_WIN32 (ERROR_DEV_NOT_EXIST));
 
-    InstallSerialEndpoint (port, m_serialOnCard[(size_t) port] ? nullptr : std::make_unique<AciaLoopbackEndpoint> (acia), nullptr);
+    InstallSerialEndpoint (port, onCard ? nullptr : std::make_unique<AciaLoopbackEndpoint> (acia), nullptr);
 
     if (m_runningRegistry != nullptr)
     {
         m_runningRegistry->Withdraw (GetCurrentProcessId(), port);
     }
 
-    hr = SerialPortDevice::Parse (device, parsed);
-    CHR (hr);
-    BAIL_OUT_IF (parsed.kind == SerialPortDevice::Kind::Loopback, S_OK);
+    if (cardly)
+    {
+        hr = AttachCardEndpoint (port, device, path);
+        CHR (hr);
+    }
+    else
+    {
+        hr = SerialPortDevice::Parse (device, parsed);
+        CHR (hr);
+    }
+
+    BAIL_OUT_IF (cardly || parsed.kind == SerialPortDevice::Kind::Loopback, S_OK);
 
     if (parsed.kind == SerialPortDevice::Kind::Printer)
     {
@@ -338,6 +353,164 @@ HRESULT MachineHost::ConnectSerialPort (int port, const std::string & device, IB
     {
         hr = OpenSerialStream (port, parsed, factory, log);
         CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachCardEndpoint
+//
+//  A card connector's loopback plug, or a file that receives what the card
+//  sends, or a file whose bytes are sent into the card.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::AttachCardEndpoint (int port, const std::string & device, const std::string & path)
+{
+    HRESULT                                  hr      = S_OK;
+    Acia6551                               * acia    = m_serialPorts[(size_t) port];
+    std::unique_ptr<AciaFileEndpoint>        fileOut;
+    std::unique_ptr<AciaByteSourceEndpoint>  fileIn;
+    AciaByteSourceEndpoint                 * source  = nullptr;
+    std::vector<Byte>                        bytes;
+
+
+
+    if (device == kpszSerialLoopback)
+    {
+        InstallSerialEndpoint (port, std::make_unique<AciaLoopbackEndpoint> (acia), nullptr);
+    }
+    else if (device == kpszSerialFileOut)
+    {
+        fileOut = std::make_unique<AciaFileEndpoint>();
+
+        hr = fileOut->Open (path);
+        CHR (hr);
+
+        InstallSerialEndpoint (port, std::move (fileOut), nullptr);
+    }
+    else
+    {
+        hr = MachineBuilder::ReadRomFileBytes (path, bytes);
+        CHR (hr);
+
+        fileIn = std::make_unique<AciaByteSourceEndpoint> (acia, std::move (bytes));
+        source = fileIn.get();
+
+        InstallSerialEndpoint (port, std::move (fileIn), nullptr);
+        source->Start();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::DescribeAttachmentFailure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string MachineHost::DescribeAttachmentFailure (const std::string & device, const std::string & path)
+{
+    std::string  text;
+
+
+
+    if (device == kpszImageWriterDevice)
+    {
+        text = "The ImageWriter II is attached to another connector.";
+    }
+    else if (device.starts_with ("tcp:"))
+    {
+        text = "Cannot listen on TCP port " + device.substr (4) + " for the serial connector.";
+    }
+    else if (device.starts_with ("com:"))
+    {
+        text = "Cannot open " + device.substr (4) + " for the serial connector.";
+    }
+    else if (device == kpszSerialFileIn)
+    {
+        text = "Cannot read " + path + " for the serial connector.";
+    }
+    else
+    {
+        text = "Cannot open " + path + " for the serial connector.";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::SetParallelCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::SetParallelCard (int slot, PrinterCard * card)
+{
+    if (slot >= 1 && slot <= s_kSerialPortCount)
+    {
+        m_parallelCards[(size_t) slot] = card;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ConnectParallelPrinter
+//
+//  Bytes in the ring when the printer comes off the card are printed; the
+//  ring is the host's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineHost::ConnectParallelPrinter (int slot, bool attached)
+{
+    HRESULT        hr    = S_OK;
+    bool           known = slot >= 1 && slot <= s_kSerialPortCount;
+    PrinterCard  * card  = known ? m_parallelCards[(size_t) slot] : nullptr;
+
+
+
+    CBRAEx (known, E_INVALIDARG);
+    CBREx (card != nullptr, HRESULT_FROM_WIN32 (ERROR_DEV_NOT_EXIST));
+
+    if (attached)
+    {
+        CBREx (m_refs.printerRing == nullptr || m_printerSlot == slot, HRESULT_FROM_WIN32 (ERROR_BUSY));
+
+        card->SetByteRing (m_printerRing.get());
+        m_printerSlot      = slot;
+        m_refs.printerRing = m_printerRing.get();
+    }
+    else if (m_printerSlot == slot)
+    {
+        card->SetByteRing (nullptr);
+        m_printerSlot      = 0;
+        m_refs.printerRing = nullptr;
+    }
+    else
+    {
+        card->SetByteRing (nullptr);
     }
 
 Error:
@@ -548,6 +721,8 @@ void MachineHost::DetachSerialPorts()
     m_serialOnCard    = {};
     m_printerPort     = 0;
     m_printerEndpoint = nullptr;
+    m_parallelCards   = {};
+    m_printerSlot     = 0;
     m_ownedAciaEndpoints.clear();
 }
 

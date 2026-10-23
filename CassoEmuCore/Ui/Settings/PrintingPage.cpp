@@ -196,11 +196,19 @@ void PrintingPage::SyncConnection()
         m_connection.SetItems (labels);
         m_connection.SetSelect ([this] (int index)
         {
+            std::wstring  notice;
+
             if (m_state != nullptr && index >= 0 && index < (int) m_choices.size())
             {
                 m_state->SetPrinterConnection (m_choices[(size_t) index]);
+                notice = m_state->TakeNotice();
                 SyncConnection();
                 MarkDirty();
+            }
+
+            if (!notice.empty() && m_onNotice)
+            {
+                m_onNotice (notice);
             }
         });
     }

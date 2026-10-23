@@ -67,6 +67,10 @@ public:
     // the pending strip for the machine's next run, or clears a stale one.
     void    StopAndSavePendingStrip ();
 
+    // Starts the drain thread for a printer attached while the machine runs,
+    // unless it is running.
+    void    StartDrain ();
+
     // Delivery outcome -> the printer status LED: failed=true lights the red
     // error state until a success / discard clears it or the guest prints
     // something new. Called from the delivery paths (WindowCommandManager).

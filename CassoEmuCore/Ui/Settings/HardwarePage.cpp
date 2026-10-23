@@ -689,8 +689,9 @@ void HardwarePage::BuildSerialChoices (int port, const std::vector<std::wstring>
     tcp.kind    = SerialPortDevice::Kind::Tcp;
     tcp.tcpPort = (uint16_t) (kSerialTcpBasePort + port);
 
+    //  The ImageWriter II is connected on the Printing tab, so it is listed
+    //  below, with any other device not offered, only while the port has it.
     outDevices.push_back (std::string());
-    outDevices.push_back (kpszImageWriterDevice);
     outDevices.push_back (SerialPortDevice::Format (tcp));
 
     for (const std::wstring & comPort : comPorts)

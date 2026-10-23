@@ -4,6 +4,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellAudio.h"
+#include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Core/JsonWriter.h"
 #include "resource.h"
@@ -297,13 +298,39 @@ void SettingsApplyAdapter::ApplyMouseConnected (bool connected)
 //  ApplySerialPortDevice
 //
 //  CPU-thread routed: the bridge on the port runs with every instruction,
-//  so it is replaced between instructions.
+//  so it is replaced between instructions. The printer's drain is started
+//  here, on its ring, before the port is attached to it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyAdapter::ApplySerialPortDevice (int port, const std::string & device)
+void SettingsApplyAdapter::ApplySerialPortDevice (int port, const std::string & device, const std::string & path)
 {
-    m_shell.PostCommand (IDM_SERIAL_CONNECT, format ("{}:{}", port, device));
+    if (device == kpszImageWriterDevice)
+    {
+        m_shell.GetPrinter().StartDrain();
+    }
+
+    m_shell.PostCommand (IDM_SERIAL_CONNECT, path.empty() ? format ("{}:{}", port, device) : format ("{}:{}\t{}", port, device, path));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyParallelPrinter
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyAdapter::ApplyParallelPrinter (int slot, bool attached)
+{
+    if (attached)
+    {
+        m_shell.GetPrinter().StartDrain();
+    }
+
+    m_shell.PostCommand (IDM_PRINTER_PARALLEL, format ("{}:{}", slot, attached ? 1 : 0));
 }
 
 

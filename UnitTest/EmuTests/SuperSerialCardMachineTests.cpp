@@ -510,6 +510,40 @@ namespace SuperSerialCardMachineTestNs
         }
 
 
+        //  The printer moves between the parallel card and the serial card,
+        //  and the card's connector takes a loopback plug, while the machine
+        //  runs.
+        TEST_METHOD (ThePrinter_MovesBetweenTheCards_WhileTheMachineRuns)
+        {
+            TestMachine  machine ("Apple2e", [] (MachineConfig & config)
+            {
+                for (SlotConfig & slot : config.slots)
+                {
+                    slot.enabled = (slot.device == kpszSuperSerialCardDevice) ? true : slot.enabled;
+                }
+            });
+
+
+
+            Assert::IsTrue   (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"the parallel card has the printer");
+            Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_BUSY), machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+
+            Assert::AreEqual (S_OK, machine.ConnectParallelPrinter (1, false));
+            Assert::IsNull   (machine.GetRefs().printerRing, L"taken off the parallel card");
+            Assert::AreEqual (PrinterCard::kStatusBusy, machine.GetMemoryBus().ReadByte (0xC091));
+
+            Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, kpszImageWriterDevice, nullptr, nullptr));
+            Assert::IsTrue   (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"now on the serial card");
+
+            Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, kpszSerialLoopback, nullptr, nullptr));
+            Assert::IsNull   (machine.GetRefs().printerRing, L"a loopback plug in its place");
+
+            Assert::AreEqual (S_OK, machine.ConnectParallelPrinter (1, true));
+            Assert::IsTrue   (machine.GetRefs().printerRing == &machine.GetPrinterRing(), L"back on the parallel card");
+            Assert::AreEqual (PrinterCard::kStatusReady, machine.GetMemoryBus().ReadByte (0xC091));
+        }
+
+
         TEST_METHOD (AParallelCardListingNothing_HasThePrinter_AndOneListingAnEmptyPortDoesNot)
         {
             TestMachine  bare  ("Apple2e");

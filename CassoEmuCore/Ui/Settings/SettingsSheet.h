@@ -304,6 +304,10 @@ private:
     // dialog; the card is turned on when the download succeeds.
     // DownloadSerialFirmware returns true when the firmware was written.
     bool           DownloadSerialFirmware (const std::wstring & intro);
+
+    // Displays `notice`, a change one tab made to another's settings, and
+    // syncs the connector tabs to it.
+    void           ReportCrossTabChange   (const std::wstring & notice);
     void           SetSerialCardEnabled   (bool enabled);
 
     // A tab appearing among the others is easy to miss, so when turning a

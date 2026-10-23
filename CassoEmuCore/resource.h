@@ -46,9 +46,15 @@
 // Start the disk browser beside this executable.
 #define IDM_DISK_OPEN_CASSO_EXPLORER       40089
 
-// Connect a //c serial port to its device while the machine runs. Payload:
-// "<port>:<device>", such as "2:tcp:6502"; an empty device loops back.
+// Connect a serial port, a //c's port or a Super Serial Card's slot, to its
+// device while the machine runs. Payload: "<port>:<device>", such as
+// "2:tcp:6502", then a tab and the host file for a card's file attachment.
+// An empty device loops back a //c's port and empties a card's connector.
 #define IDM_SERIAL_CONNECT                 40193
+
+// Attach the ImageWriter II to the parallel card in a slot, or take it off,
+// while the machine runs. Payload: "<slot>:1" or "<slot>:0".
+#define IDM_PRINTER_PARALLEL               40401
 
 //  Answering the question raised when a mounted image changed outside Casso.
 //  The answer is chosen on the UI thread and carried out on the thread that

@@ -288,7 +288,8 @@ private:
     void     SaveTrace                 () override;
     void     ConfigureNetworkCard      (const NetworkCardSettings & settings) override;
     void     HoldAppleKeysThroughReset (bool openApple, bool closedApple) override;
-    HRESULT  ConnectSerialPort         (int port, const std::string & device) override;
+    HRESULT  ConnectSerialPort         (int port, const std::string & device, const std::string & path) override;
+    HRESULT  ConnectParallelPrinter    (int slot, bool attached) override;
     void     SetSerialCardSwitches     (const std::string & sw1, const std::string & sw2) override;
 
     // Posts a reset with the Apple keys as they are at this moment, read on

@@ -40,12 +40,11 @@ public:
     // What a connector attachment choice is, in drop-down order. After these
     // come a TCP port on this PC and then each of the PC's COM ports, as a
     // //c's serial port offers.
-    static constexpr const char *  kAttachmentDevices[] = { "", "serial-loopback", "serial-file-out", "serial-file-in", "imagewriter" };
+    static constexpr const char *  kAttachmentDevices[] = { "", "serial-loopback", "serial-file-out", "serial-file-in" };
     static constexpr int           kLoopbackChoice      = 1;
     static constexpr int           kFileOutChoice       = 2;
     static constexpr int           kFileInChoice        = 3;
-    static constexpr int           kPrinterChoice       = 4;
-    static constexpr int           kTcpChoice           = 5;
+    static constexpr int           kTcpChoice           = 4;
 
     // The card's TCP port is this plus its slot, so slot 2's is 6502, as the
     // //c's port 2's is.
@@ -61,6 +60,10 @@ public:
     void  SetFirmwareStatus (const std::wstring & text, bool offerDownload);
     void  SetOnDownload     (std::function<void()> fn) { m_onDownload = std::move (fn); }
     void  SetOnBrowse       (BrowseFn fn)              { m_onBrowse   = std::move (fn); }
+
+    // Reports a change a switch made on another tab, such as the ImageWriter
+    // II disconnected when the card is switched out of printer mode.
+    void  SetOnNotice       (std::function<void (const std::wstring &)> fn) { m_onNotice = std::move (fn); }
 
     // The PC's COM ports, offered for the connector.
     void  SetComPorts       (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
@@ -111,6 +114,7 @@ private:
     DxuiHwndSource *         m_popupHost = nullptr;
     std::function<void()>    m_onDownload;
     BrowseFn                 m_onBrowse;
+    std::function<void (const std::wstring &)>  m_onNotice;
 
     DxuiInfoBanner           m_firmwareBanner;
     DxuiButton               m_download;

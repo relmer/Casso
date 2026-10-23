@@ -630,6 +630,10 @@ HRESULT SettingsSheet::OpenModeless (
     m_printingPage->SetPrefs (&prefs);
     m_printingPage->SetState (&m_state);
 
+    // A change on one of these tabs that alters the other's settings is
+    // reported, and both are synced to it.
+    m_printingPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+
     // Serial card page: the staged slot entry, the firmware's status in the
     // running machine's config, the shell's download, and the file pickers.
     m_serialPage->SetState          (&m_state);
@@ -641,6 +645,7 @@ HRESULT SettingsSheet::OpenModeless (
 
         IGNORE_RETURN_VALUE (downloaded, false);
     });
+    m_serialPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
     m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
     {
         FileDialogSpec  spec;
@@ -1874,6 +1879,26 @@ std::wstring SettingsSheet::GetSerialFirmwareStatus() const
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReportCrossTabChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::ReportCrossTabChange (const std::wstring & notice)
+{
+    m_serialPage->Rebuild();
+    m_printingPage->Sync();
+    m_hardwarePage->Rebuild();
+    Invalidate();
+
+    DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), notice.c_str(), L"Settings", MB_OK | MB_ICONINFORMATION);
 }
 
 

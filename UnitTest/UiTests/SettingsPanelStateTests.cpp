@@ -113,9 +113,14 @@ public:
             ++applyCount;
         }
 
-        void ApplySerialPortDevice (int port, const std::string & device) override
+        void ApplySerialPortDevice (int port, const std::string & device, const std::string & path) override
         {
-            serialConnects.push_back (std::format ("{} {}", port, device));
+            serialConnects.push_back (path.empty() ? std::format ("{} {}", port, device) : std::format ("{} {} {}", port, device, path));
+        }
+
+        void ApplyParallelPrinter (int slot, bool attached) override
+        {
+            serialConnects.push_back (std::format ("parallel {} {}", slot, attached ? "on" : "off"));
         }
 
         void ApplySerialCardSwitches (const std::string & sw1, const std::string & sw2) override
@@ -1062,6 +1067,8 @@ public:
     TEST_METHOD (Printer_OnAnApple2c_IsOnOnePortAtATime)
     {
         SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
         JsonValue           v = ParseOrFail (R"JSON({
             "$cassoMachineVersion": 1,
             "name": "TestMachine",
@@ -1082,7 +1089,11 @@ public:
 
         Assert::AreEqual (std::string(), st.GetSerialPortDevice (1), L"port 1 is emptied");
         Assert::AreEqual (std::string (kpszImageWriterDevice), st.GetSerialPortDevice (2));
-        Assert::IsTrue (st.RequiresReset(), L"the printer's drain starts with the machine");
+        Assert::IsFalse (st.RequiresReset(), L"the printer moves while the machine runs");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "1 ", "2 imagewriter" }),
+                        L"port 1 lets the printer go before port 2 takes it");
     }
 
 
@@ -1115,18 +1126,52 @@ public:
 
         st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
 
-        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
-        Assert::IsTrue (st.RequiresReset());
+        Assert::IsTrue  (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        Assert::IsFalse (st.RequiresReset(), L"the printer moves while the machine runs");
+        Assert::IsFalse (st.TakeNotice().empty(), L"the card's mode changed for the printer");
 
         AssertSucceeded (st.Apply (sink, outJson));
         text = WriteCompactOrFail (outJson);
         Assert::IsTrue (text.find ("\"device\":\"parallel-printer\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"ports\":[\"\"]") != std::string::npos, L"the parallel card's connector is written empty");
         Assert::IsTrue (text.find ("\"ports\":[\"imagewriter\"]") != std::string::npos, L"and the card's has the printer");
+        Assert::IsTrue (text.find ("\"sw1BeforePrinter\"") != std::string::npos, L"with the card's mode before it");
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "parallel 1 off", "2 imagewriter" }),
+                        L"the parallel card lets the printer go before the serial card takes it");
 
         st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
-        Assert::IsFalse (st.RequiresReset(), L"back where it was read");
-        Assert::IsFalse (st.IsDirty());
+        Assert::IsFalse (st.TakeNotice().empty(), L"the card's mode is restored");
+        Assert::IsFalse (st.IsDirty(), L"back where it was read");
+    }
+
+
+    // The card is set to printer mode for the printer, and its mode is put
+    // back when the printer moves away, unless it was changed since. A mode
+    // change away from printer mode disconnects the printer.
+    TEST_METHOD (Printer_SetsTheSerialCardsMode_AndAModeChangeDisconnectsIt)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kSerialCardJson);
+        SscSwitches         switches;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        Assert::IsTrue (switches.TryParseBankText (SscBank::Sw1, st.GetHardware()[(size_t) st.FindSerialCard()].switchesSw1));
+        Assert::IsTrue (switches.GetMode() == SscMode::Printer);
+        Assert::IsFalse (st.TakeNotice().empty());
+
+        st.SetPrinterConnection (PrinterConnection());
+        Assert::IsTrue (switches.TryParseBankText (SscBank::Sw1, st.GetHardware()[(size_t) st.FindSerialCard()].switchesSw1));
+        Assert::IsTrue (switches.GetMode() == SscMode::Communications, L"the mode it was read with");
+        Assert::IsTrue (st.GetHardware()[(size_t) st.FindSerialCard()].switchesSw1BeforePrinter.empty());
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        AssertSucceeded (st.SetSerialCardSwitches ("off off off on on on on", "on on off on off off off"));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection(), L"communications mode disconnects the printer");
+        Assert::IsTrue (st.TakeNotice().find (L"not connected") != std::wstring::npos);
     }
 
     // Detaching must write BOTH connectors. A one-element list would take
@@ -1717,9 +1762,11 @@ public:
     }
 
 
-    TEST_METHOD (SerialCard_AttachmentChangeRequiresAReset)
+    TEST_METHOD (SerialCard_AttachmentChangeIsAppliedLive)
     {
         SettingsPanelState  st;
+        RecordingSink       sink;
+        JsonValue           outJson;
         JsonValue           v = ParseOrFail (kSerialCardJson);
 
 
@@ -1727,7 +1774,10 @@ public:
         AssertSucceeded (st.LoadFromMachine ("X", v, v));
         AssertSucceeded (st.SetSerialCardAttachment ("serial-loopback", ""));
 
-        Assert::IsTrue (st.RequiresReset(), L"the attachment is opened when the machine is built");
+        Assert::IsFalse (st.RequiresReset(), L"the connector is attached while the machine runs");
+
+        AssertSucceeded (st.Apply (sink, outJson));
+        Assert::IsTrue (sink.serialConnects == std::vector<std::string> ({ "2 serial-loopback" }));
     }
 
 

@@ -63,6 +63,10 @@ public:
     // The staged machine, whose printer connector the page edits.
     void  SetState             (SettingsPanelState * state);
 
+    // Reports a change the connector's choice made on another tab, such as
+    // the Super Serial Card's mode.
+    void  SetOnNotice          (std::function<void (const std::wstring &)> fn) { m_onNotice = std::move (fn); }
+
     // Picks up a change made elsewhere in the sheet that adds or removes a
     // connector, such as a card turned on in the Machine tab. Called each
     // dialog tick; rebuilds the list only when it differs.
@@ -112,6 +116,7 @@ private:
 
     GlobalUserPrefs *     m_prefs = nullptr;
     SettingsPanelState *  m_state = nullptr;
+    std::function<void (const std::wstring &)>  m_onNotice;
 
     DxuiInfoBanner  m_printerBanner;
     std::wstring    m_bannerText;
