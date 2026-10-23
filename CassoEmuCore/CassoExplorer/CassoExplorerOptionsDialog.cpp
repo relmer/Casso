@@ -225,6 +225,8 @@ void CassoExplorerOptionsDialog::OnBuildPages()
     m_displayPage = CreatePage<DisplayPage> (L"Display");
     m_displayPage->SetPopupHost     (GetPopupHost());
     m_displayPage->SetCustomMonitor (m_choices.customArgb);
+    m_displayPage->SetIntro         (L"These settings apply to previews of Hi-Res and Double Hi-Res pictures. Text, programs "
+                                     L"and other files are previewed without them.");
 
     //  Seeded once the pages are laid out: the page sets its lists and its
     //  sliders' ranges as it lays itself out.

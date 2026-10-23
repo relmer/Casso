@@ -23,6 +23,7 @@ static constexpr int    s_kSliderWidthDp   = 280;
 static constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
 static constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
 static constexpr int    s_kPagePadDp       = 16;
+static constexpr int    s_kIntroHeightDp   = 40;       // two lines of a host's note
 
 
 
@@ -68,6 +69,7 @@ RECT DisplayPage::MakeRect (int l, int t, int w, int h)
 DisplayPage::DisplayPage(std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
+    Adopt (m_intro);
     Adopt (m_monitorLabel);
     Adopt (m_textColorLabel);
     Adopt (m_brightnessLabel);
@@ -260,6 +262,17 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_scaler = scaler;
 
+    if (!m_introText.empty())
+    {
+        int  introHeight = scaler.ToPx (s_kIntroHeightDp);
+
+        m_intro.SetRect      (MakeRect (x, y, (rect.right - pad) - x, introHeight));
+        m_intro.SetText      (m_introText);
+        m_intro.SetTextRole  (DxuiTextRole::Muted);
+        m_intro.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+        y += introHeight + sectionGap;
+    }
+
 
 
     // Monitor row + Restore defaults button (sharing this row so the
@@ -438,6 +451,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // controls don't extend that far.
     m_indicatorX = controlsX + sliderWidth + scaler.ToPx (28);
 
+    m_intro.SetDpi               (dpi);
     m_monitorLabel.SetDpi        (dpi);
     m_textColorLabel.SetDpi      (dpi);
     m_brightnessLabel.SetDpi     (dpi);
@@ -939,6 +953,11 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
+
+    if (!m_introText.empty())
+    {
+        m_intro.Paint (painter, text, theme);
+    }
 
     SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     PaintBackingIfFocused (kControlMonitor, m_monitorRowRect);

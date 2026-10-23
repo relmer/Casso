@@ -128,6 +128,10 @@ public:
     // out; set again to change the swatch's color.
     void  SetCustomMonitor      (uint32_t argb) { m_customMonitor = true; m_customArgb = argb; }
 
+    // A host's note above the first row, in muted text; none when empty.
+    // Set before the page is laid out.
+    void  SetIntro              (std::wstring text) { m_introText = std::move (text); }
+
     // Routes the owned dropdown's popup menu through the host's
     // popup-host pool so the menu HWND escapes the page's clipping
     // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
@@ -232,6 +236,7 @@ private:
     TextColorCommitFn      m_onTextColorCommit;
     CustomColorFn          m_onCustomColor;
 
+    DxuiLabel                 m_intro;
     DxuiLabel                 m_monitorLabel;
     DxuiLabel                 m_textColorLabel;
     DxuiLabel                 m_brightnessLabel;
@@ -287,6 +292,7 @@ private:
     // A host's custom monochrome monitor, listed when set, and its color.
     bool                  m_customMonitor        = false;
     uint32_t              m_customArgb           = ColorUtil::kWhiteArgb;
+    std::wstring          m_introText;
 
     // Live-preview fade state plumbed in by SettingsPanel::SetFadeState
     // ahead of each Paint. m_fadeFocusedId == -1 disables the fade and
