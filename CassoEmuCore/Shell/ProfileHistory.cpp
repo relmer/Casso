@@ -420,6 +420,17 @@ HRESULT ProfileHistory::Build (uint64_t fromCycle, std::string & error)
     m_remaining = pending.size();
 
     hr = SubmitBlocks (pending, fromCycle, toCycle);
+
+    //  A run that could not start cancels the runs that did, so the profile
+    //  is not left building with nothing to finish it.
+    if (FAILED (hr))
+    {
+        CancelAll();
+        m_isBuilding = false;
+        m_remaining  = 0;
+        m_blockCounts.clear();
+    }
+
     CHRF (hr, error = "The profile could not be started.");
 
 Error:

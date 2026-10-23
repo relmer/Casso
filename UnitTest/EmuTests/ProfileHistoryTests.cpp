@@ -234,6 +234,46 @@ namespace ProfileHistoryTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  ABuildThatCannotStartIsNotLeftBuilding
+        //
+        //  A replay its work queue does not take fails the build, and
+        //  the profile is not left building, with nothing to finish it.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABuildThatCannotStartIsNotLeftBuilding)
+        {
+            class RefusingQueue : public IWorkQueue
+            {
+            public:
+                HRESULT  Submit (WorkFunction, void *) override { return E_FAIL; }
+                void     WaitAll() override {}
+            };
+
+            ProfileRig        rig;
+            RefusingQueue     queue;
+            ProfileCountsPtr  counts;
+            std::string       error;
+            HRESULT           hr     = S_OK;
+
+
+
+            rig.logs.GetProfileHistory().SetWorkQueue (&queue);
+
+            hr = rig.logs.GetProfileHistory().Build (0, error);
+
+            Assert::IsTrue  (FAILED (hr));
+            Assert::IsFalse (error.empty());
+            Assert::IsFalse (rig.logs.GetProfileHistory().GetProgress().has_value(), L"not left building");
+            Assert::IsFalse (rig.logs.GetProfileHistory().Pump (counts));
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  NoHistoryIsAnError
         //
         ////////////////////////////////////////////////////////////////////////////////
