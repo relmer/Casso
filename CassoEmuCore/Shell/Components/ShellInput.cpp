@@ -62,7 +62,7 @@ ShellInput::~ShellInput() = default;
 void ShellInput::ReleaseGuestKeys()
 {
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::defer_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
 
 
@@ -117,10 +117,8 @@ void ShellInput::ReleaseGuestKeys()
 
 void ShellInput::ReleaseInputsLetGoBehindLive()
 {
-    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
-    std::vector<WPARAM>                  releases;
-    DxuiKeyEvent                         release;
+    std::vector<WPARAM>  releases;
+    DxuiKeyEvent         release;
 
 
 
@@ -132,6 +130,8 @@ void ShellInput::ReleaseInputsLetGoBehindLive()
     releases     = m_heldHostInputs.TakeReleases();
     release.kind = DxuiKeyEventKind::Up;
 
+    //  The mouse's locks are taken and let go for it alone, so a key's
+    //  release takes them afresh in HandleViewportKey rather than nested.
     for (WPARAM input : releases)
     {
         if (input != HeldHostInputs::kMouseButton)
@@ -139,10 +139,33 @@ void ShellInput::ReleaseInputsLetGoBehindLive()
             release.vk = input;
             (void) HandleViewportKey (release);
         }
-        else if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInputGate().TryEnter (gate))
+        else
         {
-            m_machine.GetMouse()->SetButton (false);
+            ReleaseMouseButton();
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseMouseButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInput::ReleaseMouseButton()
+{
+    std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock(), std::try_to_lock);
+    HostInputGate::Entry                 gate;
+
+
+
+    if (lifetime.owns_lock() && m_machine.GetMouse() != nullptr && m_machine.GetHostInputGate().TryEnter (gate))
+    {
+        m_machine.GetMouse()->SetButton (false);
     }
 }
 
@@ -254,7 +277,7 @@ Error:
 bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
 {
     std::shared_lock<std::shared_mutex>  lifetime     (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 hasKeyboard  = false;
     bool                                 isGateOpen   = false;
     bool                                 isMachineKey = false;
@@ -929,7 +952,7 @@ void ShellInput::ReleaseArrowKeySources()
 void ShellInput::SyncJoyport()
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_machine.GetLifetimeLock());
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = m_machine.GetHostInputGate().TryEnter (gate);
 
 
@@ -945,7 +968,7 @@ void ShellInput::SyncJoyport()
         m_debugger.OweJoyportSync();
     }
 
-    gate.unlock();
+    gate.Leave();
     lifetime.unlock();
 
     if (m_arrowsJoystick)
@@ -2146,7 +2169,7 @@ void ShellInput::UpdateGuestMouseFromHost (int xPx, int yPx)
 {
     bool                                  isGateOpen = false;
     std::optional<uint32_t>               target;
-    std::shared_lock<std::shared_mutex>   gate;
+    HostInputGate::Entry                  gate;
 
 
 
@@ -2979,7 +3002,7 @@ void ShellInput::SyncSelectorState()
 
 void ShellInput::PressGuestMouseButton (int x, int y)
 {
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
 
 
@@ -3018,7 +3041,7 @@ void ShellInput::PressGuestMouseButton (int x, int y)
 
 void ShellInput::ReleaseGuestMouseButton()
 {
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
 
 

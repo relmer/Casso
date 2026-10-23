@@ -208,6 +208,9 @@ private:
     // True when the host's keyboard layout is a Dvorak variant.
     static bool  IsHostLayoutDvorak ();
 
+    // The mouse button let go of behind live, released once live.
+    void  ReleaseMouseButton ();
+
     // Hands PDL0/PDL1 to whichever host input mode currently drives them.
     void  SyncGamePortAxisOwner ();
 

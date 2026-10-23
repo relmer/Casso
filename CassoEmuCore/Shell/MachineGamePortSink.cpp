@@ -72,7 +72,7 @@ void MachineGamePortSink::SetDivergenceGate (
 bool MachineGamePortSink::TryApply (const GamePortState & target, const GamePortState * lastApplied)
 {
     std::shared_lock<std::shared_mutex>  lifetime (m_lifetimeLock, std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     GamePortTargets                      targets;
     bool                                 isAvailable = lifetime.owns_lock();
     bool                                 isLive      = true;

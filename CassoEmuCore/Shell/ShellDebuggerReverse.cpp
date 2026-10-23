@@ -760,7 +760,7 @@ void ShellDebugger::ApplyHeldMouseTarget (uint32_t target)
 {
     HRESULT                              hr         = S_OK;
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
 
 
@@ -794,7 +794,7 @@ void ShellDebugger::PressGuestMouseHeldBehindLive()
 {
     HRESULT                              hr         = S_OK;
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
     bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
@@ -835,7 +835,7 @@ void ShellDebugger::ReleaseGuestMouseAfterClick()
 {
     HRESULT                              hr         = S_OK;
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
     bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
@@ -897,7 +897,7 @@ void ShellDebugger::ToggleHeldEightyColumnSwitch()
 void ShellDebugger::ToggleEightyColumnSwitch (Apple2eKeyboard * iieKbd)
 {
     HRESULT                              hr         = S_OK;
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
     bool                                 newIn      = false;
 
