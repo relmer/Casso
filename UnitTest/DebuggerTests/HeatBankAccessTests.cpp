@@ -252,6 +252,12 @@ namespace DebuggerTests
             Assert::AreEqual ((int) HeatAccessPlan::Kind::Seek, (int) plan.kind);
             Assert::AreEqual ((uint64_t) 5001, plan.position, L"just after the instruction that wrote it");
 
+            //  An access just before the oldest keyframe seeks to that keyframe,
+            //  which is in history.
+            plan = HeatAccessJump::Plan (MakeRequest (true, true, Bank::Cpu, 0x2000), HeatAccessState::Found, access, true, 5001);
+            Assert::AreEqual ((int) HeatAccessPlan::Kind::Seek, (int) plan.kind, L"the position after the access is the oldest kept");
+            Assert::AreEqual ((uint64_t) 5001, plan.position);
+
             plan = HeatAccessJump::Plan (MakeRequest (true, true, Bank::Main, 0x2000), HeatAccessState::Found, access, true, 6000);
             Assert::AreEqual ((int) HeatAccessPlan::Kind::Report, (int) plan.kind);
             Assert::AreEqual (std::string ("The last write of Main RAM $2000, at cycle 90,000, is older than the history kept."), plan.message);
