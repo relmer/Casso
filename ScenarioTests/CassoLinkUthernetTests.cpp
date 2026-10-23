@@ -383,7 +383,8 @@ public:
         Assert::IsFalse (listener.GetAnnounced().empty(), L"an announcement");
         Assert::AreEqual (std::format ("127.0.0.1:{}", kUniversalPort), listener.GetAnnounced()[0].GetAddressText(),
                           L"from this PC, so at the address the card's socket is on");
-        Assert::IsTrue (listener.GetAnnounced()[0].mac == options.network.mac);
+        Assert::IsTrue (std::equal (options.network.mac.begin(), options.network.mac.begin() + 3, listener.GetAnnounced()[0].mac.begin()),
+                        L"the MAC address's first three bytes as built, the rest salted on the Apple");
         listener.Stop();
 
         settings.name      = "Uthernet";
@@ -401,6 +402,41 @@ public:
             AssertSucceeded (list->result);
             Assert::AreEqual (catalog.entries.size(), list->listing.entries.size(), L"drive 2's catalog over the card the disk found");
         }
+    }
+
+    //  The disk's MAC address is salted with the Apple's own memory, so two
+    //  Apples booted from copies of one disk have two addresses (FR-091c).
+    TEST_METHOD (TheUniversalDisksMac_DiffersBetweenTwoApples)
+    {
+        std::array<std::array<Byte, 6>, 2>  macs = {};
+        LinkShimOptions                     options;
+        std::vector<Byte>                   boot;
+
+        options.network.address = { 192, 168, 77, 77 };
+        options.network.mac     = { 0x00, 0x08, 0xDC, 0x11, 0x22, 0x33 };
+        options.network.port    = kPort + 3;
+
+        AssertSucceeded (LinkProgram::BuildUniversalBootDisk (options, boot));
+
+        for (size_t apple = 0; apple < macs.size(); apple++)
+        {
+            Rig          rig;
+            std::string  row;
+
+            GuestSession::Mount (rig.machine, boot);
+            rig.machine.GetMemoryBus().WriteByte (0x5000, (Byte) (0x11 * (apple + 1)));
+
+            rig.RunUntil ([&] () { row = rig.Row (kRow4); return row.find (" AT ") != std::string::npos; }, kWaitMs);
+
+            for (size_t at = 0; at < macs[apple].size(); at++)
+            {
+                macs[apple][at] = rig.machine.GetCpu()->ReadByte ((Word) (LinkProgram::kUniversalW5100 + LinkProgram::kNetMacOffset + at));
+            }
+
+            Assert::IsTrue (macs[apple][0] == 0x00 && macs[apple][1] == 0x08 && macs[apple][2] == 0xDC, L"the first three bytes as built");
+        }
+
+        Assert::IsTrue (macs[0] != macs[1], L"two Apples whose memory differs have two addresses");
     }
 
     //  The program's Ready packet in memory: its envelope, with nine bytes.

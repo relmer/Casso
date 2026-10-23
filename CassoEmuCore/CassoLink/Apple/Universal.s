@@ -402,6 +402,9 @@ isw5100: lda scslot
         asl a
         asl a
         tax
+        lda WZMR,x              ; read first: a W5100's mode register has
+        and #$64                ; bits 6, 5 and 2 clear, and a card that is
+        bne no                  ; not one is not written to
         lda #$03                ; indirect, with the pointer advancing
         sta WZMR,x
         lda #$55
@@ -434,11 +437,53 @@ romptr: lda #0
         rts
 
 
-; w5up: the W5100 reset and set up: the header's MAC address, 8 KB of
-; receive memory and 4 KB of transmit memory to socket 0 and 4 KB of
+; macsalt: the header's MAC address made this Apple's: RNDL and RNDH, which
+; the monitor counts up while it waits for a key, and a 16-bit sum of
+; $4000-$BFFF, which differs between machines and power-ons, added into its
+; last three bytes. Copies of one disk on two Apples then have two
+; addresses. The first three bytes, with the locally administered bit, are
+; left as they are.
+macsalt: lda #0
+        sta tmolo
+        sta tmohi
+        sta ptr
+        lda #$40
+        sta ptr+1
+        ldy #0
+mssum:  lda (ptr),y
+        clc
+        adc tmolo
+        sta tmolo
+        bcc msnext
+        inc tmohi
+msnext: iny
+        bne mssum
+        inc ptr+1
+        lda ptr+1
+        cmp #$C0
+        bne mssum
+        clc
+        lda W5IMG+NMAC+3
+        adc $4E                 ; RNDL
+        sta W5IMG+NMAC+3
+        lda W5IMG+NMAC+4
+        adc $4F                 ; RNDH
+        sta W5IMG+NMAC+4
+        lda W5IMG+NMAC+5
+        adc tmolo
+        sta W5IMG+NMAC+5
+        lda W5IMG+NMAC+4
+        eor tmohi
+        sta W5IMG+NMAC+4
+        rts
+
+
+; w5up: the W5100 reset and set up: the header's MAC address, salted, 8 KB
+; of receive memory and 4 KB of transmit memory to socket 0 and 4 KB of
 ; transmit memory to socket 1, an address from DHCP, socket 0 listening on
 ; the header's port and socket 1 open for the announcements.
-w5up:   lda w5slot
+w5up:   jsr macsalt
+        lda w5slot
         asl a
         asl a
         asl a
