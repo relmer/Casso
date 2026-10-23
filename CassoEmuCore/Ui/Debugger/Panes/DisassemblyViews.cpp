@@ -1167,7 +1167,8 @@ void DisassemblyGroup::OnRowSelected (int view, int row)
 //
 //  A source line's text for the source rows, read through the host as a
 //  source document reads its file, once per file while the same debug file
-//  is loaded.
+//  and program are loaded. A file not found is looked up again with the next
+//  snapshot, since a dropped or located source can be found then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1176,6 +1177,7 @@ bool DisassemblyGroup::TryGetSourceText (int fileId, int line, std::wstring & te
     const DebuggerViewSnapshot               * snapshot = m_host.GetLatestSnapshot();
     IDebuggerWindowHost                      * host     = m_host.GetWindowHost();
     const DebuggerViewSnapshot::SourceState  * source   = nullptr;
+    std::wstring                               key;
     SourceLookup                               lookup;
 
 
@@ -1186,14 +1188,22 @@ bool DisassemblyGroup::TryGetSourceText (int fileId, int line, std::wstring & te
     }
 
     source = &*snapshot->source;
+    key    = source->debugFilePath + TextEncoding::NarrowToWide (source->programKey);
 
-    if (m_sourceKey != source->debugFilePath)
+    if (m_sourceKey != key)
     {
-        m_sourceKey = source->debugFilePath;
+        m_sourceKey = key;
         m_sourceText.clear();
+        m_sourceMisses.clear();
     }
 
-    if (!m_sourceText.contains (fileId))
+    if (m_missesFor != snapshot)
+    {
+        m_missesFor = snapshot;
+        m_sourceMisses.clear();
+    }
+
+    if (!m_sourceText.contains (fileId) && !m_sourceMisses.contains (fileId))
     {
         for (const DebugSourceFile & record : source->files)
         {
@@ -1203,10 +1213,17 @@ bool DisassemblyGroup::TryGetSourceText (int fileId, int line, std::wstring & te
             }
         }
 
-        m_sourceText[fileId] = SourcePane::SplitLines (lookup.text);
+        if (lookup.match != SourceMatch::NotFound && !lookup.text.empty())
+        {
+            m_sourceText[fileId] = SourcePane::SplitLines (lookup.text);
+        }
+        else
+        {
+            m_sourceMisses.insert (fileId);
+        }
     }
 
-    if (line > (int) m_sourceText[fileId].size())
+    if (!m_sourceText.contains (fileId) || line > (int) m_sourceText[fileId].size())
     {
         return false;
     }

@@ -184,8 +184,10 @@ private:
     std::optional<Word>                                   m_navigatedTo;
     int                                                   m_navigatedView = 0;
     bool                                                  m_isArrowAtTarget = false;
-    std::wstring                                          m_sourceKey;
+    std::wstring                                          m_sourceKey;                // the debug file's path and program key the text was read for
     std::map<int, std::vector<std::wstring>>              m_sourceText;
+    std::set<int>                                         m_sourceMisses;             // files not found for m_missesFor
+    const DebuggerViewSnapshot                          * m_missesFor = nullptr;
     ByteChanges                                           m_changes;
     std::string                                           m_machine;
 };

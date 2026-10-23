@@ -73,14 +73,15 @@ namespace DisassemblyOptionsTests
         {
             SourceLookup  lookup;
 
-            lookup.match = SourceMatch::Exact;
-            lookup.text  = "; main\n        lda #$41\n        rts\n";
+            lookup.match = sourceText.empty() ? SourceMatch::NotFound : SourceMatch::Exact;
+            lookup.text  = sourceText;
             return lookup;
         }
 
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
         std::string  options;
+        std::string  sourceText  = "; main\n        lda #$41\n        rts\n";
         bool         isHeatShown = false;
 
     private:
@@ -438,6 +439,43 @@ namespace DisassemblyOptionsTests
 
             Assert::AreEqual (std::wstring (L"2"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].text, L"the line number is in the address column");
             Assert::AreEqual (std::wstring (L"lda #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
+        }
+
+
+
+        //  A source not found is looked up again at the next snapshot, and a
+        //  debug file loaded again at the same path with another program key
+        //  has its source read again.
+        TEST_METHOD (TheSourceRowsFollowASourceFoundLaterAndANewProgram)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            OptionsHost    host;
+            DxuiDpiScaler  scaler;
+            OptionsWindow  window (theme, host);
+            auto           first = MakeSnapshot (true);
+            auto           again = std::make_shared<DebuggerViewSnapshot> (*first);
+            auto           other = std::make_shared<DebuggerViewSnapshot> (*first);
+
+
+
+            scaler.SetDpi (96);
+            host.options    = "address bytes source symbols";
+            host.sourceText = std::string();
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (first, 0);
+            Assert::AreEqual (0, window.GetCodeLineOfRow (0, 0), L"no source found, no source row");
+
+            host.sourceText = "; main\n        lda #$41\n        rts\n";
+            window.ApplyCodeSnapshot (again, 0);
+            Assert::AreEqual (-1, window.GetCodeLineOfRow (0, 0), L"found at the next snapshot");
+            Assert::AreEqual (std::wstring (L"lda #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
+
+            host.sourceText          = "; main\n        ldx #$41\n        rts\n";
+            other->source->programKey = "reassembled";
+            window.ApplyCodeSnapshot (other, 0);
+            Assert::AreEqual (std::wstring (L"ldx #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text, L"the new program's source");
         }
 
 

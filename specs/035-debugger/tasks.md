@@ -1858,7 +1858,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1042 Sync decides whether a floating window should show from IsWindowVisible(owner) alone and calls Show(false) whenever the two disagree (FloatingPanes.cpp:374) Done: Sync returns before the loop that makes the floating windows visible or hidden while the debugger window is minimized. No unit test: minimizing works only with real windows; check on screen that floating panes stay hidden after a minimize.
 - [ ] T1043 A key-scheme command from a floating window runs with no routing pane (FloatingPanes.cpp:1128)
 - [X] T1044 The context menu's Insert/Remove breakpoint label reads `snapshot->code[(size_t) row]` (DisassemblyViews.cpp:401) Done: AddMenuItems labels the breakpoint entry from line.hasBreakpoint, the code line right-clicked in that view.
-- [ ] T1045 TryGetSourceText caches each file's split lines, keyed only by `debugFilePath` (DisassemblyViews.cpp:1190)
+- [X] T1045 TryGetSourceText caches each file's split lines, keyed only by `debugFilePath` (DisassemblyViews.cpp:1190) Done: TryGetSourceText keys its cache on the debug file's path and program key, and a file not found goes in m_sourceMisses for one snapshot only, so the next snapshot looks it up again.
 - [ ] T1046 TrimRows always drops the oldest rows, including rows Apply has just prepended in answer to the pane's own "earlier" request (EventLogPane.h:608)
 - [ ] T1047 Once any column is sorted, every delta forces a full BuildView plus SortView over all rows (EventLogPane.h:639)
 - [ ] T1048 Apply clears m_keepTop on every delta and takes the top index from m_view as it stood before the frame (EventLogPane.h:181)
