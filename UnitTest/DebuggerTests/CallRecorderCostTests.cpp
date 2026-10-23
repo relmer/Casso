@@ -49,11 +49,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  quiet one. The CPU time totals in the log still rise and fall with the
 //  host's load; the percentages do not.
 //
-//  Release only. A Debug build measures the checks, not the recorder.
+//  Release only, and not in an AddressSanitizer build: a Debug build
+//  measures the checks, and a sanitized one the instrumented memory accesses,
+//  rather than the recorder (a JSR/RTS loop measured over five times bare).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef NDEBUG
+#if defined (NDEBUG) && !defined (__SANITIZE_ADDRESS__)
 
 namespace CallRecorderCostTests
 {
