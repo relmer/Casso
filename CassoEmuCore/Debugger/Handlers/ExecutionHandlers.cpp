@@ -102,14 +102,14 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::OnInterrupt (DebugSession & session)
+void ExecutionHandlers::OnInterrupt (DebugSession & session, Word pc)
 {
     FeedKeys    (session);
     BillProfile (session);
 
     if (m_profile.IsOn())
     {
-        m_routines.OnInterrupt();
+        m_routines.OnInterrupt (pc);
     }
 }
 

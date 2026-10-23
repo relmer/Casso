@@ -1229,7 +1229,7 @@ void DebugSession::OnInterrupt (Word pc)
 
     if (isDebuggerRun && m_instructionObserver != nullptr)
     {
-        m_instructionObserver->OnInterrupt (*this);
+        m_instructionObserver->OnInterrupt (*this, pc);
     }
 }
 

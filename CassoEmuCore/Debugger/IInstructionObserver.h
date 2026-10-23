@@ -32,7 +32,7 @@ public:
     virtual ~IInstructionObserver() = default;
 
     virtual void  OnInstruction    (DebugSession & session, Word pc) = 0;
-    virtual void  OnInterrupt      (DebugSession &) {}
+    virtual void  OnInterrupt      (DebugSession &, Word) {}
     virtual void  OnFreeRunSlice   (DebugSession &) {}
     virtual void  OnRunStopped     (DebugSession &, const StopEvent &) {}
     virtual void  OnMachineChanged (DebugSession &) {}

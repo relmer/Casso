@@ -59,7 +59,7 @@ public:
 
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;
-    void  OnInterrupt      (DebugSession & session) override;
+    void  OnInterrupt      (DebugSession & session, Word pc) override;
     void  OnFreeRunSlice   (DebugSession & session) override;
     void  OnRunStopped     (DebugSession & session, const StopEvent & stop) override;
     void  OnMachineChanged (DebugSession & session) override;

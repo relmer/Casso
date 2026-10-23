@@ -89,9 +89,9 @@ public:
     //  pointer after it, and the cycle count when it started.
     void  Record      (Word pc, Byte opcode, uint64_t cycles, Byte spAfter, uint64_t startCycle, uint64_t cyclesPerFrame);
 
-    //  An interrupt is taken before the next instruction, which starts its
-    //  routine.
-    void  OnInterrupt ();
+    //  An interrupt is taken in place of the instruction at pc, and the
+    //  next instruction starts its routine.
+    void  OnInterrupt (Word pc);
 
     void  Reset       ();
 

@@ -174,7 +174,7 @@ namespace DebuggerTests
 
 
             feed.Run (0x0300, kLda, 2, 0xFF);
-            feed.profile.OnInterrupt();
+            feed.profile.OnInterrupt (0x0302);
             feed.Run (0xFA62, kLda, 2, 0xFC);
             feed.Run (0xFA64, kRti, 6, 0xFF);
             feed.Run (0x0302, RoutineProfile::kBrk, 7, 0xFC);
@@ -189,6 +189,35 @@ namespace DebuggerTests
             Assert::AreEqual ((uint64_t) 8,  feed.profile.GetNodes()[(size_t) irq].self);
             Assert::AreEqual ((uint64_t) 6,  feed.profile.GetNodes()[(size_t) brk].self);
             Assert::AreEqual ((uint64_t) 11, feed.profile.GetNodes()[0].self, L"the LDA, the BRK and the LDA after");
+        }
+
+
+
+        //  An interrupt taken before the first instruction of a routine a JSR
+        //  just entered: the routine starts there, and the handler runs under
+        //  it.
+        TEST_METHOD (AnInterruptRightAfterAJsrRunsUnderTheRoutineItEntered)
+        {
+            Feed  feed;
+            int   routine = 0;
+
+
+
+            feed.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            feed.profile.OnInterrupt (0x0400);
+            feed.Run (0xFA62, kLda, 2, 0xFA);
+            feed.Run (0xFA64, kRti, 6, 0xFD);
+            feed.Run (0x0400, kLda, 2, 0xFD);
+            feed.Run (0x0402, kRts, 6, 0xFF);
+            feed.Run (0x0303, kLda, 2, 0xFF);
+
+            routine = FindNode (feed.profile, 0x0400, 0);
+
+            Assert::IsTrue   (routine > 0, L"a node for the routine the JSR entered");
+            Assert::AreEqual ((uint64_t) 1, feed.profile.GetNodes()[(size_t) routine].calls);
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[(size_t) routine].self, L"its LDA and its RTS");
+            Assert::IsTrue   (FindNode (feed.profile, 0xFA62, routine) > 0, L"the handler under it");
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[0].self, L"the JSR and the LDA after the return");
         }
 
 

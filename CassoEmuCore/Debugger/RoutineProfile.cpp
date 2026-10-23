@@ -100,11 +100,19 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
 //  RoutineProfile::OnInterrupt
 //
 //  The interrupt returns to the stack pointer after the last instruction.
+//  A call the last instruction made, a JSR or a BRK, enters the routine at
+//  pc, which the interrupt was taken in place of: that routine begins first,
+//  so the handler runs under it and the routine runs on after the return.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RoutineProfile::OnInterrupt()
+void RoutineProfile::OnInterrupt (Word pc)
 {
+    if (m_pending.has_value())
+    {
+        Begin (pc);
+    }
+
     m_pending = Pending { RoutineKind::Interrupt, m_lastSp };
 }
 
