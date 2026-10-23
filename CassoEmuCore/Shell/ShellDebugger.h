@@ -8,6 +8,7 @@
 #include "Debugger/DebugSessionView.h"
 #include "Debugger/Project/DebugProjectStore.h"
 #include "Debugger/Reverse/DivergenceGate.h"
+#include "Debugger/Reverse/DeferredHistoryEdits.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/ReplayControl.h"
@@ -129,7 +130,7 @@ public:
     bool  AllowCommand          (WORD id, const std::string & payload);
     bool  AskToDiverge          ();
     void  DivergeHistory        () override;
-    bool  GuardHistoryEdit      (const std::string & line, CommandMode mode);
+    bool  GuardHistoryEdit      (const DebugCommand & command);
     void  OnConfirmDiverge      ();
 
     // UI thread: the prompt to add the last project's items to a more
@@ -377,16 +378,15 @@ private:
     DebugCommandHandler    m_debugCommandHandler;
     uint32_t               m_debugCommandClient  = 0;   // the client of the command being run, for the history guard
 
-    // The divergence question's state: the input held behind live and the
-    // lines it would change, and a held debugger edit's command for the UI
-    // thread to ask about.
+    // The divergence question's state: the input deferred behind live and
+    // the lines it would change, and the debugger edits deferred until the
+    // user answers.
     DivergenceGate                m_divergenceGate;
     HeldInputWatch                m_heldInputWatch;                        // the held lines, published here, taken by the CPU thread
     std::atomic<bool>             m_isResumeOwedAfterHeldRead = false;     // a replay stopped at a held read was running
     size_t                        m_pasteLengthBeforeHold     = 0;         // the paste buffer before a paste held behind live
     bool                          m_isJoyportSyncOwed         = false;     // a players' change made behind live, for the Joyport once live
-    std::mutex                    m_divergeMutex;
-    std::optional<std::string>    m_pendingDivergeCommand;
+    DeferredHistoryEdits          m_deferredEdits;
     std::mutex                    m_replayCaptionMutex;
     std::wstring                  m_replayCaption;                 // " [Replaying @ ...]" behind live, else empty
 

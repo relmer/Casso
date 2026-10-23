@@ -12,7 +12,6 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
-#include "Debugger/DebugCommandPayload.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "resource.h"
 
@@ -395,7 +394,10 @@ bool ShellDebugger::AskToDiverge()
 
 void ShellDebugger::DivergeHistory()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                    hr       = S_OK;
+    std::vector<DebugCommand>  edits;
+    std::vector<std::string>   failures;
+    Reply                      reply;
 
 
 
@@ -405,6 +407,24 @@ void ShellDebugger::DivergeHistory()
     CHR (hr);
 
     UpdateReplayCaption();
+
+    //  The edits deferred for the question run now, live, in the order made.
+    edits = m_deferredEdits.TakeAll();
+
+    for (const DebugCommand & edit : edits)
+    {
+        BAIL_OUT_IF (m_debugController == nullptr, S_OK);
+
+        reply = m_debugController->GetSession().Execute (edit);
+
+        if (reply.status != CommandStatus::Ok)
+        {
+            failures.push_back (reply.error.detail);
+        }
+    }
+
+    AddConsoleLines (failures);
+    m_isDebugViewDirty = true;
 
 Error:
     return;
@@ -419,17 +439,16 @@ Error:
 //  GuardHistoryEdit
 //
 //  CPU thread, the debugger session's history guard. Live, the edit is
-//  made. Behind live it is held back: the command it came from is handed to
-//  the UI thread, which asks, and on a yes queues the cut and the command
-//  again, when it runs live.
+//  made. Behind live the command is deferred with any others deferred
+//  since, and the first one posts the question to the UI thread; on a yes
+//  the cut runs every deferred command, live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShellDebugger::GuardHistoryEdit (
-    const std::string  & line,
-    CommandMode          mode)
+bool ShellDebugger::GuardHistoryEdit (const DebugCommand & command)
 {
     bool  isBehind = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+    bool  isFirst  = false;
 
 
 
@@ -438,13 +457,12 @@ bool ShellDebugger::GuardHistoryEdit (
         return true;
     }
 
+    isFirst = m_deferredEdits.Defer (command);
+
+    if (isFirst)
     {
-        std::lock_guard<std::mutex>  held (m_divergeMutex);
-
-        m_pendingDivergeCommand = DebugCommandPayload::Encode (m_debugCommandClient, line, mode);
+        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_DIVERGE, 0, 0);
     }
-
-    PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_DIVERGE, 0, 0);
 
     return false;
 }
@@ -457,30 +475,25 @@ bool ShellDebugger::GuardHistoryEdit (
 //
 //  OnConfirmDiverge
 //
-//  UI thread: asks about the debugger edit held back, and on a yes queues
-//  the cut and the edit's command again.
+//  UI thread: puts the question for the deferred debugger edits. A yes
+//  queues the cut, which runs them; a no drops them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::OnConfirmDiverge()
 {
-    std::optional<std::string>  command;
-
-
-
-    {
-        std::lock_guard<std::mutex>  held (m_divergeMutex);
-
-        command.swap (m_pendingDivergeCommand);
-    }
-
-    if (!command.has_value() || !AskToDiverge())
+    if (!m_deferredEdits.HasAny())
     {
         return;
     }
 
+    if (!AskToDiverge())
+    {
+        m_deferredEdits.Clear();
+        return;
+    }
+
     m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
-    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, *command);
 }
 
 

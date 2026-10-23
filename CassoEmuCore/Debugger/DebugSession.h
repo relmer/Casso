@@ -371,7 +371,7 @@ public:
     // Behind live, an edit of registers or memory discards recorded history,
     // so the guard is asked first with the line the edit came from, and the
     // edit is made only when it returns true. Empty where nothing is recorded.
-    using HistoryGuard = std::function<bool (const std::string &, CommandMode)>;
+    using HistoryGuard = std::function<bool (const DebugCommand &)>;
 
     void                       SetHistoryGuard     (HistoryGuard guard)            { m_historyGuard = std::move (guard); }
     // BPV: stop when the video scanline enters the range, once.
@@ -559,8 +559,6 @@ private:
     StateFileRequester            m_stateFileRequester;
     ProjectRequester              m_projectRequester;
     HistoryGuard                  m_historyGuard;
-    std::string                   m_guardLine;   // the outermost line being run, for the guard
-    CommandMode                   m_guardMode          = CommandMode::AppleWin;
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;

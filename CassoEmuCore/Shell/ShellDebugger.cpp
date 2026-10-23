@@ -2442,9 +2442,9 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
     //  Loading replaces the machine, so both go to the CPU thread as the
     //  File menu's commands do, and run there between instructions.
-    m_debugController->GetSession().SetHistoryGuard ([this] (const std::string & line, CommandMode mode)
+    m_debugController->GetSession().SetHistoryGuard ([this] (const DebugCommand & command)
     {
-        return GuardHistoryEdit (line, mode);
+        return GuardHistoryEdit (command);
     });
 
     m_debugController->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
