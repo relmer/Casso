@@ -84,14 +84,16 @@ bool Win32FolderWatcher::Watch (const std::wstring & directory, Callback callbac
 //
 //  The service thread may be about to wait on the folder's handle, so with
 //  the thread running the handle goes to m_retired for the thread to close
-//  before it builds its next wait.
+//  before it builds its next wait. A callback of the folder already running
+//  is waited for, unless Unwatch is called from that callback.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32FolderWatcher::Unwatch (const std::wstring & directory)
 {
-    std::lock_guard<std::mutex>  held  = std::lock_guard<std::mutex> (m_lock);
-    auto                         found = m_folders.find (directory);
+    std::unique_lock<std::mutex>  held      (m_lock);
+    auto                          found     = m_folders.find (directory);
+    bool                          isService = std::this_thread::get_id() == m_service.get_id();
 
 
 
@@ -114,6 +116,11 @@ void Win32FolderWatcher::Unwatch (const std::wstring & directory)
     if (m_wake != nullptr)
     {
         SetEvent (m_wake);
+    }
+
+    if (!isService)
+    {
+        m_callbackDone.wait (held, [this, &directory] { return m_running != directory; });
     }
 }
 
@@ -228,7 +235,8 @@ void Win32FolderWatcher::RunService()
 
                 if (found != m_folders.end())
                 {
-                    callback = found->second.callback;
+                    callback  = found->second.callback;
+                    m_running = directory;
 
                     //  Re-armed before the callback, so a change made while it
                     //  runs is still reported.
@@ -239,6 +247,14 @@ void Win32FolderWatcher::RunService()
             if (callback)
             {
                 callback (directory);
+
+                {
+                    std::lock_guard<std::mutex>  held (m_lock);
+
+                    m_running.reset();
+                }
+
+                m_callbackDone.notify_all();
             }
         }
     }

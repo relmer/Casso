@@ -30,6 +30,8 @@
 //
 //  EVERY CALLBACK ARRIVES ON THE SERVICE THREAD, so a handler does no more
 //  than record. The re-read happens on the thread that owns the window.
+//  Unwatch waits for a callback of that folder already running, so what the
+//  callback captured can be destroyed once Unwatch returns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +68,8 @@ private:
     void  Stop ();
 
     std::mutex                                     m_lock;
+    std::condition_variable                        m_callbackDone;
+    std::optional<std::wstring>                    m_running;     // the folder whose callback is running, on the service thread
     std::map<std::wstring, FolderEntry>            m_folders;
     std::vector<HANDLE>                            m_retired;     // unwatched, for the service thread to close
     std::thread                                    m_service;
