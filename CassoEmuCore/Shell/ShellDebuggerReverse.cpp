@@ -163,6 +163,10 @@ void ShellDebugger::ApplyReverseOptions (
 
         StopReverseRecording();
         m_eventLogs.Start (nullptr);
+
+        //  The caption is otherwise updated only while recording is on, so
+        //  a replay's note would stay in the title.
+        UpdateReplayCaption();
     }
     else if (!wasOn)
     {
