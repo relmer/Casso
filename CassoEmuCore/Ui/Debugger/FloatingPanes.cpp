@@ -108,13 +108,15 @@ HWND FloatingPanes::GetRoutedHwnd() const
 //
 //  FloatingPanes::GetRoutedFocus
 //
-//  A floating window has a focus of its own: the control last pressed in it.
+//  The focused control of the floating pane the event came from: the
+//  control last pressed in that pane. m_focus is keyed by pane, so each tab
+//  of a window of several has a focused control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 IDxuiControl * FloatingPanes::GetRoutedFocus() const
 {
-    auto  found = m_focus.find (GetKeyOf (m_routingPane));
+    auto  found = m_focus.find (m_routingPane);
 
 
 
@@ -147,7 +149,7 @@ void FloatingPanes::SetRoutedFocus (IDxuiControl * control)
         old->OnFocusChanged (false);
     }
 
-    m_focus[GetKeyOf (m_routingPane)] = control;
+    m_focus[m_routingPane] = control;
 
     if (control != nullptr)
     {
@@ -236,7 +238,7 @@ std::wstring FloatingPanes::GetWindowOf (const std::wstring & pane) const
 //
 //  FloatingPanes::GetKeyOf
 //
-//  What a window's tip and focus are kept under: its key for a floating
+//  The key a window's tip is stored under: the window's key for a floating
 //  pane, and anything else as given, a window's own key, a pane slid out
 //  from an edge and the floating command bar's among them.
 //
@@ -1198,7 +1200,11 @@ void FloatingPanes::Dock (const std::wstring & key)
 
     m_windows.erase     (key);
     m_windowPanes.erase (key);
-    m_focus.erase       (key);
+
+    for (const std::wstring & pane : panes)
+    {
+        m_focus.erase (pane);
+    }
 
     if (m_tips.contains (key))
     {

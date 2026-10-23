@@ -185,7 +185,7 @@ private:
     IFloatingPanesHost                                         & m_host;
     std::map<std::wstring, std::unique_ptr<DxuiDockedWindow>>    m_windows;
     std::map<std::wstring, std::vector<std::wstring>>            m_windowPanes;
-    std::map<std::wstring, IDxuiControl *>                       m_focus;
+    std::map<std::wstring, IDxuiControl *>                       m_focus;         // each floating pane's focused control, by pane
     std::map<std::wstring, std::unique_ptr<DxuiTooltip>>         m_tips;
     DxuiDragOverlay                                              m_dragOverlay;
     std::wstring                                                 m_routingPane;
