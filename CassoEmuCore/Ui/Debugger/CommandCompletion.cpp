@@ -220,16 +220,26 @@ bool CommandCompletion::TryComplete (const std::wstring & text, bool forward, st
 //
 //  The first press takes the typed text as the prefix; while the box holds
 //  the line the last press returned, each press steps to an older one. The
-//  oldest match stays put.
+//  oldest match stays put. A history that no longer has that line where it
+//  was, as after a project switch, is searched from its newest line with the
+//  same prefix.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CommandCompletion::TrySearchHistory (const std::wstring & text, const std::vector<std::wstring> & history, std::wstring & result)
 {
+    bool  isSameHistory = m_searchIndex < history.size() && history[m_searchIndex] == m_lastSearch;
+
+
+
     if (m_lastSearch.empty() || text != m_lastSearch)
     {
         m_searchPrefix = text;
         m_searchIndex  = history.size();
+    }
+    else if (!isSameHistory)
+    {
+        m_searchIndex = history.size();
     }
 
     for (size_t i = m_searchIndex; i > 0; i--)
