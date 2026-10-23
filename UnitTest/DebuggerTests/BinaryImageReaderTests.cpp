@@ -115,6 +115,22 @@ namespace DebuggerTests
 
 
 
+        //  A line with a valid count and checksum can be too short for
+        //  what its type reads: an S-record for its address, an Intel HEX
+        //  segment, linear or start record for its two or four bytes.
+        TEST_METHOD (ARecordTooShortForItsTypeFails)
+        {
+            ReadFails (Bytes ("S2030000FC\n"),  BinaryFormat::SRecord,  std::nullopt, "too short");
+            ReadFails (Bytes ("S3030000FC\n"),  BinaryFormat::SRecord,  std::nullopt, "too short");
+            ReadFails (Bytes ("S7030000FC\n"),  BinaryFormat::SRecord,  std::nullopt, "too short");
+            ReadFails (Bytes (":00000002FE\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
+            ReadFails (Bytes (":00000004FC\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
+            ReadFails (Bytes (":00000003FD\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
+            ReadFails (Bytes (":00000005FB\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
+        }
+
+
+
         TEST_METHOD (AppleSingle_AddressFromAuxType_OrGiven)
         {
             AppleSingleFile    file;

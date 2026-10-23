@@ -260,6 +260,8 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
         bool               isWhole   = false;
         bool               isSummed  = false;
         bool               isInRange = false;
+        bool               isSized   = false;
+        size_t             wanted    = 0;
 
 
 
@@ -286,6 +288,11 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
 
         isSummed = sum == 0;
         CBRFEx (isSummed, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("An Intel HEX record's checksum does not match at offset ${:04X}.", offset));
+
+        //  A segment or linear base is two data bytes; a start address, four.
+        wanted  = (type == 0x02 || type == 0x04) ? 2 : (type == 0x03 || type == 0x05) ? 4 : count;
+        isSized = count == wanted;
+        CBRFEx (isSized, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = std::format ("An Intel HEX record of type {:02X} has {} data bytes. The type takes {}.", type, count, wanted));
 
         switch (type)
         {
@@ -359,6 +366,7 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
         bool               isWhole       = false;
         bool               isSummed      = false;
         bool               isInRange     = false;
+        bool               isLongEnough  = false;
         char               type          = '\0';
 
 
@@ -392,6 +400,9 @@ HRESULT BinaryImageReader::ReadSRecord (std::span<const Byte> content, std::opti
         case '3': case '7': addressSize = 4; break;
         default:            addressSize = 0; break;
         }
+
+        isLongEnough = bytes.size() >= 2 + addressSize;
+        CBRFEx (isLongEnough, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), error = "An S-record is too short for its address.");
 
         for (size_t i = 0; i < addressSize; ++i)
         {

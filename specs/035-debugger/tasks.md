@@ -1799,7 +1799,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 
 - [X] T987 The evaluator's / and % on int32 do not guard INT_MIN / -1, so `? 80000000/-1` (or an equivalent condition) raises a hardware exception and kills the process (DebugExpressionEvaluator.cpp:931) Done: binary arithmetic runs in 64 bits and a result past 32 bits is an overflow error; INT_MIN % -1 is 0. Test OverflowIsAnError.
 - [X] T988 GetArrays and FindValue walk guest-controlled ARYTAB/STREND data with no bound, so a program whose array pointers loop hangs the debugger (ApplesoftProgram.cpp:223) Done: GetArrays and FindValue step through TryGetNextArray, which ends the walk at an offset that is zero, passes STREND or wraps past FFFF. Test AnArrayTableThatPassesItsEndIsNotWalkedPastIt.
-- [ ] T989 ReadSRecord's dataCount underflows on a record too short for its address, so a malformed S-record reads far past the buffer (BinaryImageReader.cpp:401)
+- [X] T989 ReadSRecord's dataCount underflows on a record too short for its address, so a malformed S-record reads far past the buffer (BinaryImageReader.cpp:401) Done: ReadSRecord fails a record shorter than its address before reading the address or counting its data. Test ARecordTooShortForItsTypeFails.
 - [ ] T990 After a machine switch, the WatchpointTable is no longer the bus's watch sink, so watchpoints, value breakpoints, the call record's stack writes, the I/O log and disk-vector tracking stop working without any error (DebugSession.cpp:1358)
 - [ ] T991 With PROFILE ON every instruction of a free run goes to the observer, so TF appends a line per free-running instruction to a buffer nothing trims, tens of MB a second, until the CPU thread runs out of memory (ExecutionHandlers.cpp:71)
 - [ ] T992 Read() takes a project file it failed to read for one that is not a project, so a locked or unreadable project is replaced by an empty one and its contents lost (DebugProjectStore.cpp:227)
@@ -1826,7 +1826,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [X] T1010 Add, Subtract, Multiply and Negate are plain int32 arithmetic, so overflow is undefined behavior (DebugExpressionEvaluator.cpp:930) Done: fixed with T987; negating INT_MIN is an overflow error too, and a condition check passes an overflow as it passes a zero divisor.
 - [ ] T1011 Both prefs writers (Save, and UserConfigStore::BuildCombinedJson at line 1871) merge only window placements from disk (GlobalUserPrefs.cpp:1078)
 - [ ] T1012 PollBoundary skips disabled variable entries without refreshing or dropping their m_values (BasicStopMonitor.cpp:249)
-- [ ] T1013 Intel HEX record types 02 and 04 read bytes[4] and bytes[5] without checking count == 2 (BinaryImageReader.cpp:302)
+- [X] T1013 Intel HEX record types 02 and 04 read bytes[4] and bytes[5] without checking count == 2 (BinaryImageReader.cpp:302) Done: fixed with T989; ReadIntelHex fails a 02 or 04 record without two data bytes and a 03 or 05 record without four.
 - [ ] T1014 Pump loops `while (TryReadLine)`, and every TryReadLine re-polls each connection, reading up to 16 x 4 KB while consuming one line (DebugChannelServer.cpp:83)
 - [ ] T1015 The client opens `\\.\pipe\Casso.Debug.<pid>` with CreateFileW and no SECURITY_SQOS_PRESENT/SECURITY_IDENTIFICATION (Win32InstanceDirectory.cpp:312)
 - [ ] T1016 ReleaseConnection calls DisconnectNamedPipe right after the last WriteLine with no FlushFileBuffers (Win32PipeTransport.cpp:566)
