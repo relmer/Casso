@@ -575,7 +575,7 @@ public:
 
     //  The trace pane reads kTraceRows entries from the entry the user
     //  scrolled to, or the newest when it follows the end (no entry).
-    static constexpr int     kTraceRows     = 128;
+    static constexpr int     kTraceRows     = 512;
     //  How many instructions from the PC the stopped trace shows below it.
     static constexpr size_t  kTraceNextRows = 8;
 

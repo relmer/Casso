@@ -1904,7 +1904,7 @@ namespace DebuggerViewStateTests
     public:
 
         static constexpr int       kRows      = DebuggerViewState::kTraceRows;
-        static constexpr uint64_t  kTotal     = 300;
+        static constexpr uint64_t  kTotal     = 2 * kRows + 44;
         static constexpr uint64_t  kJmpCycles = 3;
 
         //  JMP $0300 at $0300, run with the trace on until it holds kTotal.
@@ -1922,11 +1922,13 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (TheWindowEndsAtTheNewestOrStartsWhereThePaneIs)
         {
-            Assert::AreEqual ((uint64_t) 0,   DebuggerViewState::GetTraceWindowFirst (0,    std::nullopt, kRows));
-            Assert::AreEqual ((uint64_t) 0,   DebuggerViewState::GetTraceWindowFirst (100,  std::nullopt, kRows), L"fewer than a window");
-            Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, std::nullopt, kRows));
-            Assert::AreEqual ((uint64_t) 500, DebuggerViewState::GetTraceWindowFirst (1000, 500,          kRows));
-            Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, 990,          kRows), L"never past the newest");
+            static constexpr uint64_t  kHeld = 4 * kRows;
+
+            Assert::AreEqual ((uint64_t) 0,     DebuggerViewState::GetTraceWindowFirst (0,     std::nullopt, kRows));
+            Assert::AreEqual ((uint64_t) 0,     DebuggerViewState::GetTraceWindowFirst (100,   std::nullopt, kRows), L"fewer than a window");
+            Assert::AreEqual (kHeld - kRows,    DebuggerViewState::GetTraceWindowFirst (kHeld, std::nullopt, kRows));
+            Assert::AreEqual ((uint64_t) 500,   DebuggerViewState::GetTraceWindowFirst (kHeld, 500,          kRows));
+            Assert::AreEqual (kHeld - kRows,    DebuggerViewState::GetTraceWindowFirst (kHeld, kHeld - 10,   kRows), L"never past the newest");
         }
 
 
@@ -1969,6 +1971,25 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((uint64_t) 384, TracePane::GetReadStartFor (500, 128, 400, kVisible, false).value(),      L"above it, with a lead");
             Assert::AreEqual ((uint64_t) 604, TracePane::GetReadStartFor (500, 128, 620, kVisible, false).value(),      L"below it");
             Assert::AreEqual ((uint64_t) 0,   TracePane::GetReadStartFor (500, 128, 4,   kVisible, false).value(),      L"never before the first entry");
+        }
+
+
+
+        //  Every row of a tall pane, as at 50% text zoom on a tall monitor,
+        //  fits in one read; and the read a pane has is never requested
+        //  again.
+        TEST_METHOD (ATallTracePaneIsHeldByOneRead)
+        {
+            static constexpr int       kTall = 300;
+            static constexpr uint64_t  kTop  = 1000;
+            std::optional<uint64_t>    start = TracePane::GetReadStartFor (0, DebuggerViewState::kTraceRows, kTop, kTall, false);
+
+
+
+            Assert::IsTrue  (start.has_value(), L"rows outside the read");
+            Assert::IsFalse (TracePane::GetReadStartFor (*start, DebuggerViewState::kTraceRows, kTop, kTall, false).has_value(), L"the read that came holds them");
+            Assert::IsFalse (TracePane::GetReadStartFor (*start, DebuggerViewState::kTraceRows, kTop, 10 * DebuggerViewState::kTraceRows, false).has_value(),
+                             L"more rows than a read holds ask for the same read no more");
         }
     };
 

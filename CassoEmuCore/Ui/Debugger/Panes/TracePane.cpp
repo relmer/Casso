@@ -128,6 +128,13 @@ std::optional<uint64_t> TracePane::GetReadStartFor (uint64_t first, uint64_t hel
         return std::nullopt;
     }
 
+    //  More rows than fit in one read are left with the read they have,
+    //  which is not requested again.
+    if (((top > kLeadRows) ? top - kLeadRows : 0) == first)
+    {
+        return std::nullopt;
+    }
+
     return (top > kLeadRows) ? top - kLeadRows : 0;
 }
 
