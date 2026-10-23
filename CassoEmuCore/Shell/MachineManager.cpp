@@ -3,6 +3,7 @@
 
 #include "MachineManager.h"
 
+#include "Shell/AutoStatePolicy.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/Components/ShellWindow.h"
@@ -218,6 +219,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     std::string            carryDisk1;
     std::string            carryDisk2;
     const JsonValue *      inputUiPrefs      = nullptr;
+    bool                   isRebuild         = AutoStatePolicy::IsRebuild (m_shell.m_machine.GetCurrentMachineName(), machineName);
 
 
 
@@ -419,10 +421,14 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     m_shell.m_input->ApplyDefaultPointerForMachine();
 
     // The machine being left saves its automatic state here, where the
-    // switch can no longer fail and the machine is intact. A command-line
-    // session ends with its machine, so the machine switched to is an
-    // ordinary one.
-    m_shell.SaveAutoState();
+    // switch can no longer fail and the machine is intact, unless the switch
+    // rebuilds it. A command-line session ends with its machine, so the
+    // machine switched to is an ordinary one.
+    if (!isRebuild)
+    {
+        m_shell.SaveAutoState();
+    }
+
     m_shell.m_isCommandLineMediaSession  = false;
     m_shell.m_isAutoStateReplaceApproved = false;
 
@@ -578,8 +584,12 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     m_shell.m_tapeDeck->GetManager()->OnMachineSwitched();
 
     // The machine switched to resumes its automatic state, except when the
-    // switch is loading a state file, whose state replaces it.
-    m_shell.ResumeAutoState (false);
+    // switch is loading a state file, whose state replaces it, or rebuilds
+    // the machine, which is a cold boot.
+    if (!isRebuild)
+    {
+        m_shell.ResumeAutoState (false);
+    }
 
     // The new machine's history starts here, built, power cycled and with
     // its disks in.

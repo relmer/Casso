@@ -46,6 +46,18 @@ public:
     }
 
 
+    //  A switch to the machine already running rebuilds it, as a settings
+    //  change that requires a reboot does: the old hardware's state is neither
+    //  written nor resumed onto the new.
+    TEST_METHOD (ASwitchToTheRunningMachineIsARebuild)
+    {
+        Assert::IsTrue  (AutoStatePolicy::IsRebuild (L"Apple2e", L"Apple2e"), L"the same machine");
+        Assert::IsTrue  (AutoStatePolicy::IsRebuild (L"Apple2e", L"apple2e"), L"in any case");
+        Assert::IsFalse (AutoStatePolicy::IsRebuild (L"Apple2e", L"Apple2c"), L"another machine");
+        Assert::IsFalse (AutoStatePolicy::IsRebuild (L"",        L"Apple2c"), L"no machine yet");
+    }
+
+
     TEST_METHOD (TheStateIsWrittenAtExitWhenTheSettingIsOn)
     {
         Assert::IsTrue (AutoStatePolicy::GetSaveAction (true, false, true)  == AutoStateSave::Write, L"replacing an earlier state");
