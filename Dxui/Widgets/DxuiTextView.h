@@ -83,6 +83,11 @@ public:
 
     //  Replaces the text, clearing the selection and scrolling to the top.
     void                      SetRows  (std::vector<Row> rows);
+
+    //  The rows again after `dropped` rows went from the front, as a log's
+    //  oldest do, with others perhaps at the end: the selection, the find
+    //  highlights and the find scope move up with the text.
+    void                      SetRowsDroppingFront (std::vector<Row> rows, int dropped);
     const std::vector<Row> &  GetRows  () const { return m_rows; }
 
     //  One character cell, in the same coordinates as the bounds.

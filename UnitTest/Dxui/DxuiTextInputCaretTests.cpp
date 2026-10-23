@@ -115,6 +115,40 @@ public:
     }
 
 
+    //  A log that drops its oldest rows moves the find highlights and the
+    //  selection up with the text; rows replaced whole drop them.
+    TEST_METHOD (ATextViewsFindStateMovesWithDroppedRows)
+    {
+        DxuiTextView                     view;
+        std::vector<DxuiTextView::Row>   rows;
+        int                              index = 0;
+        int                              count = 0;
+
+
+
+        for (const wchar_t * text : { L"aaa", L"bbb", L"find me", L"ccc" })
+        {
+            rows.push_back (DxuiTextView::Row { { text } });
+        }
+
+        view.SetRows (rows);
+        (void) view.SelectMatch (L"find", false, false, false, true, index, count);
+
+        Assert::AreEqual ((size_t) 1, view.GetFindHighlights().size());
+        Assert::AreEqual (2, view.GetFindHighlights()[0].start.row);
+
+        rows.erase (rows.begin());
+        rows.push_back (DxuiTextView::Row { { L"ddd" } });
+        view.SetRowsDroppingFront (rows, 1);
+
+        Assert::AreEqual (1, view.GetFindHighlights().at (0).start.row, L"the highlight moved up with its row");
+        Assert::AreEqual (std::wstring (L"find"), view.GetSelectionText(), L"and the selection with it");
+
+        view.SetRows ({ DxuiTextView::Row { { L"other" } } });
+        Assert::IsTrue (view.GetFindHighlights().empty(), L"new rows drop the old highlights");
+    }
+
+
     TEST_METHOD (AFocusedFieldInAnActiveWindowDrawsItsCaret)
     {
         DxuiTextInput          input;

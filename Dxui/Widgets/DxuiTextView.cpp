@@ -23,11 +23,55 @@
 
 void DxuiTextView::SetRows (std::vector<Row> rows)
 {
-    m_rows     = std::move (rows);
-    m_anchor   = Position();
-    m_caret    = Position();
-    m_topLine  = m_followEnd ? m_topLine : 0;
-    m_dragging = false;
+    m_rows       = std::move (rows);
+    m_anchor     = Position();
+    m_caret      = Position();
+    m_topLine    = m_followEnd ? m_topLine : 0;
+    m_dragging   = false;
+    m_scoped     = false;
+    m_userAnchor = Position();
+    m_userCaret  = Position();
+    m_highlights.clear();
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetRowsDroppingFront
+//
+//  A position in a row that went is dropped: a highlight there goes, and a
+//  selection or a scope with an end there is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetRowsDroppingFront (std::vector<Row> rows, int dropped)
+{
+    auto  moveUp = [dropped] (Position & at) { at.row -= dropped; return at.row >= 0; };
+
+
+
+    m_rows = std::move (rows);
+
+    if (!moveUp (m_anchor) || !moveUp (m_caret))
+    {
+        m_anchor = Position();
+        m_caret  = Position();
+    }
+
+    if (!moveUp (m_userAnchor) || !moveUp (m_userCaret))
+    {
+        m_userAnchor = Position();
+        m_userCaret  = Position();
+    }
+
+    m_scoped = m_scoped && moveUp (m_scopeStart) && moveUp (m_scopeEnd);
+
+    std::erase_if (m_highlights, [&moveUp] (FindMatch & match) { return !moveUp (match.start); });
 
     Rebuild();
 }

@@ -118,7 +118,7 @@ void ConsoleOutput::Append (const std::vector<std::string> & lines)
         rows.push_back (std::move (row));
     }
 
-    m_view->SetRows (std::move (rows));
+    m_view->SetRowsDroppingFront (std::move (rows), dropped);
     m_view->SetTopLine (atEnd ? m_view->GetLineCount() : top - dropped);
 
     if (!m_view->IsVisible())
