@@ -117,9 +117,11 @@ public:
     HWND              GetRoutedHwnd      () const;
 
     //  An event routed as the debugger window's own under `pane`: a floating
-    //  pane's, or one over a pane slid out from an edge.
-    bool  RouteMouse (const std::wstring & pane, const DxuiMouseEvent & ev);
-    bool  RouteKey   (const std::wstring & pane, const DxuiKeyEvent & ev);
+    //  pane's, or one over a pane slid out from an edge; and a key-scheme
+    //  command from a floating window's key map.
+    bool  RouteMouse   (const std::wstring & pane, const DxuiMouseEvent & ev);
+    bool  RouteKey     (const std::wstring & pane, const DxuiKeyEvent & ev);
+    bool  RouteCommand (const std::wstring & pane, int commandId);
 
     //  The focused control of the floating window the event came from.
     IDxuiControl *  GetRoutedFocus  () const;

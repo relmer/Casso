@@ -1132,7 +1132,7 @@ void FloatingPanes::Float (const std::wstring & key)
 
     window->SetOnContentMouse      ([this, key] (const DxuiMouseEvent & ev) { return RouteMouse (GetActivePane (key), ev); });
     window->SetOnContentKey        ([this, key] (const DxuiKeyEvent & ev)   { return RouteKey   (GetActivePane (key), ev); });
-    window->SetOnMappedCommand     ([this]      (int commandId)             { return m_host.RunFloatedCommand (commandId); });
+    window->SetOnMappedCommand     ([this, key] (int commandId)             { return RouteCommand (GetActivePane (key), commandId); });
     window->SetOnCaptionDrag       ([this, key] (POINT screen)              { OnDrag (key, screen, false); });
     window->SetOnCaptionDragEnd    ([this, key] (POINT screen)              { OnDrag (key, screen, true);  });
     window->SetOnCaptionDragCancel ([this, key]
@@ -1306,6 +1306,25 @@ bool FloatingPanes::RouteKey (const std::wstring & pane, const DxuiKeyEvent & ev
 
 
     return m_host.RouteFloatedKey (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::RouteCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FloatingPanes::RouteCommand (const std::wstring & pane, int commandId)
+{
+    RouteScope  scope (*this, pane);
+
+
+
+    return m_host.RunFloatedCommand (commandId);
 }
 
 
