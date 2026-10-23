@@ -73,6 +73,16 @@ public:
     // area, which a taskbar changes without any screen changing.
     static std::string  BuildTopologyKeyFrom (const std::vector<MonitorSnapshot> & monitors);
 
+    // The attached monitors, as BuildTopologyKey folds them.
+    static std::vector<MonitorSnapshot>  GetMonitors();
+
+    // The bounds saved for `monitors`: under the current key, else under a
+    // key an earlier build computed for them. outKey is the key found.
+    bool    TryLoadForMonitors (const std::vector<MonitorSnapshot> & monitors,
+                                Bounds                             & outBounds,
+                                std::string                        & outKey,
+                                Target                               target = Target::Main) const;
+
     // Whether a rect is a placement at all. A minimized window is parked
     // far off the desktop and an empty one is a window being torn down;
     // neither is anywhere the user put anything.
@@ -106,6 +116,8 @@ private:
     static constexpr int       kHashHexChars = 16;
 
     static uint64_t      HashFNV1a64        (const std::wstring & text);
+    static void          SortMonitors       (std::vector<MonitorSnapshot> & monitors);
+    static std::vector<std::string>  BuildEarlierTopologyKeysFrom (const std::vector<MonitorSnapshot> & monitors);
     static bool          TryParseLong       (const std::wstring & text, LONG & outValue);
     static BOOL CALLBACK CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam);
 
