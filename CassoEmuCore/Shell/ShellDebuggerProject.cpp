@@ -148,6 +148,10 @@ void ShellDebugger::ServiceProject()
         SaveProject();
         opened.scope = m_project.scope;
         ApplyProject (opened);
+
+        //  A debug file the project loads changes the scope; as for a
+        //  restore, that is no switch the user made, so no merge is offered.
+        m_restoredScope = GetProjectScope();
     }
 
     if (m_isMergeOwed)
