@@ -165,6 +165,19 @@ private:
     //  the last read that reached it. False for an address none has.
     bool  TryGetKnown   (Word address, std::optional<Byte> & outByte, MemoryRegion & outRegion) const;
 
+    //  An undo or redo checked against bytes only an earlier read had, out
+    //  of the window: the next read of them confirms it or puts it back.
+    struct Unconfirmed
+    {
+        bool               isUndo  = true;
+        Word               address = 0;
+        std::vector<Byte>  sent;
+        std::vector<Byte>  before;
+    };
+
+    bool  IsShownWhole  (Word address, size_t count) const;
+    void  ConfirmStep   ();
+
     Word                                      m_first    = 0;
     ByteChanges                               m_changes;
     Word                                      m_phase    = 0;
@@ -184,6 +197,7 @@ private:
     std::vector<uint8_t>                      m_keptRegions;
     mutable std::vector<Edit>                 m_history;
     mutable std::vector<Edit>                 m_redo;
+    std::optional<Unconfirmed>                m_unconfirmed;
     PatchFn                                   m_onPatch;
     RegionColors                              m_regionColors;
 };
