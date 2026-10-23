@@ -1524,6 +1524,7 @@ bool BreakpointHandlers::TryMakeEntry (
         breakpoint.first     = definition.a1;
         breakpoint.last      = last;
         breakpoint.condition = definition.expression;
+        breakpoint.symbol    = definition.symbol;
         return true;
 
     case DebugVerb::SetValueBreakpoint:

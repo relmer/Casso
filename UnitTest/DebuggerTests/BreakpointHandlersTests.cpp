@@ -308,6 +308,31 @@ namespace DebuggerTests
         //  when the symbols are loaded again with the routine moved, the
         //  breakpoint moves with it, with a line in the reply. A breakpoint
         //  set by a number has no symbol.
+        TEST_METHOD (BP_EditedToASymbol_FollowsTheSymbol)
+        {
+            Rig             rig;
+            SymbolHandlers  symbols;
+
+
+
+            rig.session.AddHandler (&symbols);
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0900 PRINTIT\n");
+            rig.RunOk ("SYMUSER LOAD prog.sym");
+
+            rig.RunOk ("BP 300");
+            rig.RunOk ("BPEDIT 0 BP PRINTIT");
+
+            Assert::AreEqual (std::string ("PRINTIT"), rig.session.GetBreakpoints().GetAll().at (0).symbol, L"the edit takes the symbol");
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0940 PRINTIT\n");
+            rig.RunOk ("SYMUSER LOAD prog.sym");
+
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0940), L"it stops at the symbol's new address");
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0900), L"and not at the old one");
+        }
+
+
+
         TEST_METHOD (BP_BySymbol_FollowsTheSymbolWhenSymbolsReload)
         {
             Rig                       rig;
