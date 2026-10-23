@@ -717,9 +717,10 @@ void DxuiTooltip::FinishHide()
 
 void DxuiTooltip::HideImmediate()
 {
-    m_pending  = false;
-    m_visible  = false;
-    m_hideAtMs = 0;
+    m_pending   = false;
+    m_visible   = false;
+    m_fadingOut = false;
+    m_hideAtMs  = 0;
     m_text.clear();
 
     ReleaseActivePopup();
@@ -807,6 +808,13 @@ void DxuiTooltip::ShowPopup()
     // why this cannot be re-derived from m_activePopup further down -- by
     // then this function may have just acquired one.
     shows = (m_popupHost != nullptr && m_activePopup == nullptr && !m_text.empty());
+
+    //  A new tip ends any fade-out the last one began, which would otherwise
+    //  hide this one as its fade-in ends.
+    if (shows)
+    {
+        m_fadingOut = false;
+    }
 
     if (shows)
     {
