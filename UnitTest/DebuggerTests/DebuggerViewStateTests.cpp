@@ -942,6 +942,53 @@ namespace DebuggerViewStateTests
         }
 
 
+        //  Text after BASIC is checked before the edit runs, since the edit
+        //  clears the watch it replaces first.
+        TEST_METHOD (AWatchOfTextAfterBasicMustBeAVariable)
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            Assert::IsFalse (DebuggerViewState::GetWatchError (snapshot, "BASIC 9X").empty(), L"not a variable");
+            Assert::IsTrue  (DebuggerViewState::GetWatchError (snapshot, "BASIC A%").empty());
+            Assert::IsTrue  (DebuggerViewState::GetWatchError (snapshot, "BASIC D(3, 4)").empty(), L"spaces as a program may have them");
+        }
+
+
+        //  A byte watch's edit writes one byte, which is all its undo puts
+        //  back; a value too wide for it, or a second value, writes nothing.
+        TEST_METHOD (AByteWatchsEditWritesOnlyItsByte)
+        {
+            MachineRig                   rig;
+            DebuggerViewSnapshot         snapshot;
+            std::vector<DebuggerAction>  actions;
+            Byte                         first = rig.machine.GetMemoryBus().ReadByte (0x0400);
+            Byte                         next  = rig.machine.GetMemoryBus().ReadByte (0x0401);
+
+
+
+            snapshot.autoWatches = { { "M:0400", "$0400", "00" } };
+
+            for (const char * typed : { "1234", "12 34" })
+            {
+                actions = DebuggerViewState::GetWatchEditActions (snapshot, std::nullopt, 0, 1, typed, CommandMode::AppleWin);
+                Assert::AreEqual ((size_t) 1, actions.size());
+
+                rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+
+                Assert::AreEqual ((int) first, (int) rig.machine.GetMemoryBus().ReadByte (0x0400), TextEncoding::NarrowToWide (typed).c_str());
+                Assert::AreEqual ((int) next, (int) rig.machine.GetMemoryBus().ReadByte (0x0401), TextEncoding::NarrowToWide (typed).c_str());
+            }
+
+            actions = DebuggerViewState::GetWatchEditActions (snapshot, std::nullopt, 0, 1, "5A", CommandMode::AppleWin);
+            rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+
+            Assert::AreEqual ((int) 0x5A, (int) rig.machine.GetMemoryBus().ReadByte (0x0400));
+            Assert::AreEqual ((int) next, (int) rig.machine.GetMemoryBus().ReadByte (0x0401));
+        }
+
+
         TEST_METHOD (AWatchEditsUndoPutsBackWhatItOverwrote)
         {
             DebuggerViewSnapshot                          before;

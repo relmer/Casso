@@ -53,6 +53,11 @@ struct DebuggerAction
     //  SetRegister, and as the values for EnterBytes and EnterWords.
     std::string                    operand;
 
+    //  A watch's value edit: the operand is exactly one value, and for
+    //  EnterBytes one that fits a byte, so the edit writes only the watched
+    //  bytes, which are what its undo puts back.
+    bool                           isOneValue = false;
+
     //  A breakpoint definition as BP, BPM or another setting command takes
     //  it in AppleWin's words, parsed once when the action runs, in place of
     //  `command`.

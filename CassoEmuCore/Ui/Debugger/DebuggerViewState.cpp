@@ -1880,9 +1880,10 @@ std::string DebuggerViewState::GetPokeLine (Word address, Byte value)
 //
 //  DebuggerViewState::GetWatchError
 //
-//  A BASIC variable, and anything once the machine is stopped in a program,
-//  is left to the session; otherwise the text, less any `.b` or `.w`
-//  suffix, must parse. A name no symbol has yet is a watch all the same,
+//  Text after BASIC must be a variable or an array element as a program
+//  writes it. A BASIC variable, and anything once the machine is stopped in
+//  a program, is left to the session; otherwise the text, less any `.b` or
+//  `.w` suffix, must parse. A name no symbol has yet is a watch all the same,
 //  which reads as the symbol once symbols define it.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1891,6 +1892,7 @@ std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snaps
 {
     static constexpr std::string_view  kBasic  = "BASIC ";
     std::string                        text    = typed;
+    std::string                        name;
     std::string                        error;
     BasicReference                     reference;
     Expression                         parsed;
@@ -1908,7 +1910,11 @@ std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snaps
 
     if (text.size() > kBasic.size() && _strnicmp (text.c_str(), kBasic.data(), kBasic.size()) == 0)
     {
-        return {};
+        name = text.substr (kBasic.size());
+        std::erase (name, ' ');
+
+        return ApplesoftProgram::TryParseReference (name, reference) ? std::string()
+                                                                     : std::string ("BASIC takes a variable or an array element as a program writes it: A, B%, C$ or D(3,4).");
     }
 
     if (WatchItem::SplitWidth (text, text) != 0)
@@ -1955,9 +1961,10 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
     {
         { 'C', 0x01 }, { 'Z', 0x02 }, { 'I', 0x04 }, { 'D', 0x08 }, { 'V', 0x40 }, { 'N', 0x80 },
     };
-    std::string  text    = typed;
+    std::string  text     = typed;
     std::string  key;
-    Word         address = 0;
+    Word         address  = 0;
+    auto         oneValue = [] (DebuggerAction action) { action.isOneValue = true; return action; };
 
 
 
@@ -1979,8 +1986,8 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
                 return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
                      : !watch.basicName.empty() || !watch.isValueEditable ? std::vector<DebuggerAction> {}
                      : IsRegisterWatch (watch)      ? std::vector<DebuggerAction> { DebuggerActions::GetSetRegister (GetUpper (watch.expression), text, mode) }
-                     : IsByteWatch (watch)          ? std::vector<DebuggerAction> { DebuggerActions::GetEnterByte (watch.address, text, mode) }
-                     :                               std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
+                     : IsByteWatch (watch)          ? std::vector<DebuggerAction> { oneValue (DebuggerActions::GetEnterByte (watch.address, text, mode)) }
+                     :                               std::vector<DebuggerAction> { oneValue (DebuggerActions::GetEnterWord (watch.address, text, mode)) };
             }
         }
 
@@ -2001,7 +2008,7 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
 
     if (key.starts_with ("M:") && TryParseHexWord (key.substr (2), address))
     {
-        return { DebuggerActions::GetEnterByte (address, text, mode) };
+        return { oneValue (DebuggerActions::GetEnterByte (address, text, mode)) };
     }
 
     //  A flag is 0 or 1 and nothing else; it is written as the whole status
@@ -2697,7 +2704,8 @@ Reply DebuggerViewState::ExecuteActionCommand (DebugSession & session, const Deb
 //  evaluated in the session's mode: one address or register value, or the
 //  values to write, each split at spaces as a typed deposit's are, a byte
 //  where it fits and a word, low byte first, where it does not or where the
-//  command writes words.
+//  command writes words. A watch's value edit takes one value, and a byte
+//  watch's one that fits a byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2753,6 +2761,18 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
     {
         if (!AppleWinParser::TryEvaluate (token, session, value, error))
         {
+            return false;
+        }
+
+        if (action.isOneValue && !command.values.empty())
+        {
+            error = "Type one value.";
+            return false;
+        }
+
+        if (action.isOneValue && command.verb == DebugVerb::EnterBytes && value > kMaxByte)
+        {
+            error = std::format ("${:X} does not fit in a byte.", value);
             return false;
         }
 
