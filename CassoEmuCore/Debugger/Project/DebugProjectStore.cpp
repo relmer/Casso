@@ -139,8 +139,9 @@ Error:
 
 HRESULT DebugProjectStore::Save (const DebugProject & project)
 {
-    HRESULT    hr       = S_OK;
-    bool       hasPath  = !project.filePath.empty();
+    HRESULT    hr         = S_OK;
+    bool       hasPath    = !project.filePath.empty();
+    bool       isReadable = !project.isUnreadable;
     JsonValue  redirect = JsonValue (std::vector<std::pair<std::string, JsonValue>>
     {
         { "format",     JsonValue (std::string (DebugProject::kpszFormat)) },
@@ -150,7 +151,8 @@ HRESULT DebugProjectStore::Save (const DebugProject & project)
 
 
 
-    CBRAEx (hasPath, E_INVALIDARG);
+    CBRAEx (hasPath,    E_INVALIDARG);
+    CBREx  (isReadable, E_ACCESSDENIED);
 
     hr = m_files.WriteAllText (project.filePath, project.ToJson (GetFolder (project.filePath)));
     CHR (hr);
@@ -182,8 +184,9 @@ HRESULT DebugProjectStore::SaveAs (DebugProject & project, const std::wstring & 
 
 
 
-    copy.filePath    = path;
-    copy.isAutomatic = false;
+    copy.filePath     = path;
+    copy.isAutomatic  = false;
+    copy.isUnreadable = false;
 
     hr = Save (copy);
     CHR (hr);
@@ -204,7 +207,8 @@ Error:
 //
 //  A missing file is no project and no notice. A file that is not a
 //  project is copied aside under a dated name before anything replaces
-//  it.
+//  it. A file that cannot be read, as one another program has open, is
+//  marked unreadable, so Save never writes the empty project over it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,7 +226,17 @@ HRESULT DebugProjectStore::Read (const std::wstring & path, DebugProject & proje
     BAIL_OUT_IF (!isFound, S_OK);
 
     hr = m_files.ReadAllText (path, text);
-    BAIL_OUT_IF (SUCCEEDED (hr) && DebugProject::TryParse (text, GetFolder (path), project, error), S_OK);
+
+    if (FAILED (hr))
+    {
+        isFound              = false;
+        project.isUnreadable = true;
+        notices.push_back (std::format ("The debug project {} could not be read (error {:08X}). An empty project is open, and it is not saved over that file.",
+                                        TextEncoding::WideToNarrow (path), (uint32_t) hr));
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    BAIL_OUT_IF (DebugProject::TryParse (text, GetFolder (path), project, error), S_OK);
 
     isFound = false;
     hr      = m_files.WriteAllText (aside, text);

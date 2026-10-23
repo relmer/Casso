@@ -323,6 +323,34 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("{ this is not"), files.PeekContent (store.GetAutomaticPath (scope) + L".unreadable-20261015-013000"));
         }
 
+
+
+        //  A project file another program has open cannot be read for now,
+        //  which is not the same as not being a project: no copy is made,
+        //  and the empty project that opens is never saved over it.
+        TEST_METHOD (AFileThatCannotBeReadIsNotSavedOver)
+        {
+            InMemoryFileSystem         files;
+            DebugProjectStore          store (files, L"C:\\Data\\DebugProjects", [] { return std::string ("20261015-013000"); });
+            ProjectScope               scope = ProjectScope::Choose ("", "", "", "", "Apple //e", L"");
+            DebugProject               project;
+            std::vector<std::string>   notices;
+            std::wstring               path  = store.GetAutomaticPath (scope);
+            HRESULT                    hr    = S_OK;
+
+
+
+            files.WriteAllText (path, "the user's project");
+            files.SetReadError (path, HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION));
+
+            AssertSucceeded (store.Open (scope, project, notices), L"store.Open");
+            Assert::AreEqual ((size_t) 1, notices.size());
+            Assert::IsFalse  (files.Exists (path + L".unreadable-20261015-013000"), L"nothing was read to copy");
+            hr = store.Save (project);
+            Assert::IsTrue   (FAILED (hr), L"the save is refused");
+            Assert::AreEqual (std::string ("the user's project"), files.PeekContent (path));
+        }
+
         TEST_METHOD (ASaveWaitsTwoSecondsPastTheLastChange)
         {
             InMemoryFileSystem  files;

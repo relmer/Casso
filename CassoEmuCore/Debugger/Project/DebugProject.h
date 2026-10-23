@@ -97,6 +97,10 @@ struct DebugProject
     std::wstring                 filePath;
     bool                         isAutomatic = true;
 
+    //  The file is there but could not be read, so the project is empty and
+    //  is not saved over it.
+    bool                         isUnreadable = false;
+
     //  The engine's part, read from the session.
     void  CaptureEngine (DebugSession & session, const ExecutionHandlers * execution = nullptr);
 
