@@ -678,10 +678,13 @@ bool DxuiEditableGrid::MoveEditRow (int step)
     bool          isAdd  = IsAddRow (row);
     std::wstring  text   = m_editor.GetText();
     std::wstring  error;
+    auto          typed  = [] (const std::wstring & each) { return each.find_first_not_of (L" \t") != std::wstring::npos; };
 
 
 
-    if (target < 0 || (isAdd && (step > 0 || text.find_first_not_of (L" \t") != std::wstring::npos)))
+    //  A hint row with text in any column, not only the one being edited,
+    //  goes nowhere: leaving it would drop the row.
+    if (target < 0 || (isAdd && (step > 0 || typed (text) || std::ranges::any_of (m_pending, typed))))
     {
         return true;
     }

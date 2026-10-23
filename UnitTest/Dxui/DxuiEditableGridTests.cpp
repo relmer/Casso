@@ -362,6 +362,30 @@ public:
 
 
 
+    //  Up from the hint row goes nowhere once any of its columns has text,
+    //  not only the one being edited: the row's text is not dropped.
+    TEST_METHOD (UpFromAHintRowWithTextInAnotherColumnStays)
+    {
+        Host  host;
+
+
+
+        //  The row above the hint row takes an edit, so Up has somewhere to go.
+        host.readOnly[2] = false;
+        host.Refresh();
+
+        host.grid.BeginEdit (3, 0);
+        host.grid.GetEditor().SetText (L"Game");
+        host.Key (VK_TAB);
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+
+        host.Key (VK_UP);
+
+        Assert::AreEqual (3, host.grid.GetEditRow(), L"the edit stays on the hint row");
+        Assert::AreEqual (std::wstring (L"Game"), host.grid.GetPendingTexts()[0], L"and the text typed in its first column");
+    }
+
+
     TEST_METHOD (EscapeDropsANewRow)
     {
         Host  host;
