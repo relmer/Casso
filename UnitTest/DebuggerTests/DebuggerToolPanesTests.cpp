@@ -418,6 +418,34 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  A new profile's tree has another node order: the zoom stays on the
+        //  routine it was on, under the same callers, wherever its node is
+        //  now, and goes back to Top level when the routine is gone.
+        TEST_METHOD (TheZoomFollowsItsRoutineIntoANewProfile)
+        {
+            ProfileData     profile  = MakeRoutineProfile();
+            ProfileData     reordered;
+            FlameGraphView  view;
+
+
+
+            view.SetData (profile);
+            view.SetZoom (2);
+
+            reordered = profile;
+            std::swap (reordered.tree[2], reordered.tree[3]);
+            view.SetData (reordered);
+
+            Assert::AreEqual ((size_t) 3, view.GetZoom(), L"the same routine, now node 3");
+
+            reordered.tree.resize (2);
+            view.SetData (reordered);
+
+            Assert::AreEqual ((size_t) 0, view.GetZoom(), L"gone, so Top level");
+        }
+
+
+
         //  A bar that covers several frames, once the frames are joined into
         //  wider bars, is as tall as its cycles are a share of those frames'.
         TEST_METHOD (ABarOfSeveralFramesIsScaledByThem)

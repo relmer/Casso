@@ -70,6 +70,9 @@ private:
     };
 
     void   Relayout   ();
+
+    static std::vector<uint64_t>  GetPath  (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, size_t node);
+    static std::optional<size_t>  FindPath (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, const std::vector<uint64_t> & path);
     float  GetRowTop  (int row) const;
 
     std::vector<ProfileTreeEntry>     m_tree;
