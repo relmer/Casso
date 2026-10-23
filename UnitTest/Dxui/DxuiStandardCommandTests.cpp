@@ -169,6 +169,25 @@ public:
     }
 
 
+    //  A list whose rows come from a provider has them as a count, not
+    //  stored, and select all is offered over that count.
+    TEST_METHOD (ListView_OffersSelectAllOverProvidedRows)
+    {
+        DxuiListView  list;
+        bool          enabled = false;
+
+
+        list.SetRowProvider     (1, [] (int, std::vector<DxuiListView::Cell> & out) { out = { DxuiListView::Cell { L"a", false } }; });
+        list.SetVirtualRowCount (5);
+        list.SetMultiSelect     (true);
+
+        Assert::IsTrue (list.QueryCommand (DxuiStandardCommand::SelectAll, enabled));
+        Assert::IsTrue (enabled, L"five provided rows to select");
+        Assert::IsTrue (list.InvokeCommand (DxuiStandardCommand::SelectAll));
+        Assert::AreEqual ((size_t) 5, list.GetSelectedRows().size());
+    }
+
+
     TEST_METHOD (HexView_ClaimsCopyAndSelectAllButNotPaste)
     {
         DxuiHexView  view;

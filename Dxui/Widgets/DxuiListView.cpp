@@ -3871,7 +3871,7 @@ bool DxuiListView::QueryCommand (DxuiStandardCommand command, bool & outEnabled)
 
     if (command == DxuiStandardCommand::SelectAll && m_multiSelect)
     {
-        outEnabled = !m_rows.empty();
+        outEnabled = GetRowCount() > 0;
         handled    = true;
     }
     else if (command == DxuiStandardCommand::Copy && m_ownerHwnd != nullptr)
