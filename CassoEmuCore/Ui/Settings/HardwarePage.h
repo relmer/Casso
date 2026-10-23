@@ -62,6 +62,10 @@ public:
                           int                       activeIndex);
     void  SetOnMachineSelected (MachineSelectFn fn) { m_onMachineSelected = std::move (fn); }
 
+    // Reports a change a card turned off made on another tab, such as the
+    // ImageWriter II disconnected from it.
+    void  SetOnNotice          (std::function<void (const std::wstring &)> fn) { m_onNotice = std::move (fn); }
+
     // The PC's COM ports, offered for a //c serial port to connect to.
     void  SetComPorts (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
     const std::vector<std::wstring> &  GetComPorts () const { return m_comPorts; }
@@ -134,6 +138,7 @@ private:
     std::vector<std::string>             m_machines;
     int                                  m_activeMachineIndex = -1;
     MachineSelectFn                      m_onMachineSelected;
+    std::function<void (const std::wstring &)>  m_onNotice;
 
     DxuiLabel                            m_machineLabel;
     DxuiLabel                            m_speedLabel;

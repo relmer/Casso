@@ -1171,7 +1171,40 @@ public:
         st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
         AssertSucceeded (st.SetSerialCardSwitches ("off off off on on on on", "on on off on off off off"));
         Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection(), L"communications mode disconnects the printer");
-        Assert::IsTrue (st.TakeNotice().find (L"not connected") != std::wstring::npos);
+        Assert::IsTrue (st.TakeNotice().find (L"disconnected") != std::wstring::npos);
+    }
+
+
+    //  The printer is disconnected from a card turned off, and the
+    //  change is reported; turning the card on again does not reconnect it.
+    TEST_METHOD (Printer_IsDisconnectedFromACardTurnedOff)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "TestMachine",
+            "slots": [
+                { "slot": 1, "device": "parallel-printer" },
+                { "slot": 6, "device": "disk-ii" }
+            ]
+        })JSON");
+        size_t              card = 0;
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection { PrinterConnection::Kind::ParallelCard, 1 });
+
+        for (size_t i = 0; i < st.GetHardware().size(); i++)
+        {
+            card = (st.GetHardware()[i].type == "parallel-printer") ? i : card;
+        }
+
+        AssertSucceeded (st.SetHardwareEnabled (card, false));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection());
+        Assert::IsTrue (st.TakeNotice().find (L"parallel card in slot 1") != std::wstring::npos);
+
+        AssertSucceeded (st.SetHardwareEnabled (card, true));
+        Assert::IsTrue (st.GetPrinterConnection() == PrinterConnection(), L"the printer is connected again on the Printing tab");
+        Assert::IsTrue (st.TakeNotice().empty());
     }
 
     // Detaching must write BOTH connectors. A one-element list would take

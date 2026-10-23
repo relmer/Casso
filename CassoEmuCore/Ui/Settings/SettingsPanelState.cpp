@@ -1651,8 +1651,8 @@ HRESULT SettingsPanelState::SetSerialCardSwitches (const std::string & sw1, cons
         m_current.hardware[static_cast<size_t> (index)].switchesSw1BeforePrinter.clear();
         SetPrinterConnection (PrinterConnection());
 
-        m_notice = std::format (L"The ImageWriter II is now not connected, as the Super Serial Card in slot {} is no "
-                                L"longer in printer mode. Connect it again on the Printing tab.", slot);
+        m_notice = L"The ImageWriter II has been disconnected from the Super Serial Card because it requires printer mode. "
+                   L"You can reconnect it on the Printing tab.";
     }
 
 Error:
@@ -1711,8 +1711,10 @@ Error:
 
 HRESULT SettingsPanelState::SetHardwareEnabled (size_t index, bool enabled)
 {
-    HRESULT  hr            = S_OK;
-    size_t   hardwareCount = 0;
+    HRESULT            hr            = S_OK;
+    size_t             hardwareCount = 0;
+    PrinterConnection  printer;
+    bool               hadPrinter    = false;
 
 
 
@@ -1724,6 +1726,24 @@ HRESULT SettingsPanelState::SetHardwareEnabled (size_t index, bool enabled)
         // FR-007 / FR-008: required and platform-locked entries
         // cannot be turned off. User input -- non-asserting.
         CBR (m_current.hardware[index].capability == CapabilityFlag::Optional);
+    }
+
+    //  Disconnect the ImageWriter II from a card before turning the card
+    //  off, so a Super Serial Card's mode is restored, and report the change
+    //  for the Printing tab.
+    printer    = FindPrinterConnection (m_current);
+    hadPrinter = !enabled
+              && m_current.hardware[index].kind == HardwareEntryKind::Slot
+              && printer.number == m_current.hardware[index].slot
+              && (printer.kind == PrinterConnection::Kind::ParallelCard || printer.kind == PrinterConnection::Kind::SerialCard);
+
+    if (hadPrinter)
+    {
+        SetPrinterConnection (PrinterConnection());
+
+        m_notice = std::format (L"The ImageWriter II has been disconnected from the {} in slot {} because the card is turned off. "
+                                L"You can reconnect it on the Printing tab.",
+                                printer.kind == PrinterConnection::Kind::ParallelCard ? L"parallel card" : L"Super Serial Card", printer.number);
     }
 
     m_current.hardware[index].enabled = enabled;

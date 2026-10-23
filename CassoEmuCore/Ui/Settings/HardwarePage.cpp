@@ -508,8 +508,16 @@ void HardwarePage::Rebuild()
 
             if (candidate == label)
             {
-                HRESULT  hr = state->SetHardwareEnabled (i, checked);
+                HRESULT       hr     = state->SetHardwareEnabled (i, checked);
+                std::wstring  notice = state->TakeNotice();
+
                 IGNORE_RETURN_VALUE (hr, S_OK);
+
+                if (!notice.empty() && m_onNotice)
+                {
+                    m_onNotice (notice);
+                }
+
                 return;
             }
         }
