@@ -291,7 +291,8 @@ void HeatMapPane::SendHover (std::optional<Word> address)
 //
 //  HeatMapPane::OnProjectSwitched
 //
-//  The other project's options, shown and sent on to the machine.
+//  The other project's options, applied and sent on to the machine through
+//  SetOptions, so the bar has Reset counts for a map that counts totals.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -303,8 +304,7 @@ void HeatMapPane::OnProjectSwitched()
 
     if (windowHost != nullptr)
     {
-        m_view->SetOptions (HeatMapOptions::FromText (windowHost->GetDebuggerHeatMapOptions()));
-        windowHost->SetDebuggerHeatMapOptions (windowHost->GetDebuggerHeatMapOptions());
+        SetOptions (HeatMapOptions::FromText (windowHost->GetDebuggerHeatMapOptions()));
     }
 }
 

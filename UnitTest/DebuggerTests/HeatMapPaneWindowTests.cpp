@@ -479,6 +479,33 @@ namespace HeatMapPaneWindowTests
 
 
 
+        //  A project that counts totals brings Reset counts onto the bar when
+        //  the debugger switches to it.
+        TEST_METHOD (AProjectSwitchToCumulativeShowsResetCounts)
+        {
+            CassoTheme      theme   = CassoTheme::MakeSkeuomorphic();
+            HeatMapHost     host;
+            HeatMapWindow   window  (theme, host);
+            HeatMapOptions  options;
+            RECT            entry   = {};
+
+
+
+            BuildShown (window);
+            Assert::IsFalse (window.GetHeatMapPane().GetBar()->TryGetEntryRect (HeatMapBarCommands::kResetCounts, entry), L"fading at first");
+
+            options.cumulative  = true;
+            host.heatMapOptions = options.ToText();
+
+            window.GetHeatMapPane().OnProjectSwitched();
+            Relayout (window);
+
+            Assert::IsTrue (window.GetHeatMapPane().GetView()->GetOptions().cumulative);
+            Assert::IsTrue (window.GetHeatMapPane().GetBar()->TryGetEntryRect (HeatMapBarCommands::kResetCounts, entry), L"Reset counts is on the bar");
+        }
+
+
+
         TEST_METHOD (BlendOnTheBarTurnsOnAndOffAndIsKept)
         {
             CassoTheme     theme  = CassoTheme::MakeSkeuomorphic();
