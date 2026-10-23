@@ -452,23 +452,16 @@ void HardwarePage::Rebuild()
         m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->clockSpeed) + L" Hz");
         m_infoValues[s_kMemoryRow].SetText (Widen (info->ramSummary));   // RAM total on the header line
 
-        rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
+        // The total is all the page lists of memory; the regions, main and
+        // auxiliary RAM, ROM and the banks, are the debugger's.
+        rowsInUse = 0;
         for (i = 0; i < kMaxMemoryRows; ++i)
         {
             size_t  slotIdx = kFixedInfoRowCount + i;
-            if (i < rowsInUse)
-            {
-                const SettingsMemoryRegion &  r = info->memoryRegions[i];
-                m_infoLabels[slotIdx].SetText (Widen (r.name));
-                m_infoValues[slotIdx].SetText (Widen (r.size));
-                m_infoExtras[slotIdx].SetText (Widen (r.addressRange));
-            }
-            else
-            {
-                m_infoLabels[slotIdx].SetText (L"");
-                m_infoValues[slotIdx].SetText (L"");
-                m_infoExtras[slotIdx].SetText (L"");
-            }
+
+            m_infoLabels[slotIdx].SetText (L"");
+            m_infoValues[slotIdx].SetText (L"");
+            m_infoExtras[slotIdx].SetText (L"");
         }
 
         if (rowsInUse != m_memoryRowsInUse)
