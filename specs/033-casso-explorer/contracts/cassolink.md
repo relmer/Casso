@@ -56,9 +56,11 @@ that its resends arrive first, the link closes and the operation fails
 
 Casso serves CD, Directory, Size, Get, Put, Batch, Nibble ($CE), Multiple
 nibble ($CD) and Summary as ADTPro's host does, and serves virtual drives
-(`'E'`, $C5) over 512-byte blocks. Image files are those in the ADTPro
-folder set in Options. Home has no reply, as from ADTPro's host. Send File
-and ADTPro's older commands are not served.
+(`'E'`, $C5) over 512-byte blocks, on an ADTPro-compatible server
+connection only (R28). Image files are those in the folder the connection
+shares, and a path outside that folder's subtree, by `..`, a drive, a UNC
+path or a junction, has ADTPro's error reply. Home has no reply, as from
+ADTPro's host. Send File and ADTPro's older commands are not served.
 
 - **Directory** ($C4): the payload is an optional filespec (`*` and `?`,
   without regard to case) ending in a 0, then the page number as its last
@@ -272,6 +274,11 @@ half-cycles of 200 and 250 microseconds, the bytes most significant bit
 first, a 0 as one 2 kHz cycle and a 1 as one 1 kHz cycle, and the XOR
 checksum seeded with $FF. The shim starts at the link's speed.
 
+The shim's slot (R29): the header's when the boot disk's stage started it;
+else the input hook's high byte at $39 when it is $C1 to $C7, as `IN#n`
+left it; else the first slot with the Super Serial Card's identification
+bytes. The 6551 is at $C088 plus 16 times the slot.
+
 The shim's screen: a title, then `WAITING FOR THE PC ON PORT 2 AT <speed>`
 on a //c or `WAITING FOR THE PC IN SLOT <n> AT <speed>` on a card,
 `LOADING PROGRAM <n>%` and `STARTING VERSION <n>`. The program adds a PC line,
@@ -291,8 +298,13 @@ The stage finds:
 - on a //c, ports 1 and 2;
 - a Super Serial Card in any slot, by $Cn05 = $38, $Cn07 = $18, $Cn0B = $01
   and $Cn0C = $31;
-- an Uthernet II in any other slot but a Disk II's, by the W5100 taking two
-  address pointer values and returning them.
+- an Uthernet II in any other slot but a Disk II's, by its mode register
+  at $C084 plus 16 times the slot reading with bits 6, 5 and 2 clear, and
+  then the W5100 taking two address pointer values and returning them.
+
+The header's MAC address has the sum of RNDL and RNDH ($4E, $4F) and a
+16-bit sum of $4000-$BFFF added into its last three bytes before the
+W5100 is given it (R31).
 
 Each 6551 is set to the 6551 shim's speed with DTR on. The W5100 is reset,
 given the header's MAC address, 8 KB of receive memory and 4 KB of transmit

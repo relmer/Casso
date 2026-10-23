@@ -355,6 +355,20 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
      program's PC, error and label lines and the Label command; the
      running-Casso files and their roots; the dialog's rows by transport;
      the search at both speeds; the Wi-Fi modem's dial address.
+21b. **Connections and the ADTPro server** (R27 to R31, Session
+     2026-10-22): the Add connection dialog with the transport first, a name
+     made from the settings, no duplicate added, a COM drop-down and no
+     Apple-side port or slot; the Emulated transport removed and its saved
+     links dropped; the Wi-Fi modem on fixed port 6400; the shim taking its
+     slot from the input hook or a card scan; the CTS check; the
+     ADTPro-compatible server type with its shared folder, its requests
+     confined to that folder, and its help as a virtual item; the Options
+     dialog's CassoLink page and `emulateAdtPro` removed; the boot disk's MAC
+     salt and the W5100 read-first detection.
+21c. **Settings** (R32, Session 2026-10-22), built: live serial connectors
+     and the ImageWriter II's connector, the Super Serial Card's printer mode
+     saved and restored, the cross-tab notices, the Settings tab strip's
+     scrolling and the pinned info tips.
 22. **Hardware**: `Win32ComPort`, bootstrap over `IN#2`, and the owner's
     //c walkthrough (SC-027, SC-028, SC-033).
 23. **Cards, after their merges**: the Super Serial Card driver in the shim
@@ -389,6 +403,15 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
   check rather than overwriting the shim.
 - **Card features slipping**: phase 23 waits on 042 and 043; everything
   before it runs on the //c.
+- **Saved links from older builds**: an `Emulated` link is dropped on load,
+  and any other link's name is made again from its settings; of two saved
+  links with the same name, only the first is listed. The old
+  `Documents\ADTPro` folder and its help file are left where they are,
+  since the folder can contain the user's own disks.
+- **A path that escapes the shared folder**: `..`, a drive letter, a UNC
+  path or a junction. Every ADTPro path is resolved to its full form and
+  compared with the folder's, after the folder's own junctions are
+  resolved, and anything outside fails with ADTPro's error reply.
 
 ## Phase 2 Preview
 

@@ -792,3 +792,128 @@ pipe per Casso, which every Casso Explorer would poll.
 - **The dial address.** A Wi-Fi modem link's root lists
   `ATDT <pcname>.local:<port>`. Windows resolves a `.local` host by mDNS from
   Windows 10 on.
+
+## R27. The Add connection dialog and a connection's name
+
+**Decision**:
+
+- **The transport first**: Serial, TCP, Wi-Fi modem or ADTPro-compatible
+  server, then only the rows it uses (FR-083c). Serial: COM port, bootstrap
+  speed, speed, handshake. TCP: address. Wi-Fi modem: speed, handshake, and
+  a description of the modem with no port field. ADTPro-compatible server:
+  COM port or TCP address, speed, handshake for serial, and the folder it
+  shares.
+- **No name field.** The name is made from the settings: `Serial (any
+  port)` or the COM port, `TCP <host>:<port>`, `Wi-Fi modem on port 6400`,
+  `ADTPro server on COM3` or `ADTPro server at <host>:<port>`. An Uthernet
+  II's announcement is listed as `Uthernet II at <address>:<port>`, never
+  saved. A connection with an existing one's name is not added, since the
+  name is made from every field in which two connections differ.
+- **The COM port** is a drop-down of `Any` and the ports Windows lists.
+- **No Apple-side port or slot** for any transport (R29).
+- **Info tips**: the bootstrap speed's indicates it is only for the loader typed
+  in through `IN#`; the handshake's recommends a first attempt without it
+  and notes that many null-modem cables do not connect RTS and CTS, or loop
+  each end's back, and that a //c's 6551 has CTS tied to ground.
+- **An empty TCP address** has no error displayed; Add is disabled until it parses.
+- **The Wi-Fi modem** listens on TCP port 6400. A port in use is the root's
+  error, and the root lists the address the boot disk dials.
+- **No Emulated transport.** Running Cassos are listed with no setup
+  (R25), and a Casso on another PC is a TCP connection. A saved `Emulated`
+  link is dropped when the links are read.
+
+**Rationale**: every field of the old dialog that the PC or the
+Apple can find for itself is gone, and a name made from the settings
+cannot disagree with them.
+
+**Alternatives considered**: a name field defaulting to the made name,
+not chosen, at the owner's request; an editable modem port,
+not chosen, because the boot disk has the port built in, so a change breaks
+every disk made before it.
+
+## R28. The ADTPro-compatible server
+
+**Decision**: a connection type of its own, on a COM port or a TCP address,
+with the folder it shares. `CassoLinkHost` serves ADTPro's requests only
+on a connection of this type, and every other connection serves only
+Casso's own client. `CassoLinkFolder` resolves each path a request has (CD,
+Directory, Size, Get, Put, Batch, virtual drives) to its full form with
+`GetFinalPathNameByHandle` on the folder and `GetFullPathName` on the
+request, and fails a request whose result is not the folder or inside it,
+with ADTPro's error reply. The connection's root has a virtual help item,
+previewed from text in the program; opening it or dragging it out writes it
+to `%TEMP%\Casso\` first. `CassoExplorerPrefs::emulateAdtPro`, the Options
+dialog's CassoLink page, `ApplyAdtProSettings`, `StartLinksForAdtPro` and
+`GetAdtProFolder` are removed; `emulateAdtPro` in an existing file is
+ignored.
+
+**Rationale**: serving ADTPro becomes a connection the user adds, as any
+other, instead of a global mode that opened every port; and a server that
+writes the files an Apple sends has to be confined to one folder.
+
+**Alternatives considered**: keeping the global mode with a folder picker,
+not chosen, at the owner's request; confining by string prefix, not chosen because `..`
+and junctions defeat it.
+
+## R29. The Apple side finds its own port
+
+**Decision**: the shim takes its slot from the header when the boot disk's
+stage started it, else from the input hook's high byte at $39 when it is
+$C1 to $C7, which `IN#n` set before the loader was typed in, else from the
+first slot whose firmware has the Super Serial Card's identification bytes,
+which is the case after the cassette loader's `3D00G`. The 6551's registers
+are at $C088 plus 16 times the slot on a card and on a //c alike, port 1
+being slot 1 and port 2 slot 2.
+
+**Rationale**: the user typed the slot already, as `IN#2`; a second field for it is
+a second chance to disagree.
+
+**Alternatives considered**: the PC typing the slot into the header,
+not chosen, because it requires the dialog's slot field.
+
+## R30. A cable that does not carry CTS
+
+**Decision**: a serial connection with hardware handshake on watches
+`GetCommModemStatus` while a write is pending. CTS low for 3 seconds fails
+the connection with `The PC's CTS line is off, so the cable may not
+connect it. Turn off hardware handshake.`
+
+**Rationale**: with output flow control on, Windows suspends every write while
+CTS is low, so such a cable produces a link that hangs with no reason.
+
+**Alternatives considered**: turning handshake off automatically, not chosen
+because the user chose it.
+
+## R31. The Uthernet II boot disk's MAC address and detection
+
+**Decision**: the stage adds into the MAC address's last three bytes the
+monitor's RNDL and RNDH ($4E and $4F), which count while the monitor waits
+for a key, and a 16-bit sum of $4000-$BFFF, which differs between machines
+and power-ons. A slot's W5100 is read first: its mode register at $C084
+plus 16 times the slot must read with bits 6, 5 and 2 clear; only then is
+the address pointer written and read back.
+
+**Rationale**: two Apples booted from copies of one disk on one network
+would otherwise share a MAC address; and a write to a card's registers is
+not harmless on every card a slot can have.
+
+**Alternatives considered**: a MAC address chosen by Casso Explorer per
+disk, not chosen, because copies of one disk share it.
+
+## R32. Live serial connectors and the Super Serial Card's printer mode
+
+**Decision**: a connector's attachment change goes to the CPU thread as
+`IDM_SERIAL_CONNECT` (a //c port or a card's slot, the device, and a file's
+path) or `IDM_PRINTER_PARALLEL`, and `MachineHost` replaces the endpoint
+between instructions. The connectors whose new device is not the printer are sent
+before the one that takes it, and the printer's drain is started before
+it. Choosing the printer on a card sets SW1-5 off and SW1-6 on and saves the
+card's SW1 bank as `sw1BeforePrinter`; moving it away restores SW1-5 and
+SW1-6 from that bank if the card is in printer mode. Each change to another
+tab's setting is reported in a message box.
+
+**Rationale**: none of these requires a rebuild of the machine, and a reboot ends the
+user's program.
+
+**Alternatives considered**: keeping the reboot for the printer, not chosen
+by the owner.

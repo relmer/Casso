@@ -151,16 +151,20 @@ Preview-pane visibility is window-wide, in `CassoExplorerPrefs`, not here.
 
 | Field | Type | Meaning |
 |---|---|---|
-| name | string | The root's label, unique among links |
-| transport | string | `Serial`, `Tcp`, `WifiModem` or `Emulated` |
-| port | string | `COM3` for serial; empty to search (FR-083a) |
-| address | string | `host:port` for TCP and the Wi-Fi modem; for `Emulated`, `127.0.0.1:port`, the TCP port Casso offers the emulated serial port on |
+| name | string | The root's label, made from the other fields (R27) and unique among links |
+| transport | string | `Serial`, `Tcp`, `WifiModem` or `AdtProServer` |
+| port | string | `COM3` for serial and a serial ADTPro server; empty to search (FR-083a) |
+| address | string | `host:port` for TCP and a TCP ADTPro server |
 | baud | int | Default 115200 (FR-094) |
 | bootstrapBaud | int | Default 9600; serial only (FR-094) |
-| hardwareHandshake | bool | Default false; serial and Wi-Fi modem only |
+| hardwareHandshake | bool | Default false; serial, the Wi-Fi modem and a serial ADTPro server only |
+| folder | string | The folder an ADTPro server shares; its requests are confined to it (FR-088) |
 
-An `Emulated` link's address defaults to `127.0.0.1:6502`. The dialog
-contains only the fields its transport uses (FR-083c).
+A Wi-Fi modem listens on TCP port 6400, which is not stored. A link saved
+as `Emulated` by an older build is dropped when the links are read, and the
+name of every other link is made again. Of two links with the same name,
+only the first is listed. The dialog contains only the fields its
+transport uses (FR-083c), and no Apple-side port or slot (R29).
 
 ### Running Casso: `%LOCALAPPDATA%\Casso\Links\<pid>-<port>.json`  (R25)
 
@@ -176,6 +180,14 @@ Written when Casso connects a serial port to TCP; deleted when the port is
 connected elsewhere, when Casso exits, and by Casso Explorer when the
 process is gone. Each record is a root with an `Emulated` link's settings,
 never stored in `links`.
+
+### Super Serial Card: `switches` in a slot entry  (R32)
+
+| Field | Type | Meaning |
+|---|---|---|
+| sw1 | string | SW1-1 to SW1-7, `on` or `off` each |
+| sw2 | string | SW2-1 to SW2-7 |
+| sw1BeforePrinter | string | SW1 as it was before the ImageWriter II's connection set the card to printer mode; absent when the mode was not changed for the printer |
 
 ### In memory
 

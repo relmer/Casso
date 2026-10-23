@@ -195,6 +195,26 @@ run with no hardware; steps 5 to 7 use the owner's //c on a null modem cable.
 7. **Write image to disk.** Write a `.dsk` to a blank disk in drive 2 and
    boot it. Result: it boots; a `.woz` with a non-standard track fails with
    the track listed.
+8. **Add connection** (FR-083c). Open Add connection. Result: the
+   transport comes first; there is no name field and no Apple-side port or
+   slot; the COM port is a drop-down of Any and the ports found; the
+   bootstrap speed is above the speed, and it and handshake each have an
+   info tip; no error is displayed for an empty TCP address. Add a Serial connection
+   on Any, then the same again. Result: the root `Serial (any port)`, and
+   no second one added. A Wi-Fi modem connection's root lists
+   `<pcname>.local:6400`.
+9. **ADTPro-compatible server** (FR-088). Add one on the TCP address of an
+   emulated //c running ADTPro's client, sharing a test folder. Result:
+   its root has the help item, and no file is written to Documents. From
+   ADTPro's client, send and receive a disk, then CD to `..` and to
+   `C:\`. Result: the transfers work and both CDs fail. An ordinary
+   CassoLink connection to the same machine does not answer ADTPro.
+10. **Settings, live** (FR-095a, FR-095b). In a running //e with a parallel
+    card and a Super Serial Card, move the ImageWriter II to the Serial card
+    on the Printing tab. Result: no reboot, a message that the card is in
+    printer mode, and `PR#2` prints. Set the card to communications mode.
+    Result: a message that the printer is not connected. Change the card's
+    connector to a loopback plug. Result: no reboot.
 
 ## 8. Headless tests
 
