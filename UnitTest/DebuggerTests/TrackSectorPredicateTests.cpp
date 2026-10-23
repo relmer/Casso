@@ -36,6 +36,22 @@ namespace TrackSectorPredicateTests
         }
 
 
+        //  A number too long for any track fails to parse instead of wrapping
+        //  to a small one, and a sector has no quarter-tracks: each is listed
+        //  as a bad span.
+        TEST_METHOD (AHugeNumberAndASectorQuarterTrackAreBadSpans)
+        {
+            TrackSectorPredicate  track  = TrackSectorPredicate::Parse (L"4294967298", TrackSectorPredicate::Mode::Track);
+            TrackSectorPredicate  sector = TrackSectorPredicate::Parse (L"1.5",        TrackSectorPredicate::Mode::Sector);
+
+
+
+            Assert::IsFalse  (track.Matches (2), L"not wrapped to track 2");
+            Assert::AreEqual ((size_t) 1, track.GetRejectedSpans().size());
+            Assert::AreEqual ((size_t) 1, sector.GetRejectedSpans().size(), L"a sector has no quarter");
+        }
+
+
         TEST_METHOD (SingleValue_matchesOnlyThatValue)
         {
             TrackSectorPredicate  p = TrackSectorPredicate::Parse (L"17", TrackSectorPredicate::Mode::Track);

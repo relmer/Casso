@@ -43,6 +43,7 @@ public:
     static constexpr int  kMaxWholeTrackExclusive   = 40;
     static constexpr int  kMaxQuarterTrackExclusive = 160;
     static constexpr int  kMaxSectorExclusive       = 16;
+    static constexpr int  kMaxParsedValue           = 100000;   // a number past this fails to parse
 
     struct Range
     {
