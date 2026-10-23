@@ -646,6 +646,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
 
 
     std::map<std::wstring, std::vector<int>>  m_columnWidths;
+    UINT                                      m_columnWidthsDpi = 0;     // the DPI m_columnWidths were last applied at
     uint64_t                                  m_undoSavedMs = 0;
 
     //  Set when a restore replaced the undo histories, so the machine change

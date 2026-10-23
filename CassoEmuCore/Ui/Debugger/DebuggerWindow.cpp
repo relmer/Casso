@@ -887,6 +887,11 @@ void DebuggerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     m_heightDip = std::max (1, (int) (boundsDip.bottom - boundsDip.top));
     m_scaler    = scaler;
 
+    if (m_scaler.GetDpi() != m_columnWidthsDpi)
+    {
+        ApplyColumnWidths();
+    }
+
     LayoutWidgets();
 
     //  The first layout shows which panes are in front, so the keys can go

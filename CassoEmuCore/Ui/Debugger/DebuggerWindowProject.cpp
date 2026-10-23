@@ -400,12 +400,16 @@ void DebuggerWindow::SaveColumnWidths()
 //
 //  DebuggerWindow::ApplyColumnWidths
 //
-//  A width of zero, a hidden column's, is left to the list.
+//  A width of zero, a hidden column's, is left to the list. The widths are
+//  dips, so Layout applies them again when the window's DPI is a different
+//  one, the first layout's included: the controls are built at the default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyColumnWidths()
 {
+    m_columnWidthsDpi = m_scaler.GetDpi();
+
     for (DxuiListView * list : GetLists())
     {
         auto  widths = m_columnWidths.find (GetPaneOfControl (list));
