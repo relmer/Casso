@@ -773,7 +773,7 @@ BreakpointDialog::Fields BreakpointDialog::GetFields (const BreakpointInfo & inf
     case Type::Condition: fields.condition = info.condition;                             break;
     case Type::Disk:     fields = GetDiskFields (info, fields);                          break;
     case Type::BasicLine:
-        fields.address = (info.address == 0) ? std::string() : std::to_string (info.address);
+        fields.address = std::to_string (info.address);
         break;
     case Type::BasicVariable:
         fields.address = info.basicName;

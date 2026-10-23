@@ -298,6 +298,29 @@ public:
 
 
 
+    //  Line 0 is a line like any other: the dialog opens with it in the field
+    //  and makes the same definition from it.
+    TEST_METHOD (ABasicLineBreakpointAtLineZeroEditsAsLineZero)
+    {
+        ControllerRig             rig;
+        DebuggerViewSnapshot      snapshot;
+        BreakpointDialog::Fields  fields;
+
+
+
+        rig.view.ExecuteAction (rig.controller.GetSession(), DebuggerActions::GetDefineBreakpoint ("BPBASIC 0", CommandMode::AppleWin));
+
+        snapshot = rig.view.Build (rig.controller.GetSession());
+        Assert::AreEqual ((size_t) 1, snapshot.breakpoints.size());
+
+        fields = BreakpointDialog::GetFields (snapshot.breakpoints[0].info);
+
+        Assert::AreEqual (std::string ("0"),         fields.address);
+        Assert::AreEqual (std::string ("BPBASIC 0"), BreakpointDialog::MakeDefinition (fields));
+    }
+
+
+
     //  The New drop-down's types are under headings, every type the dialog
     //  makes is in it once, a memory address standing for reads, writes and
     //  both, and the dialog's title has the heading and the type.
