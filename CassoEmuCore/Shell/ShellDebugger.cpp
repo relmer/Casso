@@ -2695,7 +2695,11 @@ void ShellDebugger::ServiceEventLogs()
 
 std::string ShellDebugger::GetDebuggerEventLogOptions (DebugLogKind kind)
 {
-    return m_settings.GetLogOptions ((int) kind);
+    const std::string  * options = m_settings.GetLogOptions ((int) kind);
+
+
+
+    return (options != nullptr) ? *options : std::string();
 }
 
 
@@ -2714,11 +2718,11 @@ void ShellDebugger::SetDebuggerEventLogOptions (
     DebugLogKind          kind,
     const std::string   & text)
 {
-    std::string  & options = m_settings.GetLogOptions ((int) kind);
+    std::string  * options = m_settings.GetLogOptions ((int) kind);
 
 
 
-    if (options == text)
+    if (options == nullptr || *options == text)
     {
         return;
     }
@@ -2728,7 +2732,7 @@ void ShellDebugger::SetDebuggerEventLogOptions (
 
 
 
-        options = text;
+        *options = text;
     }
 
     m_host.SaveSettings();

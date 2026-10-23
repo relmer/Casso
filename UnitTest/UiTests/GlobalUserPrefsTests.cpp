@@ -266,6 +266,20 @@ public:
     }
 
 
+    //  A log kind past the logs gets no log's options, not another log's.
+    TEST_METHOD (ALogKindPastTheLogsHasNoOptions)
+    {
+        DebuggerSettings  settings;
+
+
+
+        Assert::IsTrue (settings.GetLogOptions (0) == &settings.diskLogOptions);
+        Assert::IsTrue (settings.GetLogOptions (3) == &settings.soundLogOptions);
+        Assert::IsNull (settings.GetLogOptions (4),  L"not the Disk II log's again");
+        Assert::IsNull (settings.GetLogOptions (-1));
+    }
+
+
     TEST_METHOD (Load_MissingFields_Tolerated)
     {
         InMemoryFileSystem  fs;

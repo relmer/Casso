@@ -82,12 +82,13 @@ struct DebuggerSettings
     std::string  videoLogOptions;
     std::string  soundLogOptions;
 
-    std::string & GetLogOptions (int kind)
+    // A log's options by its kind, or null for a kind past the logs here.
+    std::string * GetLogOptions (int kind)
     {
         std::string *  logs[] = { &diskLogOptions, &inputLogOptions, &videoLogOptions, &soundLogOptions };
 
 
-        return *logs[(size_t) kind % std::size (logs)];
+        return (kind >= 0 && kind < (int) std::size (logs)) ? logs[kind] : nullptr;
     }
 
     // Whether the console lists each action taken in the window as the
