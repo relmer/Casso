@@ -130,6 +130,8 @@ public:
             hr = text.MeasureStringWrapped (m_text.c_str(), m_scaler.ToPxf (bf.sizeDip), bf.face, (float) (tr.right - tr.left), fullW, fullH);
             vAlign = (FAILED (hr) || fullH > (float) (tr.bottom - tr.top)) ? DxuiTextVAlign::Top : DxuiTextVAlign::Center;
 
+            NoteOverrun (SUCCEEDED (hr) ? fullH : 0.0f, tr);
+
             hr = text.PushClipRect ((float) tr.left, (float) tr.top, (float) (tr.right - tr.left), (float) (tr.bottom - tr.top));
             IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -155,7 +157,27 @@ true);
 
     bool  TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) override;
 
+    //  How many pixels the text drawn last ran past the bottom of its box,
+    //  and none after this call; the window grows by it.
+    int   TakeOverrunPx()
+    {
+        int  overrun = m_overrunPx;
+
+        m_overrunPx = 0;
+        return overrun;
+    }
+
 private:
+    //  The painted text's height against its box, as the paint measured it:
+    //  whatever the sizing measured before, the text drawn is the one that
+    //  has to fit.
+    void  NoteOverrun (float textHeightPx, const RECT & box)
+    {
+        int  overrun = (int) std::ceil (textHeightPx) - (int) (box.bottom - box.top);
+
+        m_overrunPx = std::max (m_overrunPx, overrun);
+    }
+
     //  Text with semibold runs, a line at a time: a line of one regular run
     //  wraps, and a line with semibold runs is drawn run after run on one
     //  line. The lines are measured first, so the block is centered as a
@@ -199,6 +221,8 @@ private:
             y += ((float) (tr.bottom - tr.top) - total) * 0.5f;
         }
 
+        NoteOverrun (total, tr);
+
         hr = text.PushClipRect ((float) tr.left, (float) tr.top, widthPx, (float) (tr.bottom - tr.top));
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -229,9 +253,10 @@ private:
     }
 
     std::wstring         m_text;
-    DxuiMessageSeverity  m_severity = DxuiMessageSeverity::None;
-    RECT                 m_bounds   = {};
+    DxuiMessageSeverity  m_severity  = DxuiMessageSeverity::None;
+    RECT                 m_bounds    = {};
     DxuiDpiScaler        m_scaler;
+    int                  m_overrunPx = 0;
 };
 
 
@@ -344,9 +369,9 @@ public:
 protected:
     void  OnCreate() override
     {
-        DxuiMessageBoxBody *  body = CreateDialogContent<DxuiMessageBoxBody> ();
+        m_body = CreateDialogContent<DxuiMessageBoxBody> ();
 
-        body->Set (m_text, m_severity);
+        m_body->Set (m_text, m_severity);
 
         for (const ButtonSpec & b : m_buttons)
         {
@@ -354,7 +379,22 @@ protected:
         }
     }
 
+    //  The last guard against a box too short for its message: text the
+    //  paint found running past its box grows the window by that much,
+    //  however the sizing before it measured.
+    void  OnDialogTick() override
+    {
+        HRESULT  hr = S_OK;
+
+        if (m_body != nullptr)
+        {
+            hr = GrowHeightBy (m_body->TakeOverrunPx());
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+    }
+
 private:
+    DxuiMessageBoxBody      * m_body      = nullptr;
     std::wstring              m_text;
     DxuiMessageSeverity       m_severity  = DxuiMessageSeverity::None;
     std::vector<ButtonSpec>   m_buttons;
@@ -724,6 +764,11 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    //  Placed by its owner, the box is sized in the owner's DPI rather than
+    //  the system's, which differ on a monitor scaled unlike the primary one
+    //  or after the scale changes while Windows is running.
+    params.placement                = (owner != nullptr) ? DxuiWindowPlacement::CenteredOnOwner : DxuiWindowPlacement::Default;
 
     hr = dlg.Create (params);
 

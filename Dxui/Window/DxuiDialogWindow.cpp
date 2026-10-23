@@ -100,7 +100,11 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     if (m_content != nullptr)
     {
         m_content->Layout (content, scaler);
-        GrowToContent (content);
+
+        if (GrowToContent (content))
+        {
+            return;
+        }
     }
 
     // Split by anchor; order the right group into the canonical button order
@@ -180,15 +184,15 @@ void DxuiDialogWindow::OnDialogShowing()
 //
 //  DxuiDialogWindow::GrowToContent
 //
-//  The height set before the window appeared was measured at one DPI and
-//  width; a move to a monitor with another DPI scales the window in
-//  proportion, and wrapped text does not scale that way. So every layout
-//  measures again, at the width and DPI it lays the content out at, and a
-//  window too short for its content grows.
+//  The height set before the window appeared can run short of the content
+//  laid out later, so every layout measures again, at the width and DPI it
+//  lays the content out at, and a window too short for its content grows.
+//  True when the window was resized: the resize lays the window out again,
+//  so the layout that called this has nothing left to place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiDialogWindow::GrowToContent (const RECT & content)
+bool DxuiDialogWindow::GrowToContent (const RECT & content)
 {
     HRESULT                 hr       = S_OK;
     IDxuiMeasuredContent  * measured = dynamic_cast<IDxuiMeasuredContent *> (m_content);
@@ -197,6 +201,7 @@ void DxuiDialogWindow::GrowToContent (const RECT & content)
     int                     needPx   = 0;
     bool                    ok       = false;
     bool                    clipped  = false;
+    bool                    grew     = false;
 
 
 
@@ -207,15 +212,11 @@ void DxuiDialogWindow::GrowToContent (const RECT & content)
     clipped = ok && needPx > content.bottom - content.top;
     BAIL_OUT_IF (!clipped, S_OK);
 
-    m_growing = true;
-
-    hr = FitHeightToContent();
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    m_growing = false;
+    hr   = GrowHeightBy (needPx - (int) (content.bottom - content.top));
+    grew = SUCCEEDED (hr);
 
 Error:
-    return;
+    return grew;
 }
 
 
@@ -229,8 +230,7 @@ Error:
 //  The caller's size came from an estimate made before the window had a
 //  renderer, and an estimate that runs short clips the text. Here the
 //  content measures itself at the width it was laid out at, and the window
-//  grows or shrinks by the difference, keeping its center where the caller
-//  put it. The work area's height is the ceiling.
+//  grows or shrinks by the difference.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,30 +240,91 @@ HRESULT DxuiDialogWindow::FitHeightToContent()
     IDxuiMeasuredContent  * measured = dynamic_cast<IDxuiMeasuredContent *> (m_content);
     IDxuiTextRenderer     * text     = GetTextRenderer();
     const IDxuiTheme      * theme    = GetTheme();
-    HWND                    hwnd     = GetHwnd();
     RECT                    content  = {};
-    RECT                    window   = {};
     int                     needPx   = 0;
-    int                     heightPx = 0;
-    int                     top      = 0;
     bool                    ok       = false;
-    HMONITOR                monitor  = nullptr;
-    MONITORINFO             mi       = { sizeof (mi) };
 
 
 
     BAIL_OUT_IF (measured == nullptr, S_OK);
-    CBR (text != nullptr && theme != nullptr && hwnd != nullptr);
+    CBR (text != nullptr && theme != nullptr);
 
     content = m_content->GetBounds();
     ok      = measured->TryMeasureHeightPx (*text, *theme, content.right - content.left, needPx);
     CBR (ok);
 
+    hr = ResizeHeightBy (needPx - (int) (content.bottom - content.top));
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialogWindow::GrowHeightBy
+//
+//  ResizeHeightBy for a positive delta only. The layouts the resize causes
+//  do not grow the window again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDialogWindow::GrowHeightBy (int deltaPx)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (deltaPx <= 0 || m_growing, S_OK);
+
+    m_growing = true;
+
+    hr = ResizeHeightBy (deltaPx);
+
+    m_growing = false;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDialogWindow::ResizeHeightBy
+//
+//  The window taller or shorter by deltaPx, keeping its center where the
+//  caller put it. The work area's height is the ceiling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiDialogWindow::ResizeHeightBy (int deltaPx)
+{
+    HRESULT      hr       = S_OK;
+    HWND         hwnd     = GetHwnd();
+    RECT         window   = {};
+    int          heightPx = 0;
+    int          top      = 0;
+    bool         ok       = false;
+    HMONITOR     monitor  = nullptr;
+    MONITORINFO  mi       = { sizeof (mi) };
+
+
+
+    CBR (hwnd != nullptr);
+    BAIL_OUT_IF (deltaPx == 0, S_OK);
+
     ok = GetWindowRect (hwnd, &window) != FALSE;
     CBR (ok);
 
-    heightPx = (window.bottom - window.top) + needPx - (content.bottom - content.top);
-    top      = window.top - (heightPx - (window.bottom - window.top)) / 2;
+    heightPx = (window.bottom - window.top) + deltaPx;
+    top      = window.top - deltaPx / 2;
     monitor  = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
 
     if (monitor != nullptr && GetMonitorInfoW (monitor, &mi))

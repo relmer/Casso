@@ -121,14 +121,22 @@ protected:
     //
     void  OnDialogShowing () override;
 
+    //
+    //  Grows the window by deltaPx, keeping its center, for content whose
+    //  painted height is more than the room it was given. Nothing happens
+    //  for a delta that is not positive, or while the window is growing.
+    //
+    HRESULT  GrowHeightBy (int deltaPx);
+
 
 private:
     HRESULT  FitHeightToContent ();
+    HRESULT  ResizeHeightBy     (int deltaPx);
 
     //  Grows the window when measured content is taller than `content`, its
-    //  rectangle in this layout. A layout the growing itself causes is not
-    //  checked again.
-    void     GrowToContent      (const RECT & content);
+    //  rectangle in this layout; true when the window was resized. A layout
+    //  the growing itself causes is not checked again.
+    bool     GrowToContent      (const RECT & content);
 
     struct ButtonEntry
     {
