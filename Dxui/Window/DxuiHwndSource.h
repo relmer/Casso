@@ -302,6 +302,14 @@ public:
     static void   ClampMinTrackToWorkArea (MINMAXINFO & info, const RECT & work, const RECT & border);
 
     //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). The rect a window takes on a DPI change: `newMonitor` for a
+    //  window that covered `oldMonitor` exactly, so fullscreen stays
+    //  fullscreen, and `suggested` for any other.
+    //
+    static RECT   GetDpiChangeRect (const RECT & window, const RECT & oldMonitor, const RECT & suggested, const RECT & newMonitor);
+
+    //
     //  NO WINDOW IS EVER LARGER THAN ITS MONITOR'S WORK AREA. Reduces the
     //  window to the work area on each axis, then shifts it inside, in one
     //  SetWindowPos; a window that already fits is left alone. Content that

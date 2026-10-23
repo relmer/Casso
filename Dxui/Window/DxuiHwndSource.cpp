@@ -113,6 +113,24 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiHwndSource::GetDpiChangeRect
+//
+//  Windows suggests the old rect scaled by the ratio of the two DPIs, rounded,
+//  so a window that covered its monitor rarely arrives covering the new one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiHwndSource::GetDpiChangeRect (const RECT & window, const RECT & oldMonitor, const RECT & suggested, const RECT & newMonitor)
+{
+    return EqualRect (&window, &oldMonitor) != FALSE ? newMonitor : suggested;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiHwndSource::NotifySystemButtonsMaximizedInTree
 //
 //  Recursively walks the control subtree and pushes the maximized
@@ -3718,6 +3736,9 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
     const RECT *  suggested   = reinterpret_cast<const RECT *> (lp);
     RECT          rcClient    = {};
     RECT          rect        = {};
+    RECT          window      = {};
+    MONITORINFO   oldInfo     = { sizeof (oldInfo) };
+    MONITORINFO   newInfo     = { sizeof (newInfo) };
 
 
 
@@ -3731,6 +3752,15 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
     if (suggested != nullptr && m_hwnd != nullptr)
     {
         rect = *suggested;
+
+        //  A fullscreen window covers the monitor it arrives on, which the
+        //  scaled suggested rect does not.
+        if (GetWindowRect (m_hwnd, &window) != FALSE &&
+            GetMonitorInfoW (MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST), &oldInfo) != FALSE &&
+            GetMonitorInfoW (MonitorFromRect (suggested, MONITOR_DEFAULTTONEAREST), &newInfo) != FALSE)
+        {
+            rect = GetDpiChangeRect (window, oldInfo.rcMonitor, *suggested, newInfo.rcMonitor);
+        }
 
         if (m_client != nullptr)
         {

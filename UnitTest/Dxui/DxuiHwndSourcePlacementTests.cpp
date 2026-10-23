@@ -441,6 +441,39 @@ public:
 
 
     //
+    //  A fullscreen window moved to a monitor at another DPI covers the new
+    //  monitor exactly. The suggested rect is the old one scaled by the ratio
+    //  of the two DPIs, which is not the new monitor's rect, so a fit to the
+    //  work area would shrink the window off the taskbar.
+    //
+    TEST_METHOD (AFullscreenWindowCoversTheMonitorItMovesTo)
+    {
+        RECT  oldMonitor = GetRect (0, 0, 1920, 1080);
+        RECT  newMonitor = GetRect (1920, 0, 5760, 2160);
+        RECT  suggested  = GetRect (1920, 0, 5760, 2161);
+        RECT  rect       = DxuiHwndSource::GetDpiChangeRect (oldMonitor, oldMonitor, suggested, newMonitor);
+
+
+        Assert::IsTrue (EqualRect (&rect, &newMonitor) != FALSE, L"the new monitor, exactly");
+    }
+
+
+    //
+    //  Any other window takes the suggested rect.
+    //
+    TEST_METHOD (AWindowedWindowTakesTheSuggestedRect)
+    {
+        RECT  oldMonitor = GetRect (0, 0, 1920, 1080);
+        RECT  newMonitor = GetRect (1920, 0, 5760, 2160);
+        RECT  suggested  = GetRect (2120, 200, 3720, 1400);
+        RECT  rect       = DxuiHwndSource::GetDpiChangeRect (GetRect (100, 100, 900, 700), oldMonitor, suggested, newMonitor);
+
+
+        Assert::IsTrue (EqualRect (&rect, &suggested) != FALSE, L"the suggested rect");
+    }
+
+
+    //
     //  The debugger's 520 DIP minimum height is 1040 px at 200%, taller than
     //  a 1080p screen's 1040-line work area once the window's invisible
     //  border is counted against it. The minimum yields to the work area;
