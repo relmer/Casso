@@ -63,10 +63,11 @@ public:
     }
 
     //  A nibble the CPU took, with the drive's count of nibbles assembled: a
-    //  count more than one past the last read's means the CPU missed some.
+    //  count more than one past the last read's means the CPU missed some. A
+    //  count below it is one a soft reset started again, which is no gap.
     void      AddRead        (int drive, Byte nibble, Byte flags, Word address, uint64_t assembled)
     {
-        Byte  gap = (assembled - m_lastAssembled[drive] > 1) ? kAfterGap : 0;
+        Byte  gap = (assembled > m_lastAssembled[drive] + 1) ? kAfterGap : 0;
 
 
 

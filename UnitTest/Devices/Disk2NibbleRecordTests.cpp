@@ -182,6 +182,26 @@ namespace Disk2NibbleRecordTests
             Assert::AreEqual (added, flagged, L"every one of them after a missed one");
         }
 
+        //  A soft reset starts the drive's count of nibbles assembled again:
+        //  the first read after it is no gap, and a nibble missed after that
+        //  is.
+        TEST_METHOD (TheFirstReadAfterTheCountStartsAgainIsNotFlagged)
+        {
+            Disk2NibbleRecord  record;
+
+
+
+            record.AddRead (0, 0x96, 0, 0x0300, 50000);
+            record.AddRead (0, 0x97, 0, 0x0300, 50001);
+            record.AddRead (0, 0xD5, 0, 0x0300, 1);
+
+            Assert::AreEqual ((Byte) 0, (Byte) (record.GetEntry (record.GetCount() - 1).flags & Disk2NibbleRecord::kAfterGap), L"no gap at the restart");
+
+            record.AddRead (0, 0xAA, 0, 0x0300, 3);
+
+            Assert::AreNotEqual ((Byte) 0, (Byte) (record.GetEntry (record.GetCount() - 1).flags & Disk2NibbleRecord::kAfterGap), L"a nibble missed after it");
+        }
+
         TEST_METHOD (ANibbleDuringTheSpinUpIsFlagged)
         {
             Rig       rig;
