@@ -750,15 +750,17 @@ bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string 
 //  BreakpointHistory::TryRebuild
 //
 //  The table entry a definition makes, from adding it to the session and
-//  removing it again. A definition that makes other than one entry fails.
+//  removing it again. The tables are emptied first, since a BRK, BRKINT,
+//  BRKBASIC or BRKOP definition adds to the entry of its kind already set
+//  rather than making one; every entry is put back afterward under its own
+//  id. A definition that makes other than one entry fails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BreakpointHistory::TryRebuild (DebugSession & session, const std::string & definition, BreakpointInfo & info, Saved & saved)
 {
-    std::map<int, BreakpointInfo>  before = ListById (session);
+    std::map<int, Saved>           before = SaveAll (session);
     std::map<int, BreakpointInfo>  after;
-    std::vector<int>               added;
     int                            nextId = session.GetNextId();
     AppleWinParseResult            parsed = AppleWinParser::Parse (definition, session);
     bool                           isOk   = false;
@@ -770,32 +772,34 @@ bool BreakpointHistory::TryRebuild (DebugSession & session, const std::string & 
         return false;
     }
 
-    //  The same breakpoint may be set already, as one an undo puts back is.
-    parsed.command.isDuplicateAllowed = true;
+    for (const auto & [id, each] : before)
+    {
+        session.GetBreakpoints().TryClear (id);
+        session.GetWatchpoints().TryClear (id);
+    }
 
     (void) session.Execute (parsed.command);
     after = ListById (session);
 
-    for (const auto & [id, each] : after)
-    {
-        if (!before.contains (id))
-        {
-            added.push_back (id);
-        }
-    }
-
-    isOk = added.size() == 1 && BreakpointHandlers::TrySave (session, added[0], saved);
+    isOk = after.size() == 1 && BreakpointHandlers::TrySave (session, after.begin()->first, saved);
 
     if (isOk)
     {
-        info = after[added[0]];
+        info = after.begin()->second;
     }
 
-    for (int id : added)
+    for (const auto & [id, each] : after)
     {
-        BreakpointHandlers::Remove (session, id);
+        session.GetBreakpoints().TryClear (id);
+        session.GetWatchpoints().TryClear (id);
     }
 
+    for (const auto & [id, each] : before)
+    {
+        BreakpointHandlers::Replace (session, id, each);
+    }
+
+    session.OnStopConditionsChanged();
     session.SetNextId (nextId);
     return isOk;
 }

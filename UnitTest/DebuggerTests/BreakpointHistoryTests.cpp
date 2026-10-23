@@ -391,6 +391,30 @@ namespace BreakpointHistoryTests
         }
 
 
+        //  A BRK, BRKINT, BRKBASIC or BRKOP definition adds to the entry of
+        //  its kind already set; reading the history rebuilds its steps
+        //  without touching that entry or losing the history.
+        TEST_METHOD (ReadingTheHistoryLeavesTheBreakpointsAsTheyAre)
+        {
+            HistoryRig   first;
+            HistoryRig   second;
+            std::string  text;
+
+
+
+            first.Run ("BRK ON");
+            first.Step ({ DebuggerActions::GetEnableBreakpoint (0, false, CommandMode::AppleWin) });
+            text = first.view.GetBreakpointUndoText();
+
+            second.Run ("BRK ON IF X == 2");
+            second.view.SetBreakpointUndoText (second.controller.GetSession(), text);
+
+            Assert::AreEqual ((size_t) 1, second.List().size());
+            Assert::AreEqual (std::string ("BRK ON IF X == 2"), BreakpointHandlers::MakeDefinition (second.List().at (0)), L"the condition set");
+            Assert::IsTrue   (second.CanUndo(), L"and the history read");
+        }
+
+
         TEST_METHOD (TextThatDoesNotParseGivesNoHistory)
         {
             HistoryRig  rig;
