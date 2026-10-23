@@ -1258,6 +1258,40 @@ SIZE DxuiPropertySheet::GetMaxClientSizePx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetTabsWidthPx
+//
+//  The strip width every tab fits in: the tabs edge to edge with the
+//  content pad on both sides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPropertySheet::GetTabsWidthPx() const
+{
+    std::vector<DxuiSheetTab>  measure;
+    std::vector<RECT>          rects;
+    int                        right = 0;
+    size_t                     i     = 0;
+
+
+
+    MeasureTabs (measure);
+    rects.resize (measure.size());
+    LayoutTabRects ({ 0, 0, 0, 0 }, m_lastScaler, measure, rects);
+
+    for (i = 0; i < rects.size(); ++i)
+    {
+        right = std::max (right, (int) rects[i].right);
+    }
+
+    return right + m_lastScaler.ToPx (s_kContentPadDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TryGetMaxClientSizePx
 //
 //  None until the pages have been laid out and reported their extents.
@@ -1272,6 +1306,31 @@ bool DxuiPropertySheet::TryGetMaxClientSizePx (SIZE & outSizePx) const
     }
 
     outSizePx = GetMaxClientSizePx();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryGetMaxTrackSizePx
+//
+//  The largest client size, widened to fit every tab: a sheet whose tabs
+//  scroll at its opening width can be dragged wider until every tab fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPropertySheet::TryGetMaxTrackSizePx (SIZE & outSizePx) const
+{
+    if (!m_haveLayout)
+    {
+        return false;
+    }
+
+    outSizePx    = GetMaxClientSizePx();
+    outSizePx.cx = std::max (outSizePx.cx, (LONG) GetTabsWidthPx());
     return true;
 }
 

@@ -389,6 +389,7 @@ public:
     {
     public:
         ExtentPage *  AddExtentPage (int widthPx, int heightPx) { return CreatePage<ExtentPage> (L"Page", widthPx, heightPx); }
+        bool          GetMaxTrackSizePx (SIZE & outSizePx) const { return TryGetMaxTrackSizePx (outSizePx); }
     };
 
 
@@ -461,6 +462,56 @@ public:
 
         Assert::AreEqual (expected.cx, actual.cx);
         Assert::AreEqual (expected.cy, actual.cy);
+    }
+
+
+    //  Tabs wider than the sheet widen the drag limit to fit them all, but
+    //  not the size the sheet opens at. With no text renderer each tab is at
+    //  its minimum width.
+    TEST_METHOD (MaxTrackSize_WidensToFitEveryTab)
+    {
+        static constexpr int  kTabCount = 20;
+
+        ExtentSheet  sheet;
+        SIZE         client = {};
+        SIZE         track  = {};
+        int          i      = 0;
+
+
+
+        for (i = 0; i < kTabCount; ++i)
+        {
+            sheet.AddExtentPage (kNarrowPx, kShortPagePx);
+        }
+
+        sheet.LayOut();
+
+        client = sheet.GetMaxClientSizePx();
+        Assert::IsTrue (sheet.GetMaxTrackSizePx (track));
+
+        Assert::AreEqual (kTabCount * DxuiPropertySheet::kTabMinWidthDip + DxuiButtonRow::kEdgePadDip * 2, (int) track.cx);
+        Assert::IsTrue   (client.cx < track.cx, L"the opening size does not widen for the tabs");
+        Assert::AreEqual (client.cy, track.cy);
+    }
+
+
+    //  Tabs that fit add nothing to the drag limit.
+    TEST_METHOD (MaxTrackSize_IsTheMaxClientSizeWhenTheTabsFit)
+    {
+        ExtentSheet  sheet;
+        SIZE         client = {};
+        SIZE         track  = {};
+
+
+
+        sheet.AddExtentPage (kWidePx, kShortPagePx);
+        sheet.LayOut();
+
+        client = sheet.GetMaxClientSizePx();
+        Assert::IsTrue (sheet.GetMaxTrackSizePx (track));
+
+        Assert::AreEqual (client.cx, track.cx);
+        Assert::AreEqual (client.cy, track.cy);
     }
 
 

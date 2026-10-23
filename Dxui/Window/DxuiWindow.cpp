@@ -918,7 +918,7 @@ DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
         result = DxuiMessageResult::Handled;
     }
 
-    if (TryGetMaxClientSizePx (maxPx))
+    if (TryGetMaxTrackSizePx (maxPx))
     {
         info->ptMaxTrackSize.x = std::max (maxPx.cx, info->ptMinTrackSize.x);
         info->ptMaxTrackSize.y = std::max (maxPx.cy, info->ptMinTrackSize.y);

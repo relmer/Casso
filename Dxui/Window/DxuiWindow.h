@@ -325,6 +325,12 @@ protected:
     virtual bool  TryGetMaxClientSizePx (SIZE & outSizePx) const { UNREFERENCED_PARAMETER (outSizePx); return false; }
 
     //
+    //  The drag limit, when it differs from the size the window opens at.
+    //  Default TryGetMaxClientSizePx.
+    //
+    virtual bool  TryGetMaxTrackSizePx (SIZE & outSizePx) const { return TryGetMaxClientSizePx (outSizePx); }
+
+    //
     //  Modal in-content overlay (e.g. the Settings color picker). While
     //  HasModalOverlay() returns true the window paints PaintModalOverlay on
     //  top of the whole page every frame and routes ALL mouse / char / key

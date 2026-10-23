@@ -204,6 +204,7 @@ protected:
     bool  OnDialogTabSwitch (bool backward) override;
     void  OnDialogKeyHandled (IDxuiControl * focused) override;
     bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
+    bool  TryGetMaxTrackSizePx  (SIZE & outSizePx) const override;
 
     //
     //  Commit hooks (Template Method). The button row calls these so a
@@ -231,6 +232,7 @@ private:
     int   PageIndexOfTab      (int tabIndex) const;
     void  BuildTabList        (std::vector<DxuiTabStrip::Tab> & out) const;
     void  MeasureTabs         (std::vector<DxuiSheetTab> & out) const;
+    int   GetTabsWidthPx      () const;
 
     void                LayoutPages                (const RECT & pageAreaPx, const DxuiDpiScaler & scaler);
     void                PlacePages                 (const DxuiDpiScaler & scaler);
