@@ -211,6 +211,29 @@ namespace DebuggerFindWidgetPerPaneTests
         }
 
 
+        //  A project with nothing saved for a pane's find starts that pane's
+        //  widget over: the last project's searches are not this one's.
+        TEST_METHOD (AProjectWithNoSavedFindClearsTheWidgetsHistory)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            PaneFindHost    host;
+            PaneFindWindow  window (theme, host);
+
+
+
+            window.Build();
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
+            window.Press ('F', true);
+            window.Type  (L"sta");
+            Assert::IsTrue (window.Press (VK_RETURN), L"Enter finds");
+            Assert::IsFalse (window.GetFindWidgets().GetHistory (DebuggerLayout::kConsole).empty(), L"the search is in the history");
+
+            window.GetFindWidgets().LoadSaved (L"");
+
+            Assert::IsTrue (window.GetFindWidgets().GetHistory (DebuggerLayout::kConsole).empty(), L"another project's history is gone");
+        }
+
+
         //  A document closed with its find open is out of sight, and F3 from
         //  a pane with no find widget finds in the console instead of in the
         //  hidden document's text.

@@ -1359,9 +1359,24 @@ void FindWidgetSet::LoadSaved (const std::wstring & text)
         m_saved[parts[0]] = std::move (saved);
     }
 
+    //  A widget the project saved nothing for starts over, so one project's
+    //  options and searches are not saved into another's.
     for (auto & [pane, widget] : m_widgets)
     {
-        ApplySaved (pane, widget);
+        if (m_saved.contains (pane))
+        {
+            ApplySaved (pane, widget);
+        }
+        else
+        {
+            widget.matchCase = false;
+            widget.wholeWord = false;
+            widget.isRegex   = false;
+            widget.history.clear();
+            widget.historyAt = -1;
+
+            ShowOptions (widget);
+        }
     }
 }
 
