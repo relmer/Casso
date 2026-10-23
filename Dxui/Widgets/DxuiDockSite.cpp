@@ -2101,7 +2101,10 @@ void DxuiDockSite::ClearStripTarget()
 //  DxuiDockSite::DropOnStrip
 //
 //  The dragged panes go into the group ahead of the tab at `index`, in their
-//  order, and the pane dragged is the one shown.
+//  order, and the pane dragged is made the active tab. `index` counts the
+//  visible tabs, while the layout's group also has the hidden panes, so the
+//  drop goes ahead of that tab's pane, or after the last tab's, wherever it
+//  is in the whole group.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2109,9 +2112,11 @@ bool DxuiDockSite::DropOnStrip (int group, int index)
 {
     DxuiTabGroup               * target  = (group >= 0 && group < (int) m_groups.size()) ? m_groups[(size_t) group].get() : nullptr;
     std::wstring                 anchor;
+    std::wstring                 edge;
     std::vector<std::wstring>    panes;
     bool                         changed = false;
-    int                          at      = index;
+    int                          tabs    = 0;
+    int                          at      = 0;
 
 
 
@@ -2134,6 +2139,11 @@ bool DxuiDockSite::DropOnStrip (int group, int index)
     {
         return false;
     }
+
+    tabs  = (int) target->GetTabCount();
+    edge  = GetPaneOf (target->GetContent (std::clamp (index, 0, tabs - 1)));
+    panes = m_layout.GetGroup (anchor);
+    at    = (int) (std::find (panes.begin(), panes.end(), edge) - panes.begin()) + ((index >= tabs) ? 1 : 0);
 
     for (const std::wstring & pane : m_dragPanes)
     {

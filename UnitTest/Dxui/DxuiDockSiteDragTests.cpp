@@ -262,6 +262,57 @@ namespace DxuiDockSiteDragTests
         }
 
 
+        //  The strip has tabs for the visible panes only, and a drop past its
+        //  last tab lands after that tab in the layout's group, past a hidden
+        //  pane between the tabs.
+        TEST_METHOD (ADropPastTheLastTabLandsAfterItAmongHiddenPanes)
+        {
+            DxuiDockSite     site;
+            MockDxuiControl  code;
+            MockDxuiControl  hidden;
+            MockDxuiControl  regs;
+            MockDxuiControl  console;
+            DxuiDpiScaler    scaler;
+            DxuiPaneLayout   layout  = DxuiPaneLayout::MakeSingle (L"code");
+            DxuiTabGroup   * strip   = nullptr;
+            RECT             last    = {};
+            POINT            at      = {};
+
+
+
+            layout.Add        (L"hidden",  L"code");
+            layout.Add        (L"regs",    L"code");
+            layout.Add        (L"console", L"");
+            layout.DockToSide (L"console", L"code", DxuiDockSide::Bottom);
+
+            site.AddPane    (L"code",    L"Disassembly", &code);
+            site.AddPane    (L"hidden",  L"Hidden",      &hidden);
+            site.AddPane    (L"regs",    L"Registers",   &regs);
+            site.AddPane    (L"console", L"Console",     &console);
+            site.SetShownFn ([] (const std::wstring & pane) { return pane != L"hidden"; });
+            site.SetPaneLayout (layout);
+            site.Layout (RECT { 0, 0, 1000, 600 }, scaler);
+
+            for (size_t i = 0; i < site.GetGroupCount() && strip == nullptr; i++)
+            {
+                strip = (site.GetGroup (i)->IndexOf (&regs) >= 0) ? site.GetGroup (i) : nullptr;
+            }
+
+            Assert::IsNotNull (strip, L"a group with the registers");
+            Assert::AreEqual  ((size_t) 2, strip->GetTabCount(), L"the hidden pane has no tab");
+
+            last = strip->GetTabRect (1);
+            at   = POINT { last.right + 40, Center (last).y };
+
+            site.BeginDrag (L"console");
+            site.OnMouse (Mouse (DxuiMouseEventKind::Move, at));
+            Assert::AreEqual (2, site.GetStripTargetIndex());
+            site.OnMouse (Mouse (DxuiMouseEventKind::Up, at));
+
+            Assert::IsTrue (site.GetPaneLayout().GetGroup (L"code") == std::vector<std::wstring> { L"code", L"hidden", L"regs", L"console" });
+        }
+
+
         //  A group dropped on a strip goes in whole, after the last tab when
         //  dropped past it.
         TEST_METHOD (AGroupDroppedOnAStripGoesInWhole)

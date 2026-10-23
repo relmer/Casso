@@ -1873,7 +1873,7 @@ Not reviewed here: replay determinism, SC-008's speed budget and the scenario su
 - [ ] T1057 C26800 use of a moved-from `width` fails the merge gate's code analysis; also run the analysis over Casso, CassoCli and UnitTest, which the sweep did not cover (DebuggerPaneFrame.cpp:37) Partly done: SetPartBeside copies width to each part it matches instead of moving it, which clears C26800. Running the analysis over Casso, CassoCli and UnitTest waits for the pre-merge gate.
 - [ ] T1058 ToText writes an auto-hidden pane as only `hide pane edge home` (DxuiPaneLayout.cpp:2079)
 - [ ] T1059 A sash drag (m_sashDrag) ends only when the site receives an Up event (DxuiDockSite.cpp:2992)
-- [ ] T1060 DropOnStrip passes the strip's insert index straight to DxuiPaneLayout::TabWithAt (DxuiDockSite.cpp:2140)
+- [X] T1060 DropOnStrip passes the strip's insert index straight to DxuiPaneLayout::TabWithAt (DxuiDockSite.cpp:2140) Done: DropOnStrip turns the strip's index into the layout group's: ahead of the pane of the visible tab at that index, or after the last tab's pane, wherever it is among the hidden panes.
 - [X] T1061 QueryCommand enables Select all only when `!m_rows.empty()` (DxuiListView.cpp:3874) Done: QueryCommand enables Select all when GetRowCount() is above zero, which counts a provider's rows.
 - [ ] T1062 SetColumnFiltered clears m_measuredWPx without calling RequeueFitTexts, unlike SetColumns and ResetAutoFit (DxuiListView.cpp:3130)
 - [ ] T1063 In a multi-select list, a Ctrl+click that deselects a row reverses itself on release (DxuiListView.cpp:4311)
