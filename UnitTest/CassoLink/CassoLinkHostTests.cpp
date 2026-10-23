@@ -609,9 +609,13 @@ public:
 
         for (const char * name : { "COM1", "con", "NUL.DSK", "LPT1", "disk." })
         {
-            Assert::IsFalse (SUCCEEDED (folder.Read (name, bytes)),        L"a device or an invalid name is not read");
-            Assert::IsFalse (SUCCEEDED (folder.Write (name, { 1, 2, 3 })), L"or written");
-            Assert::IsFalse (SUCCEEDED (folder.ChangeDirectory (name)),    L"or changed into");
+            HRESULT  hrRead  = folder.Read (name, bytes);
+            HRESULT  hrWrite = folder.Write (name, { 1, 2, 3 });
+            HRESULT  hrCd    = folder.ChangeDirectory (name);
+
+            Assert::IsTrue (FAILED (hrRead),  L"a device or an invalid name is not read");
+            Assert::IsTrue (FAILED (hrWrite), L"or written");
+            Assert::IsTrue (FAILED (hrCd),    L"or changed into");
         }
 
         Assert::IsTrue (fileIo.files.empty(), L"nothing was written");
