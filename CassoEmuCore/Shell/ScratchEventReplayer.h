@@ -217,15 +217,28 @@ private:
 
     //  The stretches, newest first, each passed to onStretch when done. An
     //  abandoned job passes nothing more; a stretch that fails is passed with
-    //  its hr and ends the job.
+    //  its hr and ends the job. A scratch machine that does not build fails
+    //  the first stretch.
     HRESULT  Run (const DebugEventJob & job, const std::function<void (DebugEventStretchResult<T> &&)> & onStretch)
     {
-        HRESULT                     hr = S_OK;
+        HRESULT                     hr      = S_OK;
+        bool                        isBuilt = false;
         DebugEventStretchResult<T>  result;
 
 
 
-        hr = m_scratch.Build();
+        hr      = m_scratch.Build();
+        isBuilt = SUCCEEDED (hr);
+
+        if (!isBuilt && !job.stretches.empty())
+        {
+            result.generation    = job.generation;
+            result.startPosition = job.stretches.front().startPosition;
+            result.endPosition   = job.stretches.front().endPosition;
+            result.hr            = hr;
+            onStretch (std::move (result));
+        }
+
         CHR (hr);
 
         m_scratch.GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);

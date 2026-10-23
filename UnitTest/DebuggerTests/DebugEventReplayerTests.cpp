@@ -250,6 +250,33 @@ namespace DebugEventReplayerTests
         }
 
 
+        //  A stretch that fails ends its job, so the stretches after it never
+        //  come; a later request sends them again.
+        TEST_METHOD (AFailedStretchFreesTheRestOfItsJob)
+        {
+            Rig                          rig;
+            DebugEventStretchResult<int> failed;
+
+
+
+            (void) rig.replayer.Request (250, 850);
+            Assert::AreEqual ((size_t) 1, rig.runner.submitted.size());
+
+            rig.runner.Finish (1);
+
+            failed.generation    = rig.runner.submitted.back()->generation;
+            failed.startPosition = rig.runner.submitted.back()->stretches[1].startPosition;
+            failed.endPosition   = rig.runner.submitted.back()->stretches[1].endPosition;
+            failed.hr            = HRESULT_FROM_WIN32 (ERROR_INVALID_DATA);
+            rig.runner.results.push_back (std::move (failed));
+
+            (void) rig.replayer.Pump();
+
+            (void) rig.replayer.Request (0, 150);
+            Assert::AreEqual ((size_t) 2, rig.runner.submitted.size(), L"the stretches the failed job never reached are sent again");
+        }
+
+
         TEST_METHOD (RebuiltStretchesAreReused)
         {
             Rig  rig;
