@@ -165,6 +165,42 @@ namespace DebuggerTests
 
 
 
+        //  A routine that pushes more than half the stack runs on until it
+        //  returns: its pushes, its pulls and its RTS are billed to it.
+        TEST_METHOD (ARoutineThatPushesMostOfTheStackRunsUntilItReturns)
+        {
+            static constexpr Byte  kPha    = 0x48;
+            static constexpr int   kPushes = 200;
+
+            Feed  feed;
+            Byte  sp   = 0xFD;
+            int   node = 0;
+
+
+
+            feed.Run (0x0300, RoutineProfile::kJsr, 6, sp);
+
+            for (int i = 0; i < kPushes; i++)
+            {
+                feed.Run (0x0500, kPha, 3, --sp);
+            }
+
+            for (int i = 0; i < kPushes; i++)
+            {
+                feed.Run (0x0501, kPla, 4, ++sp);
+            }
+
+            feed.Run (0x0502, kRts, 6, 0xFF);
+            feed.Run (0x0303, kLda, 2, 0xFF);
+
+            node = FindNode (feed.profile, 0x0500);
+
+            Assert::AreEqual ((uint64_t) (kPushes * 3 + kPushes * 4 + 6), feed.profile.GetNodes()[(size_t) node].self, L"every push, pull and the RTS");
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[0].self, L"the JSR and the LDA after the return");
+        }
+
+
+
         TEST_METHOD (AnInterruptAndABrkAreRoutinesOfTheirOwn)
         {
             Feed  feed;

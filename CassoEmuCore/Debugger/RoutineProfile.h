@@ -115,10 +115,11 @@ public:
     std::vector<uint64_t>  GetRoutineTotals () const;
 
 private:
+    //  returnDepth is m_depth at the frame's return point.
     struct Active
     {
-        int   node     = 0;
-        Byte  returnSp = 0;
+        int      node        = 0;
+        int64_t  returnDepth = 0;
     };
 
     struct Pending
@@ -130,12 +131,10 @@ private:
     size_t  FindRoutine  (Word address, RoutineKind kind);
     int     FindChild    (int parent, size_t routine);
     void    Begin        (Word pc);
-    void    EndReturned  (Byte sp);
+    void    EndReturned  ();
     void    AddToFrame   (size_t routine, uint64_t cycles, uint64_t startCycle, uint64_t cyclesPerFrame);
 
-    //  Whether the stack pointer is at or above the frame's return point,
-    //  modulo the page: a frame uses far less than half the stack.
-    static bool  HasReturned (Byte returnSp, Byte sp);
+    static int64_t  GetSpDrop (Byte from, Byte to);
 
     //  The frames joined into bars of bucket frames each, in order.
     static void  Rebucket    (std::deque<Frame> & frames, uint64_t bucket);
@@ -149,6 +148,7 @@ private:
     std::optional<Pending>                  m_pending;
     std::deque<Frame>                       m_frames;
     Byte                                    m_lastSp      = 0xFF;
+    int64_t                                 m_depth       = 0;      // the stack's fall since the start, unwrapped, so a deep frame is not taken for a return
     bool                                    m_isAllFrames = false;
     uint64_t                                m_bucket      = 1;      // frames a bar covers, with m_isAllFrames
 };

@@ -41,6 +41,7 @@ void RoutineProfile::Reset()
     m_frames.clear();
     m_pending.reset();
     m_lastSp = 0xFF;
+    m_depth  = 0;
     m_bucket = 1;
 
     (void) FindRoutine (0, RoutineKind::Top);
@@ -77,7 +78,8 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
     m_nodes[(size_t) node].self += cycles;
     AddToFrame (m_nodes[(size_t) node].routine, cycles, startCycle, cyclesPerFrame);
 
-    EndReturned (spAfter);
+    m_depth += GetSpDrop (m_lastSp, spAfter);
+    EndReturned();
 
     if (opcode == kJsr)
     {
@@ -143,7 +145,7 @@ void RoutineProfile::Begin (Word pc)
     }
 
     m_nodes[(size_t) node].calls++;
-    m_stack.push_back (Active { node, m_pending->returnSp });
+    m_stack.push_back (Active { node, m_depth + GetSpDrop (m_lastSp, m_pending->returnSp) });
     m_pending.reset();
 }
 
@@ -155,11 +157,13 @@ void RoutineProfile::Begin (Word pc)
 //
 //  RoutineProfile::EndReturned
 //
+//  The frames whose return point the stack has risen to or past.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void RoutineProfile::EndReturned (Byte sp)
+void RoutineProfile::EndReturned()
 {
-    while (!m_stack.empty() && HasReturned (m_stack.back().returnSp, sp))
+    while (!m_stack.empty() && m_depth <= m_stack.back().returnDepth)
     {
         m_stack.pop_back();
     }
@@ -171,17 +175,17 @@ void RoutineProfile::EndReturned (Byte sp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RoutineProfile::HasReturned
+//  RoutineProfile::GetSpDrop
+//
+//  How far the stack pointer went down from `from` to `to`, negative when it
+//  went up. One instruction moves it a few bytes at most, so the change is
+//  read as a signed byte; only a TXS can move it further.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RoutineProfile::HasReturned (Byte returnSp, Byte sp)
+int64_t RoutineProfile::GetSpDrop (Byte from, Byte to)
 {
-    Byte  depth = (Byte) (returnSp - sp);
-
-
-
-    return depth == 0 || depth > 0x80;
+    return (int8_t) (Byte) (from - to);
 }
 
 
