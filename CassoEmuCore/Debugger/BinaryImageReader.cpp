@@ -241,6 +241,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
     uint32_t                  base          = 0;
     bool                      noAddress     = !address.has_value();
     bool                      hasData       = false;
+    bool                      isEnd         = false;
 
 
 
@@ -248,20 +249,23 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
 
     SplitLines (content, lines);
 
-    for (const std::string & line : lines)
+    //  Nothing after the end-of-file record is read, so a DOS Ctrl-Z or a
+    //  tool's padding after it does not fail the load.
+    for (size_t i = 0; i < lines.size() && !isEnd; i++)
     {
-        std::vector<Byte>  bytes;
-        uint8_t            sum       = 0;
-        size_t             count     = 0;
-        uint32_t           offset    = 0;
-        Byte               type      = 0;
-        bool               isRecord  = line.size() >= kMinRecord && line[0] == ':';
-        bool               isHex     = false;
-        bool               isWhole   = false;
-        bool               isSummed  = false;
-        bool               isInRange = false;
-        bool               isSized   = false;
-        size_t             wanted    = 0;
+        const std::string  & line      = lines[i];
+        std::vector<Byte>    bytes;
+        uint8_t              sum       = 0;
+        size_t               count     = 0;
+        uint32_t             offset    = 0;
+        Byte                 type      = 0;
+        bool                 isRecord  = line.size() >= kMinRecord && line[0] == ':';
+        bool                 isHex     = false;
+        bool                 isWhole   = false;
+        bool                 isSummed  = false;
+        bool                 isInRange = false;
+        bool                 isSized   = false;
+        size_t               wanted    = 0;
 
 
 
@@ -304,6 +308,7 @@ HRESULT BinaryImageReader::ReadIntelHex (std::span<const Byte> content, std::opt
             break;
 
         case 0x01:
+            isEnd = true;
             break;
 
         case 0x02: base = (((uint32_t) bytes[4] << kByteBits) | bytes[5]) << kSegmentShift; break;

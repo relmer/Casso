@@ -90,6 +90,24 @@ namespace DebuggerTests
 
 
 
+        //  Nothing after the end-of-file record is read: a DOS Ctrl-Z, or any
+        //  padding a tool writes after it.
+        TEST_METHOD (IntelHex_StopsAtTheEndOfFileRecord)
+        {
+            for (const char * file : { ":01030000EA12\n:00000001FF\n\x1A",
+                                       ":01030000EA12\n:00000001FF\nnot a record\n" })
+            {
+                BinaryImage  image = ReadOk (Bytes (file), BinaryFormat::IntelHex, std::nullopt);
+
+
+
+                Assert::AreEqual ((size_t) 1, image.segments.size());
+                Assert::AreEqual ((Byte) 0xEA, image.segments[0].bytes[0]);
+            }
+        }
+
+
+
         TEST_METHOD (SRecord_Checksums_Segments_Entry)
         {
             static constexpr const char * kFile =
