@@ -619,21 +619,23 @@ HRESULT DebugEventLogs::RebuildIoBefore (
 {
     using Clock = std::chrono::steady_clock;
 
-    HRESULT                                         hr      = S_OK;
-    std::vector<DebugEventBounds>                   stretches;
-    std::vector<DebugEventBounds>                   batch;
-    std::vector<DebugEventStretchResult<IoEvent>>   results;
-    std::vector<DebugEventEntry<IoEvent>>           older;
-    std::vector<DebugEventEntry<IoEvent>>           chunk;
-    DebugEventJob                                   job;
-    Clock::time_point                               began   = Clock::now();
-    size_t                                          next    = 0;
-    size_t                                          found   = 0;
-    size_t                                          k       = 0;
-    size_t                                          first   = 0;
-    size_t                                          s       = 0;
-    uint64_t                                        reached = before;
-    bool                                            isLate  = false;
+    HRESULT                                        hr         = S_OK;
+    std::vector<DebugEventBounds>                  stretches;
+    std::vector<DebugEventBounds>                  batch;
+    std::vector<DebugEventStretchResult<IoEvent>>  results;
+    std::vector<DebugEventEntry<IoEvent>>          older;
+    std::vector<DebugEventEntry<IoEvent>>          chunk;
+    DebugEventJob                                  job;
+    Clock::time_point                              began      = Clock::now();
+    size_t                                         next       = 0;
+    size_t                                         found      = 0;
+    size_t                                         k          = 0;
+    size_t                                         first      = 0;
+    size_t                                         s          = 0;
+    uint64_t                                       reached    = before;
+    bool                                           isLate     = false;
+    bool                                           isFailed   = false;
+    bool                                           hasResults = false;
 
 
 
@@ -649,7 +651,7 @@ HRESULT DebugEventLogs::RebuildIoBefore (
     log.replayer.Cancel();
     log.runner.WaitForWork();
 
-    while (next > 0 && found < targetCount && reached > from && !isLate)
+    while (next > 0 && found < targetCount && reached > from && !isLate && !isFailed)
     {
         batch.clear();
         chunk.clear();
@@ -670,14 +672,20 @@ HRESULT DebugEventLogs::RebuildIoBefore (
         CHR (hr);
 
         hr = log.runner.Rebuild (job, results);
-        CHR (hr);
+
+        //  A stretch that fails ends the job: the stretches rebuilt before it
+        //  are listed, it is an Unavailable entry, and the listing stops there.
+        isFailed   = FAILED (hr);
+        hasResults = !results.empty();
+        CBREx (!isFailed || hasResults, hr);
+        hr = S_OK;
 
         //  The results are newest first; the chunk is built oldest first.
         for (k = results.size(); k > 0; k--)
         {
             const DebugEventStretchResult<IoEvent>  & result = results[k - 1];
 
-            if (result.isUnavailable)
+            if (result.isUnavailable || FAILED (result.hr))
             {
                 chunk.push_back ({ DebugEventEntryKind::Unavailable, std::max (result.startPosition, from), 0, IoEvent {} });
             }
