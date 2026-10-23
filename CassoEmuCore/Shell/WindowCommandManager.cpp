@@ -1370,7 +1370,9 @@ void WindowCommandManager::GetRecentMedia (MediaFilter isWanted, std::vector<Dis
                                                                  m_shell.m_settings->GetPrefs().recentDiskLoadedAt);
     std::vector<DiskMru::Entry>  existing   = mru.Prune ([] (const std::filesystem::path & p)
                                                          {
-                                                             return std::filesystem::exists (p)
+                                                             std::error_code  ignore;
+
+                                                             return std::filesystem::exists (p, ignore)
                                                                     && !AssetBootstrap::IsForeignCheckoutDisk (p);
                                                          });
     Win32FileSystem              fileSystem;

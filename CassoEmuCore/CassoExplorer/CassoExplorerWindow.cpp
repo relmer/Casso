@@ -10035,8 +10035,10 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                     std::none_of (entries.begin(), entries.end(), [] (const FileEntry & entry) { return entry.isDirectory; }) &&
                     GetTempPathW (MAX_PATH, temp) != 0)
                 {
+                    std::error_code  ignore;
+
                     step.savedDir = std::format (L"{}CassoExplorerUndo\\{}", temp, GetTickCount64());
-                    std::filesystem::create_directories (step.savedDir);
+                    std::filesystem::create_directories (step.savedDir, ignore);
                 }
 
                 if (!step.savedDir.empty() && !m_actions.GetSelected (step.savedDir, HostFileNaming::Style::AppleSingle).Succeeded())

@@ -3251,6 +3251,7 @@ HRESULT Win32ShellItemVerbs::DropVirtualFiles (IDataObject * data, IShellItem * 
     std::vector<std::wstring>    names;
     POINTL                       point   = {};
     DWORD                        effect  = DROPEFFECT_COPY;
+    std::error_code              ignore;
 
 
 
@@ -3262,7 +3263,7 @@ HRESULT Win32ShellItemVerbs::DropVirtualFiles (IDataObject * data, IShellItem * 
     for (UINT i = 0; group != nullptr && i < group->cItems; i++)
     {
         names.push_back ((std::filesystem::path (folder) / group->fgd[i].cFileName).wstring());
-        existed.push_back (std::filesystem::exists (names.back()));
+        existed.push_back (std::filesystem::exists (names.back(), ignore));
     }
 
     GlobalUnlock (medium.hGlobal);
@@ -3281,7 +3282,7 @@ HRESULT Win32ShellItemVerbs::DropVirtualFiles (IDataObject * data, IShellItem * 
 
     for (size_t i = 0; i < names.size(); i++)
     {
-        if (!existed[i] && std::filesystem::exists (names[i]))
+        if (!existed[i] && std::filesystem::exists (names[i], ignore))
         {
             outResult.created.push_back (names[i]);
             outResult.sources.push_back (std::wstring());
