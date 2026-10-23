@@ -37,6 +37,24 @@ namespace DebuggerTests
         }
 
 
+        //  The read start returned is never the read the window has, so rows
+        //  past $FFFF, or more rows than fit in one read, request no more.
+        TEST_METHOD (TheReadAWindowHasIsNotAskedForAgain)
+        {
+            static constexpr int  kTallRows = 300;
+            Word                  first     = (Word) (0x10000 - DebuggerViewState::kMemoryWindowBytes);
+            std::optional<Word>   start;
+
+
+
+            Assert::IsFalse (MemoryPane::GetReadStartFor (first, 0xFFFA, kRows).has_value(), L"the vectors at the foot of memory");
+
+            start = MemoryPane::GetReadStartFor (0x1000, 0x1100, kTallRows);
+            Assert::IsTrue  (start.has_value(), L"a tall window moved asks once");
+            Assert::IsFalse (MemoryPane::GetReadStartFor (*start, 0x1100, kTallRows).has_value(), L"and not again for the read it got");
+        }
+
+
         TEST_METHOD (ScrollingPastTheEndAsksForAReadAroundTheRows)
         {
             uint64_t             top   = 0x0310 + DebuggerViewState::kMemoryWindowBytes - kRows * 16;

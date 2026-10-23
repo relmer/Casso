@@ -413,7 +413,9 @@ void MemoryPane::Refresh()
 //  MemoryPane::GetReadStartFor
 //
 //  The new read starts a few rows above the ones on screen, on a sixteen-byte
-//  boundary, and is kept inside the 64K so the last one ends at $FFFF.
+//  boundary, and stays inside the 64K so the last one ends at $FFFF. None
+//  when that is the read the window has, as at the foot of memory, where the
+//  rows can end past $FFFF, or for more rows than fit in one read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -435,6 +437,11 @@ std::optional<Word> MemoryPane::GetReadStartFor (Word readFirst, uint64_t topOff
     start = (topOffset > lead) ? (topOffset - lead) : 0;
     start = (std::min) (start, kAddressSpace - kReadBytes);
     start = start & ~(uint64_t) (kBytesPerRow - 1);
+
+    if (start == readFirst)
+    {
+        return std::nullopt;
+    }
 
     return (Word) start;
 }
