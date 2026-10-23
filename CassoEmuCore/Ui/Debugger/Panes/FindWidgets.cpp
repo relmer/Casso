@@ -807,18 +807,21 @@ bool FindWidgetSet::StepHistory (int step)
 
 void FindWidgetSet::Find (bool forward)
 {
-    std::wstring              target = GetTarget();
+    std::wstring              target   = GetTarget();
     std::wstring              needle;
-    DxuiTextView            * view   = nullptr;
-    DxuiTextView::FindResult  result = DxuiTextView::FindResult::NotFound;
-    int                       index  = 0;
-    int                       count  = 0;
+    DxuiTextView            * view     = nullptr;
+    DxuiTextView            * shown    = (m_active != nullptr) ? m_window.GetFindView (m_activePane) : nullptr;
+    bool                      isShown  = m_active != nullptr && m_active->isOpen && shown != nullptr && shown->IsVisible();
+    DxuiTextView::FindResult  result   = DxuiTextView::FindResult::NotFound;
+    int                       index    = 0;
+    int                       count    = 0;
 
 
 
     //  F3 searches the text with the keys, if it can; from elsewhere, the
-    //  pane whose widget is open.
-    if (m_active == nullptr || (target != m_activePane && (!m_active->isOpen || m_window.GetFocusPane() == target)))
+    //  pane whose widget is open and in sight. A closed document's widget
+    //  is open but hidden.
+    if (m_active == nullptr || (target != m_activePane && (!isShown || m_window.GetFocusPane() == target)))
     {
         (void) Activate (target);
     }

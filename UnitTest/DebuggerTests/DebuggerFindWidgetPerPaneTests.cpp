@@ -209,5 +209,32 @@ namespace DebuggerFindWidgetPerPaneTests
             Assert::AreEqual (0, _wcsicmp (L"sta", window.GetSourceGroup().GetDocument (0).GetView()->GetSelectionText().c_str()), L"and the document is searched");
             Assert::IsFalse  (window.GetConsolePane().GetOutput().GetView()->HasSelection(), L"not the console");
         }
+
+
+        //  A document closed with its find open is out of sight, and F3 from
+        //  a pane with no find widget finds in the console instead of in the
+        //  hidden document's text.
+        TEST_METHOD (F3SkipsTheFindOfADocumentOutOfSight)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            PaneFindHost    host;
+            PaneFindWindow  window (theme, host);
+            std::wstring    source = DebuggerLayout::GetSourcePaneId (0);
+
+
+
+            window.Build();
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
+            window.Press ('F', true);
+            window.Type  (L"sta");
+            Assert::IsTrue (window.Press (VK_RETURN), L"Enter finds");
+
+            window.GetSourceGroup().GetDocument (0).GetView()->SetVisible (false);
+            window.FocusControl (nullptr);
+
+            (void) window.Press (VK_F3);
+
+            Assert::IsTrue (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"F3 opens the console's find, which has no text yet");
+        }
     };
 }
