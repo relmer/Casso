@@ -12,11 +12,16 @@
 //
 //  DxuiInfoTip
 //
-//  A small "i" in a ring beside a setting, whose tooltip shows what the
-//  setting's own label has no room for. It is a tab stop: Enter, Space or a
-//  click opens the tip at once, as hovering does after a dwell. It tracks
-//  the pointer without consuming any move, so it can sit beside a control
-//  without taking input from it.
+//  A small "i" in a ring beside a setting. Its tooltip contains what the
+//  setting's own label has no room for. It is a tab stop. Hovering opens the
+//  tip after a dwell, until the pointer moves off. A click, Enter or Space
+//  opens it at once and pins it, with no time limit: it is up until a click
+//  anywhere else, a change of focus, Escape, or a second click on the "i".
+//  It tracks the pointer without consuming any move, so it can sit beside a
+//  control without taking input from it.
+//
+//  One tip is pinned at a time. The window closes it on Escape before
+//  Escape cancels a dialog, and on a press outside it.
 //
 //  The tip shows through a popup host when one is set, as a dropdown's menu
 //  does, so it can extend past the page it sits on.
@@ -26,8 +31,15 @@
 class DxuiInfoTip : public IDxuiControl
 {
 public:
-    DxuiInfoTip  () { SetFocusable (true); }
-    ~DxuiInfoTip () override = default;
+    DxuiInfoTip  () { SetFocusable (true); m_tooltip.SetExpires (false); }
+    ~DxuiInfoTip () override;
+
+    //  The pinned tip closed, if one is open; false when none was.
+    static bool  CloseOpen ();
+
+    //  The pinned tip closed unless the press at `pointDip` is on its "i",
+    //  whose own click toggles it.
+    static void  CloseOpenOutside (POINT pointDip);
 
     void  SetText      (const std::wstring & text) { m_text = text; }
     void  SetRect      (const RECT & rect)         { SetBounds (rect); }
@@ -54,7 +66,10 @@ public:
 private:
     static int64_t  GetNowMs ();
 
-    void  Open ();
+    void  Open  ();
+    void  Close ();
+
+    static inline DxuiInfoTip * s_open = nullptr;
 
     std::wstring   m_text;
     DxuiTooltip    m_tooltip;

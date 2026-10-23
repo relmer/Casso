@@ -287,7 +287,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
         if (changed && m_popupHost != nullptr)
         {
-            m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+            m_hideAtMs = GetLifetimeEnd (nowMs);
 
             ReleaseActivePopup();
             ShowPopup();
@@ -342,7 +342,7 @@ void DxuiTooltip::RequestShowNow (const RECT & anchor, const std::wstring & text
     m_visible   = true;
     m_fadingOut = false;
     m_isInstant = true;
-    m_hideAtMs  = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+    m_hideAtMs  = GetLifetimeEnd (nowMs);
 
     ReleaseActivePopup();
     ShowPopup();
@@ -429,7 +429,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
         // The OS dismisses its own after a few seconds for the same reason:
         // the tip has been read by then, and what is left is an obstruction
         // sitting over the thing it was explaining.
-        m_hideAtMs = nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs());
+        m_hideAtMs = GetLifetimeEnd (nowMs);
 
         ShowPopup();
 
@@ -890,4 +890,18 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
                           fontPx,
                           GetFace());
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLifetimeEnd
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t DxuiTooltip::GetLifetimeEnd (int64_t nowMs) const
+{
+    return m_expires ? nowMs + ComputeVisibleMs (m_text.size(), GetSystemVisibleMs()) : 0;
 }

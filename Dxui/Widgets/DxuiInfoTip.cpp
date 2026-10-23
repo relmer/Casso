@@ -9,6 +9,70 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiInfoTip::~DxuiInfoTip
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiInfoTip::~DxuiInfoTip()
+{
+    if (s_open == this)
+    {
+        s_open = nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoTip::CloseOpen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiInfoTip::CloseOpen()
+{
+    bool  open = s_open != nullptr;
+
+
+
+    if (open)
+    {
+        s_open->Close();
+    }
+
+    return open;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoTip::CloseOpenOutside
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoTip::CloseOpenOutside (POINT pointDip)
+{
+    RECT  bounds = (s_open != nullptr) ? s_open->GetBounds() : RECT {};
+
+
+
+    if (s_open != nullptr && !PtInRect (&bounds, pointDip))
+    {
+        s_open->Close();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiInfoTip::Layout
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,9 +132,10 @@ void DxuiInfoTip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 //
 //  DxuiInfoTip::OnMouse
 //
-//  Shows the tip while the pointer is over the glyph and hides it once the
-//  pointer moves off or leaves the window, and opens it at once on a press.
-//  Consumes only the press, never a move.
+//  Display the tip while the pointer is over the glyph, and hide it once the
+//  pointer moves off the glyph or out of the window, unless it is pinned. A
+//  press pins it, or closes it when it is pinned. Consume only the press,
+//  never a move.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +144,7 @@ bool DxuiInfoTip::OnMouse (const DxuiMouseEvent & ev)
     RECT     bounds  = GetBounds();
     POINT    pt      = { ev.positionDip.x, ev.positionDip.y };
     bool     inside  = ev.kind != DxuiMouseEventKind::Leave && PtInRect (&bounds, pt);
+    bool     pinned  = s_open == this;
     int64_t  nowMs   = GetNowMs();
     bool     handled = false;
 
@@ -86,14 +152,22 @@ bool DxuiInfoTip::OnMouse (const DxuiMouseEvent & ev)
 
     if (inside && ev.kind == DxuiMouseEventKind::Down)
     {
-        Open();
+        if (pinned)
+        {
+            Close();
+        }
+        else
+        {
+            Open();
+        }
+
         handled = true;
     }
-    else if (inside && !m_text.empty())
+    else if (inside && !pinned && !m_text.empty())
     {
         m_tooltip.RequestShow (bounds, m_text, nowMs);
     }
-    else if (m_isHovered)
+    else if (m_isHovered && !pinned)
     {
         m_tooltip.RequestHide (nowMs);
     }
@@ -111,26 +185,30 @@ bool DxuiInfoTip::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiInfoTip::OnKey
 //
-//  Enter or Space opens the tip, or closes it if it is already open.
+//  Enter or Space pins the tip, or closes it if it is already open. Escape
+//  closes it, and returns true only when it was open.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiInfoTip::OnKey (const DxuiKeyEvent & ev)
 {
-    bool  isPress = ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_SPACE);
+    bool  isDown  = ev.kind == DxuiKeyEventKind::Down;
+    bool  isPress = isDown && (ev.vk == VK_RETURN || ev.vk == VK_SPACE);
+    bool  isOpen  = m_tooltip.IsVisible() || s_open == this;
+    bool  handled = isPress || (isDown && ev.vk == VK_ESCAPE && isOpen);
 
 
 
-    if (isPress && m_tooltip.IsVisible())
+    if ((isPress || ev.vk == VK_ESCAPE) && isDown && isOpen)
     {
-        m_tooltip.HideImmediate();
+        Close();
     }
     else if (isPress)
     {
         Open();
     }
 
-    return isPress;
+    return handled;
 }
 
 
@@ -141,7 +219,7 @@ bool DxuiInfoTip::OnKey (const DxuiKeyEvent & ev)
 //
 //  DxuiInfoTip::OnFocusChanged
 //
-//  Losing focus closes a tip the keyboard opened.
+//  Losing focus closes the tip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,7 +229,7 @@ void DxuiInfoTip::OnFocusChanged (bool focused)
 
     if (!focused)
     {
-        m_tooltip.RequestHide (GetNowMs());
+        Close();
     }
 }
 
@@ -163,15 +241,41 @@ void DxuiInfoTip::OnFocusChanged (bool focused)
 //
 //  DxuiInfoTip::Open
 //
-//  Shows the tip with no dwell, for as long as a hovered tip would stay.
+//  Display the tip with no dwell and pin it. Any other pinned tip is closed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiInfoTip::Open()
 {
+    if (s_open != nullptr && s_open != this)
+    {
+        s_open->Close();
+    }
+
     if (!m_text.empty())
     {
-        m_tooltip.ShowTimed (GetBounds(), m_text, GetNowMs(), DxuiTooltip::kMaxVisibleMs);
+        m_tooltip.RequestShowNow (GetBounds(), m_text, GetNowMs());
+        s_open = this;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoTip::Close
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoTip::Close()
+{
+    m_tooltip.HideImmediate();
+
+    if (s_open == this)
+    {
+        s_open = nullptr;
     }
 }
 

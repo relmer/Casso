@@ -95,6 +95,10 @@ public:
     //  below where there is no room above on its monitor, rather than on the
     //  anchor; and a card with a shadow and no border.
     void  SetFollowPointer (bool follow) { m_followPointer = follow; }
+
+    //  False for a tip with no lifetime, such as an info tip's: it is up
+    //  until RequestHide or HideImmediate takes it down.
+    void  SetExpires      (bool expires) { m_expires = expires; }
     DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
 
@@ -154,6 +158,9 @@ private:
     //  a tooltip control's auto-pop delay.
     static int  GetSystemVisibleMs ();
 
+    //  The time a tip opened at nowMs closes by itself, or 0 for never.
+    int64_t     GetLifetimeEnd (int64_t nowMs) const;
+
     //
     //  Acquire + size + show the popup balloon for the current
     //  anchor/text. No-op without a wired host or when a popup is
@@ -200,6 +207,7 @@ private:
     bool               m_fadingOut         = false;
     bool               m_isInstant         = false;
     bool               m_followPointer     = false;
+    bool               m_expires           = true;
     DxuiHwndSource   * m_popupHost         = nullptr;
     DxuiPopupHost    * m_activePopup       = nullptr;
     PointerMeasurer    m_pfnMeasurePointer = MeasurePointerExtent;

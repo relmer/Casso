@@ -4,6 +4,7 @@
 
 #include "Core/DxuiEvents.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiPopupMenu.h"
 
 
@@ -1296,6 +1297,12 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
         // In a dialog a press focuses the control under it before the control
         // sees the press, so a drop-down or slider already has focus when it
         // handles the click, and Tab continues from it.
+        //  A press anywhere but on a pinned info tip's "i" closes the tip.
+        if (kind == DxuiMouseEventKind::Down)
+        {
+            DxuiInfoTip::CloseOpenOutside (ev.positionDip);
+        }
+
         if (kind == DxuiMouseEventKind::Down && m_dialogActive && m_focus.FocusAtPoint (POINT { x, y }))
         {
             Invalidate();
@@ -1446,10 +1453,12 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
 
         case VK_ESCAPE:
             // The focused control gets Escape first, so an open drop-down
-            // closes rather than the dialog. Only a key nothing claims cancels.
-            if (RouteKeyToFocused (vk, shift))
+            // closes rather than the dialog, and then an open info tip does.
+            // Escape cancels the dialog only when neither of those consumes it.
+            if (RouteKeyToFocused (vk, shift) || DxuiInfoTip::CloseOpen())
             {
                 isHandled = true;
+                Invalidate();
                 break;
             }
 
