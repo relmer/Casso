@@ -331,6 +331,8 @@ bool DebugEventLogs::TakeDelta (DebugLogKind kind, IoLogDelta & outDelta)
 {
     outDelta = IoLogDelta();
 
+    FollowRewind();
+
     if (kind != DebugLogKind::Video && kind != DebugLogKind::Sound)
     {
         return false;
@@ -507,6 +509,41 @@ void DebugEventLogs::ClearIoLog (IoLogKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FollowRewind
+//
+//  A rewind behind a clear of the video or sound log lowers the clear to the
+//  machine's position, so what runs from there is listed, and a pane open on
+//  the log starts again from it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugEventLogs::FollowRewind()
+{
+    uint64_t  position = m_machine.GetPosition();
+
+
+
+    if (m_isVideoCleared && position < m_videoClearedAt)
+    {
+        m_videoClearedAt   = position;
+        m_video.floor      = position;
+        m_video.isResetDue = m_video.isOpen;
+    }
+
+    if (m_isSoundCleared && position < m_soundClearedAt)
+    {
+        m_soundClearedAt   = position;
+        m_sound.floor      = position;
+        m_sound.isResetDue = m_sound.isOpen;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetIoEntries
 //
 //  The newest maxCount entries since the log was cleared: the cache's, and
@@ -528,6 +565,9 @@ HRESULT DebugEventLogs::GetIoEntries (
 
 
 
+    FollowRewind();
+
+    from                  = isVideo ? m_videoClearedAt : m_soundClearedAt;
     outEntries            = IoLogEntries();
     outEntries.wasCleared = isVideo ? m_isVideoCleared : m_isSoundCleared;
     outEntries.isComplete = covered <= from;

@@ -148,6 +148,7 @@ private:
     void      OnKeyframe   (uint64_t position);
     void      OnLive       (uint64_t position);
     void      EndAt        (uint64_t position);
+    void      FollowRewind ();
     void      OnDrop       (KeyframeDrop drop);
     bool      IsRecording  () const;
     uint64_t  GetWallTime  (uint64_t cycle) const;

@@ -277,6 +277,46 @@ namespace DebugEventLogsTests
         }
 
 
+        //  A rewind behind a clear lowers the clear to where the machine went
+        //  back to, so the entries made from there are listed.
+        TEST_METHOD (ARewindBehindAClearListsWhatRunsFromThere)
+        {
+            Session        session;
+            IoLogEntries   listing;
+            ReverseResult  result;
+            uint64_t       rewound  = 0;
+            uint64_t       cleared  = 0;
+            HRESULT        hr       = S_OK;
+            bool           isListed = false;
+
+
+
+            session.logs.Start (&session.controller);
+            Run (session.machine, 0, 10);
+
+            rewound = session.machine.GetPosition();
+            Run (session.machine, 10, 20);
+
+            cleared = session.machine.GetPosition();
+            session.logs.ClearIoLog (IoLogKind::Sound);
+            Run (session.machine, 30, 2);
+            session.WaitForKeyframes();
+
+            hr = session.controller.SeekToPosition (rewound, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            hr = session.logs.GetIoEntries (IoLogKind::Sound, SIZE_MAX, listing);
+            AssertSucceeded (hr, L"GetIoEntries");
+
+            isListed = std::ranges::any_of (listing.entries, [rewound, cleared] (const DebugEventEntry<IoEvent> & entry)
+            {
+                return entry.kind == DebugEventEntryKind::Event && entry.position >= rewound && entry.position < cleared;
+            });
+
+            Assert::IsTrue (isListed, L"entries from the rewound position on, before the old clear");
+        }
+
+
         TEST_METHOD (NothingIsCachedWhileTheMachineReplaysItsHistory)
         {
             Session        session;
