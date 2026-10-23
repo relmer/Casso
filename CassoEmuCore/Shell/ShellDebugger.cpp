@@ -1740,13 +1740,18 @@ void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDebugHeatMapShown
+//  SetDebugHeatColumnsShown
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatColumnsShown (shown);
+    m_isDebugViewDirty = true;
 }
 
 
@@ -1761,6 +1766,10 @@ void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 
 void ShellDebugger::SetDebugHeatMapShown (bool shown)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatMapShown (shown);
     m_isDebugViewDirty = true;
 }
@@ -1777,6 +1786,10 @@ void ShellDebugger::SetDebugHeatMapShown (bool shown)
 
 void ShellDebugger::SetDebugBasicShown (bool isVisible)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetBasicShown (isVisible);
     m_isDebugViewDirty = true;
 }
@@ -1793,6 +1806,10 @@ void ShellDebugger::SetDebugBasicShown (bool isVisible)
 
 void ShellDebugger::SetDebugHeatMapOptions (const std::string & text)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatMapOptions (HeatMapOptions::FromText (text));
     m_isDebugViewDirty = true;
 }
@@ -1856,6 +1873,10 @@ void ShellDebugger::SetDebugHeatMapIgnore (const std::vector<std::pair<Word, Wor
 
 void ShellDebugger::SetDebugHeatMapHover (std::optional<Word> address)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatMapHover (address);
     m_isDebugViewDirty = true;
 }
