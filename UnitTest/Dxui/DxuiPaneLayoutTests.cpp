@@ -57,6 +57,49 @@ namespace DxuiPaneLayoutTests
     TEST_CLASS (OperationTests)
     {
     public:
+        //  A pane alone on its side of a split, auto-hidden, goes back to that
+
+        //  side at that ratio after the layout is saved and read back, as it
+
+        //  does before.
+
+        TEST_METHOD (AnAutoHiddenPanesHomeSplitIsSaved)
+
+        {
+
+            DxuiPaneLayout  layout = DxuiPaneLayout::MakeSingle (L"a");
+
+            DxuiPaneLayout  restored;
+
+            DxuiPaneLayout  before;
+
+
+
+
+            layout.Add        (L"b", L"");
+
+            layout.DockToSide (L"b", L"a", DxuiDockSide::Right);
+
+
+            Assert::IsTrue (layout.AutoHide (L"b", DxuiDockSide::Right));
+
+            Assert::IsTrue (DxuiPaneLayout::TryParse (layout.ToText(), restored));
+
+
+            before = layout;
+
+            Assert::IsTrue (before.DockBack   (L"b"));
+
+            Assert::IsTrue (restored.DockBack (L"b"));
+
+
+            Assert::AreEqual (before.ToText(), restored.ToText());
+
+            Assert::IsTrue   (restored.GetGroup (L"b") == std::vector<std::wstring> { L"b" }, L"back in a group of its own");
+
+        }
+
+
 
         TEST_METHOD (DockToSideSplitsTheTargetsGroup)
         {

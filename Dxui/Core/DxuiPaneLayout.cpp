@@ -2074,9 +2074,24 @@ std::wstring DxuiPaneLayout::ToText() const
         out += L"\n";
     }
 
+    //  A pane that was alone on its side of a split has that side, the
+    //  split's ratio and the panes on the other side, so DockBack splits
+    //  there again.
     for (const AutoHidden & h : m_autoHidden)
     {
-        out += std::format (L"hide {} {} {}\n", quote (h.pane), GetSideName (h.edge), quote (h.homePane));
+        out += std::format (L"hide {} {} {}", quote (h.pane), GetSideName (h.edge), quote (h.homePane));
+
+        if (h.homeSplit)
+        {
+            out += std::format (L" split {} {:.4f} {}", GetSideName (h.homeSide), h.homeRatio, h.homeSiblings.size());
+
+            for (const std::wstring & sibling : h.homeSiblings)
+            {
+                out += L" " + quote (sibling);
+            }
+        }
+
+        out += L"\n";
     }
 
     return out;
@@ -2379,8 +2394,37 @@ bool DxuiPaneLayout::TryParse (const std::wstring & text, DxuiPaneLayout & out)
 
             hidden.pane     = tokens[at + 1].substr (1);
             hidden.homePane = tokens[at + 3].substr (1);
-            layout.m_autoHidden.push_back (hidden);
             at += 4;
+
+            if (at + 3 < tokens.size() && tokens[at] == L"split")
+            {
+                wchar_t  * ratioEnd = nullptr;
+                wchar_t  * countEnd = nullptr;
+                long       count    = 0;
+
+                hidden.homeSplit = TryGetSide (tokens[at + 1], hidden.homeSide);
+                hidden.homeRatio = wcstof (tokens[at + 2].c_str(), &ratioEnd);
+                count            = wcstol (tokens[at + 3].c_str(), &countEnd, 10);
+
+                if (!hidden.homeSplit || *ratioEnd != L'\0' || *countEnd != L'\0' || hidden.homeRatio < 0.0f || hidden.homeRatio > 1.0f || count < 0)
+                {
+                    return false;
+                }
+
+                at += 4;
+
+                for (long i = 0; i < count; i++, at++)
+                {
+                    if (!isString (at))
+                    {
+                        return false;
+                    }
+
+                    hidden.homeSiblings.push_back (tokens[at].substr (1));
+                }
+            }
+
+            layout.m_autoHidden.push_back (hidden);
             continue;
         }
 
