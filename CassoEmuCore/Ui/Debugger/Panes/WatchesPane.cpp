@@ -157,7 +157,7 @@ void WatchesPane::Apply (const DebuggerViewSnapshot & snapshot)
 
 void WatchesPane::EditAddedValue (const DebuggerViewSnapshot & snapshot)
 {
-    if (m_isValueEditAfterAdd && GetTickCount64() > m_addedBy)
+    if (m_isValueEditAfterAdd && m_clock() > m_addedBy)
     {
         m_isValueEditAfterAdd = false;
     }
@@ -605,7 +605,7 @@ bool WatchesPane::AddWatch (const std::wstring & typed, std::wstring & outError)
     }
 
     m_isValueEditAfterAdd = m_grid->IsTabCommit();
-    m_addedBy             = GetTickCount64() + kAddedWaitMs;
+    m_addedBy             = m_clock() + kAddedWaitMs;
     SetError ({});
     m_host.RunAction (DebuggerActions::GetAddWatch (expression, m_host.GetMode()));
     return true;

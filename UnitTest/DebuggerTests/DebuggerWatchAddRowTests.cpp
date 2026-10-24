@@ -283,6 +283,37 @@ namespace DebuggerWatchAddRowTests
         }
 
 
+        //  A Tab's add whose watch no snapshot lists within the wait, as when
+        //  the add failed in the engine, edits no value: a watch listed later
+        //  is not edited for it.
+        TEST_METHOD (AWatchListedPastTheWaitIsNotEditedForATabsAdd)
+        {
+            static constexpr ULONGLONG  kPastTheWaitMs = 60'000;
+            CassoTheme                  theme          = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost           host;
+            WatchWindow                       window   (theme, host);
+            DxuiDpiScaler                     scaler;
+            DxuiEditableGrid                * grid     = BeginAdd (window, scaler);
+            auto                              snapshot = std::make_shared<DebuggerViewSnapshot>();
+            ULONGLONG                         now      = 1000;
+
+
+
+            window.GetWatchesPane().SetClock ([&now] { return now; });
+
+            window.Type  (L"kbd");
+            window.Press (VK_TAB);
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"the watch was not added");
+
+            now += kPastTheWaitMs;
+
+            snapshot->watches = { { 0, 0xC000, "0000", true, "", "KBD" } };
+            window.TakeSnapshot (snapshot);
+
+            Assert::IsFalse (grid->IsEditing() && grid->GetEditRow() == 0, L"the watch listed past the wait is edited");
+        }
+
+
         //  As the heat map ranges pane's add row: one click starts the edit.
         TEST_METHOD (OneClickOnTheAddRowStartsTheEdit)
         {

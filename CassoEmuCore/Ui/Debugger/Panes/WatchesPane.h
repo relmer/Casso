@@ -27,6 +27,12 @@ public:
     explicit WatchesPane (IDebuggerPaneHost & host);
     ~WatchesPane() override;
 
+    //  The clock the wait after a Tab's add is timed by, the system's
+    //  unless a test sets one.
+    using Clock = std::function<ULONGLONG()>;
+
+    void                           SetClock       (Clock clock) { m_clock = std::move (clock); }
+
     WatchHistory                 & GetHistory     () { return m_history; }
     DxuiTextInput                * GetEditor      () const { return &m_grid->GetEditor(); }
 
@@ -94,6 +100,7 @@ private:
     std::vector<int>     m_idsBeforeAdd;
     bool                 m_isValueEditAfterAdd      = false;
     ULONGLONG            m_addedBy                  = 0;        // when the value edit after an add is dropped
+    Clock                m_clock                    = [] { return GetTickCount64(); };
     std::vector<Row>     m_rows;
     Edit                 m_edit;
     bool                 m_isBasicVariablesExpanded = false;
