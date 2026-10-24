@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/FloatingPanes.h"
+#include "Dxui/MockDxuiControl.h"
+#include "Ui/Chrome/CassoTheme.h"
 
 #include "CppUnitTest.h"
 
@@ -67,6 +69,56 @@ namespace FloatingPanesRoutingTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  DockingHost
+    //
+    //  A host whose dock site has "code" docked and "regs" floating alone,
+    //  regs's only control a mock that tracks its focus. The debugger window
+    //  is none, so the floating window is created and stays hidden.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class DockingHost : public RoutingHost
+    {
+    public:
+        DockingHost()
+        {
+            DxuiPaneLayout  layout = DxuiPaneLayout::MakeSingle (L"code");
+
+
+
+            layout.Add (L"regs", L"");
+            (void) layout.Float (L"regs", L"", RECT { 0, 0, 300, 200 });
+
+            site.AddPane       (L"code", L"Disassembly", &code);
+            site.AddPane       (L"regs", L"Registers",   regs);
+            site.SetPaneLayout (layout);
+        }
+
+        HINSTANCE                    GetFloatInstance() const override { return GetModuleHandleW (nullptr); }
+        DxuiDockSite *               GetFloatDockSite() const override { return &site; }
+        const DxuiTheme *            GetTheme() const override         { return &theme; }
+        void                         SaveLayout() override             { saves++; }
+
+        std::vector<IDxuiControl *>  GetPaneControls (const std::wstring & pane) const override { return (pane == L"regs") ? std::vector<IDxuiControl *> { regs } : std::vector<IDxuiControl *> {}; }
+        IDxuiControl *               GetPaneContent  (const std::wstring & pane) const override { return (pane == L"regs") ? regs : nullptr; }
+
+        std::unique_ptr<IDxuiControl>  DetachFloatControl (IDxuiControl * control) override { return (control == regs) ? std::move (owned) : nullptr; }
+        void                           AttachFloatControl (std::unique_ptr<IDxuiControl> control) override { owned = std::move (control); }
+
+        mutable DxuiDockSite            site;
+        CassoTheme                      theme = CassoTheme::MakeSkeuomorphic();
+        MockDxuiControl                 code;
+        std::unique_ptr<IDxuiControl>   owned = std::make_unique<MockDxuiControl>();
+        MockDxuiControl               * regs  = static_cast<MockDxuiControl *> (owned.get());
+        int                             saves = 0;
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  FloatingPanesRoutingTests
     //
     //  A command from a floating window's key map runs under that window's
@@ -93,6 +145,41 @@ namespace FloatingPanesRoutingTests
 
             Assert::IsTrue   (host.routed == std::vector<std::wstring> { L"basicprogram", L"source1" });
             Assert::IsTrue   (floats.GetRoutingPane().empty(), L"no pane once the command has run");
+        }
+
+
+        //  Docking a floating window calls OnFocusChanged (false) on its
+        //  pane's focused control, so the control does not draw as focused
+        //  in the debugger window.
+        TEST_METHOD (DockingAWindowTakesTheFocusFromItsControl)
+        {
+            DockingHost    host;
+            FloatingPanes  floats (host);
+
+
+
+            host.floats = &floats;
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            Assert::IsNotNull (floats.Find (L"regs"), L"regs floats in a window");
+
+            {
+                FloatingPanes::RouteScope  scope (floats, L"regs");
+
+
+
+                floats.SetRoutedFocus (host.regs);
+            }
+
+            Assert::IsTrue (host.regs->lastFocused, L"the floating window's control has the focus");
+
+            floats.DockBack (L"regs");
+            floats.Sync();
+
+            Assert::IsNull  (floats.Find (L"regs"), L"the window is gone");
+            Assert::IsFalse (host.regs->lastFocused, L"its control lost the focus");
+            Assert::IsTrue  (host.owned != nullptr, L"and is back with the host");
         }
     };
 }
