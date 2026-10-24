@@ -87,6 +87,8 @@ private:
 
     std::mutex                                     m_lock;
     std::map<std::wstring, FolderEntry>            m_folders;
+    std::wstring                                   m_calling;   // the folder whose callback is running
+    std::condition_variable                        m_called;
     std::thread                                    m_service;
     HANDLE                                         m_stop    = nullptr;
     HANDLE                                         m_wake    = nullptr;

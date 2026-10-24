@@ -169,18 +169,21 @@ void Win32FolderWatcher::Unwatch (const std::wstring & directory)
     held.lock();
     found = m_folders.find (directory);
 
-    if (found == m_folders.end())
+    if (found != m_folders.end())
     {
-        return;
+        FindCloseChangeNotification (found->second.notification);
+        m_folders.erase (found);
+
+        if (m_wake != nullptr)
+        {
+            SetEvent (m_wake);
+        }
     }
 
-    FindCloseChangeNotification (found->second.notification);
-    m_folders.erase (found);
-
-    if (m_wake != nullptr)
-    {
-        SetEvent (m_wake);
-    }
+    //  A callback for the folder that is running now, even one the service
+    //  dropped first, has to finish before the caller can free what it calls
+    //  into.
+    m_called.wait (held, [this, &directory] () { return m_calling != directory; });
 }
 
 
@@ -282,10 +285,14 @@ void Win32FolderWatcher::RunService()
         }
 
         //  Copied under the lock so the callback runs without it, and so a
-        //  folder dropped meanwhile is not reported.
+        //  folder dropped meanwhile is not reported. The folder is marked as
+        //  being called for, so Unwatch returns only once the callback is done.
         {
-            std::wstring  directory = directories[index];
+            std::wstring  directory    = directories[index];
             Callback      callback;
+            HANDLE        notification = nullptr;
+            bool          rearmed      = false;
+            bool          gone         = false;
 
             {
                 std::lock_guard<std::mutex>  held  = std::lock_guard<std::mutex> (m_lock);
@@ -293,18 +300,31 @@ void Win32FolderWatcher::RunService()
 
                 if (found != m_folders.end())
                 {
-                    callback = found->second.callback;
+                    callback     = found->second.callback;
+                    notification = found->second.notification;
+                    m_calling    = directory;
 
                     //  Re-armed before the callback, so a change made while it
-                    //  runs is still reported. A folder that is gone, or whose
-                    //  handle cannot be re-armed, is dropped: its handle can stay
-                    //  signaled and would spin this loop.
-                    if (!FindNextChangeNotification (found->second.notification) ||
-                        GetFileAttributesW (directory.c_str()) == INVALID_FILE_ATTRIBUTES)
-                    {
-                        FindCloseChangeNotification (found->second.notification);
-                        m_folders.erase (found);
-                    }
+                    //  runs is reported.
+                    rearmed = FindNextChangeNotification (notification) != FALSE;
+                }
+            }
+
+            //  A folder that is gone, or whose handle cannot be re-armed, is
+            //  dropped: its handle can stay signaled and would spin this loop.
+            //  The folder's attributes are read without the lock, since a share
+            //  that has gone can take many seconds to answer.
+            gone = callback && (!rearmed || GetFileAttributesW (directory.c_str()) == INVALID_FILE_ATTRIBUTES);
+
+            if (gone)
+            {
+                std::lock_guard<std::mutex>  held  = std::lock_guard<std::mutex> (m_lock);
+                auto                         found = m_folders.find (directory);
+
+                if (found != m_folders.end() && found->second.notification == notification)
+                {
+                    FindCloseChangeNotification (notification);
+                    m_folders.erase (found);
                 }
             }
 
@@ -312,6 +332,14 @@ void Win32FolderWatcher::RunService()
             {
                 callback (directory);
             }
+
+            {
+                std::lock_guard<std::mutex>  held = std::lock_guard<std::mutex> (m_lock);
+
+                m_calling.clear();
+            }
+
+            m_called.notify_all();
         }
     }
 }

@@ -14362,7 +14362,12 @@ void CassoExplorerWindow::UndoLast()
             return;
     }
 
-    if (FAILED (hr))
+    //  Canceled at the shell's prompt, the step can be undone later.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        m_undo.push_back (std::move (step));
+    }
+    else if (FAILED (hr))
     {
         ShowMessage (L"That could not be undone.", MB_ICONWARNING);
     }

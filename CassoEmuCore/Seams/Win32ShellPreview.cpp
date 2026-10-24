@@ -211,9 +211,10 @@ bool Win32ShellPreview::IsPictureOrVideo (const std::wstring & path)
 
 uint64_t Win32ShellPreview::Load (const std::wstring & path, const RECT & rectPx, COLORREF background, COLORREF text)
 {
-    HRESULT  hr   = S_OK;
-    CLSID    id   = {};
-    int      slot = Win32PreviewHelper::kLowSlot;
+    HRESULT  hr       = S_OK;
+    CLSID    id       = {};
+    int      slot     = Win32PreviewHelper::kLowSlot;
+    int      previous = m_activeSlot;
     Job      job;
 
 
@@ -257,6 +258,14 @@ uint64_t Win32ShellPreview::Load (const std::wstring & path, const RECT & rectPx
         m_activeSlot = -1;
         m_awaiting   = false;
         PostPictureJob (job);
+    }
+
+    //  A handler loaded in the other helper, or before a file with no handler,
+    //  has its file open until it is unloaded; a load into the same helper
+    //  replaces it there.
+    if (previous >= 0 && previous != m_activeSlot && m_helpers[(size_t) previous].window != nullptr)
+    {
+        Win32PreviewHelper::SendUnload (m_helpers[(size_t) previous].window, m_owner);
     }
 
     return job.request;
@@ -810,6 +819,13 @@ void Win32ShellPreview::Publish (Result result)
 {
     {
         std::lock_guard<std::mutex>  guard (m_lock);
+
+        //  A slow load that finishes after a newer one has published would
+        //  replace the newer result with one TakeResult then discards.
+        if (result.request != m_request)
+        {
+            return;
+        }
 
         m_result = std::move (result);
     }
