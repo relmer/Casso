@@ -42,7 +42,7 @@ namespace DebuggerTests
         void  ScrollDebuggerCode      (int, int)                                 override {}
         void  OnDebuggerWindowClosed  ()                                         override {}
         void  SetDebuggerKeyScheme    (const std::string &)                      override {}
-        void  SetDebuggerLayout       (const std::string &)                      override {}
+        void  SetDebuggerLayout       (const std::string & text)                 override { layouts.push_back (text); }
         void  SetDebuggerOpenViews    (const std::string &)                      override {}
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
@@ -62,6 +62,7 @@ namespace DebuggerTests
 
         std::vector<std::string>  goTos;
         std::vector<std::string>  commands;
+        std::vector<std::string>  layouts;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -91,6 +92,7 @@ namespace DebuggerTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::OnWindowClose;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::ApplyTextZoom;
@@ -1126,6 +1128,28 @@ namespace DebuggerTests
             //  A floated pane takes its controls with it; the editor is the
             //  watch grid's own, so it goes with the grid.
             Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfControl (window.GetWatchesPane().GetList()));
+        }
+
+
+        //  Closing the window saves the layout, the floating windows' places
+        //  in it, before the floating windows are hidden.
+        TEST_METHOD (ClosingTheWindowSavesTheLayout)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            TextSizeWindow     window (theme, host);
+            DxuiDpiScaler      scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            host.layouts.clear();
+
+            window.OnWindowClose();
+
+            Assert::IsFalse (host.layouts.empty(), L"the layout is saved as the window closes");
         }
     };
 
