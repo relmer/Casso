@@ -33,6 +33,7 @@ namespace InstanceDirectoryTests
         std::vector<std::string>               sent;
         std::deque<std::vector<std::string>>   answers;
         bool                                   closeAfterAnswers = false;
+        std::vector<DWORD>                   * waits             = nullptr;   // each read's wait, when set
 
 
 
@@ -62,8 +63,13 @@ namespace InstanceDirectoryTests
             return true;
         }
 
-        bool ReadLine (std::string & line, DWORD) override
+        bool ReadLine (std::string & line, DWORD waitMs) override
         {
+            if (waits != nullptr)
+            {
+                waits->push_back (waitMs);
+            }
+
             if (m_incoming.empty())
             {
                 return false;
@@ -99,6 +105,7 @@ namespace InstanceDirectoryTests
     public:
         std::vector<uint32_t>                          ids;
         std::map<uint32_t, std::vector<std::string>>   hellos;     // absent: refuses; empty: never answers
+        std::vector<DWORD>                             waits;      // every client's reads' waits
 
 
 
@@ -119,7 +126,8 @@ namespace InstanceDirectoryTests
                 return nullptr;
             }
 
-            client = std::make_unique<ScriptedClient>();
+            client        = std::make_unique<ScriptedClient>();
+            client->waits = &waits;
 
             if (!found->second.empty())
             {
@@ -175,6 +183,35 @@ namespace InstanceDirectoryTests
             Assert::AreEqual (std::string ("one"), listed[0].title);
             Assert::AreEqual (std::string ("C:\\game.woz"), *listed[0].disks[0]);
             Assert::IsFalse  (listed[0].disks[1].has_value());
+        }
+
+
+
+        //  The clock is read once a pass, so a wait is never what remains
+        //  after a later reading passed the deadline, which would wrap to
+        //  about 49 days.
+        TEST_METHOD (EachWaitIsWithinTheTimeout)
+        {
+            static constexpr DWORD       kTimeoutMs = 50;
+            static constexpr ULONGLONG   kStepMs    = 30;
+            ScriptedDirectory            directory;
+            std::vector<ListedInstance>  listed;
+            ULONGLONG                    now        = 0;
+
+
+
+            directory.ids    = { 7 };
+            directory.hellos = { { 7, { R"({"type":"resumed"})", R"({"type":"resumed"})", R"({"type":"resumed"})" } } };
+
+            listed = InstanceLister::List (directory, kTimeoutMs, [&now] { return now += kStepMs; });
+
+            Assert::IsTrue (listed.empty(),           L"no hello came");
+            Assert::IsFalse (directory.waits.empty(), L"a record was read");
+
+            for (DWORD wait : directory.waits)
+            {
+                Assert::IsTrue (wait <= kTimeoutMs, L"a wait past the timeout");
+            }
         }
 
 

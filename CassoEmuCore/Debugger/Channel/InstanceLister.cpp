@@ -20,7 +20,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ListedInstance> InstanceLister::List (IInstanceDirectory & directory, DWORD helloTimeoutMs)
+std::vector<ListedInstance> InstanceLister::List (IInstanceDirectory & directory, DWORD helloTimeoutMs, const Clock & clock)
 {
     std::vector<ListedInstance>  listed;
 
@@ -31,7 +31,7 @@ std::vector<ListedInstance> InstanceLister::List (IInstanceDirectory & directory
         std::unique_ptr<IChannelClient>  client   = directory.Connect (processId);
         ListedInstance                   instance;
         std::string                      record;
-        ULONGLONG                        deadline = GetTickCount64() + helloTimeoutMs;
+        ULONGLONG                        deadline = clock() + helloTimeoutMs;
         ULONGLONG                        now      = 0;
         bool                             answered = false;
 
@@ -49,7 +49,7 @@ std::vector<ListedInstance> InstanceLister::List (IInstanceDirectory & directory
 
         //  The tick is read once per pass: read again for the wait, it could
         //  pass the deadline after the test and wrap the difference.
-        for (now = GetTickCount64(); !answered && now < deadline; now = GetTickCount64())
+        for (now = clock(); !answered && now < deadline; now = clock())
         {
             if (!client->ReadLine (record, (DWORD) (deadline - now)))
             {

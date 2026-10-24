@@ -46,10 +46,13 @@ struct ListedInstance
 class InstanceLister
 {
 public:
-    //  How long each instance has to answer `hello`.
+    //  How long each instance has to answer `hello`, timed by the clock, the
+    //  system's unless a test sets one.
     static constexpr DWORD  kHelloTimeoutMs = 2000;
 
-    static std::vector<ListedInstance>  List   (IInstanceDirectory & directory, DWORD helloTimeoutMs = kHelloTimeoutMs);
+    using Clock = std::function<ULONGLONG()>;
+
+    static std::vector<ListedInstance>  List   (IInstanceDirectory & directory, DWORD helloTimeoutMs = kHelloTimeoutMs, const Clock & clock = [] { return GetTickCount64(); });
 
     //  Columns `pid title machine disk1 disk2`, a header then one row each.
     //  An empty title or drive prints as `-`, so every row has five fields.
