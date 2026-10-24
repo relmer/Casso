@@ -1935,9 +1935,25 @@ void DxuiTabStrip::PaintExplorer (
 
 void DxuiTabStrip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    LONG  oldWidth = m_boundsDip.right - m_boundsDip.left;
+    UINT  oldDpi   = m_scaler.GetDpi();
+
+
+
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
-    ClampScroll();
+
+    //  A tab selected before the first layout, or one a narrower strip cuts
+    //  off, comes into view; after any other layout the scroll is where the
+    //  wheel put it.
+    if (m_boundsDip.right - m_boundsDip.left != oldWidth || m_scaler.GetDpi() != oldDpi)
+    {
+        ScrollIntoView (m_selected);
+    }
+    else
+    {
+        ClampScroll();
+    }
 }
 
 
@@ -2074,7 +2090,20 @@ bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
     case DxuiMouseEventKind::Wheel:
         //  A horizontal wheel's positive notch is rightward, a vertical one's
         //  is up, which moves the tabs the other way.
-        handled = OnWheel (ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta);
+        //  Only over the strip: a host can offer the strip every wheel turn,
+        //  as a property sheet does before it scrolls its page.
+        handled = PtInRect (&m_boundsDip, ev.positionDip) && OnWheel (ev.wheelHorizontal ? -ev.wheelDelta : ev.wheelDelta);
+        break;
+    case DxuiMouseEventKind::Leave:
+        if (m_pressed < 0)
+        {
+            m_hover       = -1;
+            m_hoverArrow  = 0;
+            m_hoverClose  = -1;
+            m_hoverNewTab = false;
+        }
+
+        handled = m_hover != prevHover || m_hoverArrow != prevArrow || m_hoverClose != prevClose || m_hoverNewTab != prevNewTab;
         break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)

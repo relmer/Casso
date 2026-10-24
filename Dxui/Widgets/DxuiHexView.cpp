@@ -89,7 +89,7 @@ void DxuiHexView::BuildContextMenu (std::vector<DxuiPopupMenuItem> & items)
 
         copy->label       = L"&Copy";
         copy->accelerator = L"Ctrl+C";
-        copy->isEnabled   = [this]() { return m_hasSelection; };
+        copy->isEnabled   = [this]() { return m_hasSelection && GetSelectionCount() <= kMaxCopyBytes; };
         copy->dispatch    = [this]() { CopySelection(); };
         items.push_back (DxuiPopupMenuItem::ForCommand (copy));
     }
@@ -860,11 +860,12 @@ void DxuiHexView::PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & the
 
 void DxuiHexView::RecomputeRowWidth()
 {
-    int  values = m_columns;
-    int  width  = 0;
-    int  cells  = 0;
-    int  fixed  = 0;
-    int  each   = 0;
+    int   values  = m_columns;
+    int   width   = 0;
+    int   cells   = 0;
+    int   fixed   = 0;
+    int   each    = 0;
+    bool  changed = false;
 
 
 
@@ -882,7 +883,9 @@ void DxuiHexView::RecomputeRowWidth()
         values = (std::max) ((cells - fixed) / each, 1);
     }
 
-    if (m_bytesPerRow != values * m_grouping)
+    changed = m_bytesPerRow != values * m_grouping;
+
+    if (changed)
     {
         ResetLineIndex();
     }
@@ -892,7 +895,9 @@ void DxuiHexView::RecomputeRowWidth()
     ClampTopRow();
     SetLeftPx (m_leftPx);
 
-    if (m_hasSelection)
+    //  Only a new row width moves the caret's row; after any other layout the
+    //  scroll is where the user put it.
+    if (m_hasSelection && changed)
     {
         EnsureByteVisible (m_caret);
     }
@@ -2003,8 +2008,9 @@ std::wstring DxuiHexView::GetSelectionText() const
         return std::wstring();
     }
 
-    return (m_activeColumn == Column::Text) ? GetTextFor (first, count)
-                                            : GetHexFor  (first, count);
+    //  With the values hidden, the text column is the only one there is.
+    return (m_activeColumn == Column::Text || !m_showValues) ? GetTextFor (first, count)
+                                                             : GetHexFor  (first, count);
 }
 
 
@@ -2183,8 +2189,11 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         else if ((hit.column == Column::Hex) && (m_grouping > 1))
         {
             //  In the value column a press takes the whole value under it.
-            SelectByte (SnapToValue (hit.offset, false), hit.column);
-            ExtendSelectionTo (SnapToValue (hit.offset, true));
+            m_pressFirst = SnapToValue (hit.offset, false);
+            m_pressLast  = SnapToValue (hit.offset, true);
+
+            SelectByte (m_pressFirst, hit.column);
+            ExtendSelectionTo (m_pressLast);
         }
         else
         {
@@ -2211,10 +2220,17 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
 
         hit = HitTestPoint (ev.positionDip);
 
-        if (hit.hit)
+        //  Back from the value the press took, the anchor is that value's last
+        //  byte, so the selection covers all of it.
+        if (hit.hit && (hit.column == Column::Hex) && (m_grouping > 1) && !ev.shift)
         {
-            ExtendSelectionTo (((hit.column == Column::Hex) && (m_grouping > 1)) ? SnapToValue (hit.offset, hit.offset >= m_anchor)
-                                                                                 : hit.offset);
+            m_anchor = (hit.offset >= m_pressFirst) ? m_pressFirst : m_pressLast;
+            ExtendSelectionTo (SnapToValue (hit.offset, hit.offset >= m_pressFirst));
+            EnsureByteVisible (hit.offset);
+        }
+        else if (hit.hit)
+        {
+            ExtendSelectionTo (hit.offset);
             EnsureByteVisible (hit.offset);
         }
 
@@ -2241,13 +2257,19 @@ bool DxuiHexView::OnMouse (const DxuiMouseEvent & ev)
         return true;
 
     case DxuiMouseEventKind::Wheel:
+        //  A precision touchpad sends part notches, which add up until they
+        //  move a whole row or pixel.
         if (ev.wheelHorizontal)
         {
-            SetLeftPx (m_leftPx + (int) (ev.wheelDelta * (float) (kWheelRows * m_cellWidthDip)));
+            m_wheelPx += ev.wheelDelta * (float) (kWheelRows * m_cellWidthDip);
+            SetLeftPx (m_leftPx + (int) m_wheelPx);
+            m_wheelPx -= (float) (int) m_wheelPx;
             return IsHorzScrollbarVisible();
         }
 
-        ScrollRows (-(int64_t) (ev.wheelDelta * (float) kWheelRows));
+        m_wheelRows += ev.wheelDelta * (float) kWheelRows;
+        ScrollRows (-(int64_t) m_wheelRows);
+        m_wheelRows -= (float) (int64_t) m_wheelRows;
 
         return true;
 
@@ -2341,7 +2363,7 @@ bool DxuiHexView::OnKey (const DxuiKeyEvent & ev)
         //  Tab moves between the columns while another column remains, and
         //  returns false after the last one, so focus moves on to the next
         //  control instead of staying in the view.
-        if (ev.ctrl)
+        if (ev.ctrl || !m_showValues)
         {
             return false;
         }
@@ -2453,7 +2475,7 @@ bool DxuiHexView::InvokeCommand (DxuiStandardCommand command)
 
 void DxuiHexView::OnFocusEntered (bool forward)
 {
-    m_activeColumn = forward ? Column::Hex : Column::Text;
+    m_activeColumn = (forward && m_showValues) ? Column::Hex : Column::Text;
 }
 
 
@@ -2619,20 +2641,24 @@ void DxuiHexView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 void DxuiHexView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     DxuiFontHandle  font   = theme.MonospaceFont();
+    float           fontPx = m_scaler.ToPxf (font.sizeDip * m_zoom);
+    std::wstring    face   = (font.face != nullptr) ? font.face : L"";
     float           width  = 0.0f;
     float           height = 0.0f;
     HRESULT         hr     = S_OK;
 
 
 
-    if (m_cellWidthDip > 0)
+    //  Measured again at a new DPI, size or face, unless the caller set the
+    //  size.
+    if (m_cellWidthDip > 0 && (m_cellFontPx == 0.0f || (m_cellFontPx == fontPx && m_cellFontFace == face)))
     {
         return;
     }
 
     //  Eight digits at once, so a face whose advance is not a whole number
     //  of DIPs is rounded once rather than eight times.
-    hr = text.MeasureString (L"00000000", m_scaler.ToPxf (font.sizeDip * m_zoom), font.face, width, height);
+    hr = text.MeasureString (L"00000000", fontPx, font.face, width, height);
 
     if (FAILED (hr) || (width <= 0.0f) || (height <= 0.0f))
     {
@@ -2640,6 +2666,9 @@ void DxuiHexView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & t
     }
 
     SetCellSizeDip ((int) ((width / 8.0f) + 0.5f), (int) (height + 0.5f));
+
+    m_cellFontPx   = fontPx;
+    m_cellFontFace = face;
 }
 
 

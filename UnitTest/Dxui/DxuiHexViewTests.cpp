@@ -480,6 +480,25 @@ public:
     }
 
 
+    TEST_METHOD (Selection_WithTheValuesHiddenCopiesTheText)
+    {
+        CountingHexSource  source (256);
+        DxuiHexView        view;
+
+
+        view.SetSource (&source);
+        view.SetShowValues (false);
+        LayOut (view);
+
+        view.OnFocusEntered (true);
+        view.SelectByte (0x41, DxuiHexView::Column::Hex);
+        view.ExtendSelectionTo (0x42);
+
+        Assert::AreEqual (std::wstring (L"AB"), view.GetSelectionText(),
+            L"With the hex column hidden, a copy is the text, not hex digits");
+    }
+
+
     TEST_METHOD (Mouse_DragSelectsFromPressToRelease)
     {
         CountingHexSource  source (256);
