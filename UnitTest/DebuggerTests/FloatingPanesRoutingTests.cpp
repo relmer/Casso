@@ -287,6 +287,40 @@ namespace FloatingPanesRoutingTests
         }
 
 
+        //  A window restored from a rect off the screen, saved on a larger
+        //  one, opens inside the work area, not only no larger than it.
+        TEST_METHOD (ARestoredWindowOpensInsideTheWorkArea)
+        {
+            static constexpr LONG   kFrameSlackPx = 32;   // the window rect's invisible borders, past its visible frame
+            DockingHost             host;
+            FloatingPanes           floats (host);
+            DxuiPaneLayout          layout = host.site.GetPaneLayout();
+            DxuiDockedWindow      * window = nullptr;
+            MONITORINFO             info   = { sizeof (info) };
+            RECT                    rect   = {};
+            BOOL                    isRead = FALSE;
+
+
+
+            host.floats = &floats;
+
+            (void) layout.Float (L"regs", L"", RECT { 0, 20000, 300, 20200 });
+            host.site.SetPaneLayout (layout);
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"regs floats in a window");
+
+            rect   = window->GetScreenRect();
+            isRead = GetMonitorInfoW (MonitorFromWindow (window->GetHwnd(), MONITOR_DEFAULTTONEAREST), &info);
+            Assert::IsTrue (isRead != FALSE, L"the window's monitor");
+
+            Assert::IsTrue (rect.top    >= info.rcWork.top    - kFrameSlackPx, L"not above the work area");
+            Assert::IsTrue (rect.bottom <= info.rcWork.bottom + kFrameSlackPx, L"not below the work area");
+        }
+
+
         //  A caption drag that ends over the dock site saves the layout, as
         //  one that ends outside it does, and a resize saves it with the
         //  window's final size, not its size after the first step.

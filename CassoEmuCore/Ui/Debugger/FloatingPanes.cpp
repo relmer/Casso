@@ -1163,9 +1163,13 @@ void FloatingPanes::Float (const std::wstring & key)
     window->SetAcceptsDroppedFiles (true);
     window->SetOnFocusChanged      ([this, key] (bool focused)              { m_host.OnFloatFocusChanged (GetActivePane (key), focused); });
 
+    //  A place saved on a larger screen, or one no longer there, is moved
+    //  inside the work area as well as sized to it. A pane torn off is put
+    //  under the pointer after this (PlaceUnderGrab).
     if (rect.right > rect.left && rect.bottom > rect.top)
     {
         window->SetScreenRect (rect);
+        DxuiHwndSource::FitWindowToWorkArea (window->GetHwnd(), DxuiWorkAreaFit::SizeAndPosition);
     }
 
     //  A tooltip is drawn only over its own window, so the pane's toolbar
