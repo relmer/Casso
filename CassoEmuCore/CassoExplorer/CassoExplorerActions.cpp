@@ -829,6 +829,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetSelected (const std::wstr
 
         if (hostPath.empty())
         {
+            outcome.skipped = true;
             continue;
         }
 
@@ -1336,6 +1337,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
 
         if (entry.isDirectory || hostPath.empty())
         {
+            outcome.skipped |= !entry.isDirectory;
             continue;
         }
 
@@ -1495,6 +1497,7 @@ void CassoExplorerActions::PutItemsOnAppleDrive (const std::string & link, int d
 
         if (plan.guessedAddress && askAddress && !askAddress (GetLeafName (hostPath), plan.loadAddress, plan.loadAddress))
         {
+            inOutOutcome.skipped = true;
             continue;
         }
 
@@ -1861,6 +1864,7 @@ void CassoExplorerActions::PutItems (
 
         if (plan.guessedAddress && askAddress && !askAddress (GetLeafName (hostPath), plan.loadAddress, plan.loadAddress))
         {
+            inOutOutcome.skipped = true;
             continue;
         }
 

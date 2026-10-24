@@ -295,6 +295,32 @@ public:
     }
 
 
+    TEST_METHOD (PutInto_ACanceledAddressPrompt_IsNotWhole)
+    {
+        Host                           host;
+        CassoExplorerActions::Outcome  outcome;
+
+        host.OpenImage();
+        host.SeedBytes (std::vector<Byte> (300, 0x41), L"C:\\Drop\\PLAIN");
+
+        //  A move takes away only what a whole put wrote, so a file skipped at
+        //  its prompt stays where it is.
+        outcome = host.actions.PutInto (L"C:\\Disks\\dos33.dsk", VolumeKind::Dos33, std::string(), { L"C:\\Drop\\PLAIN" },
+                                        [] (const std::wstring &, Word, Word &) { return false; },
+                                        CassoExplorerActions::Conversion::Binary);
+
+        Assert::IsTrue  (outcome.Succeeded(), outcome.message.c_str());
+        Assert::AreEqual (0, outcome.written);
+        Assert::IsFalse (outcome.IsWhole(), L"a canceled prompt skips the file");
+
+        outcome = host.actions.PutInto (L"C:\\Disks\\dos33.dsk", VolumeKind::Dos33, std::string(), { L"C:\\Drop\\PLAIN" },
+                                        [] (const std::wstring &, Word, Word & out) { out = 0x0803; return true; },
+                                        CassoExplorerActions::Conversion::Binary);
+
+        Assert::IsTrue (outcome.IsWhole(), outcome.message.c_str());
+    }
+
+
     TEST_METHOD (PlanPut_CiderPressSuffixWritesATypedPayload)
     {
         std::vector<Byte>        bytes (100, 0xEA);

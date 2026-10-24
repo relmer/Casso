@@ -590,6 +590,7 @@ private:
     std::wstring  GetNavLabel (const Location & location);
     std::vector<BrowserModel::AddressSegment>  GetAddressSegmentsFor (const Location & location);
     void  SubmitAddress (const std::wstring & text);
+    void  AddTypedPath  (const std::wstring & text);
     void  ShowAddressMenu (int index, const RECT & anchor);
     void  ShowAddressOverflowMenu (const RECT & anchor);
     void  ShowAddressRootsMenu    (const RECT & anchor);

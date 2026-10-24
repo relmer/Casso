@@ -4645,8 +4645,9 @@ LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
 
 bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 {
-    int   command = 0;
-    bool  handled = false;
+    int                        command = 0;
+    bool                       handled = false;
+    std::vector<std::wstring>  linkPaths;
 
 
 
@@ -4884,9 +4885,11 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.vk == VK_DELETE && m_focus == Pane::List && !m_browser.GetSelectedRows().empty())
     {
-        //  Shift+Delete deletes for good, as in File Explorer; inside a disk
-        //  image every deletion is for good and asks first already.
-        if (ev.shift && !m_browser.IsImageLocation())
+        //  Shift+Delete deletes host files for good, as in File Explorer;
+        //  inside a disk image or an Apple's drive every deletion is for good
+        //  and confirmed first, and CassoLink's items are temp copies.
+        if (ev.shift && (m_browser.GetLocation().kind == Location::Kind::HostFolder || m_browser.GetLocation().kind == Location::Kind::ShellFolder)
+            && !m_browser.TryGetSelectedCassoLinkPaths (linkPaths))
         {
             DeleteSelectionPermanently();
         }
@@ -6725,16 +6728,13 @@ void CassoExplorerWindow::SaveSession()
 //
 //  CassoExplorerWindow::RecordSession
 //
-//  The typed paths go to the preferences, which every window shares. With an
-//  app, the tabs and the placement are in the session; for a window on its
-//  own they are in the preferences.
+//  With an app, the tabs and the placement are in the session; for a window
+//  with no app they are in the preferences.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::RecordSession()
 {
-    m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
-
     if (m_context.host == nullptr)
     {
         m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
@@ -8383,12 +8383,13 @@ bool CassoExplorerWindow::IsProgramPath (const std::wstring & path)
 
 std::vector<std::wstring> CassoExplorerWindow::GetDraggedPaths (IDataObject * data)
 {
-    FORMATETC                  format         = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM                  medium         = {};
-    HDROP                      drop           = nullptr;
-    UINT                       count          = 0;
-    HRESULT                    hr             = E_FAIL;
-    wchar_t                    path[MAX_PATH] = {};
+    FORMATETC                  format = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                  medium = {};
+    HDROP                      drop   = nullptr;
+    UINT                       count  = 0;
+    UINT                       length = 0;
+    HRESULT                    hr     = E_FAIL;
+    std::wstring               path;
     std::vector<std::wstring>  paths;
 
 
@@ -8406,10 +8407,15 @@ std::vector<std::wstring> CassoExplorerWindow::GetDraggedPaths (IDataObject * da
     drop  = (HDROP) GlobalLock (medium.hGlobal);
     count = (drop != nullptr) ? DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0) : 0;
 
+    //  A path can be longer than MAX_PATH, so each one's length comes first.
     for (UINT index = 0; index < count; index++)
     {
-        if (DragQueryFileW (drop, index, path, ARRAYSIZE (path)) > 0)
+        length = DragQueryFileW (drop, index, nullptr, 0);
+        path.assign ((size_t) length + 1, L'\0');
+
+        if (length > 0 && DragQueryFileW (drop, index, path.data(), length + 1) == length)
         {
+            path.resize (length);
             paths.push_back (path);
         }
     }
@@ -13379,6 +13385,7 @@ void CassoExplorerWindow::SubmitAddress (const std::wstring & text)
         //  The typed path joins the history now, not only at a clean exit, and
         //  a folder joins Explorer's list too. A path into a disk image stays
         //  in Casso Explorer's own: Explorer would open the image file.
+        AddTypedPath (CassoExplorerBrowser::RootOnSystemDrive (text));
         SaveSession();
 
         if (m_browser.GetLocation().kind == Location::Kind::HostFolder)
@@ -13390,6 +13397,30 @@ void CassoExplorerWindow::SubmitAddress (const std::wstring & text)
     {
         ShowMessage (L"Casso Explorer can't find \"" + text + L"\". Check the path and try again.", MB_ICONWARNING);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddTypedPath
+//
+//  Every window shares the preferences' typed paths, so a path goes on top of
+//  those rather than replacing them with this window's list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddTypedPath (const std::wstring & text)
+{
+    TypedPathHistory  shared;
+
+
+
+    shared.Reset (m_prefs.typedPaths);
+    shared.Add (text);
+    m_prefs.typedPaths = shared.GetEntries();
 }
 
 
@@ -14034,7 +14065,7 @@ bool CassoExplorerWindow::OnAddressKey (WPARAM vk)
 
 std::vector<std::wstring> CassoExplorerWindow::GetAddressHistory() const
 {
-    return TypedPathHistory::Merge (ReadExplorerTypedPaths(), m_browser.GetTypedPaths().GetEntries());
+    return TypedPathHistory::Merge (ReadExplorerTypedPaths(), m_prefs.typedPaths);
 }
 
 
