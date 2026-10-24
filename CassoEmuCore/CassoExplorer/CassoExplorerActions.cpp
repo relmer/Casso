@@ -2485,7 +2485,7 @@ std::vector<std::string> CassoExplorerActions::GetEntryNames (const std::string 
 std::wstring CassoExplorerActions::GetNewFolderName() const
 {
     std::vector<std::wstring>  taken;
-    bool                       host = !m_browser.IsImageLocation();
+    bool                       host = !m_browser.IsVolumeLocation();
 
 
 

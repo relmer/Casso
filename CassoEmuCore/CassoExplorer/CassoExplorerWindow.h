@@ -830,6 +830,7 @@ private:
     void  ShowActivityLog ();
     void  StartAdtProServers ();
     bool  IsLinkReplying        (const std::string & name) const;
+    bool  IsLinkRemoved         (const std::wstring & link) const;
     void  AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
     bool  IsWifiModemLink        (const std::string & name) const;
     void  ReleaseIdleLinks    ();
@@ -848,7 +849,7 @@ private:
     static int              GetIconOrder (CassoExplorerActions::Verb verb);
     std::wstring  GetPasteFolder () const;
     void  CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk);
-    void  SelectRowNamed         (const std::wstring & name);
+    bool  SelectRowNamed         (const std::wstring & name);
     void  ShowOptions            ();
     void  SizeListIcons          ();
     void  ShowViewOnButton       ();
@@ -895,7 +896,7 @@ private:
     void  DescribeDrop     (IDataObject * data, DWORD effect, const Location & target);
     void  HoverDropTab     (POINT screen);
 
-    static void  RecycleHostFiles (const std::vector<std::wstring> & paths);
+    HRESULT  RecycleHostFiles (const std::vector<std::wstring> & paths);
     void  RefreshAfterHostChange ();
 
     //  The part of a pane a message wraps within.
