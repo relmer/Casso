@@ -1106,9 +1106,11 @@ void FloatingPanes::Float (const std::wstring & key)
 
         window->GetSite().AddPane (each, m_host.GetPaneTitle (each), m_host.GetPaneContent (each));
 
+        //  Add tabs a pane the layout does not have yet; TabWithAt moves only
+        //  one it has.
         if (each != panes.front())
         {
-            (void) tabs.TabWithAt (each, panes.front(), (int) tabs.GetGroup (panes.front()).size());
+            (void) tabs.Add (each, panes.front());
         }
     }
 

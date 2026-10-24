@@ -121,6 +121,81 @@ namespace FloatingPanesRoutingTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  GroupHost
+    //
+    //  A host whose dock site has "code" docked and "regs" and "stack"
+    //  floating together in one window, each with a mock control.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class GroupHost : public RoutingHost
+    {
+    public:
+        GroupHost()
+        {
+            DxuiPaneLayout  layout = DxuiPaneLayout::MakeSingle (L"code");
+
+
+
+            layout.Add (L"regs",  L"");
+            layout.Add (L"stack", L"");
+            (void) layout.FloatGroup ({ L"regs", L"stack" }, L"stack", L"", RECT { 0, 0, 300, 200 });
+
+            owned[L"regs"]  = std::make_unique<MockDxuiControl>();
+            owned[L"stack"] = std::make_unique<MockDxuiControl>();
+            controls        = { { L"regs", owned[L"regs"].get() }, { L"stack", owned[L"stack"].get() } };
+
+            site.AddPane       (L"code",  L"Disassembly", &code);
+            site.AddPane       (L"regs",  L"Registers",   controls[L"regs"]);
+            site.AddPane       (L"stack", L"Stack",       controls[L"stack"]);
+            site.SetPaneLayout (layout);
+        }
+
+        HINSTANCE                    GetFloatInstance() const override { return GetModuleHandleW (nullptr); }
+        DxuiDockSite *               GetFloatDockSite() const override { return &site; }
+        const DxuiTheme *            GetTheme() const override         { return &theme; }
+
+        std::vector<IDxuiControl *>  GetPaneControls (const std::wstring & pane) const override { return controls.contains (pane) ? std::vector<IDxuiControl *> { controls.at (pane) } : std::vector<IDxuiControl *> {}; }
+        IDxuiControl *               GetPaneContent  (const std::wstring & pane) const override { return controls.contains (pane) ? controls.at (pane) : nullptr; }
+
+        std::unique_ptr<IDxuiControl>  DetachFloatControl (IDxuiControl * control) override
+        {
+            for (auto & [pane, each] : owned)
+            {
+                if (each.get() == control)
+                {
+                    return std::move (each);
+                }
+            }
+
+            return nullptr;
+        }
+
+        void  AttachFloatControl (std::unique_ptr<IDxuiControl> control) override
+        {
+            for (auto & [pane, each] : controls)
+            {
+                if (each == control.get())
+                {
+                    owned[pane] = std::move (control);
+                    return;
+                }
+            }
+        }
+
+        mutable DxuiDockSite                                    site;
+        CassoTheme                                              theme = CassoTheme::MakeSkeuomorphic();
+        MockDxuiControl                                         code;
+        std::map<std::wstring, std::unique_ptr<IDxuiControl>>   owned;
+        std::map<std::wstring, IDxuiControl *>                  controls;
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  FloatingPanesRoutingTests
     //
     //  A command from a floating window's key map runs under that window's
@@ -182,6 +257,33 @@ namespace FloatingPanesRoutingTests
             Assert::IsNull  (floats.Find (L"regs"), L"the window is gone");
             Assert::IsFalse (host.regs->lastFocused, L"its control lost the focus");
             Assert::IsTrue  (host.owned != nullptr, L"and is back with the host");
+        }
+
+
+        //  A window floating a group has a tab for each of its panes, the
+        //  group's active pane in front.
+        TEST_METHOD (AFloatingGroupHasATabForEachPane)
+        {
+            GroupHost                   host;
+            FloatingPanes               floats (host);
+            DxuiDockedWindow          * window = nullptr;
+            std::vector<std::wstring>   tabs;
+
+
+
+            host.floats = &floats;
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"the group floats in a window");
+
+            tabs = window->GetSite().GetPaneLayout().GetGroup (L"regs");
+
+            Assert::IsTrue   (tabs == std::vector<std::wstring> { L"regs", L"stack" }, L"each pane in the window's layout, in the group's order");
+            Assert::AreEqual ((size_t) 1, window->GetSite().GetGroupCount(), L"in one group");
+            Assert::AreEqual ((size_t) 2, window->GetSite().GetGroup (0)->GetTabCount(), L"a tab for each pane");
+            Assert::IsTrue   (window->GetSite().GetGroup (0)->GetActiveContent() == host.controls[L"stack"], L"the active pane in front");
         }
 
 
