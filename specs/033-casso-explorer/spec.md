@@ -1771,6 +1771,39 @@ to Casso over TCP.
 - **FR-098**: One operation MUST run at a time per Apple; others MUST queue,
   and the running one MUST be cancelable, leaving the Apple-side program
   ready for the next.
+- **FR-099**: The installer package MUST declare the inbound firewall rules
+  both programs need, each narrow to one protocol and port rather than
+  permitting the program as a whole, so that an installed Casso raises no
+  Windows Firewall prompt for them.
+- **FR-100**: A socket that must bind wider than the loopback address to do
+  its job MUST refuse what it is not meant to serve, and MUST say at the bind
+  why it is wide. The Uthernet II's address translation binds every port the
+  guest opens, since that is how the guest reaches the network at all, and
+  refuses unsolicited senders while connections from other computers are not
+  allowed. It MUST NOT be narrowed to the loopback address, which would cut
+  the Apple off from the network.
+- **FR-101**: Casso Explorer MUST NOT open the announcement listener before a
+  connection that needs it exists, so a user who never links to an Apple over
+  the network never binds a port beyond the loopback address.
+- **FR-102**: Both programs MUST determine whether the firewall admits their
+  inbound sockets on the network's present category, and MUST determine it
+  again when the network changes.
+- **FR-103**: A connection whose transport needs to be reached from outside
+  the PC, and which the firewall is refusing, MUST carry a warning on its row
+  in the tree, a pointer tip naming the cause, and an action in the pane that
+  puts it right. A connection that needs nothing inbound, such as one over a
+  serial cable, MUST carry neither.
+- **FR-104**: Casso MUST show the same warning and the same action on the
+  Network settings page, where the setting that widens the binding lives.
+- **FR-105**: The warning MUST distinguish a rule that refuses, a rule that is
+  absent, and a rule that does not cover the network's present category, and
+  MUST say which. On a public network it MUST offer both admitting the
+  program there and the alternative of marking the network private.
+- **FR-106**: A port the package cannot name MUST be admitted when it is
+  opened: a port forward's, which the user chooses, and any other port the
+  guest opens that the address translation mirrors onto the PC. Only the
+  link's own ports are fixed enough to declare.
+
 ### Key Entities
 
 - **Known folder**: a host folder the user has opened a disk from; path,
@@ -1923,6 +1956,16 @@ to Casso over TCP.
   byte for byte.
 - **SC-033**: From a //c at the BASIC prompt with no disk, the link is
   running within 60 seconds of choosing Bootstrap.
+- **SC-034**: On a PC that has never run Casso, installing the package and
+  turning on the Uthernet II raises no firewall prompt, and an Apple on the
+  network is listed.
+- **SC-035**: With the firewall refusing, the connection's row carries a
+  warning, its tip names the firewall as the cause, and the action in the pane
+  restores the listing without restarting either program.
+- **SC-036**: On a network Windows calls public, the warning says so and
+  offers both remedies, while a connection over a serial cable on the same PC
+  carries no warning at all.
+
 ## Assumptions
 
 - The command widgets, meaning command, dropdown, toolbar, menu bar and

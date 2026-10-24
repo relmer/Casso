@@ -791,6 +791,73 @@ audio bootstrap, once Casso emulates the cards.
 
 - [X] T218 Walk quickstart.md §7b steps 1 to 4 on x64 Debug and Release, and record SC-029, SC-030 and SC-032 in `specs/033-casso-explorer/validation.md`. Per SC-029, SC-030 and SC-032.
 
+
+## Phase 25: The firewall (US14, US16)
+
+**Purpose**: a user who turns on a network transport is not met by a Windows
+Firewall prompt, and one who has been refused is told so in the place the
+refusal shows, with a way out. Windows calls a new network public by default
+and most people never change it, so the public case is the one to get right
+rather than the exception.
+
+The binds this is about, all confirmed in the tree: Casso Explorer's
+announcement listener on UDP 6510, opened at startup whatever the user has;
+its Wi-Fi modem listener on TCP 6400, since `ByteStreamSettings::GetBindAddress`
+returns the any-address for that transport alone; Casso's address translation
+on UDP 6511, which binds wide whatever the setting says; and Casso's port
+forwards, which already bind loopback until connections from other computers
+are allowed.
+
+- [ ] T248 Declare the fixed inbound rules in `Installer/Package.appxmanifest`:
+  the `desktop2` namespace added and made ignorable, a package-level
+  `windows.firewallRules` extension, and one narrow rule each for UDP 6510,
+  UDP 6511 and TCP 6400 rather than admitting either program whole. Confirm
+  while doing it whether the extension needs a restricted capability beside
+  it, and that the rules survive a winget upgrade rather than being asked
+  again. Per FR-099.
+- [ ] T249 Say at `UdpNat::FindOrCreateFlow`'s bind why it binds the
+  any-address: it is the guest's own outbound path, so the loopback address
+  would cut the Apple off from the network, and `UdpNat::IsAllowed` is what
+  refuses unsolicited senders. `PortForwarder` binds narrow because its socket
+  is inbound only; the two look alike and are not. Without the note the next
+  reader makes them match, which is a bug that looks like a tidy-up. Per
+  FR-100.
+- [ ] T250 Open the announcement listener only once a connection that needs it
+  exists, rather than during the shell's startup, and close it with the last
+  one. A unit test that a shell with no such connection binds nothing. Per
+  FR-101.
+- [ ] T251 Add a host seam for the firewall: the network's present category,
+  and whether a rule admits a given protocol and port for it. Four outcomes,
+  not two -- admitted, refused by a rule, no rule at all, and a rule that does
+  not cover this category. Tests drive a fake through all four. Per FR-102 and
+  FR-105.
+- [ ] T252 Re-ask when the network changes, through the same seam, and refresh
+  the local addresses `Win32LinkAnnouncements` holds from the same
+  notification, since nothing tells it to today. Per FR-102.
+- [ ] T253 Add the elevated helper that puts it right: it removes a refusing
+  rule, adds a missing one, or widens one to the present category, and admits
+  a port forward's port when the forward is opened. It runs only when the user
+  asks for it. Per FR-105 and FR-106.
+- [ ] T254 [US14] Show it in Casso Explorer: a warning on the connection's row
+  in the tree, a pointer tip naming the cause, and the action in the pane,
+  reusing `DxuiTreeNode`'s existing broken badge as the pattern and the amber
+  the damaged-disk badge uses rather than its red. Only for a transport that
+  must be reached from outside the PC; a serial connection carries none.
+  Settle whether the warning is a font glyph or drawn, since `DxuiInfoBanner`
+  draws its own from primitives on purpose. Per FR-103.
+- [ ] T255 Show the same on Casso's Network settings page, beside the setting
+  that widens the binding and the forwards that depend on it. Per FR-104.
+- [ ] T256 Walk it on this PC: install the package on a network Windows calls
+  public and turn on the Uthernet II with nothing refused; then refuse by
+  hand and check the warning, the tip, and that the action restores the
+  listing with neither program restarted; and check a serial connection
+  carries no warning throughout. Record in `validation.md`. Per SC-034,
+  SC-035 and SC-036.
+
+**Dependencies**: T248 and T249 and T250 stand alone and can go in any order.
+T251 before T252, T253, T254 and T255. T256 last. T254 and T255 can run
+alongside each other once T251 is in.
+
 ## Section H dependencies
 
 - **Phase 16 first.** T181 before T182 to T186.
