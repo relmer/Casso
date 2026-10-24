@@ -452,7 +452,8 @@ bool DxuiDockedWindow::OnFilesDropped (const std::vector<std::wstring> & paths)
 
 void DxuiDockedWindow::OnMoveLoopTick()
 {
-    bool  buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    POINT  cursor     = {};
+    bool   buttonDown = m_readPointer (cursor);
 
 
 
@@ -508,7 +509,8 @@ void DxuiDockedWindow::OnDpiChanged (UINT newDpi)
 
 void DxuiDockedWindow::PollCaptionDrag()
 {
-    bool  buttonDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
+    POINT  cursor     = {};
+    bool   buttonDown = m_readPointer (cursor);
 
 
 
@@ -531,7 +533,7 @@ void DxuiDockedWindow::Report (DxuiCaptionDragTracker::Event ev)
 
 
 
-    GetCursorPos (&cursor);
+    (void) m_readPointer (cursor);
 
     switch (ev)
     {

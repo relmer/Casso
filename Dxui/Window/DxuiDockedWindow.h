@@ -45,6 +45,7 @@ public:
     using  CommandFn      = std::function<bool (int commandId)>;
     using  FilesFn        = std::function<bool (const std::vector<std::wstring> & paths)>;
     using  FocusChangedFn = std::function<void (bool focused)>;
+    using  PointerFn      = std::function<bool (POINT & cursorPx)>;
 
     DxuiDockedWindow  () = default;
     ~DxuiDockedWindow () override = default;
@@ -79,6 +80,10 @@ public:
     //  Once a frame: reports the end of a caption drag the end of the move
     //  loop did not.
     void  PollCaptionDrag ();
+
+    //  What a caption drag reads: whether the left button is down, and the
+    //  cursor in screen pixels. The system's unless a test sets one.
+    void  SetPointerReader (PointerFn fn) { m_readPointer = std::move (fn); }
 
     //  Moves and sizes the window, in screen pixels.
     void  SetScreenRect (const RECT & rectPx);
@@ -140,6 +145,7 @@ private:
     FilesFn                   m_onFiles;
     FocusChangedFn            m_onFocusChanged;
     DxuiCaptionDragTracker    m_drag;
+    PointerFn                 m_readPointer  = [] (POINT & cursorPx) { GetCursorPos (&cursorPx); return (GetKeyState (VK_LBUTTON) & 0x8000) != 0; };
     bool                      m_headerFade   = false;
 
     //  The look and border color last applied, so DWM is called only when
