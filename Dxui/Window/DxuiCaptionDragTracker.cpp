@@ -116,6 +116,7 @@ void DxuiCaptionDragTracker::Rebase (SIZE windowSize)
 DxuiCaptionDragTracker::Event DxuiCaptionDragTracker::Finish (SIZE windowSize)
 {
     bool  reported = m_reported;
+    bool  resized  = m_resized;
     bool  sameSize = windowSize.cx == m_size.cx && windowSize.cy == m_size.cy;
 
 
@@ -129,9 +130,11 @@ DxuiCaptionDragTracker::Event DxuiCaptionDragTracker::Finish (SIZE windowSize)
     m_reported = false;
     m_resized  = false;
 
+    //  A resize canceled the drag at its first new size; its end is
+    //  reported apart, so its final size can be read.
     if (!reported)
     {
-        return Event::None;
+        return resized ? Event::Resized : Event::None;
     }
 
     return sameSize ? Event::Ended : Event::Canceled;

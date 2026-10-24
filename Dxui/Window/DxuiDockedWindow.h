@@ -59,6 +59,7 @@ public:
     void  SetOnCaptionDrag     (PointFn fn)  { m_onDrag      = std::move (fn); }
     void  SetOnCaptionDragEnd  (PointFn fn)  { m_onDragEnd   = std::move (fn); }
     void  SetOnCaptionDragCancel (ClosedFn fn) { m_onDragCancel = std::move (fn); }
+    void  SetOnResized           (ClosedFn fn) { m_onResized    = std::move (fn); }
     void  SetOnClosed            (ClosedFn fn) { m_onClosed     = std::move (fn); }
 
     //  A key the window's key map translates, for an owner that keeps one
@@ -140,6 +141,7 @@ private:
     PointFn                   m_onDrag;
     PointFn                   m_onDragEnd;
     ClosedFn                  m_onDragCancel;
+    ClosedFn                  m_onResized;
     ClosedFn                  m_onClosed;
     CommandFn                 m_onCommand;
     FilesFn                   m_onFiles;

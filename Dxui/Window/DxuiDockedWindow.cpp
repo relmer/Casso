@@ -561,6 +561,14 @@ void DxuiDockedWindow::Report (DxuiCaptionDragTracker::Event ev)
 
         break;
 
+    case DxuiCaptionDragTracker::Event::Resized:
+        if (m_onResized)
+        {
+            m_onResized();
+        }
+
+        break;
+
     case DxuiCaptionDragTracker::Event::None:
         break;
     }
