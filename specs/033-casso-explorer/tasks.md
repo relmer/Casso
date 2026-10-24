@@ -850,9 +850,19 @@ are allowed.
   checked: how
   Windows writes the package's rules, since no rule on this PC has a package
   SID; T256 reads them once the package is installed.
-- [ ] T252 Re-ask when the network changes, through the same seam, and refresh
+- [X] T252 Re-ask when the network changes, through the same seam, and refresh
   the local addresses `Win32LinkAnnouncements` holds from the same
   notification, since nothing tells it to today. Per FR-102.
+
+  `INetworkChanges` is a count `Win32NetworkChanges` increments from
+  `NotifyUnicastIpAddressChange` and `NotifyIpInterfaceChange`.
+  `FirewallMonitor` in `CassoEmuCore/Net/` reads the rules again when the
+  count changes, when `IHostFirewall::ReadActiveProfiles` differs (a
+  category change moves no address), or after `Invalidate`.
+  `Win32LinkAnnouncements` lists the PC's addresses again on its receive
+  thread when the count changes. Tests in
+  `UnitTest/NetworkTests/FirewallMonitorTests.cpp`; T254 and T255 call
+  `FirewallMonitor::Update` from each program's poll.
 - [ ] T253 Add the elevated helper that puts it right: it removes a refusing
   rule, adds a missing one, or widens one to the present category, and admits
   a port forward's port when the forward is opened. It runs only when the user

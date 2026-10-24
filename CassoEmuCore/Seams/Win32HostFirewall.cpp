@@ -99,6 +99,36 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32HostFirewall::ReadActiveProfiles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32HostFirewall::ReadActiveProfiles (FirewallProfile & outActive)
+{
+    HRESULT                                hr     = S_OK;
+    Microsoft::WRL::ComPtr<INetFwPolicy2>  policy;
+    long                                   active = 0;
+
+
+
+    hr = CoCreateInstance (__uuidof (NetFwPolicy2), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&policy));
+    CHR (hr);
+
+    hr = policy->get_CurrentProfileTypes (&active);
+    CHR (hr);
+
+    outActive = (FirewallProfile) ((uint32_t) active & (uint32_t) FirewallProfile::All);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32HostFirewall::ReadRule
 //
 //  A rule's path can be written with environment variables, as

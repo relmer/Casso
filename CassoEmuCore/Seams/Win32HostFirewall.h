@@ -22,7 +22,8 @@
 class Win32HostFirewall : public IHostFirewall
 {
 public:
-    HRESULT  Read (FirewallSnapshot & outSnapshot) override;
+    HRESULT  Read               (FirewallSnapshot & outSnapshot) override;
+    HRESULT  ReadActiveProfiles (FirewallProfile & outActive) override;
 
     //  This process as the firewall's rules identify it.
     static HRESULT  GetThisProgram (FirewallProgram & outProgram);

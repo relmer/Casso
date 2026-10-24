@@ -55,7 +55,7 @@ CassoExplorerShell::CassoExplorerShell()
     : m_linkFolder (m_fs, m_fileIo),
       m_links (m_streams, m_linkFolder, m_fileIo),
       m_running (m_fs, m_processProbe, RunningCassoRegistry::GetDefaultFolder()),
-      m_announcements (LinkProgram::kAnnouncePort)
+      m_announcements (LinkProgram::kAnnouncePort, &m_networkChanges)
 {
     m_links.SetAnnouncements (&m_announcements);
     m_links.SetFolderMaker ([this] (const std::wstring & path) -> std::unique_ptr<ICassoLinkFolder>

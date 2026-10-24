@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Seams/ILinkAnnouncements.h"
+#include "Seams/INetworkChanges.h"
 
 
 
@@ -22,7 +23,9 @@
 class Win32LinkAnnouncements : public ILinkAnnouncements
 {
 public:
-    explicit Win32LinkAnnouncements (uint16_t port) : m_port (port) {}
+    //  With changes, the PC's addresses are listed again after a network
+    //  change.
+    explicit Win32LinkAnnouncements (uint16_t port, const INetworkChanges * changes = nullptr) : m_port (port), m_networkChanges (changes) {}
     ~Win32LinkAnnouncements () override;
 
     HRESULT                        SetListening   (bool listening) override;
@@ -33,17 +36,20 @@ private:
     //  How long a receive waits, so Stop is seen.
     static constexpr int  s_kWaitMs = 250;
 
-    HRESULT  Start  ();
-    void     Stop   ();
-    void     Run    ();
-    void     Record (LinkAnnouncement announcement, const sockaddr_in & from);
+    HRESULT  Start              ();
+    void     Stop               ();
+    void     Run                ();
+    void     ListLocalAddresses ();
+    void     Record             (LinkAnnouncement announcement, const sockaddr_in & from);
 
-    uint16_t                       m_port    = 0;
-    SOCKET                         m_socket  = INVALID_SOCKET;
-    bool                           m_winsock = false;
+    uint16_t                       m_port           = 0;
+    const INetworkChanges        * m_networkChanges = nullptr;
+    uint32_t                       m_seenNetwork    = 0;
+    SOCKET                         m_socket         = INVALID_SOCKET;
+    bool                           m_winsock        = false;
     std::thread                    m_thread;
-    std::atomic<bool>              m_stop    { false };
-    std::atomic<uint32_t>          m_changes { 0 };
+    std::atomic<bool>              m_stop           { false };
+    std::atomic<uint32_t>          m_changes        { 0 };
     mutable std::mutex             m_lock;
     std::vector<LinkAnnouncement>  m_announced;
     std::vector<uint32_t>          m_local;

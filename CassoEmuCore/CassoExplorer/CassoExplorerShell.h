@@ -14,6 +14,7 @@
 #include "Seams/Win32ByteStreamFactory.h"
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32LinkAnnouncements.h"
+#include "Seams/Win32NetworkChanges.h"
 #include "Seams/IProcessProbe.h"
 #include "CassoLink/RunningCassoRegistry.h"
 
@@ -198,6 +199,7 @@ private:
     CassoLinkConnections                      m_links;
     Win32ProcessProbe                         m_processProbe;
     RunningCassoRegistry                      m_running;
+    Win32NetworkChanges                       m_networkChanges;
     Win32LinkAnnouncements                    m_announcements;
     std::vector<std::unique_ptr<WindowSlot>>  m_windows;
     std::vector<ClosedWindow>                 m_closed;

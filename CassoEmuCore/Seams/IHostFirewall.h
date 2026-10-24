@@ -99,5 +99,9 @@ class IHostFirewall
 public:
     virtual ~IHostFirewall () = default;
 
-    virtual HRESULT  Read (FirewallSnapshot & outSnapshot) = 0;
+    virtual HRESULT  Read               (FirewallSnapshot & outSnapshot) = 0;
+
+    //  The active profiles alone, cheap enough to read on every poll; they
+    //  change when a network's category does, with no address change.
+    virtual HRESULT  ReadActiveProfiles (FirewallProfile & outActive) = 0;
 };

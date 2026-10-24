@@ -75,21 +75,16 @@ Error:
 //
 //  Win32LinkAnnouncements::Start
 //
-//  The PC's addresses are listed here, to recognize an announcement sent
-//  from this PC.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32LinkAnnouncements::Start()
 {
-    HRESULT                      hr       = S_OK;
-    HRESULT                      listed   = S_OK;
-    WSADATA                      data     = {};
-    sockaddr_in                  address  = {};
-    BOOL                         reuse    = TRUE;
-    DWORD                        wait     = s_kWaitMs;
-    int                          result   = 0;
-    std::vector<NetworkAdapter>  adapters;
+    HRESULT      hr      = S_OK;
+    WSADATA      data    = {};
+    sockaddr_in  address = {};
+    BOOL         reuse   = TRUE;
+    DWORD        wait    = s_kWaitMs;
+    int          result  = 0;
 
 
 
@@ -114,15 +109,7 @@ HRESULT Win32LinkAnnouncements::Start()
     result = ::bind (m_socket, (const sockaddr *) &address, sizeof (address));
     CWR (result == 0);
 
-    listed = Win32NetworkAdapters::List (adapters);
-    IGNORE_RETURN_VALUE (listed, S_OK);
-
-    m_local.clear();
-
-    for (const NetworkAdapter & adapter : adapters)
-    {
-        m_local.push_back ((uint32_t) ((adapter.address[0] << 24) | (adapter.address[1] << 16) | (adapter.address[2] << 8) | adapter.address[3]));
-    }
+    ListLocalAddresses();
 
     m_stop   = false;
     m_thread = std::thread ([this]() { Run(); });
@@ -217,10 +204,49 @@ void Win32LinkAnnouncements::Run()
         fromLength = sizeof (from);
         received   = ::recvfrom (m_socket, (char *) buffer, (int) sizeof (buffer), 0, (sockaddr *) &from, &fromLength);
 
+        if (m_networkChanges != nullptr && m_networkChanges->GetChangeCount() != m_seenNetwork)
+        {
+            ListLocalAddresses();
+        }
+
         if (received > 0 && LinkAnnouncement::Parse (std::span<const Byte> (buffer, (size_t) received), announcement))
         {
             Record (announcement, from);
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32LinkAnnouncements::ListLocalAddresses
+//
+//  The PC's addresses, to recognize an announcement sent from this PC. They
+//  are listed when the socket opens and again on the receive thread after a
+//  network change, which is the only thread that reads them after that.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32LinkAnnouncements::ListLocalAddresses()
+{
+    HRESULT                      listed = S_OK;
+    std::vector<NetworkAdapter>  adapters;
+
+
+
+    m_seenNetwork = (m_networkChanges != nullptr) ? m_networkChanges->GetChangeCount() : 0;
+
+    listed = Win32NetworkAdapters::List (adapters);
+    IGNORE_RETURN_VALUE (listed, S_OK);
+
+    m_local.clear();
+
+    for (const NetworkAdapter & adapter : adapters)
+    {
+        m_local.push_back ((uint32_t) ((adapter.address[0] << 24) | (adapter.address[1] << 16) | (adapter.address[2] << 8) | adapter.address[3]));
     }
 }
 
