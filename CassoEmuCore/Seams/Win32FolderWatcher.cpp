@@ -352,36 +352,51 @@ void Win32FolderWatcher::RunService()
 //
 //  Win32FolderWatcher::DropUnusable
 //
+//  One folder at a time, and marked as being called for under the same lock
+//  that drops it, so an Unwatch for it returns only once its callback is
+//  done, as for a change.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32FolderWatcher::DropUnusable (const std::vector<std::wstring> & directories)
 {
-    std::vector<std::pair<std::wstring, Callback>>  dropped;
-
-
-
+    for (const std::wstring & directory : directories)
     {
-        std::lock_guard<std::mutex>  held (m_lock);
+        Callback  callback;
+        bool      dropped = false;
 
-        for (const std::wstring & directory : directories)
         {
-            auto  found = m_folders.find (directory);
+            std::lock_guard<std::mutex>  held  (m_lock);
+            auto                         found = m_folders.find (directory);
 
-            if (found != m_folders.end() && WaitForSingleObject (found->second.notification, 0) == WAIT_FAILED)
+            dropped = found != m_folders.end() && WaitForSingleObject (found->second.notification, 0) == WAIT_FAILED;
+
+            if (dropped)
             {
-                dropped.emplace_back (directory, found->second.callback);
+                callback  = found->second.callback;
+                m_calling = directory;
                 FindCloseChangeNotification (found->second.notification);
                 m_folders.erase (found);
             }
         }
-    }
 
-    for (const auto & [directory, callback] : dropped)
-    {
+        if (!dropped)
+        {
+            continue;
+        }
+
         if (callback)
         {
             callback (directory);
         }
+
+        {
+            std::lock_guard<std::mutex>  held (m_lock);
+
+            m_calling.clear();
+        }
+
+        m_called.notify_all();
     }
 }
 

@@ -90,6 +90,9 @@ HRESULT Win32ShellPreview::Start (HWND owner, UINT message)
 
     m_threadId = ready.get();
 
+    m_sendStopping = false;
+    m_sender       = std::thread ([this]() { RunSender(); });
+
 Error:
     return hr;
 }
@@ -113,6 +116,20 @@ void Win32ShellPreview::Stop()
     DWORD  waited = WAIT_OBJECT_0;
 
 
+
+    //  A send under way returns within its timeout.
+    if (m_sender.joinable())
+    {
+        {
+            std::lock_guard<std::mutex>  lock (m_sendLock);
+
+            m_sendStopping = true;
+            m_sends.clear();
+        }
+
+        m_sendWake.notify_all();
+        m_sender.join();
+    }
 
     if (m_thread.joinable())
     {
@@ -265,7 +282,7 @@ uint64_t Win32ShellPreview::Load (const std::wstring & path, const RECT & rectPx
     //  replaces it there.
     if (previous >= 0 && previous != m_activeSlot && m_helpers[(size_t) previous].window != nullptr)
     {
-        Win32PreviewHelper::SendUnload (m_helpers[(size_t) previous].window, m_owner);
+        SendUnload (m_helpers[(size_t) previous].window);
     }
 
     return job.request;
@@ -316,27 +333,131 @@ Error:
 //
 //  Win32ShellPreview::SendLoad
 //
+//  Queued for the sender thread; a load the helper does not take arrives
+//  later as a failed result.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Win32ShellPreview::SendLoad()
 {
-    HRESULT                         hr     = S_OK;
-    Win32PreviewHelper::LoadHeader  header;
-    bool                            active = m_activeSlot >= 0 && m_helpers[(size_t) m_activeSlot].window != nullptr;
+    HRESULT  hr     = S_OK;
+    Send     send;
+    bool     active = m_activeSlot >= 0 && m_helpers[(size_t) m_activeSlot].window != nullptr;
 
 
 
     CBREx (active, E_UNEXPECTED);
 
-    header.request    = m_current.request;
-    header.background = m_current.background;
-    header.text       = m_current.text;
+    send.helper            = m_helpers[(size_t) m_activeSlot].window;
+    send.load              = true;
+    send.header.request    = m_current.request;
+    send.header.background = m_current.background;
+    send.header.text       = m_current.text;
+    send.path              = m_current.path;
 
-    hr = Win32PreviewHelper::SendLoad (m_helpers[(size_t) m_activeSlot].window, m_owner, header, m_current.path);
-    CHR (hr);
+    QueueSend (std::move (send));
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::SendUnload
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellPreview::SendUnload (HWND helper)
+{
+    Send  send;
+
+
+
+    send.helper = helper;
+    QueueSend (std::move (send));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::QueueSend
+//
+//  A load replaces a load for the same helper not yet sent, since only the
+//  latest is drawn; unloads are sent in order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellPreview::QueueSend (Send send)
+{
+    {
+        std::lock_guard<std::mutex>  lock (m_sendLock);
+
+        if (send.load)
+        {
+            std::erase_if (m_sends, [&send] (const Send & queued) { return queued.load && queued.helper == send.helper; });
+        }
+
+        m_sends.push_back (std::move (send));
+    }
+
+    m_sendWake.notify_one();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellPreview::RunSender
+//
+//  A load the helper did not take is posted to the owner as the helper's
+//  failed result, which falls back to a thumbnail, as a handler's failure
+//  does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellPreview::RunSender()
+{
+    for (;;)
+    {
+        Send     send;
+        HRESULT  hr = S_OK;
+
+        {
+            std::unique_lock<std::mutex>  lock (m_sendLock);
+
+            m_sendWake.wait (lock, [this]() { return m_sendStopping || !m_sends.empty(); });
+
+            if (m_sendStopping)
+            {
+                break;
+            }
+
+            send = std::move (m_sends.front());
+            m_sends.pop_front();
+        }
+
+        if (!send.load)
+        {
+            Win32PreviewHelper::SendUnload (send.helper, m_owner);
+            continue;
+        }
+
+        hr = Win32PreviewHelper::SendLoad (send.helper, m_owner, send.header, send.path);
+
+        if (FAILED (hr))
+        {
+            PostMessageW (m_owner, Win32PreviewHelper::kResultMessage, (WPARAM) send.header.request, (LPARAM) hr);
+        }
+    }
 }
 
 
@@ -573,7 +694,7 @@ void Win32ShellPreview::Unload()
 
     if (m_activeSlot >= 0 && m_helpers[(size_t) m_activeSlot].window != nullptr)
     {
-        Win32PreviewHelper::SendUnload (m_helpers[(size_t) m_activeSlot].window, m_owner);
+        SendUnload (m_helpers[(size_t) m_activeSlot].window);
     }
 
     m_activeSlot = -1;

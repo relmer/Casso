@@ -85,6 +85,15 @@ private:
         HWND    window  = nullptr;
     };
 
+    //  A load or an unload for a helper, sent on the sender thread.
+    struct Send
+    {
+        HWND                            helper = nullptr;
+        bool                            load   = false;
+        Win32PreviewHelper::LoadHeader  header;
+        std::wstring                    path;
+    };
+
     static constexpr UINT   s_kLoadMessage  = WM_APP + 1;
     static constexpr DWORD  s_kStopWaitMs   = 1000;
 
@@ -94,6 +103,9 @@ private:
 
     HRESULT  EnsureHelper   (int slot);
     HRESULT  SendLoad       ();
+    void     SendUnload     (HWND helper);
+    void     QueueSend      (Send send);
+    void     RunSender      ();
     void     AdoptWindow    (int slot);
     void     HideHelpers    ();
     void     PostPictureJob (const Job & job);
@@ -113,6 +125,15 @@ private:
     std::atomic<uint64_t>                         m_request      { 0 };
     std::mutex                                    m_lock;
     std::optional<Result>                         m_result;
+
+    //  The sender thread. A helper busy in a handler takes a sent message
+    //  only once the handler returns, up to the send's timeout, so the
+    //  owner's thread queues the message here instead of sending it.
+    std::thread                                   m_sender;
+    std::mutex                                    m_sendLock;
+    std::condition_variable                       m_sendWake;
+    std::deque<Send>                              m_sends;
+    bool                                          m_sendStopping = false;
 
     //  The owner's thread's own: the helpers, the latest load, its helper,
     //  and whether that load waits for the helper's window.

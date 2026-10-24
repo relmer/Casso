@@ -105,10 +105,64 @@ bool Win32ShellIcons::TakeLoaded()
 
     for (Loaded & item : loaded)
     {
-        m_cache[item.key] = std::move (item.image);
+        StorePathIcon (item.key, std::move (item.image));
     }
 
     return !loaded.empty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::StorePathIcon
+//
+//  Per-path icons are the only ones whose number grows with what is browsed,
+//  so past s_kMaxCachedIcons they are all dropped and read again as they are
+//  drawn. A failure is stored too, with when it happened, so it is read
+//  again after s_kRetryFailedMs rather than on every repaint.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Win32ShellIcons::StorePathIcon (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image)
+{
+    if (image == nullptr)
+    {
+        m_failedAt[key] = GetTickCount64();
+    }
+    else
+    {
+        m_failedAt.erase (key);
+    }
+
+    m_cache[key] = std::move (image);
+
+    if (m_cache.size() > s_kMaxCachedIcons)
+    {
+        std::erase_if (m_cache, [] (const auto & entry) { return entry.first.find (L"*path:") != std::wstring::npos; });
+        m_failedAt.clear();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::IsFailureExpired
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellIcons::IsFailureExpired (const std::wstring & key) const
+{
+    auto  failed = m_failedAt.find (key);
+
+
+
+    return failed != m_failedAt.end() && GetTickCount64() - failed->second >= s_kRetryFailedMs;
 }
 
 
@@ -607,6 +661,15 @@ std::shared_ptr<const DxuiIconImage> Win32ShellIcons::GetIconForPath (const std:
     auto          found    = m_cache.find (key);
 
 
+
+    //  A failure old enough is read again, as a share that was offline may
+    //  answer now.
+    if (found != m_cache.end() && found->second == nullptr && IsFailureExpired (key))
+    {
+        m_cache.erase (found);
+        m_failedAt.erase (key);
+        found = m_cache.end();
+    }
 
     if (found != m_cache.end())
     {

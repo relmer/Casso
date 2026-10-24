@@ -91,10 +91,14 @@ private:
     std::shared_ptr<const DxuiIconImage>  LoadPicture (const std::wstring & key, const std::wstring & file);
     std::shared_ptr<const DxuiIconImage>  Queue (const std::wstring & key, const std::wstring & path, bool isDirectory, bool overlays);
     std::shared_ptr<const DxuiIconImage>  GetIconForPath (const std::wstring & path, bool isDirectory, bool overlays);
+    void                                  StorePathIcon (const std::wstring & key, std::shared_ptr<const DxuiIconImage> image);
+    bool                                  IsFailureExpired (const std::wstring & key) const;
     void                                  RunLoader();
 
-    static constexpr int  s_kLargeIconPx      = 32;
-    static constexpr int  s_kExtraLargeIconPx = 48;
+    static constexpr int       s_kLargeIconPx      = 32;
+    static constexpr int       s_kExtraLargeIconPx = 48;
+    static constexpr size_t    s_kMaxCachedIcons   = 4096;
+    static constexpr uint64_t  s_kRetryFailedMs    = 30000;
 
     static std::wstring                    GetCacheKey       (const std::wstring & path, bool isDirectory);
     static HICON                           LoadForPath       (const std::wstring & path, UINT sizeFlag, bool overlays = true, int * outOverlay = nullptr);
@@ -121,6 +125,7 @@ private:
     int                                                                      m_sizePx = kDefaultSizePx;
     UINT                                                                     m_dpi    = 0;
     std::unordered_map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_cache;
+    std::unordered_map<std::wstring, uint64_t>                              m_failedAt;   // GetTickCount64 of a per-path icon that failed to load
     std::unordered_map<std::wstring, std::wstring>                          m_typeNames;
 
     //  The background loader. Requests and results pass under the lock;
