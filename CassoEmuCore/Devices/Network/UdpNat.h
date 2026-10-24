@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Seams/IHostFirewall.h"
 #include "Seams/IHostNetwork.h"
 
 class IGuestPacketSink;
@@ -53,6 +54,11 @@ public:
     bool  IsActive        () const { return !m_flows.empty(); }
     size_t  GetFlowCount  () const { return m_flows.size(); }
 
+    //  Each flow's PC port when it has the guest's port number, which other
+    //  computers send to while LAN access is on. A port forward's is the
+    //  forward's, and is left out.
+    void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const;
+
 private:
 
     struct Flow
@@ -61,6 +67,7 @@ private:
         std::set<uint64_t>            peers;          // HostEndpoints sent to, packed
         uint64_t                      lastActivity  = 0;
         bool                          isForward     = false;
+        bool                          samePort      = false;   // bound to the guest's port number, not an ephemeral one
     };
 
     static uint64_t  PackEndpoint (const HostEndpoint & endpoint);

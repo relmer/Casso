@@ -904,8 +904,19 @@ are allowed.
   this PC: the badge, the message on a public network and both buttons; the
   tip is not visible to a posted move, so T256 checks it. Tests in
   `CassoLinkConnectionsTests.cpp` and `FirewallTextTests.cpp`.
-- [ ] T255 Show the same on Casso's Network settings page, beside the setting
+- [X] T255 Show the same on Casso's Network settings page, beside the setting
   that widens the binding and the forwards that depend on it. Per FR-104.
+
+  A `DxuiActionBanner` under the port forwards, while LAN access is on, for
+  each port other computers send to: every forward's host port, and the
+  ports the running guest has open, since `W5100SocketBridge::OnListen` and
+  the UDP sockets and flows bind every interface then.
+  `NetworkPage::CollectInboundPorts` lists them; `UthernetCard::GetInboundPorts`
+  copies the bridge's and `UdpNat`'s under a lock on each pump, for the UI
+  thread. `EmulatorShell` owns its `FirewallMonitor`, and the banner's Allow
+  and, on a public network, Make private run the same helper, which covers
+  FR-106's forwards and guest ports. Tests in `NetworkSettingsTests.cpp` and
+  `W5100SocketBridgeTests.cpp`; the page on screen is checked in T256.
 - [ ] T256 Walk it on this PC: install the package on a network Windows calls
   public and turn on the Uthernet II with nothing refused; then refuse by
   hand and check the warning, the tip, and that the action restores the

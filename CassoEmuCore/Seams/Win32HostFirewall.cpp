@@ -243,6 +243,28 @@ std::wstring Win32HostFirewall::TakeString (BSTR text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32HostFirewall::ReadThisProgram
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FirewallProgram Win32HostFirewall::ReadThisProgram()
+{
+    FirewallProgram  program;
+    HRESULT          hr = GetThisProgram (program);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return program;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32HostFirewall::GetThisProgram
 //
 //  A packaged process's rules are written for its package's SID, which is

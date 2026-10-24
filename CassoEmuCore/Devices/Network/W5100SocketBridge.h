@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Network/IW5100Backend.h"
+#include "Seams/IHostFirewall.h"
 #include "Seams/IHostNetwork.h"
 
 class VirtualNetwork;
@@ -42,6 +43,11 @@ public:
     void  Pump           (uint64_t now);
     void  CloseAll       ();
 
+    //  The PC ports the guest's sockets have, which other computers send to
+    //  while LAN access is on: each listening TCP socket's, and each UDP
+    //  socket's bound to its guest port.
+    void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const;
+
 private:
 
     static constexpr int     kSocketCount   = 4;
@@ -72,6 +78,7 @@ private:
         bool                          sendPending = false;
         std::set<uint64_t>            udpPeers;     // packed endpoints sent to
         std::deque<Datagram>          udpPending;   // received, waiting for RX space
+        uint16_t                      hostPort    = 0;   // the PC port a listener or UDP socket has; 0 for an ephemeral one
     };
 
     void  CloseSlot        (int socket);

@@ -302,6 +302,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_diskPage->SetState     (&m_state);
     m_displayPage->SetState  (&m_state);
     m_networkPage->SetState  (&m_state);
+    m_networkPage->SetFirewall (&emuShell.GetFirewall(), [&emuShell] () { return emuShell.GetGuestInboundPorts(); });
 
     // Disk page play (>) buttons audition the drive sounds live.
     m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)

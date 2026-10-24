@@ -275,6 +275,39 @@ namespace W5100SocketBridgeTests
         }
 
 
+        //  A listener and a UDP socket on its guest port are what other
+        //  computers send to; the card has them after its next pump.
+        TEST_METHOD (AListenerAndAUdpSocket_AreInboundPorts)
+        {
+            UthernetRig                rig;
+            std::vector<FirewallPort>  ports;
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.OpenSocket (1, R::kProtocolUdp, kPeerPort);
+            rig.Pump();
+
+            ports = rig.card.GetInboundPorts();
+
+            Assert::AreEqual ((size_t) 2, ports.size());
+            Assert::IsTrue   (ports[0] == FirewallPort { HostSocketKind::Tcp, kAdtPro });
+            Assert::IsTrue   (ports[1] == FirewallPort { HostSocketKind::Udp, kPeerPort });
+        }
+
+
+        //  A UDP socket bound to an ephemeral port has no fixed port to admit.
+        TEST_METHOD (AUdpSocketOnAnEphemeralPort_IsNotAnInboundPort)
+        {
+            UthernetRig  rig;
+
+            rig.network.OccupyPort (HostSocketKind::Udp, kPeerPort);
+            rig.OpenSocket (1, R::kProtocolUdp, kPeerPort);
+            rig.Pump();
+
+            Assert::IsTrue (rig.card.GetInboundPorts().empty());
+        }
+
+
         TEST_METHOD (ListenOnAPortInUseClosesWithTimeout)
         {
             UthernetRig  rig;

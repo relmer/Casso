@@ -139,6 +139,29 @@ void W5100SocketBridge::CloseSlot (int socket)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  W5100SocketBridge::GetInboundPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::GetInboundPorts (std::vector<FirewallPort> & outPorts) const
+{
+    for (const Slot & slot : m_slots)
+    {
+        bool  inbound = slot.hostPort != 0 && (slot.phase == Phase::Listening || slot.phase == Phase::Udp);
+
+        if (inbound)
+        {
+            outPorts.push_back ({ slot.phase == Phase::Udp ? HostSocketKind::Udp : HostSocketKind::Tcp, slot.hostPort });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  W5100SocketBridge::Fail
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,6 +214,7 @@ void W5100SocketBridge::OnOpen (int socket)
     CHR (hr);
 
     hr = slot.host->Bind ({ VirtualSubnet::kAnyIp, port }, true);
+    slot.hostPort = SUCCEEDED (hr) ? port : 0;
 
     if (FAILED (hr))
     {
@@ -281,7 +305,8 @@ void W5100SocketBridge::OnListen (int socket)
     hr = slot.host->Listen();
     CHR (hr);
 
-    slot.phase = Phase::Listening;
+    slot.phase    = Phase::Listening;
+    slot.hostPort = m_chip.GetSourcePort (socket);
     m_chip.SetSocketStatus (socket, R::kSockListen);
 
 Error:

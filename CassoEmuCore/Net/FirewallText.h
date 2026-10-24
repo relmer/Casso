@@ -27,12 +27,15 @@ public:
     //  verdict.
     static std::wstring  DescribeCause   (const FirewallVerdict & verdict, const std::wstring & program, const FirewallPort & port);
 
-    //  The two remedies' button labels.
-    static constexpr const wchar_t *  kAllowAction   = L"Allow in Windows Firewall";
-    static constexpr const wchar_t *  kPrivateAction = L"Make this network private";
+    //  The two remedies' button labels, and the short ones for a banner's
+    //  narrow buttons, with the explanation in the banner's text.
+    static constexpr const wchar_t *  kAllowAction        = L"Allow in Windows Firewall";
+    static constexpr const wchar_t *  kPrivateAction      = L"Make this network private";
+    static constexpr const wchar_t *  kAllowShortAction   = L"Allow";
+    static constexpr const wchar_t *  kPrivateShortAction = L"Make private";
 
     //  What follows the cause on a public network, offering both remedies.
-    static constexpr const wchar_t *  kPublicChoice  = L"Allow the port on public networks, or make this network private if it is one you trust, such as your home network.";
+    static constexpr const wchar_t *  kPublicChoice       = L"Allow the port on public networks, or make this network private if it is one you trust, such as your home network.";
 
     static const wchar_t *  GetProfileName (FirewallProfile profile);
 };

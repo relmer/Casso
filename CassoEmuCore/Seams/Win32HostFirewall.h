@@ -28,6 +28,10 @@ public:
     //  This process as the firewall's rules identify it.
     static HRESULT  GetThisProgram (FirewallProgram & outProgram);
 
+    //  The same, or an empty program when it cannot be read, whose verdicts
+    //  then match only the rules for every program.
+    static FirewallProgram  ReadThisProgram ();
+
     //  One rule, with outInbound false for an outbound rule or one for a
     //  protocol other than TCP or UDP; outRule is then incomplete.
     static HRESULT  ReadRule       (INetFwRule * rule, bool & outInbound, FirewallRule & outRule);

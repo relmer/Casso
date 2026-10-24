@@ -11,6 +11,9 @@
 #include "Seams/Win32Clipboard.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32HostNetwork.h"
+#include "Seams/Win32HostFirewall.h"
+#include "Seams/Win32NetworkChanges.h"
+#include "Net/FirewallMonitor.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
@@ -98,6 +101,11 @@ public:
         const string    & tapePath = {});
 
     int RunMessageLoop();
+
+    //  For the Network settings page: the firewall's verdicts, and the PC
+    //  ports the running Uthernet II's guest has open, empty with no card.
+    FirewallMonitor &          GetFirewall          () { return m_firewall; }
+    std::vector<FirewallPort>  GetGuestInboundPorts ();
 
     void HandleCommand (WORD commandId);
 
@@ -710,6 +718,12 @@ private:
     //  Winsock for the Uthernet II. Declared ahead of the machine so it is
     //  destroyed after it: the card's host sockets close before WSACleanup.
     Win32HostNetwork        m_hostNetwork;
+
+    //  Windows Firewall's verdicts for this program, for the Network
+    //  settings page. Read on the UI thread, which is OLE initialized.
+    Win32NetworkChanges     m_networkChanges;
+    Win32HostFirewall       m_hostFirewall;
+    FirewallMonitor         m_firewall;
 
     //  Notices raised before the window exists, displayed once it does.
     std::vector<std::wstring>  m_pendingNotices;

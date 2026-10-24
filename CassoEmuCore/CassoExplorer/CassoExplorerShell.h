@@ -187,10 +187,6 @@ private:
     struct WindowSlot;
 
     void  ConfigureBrowser       (CassoExplorerBrowser & browser);
-
-    //  This process as the firewall's rules identify it, or an empty program
-    //  when that cannot be read, whose verdicts then match no rule of Casso's.
-    static FirewallProgram  GetFirewallProgram ();
     void  ReleaseClosedWindows   ();
     bool  HasOpenWindows         () const;
     std::vector<CassoExplorerSessionWindow>  GetOpenSession () const;

@@ -59,6 +59,10 @@ public:
 
     const std::vector<std::string> & GetErrors () const { return m_forwarder.GetErrors(); }
 
+    //  The address translation's flows that other computers send to while
+    //  LAN access is on.
+    void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const { m_udp.GetInboundPorts (outPorts); }
+
     // The DHCP server, for DHCP that arrives through a hardware UDP socket.
     std::vector<Byte>  ProcessDhcp (std::span<const Byte> request) const { return m_dhcp.Process (request); }
 

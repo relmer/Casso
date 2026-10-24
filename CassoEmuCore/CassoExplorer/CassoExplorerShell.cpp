@@ -56,7 +56,7 @@ CassoExplorerShell::CassoExplorerShell()
       m_links (m_streams, m_linkFolder, m_fileIo),
       m_running (m_fs, m_processProbe, RunningCassoRegistry::GetDefaultFolder()),
       m_announcements (LinkProgram::kAnnouncePort, &m_networkChanges),
-      m_firewall (m_hostFirewall, &m_networkChanges, GetFirewallProgram())
+      m_firewall (m_hostFirewall, &m_networkChanges, Win32HostFirewall::ReadThisProgram())
 {
     m_links.SetAnnouncements (&m_announcements);
     m_links.SetFirewall (&m_firewall);
@@ -781,28 +781,6 @@ HRESULT CassoExplorerShell::Initialize (HINSTANCE instance, const CassoExplorerL
 
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CassoExplorerShell::GetFirewallProgram
-//
-////////////////////////////////////////////////////////////////////////////////
-
-FirewallProgram CassoExplorerShell::GetFirewallProgram()
-{
-    FirewallProgram  program;
-    HRESULT          hr = Win32HostFirewall::GetThisProgram (program);
-
-
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    return program;
 }
 
 

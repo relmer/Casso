@@ -119,7 +119,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EmulatorShell::EmulatorShell()
+EmulatorShell::EmulatorShell() :
+    m_firewall (m_hostFirewall, &m_networkChanges, Win32HostFirewall::ReadThisProgram())
 {
     // / FR-035. The Prng is the deterministic stand-in for
     // indeterminate //e DRAM at power-on, shared across every device that

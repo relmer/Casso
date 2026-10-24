@@ -3,6 +3,9 @@
 #include "NetworkPage.h"
 
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/ChangePrompt.h"
+#include "Net/FirewallText.h"
+#include "Seams/Win32FirewallHelper.h"
 #include "SettingsPanelState.h"
 
 
@@ -21,6 +24,9 @@ static constexpr int  s_kButtonWidthDp   = 90;
 static constexpr int  s_kSmallGapDp      = 8;
 static constexpr int  s_kSectionGapDp    = 14;
 static constexpr int  s_kPagePadDp       = 16;
+
+// The program in the firewall's words.
+static constexpr const wchar_t *  s_kFirewallTitle = L"Casso";
 
 static constexpr const wchar_t *  s_kpszCardBanner =
     L"The Uthernet II in slot {} is an Ethernet card. Casso assigns it the address "
@@ -47,10 +53,14 @@ NetworkPage::NetworkPage (std::wstring title)
     for (IDxuiControl * control : std::initializer_list<IDxuiControl *> {
              &m_banner, &m_macLabel, &m_mac,
              &m_lan, &m_forwardsLabel, &m_forwards, &m_protocol, &m_hostPortLabel, &m_hostPort,
-             &m_guestPortLabel, &m_guestPort, &m_add, &m_remove, &m_error })
+             &m_guestPortLabel, &m_guestPort, &m_add, &m_remove, &m_firewallBanner, &m_error })
     {
         Adopt (*control);
     }
+
+    m_firewallBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_firewallBanner.SetVisible  (false);
+    m_firewallBanner.SetOnAction ([this] (size_t index) { OnFirewallAction (index); });
 
     columns[0].title   = L"Protocol";
     columns[1].title   = L"Host port";
@@ -65,6 +75,46 @@ NetworkPage::NetworkPage (std::wstring title)
     m_error.SetVisible  (false);
 
     WireCallbacks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NetworkPage::~NetworkPage
+//
+//  A running helper is left to exit; only the handle is closed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+NetworkPage::~NetworkPage()
+{
+    if (m_firewallHelper != nullptr)
+    {
+        CloseHandle (m_firewallHelper);
+        m_firewallHelper = nullptr;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NetworkPage::SetFirewall
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkPage::SetFirewall (FirewallMonitor * firewall, GuestPortsFn guestPorts)
+{
+    m_firewall      = firewall;
+    m_guestPorts    = std::move (guestPorts);
+    m_firewallDrawn = false;
+
+    SyncFirewall();
 }
 
 
@@ -95,6 +145,7 @@ void NetworkPage::SetState (SettingsPanelState * state)
 
 void NetworkPage::SetPopupHost (DxuiHwndSource * host)
 {
+    m_popupHost = host;
     m_protocol.SetPopupHost (host);
 }
 
@@ -138,13 +189,14 @@ void NetworkPage::Layout (
     const RECT           & rect,
     const DxuiDpiScaler  & scaler)
 {
-    int   pad     = scaler.ToPx (s_kPagePadDp);
-    int   gap     = scaler.ToPx (s_kSectionGapDp);
-    int   x       = rect.left + pad;
-    int   y       = rect.top  + pad;
-    int   width   = (rect.right - rect.left) - pad * 2;
-    int   bannerH = (int) std::ceil (m_banner.GetPreferredHeightPx ((float) width, scaler));
-    int   errorH  = 0;
+    int   pad       = scaler.ToPx (s_kPagePadDp);
+    int   gap       = scaler.ToPx (s_kSectionGapDp);
+    int   x         = rect.left + pad;
+    int   y         = rect.top  + pad;
+    int   width     = (rect.right - rect.left) - pad * 2;
+    int   bannerH   = (int) std::ceil (m_banner.GetPreferredHeightPx ((float) width, scaler));
+    int   firewallH = 0;
+    int   errorH    = 0;
 
 
 
@@ -159,7 +211,15 @@ void NetworkPage::Layout (
     y = LayoutForwardRows (x + scaler.ToPx (s_kLabelWidthDp), y, scaler);
     y += gap;
 
-    errorH = m_error.IsVisible() ? (int) std::ceil (m_error.GetPreferredHeightPx ((float) width, scaler)) : 0;
+    //  Under the forwards and the LAN access setting it concerns.
+    if (m_firewallBanner.IsVisible())
+    {
+        firewallH = (int) std::ceil (m_firewallBanner.GetPreferredHeightPx ((float) width, scaler));
+        m_firewallBanner.Layout (MakeRect (x, y, width, firewallH), scaler);
+        y += firewallH + gap;
+    }
+
+    errorH =m_error.IsVisible() ? (int) std::ceil (m_error.GetPreferredHeightPx ((float) width, scaler)) : 0;
     m_error.SetRect (MakeRect (x, y, width, errorH));
 
     ApplyDpi (scaler.GetDpi());
@@ -378,6 +438,8 @@ void NetworkPage::Rebuild()
     m_banner.SetText (std::vformat (s_kpszCardBanner, std::make_wformat_args (m_view.slot)));
     ShowError ("");
     SyncWidgets();
+    m_firewallDrawn = false;
+    SyncFirewall();
     Relayout();
 }
 
@@ -396,6 +458,168 @@ void NetworkPage::Sync()
     if (!(ReadCard() == m_view))
     {
         Rebuild();
+    }
+
+    SyncFirewall();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NetworkPage::CollectInboundPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FirewallPort> NetworkPage::CollectInboundPorts (const NetworkCardSettings & network, const std::vector<FirewallPort> & guestPorts)
+{
+    std::vector<FirewallPort>  ports;
+
+
+
+    if (!network.lanAccess)
+    {
+        return ports;
+    }
+
+    for (const PortForward & forward : network.portForwards)
+    {
+        ports.push_back ({ forward.protocol == PortForwardProtocol::Udp ? HostSocketKind::Udp : HostSocketKind::Tcp, forward.hostPort });
+    }
+
+    for (const FirewallPort & port : guestPorts)
+    {
+        if (std::find (ports.begin(), ports.end(), port) == ports.end())
+        {
+            ports.push_back (port);
+        }
+    }
+
+    return ports;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NetworkPage::SyncFirewall
+//
+//  Called each dialog tick. The banner is redrawn only when the ports or the
+//  firewall's verdicts changed. Its text is the first blocked port's; the
+//  helper admits every blocked one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkPage::SyncFirewall()
+{
+    HRESULT                    result   = S_OK;
+    std::vector<FirewallPort>  inbound;
+    std::wstring               text;
+    bool                       onPublic = false;
+
+
+
+    if (m_firewall == nullptr)
+    {
+        return;
+    }
+
+    //  The helper changed the rules, which no notification reports.
+    if (m_firewallHelper != nullptr && Win32FirewallHelper::TryFinish (m_firewallHelper, result))
+    {
+        m_firewall->Invalidate();
+
+        if (FAILED (result))
+        {
+            ShowError ("Error: Windows Firewall could not be changed\n" + TextEncoding::WideToNarrow (ChangePrompt::DescribeError (result)));
+        }
+    }
+
+    m_firewall->Update();
+    inbound = CollectInboundPorts (m_view.network, m_guestPorts ? m_guestPorts() : std::vector<FirewallPort>());
+
+    if (m_firewallDrawn && inbound == m_inbound && m_firewall->GetVersion() == m_firewallVersion)
+    {
+        return;
+    }
+
+    m_firewallDrawn   = true;
+    m_inbound         = inbound;
+    m_firewallVersion = m_firewall->GetVersion();
+    m_blocked.clear();
+
+    for (const FirewallPort & port : inbound)
+    {
+        FirewallVerdict  verdict = m_firewall->Check (port.protocol, port.port);
+
+        if (verdict.IsAdmitted())
+        {
+            continue;
+        }
+
+        if (m_blocked.empty())
+        {
+            text     = FirewallText::DescribeCause (verdict, s_kFirewallTitle, port);
+            onPublic = verdict.profile == FirewallProfile::Public;
+        }
+
+        m_blocked.push_back (port);
+    }
+
+    if (m_blocked.size() > 1)
+    {
+        text += L" Other ports Casso has open for the network are blocked as well.";
+    }
+
+    if (onPublic)
+    {
+        text += std::wstring (L" ") + FirewallText::kPublicChoice;
+    }
+
+    m_firewallBanner.SetText    (text);
+    m_firewallBanner.SetActions (onPublic ? std::vector<std::wstring> { FirewallText::kAllowShortAction, FirewallText::kPrivateShortAction }
+                                          : std::vector<std::wstring> { FirewallText::kAllowShortAction });
+    m_firewallBanner.SetVisible (!m_blocked.empty());
+    Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NetworkPage::OnFirewallAction
+//
+//  Allow is the first action and Make private the second. Declining the UAC
+//  prompt changes nothing and is not an error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkPage::OnFirewallAction (size_t index)
+{
+    HRESULT       hr = S_OK;
+    FirewallPlan  plan;
+
+
+
+    BAIL_OUT_IF (m_firewall == nullptr || m_firewallHelper != nullptr, S_OK);
+
+    plan = FirewallRemedy::MakePlan (m_firewall->GetSnapshot(), m_firewall->GetProgram(), s_kFirewallTitle, m_blocked, index == 1);
+    BAIL_OUT_IF (plan.ports.empty() && !plan.markPrivate, S_OK);
+
+    hr = Win32FirewallHelper::Launch (m_popupHost != nullptr ? m_popupHost->GetHwnd() : nullptr, plan, m_firewallHelper);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED), S_OK);
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        ShowError ("Error: Windows Firewall could not be changed\n" + TextEncoding::WideToNarrow (ChangePrompt::DescribeError (hr)));
     }
 }
 

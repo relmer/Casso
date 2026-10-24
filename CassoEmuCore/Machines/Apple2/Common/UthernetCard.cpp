@@ -236,6 +236,10 @@ void UthernetCard::ApplySettings (const NetworkCardSettings & settings)
 
 void UthernetCard::OnPumpInterval()
 {
+    std::vector<FirewallPort>  ports;
+
+
+
     m_cycles          += m_cyclesSincePump;
     m_cyclesSincePump  = 0;
 
@@ -245,6 +249,38 @@ void UthernetCard::OnPumpInterval()
     }
 
     UpdateIrq();
+
+    //  The shared list is replaced only when the ports changed.
+    m_bridge.GetInboundPorts (ports);
+    m_network.GetInboundPorts (ports);
+
+    {
+        std::lock_guard<std::mutex>  lock (m_inboundLock);
+
+        if (ports != m_inboundPorts)
+        {
+            m_inboundPorts = std::move (ports);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::GetInboundPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<FirewallPort> UthernetCard::GetInboundPorts() const
+{
+    std::lock_guard<std::mutex>  lock (m_inboundLock);
+
+
+
+    return m_inboundPorts;
 }
 
 

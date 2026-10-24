@@ -37,6 +37,26 @@ constexpr FirewallProfile operator& (FirewallProfile a, FirewallProfile b) { ret
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FirewallPort
+//
+//  A protocol and a port on the PC that other computers send to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct FirewallPort
+{
+    HostSocketKind  protocol = HostSocketKind::Tcp;
+    uint16_t        port     = 0;
+
+    bool operator== (const FirewallPort & other) const = default;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FirewallRule
 //
 //  One inbound rule. An empty application or package applies to every

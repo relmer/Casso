@@ -114,6 +114,7 @@ UdpNat::Flow * UdpNat::FindOrCreateFlow (
     std::unique_ptr<IHostSocket>   socket;
     Flow                         * flow   = nullptr;
     auto                           found  = m_flows.find (guestPort);
+    bool                           same   = false;
 
 
 
@@ -128,6 +129,7 @@ UdpNat::Flow * UdpNat::FindOrCreateFlow (
     CHR (hr);
 
     hr = socket->Bind ({ VirtualSubnet::kAnyIp, guestPort }, true);
+    same = SUCCEEDED (hr);
 
     if (FAILED (hr))
     {
@@ -138,6 +140,7 @@ UdpNat::Flow * UdpNat::FindOrCreateFlow (
     flow               = &m_flows[guestPort];
     flow->socket       = std::move (socket);
     flow->lastActivity = now;
+    flow->samePort     = same;
 
 Error:
     return flow;
@@ -269,6 +272,27 @@ bool UdpNat::IsAllowed (
     return m_lanAccess
         || VirtualSubnet::IsLoopback (from.ipv4)
         || flow.peers.contains (PackEndpoint (from));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UdpNat::GetInboundPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UdpNat::GetInboundPorts (std::vector<FirewallPort> & outPorts) const
+{
+    for (const auto & [port, flow] : m_flows)
+    {
+        if (flow.samePort && !flow.isForward)
+        {
+            outPorts.push_back ({ HostSocketKind::Udp, port });
+        }
+    }
 }
 
 

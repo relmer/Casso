@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Ui/Settings/NetworkPage.h"
 #include "Ui/Settings/SettingsPanelState.h"
 
 #include "Core/JsonParser.h"
@@ -314,6 +315,36 @@ namespace NetworkSettingsTests
 
             Assert::IsTrue (second.GetNetworkCard()->enabled);
             Assert::IsTrue (second.GetNetworkCard()->network == first.GetNetworkCard()->network);
+        }
+
+
+        //  Without LAN access every port is on the loopback address or drops
+        //  what other computers send, so no firewall rule applies.
+        TEST_METHOD (InboundPorts_AreNoneWithoutLanAccess)
+        {
+            NetworkCardSettings  network;
+
+            network.portForwards = { { PortForwardProtocol::Tcp, 2323, 23 } };
+
+            Assert::IsTrue (NetworkPage::CollectInboundPorts (network, { { HostSocketKind::Tcp, 6502 } }).empty());
+        }
+
+
+        //  The forwards' host ports first, then the guest's, each once.
+        TEST_METHOD (InboundPorts_AreTheForwardsAndTheGuestsOnce)
+        {
+            NetworkCardSettings        network;
+            std::vector<FirewallPort>  ports;
+
+            network.lanAccess    = true;
+            network.portForwards = { { PortForwardProtocol::Tcp, 2323, 23 }, { PortForwardProtocol::Udp, 6600, 6600 } };
+
+            ports = NetworkPage::CollectInboundPorts (network, { { HostSocketKind::Tcp, 6502 }, { HostSocketKind::Udp, 6600 } });
+
+            Assert::AreEqual ((size_t) 3, ports.size());
+            Assert::IsTrue   (ports[0] == FirewallPort { HostSocketKind::Tcp, 2323 });
+            Assert::IsTrue   (ports[1] == FirewallPort { HostSocketKind::Udp, 6600 });
+            Assert::IsTrue   (ports[2] == FirewallPort { HostSocketKind::Tcp, 6502 });
         }
     };
 }

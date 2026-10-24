@@ -67,6 +67,11 @@ public:
     // Port forwards whose host port could not be bound, as sentences.
     const std::vector<std::string> & GetNetworkErrors () const { return m_network.GetErrors(); }
 
+    // The PC ports the guest's sockets and flows have, which other computers
+    // send to while LAN access is on, as of the last pump. Safe from any
+    // thread: the pump copies them under a lock.
+    std::vector<FirewallPort>  GetInboundPorts () const;
+
     void  Tick (uint32_t cycles)
     {
         m_cyclesSincePump += cycles;
@@ -88,16 +93,18 @@ private:
     void  OnPumpInterval ();
     void  UpdateIrq      ();
 
-    int                      m_slot            = 0;
-    Word                     m_ioStart         = 0;
-    Word                     m_ioEnd           = 0;
-    W5100                    m_chip;
-    VirtualNetwork           m_network;
-    W5100SocketBridge        m_bridge;
-    IInterruptController   * m_ic              = nullptr;
-    IrqSourceId              m_irqSource       = 0;
-    bool                     m_irqBound        = false;
-    bool                     m_irqAsserted     = false;
-    uint32_t                 m_cyclesSincePump = 0;
-    uint64_t                 m_cycles          = 0;
+    int                          m_slot            = 0;
+    Word                         m_ioStart         = 0;
+    Word                         m_ioEnd           = 0;
+    W5100                        m_chip;
+    VirtualNetwork               m_network;
+    W5100SocketBridge            m_bridge;
+    IInterruptController       * m_ic              = nullptr;
+    IrqSourceId                  m_irqSource       = 0;
+    bool                         m_irqBound        = false;
+    bool                         m_irqAsserted     = false;
+    uint32_t                     m_cyclesSincePump = 0;
+    uint64_t                     m_cycles          = 0;
+    std::vector<FirewallPort>    m_inboundPorts;
+    mutable std::mutex           m_inboundLock;
 };
