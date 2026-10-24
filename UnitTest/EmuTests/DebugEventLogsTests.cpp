@@ -324,6 +324,38 @@ namespace DebugEventLogsTests
         }
 
 
+        //  A stretch of history that fails to replay, here because the scratch
+        //  machine does not build, is an Unavailable entry in the listing,
+        //  and the listing succeeds with the cache's entries.
+        TEST_METHOD (AStretchThatFailsToReplayIsListedAsUnavailable)
+        {
+            Session       session;
+            IoLogEntries  listing;
+            HRESULT       hr      = S_OK;
+
+
+
+            Run (session.machine, 0, 200);
+
+            //  Start copies the running machine's configuration to the
+            //  scratch machine; a system ROM that is not there makes it fail
+            //  to build.
+            session.machine.GetConfig().systemRom.resolvedPath = "C:\\No such folder\\No such ROM.rom";
+            session.logs.Start (&session.controller);
+
+            Run (session.machine, 200, 30);
+            session.WaitForKeyframes();
+
+            hr = session.logs.GetIoEntries (IoLogKind::Sound, SIZE_MAX, listing);
+            AssertSucceeded (hr, L"GetIoEntries");
+
+            Assert::IsTrue (std::ranges::any_of (listing.entries, [] (const DebugEventEntry<IoEvent> & entry) { return entry.kind == DebugEventEntryKind::Unavailable; }),
+                            L"the stretch that failed is an Unavailable entry");
+            Assert::IsTrue (std::ranges::any_of (listing.entries, [] (const DebugEventEntry<IoEvent> & entry) { return entry.kind == DebugEventEntryKind::Event; }),
+                            L"with the cache's entries after it");
+        }
+
+
         //  A rewind behind a clear lowers the clear to where the machine went
         //  back to, so the entries made from there are listed.
         TEST_METHOD (ARewindBehindAClearListsWhatRunsFromThere)
