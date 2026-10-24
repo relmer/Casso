@@ -86,6 +86,7 @@ private:
     HRESULT  GetItemsMenu    (HWND owner, const std::vector<std::wstring> & paths, IContextMenu ** outMenu);
     HRESULT  GetItemArray    (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
     HRESULT  CreateOperation (HWND owner, IFileOperation ** outOperation);
+    static HRESULT  Perform  (IFileOperation * operation);
     static void  RemoveExtraSeparators (HMENU menu);
     HRESULT  TrackMenu       (HWND owner, IContextMenu * menu, POINT screenPx, const std::function<void()> & rename);
     HRESULT  GetRecycledMenu (HWND owner, const std::vector<std::wstring> & ids, IContextMenu ** outMenu);

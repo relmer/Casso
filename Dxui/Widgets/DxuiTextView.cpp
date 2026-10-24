@@ -217,6 +217,11 @@ std::wstring DxuiTextView::GetRowText (const Row & row) const
 
 void DxuiTextView::Rebuild()
 {
+    Line  top  = (m_topLine >= 0 && m_topLine < (int) m_lines.size()) ? m_lines[(size_t) m_topLine] : Line();
+    int   line = 0;
+
+
+
     m_lines.clear();
     m_columnCells.clear();
 
@@ -245,7 +250,15 @@ void DxuiTextView::Rebuild()
         BuildLines (GetTextColumns (true));
     }
 
-    SetTopLine (m_topLine);
+    //  A new wrap moves every line, so the top is the line that now has the
+    //  text the old top started with.
+    while (line + 1 < (int) m_lines.size()
+           && (m_lines[(size_t) line + 1].row < top.row || (m_lines[(size_t) line + 1].row == top.row && m_lines[(size_t) line + 1].start <= top.start)))
+    {
+        line++;
+    }
+
+    SetTopLine (line);
 }
 
 
@@ -946,7 +959,11 @@ bool DxuiTextView::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Wheel:
-        ScrollLines ((int) (-ev.wheelDelta * (float) kWheelLines));
+        //  A precision touchpad sends part notches, which add up until they
+        //  move a whole line.
+        m_wheelLines += -ev.wheelDelta * (float) kWheelLines;
+        ScrollLines ((int) m_wheelLines);
+        m_wheelLines -= (float) (int) m_wheelLines;
         handled = true;
         break;
 

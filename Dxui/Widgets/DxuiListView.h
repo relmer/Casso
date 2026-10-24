@@ -967,6 +967,7 @@ private:
         int  rows         = 0;
         int  rowsVersion  = 0;
         int  fontCentiDip = 0;
+        int  dpi          = 0;
 
         bool operator== (const ItemTextKey &) const = default;
     };
@@ -1282,7 +1283,7 @@ private:
     mutable int                   m_itemNameWidestPx  = 0;
     mutable ItemTextKey           m_itemNameKey;   // what the widths were measured for
     mutable std::vector<int>      m_listColumnLefts;   // List's column edges, one past the last
-    mutable std::pair<int, int>   m_listColumnsKey    = { -1, -1 };   // the items per column and name widths they were built for
+    mutable std::array<int, 5>    m_listColumnsKey    = { -1, -1, -1, -1, -1 };   // items per column, name widths, rows version, cell width, DPI
     int                           m_rowsVersion       = 0;   // counts row sets, so measurements of the last one are dropped
     bool                          m_pressModified     = false;   // the row press held Ctrl or Shift
     int                           m_hoverGroup        = -1;

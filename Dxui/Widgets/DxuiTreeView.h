@@ -351,6 +351,8 @@ private:
     int                        m_topRow         = 0;
     int                        m_leftPx         = 0;
     int                        m_rowsExtentPx   = 0;
+    float                      m_wheelRows      = 0.0f;   // a touchpad's part notches, until they make a row
+    float                      m_wheelPx        = 0.0f;   // the same, sideways
     std::vector<POINT>         m_labelSpans;              // per flat row: icon start, label end, unscrolled
     mutable DxuiScrollbar      m_vertScroll;
     mutable DxuiScrollbar      m_horzScroll;

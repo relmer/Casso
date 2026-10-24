@@ -224,8 +224,9 @@ HRESULT Win32ShellItemVerbs::ChooseOtherApp (HWND owner, const std::wstring & pa
 //
 //  Win32ShellItemVerbs::GetItemsMenu
 //
-//  The menu Explorer builds for these items: asked of the folder that holds
-//  them, for its children.
+//  The menu Explorer builds for these items: from the folder they are in, for
+//  its children, or from the desktop for their full ids when they are in
+//  different folders, as a search's results can be.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -235,6 +236,8 @@ HRESULT Win32ShellItemVerbs::GetItemsMenu (HWND owner, const std::vector<std::ws
     std::vector<PIDLIST_ABSOLUTE>  full;
     std::vector<PCUITEMID_CHILD>   children;
     ComPtr<IShellFolder>           parent;
+    PIDLIST_ABSOLUTE               folder   = nullptr;
+    bool                           shared   = true;
     bool                           hasItems = !paths.empty();
 
 
@@ -253,18 +256,37 @@ HRESULT Win32ShellItemVerbs::GetItemsMenu (HWND owner, const std::vector<std::ws
         full.push_back (pidl);
     }
 
-    hr = SHBindToParent (full[0], IID_PPV_ARGS (&parent), nullptr);
-    CHR (hr);
+    folder = ILClone (full[0]);
+    CBREx (folder != nullptr, E_OUTOFMEMORY);
+    ILRemoveLastID (folder);
+
+    for (size_t i = 1; i < full.size(); i++)
+    {
+        shared = shared && ILIsParent (folder, full[i], TRUE);
+    }
+
+    if (shared)
+    {
+        hr = SHBindToParent (full[0], IID_PPV_ARGS (&parent), nullptr);
+        CHR (hr);
+    }
+    else
+    {
+        hr = SHGetDesktopFolder (&parent);
+        CHR (hr);
+    }
 
     for (PIDLIST_ABSOLUTE pidl : full)
     {
-        children.push_back (ILFindLastID (pidl));
+        children.push_back (shared ? ILFindLastID (pidl) : (PCUITEMID_CHILD) pidl);
     }
 
     hr = parent->GetUIObjectOf (owner, (UINT) children.size(), children.data(), IID_IContextMenu, nullptr, (void **) outMenu);
     CHR (hr);
 
 Error:
+    ILFree (folder);
+
     for (PIDLIST_ABSOLUTE pidl : full)
     {
         CoTaskMemFree (pidl);
@@ -475,7 +497,7 @@ HRESULT Win32ShellItemVerbs::RunItemVerb (HWND owner, const std::vector<std::wst
     HMENU                  popup    = nullptr;
     CMINVOKECOMMANDINFOEX  invoke   = { sizeof (invoke) };
     std::wstring           wideVerb (verb, verb + strlen (verb));
-    std::wstring           folder   = paths.empty() ? std::wstring() : paths[0].substr (0, paths[0].find_last_of (L'\\'));
+    std::wstring           folder   = paths.empty() ? std::wstring() : std::filesystem::path (paths[0]).parent_path().wstring();
     std::string            narrow   = TextEncoding::WideToNarrow (folder);
 
 
@@ -726,6 +748,38 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32ShellItemVerbs::Perform
+//
+//  PerformOperations succeeds when the user cancels at one of its prompts, so
+//  a cancel is found by GetAnyOperationsAborted and returned as ERROR_CANCELLED.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32ShellItemVerbs::Perform (IFileOperation * operation)
+{
+    HRESULT  hr      = S_OK;
+    BOOL     aborted = FALSE;
+
+
+
+    hr = operation->PerformOperations();
+    CHR (hr);
+
+    hr = operation->GetAnyOperationsAborted (&aborted);
+    CHR (hr);
+
+    BAIL_OUT_IF (aborted, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Win32ShellItemVerbs::Recycle
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -751,7 +805,7 @@ HRESULT Win32ShellItemVerbs::Recycle (HWND owner, const std::vector<std::wstring
     hr = operation->DeleteItems (items.Get());
     CHR (hr);
 
-    hr = operation->PerformOperations();
+    hr = Perform (operation.Get());
     CHR (hr);
 
 Error:
@@ -792,7 +846,7 @@ HRESULT Win32ShellItemVerbs::DeletePermanently (HWND owner, const std::vector<st
     hr = operation->DeleteItems (items.Get());
     CHR (hr);
 
-    hr = operation->PerformOperations();
+    hr = Perform (operation.Get());
     CHR (hr);
 
 Error:
@@ -1970,7 +2024,7 @@ HRESULT Win32ShellItemVerbs::RunSearch (const std::wstring & id, std::vector<She
 
         if (SUCCEEDED (hrItem))
         {
-            entry.folder = path.substr (0, path.find_last_of (L'\\'));
+            entry.folder = std::filesystem::path (path).parent_path().wstring();
             outItems.push_back (std::move (entry));
         }
     }
@@ -3129,7 +3183,7 @@ HRESULT Win32ShellItemVerbs::RenameItem (HWND owner, const std::wstring & path, 
     hr = operation->RenameItem (item.Get(), newName.c_str(), nullptr);
     CHR (hr);
 
-    hr = operation->PerformOperations();
+    hr = Perform (operation.Get());
     CHR (hr);
 
 Error:
@@ -3426,7 +3480,7 @@ HRESULT Win32ShellItemVerbs::PasteInto (HWND owner, const std::wstring & folder,
     hr = operation->Advise (&recorder, &cookie);
     CHR (hr);
 
-    hr        = operation->PerformOperations();
+    hr        = Perform (operation.Get());
     unadvised = operation->Unadvise (cookie);
     IGNORE_RETURN_VALUE (unadvised, S_OK);
     CHR (hr);
@@ -3497,7 +3551,7 @@ HRESULT Win32ShellItemVerbs::MoveItemsTo (HWND owner, const std::vector<std::wst
         CHR (hr);
     }
 
-    hr = operation->PerformOperations();
+    hr = Perform (operation.Get());
     CHR (hr);
 
 Error:
@@ -3701,7 +3755,7 @@ HRESULT Win32ShellItemVerbs::CreateFolder (HWND owner, const std::wstring & pare
     hr = operation->NewItem (folder.Get(), FILE_ATTRIBUTE_DIRECTORY, name.c_str(), nullptr, nullptr);
     CHR (hr);
 
-    hr = operation->PerformOperations();
+    hr = Perform (operation.Get());
     CHR (hr);
 
 Error:

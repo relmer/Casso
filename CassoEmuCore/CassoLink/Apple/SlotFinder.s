@@ -51,5 +51,6 @@ skip:   dey
         bne next
         lda SHIMSLOT            ; no card found: the shim's own slot
 
-found:  sta SHIMSLOT
+found:  bit $CFFF               ; no card's expansion ROM left selected
+        sta SHIMSLOT
         jmp SHIM

@@ -181,6 +181,7 @@ private:
     float              m_textStrength  = 1.0f;
     UINT               m_measuredDpi   = 0;
     int                m_topLine       = 0;
+    float              m_wheelLines    = 0.0f;   // a touchpad's part notches, until they make a line
     Position           m_anchor;
     Position           m_caret;
     Position           m_lastClick;

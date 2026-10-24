@@ -119,16 +119,15 @@ void FolderWatch::SetWatched (const std::vector<std::wstring> & directories)
 
     m_watched = std::move (kept);
 
-    //  New: listed now, not watched before. One that cannot be watched is left
-    //  unrecorded, so the next call tries it again.
+    //  Every folder listed now. Watch does nothing for one already watched,
+    //  and it watches again one the watcher dropped when it was deleted or
+    //  could not be opened. One that cannot be watched is left unrecorded, and
+    //  the next call watches it if it can.
     for (const std::wstring & directory : wanted)
     {
-        if (std::find (m_watched.begin(), m_watched.end(), directory) != m_watched.end())
-        {
-            continue;
-        }
+        bool  recorded = std::find (m_watched.begin(), m_watched.end(), directory) != m_watched.end();
 
-        if (m_watcher.Watch (directory, [this] (const std::wstring & changed) { Record (changed); }))
+        if (m_watcher.Watch (directory, [this] (const std::wstring & changed) { Record (changed); }) && !recorded)
         {
             m_watched.push_back (directory);
         }

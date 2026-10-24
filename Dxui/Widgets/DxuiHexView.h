@@ -395,6 +395,8 @@ private:
     float                          m_textStrength   = 1.0f;
     int                            m_cellWidthDip   = 0;
     int                            m_cellHeightDip  = 0;
+    float                          m_cellFontPx     = 0.0f;   // the font size the cell was measured at, 0 when set by the caller
+    std::wstring                   m_cellFontFace;
     uint64_t                       m_topRow         = 0;
     bool                           m_hasSelection   = false;
     uint64_t                       m_anchor         = 0;
@@ -403,6 +405,10 @@ private:
     HWND                           m_hwnd           = nullptr;
     int                            m_padDip         = 0;
     bool                           m_dragging       = false;
+    uint64_t                       m_pressFirst     = 0;      // the value a press in the value column took
+    uint64_t                       m_pressLast      = 0;
+    float                          m_wheelRows      = 0.0f;   // a touchpad's part notches, until they make a row
+    float                          m_wheelPx        = 0.0f;
     TextEncoding                   m_encoding       = TextEncoding::Ascii;
     DxuiDpiScaler                  m_scaler;
     DxuiScrollbar                  m_vertScroll;

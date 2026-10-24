@@ -590,6 +590,7 @@ private:
     std::wstring  GetNavLabel (const Location & location);
     std::vector<BrowserModel::AddressSegment>  GetAddressSegmentsFor (const Location & location);
     void  SubmitAddress (const std::wstring & text);
+    void  AddTypedPath  (const std::wstring & text);
     void  ShowAddressMenu (int index, const RECT & anchor);
     void  ShowAddressOverflowMenu (const RECT & anchor);
     void  ShowAddressRootsMenu    (const RECT & anchor);
@@ -829,6 +830,7 @@ private:
     void  ShowActivityLog ();
     void  StartAdtProServers ();
     bool  IsLinkReplying        (const std::string & name) const;
+    bool  IsLinkRemoved         (const std::wstring & link) const;
     void  AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
     bool  IsWifiModemLink        (const std::string & name) const;
     void  ReleaseIdleLinks    ();
@@ -847,7 +849,7 @@ private:
     static int              GetIconOrder (CassoExplorerActions::Verb verb);
     std::wstring  GetPasteFolder () const;
     void  CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk);
-    void  SelectRowNamed         (const std::wstring & name);
+    bool  SelectRowNamed         (const std::wstring & name);
     void  ShowOptions            ();
     void  SizeListIcons          ();
     void  ShowViewOnButton       ();
@@ -894,7 +896,7 @@ private:
     void  DescribeDrop     (IDataObject * data, DWORD effect, const Location & target);
     void  HoverDropTab     (POINT screen);
 
-    static void  RecycleHostFiles (const std::vector<std::wstring> & paths);
+    HRESULT  RecycleHostFiles (const std::vector<std::wstring> & paths);
     void  RefreshAfterHostChange ();
 
     //  The part of a pane a message wraps within.
@@ -956,6 +958,7 @@ private:
     bool  RunRecycleBinVerb (CassoExplorerActions::Verb verb);
     std::wstring  GetCommandLabel (int id) const;
     void  RunRawVerb          (CassoExplorerActions::Verb verb);
+    bool  IsRawTargetCurrent  (const std::wstring & target);
     void  ReportOutcome       (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
     void  BeginRename         ();
     void  EndRename           (bool commit);

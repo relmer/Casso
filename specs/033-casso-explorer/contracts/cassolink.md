@@ -99,7 +99,8 @@ date and time ahead of the block, and writes with $02 or $04. Each header's
 check is the EOR of the bytes before it in the header, except in the reply
 to a write, which ends with the written block's check; and each block's
 check is the EOR of its 512 bytes alone. The driver's first request at
-startup can arrive twice before the host's first reply.
+startup can arrive twice before the host's first reply. A write changes
+only its block of the image file, at the block's offset.
 
 ## Casso's client (extended)
 

@@ -1302,6 +1302,12 @@ HRESULT Win32ShellIcons::DrawLetterCoverage (wchar_t letter, int side, std::vect
     }
 
 Error:
+    //  The DC first: an object selected into a DC cannot be deleted.
+    if (dc != nullptr)
+    {
+        DeleteDC (dc);
+    }
+
     if (font != nullptr)
     {
         DeleteObject (font);
@@ -1310,11 +1316,6 @@ Error:
     if (bitmap != nullptr)
     {
         DeleteObject (bitmap);
-    }
-
-    if (dc != nullptr)
-    {
-        DeleteDC (dc);
     }
 
     return hr;

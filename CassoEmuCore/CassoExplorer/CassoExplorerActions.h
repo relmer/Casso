@@ -108,8 +108,12 @@ public:
         bool                      damaged = false;
         std::wstring              warning;
 
+        //  An item the user chose not to write, by canceling its prompt or
+        //  skipping it at a name clash. A move does not take its source away.
+        bool                      skipped = false;
+
         bool  Succeeded() const { return SUCCEEDED (hr); }
-        bool  IsWhole  () const { return Succeeded() && !damaged; }
+        bool  IsWhole  () const { return Succeeded() && !damaged && !skipped; }
     };
 
     //  How one host file goes into an image. A descriptive or CiderPress

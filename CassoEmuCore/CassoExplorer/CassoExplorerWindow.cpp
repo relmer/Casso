@@ -54,6 +54,11 @@ static constexpr const char *  s_kpszThemeRows[] =
     CassoExplorerPrefs::kThemeFollowSystem,
 };
 
+//  The window whose m_cassetteWav is the sound in progress. PlaySound reads
+//  from that memory, so that window stops the sound before the memory is
+//  freed, and no other window stops it.
+static const CassoExplorerWindow *  s_cassettePlayer = nullptr;
+
 
 
 
@@ -100,7 +105,11 @@ CassoExplorerWindow::~CassoExplorerWindow()
         m_context.links->SetViewing (this, std::string());
     }
 
-    PlaySoundW (nullptr, nullptr, 0);
+    if (s_cassettePlayer == this)
+    {
+        PlaySoundW (nullptr, nullptr, 0);
+        s_cassettePlayer = nullptr;
+    }
 
     m_shellVerbs.UnwatchRecycleBin();
     m_dropTarget.Shutdown();
@@ -4645,8 +4654,9 @@ LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
 
 bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 {
-    int   command = 0;
-    bool  handled = false;
+    int                        command = 0;
+    bool                       handled = false;
+    std::vector<std::wstring>  linkPaths;
 
 
 
@@ -4884,9 +4894,11 @@ bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.vk == VK_DELETE && m_focus == Pane::List && !m_browser.GetSelectedRows().empty())
     {
-        //  Shift+Delete deletes for good, as in File Explorer; inside a disk
-        //  image every deletion is for good and asks first already.
-        if (ev.shift && !m_browser.IsImageLocation())
+        //  Shift+Delete deletes host files for good, as in File Explorer;
+        //  inside a disk image or an Apple's drive every deletion is for good
+        //  and confirmed first, and CassoLink's items are temp copies.
+        if (ev.shift && (m_browser.GetLocation().kind == Location::Kind::HostFolder || m_browser.GetLocation().kind == Location::Kind::ShellFolder)
+            && !m_browser.TryGetSelectedCassoLinkPaths (linkPaths))
         {
             DeleteSelectionPermanently();
         }
@@ -6725,16 +6737,13 @@ void CassoExplorerWindow::SaveSession()
 //
 //  CassoExplorerWindow::RecordSession
 //
-//  The typed paths go to the preferences, which every window shares. With an
-//  app, the tabs and the placement are in the session; for a window on its
-//  own they are in the preferences.
+//  With an app, the tabs and the placement are in the session; for a window
+//  with no app they are in the preferences.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::RecordSession()
 {
-    m_prefs.typedPaths = m_browser.GetTypedPaths().GetEntries();
-
     if (m_context.host == nullptr)
     {
         m_browser.GetBrowserModel().GetLocations (m_prefs.tabs);
@@ -8383,12 +8392,13 @@ bool CassoExplorerWindow::IsProgramPath (const std::wstring & path)
 
 std::vector<std::wstring> CassoExplorerWindow::GetDraggedPaths (IDataObject * data)
 {
-    FORMATETC                  format         = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM                  medium         = {};
-    HDROP                      drop           = nullptr;
-    UINT                       count          = 0;
-    HRESULT                    hr             = E_FAIL;
-    wchar_t                    path[MAX_PATH] = {};
+    FORMATETC                  format = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                  medium = {};
+    HDROP                      drop   = nullptr;
+    UINT                       count  = 0;
+    UINT                       length = 0;
+    HRESULT                    hr     = E_FAIL;
+    std::wstring               path;
     std::vector<std::wstring>  paths;
 
 
@@ -8406,10 +8416,15 @@ std::vector<std::wstring> CassoExplorerWindow::GetDraggedPaths (IDataObject * da
     drop  = (HDROP) GlobalLock (medium.hGlobal);
     count = (drop != nullptr) ? DragQueryFileW (drop, 0xFFFFFFFF, nullptr, 0) : 0;
 
+    //  A path can be longer than MAX_PATH, so each one's length comes first.
     for (UINT index = 0; index < count; index++)
     {
-        if (DragQueryFileW (drop, index, path, ARRAYSIZE (path)) > 0)
+        length = DragQueryFileW (drop, index, nullptr, 0);
+        path.assign ((size_t) length + 1, L'\0');
+
+        if (length > 0 && DragQueryFileW (drop, index, path.data(), length + 1) == length)
         {
+            path.resize (length);
             paths.push_back (path);
         }
     }
@@ -8953,6 +8968,7 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
     CassoExplorerActions::Outcome  removed;
     DWORD                          effect     = DROPEFFECT_NONE;
     BOOL                           posted     = FALSE;
+    HRESULT                        recycled   = S_OK;
     std::wstring                   hostFolder;
     std::wstring                   driveId;
     POINTL                         at         = { screen.x, screen.y };
@@ -9110,7 +9126,12 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
         }
         else
         {
-            RecycleHostFiles (source.hostPaths);
+            recycled = RecycleHostFiles (source.hostPaths);
+        }
+
+        if (FAILED (recycled))
+        {
+            outcome.warning += (outcome.warning.empty() ? L"" : L"\n") + std::wstring (L"The originals could not be moved to the Recycle Bin.");
         }
     }
 
@@ -9132,32 +9153,18 @@ void CassoExplorerWindow::OnDrop (IDataObject * data, int tag, POINT screen)
 //  CassoExplorerWindow::RecycleHostFiles
 //
 //  To the Recycle Bin rather than gone, so a move whose files a disk image
-//  holds in another form can still be undone.
+//  has in another form can be undone. Through the shell's delete, so a file
+//  too large for the bin is deleted only once the user confirms.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::RecycleHostFiles (const std::vector<std::wstring> & paths)
+HRESULT CassoExplorerWindow::RecycleHostFiles (const std::vector<std::wstring> & paths)
 {
-    std::wstring     list;
-    SHFILEOPSTRUCTW  operation = {};
-    int              result    = 0;
+    HRESULT  hr = m_shellVerbs.Recycle (GetHwnd(), paths);
 
 
 
-    for (const std::wstring & path : paths)
-    {
-        list += path;
-        list += L'\0';
-    }
-
-    list += L'\0';
-
-    operation.wFunc  = FO_DELETE;
-    operation.pFrom  = list.c_str();
-    operation.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI;
-
-    result = SHFileOperationW (&operation);
-    IGNORE_RETURN_VALUE (result, 0);
+    return (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED)) ? S_OK : hr;
 }
 
 
@@ -9390,6 +9397,7 @@ void CassoExplorerWindow::ShowOptions()
     Win32UserClasses  fileExts         (Win32UserClasses::kFileExtsRoot);
     bool              wasRegistered    = FileAssociations::IsRegistered (classes);
     wchar_t           module[MAX_PATH] = {};
+    DWORD             length           = 0;
     std::wstring      folder;
     HRESULT           hr               = S_OK;
 
@@ -9428,12 +9436,19 @@ void CassoExplorerWindow::ShowOptions()
     //  The user's file types change only when the box was changed.
     if (choices.registered != wasRegistered)
     {
-        GetModuleFileNameW (nullptr, module, MAX_PATH);
-        folder = module;
-        folder.resize (folder.find_last_of (L"\\/"));
+        length = GetModuleFileNameW (nullptr, module, MAX_PATH);
+        folder = std::filesystem::path (module).parent_path().wstring();
 
-        hr = choices.registered ? FileAssociations::Register (classes, LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe), module)
-                                : FileAssociations::Unregister (classes, fileExts);
+        //  A path cut short at MAX_PATH would register a command that runs nothing.
+        if (choices.registered && (length == 0 || length >= MAX_PATH))
+        {
+            hr = HRESULT_FROM_WIN32 (ERROR_INSUFFICIENT_BUFFER);
+        }
+        else
+        {
+            hr = choices.registered ? FileAssociations::Register (classes, LaunchCommand::GetSiblingPath (folder, LaunchCommand::kCassoExe), module)
+                                    : FileAssociations::Unregister (classes, fileExts);
+        }
 
         if (FAILED (hr))
         {
@@ -9478,9 +9493,11 @@ HostFileNaming::Style CassoExplorerWindow::GetNamingStyle() const
 //
 //  CassoExplorerWindow::SelectRowNamed
 //
+//  False when no row has the name, as when the item was not made.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::SelectRowNamed (const std::wstring & name)
+bool CassoExplorerWindow::SelectRowNamed (const std::wstring & name)
 {
     const std::vector<CatalogRow> &  rows = m_browser.GetRows();
 
@@ -9499,9 +9516,11 @@ void CassoExplorerWindow::SelectRowNamed (const std::wstring & name)
             FillPreview();
             FillStatus();
             UpdateCommandBar();
-            break;
+            return true;
         }
     }
+
+    return false;
 }
 
 
@@ -10168,8 +10187,11 @@ void CassoExplorerWindow::RunVerb (CassoExplorerActions::Verb verb)
                 FillList();
             }
 
-            SelectRowNamed (newName);
-            BeginRename();
+            if (SelectRowNamed (newName))
+            {
+                BeginRename();
+            }
+
             break;
 
         case CassoExplorerActions::Verb::Format:
@@ -11030,7 +11052,8 @@ void CassoExplorerWindow::EditLink (const std::string & name)
     std::vector<std::wstring>         others;
     std::vector<std::wstring>         ports;
     CassoExplorerLinkDialog::Outcome  outcome;
-    auto                              found   = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), [&name] (const CassoLinkSettings & link) { return link.name == name; });
+    auto                              isNamed = [&name] (const CassoLinkSettings & link) { return link.name == name; };
+    auto                              found   = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), isNamed);
 
 
 
@@ -11073,6 +11096,10 @@ void CassoExplorerWindow::EditLink (const std::string & name)
     {
         return;
     }
+
+    //  Another window can add or remove a connection while the dialog is open,
+    //  so the link is found again.
+    found = std::find_if (m_prefs.links.begin(), m_prefs.links.end(), isNamed);
 
     if (found != m_prefs.links.end())
     {
@@ -11242,7 +11269,9 @@ void CassoExplorerWindow::PlayCassetteBootstrap (const std::string & name)
         link = (settings.name == name) ? settings : link;
     }
 
+    //  PlaySound has one sound at a time, and the buffer is about to change.
     PlaySoundW (nullptr, nullptr, 0);
+    s_cassettePlayer = nullptr;
 
     hr = LinkAudioBootstrap::BuildWav (CassoLinkConnections::MakeShimOptions (CassoLinkConnections::GetPcName(), link), m_cassetteWav, command);
     CHR (hr);
@@ -11260,6 +11289,8 @@ void CassoExplorerWindow::PlayCassetteBootstrap (const std::string & name)
 
     played = PlaySoundW (reinterpret_cast<LPCWSTR> (m_cassetteWav.data()), nullptr, SND_MEMORY | SND_ASYNC | SND_NODEFAULT);
     CBR (played);
+
+    s_cassettePlayer = this;
 
     if (!m_context.links->IsStarted (name))
     {
@@ -11597,6 +11628,13 @@ void CassoExplorerWindow::ApplyLinks()
 
     SaveSession();
     RefreshTree();
+
+    //  A link that was never started changes nothing that would refresh the
+    //  other windows, and one of them can be on a link just removed.
+    if (m_context.host != nullptr)
+    {
+        m_context.host->ForEachWindow ([] (CassoExplorerWindow & window) { window.RefreshLinkViews(); });
+    }
 }
 
 
@@ -11911,8 +11949,10 @@ void CassoExplorerWindow::RunNewChoice (const Location & target, const std::wstr
     if (!created.empty() && named)
     {
         PushUndo (UndoStep { UndoStep::Kind::HostNewItem, Location(), { created } });
-        SelectRowNamed (std::filesystem::path (created).filename().wstring());
-        BeginRename();
+        if (SelectRowNamed (std::filesystem::path (created).filename().wstring()))
+        {
+            BeginRename();
+        }
     }
 }
 
@@ -12071,9 +12111,15 @@ void CassoExplorerWindow::RefreshLinkViews()
         }
     }
 
-    //  A drive of a machine that stopped answering has nothing to list, so
-    //  the list goes up to the machine, which has the reason.
-    if (showing && drive != 0 && !IsLinkReplying (TextEncoding::WideToNarrow (link)))
+    //  A connection removed in another window has nothing to list. A drive of a
+    //  machine that stopped answering has nothing either, so the list goes up
+    //  to the machine, which has the reason.
+    if (showing && IsLinkRemoved (link))
+    {
+        GoToLocation (Location::MakeRoot (TreeModel::kThisPcRootId));
+        showing = false;
+    }
+    else if (showing && drive != 0 && !IsLinkReplying (TextEncoding::WideToNarrow (link)))
     {
         GoToLocation (Location::MakeRoot (TreeModel::MakeLinkId (link)));
     }
@@ -12118,6 +12164,27 @@ void CassoExplorerWindow::RefreshLinkViews()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::IsLinkRemoved
+//
+//  True when no connection, saved or found running, has the link's name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsLinkRemoved (const std::wstring & link) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.links->GetLinks();
+
+
+
+    return std::none_of (links.begin(), links.end(), [&link] (const CassoLinkSettings & settings) { return TextEncoding::NarrowToWide (settings.name) == link; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::OnRunningChanged
 //
 //  A root whose Casso has exited is removed; when the list is on it, the
@@ -12149,10 +12216,7 @@ void CassoExplorerWindow::OnRunningChanged()
     }
 
     showing = TreeModel::TryParseLinkId (m_browser.GetLocation().path, link, slot, drive);
-    gone    = showing && std::none_of (m_context.links->GetLinks().begin(), m_context.links->GetLinks().end(), [&link] (const CassoLinkSettings & settings)
-    {
-        return TextEncoding::NarrowToWide (settings.name) == link;
-    });
+    gone    = showing && IsLinkRemoved (link);
 
     if (gone)
     {
@@ -13379,6 +13443,7 @@ void CassoExplorerWindow::SubmitAddress (const std::wstring & text)
         //  The typed path joins the history now, not only at a clean exit, and
         //  a folder joins Explorer's list too. A path into a disk image stays
         //  in Casso Explorer's own: Explorer would open the image file.
+        AddTypedPath (CassoExplorerBrowser::RootOnSystemDrive (text));
         SaveSession();
 
         if (m_browser.GetLocation().kind == Location::Kind::HostFolder)
@@ -13390,6 +13455,30 @@ void CassoExplorerWindow::SubmitAddress (const std::wstring & text)
     {
         ShowMessage (L"Casso Explorer can't find \"" + text + L"\". Check the path and try again.", MB_ICONWARNING);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::AddTypedPath
+//
+//  Every window shares the preferences' typed paths, so a path goes on top of
+//  those rather than replacing them with this window's list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::AddTypedPath (const std::wstring & text)
+{
+    TypedPathHistory  shared;
+
+
+
+    shared.Reset (m_prefs.typedPaths);
+    shared.Add (text);
+    m_prefs.typedPaths = shared.GetEntries();
 }
 
 
@@ -14034,7 +14123,7 @@ bool CassoExplorerWindow::OnAddressKey (WPARAM vk)
 
 std::vector<std::wstring> CassoExplorerWindow::GetAddressHistory() const
 {
-    return TypedPathHistory::Merge (ReadExplorerTypedPaths(), m_browser.GetTypedPaths().GetEntries());
+    return TypedPathHistory::Merge (ReadExplorerTypedPaths(), m_prefs.typedPaths);
 }
 
 
@@ -14179,10 +14268,11 @@ const wchar_t * CassoExplorerWindow::GetUndoLabel (UndoStep::Kind kind)
 
 void CassoExplorerWindow::UndoLast()
 {
-    HRESULT                    hr = S_OK;
-    UndoStep                   step;
-    std::vector<std::wstring>  saved;
-    std::error_code            ignored;
+    HRESULT                        hr = S_OK;
+    UndoStep                       step;
+    std::vector<std::wstring>      saved;
+    std::error_code                ignored;
+    CassoExplorerActions::Outcome  restored;
 
 
 
@@ -14224,14 +14314,22 @@ void CassoExplorerWindow::UndoLast()
                 FillList();
             }
 
+            //  A rename and a new folder are undone through the selection, so
+            //  the list has to be where the step was made, with the entry in it;
+            //  otherwise the undo would act on whatever is selected.
+            if (m_browser.GetLocation() != step.location
+                || ((step.kind == UndoStep::Kind::ImageRename || step.kind == UndoStep::Kind::ImageNewFolder) && !SelectRowNamed (step.newName)))
+            {
+                ShowMessage (L"That could not be undone.", MB_ICONWARNING);
+                return;
+            }
+
             if (step.kind == UndoStep::Kind::ImageRename)
             {
-                SelectRowNamed (step.newName);
                 ReportOutcome (m_actions.RenameSelected (step.oldName), L"Undo rename");
             }
             else if (step.kind == UndoStep::Kind::ImageNewFolder)
             {
-                SelectRowNamed (step.newName);
                 ReportOutcome (m_actions.DeleteSelected(), L"Undo new folder");
             }
             else if (step.kind == UndoStep::Kind::ImagePut)
@@ -14245,15 +14343,31 @@ void CassoExplorerWindow::UndoLast()
                     saved.push_back (entry.path().wstring());
                 }
 
-                ReportOutcome (m_actions.PutFiles (saved, MakeAddressPrompt()), L"Undo delete");
-                std::filesystem::remove_all (step.savedDir, ignored);
+                restored = m_actions.PutFiles (saved, MakeAddressPrompt());
+                ReportOutcome (restored, L"Undo delete");
+
+                //  The saved copies are the only ones, so they go only once
+                //  every file is back.
+                if (restored.IsWhole())
+                {
+                    std::filesystem::remove_all (step.savedDir, ignored);
+                }
+                else
+                {
+                    m_undo.push_back (std::move (step));
+                }
             }
 
             FillList();
             return;
     }
 
-    if (FAILED (hr))
+    //  Canceled at the shell's prompt, the step can be undone later.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        m_undo.push_back (std::move (step));
+    }
+    else if (FAILED (hr))
     {
         ShowMessage (L"That could not be undone.", MB_ICONWARNING);
     }
@@ -14281,8 +14395,12 @@ void CassoExplorerWindow::PasteHere (const std::wstring & folder)
 
 
 
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    m_cutPaths.clear();
+    //  After a paste that failed or was canceled, the cut files remain cut,
+    //  as in File Explorer. Any error is in the shell's dialog.
+    if (SUCCEEDED (hr))
+    {
+        m_cutPaths.clear();
+    }
 
     if (!pasted.created.empty())
     {
@@ -16190,10 +16308,11 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
     int                              answer   = 0;
     CassoExplorerActions::Outcome    outcome;
     CassoExplorerRawDialog::Outcome  where;
+    std::wstring                     target   = m_actions.GetFormatTarget();
 
 
 
-    if (m_actions.GetFormatTarget().empty())
+    if (target.empty())
     {
         return;
     }
@@ -16248,6 +16367,11 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
                                (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
                                L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK);
 
+        if (!IsRawTargetCurrent (target))
+        {
+            return;
+        }
+
         outcome = sectors ? m_actions.ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering)
                           : m_actions.ReadBlocks  (where.start, where.count, picked.wstring());
 
@@ -16256,11 +16380,11 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
     }
 
     answer = DxuiMessageBox (GetHwnd(), m_theme,
-                             L"The file's bytes will be written straight onto the disk image, over what is there now.",
+                             (L"The file's bytes will be written straight onto " + CassoExplorerActions::GetLeafName (target) + L", over what is there now.").c_str(),
                              title.c_str(),
                              MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" });
 
-    if (answer != IDOK)
+    if (answer != IDOK || !IsRawTargetCurrent (target))
     {
         return;
     }
@@ -16270,6 +16394,30 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
 
     ReportOutcome (outcome, L"Write");
     FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsRawTargetCurrent
+//
+//  The window's timers run while the dialogs are open, and a refresh can move
+//  the list off the image the raw read or write was chosen for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsRawTargetCurrent (const std::wstring & target)
+{
+    if (m_actions.GetFormatTarget() == target)
+    {
+        return true;
+    }
+
+    ShowMessage (CassoExplorerActions::GetLeafName (target) + L" is no longer selected, so nothing was read or written.", MB_ICONWARNING);
+    return false;
 }
 
 
@@ -16683,10 +16831,11 @@ void CassoExplorerWindow::UpdateStatusTip (const DxuiMouseEvent & ev, POINT poin
 std::wstring CassoExplorerWindow::GetLatestActivity() const
 {
     std::vector<CassoLinkConnections::Activity>  log;
-    FILETIME                                     then = {};
-    FILETIME                                     now  = {};
-    ULARGE_INTEGER                               a    = {};
-    ULARGE_INTEGER                               b    = {};
+    FILETIME                                     local = {};
+    FILETIME                                     then  = {};
+    FILETIME                                     now   = {};
+    ULARGE_INTEGER                               a     = {};
+    ULARGE_INTEGER                               b     = {};
 
 
 
@@ -16703,8 +16852,8 @@ std::wstring CassoExplorerWindow::GetLatestActivity() const
     }
 
     GetSystemTimeAsFileTime (&now);
-    SystemTimeToFileTime (&log.back().time, &then);
-    LocalFileTimeToFileTime (&then, &then);
+    SystemTimeToFileTime (&log.back().time, &local);
+    LocalFileTimeToFileTime (&local, &then);
 
     a.LowPart  = then.dwLowDateTime;
     a.HighPart = then.dwHighDateTime;

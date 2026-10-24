@@ -131,6 +131,8 @@ svrst:  lda $03F2,x
         lda #0
         sta nacia
         sta w5slot
+        sta annlo               ; the first announcement after the full wait
+        sta annhi
         jsr home
 
         lda $FBB3               ; a //c has $06 here and $00 at $FBC0
