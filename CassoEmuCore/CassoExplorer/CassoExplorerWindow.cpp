@@ -94,6 +94,12 @@ CassoExplorerWindow::~CassoExplorerWindow()
         m_context.watcher->Unwatch (m_context.running->GetFolder());
     }
 
+    //  The link that was this window's location can now be stopped once no other window has it as theirs.
+    if (m_context.links != nullptr)
+    {
+        m_context.links->SetViewing (this, std::string());
+    }
+
     PlaySoundW (nullptr, nullptr, 0);
 
     m_shellVerbs.UnwatchRecycleBin();
@@ -287,8 +293,9 @@ CassoExplorerPrefs::Placement CassoExplorerWindow::GetPlacement() const
 
     //  A snapped window's normal position is where it was before the snap,
     //  which is not where it was left. Its own rectangle is, moved into the
-    //  work-area terms the normal position uses.
-    if (IsWindowArranged (GetHwnd()) && !IsZoomed (GetHwnd()))
+    //  work-area terms the normal position uses. A minimized window's
+    //  rectangle is its icon's, off the screen, so its normal position stays.
+    if (IsWindowArranged (GetHwnd()) && !IsZoomed (GetHwnd()) && !IsIconic (GetHwnd()))
     {
         MONITORINFO  monitor = { sizeof (monitor) };
         RECT         window  = {};
@@ -305,7 +312,8 @@ CassoExplorerPrefs::Placement CassoExplorerWindow::GetPlacement() const
     placed.y         = place.rcNormalPosition.top;
     placed.w         = place.rcNormalPosition.right - place.rcNormalPosition.left;
     placed.h         = place.rcNormalPosition.bottom - place.rcNormalPosition.top;
-    placed.maximized = place.showCmd == SW_SHOWMAXIMIZED;
+    placed.maximized = place.showCmd == SW_SHOWMAXIMIZED
+                    || (place.showCmd == SW_SHOWMINIMIZED && (place.flags & WPF_RESTORETOMAXIMIZED) != 0);
     placed.valid     = true;
 
     return placed;
@@ -2217,7 +2225,8 @@ void CassoExplorerWindow::FillPreview()
     bool                                            visible  = m_prefs.previewVisible;
     bool                                            picture  = preview.kind == PreviewContent::Kind::Picture && !preview.bgra.empty();
     bool                                            hostFile = preview.kind == PreviewContent::Kind::Hex && !preview.hostPath.empty();
-    bool                                            opened   = hostFile && (m_fileBytes.GetPath() == preview.hostPath || m_fileBytes.Open (preview.hostPath));
+    bool                                            current  = hostFile && m_fileBytes.GetPath() == preview.hostPath && m_fileBytes.IsCurrent();
+    bool                                            opened   = hostFile && (current || m_fileBytes.Open (preview.hostPath));
     HostCharset                                     charset  = opened ? m_fileBytes.GetCharset() : preview.hostCharset;
     bool                                            error    = preview.kind == PreviewContent::Kind::Error || (hostFile && !opened);
     bool                                            catalog  = preview.kind == PreviewContent::Kind::Catalog;
@@ -2515,14 +2524,24 @@ void CassoExplorerWindow::ReadDiskToImage (bool blankUnreadable, const std::wstr
         }
     }
 
-    outcome = m_actions.ReadDiskToImage (picked.wstring(), blankUnreadable, [this, picked] (const LinkOperation & operation)
+    //  The second read goes to the link and drive the first one read, not to
+    //  whatever drive the window has open by the time the first one fails.
+    outcome = m_actions.ReadDiskToImage (picked.wstring(), blankUnreadable, [this, picked] (const LinkOperation & operation, const std::string & link, int drive)
     {
-        std::wstring  message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros?";
+        std::wstring                   message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros?";
+        CassoExplorerActions::Outcome  again;
 
         if (DxuiMessageBox (GetHwnd(), m_theme, message.c_str(), L"Read disk to image",
                             MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Read again", L"Cancel" }) == IDOK)
         {
-            ReadDiskToImage (true, picked.wstring());
+            again = m_actions.ReadDiskToImage (link, drive, picked.wstring(), true, nullptr);
+
+            if (!again.Succeeded())
+            {
+                ShowMessage (again.message, MB_ICONERROR);
+            }
+
+            OnLinkChanged();
         }
     });
 
@@ -3204,7 +3223,36 @@ bool CassoExplorerWindow::FileBytes::Open (const std::wstring & path)
     m_path = path;
     m_size = (uint64_t) size.QuadPart;
 
+    if (!GetFileTime (m_file, nullptr, nullptr, &m_written))
+    {
+        m_written = {};
+    }
+
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FileBytes::IsCurrent
+//
+//  By the path, not the open handle: a save that writes a new file and
+//  renames it over this one: the handle is then on the old file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::FileBytes::IsCurrent() const
+{
+    WIN32_FILE_ATTRIBUTE_DATA  data  = {};
+    bool                       found = !m_path.empty() && GetFileAttributesExW (m_path.c_str(), GetFileExInfoStandard, &data);
+    uint64_t                   size  = ((uint64_t) data.nFileSizeHigh << 32) | data.nFileSizeLow;
+
+
+
+    return found && size == m_size && CompareFileTime (&data.ftLastWriteTime, &m_written) == 0;
 }
 
 
@@ -11288,9 +11336,9 @@ Error:
 //  CassoExplorerWindow::ReleaseIdleLinks
 //
 //  A link connects only while its machine, or one of its drives, is the
-//  location. One that has not connected by the time the user goes elsewhere is
-//  stopped, closing its port; one that has connected, or is bootstrapping or
-//  loading the program, stays.
+//  location of some window. One that has not connected by the time every
+//  window has gone elsewhere is stopped, closing its port; one that has
+//  connected, or is bootstrapping or loading the program, stays.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -11309,6 +11357,7 @@ void CassoExplorerWindow::ReleaseIdleLinks()
     }
 
     TreeModel::TryParseLinkId (m_browser.GetLocation().path, current, slot, drive);
+    m_context.links->SetViewing (this, TextEncoding::WideToNarrow (current));
 
     for (const CassoLinkSettings & settings : m_context.links->GetLinks())
     {
@@ -11318,7 +11367,7 @@ void CassoExplorerWindow::ReleaseIdleLinks()
                                      || state == LinkState::Bootstrapping || state == LinkState::LoadingProgram;
 
         //  ADTPro's client speaks first, so an ADTPro server stays open for it.
-        if (session != nullptr && !connected && settings.transport != LinkTransport::AdtProServer && TextEncoding::NarrowToWide (settings.name) != current)
+        if (session != nullptr && !connected && settings.transport != LinkTransport::AdtProServer && !m_context.links->IsViewed (settings.name))
         {
             release.push_back (settings.name);
         }

@@ -92,6 +92,11 @@ public:
     void     Disconnect (const std::string & name);
     bool     IsHeld     (const std::string & name) const;
 
+    //  The link each window has as its location, empty for none, so one
+    //  window going elsewhere does not stop a link that is another window's location.
+    void     SetViewing (const void * viewer, const std::string & name);
+    bool     IsViewed   (const std::string & name) const;
+
     //  The session of a started link, or null.
     CassoLinkSession *  GetSession (const std::string & name);
 
@@ -246,6 +251,7 @@ private:
     std::vector<LinkAnnouncement>        m_announced;
     std::vector<CassoLinkSettings>       m_links;
     std::set<std::string>                m_held;
+    std::map<const void *, std::string>  m_viewing;
     std::vector<std::unique_ptr<Link>>   m_started;
 
     struct Job

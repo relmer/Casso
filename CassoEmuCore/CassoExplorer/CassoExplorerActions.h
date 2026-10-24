@@ -279,9 +279,12 @@ public:
     //  A read with sectors it could not read calls onUnreadable instead of
     //  reporting a failure, so the user can choose to read it again with
     //  those sectors written as zeros.
-    using UnreadableFn = std::function<void (const LinkOperation & operation)>;
+    using UnreadableFn = std::function<void (const LinkOperation & operation, const std::string & link, int drive)>;
 
+    //  The open drive's disk, or the given link's drive, so a second read
+    //  goes to the drive the first one did, wherever the window is by then.
     Outcome  ReadDiskToImage  (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable);
+    Outcome  ReadDiskToImage  (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable);
     Outcome  WriteImageToDisk (const std::wstring & imagePath);
 
     //  The same for any drive of any link, as a drop onto a drive's node
@@ -434,7 +437,13 @@ private:
     static void  Record (Outcome & inOutOutcome, const DiskOperations::Result & result, const std::string & catalogPath);
     static void  KeepCreatedIn (Outcome & inOutOutcome, const std::string & directory);
 
+    //  A completion that does nothing once this object is gone. Jobs are in
+    //  the shell's connections, which every window shares, and can finish
+    //  after the window that queued them, and this object, have closed.
+    CassoLinkConnections::Completion  Guard (CassoLinkConnections::Completion inner) const;
+
     CassoExplorerBrowser  & m_browser;
     IFileSystem           & m_fs;
+    std::shared_ptr<int>    m_alive = std::make_shared<int> (0);
     WrittenFn               m_onWritten;
 };

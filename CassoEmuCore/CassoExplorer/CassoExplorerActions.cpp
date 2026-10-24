@@ -1341,7 +1341,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
 
         hr = m_browser.GetLinks()->Submit (link,
             [drive, entryPath] (CassoLinkSession & session) { return session.ReadFile (drive, FilePath::Parse (entryPath)); },
-            [this, hostPath, encoding, appleSingle, single] (const LinkOperation & operation) -> std::wstring
+            Guard ([this, hostPath, encoding, appleSingle, single] (const LinkOperation & operation) -> std::wstring
             {
                 std::vector<Byte>  bytes;
                 HRESULT            hrHost = operation.result;
@@ -1359,7 +1359,7 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetFromAppleDrive (const std
                 }
 
                 return FAILED (hrHost) ? GetLeafName (hostPath) + L" could not be written." : std::wstring();
-            });
+            }));
 
         if (SUCCEEDED (hr))
         {
@@ -3474,13 +3474,10 @@ CassoExplorerActions::Outcome CassoExplorerActions::WriteBlocks (int block, cons
 
 CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::wstring & imagePath, bool blankUnreadable, UnreadableFn onUnreadable)
 {
-    Outcome                 outcome;
-    CassoLinkConnections  * links = m_browser.GetLinks();
-    std::string             link;
-    std::string             directory;
-    std::string             path  = TextEncoding::WideToNarrow (imagePath);
-    int                     drive = 0;
-    HRESULT                 hr    = S_OK;
+    Outcome      outcome;
+    std::string  link;
+    std::string  directory;
+    int          drive = 0;
 
 
 
@@ -3491,19 +3488,44 @@ CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::
         return outcome;
     }
 
+    return ReadDiskToImage (link, drive, imagePath, blankUnreadable, std::move (onUnreadable));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ReadDiskToImage
+//
+//  The offer to read again is given the link and drive this read went to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::ReadDiskToImage (const std::string & link, int drive, const std::wstring & imagePath, bool blankUnreadable,
+                                                                    UnreadableFn onUnreadable)
+{
+    Outcome                 outcome;
+    CassoLinkConnections  * links = m_browser.GetLinks();
+    std::string             path  = TextEncoding::WideToNarrow (imagePath);
+    HRESULT                 hr    = S_OK;
+
+
+
     hr = links->Submit (link, [drive, path, blankUnreadable] (CassoLinkSession & session) { return session.ReadDisk (drive, path, blankUnreadable); },
-                        [onUnreadable] (const LinkOperation & operation) -> std::wstring
+                        Guard ([onUnreadable, link, drive] (const LinkOperation & operation) -> std::wstring
     {
         bool  offer = operation.result == HRESULT_FROM_WIN32 (ERROR_CRC) && !operation.unreadable.empty() && !operation.blankUnreadable && onUnreadable;
 
         if (offer)
         {
-            onUnreadable (operation);
+            onUnreadable (operation, link, drive);
             return std::wstring();
         }
 
         return FAILED (operation.result) ? CassoLinkConnections::DescribeFailure (operation) : std::wstring();
-    });
+    }));
 
     if (FAILED (hr))
     {
@@ -3634,6 +3656,24 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateImageFromAppleDrive (c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerActions::Guard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoLinkConnections::Completion CassoExplorerActions::Guard (CassoLinkConnections::Completion inner) const
+{
+    return [alive = std::weak_ptr<int> (m_alive), inner = std::move (inner)] (const LinkOperation & operation) -> std::wstring
+    {
+        return alive.expired() ? std::wstring() : inner (operation);
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerActions::CheckLinkDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3641,11 +3681,11 @@ CassoExplorerActions::Outcome CassoExplorerActions::CreateImageFromAppleDrive (c
 HRESULT CassoExplorerActions::CheckLinkDisk (const std::string & link, int drive, LinkDiskFn then)
 {
     return m_browser.GetLinks()->Submit (link, [drive] (CassoLinkSession & session) { return session.CheckLinkDisk (drive); },
-                                         [then] (const LinkOperation & operation) -> std::wstring
+                                         Guard ([then] (const LinkOperation & operation) -> std::wstring
     {
         then (operation.linkDisk, operation.result);
         return std::wstring();
-    });
+    }));
 }
 
 

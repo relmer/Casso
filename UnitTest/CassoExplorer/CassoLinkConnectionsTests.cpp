@@ -96,6 +96,26 @@ public:
 
 
 
+    //  A link any window has as its location is viewed, so another window
+    //  going elsewhere does not stop it.
+    TEST_METHOD (ALink_IsViewedWhileAnyWindowShowsIt)
+    {
+        Rig        rig;
+        const int  first  = 1;
+        const int  second = 2;
+
+        rig.links->SetViewing (&first,  "Apple");
+        rig.links->SetViewing (&second, "Apple");
+        Assert::IsTrue  (rig.links->IsViewed ("Apple"));
+
+        rig.links->SetViewing (&first, std::string());
+        Assert::IsTrue  (rig.links->IsViewed ("Apple"), L"it is the second window's location");
+
+        rig.links->SetViewing (&second, "Other");
+        Assert::IsFalse (rig.links->IsViewed ("Apple"));
+    }
+
+
     TEST_METHOD (AStoppedLink_HasItsStateInPlaceOfDrives)
     {
         Rig                         rig;
