@@ -372,6 +372,34 @@ hardware.
   change of focus, Escape, or a second click on its icon, and Escape
   closes an open info tip before it cancels a dialog.
 
+### Session 2026-10-23
+
+- Q: What does a copy out of a disk image with sectors that cannot be read
+  do? → A: It completes, as a salvage copy. What cannot be read is written
+  as zeros, and a message lists each file affected and how many sectors
+  were lost. A move from such an image does not delete the originals, and
+  neither does a move dragged to File Explorer unless every file was read
+  whole.
+- Q: What happens when a file copied out of an image has the name of a file
+  in the host folder? → A: File Explorer's prompt: `Replace`, `Skip` or
+  `Keep both`, which numbers the copy. A move deletes neither a file skipped there
+  nor one skipped at the load address prompt of a copy into an image.
+- Q: What does a copy between images preserve? → A: The type, the address
+  or aux type, the locked flag and the dates. A locked directory counts as
+  a locked entry in a delete's plan, a folder cannot be copied into itself
+  or a folder inside it, and a move does not delete a locked entry.
+- Q: How does a virtual drive on the ADTPro-compatible server write to its
+  image? → A: Each block in place, at its offset in the file, rather than by
+  writing the whole image again.
+- Q: Should CassoLink have virtual drives for a ProDOS program on the Apple,
+  like ADTPro's VSDrive? → A: Not in this spec, and at low priority.
+  VSDrive works against the ADTPro-compatible server today. A CassoLink
+  version is a bootable ProDOS link disk plus a resident block driver, and
+  is relmer/Casso#178.
+- Q: How do several Casso Explorer windows share the typed path history? →
+  A: Every window adds to the one list in the preferences, so a path typed
+  in one window is offered in all of them.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -1238,7 +1266,8 @@ to Casso over TCP.
   terminal to answer and no `--yes` it MUST refuse rather than wait. The
   whole plan MUST be made before anything changes and applied all or
   nothing: a locked entry without `--force`, or a directory that cannot be
-  fully read, refuses the entire delete. The volume directory MUST NOT be
+  fully read, refuses the entire delete. A locked directory MUST count as a
+  locked entry, as a locked file does. The volume directory MUST NOT be
   removable. Casso Explorer's delete of a directory MUST use the same plan, and
   its confirmation MUST show the same list and totals.
 - **FR-013f**: `disk delete` MUST remove files only and refuse a directory,
@@ -1255,7 +1284,9 @@ to Casso over TCP.
 **Drag and drop**
 
 - **FR-016**: A drag between two Apple disk images MUST copy raw with no
-  conversion, preserving type, address and locked flag.
+  conversion, preserving type, address, locked flag and dates. A folder
+  MUST NOT be copied or moved into itself or into a folder inside it, and a
+  move MUST NOT delete a locked entry; the failure is reported.
 - **FR-017**: A drag or Get from a disk image to a host folder, in Casso Explorer
   or another application, MUST convert per file type: BASIC to a listing,
   text to text, everything else raw, with the file materialized only when
@@ -1298,6 +1329,21 @@ to Casso over TCP.
   Integer BASIC listings are not tokenized and fall to the text rule.
 - **FR-018a**: Get and preview with the BASIC conversion MUST refuse with
   the decoder's error rather than write or show a partial listing.
+- **FR-018b**: A copy from a disk image with sectors that cannot be read
+  MUST complete, with zeros in place of what could not be read, and MUST
+  report each file affected and the number of sectors lost. A copy from a
+  directory whose catalog cannot be read whole MUST report that entries may
+  be missing.
+- **FR-018c**: A move MUST delete its originals only when every item was
+  written whole. An item copied from a damaged image, skipped at a prompt or
+  at a name clash, or that failed, MUST NOT be deleted. Host originals MUST
+  go to the Recycle Bin through the shell, which confirms before deleting a
+  file the bin cannot take. A move dragged to File Explorer MUST delete only
+  when the target read every file whole.
+- **FR-018d**: A copy out of an image into a host folder that has a file of
+  the same name MUST offer File Explorer's choices for each such file:
+  `Replace`, `Skip` and `Keep both`, which writes the copy under a
+  numbered name.
 - **FR-019**: A drag of a disk image onto a running Casso window MUST be
   accepted by Casso's existing drop handling.
 
@@ -1630,7 +1676,8 @@ to Casso over TCP.
   subtree MUST fail. Other CassoLink connections MUST NOT answer ADTPro's requests.
   The server's help MUST be a virtual item under its root, written to a
   temporary file only when it is opened or dragged out, and nothing MUST be
-  written to the user's Documents folder for it.
+  written to the user's Documents folder for it. A virtual drive's block
+  write MUST change only that block of the image file.
 - **FR-089**: Casso's own Apple-side program MUST use ADTPro's framing,
   extended with operations the PC starts: list drives, read a catalog, read
   and write a file, delete, rename, make a directory, read and write a disk
@@ -1744,7 +1791,8 @@ to Casso over TCP.
 - **Tab**: a location, its history, selection, sort, and the preview's
   scroll position and disassembly toggle.
 - **Typed path history**: the last ten paths typed or pasted into the
-  address bar, most recent first, with no duplicates; persisted.
+  address bar, most recent first, with no duplicates; persisted. Every
+  window adds to the one list, so a path typed in one is offered in all.
 - **List view mode**: how the file list draws its entries, one of the
   views FR-044 names; persisted.
 - **Registration**: the formats Casso is the program for, and for each the

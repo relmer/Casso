@@ -687,6 +687,57 @@ before the tasks were written.
 - [X] T237 [US16] Set a Super Serial Card to printer mode when the ImageWriter II is chosen on it, saving SW1 as `sw1BeforePrinter`; restore SW1-5 and SW1-6 when the printer moves away if the card is in printer mode; disconnect the printer when the card is switched out of printer mode; report each change with `SettingsPanelState::TakeNotice` and `SettingsSheet::ReportCrossTabChange`; offer the printer only on the Printing tab. Tests in `UnitTest/UiTests/SettingsPanelStateTests.cpp` and `HardwarePageTests.cpp`. Per FR-095a and R32.
 - [X] T238 [P] [US16] Scroll a Standard-style `DxuiTabStrip` with arrows when its tabs do not fit, in `Dxui/Widgets/DxuiTabStrip.cpp`; pin a `DxuiInfoTip` until a click elsewhere, a focus change, Escape or a second click, with Escape closing it before a dialog's cancel, in `Dxui/Widgets/DxuiInfoTip.cpp` and `Dxui/Window/DxuiWindow.cpp`. Tests in `UnitTest/Dxui/DxuiTabStripTests.cpp` and `DxuiInfoTipTests.cpp`. Per FR-095b.
 
+## Phase 21d: File operations and the code review (FR-013e, FR-016, FR-018b to FR-018d, FR-088)
+
+**Purpose**: the Session 2026-10-23 decisions, and the defects a review of
+the branch found, built before the tasks were written.
+
+**Independent test**: the unit and scenario suites; the live checks are
+listed in validation.md.
+
+- [X] T239 [US3] Copy out of a damaged image as a salvage copy: count the sectors lost from each file through an `ISectorReadObserver` in `CassoEmuCore/CassoExplorer/Model/DiskOperations.cpp`, set `CassoExplorerActions::Outcome::damaged` and its warning, and report it in `CassoExplorerWindow::ReportOutcome`. A move from such an image does not delete its originals, and `CassoExplorerDragOut::RenderLog` deletes after a move dragged to File Explorer only when every file was read whole. Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`, `UnitTest/EmuTests/CrossFormatExtractionTests.cpp` and `UnitTest/CassoExplorer/CassoExplorerDragOutTests.cpp`. Per FR-018b and FR-018c.
+- [X] T240 [US3] Offer `Replace`, `Skip` and `Keep both` for each name clash of a copy out, through `CassoExplorerActions::CollisionFn` and `ResolveCopyOutPath` in `CassoEmuCore/CassoExplorer/CassoExplorerActions.cpp`. A file skipped there or at the load address prompt sets `Outcome::skipped`, and `Outcome::IsWhole` is then false, so a move does not delete it. Host originals of a move go to the Recycle Bin through `IShellItemVerbs::Recycle`. Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`. Per FR-018c and FR-018d.
+- [X] T241 [US3] Add the access byte and dates of a copied entry to `FilePayload` and write them with `ProDosVolume::StampEntry`; count a locked directory in a delete's plan; fail a copy of a folder into itself or a folder inside it; and make a move fail on a locked entry rather than delete it. Tests in `UnitTest/CassoExplorer/CassoExplorerActionsTests.cpp`. Per FR-013e and FR-016.
+- [X] T242 [US16] Write a virtual drive's block in place through `IDiskFileIo::WriteAt` and `ICassoLinkFolder::WriteAt`, from `CassoLinkHost::WriteDriveBlock` in `CassoEmuCore/CassoLink/CassoLinkHost.cpp`. Tests in `UnitTest/CassoLink/CassoLinkHostTests.cpp`, and ADTPro's standalone VSDrive on a //c and on a Super Serial Card in `ScenarioTests/CassoLinkAdtProTests.cpp`. Per FR-088.
+- [X] T243 [US1] Fix what the review of `CassoEmuCore/CassoExplorer/CassoExplorerWindow.cpp` found:
+  - link completions dropped once their window is gone, through `CassoExplorerActions::Guard`;
+  - a disk read retried on the drive it started on;
+  - a link another window is on not closed, through `CassoLinkConnections::SetViewing` and `IsViewed`;
+  - typed paths added to the one list every window shares;
+  - Shift+Delete limited to host files;
+  - long dropped paths read whole;
+  - an edited link found again after its dialog;
+  - every window moved off a removed link;
+  - undo of an image step only where it was made, and an undone delete's saved copies removed only once they are back.
+
+  Tests in `UnitTest/CassoExplorer/AppleDriveActionsTests.cpp`, `CassoLinkConnectionsTests.cpp` and `CassoExplorerActionsTests.cpp`.
+- [X] T244 [P] [US1] Fix what the review of Dxui's list, tree, hex, text and tab strip widgets in `Dxui/Widgets/` found:
+  - a click collapsing a multiple selection is reported;
+  - header focus steps to the next column;
+  - List view columns are measured again for a new row set or DPI;
+  - scrolling is clamped after a resize, a regroup or an expand;
+  - a tab strip scrolls only by a wheel over it;
+  - hex cells are measured again at a new DPI;
+  - the hex view copies text when its hex column is hidden;
+  - the tree, hex and text views scroll by part notches.
+
+  Tests in `UnitTest/Dxui/DxuiListViewMultiSelectTests.cpp` and `DxuiHexViewTests.cpp`.
+- [X] T245 [P] [US1] Fix what the review of `CassoEmuCore/Seams/` found:
+  - a menu for items in different folders built from the desktop;
+  - a canceled `IFileOperation` returned as `ERROR_CANCELLED`;
+  - a stale preview result dropped;
+  - a handler the next file does not use unloaded;
+  - a dropped folder watch set up again;
+  - `Win32FolderWatcher::Unwatch` waits out a running callback.
+
+  Checked live in Casso Explorer: a watched folder's changes are listed, and the window closes at once.
+- [X] T246 [P] [US16] Fix what the review of `CassoEmuCore/CassoLink/Apple/` found:
+  - the last byte waited out before a speed change at as slow as 1,200 baud;
+  - the Uthernet II announcement count started at zero;
+  - expansion ROMs deselected after `SlotFinder.s`'s scan.
+
+  Program version 50. A check of the shim's page number was not added: the 6551 shim fills its 768 bytes. CassoLink unit and scenario suites.
+
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 
 **Purpose**: a bare //c brought up from the PC, updated from it, and the
