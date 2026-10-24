@@ -547,6 +547,75 @@ bool CassoExplorerDragOut::TryGetDraggedDrive (IDataObject * data, std::wstring 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerDragOut::RenderLog::Reset
+//
+//  A directory has nothing to read, so it starts whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerDragOut::RenderLog::Reset (const std::vector<DragPayload::Descriptor> & descriptors)
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    m_whole.assign (descriptors.size(), false);
+
+    for (size_t i = 0; i < descriptors.size(); i++)
+    {
+        m_whole[i] = descriptors[i].isDirectory;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::RenderLog::SetWhole
+//
+//  A file read twice is whole only if its last read was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerDragOut::RenderLog::SetWhole (size_t index, bool whole)
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    if (index < m_whole.size())
+    {
+        m_whole[index] = whole;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::RenderLog::IsWhole
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerDragOut::RenderLog::IsWhole() const
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    return std::ranges::all_of (m_whole, [] (bool whole) { return whole; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerDragOut::BuildFormats
 //
 //  The render callbacks hold what they need by value -- the image path and
@@ -555,7 +624,8 @@ bool CassoExplorerDragOut::TryGetDraggedDrive (IDataObject * data, std::wstring 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style)
+std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
+                                                                       std::shared_ptr<RenderLog> log)
 {
     std::vector<DxuiDragDropSource::Format>                  formats;
     std::vector<FileEntry>                                   entries;
@@ -600,11 +670,16 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
         group       = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (plan.descriptors));
         privateData = std::make_shared<std::string> (plan.privateBytes);
 
+        if (log)
+        {
+            log->Reset (plan.descriptors);
+        }
+
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, image, descriptors] (int index, std::vector<uint8_t> & out)
+                             [&browser, image, descriptors, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
@@ -628,6 +703,13 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                  else if (result.Succeeded())
                                  {
                                      out.assign (result.payload.begin(), result.payload.end());
+                                 }
+
+                                 //  The runner's result has complaints for a disk with sectors it could
+                                 //  not decode, so the file may have zeros where data was.
+                                 if (log)
+                                 {
+                                     log->SetWhole ((size_t) index, result.Succeeded() && result.exitStatus != DiskCommandResult::kWithComplaints);
                                  }
 
                                  return result.hr;

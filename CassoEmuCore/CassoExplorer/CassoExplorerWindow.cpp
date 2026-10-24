@@ -15533,7 +15533,8 @@ void CassoExplorerWindow::BeginDragOut()
     DWORD                                    effect  = DROPEFFECT_NONE;
     DxuiMouseEvent                           release;
     HostFileNaming::Style                    style   = GetNamingStyle();
-    std::vector<DxuiDragDropSource::Format>  formats = CassoExplorerDragOut::BuildFormats (m_browser, style);
+    auto                                     log     = std::make_shared<CassoExplorerDragOut::RenderLog>();
+    std::vector<DxuiDragDropSource::Format>  formats = CassoExplorerDragOut::BuildFormats (m_browser, style, log);
     POINT                                    start   = {};
     std::vector<FileEntry>                   entries;
     std::vector<std::string>                 paths;
@@ -15611,9 +15612,17 @@ void CassoExplorerWindow::BeginDragOut()
 
     //  A target that moved the entries by copying them leaves their removal
     //  to the source, as Explorer does with files it cannot move itself. A
-    //  host file is Explorer's to move, and Casso Explorer's own drops report
-    //  a copy once they have finished a move themselves.
-    if (effect == DROPEFFECT_MOVE && inImage && !paths.empty())
+    //  host file is Explorer's to move, and Casso Explorer's drops report a
+    //  copy once they have finished a move themselves. The originals are
+    //  deleted only when the target read every file whole: not one skipped
+    //  in its conflict dialog, one that failed to read, or one from a disk
+    //  with sectors that could not be decoded.
+    if (effect == DROPEFFECT_MOVE && inImage && !paths.empty() && !log->IsWhole())
+    {
+        ShowMessage (L"The originals were not deleted, because the destination did not get every file whole: a file was "
+                     L"skipped, could not be read, or came from sectors the disk could not decode.", MB_ICONWARNING);
+    }
+    else if (effect == DROPEFFECT_MOVE && inImage && !paths.empty())
     {
         outcome = m_actions.DeleteEntries (image, paths);
         ReportOutcome (outcome, L"Move");

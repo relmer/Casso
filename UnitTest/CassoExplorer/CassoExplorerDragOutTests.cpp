@@ -91,6 +91,7 @@ public:
         int                                      hello    = -1;
         std::string                              text;
         std::vector<DxuiDragDropSource::Format>  formats;
+        auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
 
         AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", image));
         AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\dos33.dsk", std::string (image.begin(), image.end())));
@@ -114,15 +115,37 @@ public:
 
         browser.SetSelectedRows ({ hello });
 
-        formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive);
+        formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log);
 
         Assert::AreEqual ((size_t) 3, formats.size());
         Assert::AreEqual (1, formats[1].count);
+        Assert::IsFalse  (log->IsWhole(), L"a file the target has not read is not whole, so a move deletes nothing");
 
         AssertSucceeded (formats[1].render (0, contents));
+        Assert::IsTrue (log->IsWhole(), L"and once read from a sound disk it is");
 
         text.assign (contents.begin(), contents.end());
 
         Assert::AreNotEqual (std::string::npos, text.find ("PRINT"));
+    }
+
+
+    //  A directory has nothing to read, and a file is whole only after its
+    //  last read was.
+    TEST_METHOD (RenderLog_IsWholeOnlyWhenEveryFileReadWhole)
+    {
+        CassoExplorerDragOut::RenderLog       log;
+        std::vector<DragPayload::Descriptor>  descriptors (2);
+
+        descriptors[0].isDirectory = true;
+
+        log.Reset (descriptors);
+        Assert::IsFalse (log.IsWhole());
+
+        log.SetWhole (1, true);
+        Assert::IsTrue  (log.IsWhole());
+
+        log.SetWhole (1, false);
+        Assert::IsFalse (log.IsWhole(), L"a later damaged read of the same file");
     }
 };
