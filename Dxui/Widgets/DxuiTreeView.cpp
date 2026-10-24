@@ -4,6 +4,7 @@
 
 #include "DxuiTreeView.h"
 #include "DxuiListView.h"
+#include "DxuiWarningBadge.h"
 
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiUnicodeSymbols.h"
@@ -1350,6 +1351,16 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             if (node->iconBroken)
             {
                 DxuiListView::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
+            }
+
+            //  At the icon's lower left, where the broken badge goes, and as
+            //  large.
+            if (node->iconWarning)
+            {
+                float  badgePx = (std::max) (m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip), iconPx * 0.5f);
+                float  iconTop = rowY + (rowHeight - iconPx) * 0.5f;
+
+                DxuiWarningBadge::Draw (text, textX, iconTop + iconPx - badgePx, badgePx, badgePx, theme.WarningAccent(), theme.WarningEdge(), theme.WarningMark());
             }
 
             textX += iconPx + m_scaler.ToPxf (m_iconGapDip);

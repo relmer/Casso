@@ -3,6 +3,8 @@
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IByteStreamFactory.h"
+#include "Net/FirewallMonitor.h"
+#include "Net/FirewallText.h"
 #include "Seams/ILinkAnnouncements.h"
 #include "Seams/Win32NetworkAdapters.h"
 
@@ -85,6 +87,69 @@ void CassoLinkConnections::SetLinks (const std::vector<CassoLinkSettings> & link
 bool CassoLinkConnections::IsSearching() const
 {
     return std::any_of (m_saved.begin(), m_saved.end(), [] (const CassoLinkSettings & settings) { return settings.IsSearch(); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::GetInboundPort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::GetInboundPort (const CassoLinkSettings & settings, FirewallPort & outPort)
+{
+    bool  inbound = settings.IsSearch() || settings.transport == LinkTransport::WifiModem;
+
+
+
+    if (inbound)
+    {
+        outPort.protocol = settings.IsSearch() ? HostSocketKind::Udp : HostSocketKind::Tcp;
+        outPort.port     = settings.IsSearch() ? LinkProgram::kAnnouncePort : CassoLinkSettings::kModemPort;
+    }
+
+    return inbound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::AddFirewall
+//
+//  The cause comes before the connection's state in the list, since none of
+//  the state's instructions can work until the port is allowed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::AddFirewall (const CassoLinkSettings & settings, LinkTreeEntry & entry) const
+{
+    FirewallPort     port;
+    FirewallVerdict  verdict;
+
+
+
+    if (m_firewall == nullptr || !GetInboundPort (settings, port))
+    {
+        return;
+    }
+
+    verdict = m_firewall->Check (port.protocol, port.port);
+
+    if (verdict.IsAdmitted())
+    {
+        return;
+    }
+
+    entry.firewall       = FirewallText::DescribeCause (verdict, kFirewallTitle, port);
+    entry.firewallPublic = verdict.profile == FirewallProfile::Public;
+    entry.status         = std::format (L"{}{}{}\n\n{}", entry.firewall, entry.firewallPublic ? L" " : L"",
+                                        entry.firewallPublic ? FirewallText::kPublicChoice : L"", entry.status);
 }
 
 
@@ -586,6 +651,8 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
             entry.model    = entry.replying ? (*found)->session->GetModelName() : std::wstring();
             entry.status   = failure.empty() ? DescribeState (state, settings, GetPcName()) : TextEncoding::NarrowToWide (failure);
         }
+
+        AddFirewall (settings, entry);
 
         if (found == m_started.end())
         {

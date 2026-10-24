@@ -5,6 +5,9 @@
 #include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/RunningCassoRegistry.h"
 #include "Seams/ILinkAnnouncements.h"
+#include "Seams/Win32FirewallHelper.h"
+#include "Net/FirewallMonitor.h"
+#include "Net/FirewallText.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
@@ -109,6 +112,13 @@ CassoExplorerWindow::~CassoExplorerWindow()
     {
         PlaySoundW (nullptr, nullptr, 0);
         s_cassettePlayer = nullptr;
+    }
+
+    //  A running helper is left to exit; only the handle is closed.
+    if (m_firewallHelper != nullptr)
+    {
+        CloseHandle (m_firewallHelper);
+        m_firewallHelper = nullptr;
     }
 
     m_shellVerbs.UnwatchRecycleBin();
@@ -397,6 +407,12 @@ void CassoExplorerWindow::OnCreate()
     {
         std::string  link = m_listActionLink;
 
+        if (m_listActionFirewall)
+        {
+            FixFirewall (false);
+            return;
+        }
+
         if (link.empty())
         {
             return;
@@ -411,6 +427,9 @@ void CassoExplorerWindow::OnCreate()
             BootstrapLink (link);
         }
     });
+    m_listActionAlt   = CreateChild<DxuiButton> (FirewallText::kPrivateAction);
+    m_listActionAlt->SetVisible (false);
+    m_listActionAlt->SetOnClick ([this] () { FixFirewall (true); });
     previewList       = CreateChild<CassoExplorerNamedControl<DxuiListView>>();
     picture           = CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
     hexView           = CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
@@ -1365,6 +1384,7 @@ void CassoExplorerWindow::RecomputeLayout()
         m_list->Layout           (listRect,    m_scaler);
         m_listMessage->Layout    (GetListMessageRect(),         m_scaler);
         m_listAction->Layout     (GetListActionRect(),          m_scaler);
+        m_listActionAlt->Layout  (GetListActionAltRect(),       m_scaler);
         m_previewList->Layout    (previewRect, m_scaler);
 
         m_previewContent = previewRect;
@@ -1391,9 +1411,10 @@ void CassoExplorerWindow::RecomputeLayout()
         }
 
         m_previewToolbar->SetVisible (false);
-        m_list->Layout        (right, m_scaler);
-        m_listMessage->Layout (GetListMessageRect(), m_scaler);
-        m_listAction->Layout  (GetListActionRect(), m_scaler);
+        m_list->Layout          (right, m_scaler);
+        m_listMessage->Layout   (GetListMessageRect(), m_scaler);
+        m_listAction->Layout    (GetListActionRect(), m_scaler);
+        m_listActionAlt->Layout (GetListActionAltRect(), m_scaler);
     }
 
     LayoutStatusFields();
@@ -4373,15 +4394,15 @@ bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  The list's button under its message. It is given every move, so its
+    //  The list's buttons under its message. Each is given every move, so its
     //  hover ends as the pointer leaves it, and the presses inside it.
-    if (m_listAction->IsVisible())
+    for (DxuiButton * action : { m_listAction, m_listActionAlt })
     {
-        bool  inside = Contains (m_listAction->GetBounds(), point);
+        bool  inside = action->IsVisible() && Contains (action->GetBounds(), point);
 
-        if (ev.kind == DxuiMouseEventKind::Move || inside)
+        if (action->IsVisible() && (ev.kind == DxuiMouseEventKind::Move || inside))
         {
-            m_listAction->OnMouse (ev);
+            action->OnMouse (ev);
             Invalidate();
         }
 
@@ -5767,6 +5788,13 @@ RECT CassoExplorerWindow::GetListMessageRect() const
         rect.top += m_scaler.ToPx (kSearchMessageTopDip);
     }
 
+    //  The firewall's message runs to several lines, so it ends at the
+    //  pane's middle, with the actions below it.
+    if (m_listActionFirewall)
+    {
+        rect.bottom = (rect.top + rect.bottom) / 2;
+    }
+
     return rect;
 }
 
@@ -5785,14 +5813,40 @@ RECT CassoExplorerWindow::GetListMessageRect() const
 RECT CassoExplorerWindow::GetListActionRect() const
 {
     RECT  message = GetListMessageRect();
-    int   width   = m_scaler.ToPx (kListActionWidthDip);
+    bool  pair    = m_listActionAlt->IsVisible();
+    int   width   = m_scaler.ToPx (m_listActionFirewall ? kListActionWideDip : kListActionWidthDip);
+    int   gap     = m_scaler.ToPx (kListActionGapDip);
     int   height  = m_scaler.ToPx (kListActionHeightDip);
-    int   left    = (message.left + message.right - width) / 2;
-    int   top     = (message.top + message.bottom) / 2 + m_scaler.ToPx (kListActionOffsetDip);
+    int   span    = pair ? width * 2 + gap : width;
+    int   left    = (message.left + message.right - span) / 2;
+    int   top     = m_listActionFirewall ? message.bottom + gap : (message.top + message.bottom) / 2 + m_scaler.ToPx (kListActionOffsetDip);
 
 
 
     return RECT { left, top, left + width, top + height };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetListActionAltRect
+//
+//  Right of the first button, the two centered as a pair.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT CassoExplorerWindow::GetListActionAltRect() const
+{
+    RECT  first = GetListActionRect();
+    int   gap   = m_scaler.ToPx (kListActionGapDip);
+    int   width = first.right - first.left;
+
+
+
+    return RECT { first.right + gap, first.top, first.right + gap + width, first.bottom };
 }
 
 
@@ -5807,25 +5861,152 @@ RECT CassoExplorerWindow::GetListActionRect() const
 
 void CassoExplorerWindow::FillListAction (bool hasMessage)
 {
-    std::wstring  name;
-    int           slot  = 0;
-    int           drive = 0;
-    std::string   disconnected;
+    std::wstring   name;
+    int            slot   = 0;
+    int            drive  = 0;
+    std::string    disconnected;
+    LinkTreeEntry  entry;
+    bool           onLink = hasMessage && m_context.links != nullptr && TreeModel::TryParseLinkId (m_browser.GetLocation().path, name, slot, drive) && drive == 0;
 
 
 
-    if (hasMessage && m_context.links != nullptr && TreeModel::TryParseLinkId (m_browser.GetLocation().path, name, slot, drive) && drive == 0
-        && m_context.links->IsHeld (TextEncoding::WideToNarrow (name)))
+    if (onLink && m_context.links->IsHeld (TextEncoding::WideToNarrow (name)))
     {
         disconnected = TextEncoding::WideToNarrow (name);
     }
 
-    m_listActionConnects = !disconnected.empty();
-    m_listActionLink     = m_listActionConnects ? disconnected : hasMessage ? GetBootstrapLink() : std::string();
+    //  The firewall first: until the port is allowed, no connection the other
+    //  actions start arrives at this PC.
+    m_listActionFirewall = onLink && disconnected.empty() && TryGetLinkEntry (name, entry) && !entry.firewall.empty();
+    m_listActionConnects = !m_listActionFirewall && !disconnected.empty();
+    m_listActionLink     = m_listActionFirewall ? std::string() : m_listActionConnects ? disconnected : hasMessage ? GetBootstrapLink() : std::string();
 
-    m_listAction->SetLabel   (m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
-    m_listAction->Layout     (GetListActionRect(), m_scaler);
-    m_listAction->SetVisible (!m_listActionLink.empty());
+    m_listMessage->SetTextAlign (DxuiTextHAlign::Center, m_listActionFirewall ? DxuiTextVAlign::Bottom : m_listMessageTop ? DxuiTextVAlign::Top : DxuiTextVAlign::Center);
+    m_listMessage->Layout       (GetListMessageRect(), m_scaler);
+    m_listAction->SetLabel      (m_listActionFirewall ? FirewallText::kAllowAction : m_listActionConnects ? L"Connect" : L"Bootstrap the Apple");
+    m_listActionAlt->SetVisible (m_listActionFirewall && entry.firewallPublic);
+    m_listAction->Layout        (GetListActionRect(), m_scaler);
+    m_listActionAlt->Layout     (GetListActionAltRect(), m_scaler);
+    m_listAction->SetVisible    (m_listActionFirewall || !m_listActionLink.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::TryGetLinkEntry
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::TryGetLinkEntry (const std::wstring & name, LinkTreeEntry & outEntry) const
+{
+    const std::vector<LinkTreeEntry>  & links = m_browser.GetTreeModel().GetLinks();
+    auto                                found = std::find_if (links.begin(), links.end(), [&name] (const LinkTreeEntry & link) { return link.name == name; });
+
+
+
+    if (found != links.end())
+    {
+        outEntry = *found;
+    }
+
+    return found != links.end();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::PollFirewall
+//
+//  Every window polls the one monitor, so each compares the monitor's version
+//  with the one it drew rather than relying on Update's result, which only
+//  the first window to poll after a change would see.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::PollFirewall()
+{
+    HRESULT       result  = S_OK;
+    std::wstring  message;
+
+
+
+    if (m_context.firewall == nullptr)
+    {
+        return;
+    }
+
+    //  The helper changed the rules, which no notification reports.
+    if (m_firewallHelper != nullptr && Win32FirewallHelper::TryFinish (m_firewallHelper, result))
+    {
+        m_context.firewall->Invalidate();
+
+        if (FAILED (result))
+        {
+            message = std::format (L"Windows Firewall could not be changed: {}", ChangePrompt::DescribeError (result));
+            ShowMessage (message, MB_ICONWARNING);
+        }
+    }
+
+    m_context.firewall->Update();
+
+    if (m_context.firewall->GetVersion() != m_firewallVersion)
+    {
+        m_firewallVersion = m_context.firewall->GetVersion();
+        RefreshLinkViews();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::FixFirewall
+//
+//  Every connection's port is in the plan, not only the one the list is on,
+//  so one UAC prompt allows them all. Declining the prompt changes nothing
+//  and is not an error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerWindow::FixFirewall (bool markPrivate)
+{
+    HRESULT                    hr = S_OK;
+    std::vector<FirewallPort>  ports;
+    FirewallPort               port;
+    FirewallPlan               plan;
+
+
+
+    BAIL_OUT_IF (m_context.firewall == nullptr || m_context.links == nullptr || m_firewallHelper != nullptr, S_OK);
+
+    for (const CassoLinkSettings & settings : m_context.links->GetLinks())
+    {
+        if (CassoLinkConnections::GetInboundPort (settings, port) && std::find (ports.begin(), ports.end(), port) == ports.end())
+        {
+            ports.push_back (port);
+        }
+    }
+
+    plan = FirewallRemedy::MakePlan (m_context.firewall->GetSnapshot(), m_context.firewall->GetProgram(), CassoLinkConnections::kFirewallTitle, ports, markPrivate);
+    BAIL_OUT_IF (plan.ports.empty() && !plan.markPrivate, S_OK);
+
+    hr = Win32FirewallHelper::Launch (GetHwnd(), plan, m_firewallHelper);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED), S_OK);
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        ShowMessage (std::format (L"Windows Firewall could not be changed: {}", ChangePrompt::DescribeError (hr)), MB_ICONWARNING);
+    }
 }
 
 
@@ -16626,8 +16807,9 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
         node = m_tree->GetNodeAt (row);
     }
 
-    bool  adtPro = node != nullptr && TreeModel::StripLinkCopy (node->id).starts_with (TreeModel::kAdtProId);
-    bool  broken = node != nullptr && node->iconBroken;
+    bool  adtPro  = node != nullptr && TreeModel::StripLinkCopy (node->id).starts_with (TreeModel::kAdtProId);
+    bool  broken  = node != nullptr && node->iconBroken;
+    bool  warning = node != nullptr && node->iconWarning;
 
 
 
@@ -16637,7 +16819,22 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
         m_treeTipText = m_browser.TryGetNodeLocation (node->id, location) ? m_browser.GetImageProblem (location.path) : std::wstring();
     }
 
-    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro && !(broken && !m_treeTipText.empty())))
+    //  A connection the firewall blocks has the cause as its tip.
+    if (warning)
+    {
+        std::wstring   link;
+        int            slot  = 0;
+        int            drive = 0;
+        LinkTreeEntry  entry;
+
+        m_treeTipId   = node->id;
+        m_treeTipText = TreeModel::TryParseLinkId (TreeModel::StripLinkCopy (node->id), link, slot, drive) && TryGetLinkEntry (link, entry)
+                      ? entry.firewall : std::wstring();
+    }
+
+    bool  problem = (broken || warning) && !m_treeTipText.empty();
+
+    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro && !problem))
     {
         HideHoverTip (TipOwner::Tree);
         return;
@@ -16649,7 +16846,7 @@ void CassoExplorerWindow::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
     anchor.bottom = anchor.top + m_tree->GetRowHeight();
 
     ShowHoverTip (TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
-                                        : broken       ? m_treeTipText.c_str()
+                                        : problem      ? m_treeTipText.c_str()
                                         : node->dimmed ? kMissingNodeTip : kCassoNodeTip);
 }
 
@@ -17065,6 +17262,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (timerId == kDriveTimerId)
     {
         CheckDrives();
+        PollFirewall();
 
         //  An announcement since the last look is listed, on the same poll
         //  as a drive.

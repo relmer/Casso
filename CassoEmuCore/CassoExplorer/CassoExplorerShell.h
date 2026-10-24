@@ -15,6 +15,8 @@
 #include "Seams/Win32DiskFileIo.h"
 #include "Seams/Win32LinkAnnouncements.h"
 #include "Seams/Win32NetworkChanges.h"
+#include "Seams/Win32HostFirewall.h"
+#include "Net/FirewallMonitor.h"
 #include "Seams/IProcessProbe.h"
 #include "CassoLink/RunningCassoRegistry.h"
 
@@ -185,6 +187,10 @@ private:
     struct WindowSlot;
 
     void  ConfigureBrowser       (CassoExplorerBrowser & browser);
+
+    //  This process as the firewall's rules identify it, or an empty program
+    //  when that cannot be read, whose verdicts then match no rule of Casso's.
+    static FirewallProgram  GetFirewallProgram ();
     void  ReleaseClosedWindows   ();
     bool  HasOpenWindows         () const;
     std::vector<CassoExplorerSessionWindow>  GetOpenSession () const;
@@ -201,6 +207,8 @@ private:
     RunningCassoRegistry                      m_running;
     Win32NetworkChanges                       m_networkChanges;
     Win32LinkAnnouncements                    m_announcements;
+    Win32HostFirewall                         m_hostFirewall;
+    FirewallMonitor                           m_firewall;
     std::vector<std::unique_ptr<WindowSlot>>  m_windows;
     std::vector<ClosedWindow>                 m_closed;
     std::vector<std::wstring>                 m_knownFolders;

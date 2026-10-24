@@ -8,7 +8,9 @@
 #include "CassoLink/LinkProgram.h"
 #include "CassoLink/RunningCassoRegistry.h"
 #include "CassoExplorer/Model/TreeModel.h"
+#include "Net/FirewallRemedy.h"
 
+class FirewallMonitor;
 class ICassoLinkFolder;
 class IByteStreamFactory;
 class IDiskFileIo;
@@ -54,6 +56,20 @@ public:
     //  address and closed otherwise, so no announcement port is bound for a
     //  user who links to no Apple over the network.
     void                                    SetAnnouncements (ILinkAnnouncements * announcements) { m_announcements = announcements; }
+
+    //  The firewall's verdicts, for the tree's entries: a connection that other
+    //  computers connect or send to, and that the firewall blocks, has the
+    //  cause in its entry.
+    void                                    SetFirewall (const FirewallMonitor * firewall) { m_firewall = firewall; }
+
+    //  The port other computers send to for a connection: an Uthernet II with no
+    //  address receives announcements on UDP 6510, and a Wi-Fi modem dials in
+    //  on TCP 6400. False for every other connection, which dials out or is
+    //  on a cable.
+    static bool                             GetInboundPort (const CassoLinkSettings & settings, FirewallPort & outPort);
+
+    //  The program in the firewall's words.
+    static constexpr const wchar_t *        kFirewallTitle = L"Casso Explorer";
 
     //  The links, as the preferences have them. A link removed or changed is
     //  stopped.
@@ -249,12 +265,14 @@ private:
     HRESULT       StartLink (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
     void          Merge ();
     bool          IsSearching () const;
+    void          AddFirewall (const CassoLinkSettings & settings, LinkTreeEntry & entry) const;
 
     IByteStreamFactory                 & m_factory;
     ICassoLinkFolder                   & m_folder;
     FolderMaker                          m_makeFolder;
     IDiskFileIo                        & m_fileIo;
     ILinkAnnouncements                 * m_announcements = nullptr;
+    const FirewallMonitor              * m_firewall      = nullptr;
     std::vector<CassoLinkSettings>       m_saved;
     std::vector<RunningCasso>            m_running;
     std::vector<LinkAnnouncement>        m_announced;

@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Net/FirewallMonitor.h"
 #include "Seams/ILinkAnnouncements.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -447,6 +448,84 @@ public:
 
         rig.links->SetLinks ({});
         Assert::IsFalse  (announcements.listening);
+    }
+
+
+    //  A firewall with no rules on a public network, which blocks every port.
+    class FakeFirewall : public IHostFirewall
+    {
+    public:
+        HRESULT  Read (FirewallSnapshot & outSnapshot) override { outSnapshot = snapshot; return S_OK; }
+        HRESULT  ReadActiveProfiles (FirewallProfile & outActive) override { outActive = snapshot.active; return S_OK; }
+
+        FirewallSnapshot  snapshot;
+    };
+
+
+    static std::vector<LinkTreeEntry> BuildWithFirewall (const std::vector<CassoLinkSettings> & links, FirewallProfile active)
+    {
+        Rig              rig;
+        FakeFirewall     firewall;
+        FirewallMonitor  monitor (firewall, nullptr, FirewallProgram());
+
+        firewall.snapshot.active = active;
+        monitor.Update();
+
+        rig.links->SetFirewall (&monitor);
+        rig.links->SetLinks (links);
+
+        return rig.links->BuildTreeEntries();
+    }
+
+
+    //  The firewall's cause comes first in the entry, and on a public
+    //  network the entry offers making the network private.
+    TEST_METHOD (ABlockedSearch_HasTheCauseInItsEntry)
+    {
+        std::vector<LinkTreeEntry>  entries = BuildWithFirewall ({ MakeSearch() }, FirewallProfile::Public);
+
+        Assert::AreEqual ((size_t) 1, entries.size());
+        Assert::IsTrue   (entries[0].firewall.find (L"UDP port 6510") != std::wstring::npos, entries[0].firewall.c_str());
+        Assert::IsTrue   (entries[0].firewallPublic);
+        Assert::IsTrue   (entries[0].status.starts_with (entries[0].firewall));
+    }
+
+
+    TEST_METHOD (ABlockedWifiModem_OnAPrivateNetwork_OffersNoCategoryChange)
+    {
+        CassoLinkSettings           modem;
+        std::vector<LinkTreeEntry>  entries;
+
+        modem.transport = LinkTransport::WifiModem;
+        modem.name      = CassoLinkSettings::MakeName (modem);
+        entries         = BuildWithFirewall ({ modem }, FirewallProfile::Private);
+
+        Assert::IsTrue  (entries[0].firewall.find (L"TCP port 6400") != std::wstring::npos, entries[0].firewall.c_str());
+        Assert::IsFalse (entries[0].firewallPublic);
+    }
+
+
+    //  A connection that dials out or is on a cable is never reported
+    //  blocked, whatever the firewall has.
+    TEST_METHOD (AConnectionReachedFromNowhere_IsNeverBlocked)
+    {
+        CassoLinkSettings  serial;
+        CassoLinkSettings  uthernet;
+        CassoLinkSettings  tcp;
+
+        serial.transport   = LinkTransport::Serial;
+        serial.name        = CassoLinkSettings::MakeName (serial);
+        uthernet.transport = LinkTransport::Uthernet;
+        uthernet.address   = "192.168.1.50:6502";
+        uthernet.name      = CassoLinkSettings::MakeName (uthernet);
+        tcp.transport      = LinkTransport::Tcp;
+        tcp.address        = "192.168.1.5:6502";
+        tcp.name           = CassoLinkSettings::MakeName (tcp);
+
+        for (const LinkTreeEntry & entry : BuildWithFirewall ({ serial, uthernet, tcp }, FirewallProfile::Public))
+        {
+            Assert::IsTrue (entry.firewall.empty(), entry.name.c_str());
+        }
     }
 
 

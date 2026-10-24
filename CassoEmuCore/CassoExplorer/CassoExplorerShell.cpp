@@ -55,9 +55,11 @@ CassoExplorerShell::CassoExplorerShell()
     : m_linkFolder (m_fs, m_fileIo),
       m_links (m_streams, m_linkFolder, m_fileIo),
       m_running (m_fs, m_processProbe, RunningCassoRegistry::GetDefaultFolder()),
-      m_announcements (LinkProgram::kAnnouncePort, &m_networkChanges)
+      m_announcements (LinkProgram::kAnnouncePort, &m_networkChanges),
+      m_firewall (m_hostFirewall, &m_networkChanges, GetFirewallProgram())
 {
     m_links.SetAnnouncements (&m_announcements);
+    m_links.SetFirewall (&m_firewall);
     m_links.SetFolderMaker ([this] (const std::wstring & path) -> std::unique_ptr<ICassoLinkFolder>
     {
         auto  folder = std::make_unique<CassoLinkFolder> (m_fs, m_fileIo);
@@ -787,6 +789,28 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerShell::GetFirewallProgram
+//
+////////////////////////////////////////////////////////////////////////////////
+
+FirewallProgram CassoExplorerShell::GetFirewallProgram()
+{
+    FirewallProgram  program;
+    HRESULT          hr = Win32HostFirewall::GetThisProgram (program);
+
+
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    return program;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerShell::ConfigureBrowser
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -846,6 +870,7 @@ CassoExplorerWindow * CassoExplorerShell::OpenWindow (CassoExplorerWindowRequest
     context.links       = &m_links;
     context.running     = &m_running;
     context.announced   = &m_announcements;
+    context.firewall    = &m_firewall;
 
     slot->window = std::make_unique<CassoExplorerWindow> (*slot->browser, *slot->actions, m_prefs, std::move (context));
 

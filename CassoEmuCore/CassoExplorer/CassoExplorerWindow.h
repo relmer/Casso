@@ -29,6 +29,7 @@
 #include "CassoExplorer/Model/RefreshAnchor.h"
 
 class CassoLinkConnections;
+class FirewallMonitor;
 class RunningCassoRegistry;
 class ILinkAnnouncements;
 struct CassoExplorerSessionWindow;
@@ -85,6 +86,10 @@ public:
         //  Optional: without it, no Apple is listed from a universal boot
         //  disk's announcements.
         ILinkAnnouncements   * announced = nullptr;
+
+        //  Optional: without it, no connection is reported blocked by
+        //  Windows Firewall.
+        FirewallMonitor      * firewall  = nullptr;
     };
 
     CassoExplorerWindow (CassoExplorerBrowser & browser, CassoExplorerActions & actions, CassoExplorerPrefs & prefs, Context context);
@@ -263,6 +268,8 @@ public:
     //  The list's Bootstrap button: its size, and how far below the middle of
     //  the list's message it starts, past two lines of text.
     static constexpr int     kListActionWidthDip  = 160;
+    static constexpr int     kListActionWideDip   = 200;   // the firewall's actions, whose labels are longer
+    static constexpr int     kListActionGapDip    = 12;    // between the two firewall actions
     static constexpr int     kListActionHeightDip = 32;
     static constexpr int     kListActionOffsetDip = 36;
 
@@ -904,11 +911,20 @@ private:
     RECT  GetListMessageRect() const;
 
     //  The list's button under its message: Connect for a link the user
-    //  disconnected, or Bootstrap the Apple for a serial link whose Apple is
-    //  not replying.
-    RECT         GetListActionRect () const;
-    std::string  GetBootstrapLink  () const;
-    void         FillListAction    (bool hasMessage);
+    //  disconnected, Bootstrap the Apple for a serial link whose Apple is
+    //  not replying, or Allow in Windows Firewall for a connection the
+    //  firewall blocks. On a public network the second button beside it is
+    //  Make this network private.
+    RECT         GetListActionRect    () const;
+    RECT         GetListActionAltRect () const;
+    std::string  GetBootstrapLink     () const;
+    void         FillListAction       (bool hasMessage);
+
+    //  The firewall read again on the drive poll, the views redrawn when it
+    //  changed, and the elevated helper's result once it exits.
+    void         PollFirewall         ();
+    void         FixFirewall          (bool markPrivate);
+    bool         TryGetLinkEntry      (const std::wstring & name, LinkTreeEntry & outEntry) const;
 
 
     //  The archive files selected in the preview, by the shell's names for
@@ -1034,6 +1050,8 @@ private:
     ULONGLONG                                 m_folderFirstChangeMs = 0;   // 0: no change waiting
     DWORD                                     m_driveMask           = 0;   // GetLogicalDrives at the last look
     uint32_t                                  m_announcedChanges    = 0;   // ILinkAnnouncements::GetChangeCount at the last look
+    uint32_t                                  m_firewallVersion     = 0;   // FirewallMonitor::GetVersion the views were drawn from
+    HANDLE                                    m_firewallHelper      = nullptr;   // the elevated helper, until it exits
     std::string                               m_knownFoldersText;          // KnownFolders.json as last read
     std::wstring                              m_quickAccessDir;            // where File Explorer keeps Quick access
     int64_t                                   m_quickAccessStamp    = 0;   // its file's last write at the last look
@@ -1127,8 +1145,10 @@ private:
     DxuiLabel            * m_listMessage        = nullptr;
     bool                   m_listMessageTop     = false;
     DxuiButton           * m_listAction         = nullptr;
+    DxuiButton           * m_listActionAlt      = nullptr;
     std::string            m_listActionLink;
     bool                   m_listActionConnects = false;
+    bool                   m_listActionFirewall = false;
     DxuiSplitter         * m_previewSplitter    = nullptr;
     DxuiListView         * m_previewList        = nullptr;
     DxuiTextView         * m_textView           = nullptr;

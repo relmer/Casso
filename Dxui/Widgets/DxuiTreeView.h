@@ -74,6 +74,10 @@ struct DxuiTreeNode
 
     //  A red badge on the icon, for an item that cannot be opened.
     bool                       iconBroken     = false;
+
+    //  The theme's amber warning mark on the icon, for an item that opens
+    //  but has a problem, with the cause in the item's tip.
+    bool                       iconWarning    = false;
 };
 
 

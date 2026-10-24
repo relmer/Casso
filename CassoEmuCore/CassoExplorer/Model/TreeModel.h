@@ -38,6 +38,7 @@ struct TreeNode
     bool          broken       = false;   // an image that is not a disk at all, as against one with no file system
     bool          dividerAbove = false;   // a line above it, as between Explorer's navigation groups
     bool          offline      = false;   // a linked machine that is not connected, drawn in grays
+    bool          warning      = false;   // a connection Windows Firewall blocks, drawn with an amber badge
     std::wstring  iconId;                 // the shell's name for the entry whose icon it shows
 };
 
@@ -75,6 +76,11 @@ struct LinkTreeEntry
     std::wstring        status;
     std::vector<Drive>  drives;
     std::wstring        folder;   // an ADTPro server's shared folder, listed under it
+
+    //  Why Windows Firewall blocks what the connection receives, for one that
+    //  other computers connect or send to; empty when nothing is blocked.
+    std::wstring        firewall;
+    bool                firewallPublic = false;   // the blocking is on a public network, so making it private is offered
 };
 
 

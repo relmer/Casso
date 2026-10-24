@@ -84,6 +84,7 @@ DxuiTreeNode CassoExplorerBrowser::ToTreeNode (const TreeNode & node, IShellIcon
     out.dimmed         = node.missing;
     out.iconGhosted    = node.hidden;
     out.iconBroken     = node.broken;
+    out.iconWarning    = node.warning;
     out.pinned         = node.pinned;
 
     if (icons != nullptr)

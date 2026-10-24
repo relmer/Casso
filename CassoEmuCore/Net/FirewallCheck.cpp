@@ -11,7 +11,9 @@
 //  FirewallCheck::Evaluate
 //
 //  With no network, no traffic arrives, so the port is admitted. On a
-//  profile the firewall is off for, every port is admitted.
+//  profile the firewall is off for, every port is admitted. The public
+//  profile is evaluated first, so it is the one reported when two profiles
+//  have the same verdict: on a public network both remedies are offered.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +23,7 @@ FirewallVerdict FirewallCheck::Evaluate (const FirewallSnapshot & snapshot, cons
 
 
 
-    for (FirewallProfile profile : { FirewallProfile::Domain, FirewallProfile::Private, FirewallProfile::Public })
+    for (FirewallProfile profile : { FirewallProfile::Public, FirewallProfile::Private, FirewallProfile::Domain })
     {
         FirewallVerdict  here;
         bool             blocked   = false;

@@ -881,13 +881,29 @@ are allowed.
   goes through the same plan from T255. Tests in
   `UnitTest/NetworkTests/FirewallRemedyTests.cpp`; the elevated writes are
   checked in T256, since they change this PC's firewall.
-- [ ] T254 [US14] Show it in Casso Explorer: a warning on the connection's row
+- [X] T254 [US14] Show it in Casso Explorer: a warning on the connection's row
   in the tree, a pointer tip naming the cause, and the action in the pane,
   reusing `DxuiTreeNode`'s existing broken badge as the pattern and the amber
   the damaged-disk badge uses rather than its red. Only for a transport that
   must be reached from outside the PC; a serial connection carries none.
   Settle whether the warning is a font glyph or drawn, since `DxuiInfoBanner`
   draws its own from primitives on purpose. Per FR-103.
+
+  Drawn: `DxuiTreeNode::iconWarning` draws `DxuiWarningBadge`, the mark the
+  damaged-disk badge and the warning banner already use, in the theme's
+  warning colors. A text-renderer overload of `DxuiWarningBadge::Draw`
+  shares the painter overload's geometry, since the tree's icons are drawn
+  through the text renderer, which is drawn after the painter.
+  `CassoLinkConnections::GetInboundPort` returns UDP 6510 for an Uthernet II
+  with no address and TCP 6400 for a Wi-Fi modem, and no port for any other
+  connection. `LinkTreeEntry::firewall` has `FirewallText::DescribeCause`'s
+  words, which come first in the list's message. The list's action is
+  Allow in Windows Firewall, with Make this network private beside it on a
+  public network; one plan covers every connection's port. Each window polls
+  `FirewallMonitor` on its drive timer and compares the version. Checked on
+  this PC: the badge, the message on a public network and both buttons; the
+  tip is not visible to a posted move, so T256 checks it. Tests in
+  `CassoLinkConnectionsTests.cpp` and `FirewallTextTests.cpp`.
 - [ ] T255 Show the same on Casso's Network settings page, beside the setting
   that widens the binding and the forwards that depend on it. Per FR-104.
 - [ ] T256 Walk it on this PC: install the package on a network Windows calls

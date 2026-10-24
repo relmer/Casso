@@ -156,6 +156,7 @@
     <ClCompile Include="Net\FirewallCheck.cpp" />
     <ClCompile Include="Net\FirewallMonitor.cpp" />
     <ClCompile Include="Net\FirewallRemedy.cpp" />
+    <ClCompile Include="Net\FirewallText.cpp" />
     <ClCompile Include="Net\WinHttpClient.cpp" />
     <ClCompile Include="Update\AuthenticodeVerifier.cpp" />
     <ClCompile Include="Update\Inflate.cpp" />
@@ -617,6 +618,7 @@
     <ClInclude Include="Net\FirewallCheck.h" />
     <ClInclude Include="Net\FirewallMonitor.h" />
     <ClInclude Include="Net\FirewallRemedy.h" />
+    <ClInclude Include="Net\FirewallText.h" />
     <ClInclude Include="Net\WinHttpClient.h" />
     <ClInclude Include="Update\AuthenticodeVerifier.h" />
     <ClInclude Include="Update\IInstallEnvironment.h" />

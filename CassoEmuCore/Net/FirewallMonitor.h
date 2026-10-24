@@ -41,6 +41,7 @@ public:
     uint32_t         GetVersion () const { return m_version; }
 
     const FirewallSnapshot &  GetSnapshot () const { return m_snapshot; }
+    const FirewallProgram  &  GetProgram  () const { return m_program; }
 
 private:
     IHostFirewall          & m_firewall;

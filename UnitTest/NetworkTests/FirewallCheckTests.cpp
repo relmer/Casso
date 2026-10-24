@@ -120,6 +120,17 @@ public:
     }
 
 
+    //  Blocked on both, the public network is the one reported, since both
+    //  remedies apply there.
+    TEST_METHOD (TwoProfilesBlocked_ReportThePublicOne)
+    {
+        FirewallVerdict  verdict = Check (MakeSnapshot (FirewallProfile::Private | FirewallProfile::Public, { MakeRule (false, FirewallProfile::All) }));
+
+        Assert::IsTrue (verdict.admission == FirewallAdmission::Refused);
+        Assert::IsTrue (verdict.profile == FirewallProfile::Public);
+    }
+
+
     TEST_METHOD (ABlockRule_ForAnotherProgramOrPort_DoesNotApply)
     {
         FirewallRule  otherProgram = MakeRule (false, FirewallProfile::All);
