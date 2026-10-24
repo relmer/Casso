@@ -513,6 +513,10 @@ private:
 
         const std::wstring &  GetPath  () const { return m_path; }
 
+        //  Whether the file at the path has the size and write time it had
+        //  when opened; false once another program changed or replaced it.
+        bool                  IsCurrent () const;
+
         //  Why the last Open failed, or S_OK.
         HRESULT               GetError () const { return m_error; }
 
@@ -529,6 +533,7 @@ private:
         HRESULT                       m_error      = S_OK;
         std::wstring                  m_path;
         uint64_t                      m_size       = 0;
+        FILETIME                      m_written    = {};
         mutable std::vector<uint8_t>  m_window;
         mutable uint64_t              m_windowBase = 0;
     };

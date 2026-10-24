@@ -436,6 +436,51 @@ bool CassoLinkConnections::IsHeld (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoLinkConnections::SetViewing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoLinkConnections::SetViewing (const void * viewer, const std::string & name)
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    if (name.empty())
+    {
+        m_viewing.erase (viewer);
+    }
+    else
+    {
+        m_viewing[viewer] = name;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsViewed
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsViewed (const std::string & name) const
+{
+    std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+    return std::ranges::any_of (m_viewing, [&name] (const auto & viewing) { return viewing.second == name; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoLinkConnections::IsStarted
 //
 ////////////////////////////////////////////////////////////////////////////////

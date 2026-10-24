@@ -356,7 +356,7 @@ public:
         bool  offered = false;
 
         rig.Open (1);
-        AssertSucceeded (rig.actions->ReadDiskToImage (L"C:\\Images\\out.dsk", false, [&offered] (const LinkOperation &) { offered = true; }).hr);
+        AssertSucceeded (rig.actions->ReadDiskToImage (L"C:\\Images\\out.dsk", false, [&offered] (const LinkOperation &, const std::string &, int) { offered = true; }).hr);
         Assert::IsTrue (rig.Finish().empty());
 
         Assert::IsFalse (offered);
@@ -371,20 +371,52 @@ public:
         Rig                        rig;
         std::vector<std::wstring>  messages;
         size_t                     offered = 0;
+        std::string                link;
+        int                        drive   = 0;
 
         rig.apple.badSectors = { { 4, 2 } };
 
         rig.Open (1);
-        AssertSucceeded (rig.actions->ReadDiskToImage (L"C:\\Images\\out.dsk", false, [&offered] (const LinkOperation & operation) { offered = operation.unreadable.size(); }).hr);
+        AssertSucceeded (rig.actions->ReadDiskToImage (L"C:\\Images\\out.dsk", false,
+                                                       [&] (const LinkOperation & operation, const std::string & readLink, int readDrive)
+                                                       {
+                                                           offered = operation.unreadable.size();
+                                                           link    = readLink;
+                                                           drive   = readDrive;
+                                                       }).hr);
         messages = rig.Finish();
 
         Assert::IsTrue   (messages.empty(), L"offered instead of reported");
         Assert::AreEqual ((size_t) 1, offered);
+        Assert::AreEqual (1, drive, L"the offer is given the drive that was read");
         Assert::IsTrue   (rig.io.files.find ("C:\\Images\\out.dsk") == rig.io.files.end());
 
-        AssertSucceeded (rig.actions->ReadDiskToImage (L"C:\\Images\\out.dsk", true, {}).hr);
+        //  Read again by the link and drive the offer was given, not by the location.
+        AssertSucceeded (rig.actions->ReadDiskToImage (link, drive, L"C:\\Images\\out.dsk", true, {}).hr);
         Assert::IsTrue (rig.Finish().empty());
         Assert::IsTrue (rig.io.files.find ("C:\\Images\\out.dsk") != rig.io.files.end(), L"read again with the sector as zeros");
+    }
+
+
+
+
+    //  The connections every window shares run a finished job's completion
+    //  later; one whose window, and so whose actions, have closed by then
+    //  is not run.
+    TEST_METHOD (ACompletion_IsDropped_OnceItsActionsAreGone)
+    {
+        Rig   rig;
+        bool  offered = false;
+
+        rig.apple.badSectors = { { 4, 2 } };
+
+        rig.Open (1);
+        AssertSucceeded (rig.actions->ReadDiskToImage (L"C:\\Images\\out.dsk", false,
+                                                       [&offered] (const LinkOperation &, const std::string &, int) { offered = true; }).hr);
+        rig.actions.reset();
+
+        Assert::IsTrue  (rig.Finish().empty());
+        Assert::IsFalse (offered, L"the completion of a closed window is not run");
     }
 
 
