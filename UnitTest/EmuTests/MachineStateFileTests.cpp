@@ -634,6 +634,50 @@ public:
     }
 
 
+    //  The disks are checked with no machine at all, so a state's disks fail
+    //  before another machine is opened for it: an image that does not read,
+    //  two disks for one drive and a drive Casso does not have.
+    TEST_METHOD (TheDisksAreCheckedWithNoMachine)
+    {
+        constexpr size_t       kDskBytes   = 143360;
+        constexpr size_t       kShortBytes = 16;
+        SavedDisk              good;
+        SavedDisk              unreadable;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        HRESULT                hr          = S_OK;
+
+
+
+        good.slot  = 6;
+        good.image = std::vector<Byte> (kDskBytes, Byte (0));
+
+        contents.disks = { good };
+        hr = MachineStateFile::CheckDisks (contents, error);
+        AssertSucceeded (hr, L"a readable disk passes");
+
+        unreadable       = good;
+        unreadable.drive = 1;
+        unreadable.image = std::vector<Byte> (kShortBytes, Byte (0));
+
+        contents.disks = { good, unreadable };
+        hr = MachineStateFile::CheckDisks (contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"an image that does not read fails");
+        Assert::AreEqual (std::string ("damaged disk in state"), error.label);
+
+        contents.disks = { good, good };
+        hr = MachineStateFile::CheckDisks (contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"two disks for one drive fail");
+        Assert::AreEqual (std::string ("damaged state file"), error.label);
+
+        good.slot      = DiskImageStore::kSlotCount;
+        contents.disks = { good };
+        hr = MachineStateFile::CheckDisks (contents, error);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a slot Casso does not have fails");
+        Assert::AreEqual (std::string ("damaged state file"), error.label);
+    }
+
+
 private:
 
     //  The rig's //e and loop, with a nibble image read from s_kImagePath in
