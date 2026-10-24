@@ -15,6 +15,10 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <netfw.h>
+#include <netlistmgr.h>
+#include <sddl.h>
+#include <userenv.h>
 
 // <winnt.h> aliases these to the _bittest intrinsics, and CpuOperations::BitTest
 // is the 6502 BIT instruction. CassoCore/Pch.h is where that actually bites --

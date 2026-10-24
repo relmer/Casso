@@ -153,6 +153,7 @@
     <ClCompile Include="Devices\Tape\AiffCodec.cpp" />
     <ClCompile Include="Core\AppleSingleCodec.cpp" />
     <ClCompile Include="Core\JsonParser.cpp" />
+    <ClCompile Include="Net\FirewallCheck.cpp" />
     <ClCompile Include="Net\WinHttpClient.cpp" />
     <ClCompile Include="Update\AuthenticodeVerifier.cpp" />
     <ClCompile Include="Update\Inflate.cpp" />
@@ -209,6 +210,7 @@
     <ClCompile Include="Seams\InProcessByteStream.cpp" />
     <ClCompile Include="Seams\ByteStreamSettings.cpp" />
     <ClCompile Include="Seams\Win32TcpStream.cpp" />
+    <ClCompile Include="Seams\Win32HostFirewall.cpp" />
     <ClCompile Include="Seams\Win32LinkAnnouncements.cpp" />
     <ClCompile Include="Seams\Win32ComPort.cpp" />
     <ClCompile Include="Seams\Win32ByteStreamFactory.cpp" />
@@ -608,6 +610,7 @@
     <ClInclude Include="Core\Cpu65C02Table.h" />
     <ClInclude Include="Core\JsonParser.h" />
     <ClInclude Include="Net\IHttpClient.h" />
+    <ClInclude Include="Net\FirewallCheck.h" />
     <ClInclude Include="Net\WinHttpClient.h" />
     <ClInclude Include="Update\AuthenticodeVerifier.h" />
     <ClInclude Include="Update\IInstallEnvironment.h" />
@@ -837,6 +840,7 @@
     <ClInclude Include="Seams\ByteStreamSettings.h" />
     <ClInclude Include="Seams\Win32TcpStream.h" />
     <ClInclude Include="Seams\ILinkAnnouncements.h" />
+    <ClInclude Include="Seams\Win32HostFirewall.h" />
     <ClInclude Include="Seams\Win32LinkAnnouncements.h" />
     <ClInclude Include="Seams\Win32ComPort.h" />
     <ClInclude Include="Seams\Win32ByteStreamFactory.h" />
@@ -1080,6 +1084,7 @@
     <ClInclude Include="Shell\Input\CapsLockTracker.h" />
     <ClInclude Include="Shell\Layout\DriveRowLayout.h" />
     <ClInclude Include="Shell\Layout\ChromeBandLayout.h" />
+    <ClInclude Include="Seams\IHostFirewall.h" />
     <ClInclude Include="Seams\IHostNetwork.h" />
     <ClInclude Include="Seams\Win32HostSocket.h" />
     <ClInclude Include="Seams\Win32HostNetwork.h" />

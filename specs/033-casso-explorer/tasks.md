@@ -834,11 +834,22 @@ are allowed.
   The connection is an Uthernet II with no address (`CassoLinkSettings::IsSearch`).
   `CassoLinkConnections::SetLinks` calls `ILinkAnnouncements::SetListening`,
   and the tests in `CassoLinkConnectionsTests.cpp` drive a fake listener.
-- [ ] T251 Add a host seam for the firewall: the network's present category,
+- [X] T251 Add a host seam for the firewall: the network's present category,
   and whether a rule admits a given protocol and port for it. Four outcomes,
   not two -- admitted, refused by a rule, no rule at all, and a rule that does
   not cover this category. Tests drive a fake through all four. Per FR-102 and
   FR-105.
+
+  `IHostFirewall` in `CassoEmuCore/Seams/IHostFirewall.h` reads a
+  `FirewallSnapshot`: the active profiles, the profiles the firewall is on
+  for, and the inbound rules. `Win32HostFirewall` reads it from
+  `INetFwPolicy2`. `FirewallCheck::Evaluate` in `CassoEmuCore/Net/` returns
+  the `FirewallAdmission` for a program, protocol and port: a block rule
+  overrides an allow rule, and with two active profiles the worse verdict
+  applies. Tests in `UnitTest/NetworkTests/FirewallCheckTests.cpp`. Not yet
+  checked: how
+  Windows writes the package's rules, since no rule on this PC has a package
+  SID; T256 reads them once the package is installed.
 - [ ] T252 Re-ask when the network changes, through the same seam, and refresh
   the local addresses `Win32LinkAnnouncements` holds from the same
   notification, since nothing tells it to today. Per FR-102.
