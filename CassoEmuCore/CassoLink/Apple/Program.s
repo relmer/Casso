@@ -572,8 +572,8 @@ dospeed: lda #OPSPEED
 spdwait: lda ACIASTAT,x
         and #TDRE
         beq spdwait
-        lda #3                  ; the last byte's bits on the line
-        jsr delayms
+        lda #12                 ; the last byte's bits on the line, at as
+        jsr delayms             ; slow as 1,200 baud
         lda PKTBUF
         sta ACIACTL,x
         jsr showconn
