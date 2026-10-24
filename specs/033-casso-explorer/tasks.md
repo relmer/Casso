@@ -737,6 +737,12 @@ listed in validation.md.
   - expansion ROMs deselected after `SlotFinder.s`'s scan.
 
   Program version 50. A check of the shim's page number was not added: the 6551 shim fills its 768 bytes. CassoLink unit and scenario suites.
+- [ ] T247 Close what the review found and this phase did not fix:
+  - `Win32ShellPreview` sends Load and Unload to a helper with `SendMessageTimeoutW` on the window's thread, so a helper busy in `DoPreview` stalls each selection change up to 2 s; send from a worker or post the request instead, in `CassoEmuCore/Seams/Win32ShellPreview.cpp` and `Win32PreviewHelper.cpp`;
+  - `Win32FolderWatcher::DropUnusable` calls the dropped folders' callbacks without the in-flight mark `Unwatch` waits on, in `CassoEmuCore/Seams/Win32FolderWatcher.cpp`;
+  - the 6551 shim's page number is not checked against the page count, since the CRC covers only the data; the check takes room in `CassoEmuCore/CassoLink/Apple/Shim.s`, which is full at 768 bytes;
+  - `DxuiTabStrip::SetTabs` does not clamp the selected index, in `Dxui/Widgets/DxuiTabStrip.cpp`;
+  - `Win32ShellIcons` caches every icon it renders, a failed load included, and never evicts one, in `CassoEmuCore/Seams/Win32ShellIcons.cpp`.
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 
