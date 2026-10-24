@@ -284,6 +284,7 @@
     <ClCompile Include="DebuggerTests\StepFilterTests.cpp" />
     <ClCompile Include="DebuggerTests\CallHistoryShellTests.cpp" />
     <ClCompile Include="DebuggerTests\ShellDebuggerViewStateTests.cpp" />
+    <ClCompile Include="EmuTests\AutoStateShellTests.cpp" />
     <ClCompile Include="DebuggerTests\CallRecordCopiesTests.cpp" />
     <ClCompile Include="DebuggerTests\CallStackHistoryTests.cpp" />
     <ClCompile Include="DebuggerTests\CallStackTests.cpp" />

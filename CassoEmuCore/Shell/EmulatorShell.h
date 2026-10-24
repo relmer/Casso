@@ -301,6 +301,8 @@ private:
     static HRESULT       ReadStateFile    (const std::filesystem::path & path, std::vector<Byte> & outBytes);
     static std::wstring  FormatStateError (const wchar_t * verb, const struct MachineStateError & error);
 
+public:
+
     // Automatic machine states: the machine's own state file in the state
     // folder, written at exit and on a switch away from the machine, and
     // resumed at startup and on a switch to it. SaveAutoState and
@@ -311,6 +313,17 @@ private:
     void                   SaveAutoState            (bool isExiting = false);
     void                   ResumeAutoState          (bool isStartup);
     void                   PromptToReplaceAutoState ();
+
+    // The folder of the automatic states, the user's state folder when
+    // empty, and what reports a save that failed at exit, a system box when
+    // empty. Tests set both, so they write none of the user's states and
+    // open no box.
+    using ExitReport = std::function<void (const std::wstring & text)>;
+
+    void  SetStateFolder (const std::filesystem::path & folder) { m_stateFolder = folder; }
+    void  SetExitReport  (ExitReport report)                    { m_exitReport  = std::move (report); }
+
+private:
 
     static std::wstring  FormatAutoStateTime (uint64_t savedAtUtc, const std::filesystem::path & path);
 
@@ -725,10 +738,13 @@ private:
     // Automatic machine states: whether this launch's command line mounted a
     // disk or a tape (true until the user switches away from its machine), the
     // user's choice in the prompt that protects the earlier automatic state,
-    // and whether the switch in progress is loading a state file.
+    // whether the switch in progress is loading a state file, and the folder
+    // and exit report a test sets.
     bool                m_isCommandLineMediaSession = false;
     std::atomic<bool>   m_isAutoStateReplaceApproved { false };
-    bool                m_isLoadingStateSwitch      = false;
+    bool                   m_isLoadingStateSwitch = false;
+    std::filesystem::path  m_stateFolder;
+    ExitReport             m_exitReport;
 
 
     // Keyboard focus ring across the painted chrome ("Z" Tab order, left

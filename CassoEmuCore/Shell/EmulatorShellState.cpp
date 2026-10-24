@@ -323,7 +323,7 @@ std::wstring EmulatorShell::FormatStateError (
 
 std::filesystem::path EmulatorShell::GetAutoStatePath() const
 {
-    return AutoStatePolicy::GetAutoStatePath (AssetBootstrap::GetStateDirectory(), m_machine.GetCurrentMachineName());
+    return AutoStatePolicy::GetAutoStatePath (m_stateFolder.empty() ? AssetBootstrap::GetStateDirectory() : m_stateFolder, m_machine.GetCurrentMachineName());
 }
 
 
@@ -380,7 +380,11 @@ void EmulatorShell::SaveAutoState (bool isExiting)
     CHRF (hr, error = MachineStateFile::MakeError ("file not written", "The automatic state file could not be written in full."));
 
 Error:
-    if (FAILED (hr) && isExiting)
+    if (FAILED (hr) && isExiting && m_exitReport != nullptr)
+    {
+        m_exitReport (FormatStateError (L"saved", error));
+    }
+    else if (FAILED (hr) && isExiting)
     {
         MessageBoxW (nullptr, FormatStateError (L"saved", error).c_str(), L"Casso", MB_OK | MB_ICONWARNING | MB_TASKMODAL);
     }
