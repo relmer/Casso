@@ -29,9 +29,26 @@
 class CassoExplorerDragOut
 {
 public:
+    //  Which of an image's files a drop read whole: read with no error and
+    //  from undamaged sectors. A file the target never read, as one skipped
+    //  in File Explorer's conflict dialog, is not whole.
+    class RenderLog
+    {
+    public:
+        void  Reset    (const std::vector<DragPayload::Descriptor> & descriptors);
+        void  SetWhole (size_t index, bool whole);
+        bool  IsWhole  () const;
+
+    private:
+        mutable std::mutex  m_lock;
+        std::vector<bool>   m_whole;
+    };
+
     //  The formats for the browser's current selection; empty when there is
-    //  nothing to drag.
-    static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style);
+    //  nothing to drag. `log`, when given, is set with which files the drop read
+    //  whole, so a move deletes only originals the target got intact.
+    static std::vector<DxuiDragDropSource::Format>  BuildFormats (CassoExplorerBrowser & browser, HostFileNaming::Style style,
+                                                                  std::shared_ptr<RenderLog> log = nullptr);
 
     //  The same formats on the clipboard, for a paste into Explorer. A drag
     //  reads each file when the target asks, while it still holds the
