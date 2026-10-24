@@ -3797,8 +3797,8 @@ namespace DebuggerViewStateTests
         //  A panel nobody opened is listed and never asked for its rows.
         TEST_METHOD (AClosedPanelIsListedButNotBuilt)
         {
-            PanelRig              rig;
-            DebuggerViewSnapshot  snapshot = rig.view.Build (rig.session);
+            auto                  rig      = std::make_unique<PanelRig>();   // heap: the rig and a snapshot overflow the frame (C6262)
+            DebuggerViewSnapshot  snapshot = rig->view.Build (rig->session);
 
 
 
@@ -3807,7 +3807,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("Disk widget"), snapshot.panels[0].title);
             Assert::IsFalse  (snapshot.panels[0].open);
             Assert::IsTrue   (snapshot.diagnostics.empty());
-            Assert::AreEqual (0, rig.provider.calls, L"a closed panel costs the device nothing");
+            Assert::AreEqual (0, rig->provider.calls, L"a closed panel costs the device nothing");
         }
 
 
@@ -3981,21 +3981,21 @@ namespace DebuggerViewStateTests
         //  closes and stays closed when a device of that id returns.
         TEST_METHOD (APanelClosesWhenItsDeviceLeaves)
         {
-            PanelRig              rig;
+            auto                  rig      = std::make_unique<PanelRig>();   // heap: the rig and a snapshot overflow the frame (C6262)
             DebuggerViewSnapshot  snapshot;
 
 
 
-            rig.view.OpenPanel ("fake");
-            rig.target.diagnosticsProviders.clear();
-            snapshot = rig.view.Build (rig.session);
+            rig->view.OpenPanel ("fake");
+            rig->target.diagnosticsProviders.clear();
+            snapshot = rig->view.Build (rig->session);
 
             Assert::IsTrue  (snapshot.panels.empty());
             Assert::IsTrue  (snapshot.diagnostics.empty());
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+            Assert::IsFalse (rig->view.IsPanelOpen ("fake"));
 
-            rig.target.diagnosticsProviders = { &rig.provider };
-            snapshot = rig.view.Build (rig.session);
+            rig->target.diagnosticsProviders = { &rig->provider };
+            snapshot = rig->view.Build (rig->session);
             Assert::IsTrue (snapshot.diagnostics.empty());
         }
 
