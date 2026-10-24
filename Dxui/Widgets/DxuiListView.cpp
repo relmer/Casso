@@ -423,6 +423,7 @@ void DxuiListView::SetColumnVisible (size_t idx, bool visible)
     CBRAEx (idx < columnCount, E_INVALIDARG);
 
     m_columns[idx].visible = visible;
+    SetLeftPx (m_leftPx);
 
 Error:
     return;
@@ -458,6 +459,7 @@ void DxuiListView::SetColumnOverrideWidthPx (size_t idx, int px)
     }
 
     m_overrideWPx[idx] = (px < 1 && px != -1) ? 1 : px;
+    SetLeftPx (m_leftPx);
 
 Error:
     return;
@@ -779,15 +781,22 @@ int DxuiListView::GetVisibleIndexOfColumn (size_t absCol) const
     CBRAEx      (absCol < columnCount, E_INVALIDARG);
     BAIL_OUT_IF (!m_columns[absCol].visible, S_OK);
 
-    for (auto col : m_columns)
+    //  In display order, as GetNthVisibleColumnIndex counts.
+    for (size_t i = 0; i < columnCount; ++i)
     {
-        if (col.visible)
+        size_t  c = (i < m_columnOrder.size()) ? m_columnOrder[i] : i;
+
+        if (c == absCol)
+        {
+            result = seen;
+            break;
+        }
+
+        if (m_columns[c].visible)
         {
             ++seen;
         }
     }
-
-    result = seen;
 
 Error:
     return result;
@@ -3082,6 +3091,12 @@ void DxuiListView::SetGroups (std::vector<Group> groups)
     {
         m_focusGroup = -1;
     }
+
+    //  Fewer lines than before can put the top past the end.
+    if (m_topRow > GetMaxTopRow())
+    {
+        SetTopRow (m_topRow);
+    }
 }
 
 
@@ -4848,9 +4863,13 @@ bool DxuiListView::InvokeCommand (DxuiStandardCommand command)
 
 void DxuiListView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    //  The DPI first, since the top row is clamped by the row height; and the
+    //  horizontal scroll again, since a wider window or narrower columns mean
+    //  less to scroll.
     SetBounds (boundsDip);
-    SetRect   (boundsDip);
     SetDpi    (scaler.GetDpi());
+    SetRect   (boundsDip);
+    SetLeftPx (m_leftPx);
 }
 
 
@@ -5336,9 +5355,17 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
     }
     else if (row >= 0)
     {
-        bool  activate = true;
+        bool  activate  = true;
+        bool  collapsed = m_selectedRows.size() > 1;
 
         SetSelectedRow (row);
+
+        //  A press on one row of several does not change the selection; the
+        //  release that collapses it to the one row is the change.
+        if (collapsed && m_onSelectionChanged)
+        {
+            m_onSelectionChanged (row);
+        }
 
         if (m_activateOnDoubleClick)
         {
@@ -5546,6 +5573,10 @@ void DxuiListView::Tick (int64_t nowMs)
 
 void DxuiListView::OnFocusChanged (bool focused)
 {
+    int  row = -1;
+
+
+
     SetListFocused (focused);
 
     if (!focused)
@@ -5571,9 +5602,13 @@ void DxuiListView::OnFocusChanged (bool focused)
         //  focus on a press then hit-tests that press against a list which has
         //  just jumped home: the click lands on whatever fell under the
         //  pointer after the jump.
+        //  With groups, the top is a line, and a header line has no row: its
+        //  group's first row is the one below it.
         if (m_seedRowOnFocus && GetSelectedRow() < 0 && GetRowCount() > 0)
         {
-            SetSelectedRow (m_topRow);
+            row = IsItemsView() ? m_topRow : GetRowOfLine (m_topRow);
+            row = (row >= 0) ? row : GetRowOfLine (m_topRow + 1);
+            SetSelectedRow ((std::max) (0, (std::min) (row, GetRowCount() - 1)));
         }
     }
 }

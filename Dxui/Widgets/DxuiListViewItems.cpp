@@ -285,7 +285,7 @@ void DxuiListView::SyncItemTextLines() const
 {
     //  The box, not the pitch: names wrap to the box, and the pitch moves
     //  with the scrollbar, which the measured lines decide.
-    ItemTextKey  key = { (int) m_view, GetItemGrid().boxW, GetRowCount(), m_rowsVersion, (int) (m_fontDip * 100.0f) };
+    ItemTextKey  key = { (int) m_view, GetItemGrid().boxW, GetRowCount(), m_rowsVersion, (int) (m_fontDip * 100.0f), (int) m_scaler.GetDpi() };
 
 
 
@@ -495,7 +495,7 @@ void DxuiListView::MeasureItemNames (IDxuiTextRenderer & text) const
     HRESULT      hr     = S_OK;
     int          rows   = GetRowCount();
     float        fontPx = m_scaler.ToPxf (m_fontDip);
-    ItemTextKey  key    = { -1, 0, rows, m_rowsVersion, (int) (m_fontDip * 100.0f) };
+    ItemTextKey  key    = { -1, 0, rows, m_rowsVersion, (int) (m_fontDip * 100.0f), (int) m_scaler.GetDpi() };
 
 
 
@@ -573,8 +573,8 @@ const std::vector<int> & DxuiListView::GetListColumnLefts() const
 {
     ItemGrid             grid    = GetItemGrid();
     int                  rows    = GetRowCount();
-    bool                 sized   = m_itemNameWPx.size() == (size_t) rows && rows > 0;
-    std::pair<int, int>  key     = { grid.perLine, sized ? m_itemTextVersion : -1 };
+    bool                 sized   = m_itemNameWPx.size() == (size_t) rows && rows > 0 && m_itemNameKey.rowsVersion == m_rowsVersion;
+    std::array<int, 5>   key     = { grid.perLine, sized ? m_itemTextVersion : -1, m_rowsVersion, grid.cellW, (int) m_scaler.GetDpi() };
     int                  x       = 0;
 
 
@@ -3817,6 +3817,7 @@ void DxuiListView::UpdateSelectionBand (int lx, int ly)
     POINT               offset  = GetItemScrollOffsetPx();
     RECT                band    = {};
     std::vector<int>    rows    = m_bandBase;
+    std::vector<int>    before  = m_selectedRows;
     int                 last    = -1;
     bool                listGrp = HasListGroups();
     bool                itemGrp = !listGrp && UsesItemLayout();
@@ -3869,7 +3870,9 @@ void DxuiListView::UpdateSelectionBand (int lx, int ly)
 
     SetSelectedRows (std::move (rows), last);
 
-    if (m_onSelectionChanged && last >= 0)
+    //  A band shrunk back off every item clears the selection, and that is a
+    //  change too.
+    if (m_onSelectionChanged && (last >= 0 || m_selectedRows != before))
     {
         m_onSelectionChanged (last);
     }

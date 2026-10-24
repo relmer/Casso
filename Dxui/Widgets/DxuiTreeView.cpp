@@ -366,10 +366,12 @@ bool DxuiTreeView::OnLButtonDown (int x, int y)
 
 
 
+    //  A press on the chevron or the check box opens or checks the row on
+    //  release and does not select it, so the highlight does not move to it.
     if (isHit)
     {
         m_pressedRow = row;
-        m_highlight  = row;
+        m_highlight  = (HitTestTwisty (x, y, row) || HitTestToggle (x, y, row)) ? m_highlight : row;
     }
 
     return isHit;
@@ -477,7 +479,8 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
 
 bool DxuiTreeView::SetRowExpanded (int flatRow, bool expanded)
 {
-    DxuiTreeNode *  n  = GetNodeAtMutable (flatRow);
+    DxuiTreeNode *  n   = GetNodeAtMutable (flatRow);
+    RowIds          ids = GetRowIds();
     std::wstring    id;
 
 
@@ -506,7 +509,9 @@ bool DxuiTreeView::SetRowExpanded (int flatRow, bool expanded)
     //  does it.
     m_openWhenFilled = (expanded && n->children.empty()) ? id : (m_openWhenFilled == id ? std::wstring() : m_openWhenFilled);
 
+    //  Rows below the node move, and the highlight, hover and press with them.
     RebuildFlatRows();
+    RestoreRowIds (ids);
 
     if (m_onExpand)
     {
@@ -1844,6 +1849,7 @@ void DxuiTreeView::SetLeftPx (int px)
 bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  handled = false;
+    int   steps   = 0;
 
 
 
@@ -1901,14 +1907,24 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
 
         break;
     case DxuiMouseEventKind::Wheel:
+        //  A precision touchpad sends part notches, which add up until they
+        //  move a whole row or pixel.
         if (!ev.wheelHorizontal && IsScrollbarVisible())
         {
-            ScrollRows (-(int) (ev.wheelDelta * (float) s_kWheelRows));
+            m_wheelRows += ev.wheelDelta * (float) s_kWheelRows;
+            steps        = (int) m_wheelRows;
+            m_wheelRows -= (float) steps;
+
+            ScrollRows (-steps);
             handled = true;
         }
         else if (ev.wheelHorizontal && IsHorzScrollbarVisible())
         {
-            SetLeftPx (m_leftPx + (int) (ev.wheelDelta * (float) m_scaler.ToPx (s_kHorzStepDip)));
+            m_wheelPx += ev.wheelDelta * (float) m_scaler.ToPx (s_kHorzStepDip);
+            steps      = (int) m_wheelPx;
+            m_wheelPx -= (float) steps;
+
+            SetLeftPx (m_leftPx + steps);
             handled = true;
         }
 
