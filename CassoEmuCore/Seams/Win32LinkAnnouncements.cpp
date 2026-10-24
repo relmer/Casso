@@ -26,14 +26,61 @@ Win32LinkAnnouncements::~Win32LinkAnnouncements()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Win32LinkAnnouncements::Start
+//  Win32LinkAnnouncements::SetListening
 //
-//  The PC's own addresses are listed once, here, to recognize an
-//  announcement sent from this PC.
+//  A bind that fails is made again on the next call with true.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Win32LinkAnnouncements::Start (uint16_t port)
+HRESULT Win32LinkAnnouncements::SetListening (bool listening)
+{
+    HRESULT  hr      = S_OK;
+    bool     emptied = false;
+
+
+
+    if (listening)
+    {
+        BAIL_OUT_IF (m_socket != INVALID_SOCKET, S_OK);
+
+        hr = Start();
+        CHR (hr);
+    }
+    else
+    {
+        Stop();
+
+        {
+            std::lock_guard<std::mutex>  guard (m_lock);
+
+            emptied = !m_announced.empty();
+            m_announced.clear();
+        }
+
+        if (emptied)
+        {
+            m_changes++;
+        }
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32LinkAnnouncements::Start
+//
+//  The PC's addresses are listed here, to recognize an announcement sent
+//  from this PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32LinkAnnouncements::Start()
 {
     HRESULT                      hr       = S_OK;
     HRESULT                      listed   = S_OK;
@@ -61,7 +108,7 @@ HRESULT Win32LinkAnnouncements::Start (uint16_t port)
     CWR (result == 0);
 
     address.sin_family      = AF_INET;
-    address.sin_port        = htons (port);
+    address.sin_port        = htons (m_port);
     address.sin_addr.s_addr = htonl (INADDR_ANY);
 
     result = ::bind (m_socket, (const sockaddr *) &address, sizeof (address));
@@ -69,6 +116,8 @@ HRESULT Win32LinkAnnouncements::Start (uint16_t port)
 
     listed = Win32NetworkAdapters::List (adapters);
     IGNORE_RETURN_VALUE (listed, S_OK);
+
+    m_local.clear();
 
     for (const NetworkAdapter & adapter : adapters)
     {

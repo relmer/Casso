@@ -400,6 +400,23 @@ hardware.
   A: Every window adds to the one list in the preferences, so a path typed
   in one window is offered in all of them.
 
+### Session 2026-10-24
+
+- Q: Which connection opens the announcement listener, given that the
+  listener is what lists Uthernet IIs automatically? → A: An Uthernet II
+  added with its address left empty, whose name is "Uthernet II (any
+  address)". It connects to no Apple; each Apple whose announcement arrives
+  is listed as a separate connection. An Uthernet II with an address dials
+  that Apple and opens nothing, so no inbound firewall rule applies to it.
+  With no such connection saved, nothing listens and no Apple from an
+  announcement is listed.
+- Q: Which network profiles do the package's firewall rules cover? → A: All
+  three, public included, each rule narrow to one protocol and port. Nothing
+  binds those ports until the user turns on a network link, and TCP 6400 is
+  the only one where a stranger can open a session, which serves nothing the
+  PC did not start. Every other TCP transport, the ADTPro-compatible server
+  included, dials out.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -1784,7 +1801,10 @@ to Casso over TCP.
   the Apple off from the network.
 - **FR-101**: Casso Explorer MUST NOT open the announcement listener before a
   connection that needs it exists, so a user who never links to an Apple over
-  the network never binds a port beyond the loopback address.
+  the network never binds a port beyond the loopback address. The connection
+  that opens it is an Uthernet II with no address, which lists each Apple
+  whose announcement arrives; the listener closes when the last one is
+  removed.
 - **FR-102**: Both programs MUST determine whether the firewall admits their
   inbound sockets on the network's present category, and MUST determine it
   again when the network changes.

@@ -22,11 +22,10 @@
 class Win32LinkAnnouncements : public ILinkAnnouncements
 {
 public:
+    explicit Win32LinkAnnouncements (uint16_t port) : m_port (port) {}
     ~Win32LinkAnnouncements () override;
 
-    HRESULT  Start (uint16_t port);
-    void     Stop  ();
-
+    HRESULT                        SetListening   (bool listening) override;
     std::vector<LinkAnnouncement>  GetAnnounced   () const override;
     uint32_t                       GetChangeCount () const override { return m_changes; }
 
@@ -34,9 +33,12 @@ private:
     //  How long a receive waits, so Stop is seen.
     static constexpr int  s_kWaitMs = 250;
 
-    void  Run    ();
-    void  Record (LinkAnnouncement announcement, const sockaddr_in & from);
+    HRESULT  Start  ();
+    void     Stop   ();
+    void     Run    ();
+    void     Record (LinkAnnouncement announcement, const sockaddr_in & from);
 
+    uint16_t                       m_port    = 0;
     SOCKET                         m_socket  = INVALID_SOCKET;
     bool                           m_winsock = false;
     std::thread                    m_thread;

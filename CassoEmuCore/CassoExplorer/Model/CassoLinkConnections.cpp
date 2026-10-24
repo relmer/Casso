@@ -3,6 +3,7 @@
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
 #include "Seams/IByteStreamFactory.h"
+#include "Seams/ILinkAnnouncements.h"
 #include "Seams/Win32NetworkAdapters.h"
 
 
@@ -54,8 +55,36 @@ CassoLinkConnections::~CassoLinkConnections()
 
 void CassoLinkConnections::SetLinks (const std::vector<CassoLinkSettings> & links)
 {
+    HRESULT  hr = S_OK;
+
+
+
     m_saved = links;
+
+    //  With the port bound by another program without reuse, no Apple is
+    //  listed from an announcement; nothing else depends on them.
+    if (m_announcements != nullptr)
+    {
+        hr = m_announcements->SetListening (IsSearching());
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     Merge();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::IsSearching
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::IsSearching() const
+{
+    return std::any_of (m_saved.begin(), m_saved.end(), [] (const CassoLinkSettings & settings) { return settings.IsSearch(); });
 }
 
 
@@ -193,7 +222,7 @@ void CassoLinkConnections::Merge()
         links.push_back (settings);
     }
 
-    for (const LinkAnnouncement & announced : m_announced)
+    for (const LinkAnnouncement & announced : IsSearching() ? m_announced : std::vector<LinkAnnouncement>())
     {
         CassoLinkSettings  settings;
         bool               covered  = false;
@@ -309,6 +338,10 @@ HRESULT CassoLinkConnections::StartLink (const std::string & name, bool search, 
 
     BAIL_OUT_IF (IsStarted (name), S_OK);
     CBREx (known, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    //  A search has no Apple to connect to; each Apple it finds is listed as
+    //  a separate link.
+    BAIL_OUT_IF (settings->IsSearch(), S_OK);
 
     link           = std::make_unique<Link>();
     link->settings = *settings;
@@ -1011,8 +1044,9 @@ std::string CassoLinkConnections::MakeDialCommand (const std::wstring & pcName, 
 //
 //  CassoLinkConnections::MakeShimOptions
 //
-//  For a link whose address cannot be used, the shim's network is zeros;
-//  the link dialog accepts only an IPv4 address for an Uthernet II.
+//  For a link with no address or one that cannot be used, the shim's
+//  network is zeros; the link dialog accepts only an IPv4 address or none
+//  for an Uthernet II.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1254,7 +1288,7 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
 
 
 
-    switch (server ? LinkState::Opening : state)
+    switch ((server || settings.IsSearch()) ? LinkState::Opening : state)
     {
         case LinkState::Closed:          text = std::format (L"Click {} to connect.", name);                     break;
         case LinkState::Bootstrapping:   text = std::format (L"Typing the loader into {}...", name);              break;
@@ -1286,7 +1320,10 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
                     break;
 
                 case LinkTransport::Uthernet:
-                    text = std::format (L"Connecting to {} at {}.\nBoot that Apple from a CassoLink disk saved from {}.", name, address, name);
+                    text = settings.IsSearch()
+                         ? std::wstring (L"Each Apple on this PC's network that boots a CassoLink disk on an Uthernet II is listed "
+                                         L"when its announcement arrives.")
+                         : std::format (L"Connecting to {} at {}.\nBoot that Apple from a CassoLink disk saved from {}.", name, address, name);
                     break;
 
                 case LinkTransport::AdtProServer:

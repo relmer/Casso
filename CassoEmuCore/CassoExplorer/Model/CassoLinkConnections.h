@@ -12,6 +12,7 @@
 class ICassoLinkFolder;
 class IByteStreamFactory;
 class IDiskFileIo;
+class ILinkAnnouncements;
 
 struct NetworkAdapter;
 
@@ -49,6 +50,11 @@ public:
     using FolderMaker = std::function<std::unique_ptr<ICassoLinkFolder> (const std::wstring & path)>;
     void  SetFolderMaker (FolderMaker maker) { m_makeFolder = std::move (maker); }
 
+    //  The announcement listener, opened while a saved Uthernet II has no
+    //  address and closed otherwise, so no announcement port is bound for a
+    //  user who links to no Apple over the network.
+    void                                    SetAnnouncements (ILinkAnnouncements * announcements) { m_announcements = announcements; }
+
     //  The links, as the preferences have them. A link removed or changed is
     //  stopped.
     void                                    SetLinks (const std::vector<CassoLinkSettings> & links);
@@ -61,7 +67,8 @@ public:
 
     //  The Apples of universal boot disks' announcements, each an Uthernet
     //  II link at its announcement's address, never saved. One whose address
-    //  a saved link has is left out.
+    //  a saved link has is left out, and all of them while no saved Uthernet
+    //  II is without an address.
     void                                    SetAnnounced (const std::vector<LinkAnnouncement> & announced);
 
     //  Every link: the saved ones, then the running Cassos, then the Apples
@@ -241,11 +248,13 @@ private:
     void          Notify ();
     HRESULT       StartLink (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
     void          Merge ();
+    bool          IsSearching () const;
 
     IByteStreamFactory                 & m_factory;
     ICassoLinkFolder                   & m_folder;
     FolderMaker                          m_makeFolder;
     IDiskFileIo                        & m_fileIo;
+    ILinkAnnouncements                 * m_announcements = nullptr;
     std::vector<CassoLinkSettings>       m_saved;
     std::vector<RunningCasso>            m_running;
     std::vector<LinkAnnouncement>        m_announced;

@@ -355,7 +355,7 @@ public:
         LinkShimOptions        options;
         CassoLinkSettings      settings;
         VolumeListing          catalog;
-        Win32LinkAnnouncements listener;
+        Win32LinkAnnouncements listener (LinkProgram::kAnnouncePort);
         std::string            row;
         std::string            dhcp   = std::format ("SLOT 3 AT {}.{}.{}.{}:{}",
                                                      VirtualSubnet::kGuestIp >> 24, (VirtualSubnet::kGuestIp >> 16) & 0xFF,
@@ -374,7 +374,7 @@ public:
         GuestSession::Mount (rig.machine, boot);
         AssertSucceeded (rig.machine.GetDiskStore().MountFromBytes (6, 1, "", DiskFormat::Dsk, dos));
 
-        AssertSucceeded (listener.Start (LinkProgram::kAnnouncePort));
+        AssertSucceeded (listener.SetListening (true));
 
         rig.RunUntil ([&] () { row = rig.Row (kRow4); return row.find (" AT ") != std::string::npos; }, kWaitMs);
         Assert::AreEqual (dhcp, row, L"the address from DHCP, not the one built in");
@@ -385,7 +385,7 @@ public:
                           L"from this PC, so at the address the card's socket is on");
         Assert::IsTrue (std::equal (options.network.mac.begin(), options.network.mac.begin() + 3, listener.GetAnnounced()[0].mac.begin()),
                         L"the MAC address's first three bytes as built, the rest salted on the Apple");
-        listener.Stop();
+        AssertSucceeded (listener.SetListening (false));
 
         settings.name      = "Uthernet";
         settings.transport = LinkTransport::Uthernet;

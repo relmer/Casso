@@ -826,10 +826,14 @@ are allowed.
   is inbound only; the two look alike and are not. Without the note the next
   reader makes them match, which is a bug that looks like a tidy-up. Per
   FR-100.
-- [ ] T250 Open the announcement listener only once a connection that needs it
+- [X] T250 Open the announcement listener only once a connection that needs it
   exists, rather than during the shell's startup, and close it with the last
   one. A unit test that a shell with no such connection binds nothing. Per
   FR-101.
+
+  The connection is an Uthernet II with no address (`CassoLinkSettings::IsSearch`).
+  `CassoLinkConnections::SetLinks` calls `ILinkAnnouncements::SetListening`,
+  and the tests in `CassoLinkConnectionsTests.cpp` drive a fake listener.
 - [ ] T251 Add a host seam for the firewall: the network's present category,
   and whether a rule admits a given protocol and port for it. Four outcomes,
   not two -- admitted, refused by a rule, no rule at all, and a rule that does

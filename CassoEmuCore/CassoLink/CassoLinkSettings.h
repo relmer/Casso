@@ -16,7 +16,8 @@
 //  name, or empty to search the ports for the Apple. The address is
 //  host:port for the TCP transports; for Emulated it is Casso's own serial
 //  port on 127.0.0.1, and for Uthernet the Apple's own address and the port
-//  its shim listens on. A Wi-Fi modem listens on kModemPort. An ADTPro
+//  its shim listens on, or empty to list the Apples whose announcements
+//  arrive. A Wi-Fi modem listens on kModemPort. An ADTPro
 //  server is on its COM port, or with none on its address, and serves the
 //  folder. The Apple's port or slot is not set: the Apple side finds it.
 //
@@ -44,7 +45,8 @@ struct CassoLinkSettings
 
     //  The connection's name, made from its settings: "Serial (any
     //  port)" or the COM port, "TCP" and the address, "Wi-Fi modem on port
-    //  6400", "Uthernet II at" and the address, "ADTPro server on" the COM
+    //  6400", "Uthernet II at" and the address or "Uthernet II (any
+    //  address)", "ADTPro server on" the COM
     //  port or "at" the address, and for a running Casso, "Casso on port" and
     //  its TCP port. Two connections with the same settings have the same
     //  name.
@@ -53,6 +55,10 @@ struct CassoLinkSettings
     //  Whether the connection is over a COM port: a Serial one, or an ADTPro
     //  server with a COM port.
     bool                 IsComPort         () const;
+
+    //  Whether the connection is an Uthernet II with no address, which lists
+    //  each Apple whose announcement arrives instead of connecting to one.
+    bool                 IsSearch          () const;
 
     //  Whether a user can save the connection: every transport but a running
     //  Casso's, which is listed only while that Casso runs.

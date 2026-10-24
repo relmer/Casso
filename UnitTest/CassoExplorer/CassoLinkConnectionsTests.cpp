@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/Dos33Skeleton.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Seams/ILinkAnnouncements.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -373,20 +374,114 @@ public:
 
 
 
-    //  An announcement's Apple is an Uthernet II root at the announcement's
-    //  address, never saved.
-    TEST_METHOD (AnAnnouncedApple_IsAnUthernetRoot)
+    //  The listener's state, as CassoLinkConnections sets it.
+    class FakeAnnouncements : public ILinkAnnouncements
     {
-        Rig                         rig;
-        LinkAnnouncement            apple;
-        std::vector<LinkTreeEntry>  entries;
-        bool                        found = false;
+    public:
+        HRESULT                        SetListening (bool listening) override { opened += (listening && !this->listening) ? 1 : 0; this->listening = listening; return S_OK; }
+        std::vector<LinkAnnouncement>  GetAnnounced() const override          { return {}; }
+        uint32_t                       GetChangeCount() const override        { return 0; }
+
+        bool  listening = false;
+        int   opened    = 0;
+    };
+
+
+    static CassoLinkSettings MakeSearch()
+    {
+        CassoLinkSettings  search;
+
+        search.transport = LinkTransport::Uthernet;
+        search.name      = CassoLinkSettings::MakeName (search);
+
+        return search;
+    }
+
+
+    static LinkAnnouncement MakeAnnouncement()
+    {
+        LinkAnnouncement  apple;
 
         apple.address = { 192, 168, 1, 77 };
         apple.port    = 6502;
         apple.mac     = { 0x00, 0x08, 0xDC, 0x01, 0x02, 0x03 };
 
-        rig.links->SetAnnounced ({ apple });
+        return apple;
+    }
+
+
+    //  Links that no announcement serves open no listener, so nothing is
+    //  bound beyond the loopback address.
+    TEST_METHOD (LinksWithNoSearch_OpenNoListener)
+    {
+        Rig                 rig;
+        FakeAnnouncements   announcements;
+        CassoLinkSettings   serial;
+        CassoLinkSettings   uthernet;
+
+        serial.transport   = LinkTransport::Serial;
+        serial.name        = CassoLinkSettings::MakeName (serial);
+        uthernet.transport = LinkTransport::Uthernet;
+        uthernet.address   = "192.168.1.50:6502";
+        uthernet.name      = CassoLinkSettings::MakeName (uthernet);
+
+        rig.links->SetAnnouncements (&announcements);
+        rig.links->SetLinks ({ serial, uthernet });
+
+        Assert::AreEqual (0, announcements.opened, L"an Uthernet II with an address dials out");
+    }
+
+
+    //  An Uthernet II with no address opens the listener, and removing it
+    //  closes the listener.
+    TEST_METHOD (ASearch_OpensTheListenerWhileItIsSaved)
+    {
+        Rig                 rig;
+        FakeAnnouncements   announcements;
+
+        rig.links->SetAnnouncements (&announcements);
+        rig.links->SetLinks ({ MakeSearch() });
+
+        Assert::IsTrue   (announcements.listening);
+        Assert::AreEqual (std::string ("Uthernet II (any address)"), MakeSearch().name);
+
+        rig.links->SetLinks ({});
+        Assert::IsFalse  (announcements.listening);
+    }
+
+
+    //  A search connects to nothing, so starting it opens no stream.
+    TEST_METHOD (ASearch_StartsNoSession)
+    {
+        Rig  rig;
+
+        rig.links->SetLinks ({ MakeSearch() });
+
+        AssertSucceeded (rig.links->Start (MakeSearch().name));
+        Assert::IsFalse (rig.links->IsStarted (MakeSearch().name));
+    }
+
+
+    //  Announcements are listed only while a search is saved.
+    TEST_METHOD (AnAnnouncedApple_IsListedOnlyWithASearch)
+    {
+        Rig  rig;
+
+        rig.links->SetAnnounced ({ MakeAnnouncement() });
+        Assert::AreEqual ((size_t) 1, rig.links->BuildTreeEntries().size());
+    }
+
+
+    //  An announcement's Apple is an Uthernet II root at the announcement's
+    //  address, never saved.
+    TEST_METHOD (AnAnnouncedApple_IsAnUthernetRoot)
+    {
+        Rig                         rig;
+        std::vector<LinkTreeEntry>  entries;
+        bool                        found = false;
+
+        rig.links->SetLinks ({ MakeSearch() });
+        rig.links->SetAnnounced ({ MakeAnnouncement() });
         entries = rig.links->BuildTreeEntries();
 
         Assert::AreEqual ((size_t) 2, entries.size());

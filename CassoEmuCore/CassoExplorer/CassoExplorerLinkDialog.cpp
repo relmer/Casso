@@ -249,8 +249,9 @@ const wchar_t * CassoExplorerLinkChoices::GetNote (LinkTransport transport)
             break;
 
         case LinkTransport::Uthernet:
-            note = L"An Uthernet II card at a static IP address. An Apple on this PC's network that boots a CassoLink "
-                   L"disk broadcasts its address, and Casso Explorer lists it automatically.";
+            note = L"An Uthernet II card on this PC's network. With the address empty, Casso Explorer lists each Apple "
+                   L"that boots a CassoLink disk and broadcasts its address. With the card's static address, it "
+                   L"connects to that Apple alone.";
             break;
 
         case LinkTransport::AdtProServer:
@@ -277,7 +278,7 @@ const wchar_t * CassoExplorerLinkChoices::GetNote (LinkTransport transport)
 
 const wchar_t * CassoExplorerLinkChoices::GetAddressPlaceholder (LinkTransport transport)
 {
-    return (transport == LinkTransport::Uthernet) ? L"192.168.1.50:6502" : L"192.168.1.5:6502";
+    return (transport == LinkTransport::Uthernet) ? L"Any, or 192.168.1.50:6502" : L"192.168.1.5:6502";
 }
 
 
@@ -358,7 +359,6 @@ std::wstring CassoExplorerLinkChoices::ValidateAddressFor (LinkTransport transpo
 bool CassoExplorerLinkChoices::IsComplete (const CassoLinkSettings & settings)
 {
     bool  addressed = settings.transport == LinkTransport::Tcp
-                   || settings.transport == LinkTransport::Uthernet
                    || (settings.transport == LinkTransport::AdtProServer && settings.port.empty());
     bool  foldered  = settings.transport == LinkTransport::AdtProServer;
 

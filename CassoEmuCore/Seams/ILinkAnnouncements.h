@@ -26,6 +26,10 @@ class ILinkAnnouncements
 public:
     virtual ~ILinkAnnouncements () = default;
 
+    //  Opens the listening socket, or closes it and empties the list. Nothing
+    //  is bound until the first call with true.
+    virtual HRESULT                        SetListening   (bool listening) = 0;
+
     virtual std::vector<LinkAnnouncement>  GetAnnounced   () const = 0;
 
     //  Changes with an Apple's first announcement, and with one that has a

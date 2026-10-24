@@ -82,7 +82,8 @@ std::string CassoLinkSettings::MakeName (const CassoLinkSettings & settings)
         case LinkTransport::Serial:       name = settings.port.empty() ? std::string ("Serial (any port)") : settings.port;               break;
         case LinkTransport::WifiModem:    name = std::format ("Wi-Fi modem on port {}", kModemPort);                                     break;
         case LinkTransport::Emulated:     name = std::format ("Casso on port {}", port);                                                 break;
-        case LinkTransport::Uthernet:     name = std::format ("Uthernet II at {}", settings.address);                                   break;
+        case LinkTransport::Uthernet:     name = settings.address.empty() ? std::string ("Uthernet II (any address)")
+                                                                          : std::format ("Uthernet II at {}", settings.address);        break;
         case LinkTransport::AdtProServer: name = settings.IsComPort() ? std::format ("ADTPro server on {}", settings.port)
                                                                       : std::format ("ADTPro server at {}", settings.address);          break;
         default:                          name = std::format ("TCP {}", settings.address);                                              break;
@@ -104,6 +105,21 @@ std::string CassoLinkSettings::MakeName (const CassoLinkSettings & settings)
 bool CassoLinkSettings::IsComPort() const
 {
     return transport == LinkTransport::Serial || (transport == LinkTransport::AdtProServer && !port.empty());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSettings::IsSearch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkSettings::IsSearch() const
+{
+    return transport == LinkTransport::Uthernet && address.empty();
 }
 
 

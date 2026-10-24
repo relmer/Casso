@@ -153,6 +153,22 @@ public:
 
 
 
+    TEST_METHOD (IsComplete_AnUthernetWithNoAddressIsASearch)
+    {
+        CassoLinkSettings  uthernet;
+
+
+
+        uthernet.transport = LinkTransport::Uthernet;
+        Assert::IsTrue (CassoExplorerLinkChoices::IsComplete (uthernet));
+        Assert::IsTrue (uthernet.IsSearch());
+
+        uthernet.address = "192.168.1.50:6502";
+        Assert::IsFalse (uthernet.IsSearch());
+    }
+
+
+
     TEST_METHOD (Duplicate_IsAConnectionAnotherHasTheNameOf)
     {
         CassoLinkSettings  serial;
