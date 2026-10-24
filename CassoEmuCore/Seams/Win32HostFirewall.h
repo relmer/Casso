@@ -28,7 +28,10 @@ public:
     //  This process as the firewall's rules identify it.
     static HRESULT  GetThisProgram (FirewallProgram & outProgram);
 
+    //  One rule, with outInbound false for an outbound rule or one for a
+    //  protocol other than TCP or UDP; outRule is then incomplete.
+    static HRESULT  ReadRule       (INetFwRule * rule, bool & outInbound, FirewallRule & outRule);
+
 private:
-    static HRESULT       ReadRule   (INetFwRule * rule, bool & outInbound, FirewallRule & outRule);
     static std::wstring  TakeString (BSTR text);
 };

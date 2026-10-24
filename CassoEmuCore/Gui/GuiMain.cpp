@@ -22,6 +22,7 @@
 #include "Shell/DiskMru.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "Ui/Chrome/CassoTheme.h"
+#include "Seams/Win32FirewallHelper.h"
 
 #pragma comment(lib, "ole32.lib")
 
@@ -656,6 +657,7 @@ extern "C" int WINAPI wCassoMain (
     int                                  exitCode      = 0;
     bool                                 userExited    = false;
     bool                                 answered      = false;
+    bool                                 firewall      = false;
     CommandLineOptions::EmulatorOptions  parsed;
     MachineConfig                        config;
     std::unique_ptr<EmulatorShell>       shell         = std::make_unique<EmulatorShell>();
@@ -696,6 +698,10 @@ extern "C" int WINAPI wCassoMain (
     // int 3 that becomes a silent "Casso.exe has stopped working". See
     // ReportAssertion.
     SetBreakpointFunction (&ReportAssertion);
+
+    // Started elevated by the Network settings page, to change the firewall.
+    firewall = Win32FirewallHelper::TryRunFromCommandLine (exitCode);
+    BAIL_OUT_IF (firewall, S_OK);
 
     // Parse command line. A help request is answered and a command line that
     // could not be read is refused BEFORE any of the startup work below, so

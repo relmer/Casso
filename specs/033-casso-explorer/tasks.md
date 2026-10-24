@@ -863,10 +863,24 @@ are allowed.
   thread when the count changes. Tests in
   `UnitTest/NetworkTests/FirewallMonitorTests.cpp`; T254 and T255 call
   `FirewallMonitor::Update` from each program's poll.
-- [ ] T253 Add the elevated helper that puts it right: it removes a refusing
+- [X] T253 Add the elevated helper that puts it right: it removes a refusing
   rule, adds a missing one, or widens one to the present category, and admits
   a port forward's port when the forward is opened. It runs only when the user
   asks for it. Per FR-105 and FR-106.
+
+  `FirewallRemedy::MakePlan` in `CassoEmuCore/Net/` lists the ports not
+  admitted and the profiles to admit them on, with the private profile in
+  place of the public one when the networks are to be marked private.
+  `Win32FirewallHelper::Launch` runs the program again elevated with
+  `--firewall-helper` and the plan, without waiting; `TryFinish` checks the
+  process from the caller's poll. The helper disables the block rules for
+  each port rather than deleting them, widens or adds an allow rule whose
+  name is "Casso Explorer, UDP 6510" in the Casso group, and admits only a program
+  in its folder. Both entry points call
+  `Win32FirewallHelper::TryRunFromCommandLine` first. A port forward's port
+  goes through the same plan from T255. Tests in
+  `UnitTest/NetworkTests/FirewallRemedyTests.cpp`; the elevated writes are
+  checked in T256, since they change this PC's firewall.
 - [ ] T254 [US14] Show it in Casso Explorer: a warning on the connection's row
   in the tree, a pointer tip naming the cause, and the action in the pane,
   reusing `DxuiTreeNode`'s existing broken badge as the pattern and the amber

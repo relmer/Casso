@@ -7,6 +7,7 @@
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Config/Win32FileSystem.h"
+#include "Seams/Win32FirewallHelper.h"
 #include "Seams/Win32PreviewHelper.h"
 
 
@@ -58,6 +59,7 @@ extern "C" int WINAPI wCassoExplorerMain (
     HWND                                   existing   = nullptr;
     HRESULT                                hrOptional = S_OK;
     bool                                   helper     = false;
+    bool                                   firewall   = false;
     std::unique_ptr<CassoExplorerShell>    shell      = std::make_unique<CassoExplorerShell>();
 
 
@@ -69,6 +71,10 @@ extern "C" int WINAPI wCassoExplorerMain (
 
     SetNotifyFunction (&CassoExplorerShell::NotifyUser);
     SetBreakpointFunction (&CassoExplorerShell::ReportAssertion);
+
+    //  Started elevated by a window, to change the firewall.
+    firewall = Win32FirewallHelper::TryRunFromCommandLine (exitCode);
+    BAIL_OUT_IF (firewall, S_OK);
 
     //  lpCmdLine arrives as one string. The full command line is split by the
     //  runtime's quoting rules instead, and the program name dropped.

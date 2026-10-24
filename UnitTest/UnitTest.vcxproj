@@ -674,6 +674,7 @@
     <ClCompile Include="NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="NetworkTests\FirewallCheckTests.cpp" />
     <ClCompile Include="NetworkTests\FirewallMonitorTests.cpp" />
+    <ClCompile Include="NetworkTests\FirewallRemedyTests.cpp" />
     <ClCompile Include="NetworkTests\FakeHostNetwork.cpp" />
     <ClCompile Include="NetworkTests\W5100Driver.cpp" />
     <ClCompile Include="NetworkTests\W5100RegisterTests.cpp" />

@@ -90,7 +90,9 @@ public:
     //  Whether a rule's port list, as Windows lists it, has the port.
     static bool             MatchesPort (const std::wstring & localPorts, uint16_t port);
 
-private:
+    //  Whether a rule, enabled or not, is for the program, protocol and port.
     static bool             Applies     (const FirewallRule & rule, const FirewallProgram & program, HostSocketKind protocol, uint16_t port);
+
+private:
     static int              GetSeverity (FirewallAdmission admission);
 };
