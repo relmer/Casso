@@ -1198,7 +1198,7 @@ void SettingsPanelState::WriteSwitches (HardwareEntry & entry, const SscSwitches
 //
 //  GetModeName
 //
-//  As a notice's sentence has it, after "set back to".
+//  As a notice's sentence has it, after "switched from" or "switched back to".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1267,14 +1267,16 @@ void SettingsPanelState::SetCardPrinterMode (int slot)
 
     if (entry != nullptr && switches.GetMode() != SscMode::Printer)
     {
+        const wchar_t  * before = GetModeName (switches.GetMode());
+
         entry->switchesSw1BeforePrinter = switches.GetBankText (SscBank::Sw1);
 
         switches.SetOn (SscBank::Sw1, 5, false);
         switches.SetOn (SscBank::Sw1, 6, true);
         WriteSwitches (*entry, switches);
 
-        m_notice = std::format (L"The Super Serial Card in slot {} is set to printer mode for the ImageWriter II. "
-                                L"Its previous mode is restored when the printer moves to another connector.", slot);
+        m_notice = std::format (L"The ImageWriter II requires printer mode, so the Super Serial Card in slot {} was switched from {}. "
+                                L"If you connect the printer somewhere else, the card will be switched back to {}.", slot, before, before);
     }
 }
 
@@ -1317,7 +1319,7 @@ void SettingsPanelState::RestoreCardMode (int slot)
             }
         }
 
-        m_notice = std::format (L"The Super Serial Card in slot {} is set back to {}, the mode it had before the "
+        m_notice = std::format (L"The Super Serial Card in slot {} was switched back to {}, the mode it had before the "
                                 L"ImageWriter II was connected to it.", slot, GetModeName (switches.GetMode()));
     }
 
