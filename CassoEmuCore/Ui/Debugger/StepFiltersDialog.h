@@ -66,6 +66,9 @@ public:
 protected:
     void  OnCreate() override;
 
+    //  The filters OK took, none until OK closes the dialog.
+    const std::optional<Filters> &  GetResult() const { return m_result; }
+
 private:
     void  ConfigureGrid ();
     void  ApplyRows     ();
