@@ -187,6 +187,10 @@ public:
     bool  StepSession      ();
     void  MarkViewDirty    ()   { m_isDebugViewDirty = true; }
 
+    // The lock on the view state that the window's setters change and a
+    // build reads. Any thread.
+    std::mutex & GetViewStateLock () noexcept { return m_debugViewStateLock; }
+
     // Whether the beam mark is drawn: turned on and the session stopped.
     bool  IsBeamMarkShown  ();
 
