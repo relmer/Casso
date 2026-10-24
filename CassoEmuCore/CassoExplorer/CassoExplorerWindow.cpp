@@ -14268,10 +14268,11 @@ const wchar_t * CassoExplorerWindow::GetUndoLabel (UndoStep::Kind kind)
 
 void CassoExplorerWindow::UndoLast()
 {
-    HRESULT                    hr = S_OK;
-    UndoStep                   step;
-    std::vector<std::wstring>  saved;
-    std::error_code            ignored;
+    HRESULT                        hr = S_OK;
+    UndoStep                       step;
+    std::vector<std::wstring>      saved;
+    std::error_code                ignored;
+    CassoExplorerActions::Outcome  restored;
 
 
 
@@ -14313,14 +14314,22 @@ void CassoExplorerWindow::UndoLast()
                 FillList();
             }
 
+            //  A rename and a new folder are undone through the selection, so
+            //  the list has to be where the step was made, with the entry in it;
+            //  otherwise the undo would act on whatever is selected.
+            if (m_browser.GetLocation() != step.location
+                || ((step.kind == UndoStep::Kind::ImageRename || step.kind == UndoStep::Kind::ImageNewFolder) && !SelectRowNamed (step.newName)))
+            {
+                ShowMessage (L"That could not be undone.", MB_ICONWARNING);
+                return;
+            }
+
             if (step.kind == UndoStep::Kind::ImageRename)
             {
-                SelectRowNamed (step.newName);
                 ReportOutcome (m_actions.RenameSelected (step.oldName), L"Undo rename");
             }
             else if (step.kind == UndoStep::Kind::ImageNewFolder)
             {
-                SelectRowNamed (step.newName);
                 ReportOutcome (m_actions.DeleteSelected(), L"Undo new folder");
             }
             else if (step.kind == UndoStep::Kind::ImagePut)
@@ -14334,8 +14343,19 @@ void CassoExplorerWindow::UndoLast()
                     saved.push_back (entry.path().wstring());
                 }
 
-                ReportOutcome (m_actions.PutFiles (saved, MakeAddressPrompt()), L"Undo delete");
-                std::filesystem::remove_all (step.savedDir, ignored);
+                restored = m_actions.PutFiles (saved, MakeAddressPrompt());
+                ReportOutcome (restored, L"Undo delete");
+
+                //  The saved copies are the only ones, so they go only once
+                //  every file is back.
+                if (restored.IsWhole())
+                {
+                    std::filesystem::remove_all (step.savedDir, ignored);
+                }
+                else
+                {
+                    m_undo.push_back (std::move (step));
+                }
             }
 
             FillList();
@@ -14370,8 +14390,12 @@ void CassoExplorerWindow::PasteHere (const std::wstring & folder)
 
 
 
-    IGNORE_RETURN_VALUE (hr, S_OK);
-    m_cutPaths.clear();
+    //  After a paste that failed or was canceled, the cut files remain cut,
+    //  as in File Explorer. Any error is in the shell's dialog.
+    if (SUCCEEDED (hr))
+    {
+        m_cutPaths.clear();
+    }
 
     if (!pasted.created.empty())
     {
@@ -16279,10 +16303,11 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
     int                              answer   = 0;
     CassoExplorerActions::Outcome    outcome;
     CassoExplorerRawDialog::Outcome  where;
+    std::wstring                     target   = m_actions.GetFormatTarget();
 
 
 
-    if (m_actions.GetFormatTarget().empty())
+    if (target.empty())
     {
         return;
     }
@@ -16337,6 +16362,11 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
                                (picked.filename().wstring() + L" already exists. Overwrite it?").c_str(),
                                L"Confirm save as", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" }) != IDOK);
 
+        if (!IsRawTargetCurrent (target))
+        {
+            return;
+        }
+
         outcome = sectors ? m_actions.ReadSectors (where.start, where.sector, where.count, picked.wstring(), where.numbering)
                           : m_actions.ReadBlocks  (where.start, where.count, picked.wstring());
 
@@ -16345,11 +16375,11 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
     }
 
     answer = DxuiMessageBox (GetHwnd(), m_theme,
-                             L"The file's bytes will be written straight onto the disk image, over what is there now.",
+                             (L"The file's bytes will be written straight onto " + CassoExplorerActions::GetLeafName (target) + L", over what is there now.").c_str(),
                              title.c_str(),
                              MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2, { L"Overwrite", L"Cancel" });
 
-    if (answer != IDOK)
+    if (answer != IDOK || !IsRawTargetCurrent (target))
     {
         return;
     }
@@ -16359,6 +16389,30 @@ void CassoExplorerWindow::RunRawVerb (CassoExplorerActions::Verb verb)
 
     ReportOutcome (outcome, L"Write");
     FillList();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::IsRawTargetCurrent
+//
+//  The window's timers run while the dialogs are open, and a refresh can move
+//  the list off the image the raw read or write was chosen for.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::IsRawTargetCurrent (const std::wstring & target)
+{
+    if (m_actions.GetFormatTarget() == target)
+    {
+        return true;
+    }
+
+    ShowMessage (CassoExplorerActions::GetLeafName (target) + L" is no longer selected, so nothing was read or written.", MB_ICONWARNING);
+    return false;
 }
 
 
@@ -16772,10 +16826,11 @@ void CassoExplorerWindow::UpdateStatusTip (const DxuiMouseEvent & ev, POINT poin
 std::wstring CassoExplorerWindow::GetLatestActivity() const
 {
     std::vector<CassoLinkConnections::Activity>  log;
-    FILETIME                                     then = {};
-    FILETIME                                     now  = {};
-    ULARGE_INTEGER                               a    = {};
-    ULARGE_INTEGER                               b    = {};
+    FILETIME                                     local = {};
+    FILETIME                                     then  = {};
+    FILETIME                                     now   = {};
+    ULARGE_INTEGER                               a     = {};
+    ULARGE_INTEGER                               b     = {};
 
 
 
@@ -16792,8 +16847,8 @@ std::wstring CassoExplorerWindow::GetLatestActivity() const
     }
 
     GetSystemTimeAsFileTime (&now);
-    SystemTimeToFileTime (&log.back().time, &then);
-    LocalFileTimeToFileTime (&then, &then);
+    SystemTimeToFileTime (&log.back().time, &local);
+    LocalFileTimeToFileTime (&local, &then);
 
     a.LowPart  = then.dwLowDateTime;
     a.HighPart = then.dwHighDateTime;

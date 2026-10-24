@@ -958,6 +958,7 @@ private:
     bool  RunRecycleBinVerb (CassoExplorerActions::Verb verb);
     std::wstring  GetCommandLabel (int id) const;
     void  RunRawVerb          (CassoExplorerActions::Verb verb);
+    bool  IsRawTargetCurrent  (const std::wstring & target);
     void  ReportOutcome       (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
     void  BeginRename         ();
     void  EndRename           (bool commit);
