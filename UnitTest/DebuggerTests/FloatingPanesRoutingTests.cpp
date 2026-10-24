@@ -2,6 +2,7 @@
 
 #include "Ui/Debugger/FloatingPanes.h"
 #include "Dxui/MockDxuiControl.h"
+#include "EhmTestHelper.h"
 #include "Ui/Chrome/CassoTheme.h"
 
 #include "CppUnitTest.h"
@@ -151,6 +152,7 @@ namespace FloatingPanesRoutingTests
             site.SetPaneLayout (layout);
         }
 
+        HWND                         GetFloatOwner() const override    { return owner; }
         HINSTANCE                    GetFloatInstance() const override { return GetModuleHandleW (nullptr); }
         DxuiDockSite *               GetFloatDockSite() const override { return &site; }
         const DxuiTheme *            GetTheme() const override         { return &theme; }
@@ -188,6 +190,7 @@ namespace FloatingPanesRoutingTests
         MockDxuiControl                                         code;
         std::map<std::wstring, std::unique_ptr<IDxuiControl>>   owned;
         std::map<std::wstring, IDxuiControl *>                  controls;
+        HWND                                                    owner = nullptr;   // a handle that is no window makes the floating window fail to create
     };
 
 
@@ -284,6 +287,35 @@ namespace FloatingPanesRoutingTests
             Assert::AreEqual ((size_t) 1, window->GetSite().GetGroupCount(), L"in one group");
             Assert::AreEqual ((size_t) 2, window->GetSite().GetGroup (0)->GetTabCount(), L"a tab for each pane");
             Assert::IsTrue   (window->GetSite().GetGroup (0)->GetActiveContent() == host.controls[L"stack"], L"the active pane in front");
+        }
+
+
+        //  When a group's floating window cannot be created, every pane in
+        //  the group goes back to the dock site, so none is left floating
+        //  in no window.
+        TEST_METHOD (AGroupWhoseWindowFailsGoesBackToTheDockSite)
+        {
+            GroupHost       host;
+            FloatingPanes   floats (host);
+
+
+
+            host.floats = &floats;
+            host.owner  = reinterpret_cast<HWND> (static_cast<uintptr_t> (0x7FFFFFF0));
+
+            //  A window that cannot be created asserts in DxuiHwndSource.
+            {
+                UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
+                floats.MarkSyncNeeded();
+                floats.Sync();
+            }
+
+            Assert::IsNull  (floats.Find (L"regs"), L"no window was made");
+            Assert::IsFalse (host.site.GetPaneLayout().IsFloating (L"regs"),  L"regs is docked");
+            Assert::IsFalse (host.site.GetPaneLayout().IsFloating (L"stack"), L"stack is docked");
         }
 
 
