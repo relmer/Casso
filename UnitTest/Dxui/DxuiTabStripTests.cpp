@@ -113,6 +113,20 @@ public:
         Assert::AreEqual (0, ts.GetSelected());
     }
 
+    TEST_METHOD (FewerTabs_SelectTheLastOne)
+    {
+        DxuiTabStrip                    ts;
+        std::vector<DxuiTabStrip::Tab>  two = MakeThreeTabs();
+
+        ts.SetTabs (MakeThreeTabs());
+        ts.SetSelected (2);
+
+        two.pop_back();
+        ts.SetTabs (two);
+
+        Assert::AreEqual (1, ts.GetSelected());
+    }
+
     TEST_METHOD (KeyRight_Wraps)
     {
         DxuiTabStrip  ts;

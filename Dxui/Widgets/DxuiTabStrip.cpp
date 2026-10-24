@@ -810,6 +810,9 @@ void DxuiTabStrip::SetTabs (std::vector<Tab> tabs)
 
     m_tabs = std::move (tabs);
 
+    //  With fewer tabs than before, the last one is selected.
+    m_selected = m_tabs.empty() ? 0 : std::clamp (m_selected, 0, (int) m_tabs.size() - 1);
+
     if (m_pressed >= (int) m_tabs.size())
     {
         m_pressed  = -1;
