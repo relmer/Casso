@@ -1145,9 +1145,11 @@ void FloatingPanes::Float (const std::wstring & key)
         HideDragMarks();
         m_host.Repaint();
 
-        //  A resize of the window ends here too, and its new size is saved.
+        //  A resize of the window cancels the drag here, at its first new
+        //  size; the save at the resize's end has the final one.
         m_host.SaveLayout();
     });
+    window->SetOnResized           ([this] { m_host.SaveLayout(); });
     window->SetOnClosed            ([this, key]
     {
         for (const std::wstring & each : m_windowPanes[key])

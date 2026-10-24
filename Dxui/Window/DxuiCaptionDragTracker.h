@@ -34,6 +34,7 @@ public:
         Moved,
         Ended,
         Canceled,
+        Resized,    // a resize's move loop ended, at the window's final size
     };
 
     //  One tick of the system's move loop.

@@ -589,6 +589,9 @@ public:
 
 
 
+        Assert::IsNotNull (entered, L"the entered event");
+        Assert::IsNotNull (nested,  L"the nested event");
+
         writer = std::thread ([=]
         {
             HostInputGate::Entry  outer;

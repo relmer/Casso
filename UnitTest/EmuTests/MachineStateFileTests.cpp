@@ -4,6 +4,10 @@
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Common/Disk2AudioSource.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "EmuTests/FixtureRomSource.h"
+#include "Shell/EmulatorShell.h"
+#include "Shell/HeadlessMachineFactory.h"
+#include "Shell/MachineBuilder.h"
 #include "Shell/MachineStateFile.h"
 #include "Core/StateHash.h"
 #include "Core/StateWriter.h"
@@ -675,6 +679,48 @@ public:
         hr = MachineStateFile::CheckDisks (contents, error);
         Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), hr, L"a slot Casso does not have fails");
         Assert::AreEqual (std::string ("damaged state file"), error.label);
+    }
+
+
+    //  A state another machine saved, with a disk that does not read, fails
+    //  on the disk before that machine is opened: the shell's machine is
+    //  the same, and the error is the disk's, not the switch's.
+    TEST_METHOD (ADamagedDiskFailsBeforeAnotherMachineIsOpened)
+    {
+        constexpr size_t                 kShortBytes = 16;
+        std::unique_ptr<EmulatorShell>   shell       = std::make_unique<EmulatorShell>();
+        MachineBuildServices             services;
+        MachineBuilder                   builder     (shell->GetMachine(), services);
+        FixtureRomSource                 source;
+        std::string                      buildError;
+        std::vector<Byte>                bytes;
+        MachineStateContents             contents;
+        MachineStateError                error;
+        SavedDisk                        damaged;
+        HRESULT                          hr          = S_OK;
+
+
+
+        hr = HeadlessMachineFactory::Build (shell->GetMachine(), builder, source, "Apple2e", TestMachine::Slots::Empty, TestMachine::kSeed, buildError);
+        AssertSucceeded (hr, L"the shell's machine builds");
+
+        hr = MachineStateFile::Build (shell->GetMachine(), bytes, error);
+        AssertSucceeded (hr, L"Build");
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        damaged.slot  = 6;
+        damaged.image = std::vector<Byte> (kShortBytes, Byte (0));
+
+        contents.machineName = L"Apple2c";
+        contents.disks       = { damaged };
+
+        hr = shell->LoadMachineStateBytes (Assemble (MachineStateFile::kFormatVersion, MachineStateFile::kPayloadVersion, contents), error);
+
+        Assert::IsTrue   (FAILED (hr), L"the state loads");
+        Assert::AreEqual (std::string ("damaged disk in state"), error.label, L"the disk's error");
+        Assert::AreEqual (std::wstring (L"Apple2e"), shell->GetMachine().GetCurrentMachineName(), L"no other machine was opened");
     }
 
 

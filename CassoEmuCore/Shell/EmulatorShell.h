@@ -303,6 +303,10 @@ private:
 
 public:
 
+    // A state file's bytes loaded into the machine, the error when they are
+    // not. LoadMachineState reads the file and reports the outcome.
+    HRESULT  LoadMachineStateBytes (const std::vector<Byte> & bytes, struct MachineStateError & outError);
+
     // Automatic machine states: the machine's own state file in the state
     // folder, written at exit and on a switch away from the machine, and
     // resumed at startup and on a switch to it. SaveAutoState and

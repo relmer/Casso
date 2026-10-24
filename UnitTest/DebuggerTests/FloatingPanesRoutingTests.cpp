@@ -96,8 +96,8 @@ namespace FloatingPanesRoutingTests
 
         HINSTANCE                    GetFloatInstance() const override { return GetModuleHandleW (nullptr); }
         DxuiDockSite *               GetFloatDockSite() const override { return &site; }
-        const DxuiTheme *            GetTheme() const override         { return &theme; }
-        void                         SaveLayout() override             { saves++; }
+        const DxuiTheme *            GetTheme() const override         { return isThemed ? &theme : nullptr; }
+        void                         SaveLayout() override             { saves++; savedRect = (floats != nullptr && floats->Find (L"regs") != nullptr) ? floats->Find (L"regs")->GetScreenRect() : RECT {}; }
 
         std::vector<IDxuiControl *>  GetPaneControls (const std::wstring & pane) const override { return (pane == L"regs") ? std::vector<IDxuiControl *> { regs } : std::vector<IDxuiControl *> {}; }
         IDxuiControl *               GetPaneContent  (const std::wstring & pane) const override { return (pane == L"regs") ? regs : nullptr; }
@@ -105,12 +105,14 @@ namespace FloatingPanesRoutingTests
         std::unique_ptr<IDxuiControl>  DetachFloatControl (IDxuiControl * control) override { return (control == regs) ? std::move (owned) : nullptr; }
         void                           AttachFloatControl (std::unique_ptr<IDxuiControl> control) override { owned = std::move (control); }
 
-        mutable DxuiDockSite            site;
-        CassoTheme                      theme = CassoTheme::MakeSkeuomorphic();
-        MockDxuiControl                 code;
-        std::unique_ptr<IDxuiControl>   owned = std::make_unique<MockDxuiControl>();
-        MockDxuiControl               * regs  = static_cast<MockDxuiControl *> (owned.get());
-        int                             saves = 0;
+        mutable DxuiDockSite             site;
+        CassoTheme                       theme     = CassoTheme::MakeSkeuomorphic();
+        bool                             isThemed  = true;   // off during a drag, so no drop marks are drawn in an overlay
+        MockDxuiControl                  code;
+        std::unique_ptr<IDxuiControl>    owned     = std::make_unique<MockDxuiControl>();
+        MockDxuiControl                * regs      = static_cast<MockDxuiControl *> (owned.get());
+        int                              saves     = 0;
+        RECT                             savedRect = {};   // the floating window's rect at the last save
     };
 
 
@@ -180,6 +182,73 @@ namespace FloatingPanesRoutingTests
             Assert::IsNull  (floats.Find (L"regs"), L"the window is gone");
             Assert::IsFalse (host.regs->lastFocused, L"its control lost the focus");
             Assert::IsTrue  (host.owned != nullptr, L"and is back with the host");
+        }
+
+
+        //  A caption drag that ends over the dock site saves the layout, as
+        //  one that ends outside it does, and a resize saves it with the
+        //  window's final size, not its size after the first step.
+        TEST_METHOD (EveryCaptionDragSavesTheLayout)
+        {
+            DockingHost          host;
+            FloatingPanes        floats  (host);
+            DxuiDpiScaler       scaler;
+            DxuiDockedWindow  * window    = nullptr;
+            POINT               cursor    = { 500, 300 };
+            bool                isDown    = false;
+            RECT                rect      = {};
+            RECT                firstStep = {};
+
+
+
+            host.floats = &floats;
+            scaler.SetDpi (96);
+            host.site.Layout (RECT { 0, 0, 1000, 600 }, scaler);
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"regs floats in a window");
+
+            host.isThemed = false;
+            window->SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
+
+            //  Moved by its title bar, and let go over the site. The move
+            //  loop's messages are sent as the system sends them.
+            SendMessageW (window->GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            isDown = true;
+            window->RunModalLoopTick();
+            isDown = false;
+            host.saves = 0;
+            SendMessageW (window->GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
+
+            Assert::AreEqual (1, host.saves, L"a drop over the site saves the layout");
+
+            //  Pressed on its border instead: the second tick finds another
+            //  size, which cancels the drag.
+            SendMessageW (window->GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            isDown = true;
+            window->RunModalLoopTick();
+
+            rect = window->GetScreenRect();
+            rect.right += 40;
+            window->SetScreenRect (rect);
+            window->RunModalLoopTick();
+
+            firstStep   = window->GetScreenRect();
+            rect.right -= 80;
+            window->SetScreenRect (rect);
+            window->RunModalLoopTick();
+
+            rect = window->GetScreenRect();
+            Assert::IsFalse (EqualRect (&rect, &firstStep) != FALSE, L"the second step changes the size");
+
+            host.saves = 0;
+            isDown     = false;
+            SendMessageW (window->GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
+
+            Assert::IsTrue (host.saves > 0, L"the end of a resize saves the layout");
+            Assert::IsTrue (EqualRect (&host.savedRect, &rect) != FALSE, L"with the window's final rect");
         }
     };
 }

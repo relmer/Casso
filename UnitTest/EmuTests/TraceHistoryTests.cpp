@@ -237,30 +237,26 @@ namespace TraceHistoryTests
 
         TEST_METHOD (ACycleFindsItsInstructionWhileTheMachineRuns)
         {
+            auto                       stopped = std::make_unique<TraceRig>();   // heap: two rigs overflow the frame (C6262)
+            std::unique_ptr<TraceRig>  running;
             std::vector<TraceRecord>   window;
-            uint64_t                   cycle  = 0;
-            size_t                     index  = 0;
-
-            {
-                TraceRig  stopped;
+            uint64_t                   cycle   = 0;
+            size_t                     index   = 0;
 
 
 
-                stopped.trace.SetHistory (&stopped.logs.GetTraceHistory());
-                stopped.trace.GetWindow (1000, 1, window);
-                Assert::AreEqual ((size_t) 1, window.size());
+            stopped->trace.SetHistory (&stopped->logs.GetTraceHistory());
+            stopped->trace.GetWindow (1000, 1, window);
+            Assert::AreEqual ((size_t) 1, window.size());
 
-                cycle = window[0].cycles;
-            }
+            cycle = window[0].cycles;
+            stopped.reset();
 
-            TraceRig  running;
+            running = std::make_unique<TraceRig>();
+            running->logs.GetTraceHistory().SetIsStopped ([] { return false; });
+            running->trace.SetHistory (&running->logs.GetTraceHistory());
 
-
-
-            running.logs.GetTraceHistory().SetIsStopped ([] { return false; });
-            running.trace.SetHistory (&running.logs.GetTraceHistory());
-
-            Assert::IsTrue   (running.trace.TryFindCycle (cycle, index));
+            Assert::IsTrue   (running->trace.TryFindCycle (cycle, index));
             Assert::AreEqual ((size_t) 1000, index, L"the same instruction as on the stopped machine");
         }
 

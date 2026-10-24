@@ -158,34 +158,68 @@ Error:
 //
 //  LoadMachineState
 //
-//  CPU thread. Reads the file and checks its disk images before anything
-//  changes; a state another machine kind saved opens that machine first, as
-//  opening a machine does, and the rest is checked on it. History is dropped and starts again at the loaded point,
-//  and the debugger hears of it as a machine replaced.
+//  CPU thread. The file's bytes are loaded as LoadMachineStateBytes loads
+//  them, and the outcome is posted as a notice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
 {
-    HRESULT                hr             = S_OK;
-    std::vector<Byte>      bytes;
-    MachineStateContents   contents;
-    MachineStateError      error;
-    AppleSpeaker         * speaker        = nullptr;
-    bool                   isOtherMachine = false;
-    bool                   isSwitched     = false;
+    HRESULT              hr    = S_OK;
+    std::vector<Byte>    bytes;
+    MachineStateError    error;
 
 
 
     hr = ReadStateFile (path, bytes);
     CHRF (hr, error = MachineStateFile::MakeError ("file not read", "The state file could not be read."));
 
-    hr = MachineStateFile::Parse (bytes, contents, error);
+    hr = LoadMachineStateBytes (bytes, error);
+    CHR (hr);
+
+    m_chrome->PostNotice (L"Machine state loaded from " + path.wstring() + L".");
+
+Error:
+    if (FAILED (hr))
+    {
+        m_chrome->PostNotice (FormatStateError (L"loaded", error));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadMachineStateBytes
+//
+//  CPU thread. Parses the state and checks its disk images before anything
+//  changes; a state another machine kind saved opens that machine first, as
+//  opening a machine does, and the rest is checked on it. History is dropped
+//  and starts again at the loaded point, and the debugger is notified of a
+//  machine replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::LoadMachineStateBytes (
+    const std::vector<Byte>  & bytes,
+    MachineStateError        & outError)
+{
+    HRESULT                hr             = S_OK;
+    MachineStateContents   contents;
+    AppleSpeaker         * speaker        = nullptr;
+    bool                   isOtherMachine = false;
+    bool                   isSwitched     = false;
+
+
+
+    hr = MachineStateFile::Parse (bytes, contents, outError);
     CHR (hr);
 
     //  The disk images are checked here, with no machine, before another
     //  machine is opened.
-    hr = MachineStateFile::CheckDisks (contents, error);
+    hr = MachineStateFile::CheckDisks (contents, outError);
     CHR (hr);
 
     isOtherMachine = contents.machineName != m_machine.GetCurrentMachineName();
@@ -198,17 +232,17 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
         m_isLoadingStateSwitch = true;
         hr = SwitchMachine (contents.machineName);
         m_isLoadingStateSwitch = false;
-        CHRF (hr, error = MachineStateFile::MakeError ("machine not opened", "The machine that saved the state could not be opened."));
+        CHRF (hr, outError = MachineStateFile::MakeError ("machine not opened", "The machine that saved the state could not be opened."));
 
         isSwitched = true;
     }
 
-    hr = MachineStateFile::Check (m_machine, contents, error);
+    hr = MachineStateFile::Check (m_machine, contents, outError);
     CHR (hr);
 
     m_debugger->StopReverseRecording();
 
-    hr = MachineStateFile::Apply (m_machine, contents, error);
+    hr = MachineStateFile::Apply (m_machine, contents, outError);
 
     m_debugger->StartReverseRecording();
 
@@ -229,18 +263,13 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
     m_renderer->RenderFramebuffer();
     m_renderer->PublishFramebuffer();
 
-    m_chrome->PostNotice (L"Machine state loaded from " + path.wstring() + L".");
-
 Error:
     if (FAILED (hr) && isSwitched)
     {
-        error.detail += " The machine that saved the state is open now, and nothing was loaded into it.";
+        outError.detail += " The machine that saved the state is open now, and nothing was loaded into it.";
     }
 
-    if (FAILED (hr))
-    {
-        m_chrome->PostNotice (FormatStateError (L"loaded", error));
-    }
+    return hr;
 }
 
 
