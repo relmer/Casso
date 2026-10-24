@@ -808,14 +808,18 @@ on UDP 6511, which binds wide whatever the setting says; and Casso's port
 forwards, which already bind loopback until connections from other computers
 are allowed.
 
-- [ ] T248 Declare the fixed inbound rules in `Installer/Package.appxmanifest`:
+- [X] T248 Declare the fixed inbound rules in `Installer/Package.appxmanifest`:
   the `desktop2` namespace added and made ignorable, a package-level
   `windows.firewallRules` extension, and one narrow rule each for UDP 6510,
   UDP 6511 and TCP 6400 rather than admitting either program whole. Confirm
   while doing it whether the extension needs a restricted capability beside
   it, and that the rules survive a winget upgrade rather than being asked
   again. Per FR-099.
-- [ ] T249 Say at `UdpNat::FindOrCreateFlow`'s bind why it binds the
+
+  No capability: the `desktop2:FirewallRules` schema lists none, and makeappx
+  packs the manifest with only `runFullTrust`. The upgrade check is part of
+  T256, since it takes an installed package.
+- [X] T249 Say at `UdpNat::FindOrCreateFlow`'s bind why it binds the
   any-address: it is the guest's own outbound path, so the loopback address
   would cut the Apple off from the network, and `UdpNat::IsAllowed` is what
   refuses unsolicited senders. `PortForwarder` binds narrow because its socket
@@ -851,8 +855,9 @@ are allowed.
   public and turn on the Uthernet II with nothing refused; then refuse by
   hand and check the warning, the tip, and that the action restores the
   listing with neither program restarted; and check a serial connection
-  carries no warning throughout. Record in `validation.md`. Per SC-034,
-  SC-035 and SC-036.
+  carries no warning throughout. Then install a package with a higher
+  version over it and confirm the rules are in place with no prompt. Record
+  in `validation.md`. Per SC-034, SC-035 and SC-036.
 
 **Dependencies**: T248 and T249 and T250 stand alone and can go in any order.
 T251 before T252, T253, T254 and T255. T256 last. T254 and T255 can run

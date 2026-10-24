@@ -98,6 +98,12 @@ Error:
 //  The same port number as the guest's when the PC has it free, otherwise
 //  an ephemeral one.
 //
+//  The socket binds the any-address even with lanAccess off, unlike
+//  PortForwarder's. A flow is the guest's outbound path to the network, so a
+//  loopback bind cuts the Apple off from everything beyond the PC. A port
+//  forward's socket is inbound only, so it binds loopback until lanAccess is
+//  on. Here IsAllowed drops datagrams from senders the guest has not sent to.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 UdpNat::Flow * UdpNat::FindOrCreateFlow (

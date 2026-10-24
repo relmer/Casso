@@ -10,8 +10,9 @@
     xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
     xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
     xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+    xmlns:desktop2="http://schemas.microsoft.com/appx/manifest/desktop/windows10/2"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-    IgnorableNamespaces="uap uap3 desktop rescap">
+    IgnorableNamespaces="uap uap3 desktop desktop2 rescap">
 
     <!--
       Publisher must match the signing certificate's subject exactly. Windows
@@ -128,5 +129,32 @@
         </Application>
 
     </Applications>
+
+    <!--
+      Inbound rules for the fixed ports only, each one protocol and one port
+      rather than the whole program. Every profile, public included, since
+      Windows calls a new network public: nothing binds these ports until the
+      user turns on a network link, so a rule for an idle program admits
+      nothing. Ports the user chooses, such as a port forward's, are admitted
+      at run time instead.
+    -->
+    <Extensions>
+        <desktop2:Extension Category="windows.firewallRules">
+            <desktop2:FirewallRules Executable="CassoExplorer.exe">
+                <!-- Announcements from Apples on the network. -->
+                <desktop2:Rule Direction="in" IPProtocol="UDP" Profile="all" LocalPortMin="6510" LocalPortMax="6510" />
+                <!-- A Wi-Fi modem dialing in. -->
+                <desktop2:Rule Direction="in" IPProtocol="TCP" Profile="all" LocalPortMin="6400" LocalPortMax="6400" />
+            </desktop2:FirewallRules>
+        </desktop2:Extension>
+        <desktop2:Extension Category="windows.firewallRules">
+            <desktop2:FirewallRules Executable="Casso.exe">
+                <!-- The source port of the emulated Uthernet II's
+                     announcements. The address translation drops a datagram
+                     from a sender the guest has not sent to. -->
+                <desktop2:Rule Direction="in" IPProtocol="UDP" Profile="all" LocalPortMin="6511" LocalPortMax="6511" />
+            </desktop2:FirewallRules>
+        </desktop2:Extension>
+    </Extensions>
 
 </Package>
