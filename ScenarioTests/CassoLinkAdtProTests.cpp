@@ -97,29 +97,37 @@ public:
 
     struct Rig
     {
-        TestMachine                           machine { "Apple2c" };
+        TestMachine                           machine;
         InMemoryCassoLinkFolder               folder;
         std::shared_ptr<InProcessByteStream>  machineEnd;
         std::shared_ptr<InProcessByteStream>  hostEnd;
         std::unique_ptr<CassoLinkHost>        host;
         std::jthread                          serving;
 
-        //  Without the host, the line is left for a test's own session.
-        explicit Rig (bool serve = true)
+        //  Without the host, the line is left for a session the test makes. The
+        //  disk booted is ADTPro's client unless another is given, on a //c
+        //  through its port 2 unless another machine and its serial slot are.
+        explicit Rig (bool serve = true, std::vector<Byte> boot = {}, const std::string & model = "Apple2c", int port = 2,
+                      const std::function<void (MachineConfig &)> & configure = [] (MachineConfig &) {}) :
+            machine (model, configure)
         {
             FixtureProvider       fixtures;
             std::vector<uint8_t>  client;
 
-            AssertSucceeded (fixtures.OpenFixture ("CassoLink/ADTPRO-2.1.0.DSK", client));
+            if (boot.empty())
+            {
+                AssertSucceeded (fixtures.OpenFixture ("CassoLink/ADTPRO-2.1.0.DSK", client));
+                boot.assign (client.begin(), client.end());
+            }
 
             machine.SetVideoTiming (std::make_unique<VideoTiming>());
             machine.GetCpu()->SetVideoTiming (machine.GetVideoTiming());
             machine.PowerCycle();
 
-            AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, std::vector<Byte> (client.begin(), client.end())));
+            AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "", DiskFormat::Dsk, boot));
 
             InProcessByteStream::CreatePair (machineEnd, hostEnd);
-            Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+            Assert::AreEqual (S_OK, machine.AttachSerialStream (port, machineEnd));
 
             if (!serve)
             {
@@ -276,23 +284,93 @@ public:
     }
 
 
-    TEST_METHOD (AReceivedDiskIsTheImageTheServerHeld)
+    //  ADTPro's standalone VSDrive driver, run from the prompt of ADTPro's
+    //  virtual drive disk, installs the served images as slot 1's drives and
+    //  returns to BASIC, so ordinary ProDOS commands then catalog and write
+    //  them over the link: here a BASIC program saved to the served
+    //  Virtual.po. The served drive is a copy of ADTPro's client disk.
+    static void  RunStandaloneVsDrive (const std::string & model, int port, const std::function<void (MachineConfig &)> & configure)
     {
-        Rig                rig;
-        std::vector<Byte>  written;
+        FixtureProvider       fixtures;
+        std::vector<uint8_t>  client;
+        std::vector<Byte>     vdrive;
+        std::vector<Byte>     image;
+        std::string           saved;
 
-        CassoLinkHost::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), rig.folder.files["VDRIVE-2.1.0.DSK"]);
+        CassoLinkHost::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), vdrive);
+        AssertSucceeded (fixtures.OpenFixture ("CassoLink/ADTPRO-2.1.0.DSK", client));
 
-        rig.Start ('R');
-        rig.Type ("VDRIVE-2.1.0.DSK\r");
-        rig.PickDriveOne();
+        Rig  rig (true, vdrive, model, port, configure);
 
-        Assert::IsTrue (rig.RunUntil ("COMPLETE", 600'000'000), L"the receive completes");
+        CassoLinkHost::ToBlockOrder ("CLIENT.DSK", std::vector<Byte> (client.begin(), client.end()), rig.folder.files["Virtual.po"]);
 
-        AssertSucceeded (rig.machine.GetDiskStore().GetImage (6, 0)->Serialize (written));
-        Assert::IsTrue (written == rig.folder.files["VDRIVE-2.1.0.DSK"], L"drive 1 now has the image, sector for sector");
+        Assert::IsTrue (rig.RunUntil ("CAT,S1", 60'000'000), TextEncoding::NarrowToWide ("the virtual drive disk boots to its instructions, not:\n" + rig.Screen()).c_str());
+
+        rig.Type ("-VSDRIVE\r");
+        rig.machine.RunCycles (20'000'000);
+        rig.Type ("CAT,S1\r");
+        Assert::IsTrue (rig.RunUntil ("ADTPRO.2.1.0", 100'000'000), TextEncoding::NarrowToWide ("the served image is cataloged on slot 1, not:\n" + rig.Screen()).c_str());
+
+        rig.Type ("NEW\r10 PRINT 1\rSAVE /ADTPRO.2.1.0/CASSOTEST\r");
+        rig.machine.RunCycles (100'000'000);
+
+        image = rig.folder.files["Virtual.po"];
+        saved = std::string (image.begin(), image.end());
+
+        Assert::IsTrue (rig.folder.blockWrites > 0,                    L"the save writes blocks over the link");
+        Assert::IsTrue (saved.find ("CASSOTEST") != std::string::npos, TextEncoding::NarrowToWide ("and the program is in the served image's catalog:\n" + rig.Screen()).c_str());
     }
 
+
+    TEST_METHOD (TheStandaloneVsDrive_OnAIIcsPort2_ServesTheFoldersImagesToProDos)
+    {
+        RunStandaloneVsDrive ("Apple2c", 2, [] (MachineConfig &) {});
+    }
+
+
+    //  The same over a Super Serial Card in slot 2 of a //e, which VSDrive
+    //  finds by the card's firmware.
+    TEST_METHOD (TheStandaloneVsDrive_OnASuperSerialCard_ServesTheFoldersImagesToProDos)
+    {
+        std::filesystem::path  firmware = RequireSuperSerialFirmware();
+
+        RunStandaloneVsDrive ("Apple2e", 2, [&firmware] (MachineConfig & config)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                if (slot.device == kpszSuperSerialCardDevice)
+                {
+                    slot.slot           = 2;
+                    slot.enabled        = true;
+                    slot.firmwarePath   = firmware.string();
+                    slot.firmwareStatus = SlotFirmwareStatus::Present;
+                    slot.ports.clear();
+                }
+            }
+        });
+    }
+
+
+    //  Apple's firmware for the card, which the user supplies.
+    static std::filesystem::path  RequireSuperSerialFirmware()
+    {
+        char *                 root = nullptr;
+        size_t                 len  = 0;
+        std::filesystem::path  path;
+        std::error_code        ec;
+
+        if (_dupenv_s (&root, &len, "LOCALAPPDATA") == 0 && root != nullptr)
+        {
+            path = std::filesystem::path (root) / "Casso" / "Devices" / "SuperSerialCard" / "SSC.rom";
+            free (root);
+        }
+
+        Assert::AreEqual<uintmax_t> (2048, std::filesystem::file_size (path, ec),
+            L"Apple's Super Serial Card firmware is REQUIRED by this case and was not found at "
+            L"%LOCALAPPDATA%\\Casso\\Devices\\SuperSerialCard\\SSC.rom");
+
+        return path;
+    }
 
     //  DIR as the client draws it: the header, a blank row and the dashes,
     //  a full page of files on rows 3 to 20, and Z for the next page, which
