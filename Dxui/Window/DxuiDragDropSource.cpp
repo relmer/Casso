@@ -79,15 +79,15 @@ HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEff
 
     //  The drag image given, or the shell's, with room for a target's drop
     //  description. With no window given, the shell builds the image from the
-    //  object's formats. A drag image that cannot be set takes the shell's
-    //  path too, so the drag goes without its picture but with the helper that
-    //  draws the target's words. A drag with neither works as a bare pointer.
+    //  object's formats. A drag without one works as a bare pointer. A drag
+    //  image that fails is not followed by the shell's, which would be drawn
+    //  beside whatever part of it InitializeFromBitmap set on the object.
     if (dragImage != nullptr)
     {
         hrImage = SetDragImage (static_cast<IDataObject *> (source), *dragImage);
+        IGNORE_RETURN_VALUE (hrImage, S_OK);
     }
-
-    if (dragImage == nullptr || FAILED (hrImage))
+    else
     {
         hrImage = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
 
