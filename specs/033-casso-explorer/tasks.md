@@ -687,6 +687,13 @@ before the tasks were written.
 - [X] T237 [US16] Set a Super Serial Card to printer mode when the ImageWriter II is chosen on it, saving SW1 as `sw1BeforePrinter`; restore SW1-5 and SW1-6 when the printer moves away if the card is in printer mode; disconnect the printer when the card is switched out of printer mode; report each change with `SettingsPanelState::TakeNotice` and `SettingsSheet::ReportCrossTabChange`; offer the printer only on the Printing tab. Tests in `UnitTest/UiTests/SettingsPanelStateTests.cpp` and `HardwarePageTests.cpp`. Per FR-095a and R32.
 - [X] T238 [P] [US16] Scroll a Standard-style `DxuiTabStrip` with arrows when its tabs do not fit, in `Dxui/Widgets/DxuiTabStrip.cpp`; pin a `DxuiInfoTip` until a click elsewhere, a focus change, Escape or a second click, with Escape closing it before a dialog's cancel, in `Dxui/Widgets/DxuiInfoTip.cpp` and `Dxui/Window/DxuiWindow.cpp`. Tests in `UnitTest/Dxui/DxuiTabStripTests.cpp` and `DxuiInfoTipTests.cpp`. Per FR-095b.
 
+  The focus change had no call site: `DxuiInfoTip::OnFocusChanged` was
+  tested directly, and nothing called it when the window lost focus, so a
+  pinned tip was up after a switch to another window. `DxuiHwndSource`
+  calls `DxuiInfoTip::CloseOpen` on `WM_KILLFOCUS`, with a test through the
+  host in `UnitTest/Dxui/DxuiHwndSourceClientTests.cpp`. Found by a
+  real-input walk on 2026-10-24.
+
 ## Phase 21d: File operations and the code review (FR-013e, FR-016, FR-018b to FR-018d, FR-088)
 
 **Purpose**: the Session 2026-10-23 decisions, and the defects a review of

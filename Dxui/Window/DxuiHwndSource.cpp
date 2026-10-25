@@ -2,6 +2,7 @@
 
 #include "DxuiHwndSource.h"
 #include "DxuiCaptionBar.h"
+#include "Widgets/DxuiInfoTip.h"
 #include "Widgets/DxuiTooltip.h"
 #include "DxuiPopupHost.h"
 #include "Widgets/DxuiPopupMenu.h"
@@ -2995,6 +2996,15 @@ bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRES
     if (msg >= WM_APP && msg <= 0xBFFF)
     {
         return IsClaimed (m_client->OnAppMessage (msg, wp, lp), RepaintOnClaim::No);
+    }
+
+    //  A pinned info tip closes when focus moves from its window to another
+    //  window of this program or another program, as it does on a click
+    //  elsewhere. Here rather than in DxuiWindow, so a window that overrides
+    //  OnKillFocus closes it too.
+    if (msg == WM_KILLFOCUS)
+    {
+        DxuiInfoTip::CloseOpen();
     }
 
     switch (msg)
