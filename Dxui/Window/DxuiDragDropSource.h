@@ -99,7 +99,14 @@ private:
 
     static HRESULT  ReadStream (IStream * stream, std::vector<uint8_t> & outBytes);
 
+    //  A line in %TEMP%\DxuiDragTrace.log, in a debug build only, to find why
+    //  a drag out of an image has no drop tip: the drag image's setup, each
+    //  format set on the object, and the shell's IsShowingLayered.
+    static void     Trace (const std::wstring & line);
+    static std::wstring  GetFormatName (CLIPFORMAT format);
+
     std::atomic<ULONG>                                         m_refCount = 1;
+    DWORD                                                       m_tracedLayered = MAXDWORD;   // IsShowingLayered as last traced
     std::vector<Format>                                         m_formats;
     std::map<std::pair<CLIPFORMAT, int>, std::vector<uint8_t>>  m_rendered;
     std::map<std::pair<CLIPFORMAT, int>, int>                   m_renderCounts;

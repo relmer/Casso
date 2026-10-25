@@ -784,6 +784,15 @@ listed in validation.md.
   data object through `SetData` is what to look at next. Checking it takes a real drag
   to check.
 
+  A debug build writes `%TEMP%\DxuiDragTrace.log`: the drag image's setup
+  and its HRESULT, each format set on the object, the shell's
+  `IsShowingLayered` as it changes, and how `DoDragDrop` ended. After one drag
+  of a file out of an image onto a File Explorer folder, the log has which
+  half fails. With `IsShowingLayered` at 0 throughout, the shell never put its
+  drag window up for this object. With it set and no `DropDescription`
+  among the formats, File Explorer never sent the words. Take the trace out
+  once the cause is found.
+
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 
 **Purpose**: a bare //c brought up from the PC, updated from it, and the

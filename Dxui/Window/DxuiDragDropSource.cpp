@@ -98,11 +98,15 @@ HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEff
 
             hrImage = helper->InitializeFromWindow (nullptr, &startScreen, static_cast<IDataObject *> (source));
             IGNORE_RETURN_VALUE (hrImage, S_OK);
+
+            Trace (std::format (L"InitializeFromWindow -> 0x{:08X}", (unsigned) hrImage));
         }
     }
 
     hr = DoDragDrop (static_cast<IDataObject *> (source), static_cast<IDropSource *> (source),
                      allowedEffects, &resultEffect);
+
+    Trace (std::format (L"DoDragDrop -> 0x{:08X} effect {}", (unsigned) hr, resultEffect));
 
     //  A cancel and a drop both end the drag normally; only a failure is
     //  reported as one.
@@ -152,16 +156,19 @@ HRESULT DxuiDragDropSource::SetDragImage (IDataObject * data, const DxuiIconImag
     SHDRAGIMAGE                  drag   = {};
     size_t                       pixels = (size_t) image.width * (size_t) image.height;
     bool                         sized  = image.width > 0 && image.height > 0 && image.bgraPremul.size() == pixels;
+    const wchar_t              * step   = L"size";
 
 
 
     CBRAEx (data != nullptr, E_INVALIDARG);
     CBREx  (sized, E_INVALIDARG);
 
-    hr = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
+    step = L"CoCreateInstance";
+    hr   = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
     CHR (hr);
 
-    hr = helper->SetFlags (DSH_ALLOWDROPDESCRIPTIONTEXT);
+    step = L"SetFlags";
+    hr   = helper->SetFlags (DSH_ALLOWDROPDESCRIPTIONTEXT);
     CHR (hr);
 
     //  Top-down, as the image's rows run.
@@ -182,7 +189,8 @@ HRESULT DxuiDragDropSource::SetDragImage (IDataObject * data, const DxuiIconImag
     drag.hbmpDragImage = bitmap;
     drag.crColorKey    = CLR_NONE;
 
-    hr = helper->InitializeFromBitmap (&drag, data);
+    step = L"InitializeFromBitmap";
+    hr   = helper->InitializeFromBitmap (&drag, data);
     CHR (hr);
 
     bitmap = nullptr;
@@ -192,6 +200,8 @@ Error:
     {
         DeleteObject (bitmap);
     }
+
+    Trace (std::format (L"SetDragImage {}x{} at {} -> 0x{:08X}", image.width, image.height, step, (unsigned) hr));
 
     return hr;
 }
@@ -278,6 +288,76 @@ STDMETHODIMP_(ULONG) DxuiDragDropSource::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiDragDropSource::Trace
+//
+//  Appended with the tick count, which separates two drags in a row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiDragDropSource::Trace (const std::wstring & line)
+{
+#if defined (_DEBUG)
+    wchar_t       folder[MAX_PATH] = {};
+    DWORD         length           = GetTempPathW (ARRAYSIZE (folder), folder);
+    HANDLE        file             = INVALID_HANDLE_VALUE;
+    std::wstring  text             = std::format (L"{} {}\r\n", GetTickCount64(), line);
+    int           bytes            = 0;
+    std::string   utf8;
+    DWORD         written          = 0;
+    BOOL          wrote            = FALSE;
+
+
+
+    if (length > 0 && length < ARRAYSIZE (folder))
+    {
+        file = CreateFileW ((std::wstring (folder) + L"DxuiDragTrace.log").c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                            OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    }
+
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        bytes = WideCharToMultiByte (CP_UTF8, 0, text.c_str(), (int) text.size(), nullptr, 0, nullptr, nullptr);
+        utf8.resize ((size_t) (std::max) (bytes, 0));
+        WideCharToMultiByte (CP_UTF8, 0, text.c_str(), (int) text.size(), utf8.data(), bytes, nullptr, nullptr);
+
+        wrote = WriteFile (file, utf8.data(), (DWORD) utf8.size(), &written, nullptr);
+        UNREFERENCED_PARAMETER (wrote);
+
+        CloseHandle (file);
+    }
+#else
+    UNREFERENCED_PARAMETER (line);
+#endif
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDragDropSource::GetFormatName
+//
+//  A registered format by its name, and a standard one by its number.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDragDropSource::GetFormatName (CLIPFORMAT format)
+{
+    wchar_t  name[128] = {};
+    int      length    = GetClipboardFormatNameW (format, name, ARRAYSIZE (name));
+
+
+
+    return (length > 0) ? std::wstring (name, (size_t) length) : std::to_wstring ((unsigned) format);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiDragDropSource::QueryContinueDrag
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -309,12 +389,20 @@ STDMETHODIMP DxuiDragDropSource::QueryContinueDrag (BOOL escapePressed, DWORD ke
 
 STDMETHODIMP DxuiDragDropSource::GiveFeedback (DWORD effect)
 {
-    UNREFERENCED_PARAMETER (effect);
+    DWORD  layered = GetStoredDword (L"IsShowingLayered", 0);
+
+
+
+    if (layered != m_tracedLayered)
+    {
+        m_tracedLayered = layered;
+        Trace (std::format (L"GiveFeedback: IsShowingLayered {} effect {}", layered, effect));
+    }
 
     //  While the shell's drag window is up, it draws the drop's icon and words
-    //  itself, as under File Explorer's drags; OLE's own cursors would cover
-    //  them, so the pointer is a plain arrow.
-    if (GetStoredDword (L"IsShowingLayered", 0) != 0)
+    //  itself, as under File Explorer's drags; OLE's cursors would cover them,
+    //  so the pointer is a plain arrow.
+    if (layered != 0)
     {
         SetCursor (LoadCursorW (nullptr, IDC_ARROW));
         return S_OK;
@@ -614,6 +702,7 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
     std::vector<uint8_t>   bytes;
     bool                   global = false;
     bool                   stream = false;
+    DWORD                  tymed  = (medium != nullptr) ? medium->tymed : 0;
 
 
 
@@ -646,6 +735,10 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
     }
 
 Error:
+    Trace (std::format (L"SetData {} tymed {} bytes {} -> 0x{:08X}", (format != nullptr) ? GetFormatName (format->cfFormat) : std::wstring (L"(null)"),
+                        (unsigned) tymed,
+                        (format != nullptr && m_stored.contains (format->cfFormat)) ? m_stored[format->cfFormat].size() : (size_t) 0, (unsigned) hr));
+
     return hr;
 }
 
