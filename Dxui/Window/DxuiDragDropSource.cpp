@@ -602,6 +602,9 @@ Error:
         GlobalFree (global);
     }
 
+    Trace (std::format (L"GetData {} tymed {} {} -> 0x{:08X}", (format != nullptr) ? GetFormatName (format->cfFormat) : std::wstring (L"(null)"),
+                        (format != nullptr) ? (unsigned) format->tymed : 0u, stored ? L"stored" : L"built", (unsigned) hr));
+
     return hr;
 }
 
@@ -646,6 +649,7 @@ STDMETHODIMP DxuiDragDropSource::QueryGetData (FORMATETC * format)
 
     if (FindFormat (format->cfFormat) == nullptr && !m_stored.contains (format->cfFormat))
     {
+        Trace (std::format (L"QueryGetData {} not offered", GetFormatName (format->cfFormat)));
         return DV_E_FORMATETC;
     }
 
