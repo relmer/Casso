@@ -707,6 +707,7 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
     bool                   global = false;
     bool                   stream = false;
     DWORD                  tymed  = (medium != nullptr) ? medium->tymed : 0;
+    DWORD                  value  = MAXDWORD;   // the first four bytes, for the trace
 
 
 
@@ -730,6 +731,11 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
         CHR (hr);
     }
 
+    if (bytes.size() >= sizeof (DWORD))
+    {
+        memcpy (&value, bytes.data(), sizeof (DWORD));
+    }
+
     m_stored[format->cfFormat]      = std::move (bytes);
     m_storedTymed[format->cfFormat] = medium->tymed;
 
@@ -739,9 +745,10 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
     }
 
 Error:
-    Trace (std::format (L"SetData {} tymed {} bytes {} -> 0x{:08X}", (format != nullptr) ? GetFormatName (format->cfFormat) : std::wstring (L"(null)"),
+    Trace (std::format (L"SetData {} tymed {} bytes {} value {} -> 0x{:08X}", (format != nullptr) ? GetFormatName (format->cfFormat) : std::wstring (L"(null)"),
                         (unsigned) tymed,
-                        (format != nullptr && m_stored.contains (format->cfFormat)) ? m_stored[format->cfFormat].size() : (size_t) 0, (unsigned) hr));
+                        (format != nullptr && m_stored.contains (format->cfFormat)) ? m_stored[format->cfFormat].size() : (size_t) 0,
+                        value, (unsigned) hr));
 
     return hr;
 }
