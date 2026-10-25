@@ -282,6 +282,14 @@ public:
     void  SetBanner (const std::string & banner);
 
 
+    //  What is damaged in a file that could not be read, in the file
+    //  system's terms: "the track/sector list is damaged" on DOS 3.3 and
+    //  "the index block is damaged" on ProDOS, for a chain that leads off the
+    //  disk, loops or ends early. Empty for any other failure. A message
+    //  has it after the file, as "Unable to read HELLO: ...".
+    static std::string  DescribeDamage (HRESULT hr, VolumeKind kind);
+
+
 private:
     void  RunList   (const CommandLineOptions & options, DiskCommandResult & result);
     void  RunGet    (const CommandLineOptions & options, DiskCommandResult & result);

@@ -391,6 +391,34 @@ std::string DiskCommandRunner::DescribeListingRefusal (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskCommandRunner::DescribeDamage
+//
+//  Both volumes return ERROR_HANDLE_EOF for a file whose sectors cannot be
+//  gathered: DOS 3.3 from its track/sector list, ProDOS from its index
+//  block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DiskCommandRunner::DescribeDamage (HRESULT hr, VolumeKind kind)
+{
+    std::string  damage;
+
+
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
+    {
+        damage = (kind == VolumeKind::ProDos) ? "the index block is damaged" : "the track/sector list is damaged";
+    }
+
+    return damage;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskCommandRunner::DescribeVolumeRefusal
 //
 //  A verdict from the filesystem layer, in words.
@@ -438,7 +466,7 @@ std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
           "is a directory, and delete takes files only. Use rmdir, which removes "
           "a directory and, with --recurse, everything below it" },
         { HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF),
-          "has a sector chain that cannot be followed to its end" },
+          "is damaged and cannot be read" },
         { HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
           "cannot be the volume's startup program. The image has no operating "
           "system on the boot tracks" },
@@ -995,6 +1023,7 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     FilePayload                    payload;
     FilePath                       path;
     std::string                    name;
+    std::string                    damage;
     char                           note[128] = {};
 
 
@@ -1018,14 +1047,15 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     }
 
     result.failure = hr;
+    damage         = DescribeDamage (hr, opened.kind);
 
-    //  For a name that several entries share, the message explains how to
-    //  select one, and a chain that cannot be followed is reported as such.
+    //  A damaged file is reported in the file system's terms, and for a name
+    //  that several entries share, the message has how to select one.
     //  Any other read failure has the generic message.
-    CHRF (hr, result.Fail (options.disk.imagePath, name,
-                    (hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME) || hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
-                        ? ApplyPrefix (DescribeVolumeRefusal (hr))
-                        : std::string ("could not be read from this volume")));
+    CHRF (hr, !damage.empty() ? result.Fail (options.disk.imagePath, std::string(), std::format ("Unable to read {}: {}", name, damage))
+            : result.Fail (options.disk.imagePath, name,
+                           (hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME)) ? ApplyPrefix (DescribeVolumeRefusal (hr))
+                                                                       : std::string ("could not be read from this volume")));
 
     hr = ApplyEncoding (options, payload, result);
     CHR (hr);

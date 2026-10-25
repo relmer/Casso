@@ -153,7 +153,7 @@ public:
         formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log);
 
         Assert::IsTrue   (formats[1].render (0, contents) == HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
-        Assert::AreEqual (std::wstring (L"HELLO has a damaged sector chain"), log->GetFailure());
+        Assert::AreEqual (std::wstring (L"Unable to copy HELLO: the track/sector list is damaged"), log->GetFailure());
         Assert::IsFalse  (log->IsWhole());
     }
 

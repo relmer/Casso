@@ -73,7 +73,7 @@ std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr)
     if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))          { return "is larger than this file system can record"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED)) { return "is a directory, which this operation does not handle"; }
     if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))       { return "needs a load address"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))              { return "has a damaged sector chain"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))              { return "is damaged and cannot be read"; }
 
     return std::format ("could not be processed (0x{:08X})", (unsigned) hr);
 }

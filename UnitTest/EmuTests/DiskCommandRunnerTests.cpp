@@ -4667,4 +4667,16 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, runner.Run (options).exitStatus,
                           L"and a direct-boot disk that is not a WOZ is refused");
     }
+
+
+    //  A file whose sectors cannot be gathered is damaged in its file
+    //  system's terms; any other failure has no damage to name.
+    TEST_METHOD (Damage_IsInTheFileSystemsTerms)
+    {
+        HRESULT  broken = HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+
+        Assert::AreEqual (std::string ("the track/sector list is damaged"), DiskCommandRunner::DescribeDamage (broken, VolumeKind::Dos33));
+        Assert::AreEqual (std::string ("the index block is damaged"),       DiskCommandRunner::DescribeDamage (broken, VolumeKind::ProDos));
+        Assert::IsTrue   (DiskCommandRunner::DescribeDamage (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), VolumeKind::Dos33).empty());
+    }
 };

@@ -768,11 +768,13 @@ listed in validation.md.
   could not be copied: unspecified error", because `DiskOperations::RunCommand`
   turned every failed command into E_FAIL. `DiskCommandResult::failure` has
   the volume's HRESULT, which `DiskCommandRunner::RunGet` sets and
-  `RunCommand` returns; `RunGet` reports a broken chain as "has a sector
-  chain that cannot be followed to its end". A drag's contents fail with
+  `RunCommand` returns. A broken chain is reported in the file system's terms,
+  through `DiskCommandRunner::DescribeDamage`: "Unable to read HELLO: the
+  track/sector list is damaged" on DOS 3.3, and "the index block is damaged"
+  on ProDOS. A drag's contents fail with
   `CassoExplorerDragOut::GetDropError`'s code, ERROR_FILE_CORRUPT for a
-  broken chain, and Copy's message has the file's name: "The files could not be copied:
-  HELLO has a damaged sector chain." Checked on screen for Copy; the drag to
+  broken chain, and Copy's message is "Unable to copy HELLO: the track/sector
+  list is damaged." Checked on screen for Copy and the CLI; the drag to
   File Explorer is the owner's. Test in `CassoExplorerDragOutTests.cpp`.
 - [ ] T259 Show the drop tip, as "Move to out", on a drag out of an image to
   File Explorer, which a drag of host files has and a drag of an image's
@@ -792,6 +794,19 @@ listed in validation.md.
   drag window up for this object. With it set and no `DropDescription`
   among the formats, File Explorer never sent the words. Take the trace out
   once the cause is found.
+
+  The fallback to the shell's helper was taken out again, as a precaution:
+  the owner saw Casso's icon beside an empty white box, and a broken tip, on
+  a drag of a disk image after it went in. That fallback runs only for a
+  drag from inside an image or of an image's tree node; a disk image dragged
+  from a host folder's list goes through `Win32ShellItemVerbs::DragItems`,
+  which calls `SetDragImage` and `SHDoDragDrop` and was not changed.
+- [ ] T260 Report every volume refusal as "Unable to <verb> <file>: <what is
+  wrong>", in the file system's terms where they differ, as T258 does for a
+  damaged file. The sentences are in `DiskCommandRunner::DescribeVolumeRefusal`,
+  `DiskOperations::DescribeVolumeRefusal` and the commands' `Fail` calls in
+  `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`, with the image path in
+  front in the CLI's messages.
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

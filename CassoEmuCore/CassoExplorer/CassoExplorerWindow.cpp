@@ -12803,11 +12803,12 @@ void CassoExplorerWindow::CopyEntriesToClipboard (HostFileNaming::Style style)
 
 
 
-    //  A file that could not be read is reported by its name, with why; for any
-    //  other failure, as the clipboard in use, the text comes from its code.
+    //  A file that could not be read has a message with the file's name; for
+    //  any other failure, as the clipboard in use, the text comes from
+    //  its code.
     if (FAILED (hr))
     {
-        ShowMessage (L"The files could not be copied: " + (failure.empty() ? CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
+        ShowMessage ((failure.empty() ? L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
     }
 }
 

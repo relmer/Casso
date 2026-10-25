@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/IDiskFileIo.h"
 
 
@@ -674,15 +675,17 @@ std::wstring CassoExplorerDragOut::RenderLog::GetFailure() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring CassoExplorerDragOut::DescribeReadFailure (const DragPayload::Descriptor & descriptor, HRESULT hr)
+std::wstring CassoExplorerDragOut::DescribeReadFailure (const DragPayload::Descriptor & descriptor, HRESULT hr, VolumeKind kind)
 {
     size_t       slash  = descriptor.catalogPath.rfind ('/');
     std::string  name   = (slash == std::string::npos) ? descriptor.catalogPath : descriptor.catalogPath.substr (slash + 1);
+    std::string  damage = DiskCommandRunner::DescribeDamage (hr, kind);
     std::string  reason = (hr == E_FAIL) ? std::string ("could not be read") : DiskOperations::DescribeVolumeRefusal (hr);
 
 
 
-    return TextEncoding::NarrowToWide (name + " " + reason);
+    return TextEncoding::NarrowToWide (damage.empty() ? std::format ("The files could not be copied: {} {}", name, reason)
+                                                      : std::format ("Unable to copy {}: {}", name, damage));
 }
 
 
@@ -745,6 +748,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     std::shared_ptr<std::vector<uint8_t>>                    drop;
     std::vector<CassoExplorerBrowser::SearchMatch>           matches;
     std::shared_ptr<std::vector<std::string>>                images;
+    std::shared_ptr<std::vector<VolumeKind>>                 kinds;
 
 
 
@@ -786,7 +790,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, image, descriptors, log] (int index, std::vector<uint8_t> & out)
+                             [&browser, image, kind = browser.GetVolumeKind(), descriptors, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
@@ -821,7 +825,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                  if (log && FAILED (result.hr))
                                  {
-                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr));
+                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr, kind));
                                  }
 
                                  return GetDropError (result.hr);
@@ -841,6 +845,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     {
         descriptors = std::make_shared<std::vector<DragPayload::Descriptor>>();
         images      = std::make_shared<std::vector<std::string>>();
+        kinds       = std::make_shared<std::vector<VolumeKind>>();
 
         for (size_t first = 0; first < matches.size(); )
         {
@@ -868,6 +873,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
             {
                 descriptors->push_back (descriptor);
                 images->push_back (from);
+                kinds->push_back (matches[first].kind);
             }
 
             first = last;
@@ -879,7 +885,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, images, descriptors, log] (int index, std::vector<uint8_t> & out)
+                             [&browser, images, kinds, descriptors, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
@@ -907,7 +913,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
                                  if (log && FAILED (result.hr))
                                  {
-                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr));
+                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr, (*kinds)[(size_t) index]));
                                  }
 
                                  return GetDropError (result.hr);

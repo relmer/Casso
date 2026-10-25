@@ -32,8 +32,7 @@ public:
     //  Which of an image's files a drop read whole: read with no error and
     //  from undamaged sectors. A file the target never read, as one skipped
     //  in File Explorer's conflict dialog, is not whole.
-    //  The first file that could not be read, with why, as "MUFFIN has a
-    //  damaged sector chain".
+    //  The first file that could not be read, as DescribeReadFailure has it.
     class RenderLog
     {
     public:
@@ -113,6 +112,9 @@ public:
     //  The conversion a descriptor's host name asks for.
     static DiskOperations::Encoding  GetEncoding (const DragPayload::Descriptor & descriptor);
 
-    //  A file that could not be read, as "MUFFIN has a damaged sector chain".
-    static std::wstring  DescribeReadFailure (const DragPayload::Descriptor & descriptor, HRESULT hr);
+    //  A file that could not be read, as a whole message: "Unable to copy
+    //  HELLO: the track/sector list is damaged" for a damaged file, in its file
+    //  system's terms, and "The files could not be copied: HELLO is not on this
+    //  volume" for any other failure.
+    static std::wstring  DescribeReadFailure (const DragPayload::Descriptor & descriptor, HRESULT hr, VolumeKind kind);
 };
