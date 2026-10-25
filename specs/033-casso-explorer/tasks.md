@@ -805,9 +805,12 @@ listed in validation.md.
   The owner's first trace, on 2026-10-25: `SetDragImage` succeeds at
   144x144, `IsShowingLayered` is 1 from the start, and File Explorer sets a
   `DropDescription` on every move, so the drag window is up and has the
-  words. Over File Explorer it then asks for `UntrustedDragDrop`, which the
-  object does not offer, and sets `DisableDragText` about every 60 ms. The
-  trace now has each four-byte format's value, to show whether that is 1.
+  words. Over File Explorer it then requests `UntrustedDragDrop`, which the
+  object does not offer, and sets `DisableDragText` about every 60 ms. That
+  Casso Explorer was elevated, started from an elevated terminal, which may
+  account for those two; the owner's earlier repro was not elevated and
+  looked the same. The trace now has each four-byte format's value, for
+  whether `DisableDragText` is 1.
 - [ ] T260 Report every volume refusal as "Unable to <verb> <file>: <what is
   wrong>", in the file system's terms where they differ, as T258 does for a
   damaged file. The sentences are in `DiskCommandRunner::DescribeVolumeRefusal`,
