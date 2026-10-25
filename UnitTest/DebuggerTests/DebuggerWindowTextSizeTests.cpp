@@ -97,7 +97,7 @@ namespace DebuggerTests
         using DebuggerWindow::OnAppMessage;
         using DebuggerWindow::GetFloatingPanes;
         using DebuggerWindow::GetDockSite;
-        using DebuggerWindow::s_kFloatSyncMessage;
+        using DebuggerWindow::s_kFrameMessage;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::ApplyTextZoom;
@@ -1162,7 +1162,7 @@ namespace DebuggerTests
         //  Sync, from whatever message loop is running. Here the floating
         //  window cannot be created, since the test's window has no
         //  instance, so the pane docks back: proof that Sync ran.
-        TEST_METHOD (TheFloatSyncMessageRunsTheFloatingPanesSync)
+        TEST_METHOD (TheFrameMessageRunsTheFloatingPanesSync)
         {
             CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
             QuietDebuggerHost   host;
@@ -1184,7 +1184,7 @@ namespace DebuggerTests
 
 
 
-                result = window.OnAppMessage (TextSizeWindow::s_kFloatSyncMessage, 0, 0);
+                result = window.OnAppMessage (TextSizeWindow::s_kFrameMessage, 0, 0);
             }
 
             Assert::IsTrue  (result == DxuiMessageResult::Handled, L"the window handles its message");

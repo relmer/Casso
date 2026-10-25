@@ -138,9 +138,9 @@ public:
     void     OpenEventLog         (DebugLogKind kind) override;
 
 protected:
-    //  Posted to the window to run the floating panes' Sync from whichever
-    //  message loop is running, a modal dialog's included.
-    static constexpr UINT  s_kFloatSyncMessage = WM_APP + 1;
+    //  Posted to the window to run a frame, the floating panes' Sync first,
+    //  from whichever message loop is running, a modal dialog's included.
+    static constexpr UINT  s_kFrameMessage = WM_APP + 1;
 
     void     OnCreate        () override;
     void     OnWindowPlaced  () override;
@@ -761,7 +761,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiDockSite                               * m_dockSite               = nullptr;
     HINSTANCE                                    m_hInstance              = nullptr;
     std::unique_ptr<FloatingPanes>               m_floating;
-    bool                                         m_isFloatSyncPosted      = false;   // a s_kFloatSyncMessage is waiting in the queue
+    bool                                         m_isFloatSyncPosted      = false;   // a s_kFrameMessage is waiting in the queue
     FocusAccentOwner                             m_accentOwner;
     bool                                         m_isOpeningFocusDue      = true;
     OpeningFocusDeferral                         m_openingFocus;

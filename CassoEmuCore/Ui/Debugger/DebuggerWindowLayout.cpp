@@ -1251,7 +1251,7 @@ void DebuggerWindow::RequestFloatSync()
         return;
     }
 
-    m_isFloatSyncPosted = PostMessageW (GetHwnd(), s_kFloatSyncMessage, 0, 0) != FALSE;
+    m_isFloatSyncPosted = PostMessageW (GetHwnd(), s_kFrameMessage, 0, 0) != FALSE;
 }
 
 
@@ -1262,10 +1262,10 @@ void DebuggerWindow::RequestFloatSync()
 //
 //  DebuggerWindow::OnAppMessage
 //
-//  The floating windows are made to match the layout as soon as it
-//  changes, rather than at the next frame, which does not come while a
-//  modal dialog has the message loop: a pane torn off then was left out of
-//  the dock site with no window.
+//  A change to the layout runs a frame at once rather than waiting for the
+//  next one, which does not come while a modal dialog has the message loop:
+//  a pane torn off then was left out of the dock site with no window, and
+//  the docked panes and their bars drew where they were before.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1274,15 +1274,19 @@ DxuiMessageResult DebuggerWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM 
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
-    if (msg != s_kFloatSyncMessage)
+    if (msg != s_kFrameMessage)
     {
         return DxuiMessageResult::NotHandled;
     }
 
     m_isFloatSyncPosted = false;
 
+    //  Sync first, since RenderFrame does nothing for a window not created;
+    //  then the frame places the bars and clips the panes to the new layout,
+    //  and the windows are painted again.
     m_floating->Sync();
-    m_floating->CarryTornOff();
+    RenderFrame();
+    m_floating->InvalidateAll();
     Invalidate();
 
     return DxuiMessageResult::Handled;
