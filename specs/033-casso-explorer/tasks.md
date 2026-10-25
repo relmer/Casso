@@ -944,6 +944,18 @@ are allowed.
   version over it and confirm the rules are in place with no prompt. Record
   in `validation.md`. Per SC-034, SC-035 and SC-036.
 
+  Checked on 2026-10-24 on b20cfcfea, on a PC whose only active profile is
+  public, with Casso Explorer's Debug build blocked by a dismissed prompt's
+  rules. The amber badge is on Uthernet II (any address) alone, and on none
+  of a serial, a TCP or three addressed Uthernet II connections. The tree
+  tip on a real hover and the pane both have the cause, with the port, the
+  profile and the rule, and the pane offers both actions. Adding and
+  removing the connection opens and closes UDP 6510. The Network page has
+  no banner there, correctly: that PC's Casso has allow rules for the
+  public profile. Left for the owner: Allow and Make private through the
+  UAC prompt, the package install and upgrade, the Network page's blocked
+  wording, and a PC with private and public both active.
+
 **Dependencies**: T248 and T249 and T250 stand alone and can go in any order.
 T251 before T252, T253, T254 and T255. T256 last. T254 and T255 can run
 alongside each other once T251 is in.
