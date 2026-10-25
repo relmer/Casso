@@ -1237,6 +1237,63 @@ void DebuggerWindow::OnFloatsSynced()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerWindow::RequestFloatSync
+//
+//  One message waits in the queue at a time; a window not created yet runs
+//  Sync from its first frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerWindow::RequestFloatSync()
+{
+    if (m_isFloatSyncPosted || GetHwnd() == nullptr)
+    {
+        return;
+    }
+
+    m_isFloatSyncPosted = PostMessageW (GetHwnd(), s_kFloatSyncMessage, 0, 0) != FALSE;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerWindow::OnAppMessage
+//
+//  The floating windows are made to match the layout as soon as it
+//  changes, rather than at the next frame, which does not come while a
+//  modal dialog has the message loop: a pane torn off then was left out of
+//  the dock site with no window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DebuggerWindow::OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (wParam);
+    UNREFERENCED_PARAMETER (lParam);
+
+    if (msg != s_kFloatSyncMessage)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    m_isFloatSyncPosted = false;
+
+    m_floating->Sync();
+    m_floating->CarryTornOff();
+    Invalidate();
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerWindow::OnFloatFocusChanged
 //
 //  The accent is drawn on the window that got the focus last, so it remains

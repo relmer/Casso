@@ -138,6 +138,10 @@ public:
     void     OpenEventLog         (DebugLogKind kind) override;
 
 protected:
+    //  Posted to the window to run the floating panes' Sync from whichever
+    //  message loop is running, a modal dialog's included.
+    static constexpr UINT  s_kFloatSyncMessage = WM_APP + 1;
+
     void     OnCreate        () override;
     void     OnWindowPlaced  () override;
     void     OnWindowClose   () override;
@@ -346,6 +350,11 @@ protected:
     //  its tab does.
     DxuiDockSite *  GetDockSite () const { return m_dockSite; }
 
+    //  Protected so a test can run the floating panes' Sync as the posted
+    //  message does.
+    FloatingPanes &     GetFloatingPanes () { return *m_floating; }
+    DxuiMessageResult   OnAppMessage     (UINT msg, WPARAM wParam, LPARAM lParam) override;
+
     //  Protected so a test can make a seek or a go live asked for while the
     //  machine ran once it has stopped, as a frame does.
     void  MakePendingSeek ();
@@ -509,6 +518,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     void                           OnFloatDocked       (const std::wstring & pane, DxuiDockedWindow * window) override;
     void                           OnFloatsSynced      () override;
     void                           OnFloatTipErased    (const DxuiTooltip * tip) override { m_operandTips->ForgetColorTip (tip); }
+    void                           RequestFloatSync    () override;
     bool     ShowContentMenu    (const std::wstring & pane, POINT clientPx);
     void     ShowEditMenu       (IDxuiControl * control, POINT clientPx, std::vector<std::shared_ptr<DxuiCommand>> extra);
     std::vector<std::shared_ptr<DxuiCommand>>  GetConsoleMenuCommands();
@@ -751,6 +761,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     DxuiDockSite                               * m_dockSite               = nullptr;
     HINSTANCE                                    m_hInstance              = nullptr;
     std::unique_ptr<FloatingPanes>               m_floating;
+    bool                                         m_isFloatSyncPosted      = false;   // a s_kFloatSyncMessage is waiting in the queue
     FocusAccentOwner                             m_accentOwner;
     bool                                         m_isOpeningFocusDue      = true;
     OpeningFocusDeferral                         m_openingFocus;

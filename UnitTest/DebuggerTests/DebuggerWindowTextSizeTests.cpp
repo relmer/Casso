@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "EhmTestHelper.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -93,6 +94,10 @@ namespace DebuggerTests
 
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::OnWindowClose;
+        using DebuggerWindow::OnAppMessage;
+        using DebuggerWindow::GetFloatingPanes;
+        using DebuggerWindow::GetDockSite;
+        using DebuggerWindow::s_kFloatSyncMessage;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::ApplyTextZoom;
@@ -1150,6 +1155,40 @@ namespace DebuggerTests
             window.OnWindowClose();
 
             Assert::IsFalse (host.layouts.empty(), L"the layout is saved as the window closes");
+        }
+
+
+        //  The message the window posts itself runs the floating panes'
+        //  Sync, from whatever message loop is running. Here the floating
+        //  window cannot be created, since the test's window has no
+        //  instance, so the pane docks back: proof that Sync ran.
+        TEST_METHOD (TheFloatSyncMessageRunsTheFloatingPanesSync)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+            DxuiMessageResult   result = DxuiMessageResult::NotHandled;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            (void) window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kWatches, L"", RECT { 0, 0, 300, 200 });
+            window.GetFloatingPanes().MarkSyncNeeded();
+
+            {
+                UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
+                result = window.OnAppMessage (TextSizeWindow::s_kFloatSyncMessage, 0, 0);
+            }
+
+            Assert::IsTrue  (result == DxuiMessageResult::Handled, L"the window handles its message");
+            Assert::IsFalse (window.GetDockSite()->GetPaneLayout().IsFloating (DebuggerLayout::kWatches), L"Sync ran");
         }
     };
 

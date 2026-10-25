@@ -43,6 +43,7 @@ namespace FloatingPanesRoutingTests
         void                           ShowDockToMenu    (const std::wstring &, POINT) override {}
         void                           SaveLayout        () override {}
         void                           Repaint           () override {}
+        void                           RequestFloatSync  () override { syncRequests++; }
 
         std::unique_ptr<IDxuiControl>  DetachFloatControl (IDxuiControl *) override { return nullptr; }
         void                           AttachFloatControl (std::unique_ptr<IDxuiControl>) override {}
@@ -57,8 +58,9 @@ namespace FloatingPanesRoutingTests
         void  OnFloatsSynced      () override {}
         void  OnFloatTipErased    (const DxuiTooltip *) override {}
 
-        FloatingPanes              * floats = nullptr;
+        FloatingPanes              * floats       = nullptr;
         std::vector<std::wstring>    routed;
+        int                          syncRequests = 0;
 
     private:
         DxuiDpiScaler  m_scaler;
@@ -316,6 +318,28 @@ namespace FloatingPanesRoutingTests
             Assert::IsNull  (floats.Find (L"regs"), L"no window was made");
             Assert::IsFalse (host.site.GetPaneLayout().IsFloating (L"regs"),  L"regs is docked");
             Assert::IsFalse (host.site.GetPaneLayout().IsFloating (L"stack"), L"stack is docked");
+        }
+
+
+        //  A change to the floating places calls the host's RequestFloatSync
+        //  rather than waiting for a frame, which stops while a modal dialog
+        //  runs.
+        TEST_METHOD (DockingBackRequestsASync)
+        {
+            DockingHost    host;
+            FloatingPanes  floats (host);
+
+
+
+            host.floats = &floats;
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+
+            host.syncRequests = 0;
+            floats.DockBack (L"regs");
+
+            Assert::AreEqual (1, host.syncRequests, L"docking back requests a Sync");
         }
 
 

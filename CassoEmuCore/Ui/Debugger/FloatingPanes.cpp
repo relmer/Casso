@@ -433,7 +433,7 @@ void FloatingPanes::RequestFloat (const std::wstring & pane, POINT clientPx)
     if (site.EditPaneLayout().Float (pane, GetMonitorKey (rect), rect))
     {
         site.Relayout();
-        m_isSyncNeeded = true;
+        MarkSyncNeeded();
         m_host.SaveLayout();
     }
 }
@@ -497,7 +497,7 @@ void FloatingPanes::TearOffGroup (const std::vector<std::wstring> & panes, const
     }
 
     site.Relayout();
-    m_isSyncNeeded = true;
+    MarkSyncNeeded();
     m_host.SaveLayout();
 
     m_tornOffPane = active;
@@ -651,7 +651,7 @@ void FloatingPanes::DockBack (const std::wstring & pane)
 {
     if (m_host.GetFloatDockSite()->EditPaneLayout().DockBack (pane))
     {
-        m_isSyncNeeded = true;
+        MarkSyncNeeded();
         m_host.SaveLayout();
     }
 }
@@ -694,7 +694,7 @@ void FloatingPanes::DockBackWindow (const std::wstring & window)
     if (moved)
     {
         (void) layout.Activate (active);
-        m_isSyncNeeded = true;
+        MarkSyncNeeded();
         m_host.SaveLayout();
     }
 }

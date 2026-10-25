@@ -36,6 +36,10 @@ public:
     virtual void                           SaveLayout        () = 0;
     virtual void                           Repaint           () = 0;
 
+    //  Sync is due: run it soon, outside any window's message. The frame
+    //  that runs it stops while a modal dialog runs the message loop.
+    virtual void                           RequestFloatSync  () = 0;
+
     //  The controls moved out of the window into a floating one, and back.
     virtual std::unique_ptr<IDxuiControl>  DetachFloatControl (IDxuiControl * control) = 0;
     virtual void                           AttachFloatControl (std::unique_ptr<IDxuiControl> control) = 0;
@@ -135,7 +139,7 @@ public:
 
     //  The layout's floating places change; the windows match it at the next
     //  Sync, run from the frame.
-    void  MarkSyncNeeded () { m_isSyncNeeded = true; }
+    void  MarkSyncNeeded () { m_isSyncNeeded = true; m_host.RequestFloatSync(); }
     void  Sync           ();
 
     void  RequestFloat (const std::wstring & pane, POINT clientPx);
