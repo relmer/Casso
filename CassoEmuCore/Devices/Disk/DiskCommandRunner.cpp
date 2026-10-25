@@ -1017,11 +1017,15 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
         hr = volume.Read (path, payload);
     }
 
+    result.failure = hr;
+
     //  For a name that several entries share, the message explains how to
-    //  select one. Any other read failure keeps the generic message.
+    //  select one, and a chain that cannot be followed is reported as such.
+    //  Any other read failure has the generic message.
     CHRF (hr, result.Fail (options.disk.imagePath, name,
-                    (hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME)) ? ApplyPrefix (DescribeVolumeRefusal (hr))
-                                                                : std::string ("could not be read from this volume")));
+                    (hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME) || hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
+                        ? ApplyPrefix (DescribeVolumeRefusal (hr))
+                        : std::string ("could not be read from this volume")));
 
     hr = ApplyEncoding (options, payload, result);
     CHR (hr);

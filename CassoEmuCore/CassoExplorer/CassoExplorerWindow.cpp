@@ -12798,13 +12798,16 @@ void CassoExplorerWindow::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
 
 void CassoExplorerWindow::CopyEntriesToClipboard (HostFileNaming::Style style)
 {
-    HRESULT  hr = CassoExplorerDragOut::CopyToClipboard (m_browser, style);
+    std::wstring  failure;
+    HRESULT       hr      = CassoExplorerDragOut::CopyToClipboard (m_browser, style, failure);
 
 
 
+    //  A file that could not be read is reported by its name, with why; for any
+    //  other failure, as the clipboard in use, the text comes from its code.
     if (FAILED (hr))
     {
-        ShowMessage (L"The files could not be copied: " + CassoExplorerDragOut::DescribeCopyFailure (hr), MB_ICONWARNING);
+        ShowMessage (L"The files could not be copied: " + (failure.empty() ? CassoExplorerDragOut::DescribeCopyFailure (hr) : failure + L"."), MB_ICONWARNING);
     }
 }
 

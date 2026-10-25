@@ -153,15 +153,18 @@ DiskOperations::Encoding CassoExplorerDragOut::GetEncoding (const DragPayload::D
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style)
+HRESULT CassoExplorerDragOut::CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure)
 {
     HRESULT                                  hr      = S_OK;
-    std::vector<DxuiDragDropSource::Format>  formats = BuildFormats (browser, style);
+    std::shared_ptr<RenderLog>               log     = std::make_shared<RenderLog>();
+    std::vector<DxuiDragDropSource::Format>  formats = BuildFormats (browser, style, log);
     std::vector<DxuiDragDropSource::Format>  held;
     DxuiDragDropSource                     * source  = nullptr;
     bool                                     empty   = formats.empty();
 
 
+
+    outFailure.clear();
 
     CBR (!empty);
 
@@ -200,6 +203,11 @@ Error:
     if (source != nullptr)
     {
         source->Release();
+    }
+
+    if (FAILED (hr))
+    {
+        outFailure = log->GetFailure();
     }
 
     return hr;
@@ -560,6 +568,7 @@ void CassoExplorerDragOut::RenderLog::Reset (const std::vector<DragPayload::Desc
 
 
     m_whole.assign (descriptors.size(), false);
+    m_failure.clear();
 
     for (size_t i = 0; i < descriptors.size(); i++)
     {
@@ -608,6 +617,104 @@ bool CassoExplorerDragOut::RenderLog::IsWhole() const
 
 
     return std::ranges::all_of (m_whole, [] (bool whole) { return whole; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::RenderLog::SetFailure
+//
+//  Only the first failure is stored: it is the file a copy stopped at.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CassoExplorerDragOut::RenderLog::SetFailure (const std::wstring & failure)
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    if (m_failure.empty())
+    {
+        m_failure = failure;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::RenderLog::GetFailure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerDragOut::RenderLog::GetFailure() const
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    return m_failure;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::DescribeReadFailure
+//
+//  The file by its name on the Apple, the last part of its catalog path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring CassoExplorerDragOut::DescribeReadFailure (const DragPayload::Descriptor & descriptor, HRESULT hr)
+{
+    size_t       slash  = descriptor.catalogPath.rfind ('/');
+    std::string  name   = (slash == std::string::npos) ? descriptor.catalogPath : descriptor.catalogPath.substr (slash + 1);
+    std::string  reason = (hr == E_FAIL) ? std::string ("could not be read") : DiskOperations::DescribeVolumeRefusal (hr);
+
+
+
+    return TextEncoding::NarrowToWide (name + " " + reason);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::GetDropError
+//
+//  Every other failure is passed on as it is, except E_FAIL, whose text is
+//  "Unspecified error": a read that fails for a reason the runner did not
+//  record becomes ERROR_READ_FAULT, a read that failed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerDragOut::GetDropError (HRESULT hr)
+{
+    HRESULT  error = hr;
+
+
+
+    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))
+    {
+        error = HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT);
+    }
+    else if (hr == E_FAIL)
+    {
+        error = HRESULT_FROM_WIN32 (ERROR_READ_FAULT);
+    }
+
+    return error;
 }
 
 
@@ -712,7 +819,12 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                      log->SetWhole ((size_t) index, result.Succeeded() && result.exitStatus != DiskCommandResult::kWithComplaints);
                                  }
 
-                                 return result.hr;
+                                 if (log && FAILED (result.hr))
+                                 {
+                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr));
+                                 }
+
+                                 return GetDropError (result.hr);
                              } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), 1,
@@ -767,7 +879,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), (int) descriptors->size(),
-                             [&browser, images, descriptors] (int index, std::vector<uint8_t> & out)
+                             [&browser, images, descriptors, log] (int index, std::vector<uint8_t> & out)
                              {
                                  const DragPayload::Descriptor &  descriptor = (*descriptors)[(size_t) index];
                                  DiskOperations::Result           result;
@@ -793,7 +905,12 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
                                      out.assign (result.payload.begin(), result.payload.end());
                                  }
 
-                                 return result.hr;
+                                 if (log && FAILED (result.hr))
+                                 {
+                                     log->SetFailure (DescribeReadFailure (descriptor, result.hr));
+                                 }
+
+                                 return GetDropError (result.hr);
                              } });
 
         return formats;

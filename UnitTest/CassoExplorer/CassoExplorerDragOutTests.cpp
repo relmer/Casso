@@ -79,6 +79,85 @@ public:
     }
 
 
+    //  A file's first data sector on a DOS 3.3 disk pointed at track 40, past
+    //  the last track: the catalog reads, and the file does not. The image is
+    //  in DOS order, 16 sectors of 256 bytes a track.
+    static void PointPastTheDisk (std::vector<Byte> & image, const char * name)
+    {
+        constexpr size_t  kSector      = 256;
+        constexpr size_t  kVtoc        = 17 * 16 * kSector;
+        constexpr size_t  kFirstEntry  = 0x0B;
+        constexpr size_t  kEntrySize   = 0x23;
+        constexpr size_t  kFirstPair   = 0x0C;
+        size_t            catalog      = ((size_t) image[kVtoc + 1] * 16 + image[kVtoc + 2]) * kSector;
+
+        for (size_t entry = 0; entry < 7; entry++)
+        {
+            size_t  at    = catalog + kFirstEntry + entry * kEntrySize;
+            bool    match = true;
+
+            for (size_t c = 0; name[c] != '\0'; c++)
+            {
+                match = match && (image[at + 3 + c] & 0x7F) == (Byte) name[c];
+            }
+
+            if (match)
+            {
+                image[((size_t) image[at] * 16 + image[at + 1]) * kSector + kFirstPair] = 40;
+                return;
+            }
+        }
+
+        Assert::Fail (L"the file is not in the first catalog sector");
+    }
+
+
+    //  A file that cannot be read fails as a damaged file, which File
+    //  Explorer reports in words, not as "Unspecified error", and the log
+    //  has which file and why, for the message in Casso Explorer.
+    TEST_METHOD (AnUnreadableFile_FailsAsADamagedFile_AndIsNamedInTheLog)
+    {
+        InMemoryFileSystem                       fs;
+        FakeDiskFileIo                           io;
+        CassoExplorerBrowser                     browser (fs, io);
+        FixtureProvider                          fixtures;
+        std::vector<Byte>                        image;
+        std::vector<DxuiTreeNode>                roots;
+        std::vector<uint8_t>                     contents;
+        int                                      hello    = -1;
+        std::vector<DxuiDragDropSource::Format>  formats;
+        auto                                     log      = std::make_shared<CassoExplorerDragOut::RenderLog>();
+
+        AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", image));
+        PointPastTheDisk (image, "HELLO");
+        AssertSucceeded (fs.WriteAllText (L"C:\\Disks\\dos33.dsk", std::string (image.begin(), image.end())));
+        io.files["C:\\Disks\\dos33.dsk"]  = image;
+        io.stamps["C:\\Disks\\dos33.dsk"] = FileStamp { image.size(), 100 };
+
+        browser.GetTreeModel().SetKnownFolders ({ kDisks });
+        browser.GetTreeModel().SetDrives ({});
+        browser.GetTreeModel().SetDirectoryProbe ([] (const std::wstring &) { return true; });
+        browser.GetTreeRoots (roots);
+        AssertSucceeded (browser.SelectTreeNode (browser.GetTreeChildren (roots[0].id)[0].id));
+        Assert::IsTrue (browser.OpenRow (0));
+
+        for (size_t i = 0; i < browser.GetRows().size(); i++)
+        {
+            if (browser.GetRows()[i].name == L"HELLO")
+            {
+                hello = (int) i;
+            }
+        }
+
+        browser.SetSelectedRows ({ hello });
+        formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log);
+
+        Assert::IsTrue   (formats[1].render (0, contents) == HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+        Assert::AreEqual (std::wstring (L"HELLO has a damaged sector chain"), log->GetFailure());
+        Assert::IsFalse  (log->IsWhole());
+    }
+
+
     TEST_METHOD (ImageSelection_OffersDescriptorsContentsAndCatalogEntries)
     {
         InMemoryFileSystem         fs;

@@ -32,17 +32,28 @@ public:
     //  Which of an image's files a drop read whole: read with no error and
     //  from undamaged sectors. A file the target never read, as one skipped
     //  in File Explorer's conflict dialog, is not whole.
+    //  The first file that could not be read, with why, as "MUFFIN has a
+    //  damaged sector chain".
     class RenderLog
     {
     public:
-        void  Reset    (const std::vector<DragPayload::Descriptor> & descriptors);
-        void  SetWhole (size_t index, bool whole);
-        bool  IsWhole  () const;
+        void          Reset      (const std::vector<DragPayload::Descriptor> & descriptors);
+        void          SetWhole   (size_t index, bool whole);
+        bool          IsWhole    () const;
+        void          SetFailure (const std::wstring & failure);
+        std::wstring  GetFailure () const;
 
     private:
         mutable std::mutex  m_lock;
         std::vector<bool>   m_whole;
+        std::wstring        m_failure;
     };
+
+    //  A read's HRESULT as a drop target reports it. A target such as File
+    //  Explorer prints the system's text for the code, so a chain that cannot
+    //  be followed is ERROR_FILE_CORRUPT, which reads as a damaged file,
+    //  rather than ERROR_HANDLE_EOF, which reads as the end of a file.
+    static HRESULT  GetDropError (HRESULT hr);
 
     //  The formats for the browser's current selection; empty when there is
     //  nothing to drag. `log`, when given, is set with which files the drop read
@@ -53,8 +64,9 @@ public:
     //  The same formats on the clipboard, for a paste into Explorer. A drag
     //  reads each file when the target asks, while it still holds the
     //  selection it began with; a paste can come long after the selection
-    //  moved, so every file is read before the clipboard is set.
-    static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style);
+    //  moved, so every file is read before the clipboard is set. A file that
+    //  could not be read has its name and why in outFailure.
+    static HRESULT  CopyToClipboard (CassoExplorerBrowser & browser, HostFileNaming::Style style, std::wstring & outFailure);
 
     //  Why CopyToClipboard failed, as the end of a sentence: the clipboard
     //  in use, the Apple gone while its files were read, or the system's
@@ -100,4 +112,7 @@ public:
 
     //  The conversion a descriptor's host name asks for.
     static DiskOperations::Encoding  GetEncoding (const DragPayload::Descriptor & descriptor);
+
+    //  A file that could not be read, as "MUFFIN has a damaged sector chain".
+    static std::wstring  DescribeReadFailure (const DragPayload::Descriptor & descriptor, HRESULT hr);
 };

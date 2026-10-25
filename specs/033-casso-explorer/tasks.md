@@ -762,6 +762,27 @@ listed in validation.md.
   `CassoEmuCore/CassoLink/Apple/Shim.s`. The check takes room in a shim that
   is full at 768 bytes (`kShimLimit`). After the owner's //c walkthrough
   (T214), so the shim that walkthrough checks is the one that ships.
+- [X] T258 Report why a file in an image could not be read, found on
+  2026-10-25 with an image whose file points at track 40. A drag of it to
+  File Explorer was reported as "Unspecified error", and Copy as "The files
+  could not be copied: unspecified error", because `DiskOperations::RunCommand`
+  turned every failed command into E_FAIL. `DiskCommandResult::failure` has
+  the volume's HRESULT, which `DiskCommandRunner::RunGet` sets and
+  `RunCommand` returns; `RunGet` reports a broken chain as "has a sector
+  chain that cannot be followed to its end". A drag's contents fail with
+  `CassoExplorerDragOut::GetDropError`'s code, ERROR_FILE_CORRUPT for a
+  broken chain, and Copy's message has the file's name: "The files could not be copied:
+  HELLO has a damaged sector chain." Checked on screen for Copy; the drag to
+  File Explorer is the owner's. Test in `CassoExplorerDragOutTests.cpp`.
+- [ ] T259 Show the drop tip, as "Move to out", on a drag out of an image to
+  File Explorer, which a drag of host files has and a drag of an image's
+  files does not. `DxuiDragDropSource::Begin` now sets up the shell's drag
+  helper from the window when the drag image cannot be set, but every Apple
+  file icon passes `SetDragImage`'s check at 32 to 96 pixels, so that is not
+  the cause. A drag of host files uses the shell's data object and an
+  image's files use `DxuiDragDropSource`, so what the shell stores in the
+  data object through `SetData` is what to look at next. Checking it takes a real drag
+  to check.
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

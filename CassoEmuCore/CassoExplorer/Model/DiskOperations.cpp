@@ -88,7 +88,8 @@ std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr)
 //
 //  One runner per call, so the staleness stamp is taken fresh each time and
 //  a window that keeps an image open for hours never commits over a change
-//  it did not see.
+//  it did not see. A failure has the volume's HRESULT when the command
+//  result has one, and E_FAIL otherwise.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,7 +108,9 @@ DiskOperations::Result DiskOperations::RunCommand (const CommandLineOptions & op
     result.exitStatus = command.exitStatus;
     result.message    = command.diagnostics;
     result.output     = command.output;
-    result.hr         = (command.exitStatus == DiskCommandResult::kNoOutput) ? E_FAIL : S_OK;
+    result.hr         = (command.exitStatus != DiskCommandResult::kNoOutput) ? S_OK
+                      : FAILED (command.failure)                         ? command.failure
+                                                                         : E_FAIL;
 
     if (command.hasPayload)
     {

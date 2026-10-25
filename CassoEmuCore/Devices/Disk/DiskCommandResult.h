@@ -32,6 +32,11 @@ struct DiskCommandResult
     //  about, with the block scrolled off the top.
     bool          usageShown     = false;
 
+    //  The volume's HRESULT behind a failure, for a caller that reports it
+    //  with a message of its choosing rather than the diagnostics; S_OK
+    //  when the command did not record one.
+    HRESULT       failure        = S_OK;
+
     std::string        output;   // stdout, text
     std::string        diagnostics;   // stderr, always
     std::vector<Byte>  payload;   // stdout, binary
