@@ -92,6 +92,52 @@ public:
 
 
 
+    //  SC-006: a guest write to one record analyzes that record again and
+    //  no other, after the whole disk was analyzed once on insert.
+    TEST_METHOD (AWrittenRecordIsTheOnlyOneAnalyzedAgain)
+    {
+        static constexpr int  kWritten = 7;
+
+        AnalysisScheduler     scheduler (nullptr);
+        vector<RecordResult>  results;
+        vector<Byte>          sectors (NibblizationLayer::kImageByteSize, 0);
+        DiskImage             image;
+        vector<int>           written;
+        vector<uint64_t>      before;
+        int                   slot     = 0;
+
+
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (sectors, image));
+        scheduler.Restart (DiskCopy::MakeFromImage (image, 1, "test", 0, false), DecodeSettings::MakeStandard());
+        Drain (scheduler, results);
+        Assert::IsTrue (results.size() > 1, L"the whole disk on insert");
+
+        for (slot = 0; slot < image.GetTrackCount(); slot++)
+        {
+            before.push_back (image.GetGuestWriteCount (slot));
+        }
+
+        image.CountGuestWrite (kWritten);
+
+        //  The records whose write counts moved, as the window finds them.
+        for (slot = 0; slot < image.GetTrackCount(); slot++)
+        {
+            if (image.GetGuestWriteCount (slot) != before[slot])
+            {
+                written.push_back (slot);
+            }
+        }
+
+        scheduler.Update (DiskCopy::MakeFromImage (image, 1, "test", 0, false), written);
+        Drain (scheduler, results);
+
+        Assert::AreEqual (static_cast<size_t> (1), results.size(), L"exactly one record analysis");
+        Assert::AreEqual (kWritten, results[0].slot);
+    }
+
+
+
     TEST_METHOD (TheNewestRequestForARecordWins)
     {
         AnalysisScheduler                scheduler (nullptr);

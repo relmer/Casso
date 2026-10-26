@@ -151,4 +151,32 @@ public:
         publisher.Publish (ctrl.get(), *source);
         Assert::AreEqual (first + 1, publisher.Get (0)->countsGeneration, L"a write");
     }
+
+
+
+    //  A save and a change to the image's write-protect flag step the
+    //  generation too, so the Image tab is rebuilt after either (FR-071).
+    TEST_METHOD (ASaveAndAWriteProtectChangeStepTheCountsGeneration)
+    {
+        auto                      source = std::make_unique<FakeSource>();
+        auto                      ctrl   = std::make_unique<Disk2Controller> (6);
+        InspectorStatusPublisher  publisher;
+        uint64_t                  first  = 0;
+
+
+
+        Setup (*source, *ctrl);
+        publisher.SetActive (true);
+        publisher.Publish (ctrl.get(), *source);
+        first = publisher.Get (0)->countsGeneration;
+
+        source->image.NoteSaved();
+        publisher.Publish (ctrl.get(), *source);
+        Assert::AreEqual (first + 1, publisher.Get (0)->countsGeneration, L"a save");
+        Assert::AreEqual (static_cast<uint64_t> (1), publisher.Get (0)->saveCount);
+
+        source->image.SetImageWriteProtected (true);
+        publisher.Publish (ctrl.get(), *source);
+        Assert::AreEqual (first + 2, publisher.Get (0)->countsGeneration, L"the flag");
+    }
 };
