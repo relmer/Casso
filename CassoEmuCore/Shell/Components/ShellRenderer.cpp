@@ -614,7 +614,7 @@ bool ShellRenderer::TryPresentUiFrame()
         // with the motor already running changes no flag, so without this the
         // readout would sit still until something else asked for a frame.
         //
-        // EIGHT bits, because the value is in quarter-tracks and runs to 139.
+        // EIGHT bits, because the value is in quarter-tracks and runs to 158.
         // Six bits was the first cut and it aliased: quarter-track 64 folded
         // onto 0, so a seek across the outer half of the disk moved the
         // signature not at all. The unknown -1 folds to 0xFF, which is past

@@ -289,6 +289,58 @@ namespace Disk2ControllerEventTests
         }
 
 
+        //  Steps the head outward a half track at a time, energizing the next
+        //  phase and releasing it, as DOS RWTS does.
+        static void StepOutward (Disk2Controller & ctrl, int halfTracks)
+        {
+            int  i     = 0;
+            int  phase = 0;
+
+
+
+            for (i = 0; i < halfTracks; i++)
+            {
+                phase = ((ctrl.GetQuarterTrack() / 2) + 1) & 3;
+
+                ctrl.Write (static_cast<Word> (0xC0E1 + phase * 2), 0x00);
+                ctrl.Write (static_cast<Word> (0xC0E0 + phase * 2), 0x00);
+            }
+        }
+
+
+        //  The step onto the outer stop is a step, and the next outward one
+        //  is a bump at the stop, quarter track 158.
+        TEST_METHOD (PhaseChange_pastOuterStop_firesHeadBumpNotHeadStep)
+        {
+            constexpr int        kTrack39HalfTracks = 78;
+            RecordingEventSink   sink;
+
+
+
+            Disk2Controller      ctrl (6);
+
+            ctrl.SetEventSink (&sink);
+            ctrl.Write (0xC0E9, 0x00);      // motor on: the stepper works only then
+
+            StepOutward (ctrl, kTrack39HalfTracks);
+            Assert::AreEqual (156, ctrl.GetQuarterTrack(), L"the head is on quarter track 156");
+
+            sink.log.clear();
+            StepOutward (ctrl, 1);
+
+            Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::HeadStep), L"the step to 158 is a step");
+            Assert::AreEqual (0, sink.CountOf (RecordingEventSink::Event::HeadBump));
+            Assert::AreEqual (158, sink.log.back().arg, L"onto quarter track 158");
+
+            sink.log.clear();
+            StepOutward (ctrl, 1);
+
+            Assert::AreEqual (0, sink.CountOf (RecordingEventSink::Event::HeadStep), L"the next outward step does not move the head");
+            Assert::AreEqual (1, sink.CountOf (RecordingEventSink::Event::HeadBump), L"it bumps");
+            Assert::AreEqual (158, sink.log.back().arg, L"at quarter track 158");
+        }
+
+
         TEST_METHOD (PhaseChange_oneQuarterStep_firesHeadStepWithPrevAndNewQt)
         {
             RecordingEventSink   sink;

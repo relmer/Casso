@@ -15,6 +15,20 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  The head stop
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static_assert ((Disk2Controller::kMaxQuarterTrack & 1) == 0,                      "the head stop must be a half-track detent");
+static_assert (Disk2Controller::kMaxQuarterTrack <= Disk2NibbleEngine::kMaxTrack,  "the head stop must lie inside the engine's range");
+static_assert (Disk2Controller::kMaxQuarterTrack <  DiskImage::kQuarterTrackCount, "the head stop must lie inside the quarter-track map");
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Phase-mask → energized-phase resolution
 //
 //  Real Disk II steppers read the 4-bit phase mask and walk the head one

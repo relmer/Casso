@@ -314,10 +314,10 @@ void DriveWidget::PaintCompactNameRoll (IDxuiTextRenderer & text,
 //
 //  Where the lit core sits along the rail for a head at a given quarter-track.
 //
-//  The position is held to the rail's own last track first. Disk2NibbleEngine
-//  clamps to ITS maximum, quarter-track 159, which is past the 140 this rail
-//  spans, so a disk that steps the head outward beyond track 35 arrives with a
-//  position the scale has no room for. Without the hold it produced a fraction
+//  The position is held to the rail's own last track first. The controller
+//  stops the head at quarter-track 158, past the 140 this rail spans, so a
+//  disk that steps the head outward beyond track 35 arrives with a position
+//  the scale has no room for. Without the hold it produced a fraction
 //  above 1 and put the core clean off the end of the bar, over whatever stood
 //  to the right of it.
 //

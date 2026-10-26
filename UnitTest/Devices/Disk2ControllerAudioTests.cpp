@@ -205,4 +205,71 @@ public:
             }
         }
     }
+
+    //  Past the outer stop, the step sounds as a bump.
+    TEST_METHOD (PhaseChange_pastOuterStop_firesOnHeadBump_notOnHeadStep)
+    {
+        constexpr int     kOuterStopHalfTracks = 79;
+        RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
+
+        ctrl.SetAudioSink (&sink);
+        ctrl.Write (0xC0E9, 0x00);    // motor on: the stepper works only then
+
+        StepOutward (ctrl, kOuterStopHalfTracks);
+        Assert::AreEqual (158, ctrl.GetQuarterTrack(), L"the head is at the outer stop");
+
+        sink.log.clear();
+        StepOutward (ctrl, 1);
+
+        Assert::AreEqual (0, sink.CountOf (RecordingSink::Event::HeadStep));
+        Assert::AreEqual (1, sink.CountOf (RecordingSink::Event::HeadBump));
+    }
+
+    //  Tracks 35 and 36 are inside the stop, so a seek from 34 to 36 is all
+    //  steps.
+    TEST_METHOD (PhaseChange_fromTrack34ToTrack36_firesOnlyHeadSteps)
+    {
+        constexpr int     kTrack34HalfTracks = 68;
+        RecordingSink     sink;
+
+
+
+        Disk2Controller   ctrl (6);
+
+        ctrl.SetAudioSink (&sink);
+        ctrl.Write (0xC0E9, 0x00);    // motor on: the stepper works only then
+
+        StepOutward (ctrl, kTrack34HalfTracks);
+
+        sink.log.clear();
+        StepOutward (ctrl, 4);
+
+        Assert::AreEqual (144, ctrl.GetQuarterTrack(), L"the head is on track 36");
+        Assert::AreEqual (4, sink.CountOf (RecordingSink::Event::HeadStep), L"each half track is a step");
+        Assert::AreEqual (0, sink.CountOf (RecordingSink::Event::HeadBump), L"with no bump");
+    }
+
+private:
+
+    //  Steps the head outward a half track at a time, energizing the next
+    //  phase and releasing it, as DOS RWTS does.
+    static void StepOutward (Disk2Controller & ctrl, int halfTracks)
+    {
+        int  i     = 0;
+        int  phase = 0;
+
+
+
+        for (i = 0; i < halfTracks; i++)
+        {
+            phase = ((ctrl.GetQuarterTrack() / 2) + 1) & 3;
+
+            ctrl.Write (static_cast<Word> (0xC0E1 + phase * 2), 0x00);
+            ctrl.Write (static_cast<Word> (0xC0E0 + phase * 2), 0x00);
+        }
+    }
 };

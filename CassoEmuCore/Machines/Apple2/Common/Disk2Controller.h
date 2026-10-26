@@ -44,7 +44,10 @@ class Disk2Controller : public MemoryDevice, public IDiagnosticsProvider, public
 public:
     static constexpr int    kDriveCount      = 2;
     static constexpr int    kPhaseCount      = 4;
-    static constexpr int    kMaxQuarterTrack = 139;
+    //  The outer stop: the last half-track detent of the quarter-track map,
+    //  quarter track 158, on track 39. Every stepper move is a half track,
+    //  so at an odd stop the head would rest between detents.
+    static constexpr int    kMaxQuarterTrack = DiskImage::kQuarterTrackCount - 2;
 
     // A phase's magnets are a half track (two quarter tracks) from the next
     // phase's.

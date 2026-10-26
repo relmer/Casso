@@ -550,7 +550,7 @@ public:
 
         disk->Read (s_kMotorOn);
 
-        // Walk the head forward; clamp at quarter-track 139 must hold.
+        // Walk the head forward; it stops at the outer stop, quarter-track 158.
         for (i = 0; i < 300; i++)
         {
             int    p   = i & 3;
@@ -561,10 +561,87 @@ public:
             disk->Read (off);
         }
 
-        Assert::IsTrue (disk->GetQuarterTrack() >= 0,
-            L"Quarter-track must remain in legal range after long forward walk");
-        Assert::IsTrue (disk->GetQuarterTrack() <= Disk2Controller::kMaxQuarterTrack,
+        Assert::AreEqual (Disk2Controller::kMaxQuarterTrack, disk->GetQuarterTrack(),
             L"Quarter-track must clamp to kMaxQuarterTrack");
+        Assert::AreEqual (0, disk->GetQuarterTrack() & 1,
+            L"and the stop is a half-track detent");
+    }
+
+
+    //  The head steps out to track 39, the outermost track of the quarter-
+    //  track map, and reads it.
+    TEST_METHOD (HeadReachesTrack39AndReadsIt)
+    {
+        constexpr int   kTrack39             = 39;
+        constexpr int   kTrack39QuarterTrack = 156;
+        constexpr int   kTrack39HalfTracks   = 78;
+
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
+        DiskImage *                    img   = disk->GetDisk (0);
+        size_t                         off   = 0;
+        Byte                           value = 0;
+        int                            i     = 0;
+
+
+
+        img->EnsureTrackSlots (kTrack39 + 1);
+
+        for (i = 0; i < 4; i++)
+        {
+            img->SetQuarterTrackSlot (kTrack39QuarterTrack + i, kTrack39);
+        }
+
+        img->ResizeTrack (kTrack39, s_kSyntheticTrackBytes * s_kBitsPerNibble);
+
+        disk->Read (s_kMotorOn);
+        StepOutward (*disk, kTrack39HalfTracks);
+
+        Assert::AreEqual (kTrack39QuarterTrack, disk->GetQuarterTrack(), L"the head is on track 39");
+        Assert::AreEqual (kTrack39QuarterTrack, disk->GetEngine (0).GetCurrentTrack(), L"and the engine reads there");
+        Assert::AreEqual (kTrack39, img->ResolveQuarterTrack (kTrack39QuarterTrack), L"from track 39's slot");
+
+        disk->Read (s_kQ7Off);
+        disk->Read (s_kQ6Off);
+        disk->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        off = disk->GetEngine (0).GetBitPosition();
+        WriteNibbleToImage (*img, kTrack39, off, 0xD5);
+        WriteNibbleToImage (*img, kTrack39, off, 0xAA);
+        WriteNibbleToImage (*img, kTrack39, off, 0x96);
+
+        for (i = 0; i < 9; i++)
+        {
+            disk->Tick (Disk2NibbleEngine::kCyclesPerBit);
+        }
+
+        value = disk->Read (s_kQ6Off);
+
+        Assert::AreEqual (static_cast<Byte> (0xD5), value, L"the LSS reads track 39's first nibble");
+    }
+
+
+    //  The outer stop is the last half-track detent the quarter-track map
+    //  has, so a step back in from it lands on a detent too.
+    TEST_METHOD (HeadRestsOnAnEvenDetentAtTheOuterStop)
+    {
+        constexpr int   kStepsPastTheStop = 300;
+
+        unique_ptr<Disk2Controller>    disk  = make_unique<Disk2Controller> (6);
+        int                            phase = 0;
+
+
+
+        disk->Read (s_kMotorOn);
+        StepOutward (*disk, kStepsPastTheStop);
+
+        Assert::AreEqual (DiskImage::kQuarterTrackCount - 2, disk->GetQuarterTrack(), L"the head rests at the outer stop");
+        Assert::AreEqual (0, disk->GetQuarterTrack() & 1, L"on a detent");
+
+        phase = ((disk->GetQuarterTrack() / 2) - 1) & 3;
+        disk->Read (static_cast<Word> (s_kSlot6Base + 1 + phase * 2));
+        disk->Read (static_cast<Word> (s_kSlot6Base + phase * 2));
+
+        Assert::AreEqual (DiskImage::kQuarterTrackCount - 4, disk->GetQuarterTrack(), L"and one half-step in lands on the next detent");
     }
 
     TEST_METHOD (LSS_ReadsKnownNibblePattern)

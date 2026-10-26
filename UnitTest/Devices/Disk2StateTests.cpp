@@ -535,6 +535,36 @@ namespace Disk2State
         }
 
 
+        //  A head at the outer stop, quarter track 158, saves and loads.
+        TEST_METHOD (ControllerHeadAtTheOuterStopRoundTrips)
+        {
+            constexpr int  kOuterStopHalfTracks = 79;
+            auto           source               = std::make_unique<Disk2Controller> (6);
+            auto           target               = std::make_unique<Disk2Controller> (6);
+            int            i                    = 0;
+            int            phase                = 0;
+            HRESULT        hr                   = S_OK;
+
+
+
+            source->Write (0xC0E9, 0x00);      // motor on: the stepper works only then
+
+            for (i = 0; i < kOuterStopHalfTracks; i++)
+            {
+                phase = ((source->GetQuarterTrack() / 2) + 1) & 3;
+
+                source->Write (static_cast<Word> (0xC0E1 + phase * 2), 0x00);
+                source->Write (static_cast<Word> (0xC0E0 + phase * 2), 0x00);
+            }
+
+            Assert::AreEqual (158, source->GetQuarterTrack(), L"the head is at the outer stop");
+
+            hr = LoadFrom (*target, SavePart (*source));
+            Assert::AreEqual (S_OK, hr, L"the state loads");
+            Assert::AreEqual (158, target->GetQuarterTrack(), L"with the head at the outer stop");
+        }
+
+
         //  A version 1 state has no watcher section: it loads, and the
         //  watcher starts at rest over the loaded head position.
         TEST_METHOD (ControllerVersionOneLoadsWithTheWatcherAtRest)

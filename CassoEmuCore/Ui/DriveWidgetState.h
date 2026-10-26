@@ -57,9 +57,9 @@ struct DriveWidgetState
     std::atomic<bool> motorOn              { false };
     std::atomic<bool> diskActive           { false };
 
-    // Where the head is sitting, in QUARTER-tracks (0 to 139), sampled each
-    // UI frame from the drive's own nibble engine. Divide by four for a track
-    // number.
+    // Where the head is sitting, in QUARTER-tracks (0 to
+    // Disk2Controller::kMaxQuarterTrack, 158), sampled each UI frame from the
+    // drive's own nibble engine. Divide by four for a track number.
     //
     // The units are the engine's, and its accessor is misnamed:
     // Disk2NibbleEngine::GetCurrentTrack returns quarter-tracks, while
