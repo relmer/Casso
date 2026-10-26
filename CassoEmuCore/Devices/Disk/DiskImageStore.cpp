@@ -988,6 +988,58 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatFlushLossMessage, from what the save produced
+//
+//  A disk whose format cannot store its writes, and whose recovery copy could
+//  not be written either, gets a separate tail. The copy's error is in place
+//  of the head's Error line, which would otherwise contain the serializer's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatFlushLossMessage (const string & path, const FlushOutcome & outcome)
+{
+    bool     isCopyFailed = outcome.isUnserializable && FAILED (outcome.recoveryError);
+    wstring  widePath     = fs::path (path).wstring();
+    wstring  reason;
+    wstring  message;
+
+
+
+    if (!isCopyFailed)
+    {
+        message = FormatFlushLossMessage (path, outcome.saveError,
+                                          SUCCEEDED (outcome.recoveryError) ? outcome.recoveryPath : string());
+    }
+    else
+    {
+        if (widePath.empty())
+        {
+            widePath = L"(unknown path)";
+        }
+
+        reason = ChangePrompt::DescribeError (outcome.recoveryError);
+
+        if (!reason.ends_with (L"."))
+        {
+            reason += L".";
+        }
+
+        message = L"Casso could not save changes to the disk image:\n\n" + widePath
+                + L"\n\nThe file on disk is unchanged. Its changes cannot be stored as a "
+                + fs::path (path).extension().wstring() + L" image. Casso tried to save them to "
+                + fs::path (outcome.recoveryPath).filename().wstring() + L" instead, but failed: "
+                + reason;
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageStore::MakeRecoveryPath
 //
 //  Recovery images sit beside the original under its own name, so the pairing
@@ -995,8 +1047,11 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
 //  hold what the sector formats could not -- including the very track whose
 //  content caused the refusal.
 //
-//  The attempt index exists so an earlier recovery is never overwritten; losing
-//  a previous rescue to a later one would repeat the mistake being fixed.
+//  The attempt index exists so another file at a recovery name is never
+//  overwritten; losing a previous rescue to a later one would repeat the
+//  mistake being fixed. The one copy replaced is the copy this mount wrote, by
+//  TryWriteRecoveryImage, and the replacement is always a later state of the
+//  same session.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1027,27 +1082,31 @@ string DiskImageStore::MakeRecoveryPath (const string & imagePath, int attempt)
 //  DiskImageStore::TryWriteRecoveryImage
 //
 //  Serializes the live image to WOZ and lands it beside the original. WOZ is
-//  chosen deliberately over the denibblized sector buffer: that buffer holds
+//  chosen deliberately over the denibblized sector buffer: that buffer has
 //  zeros exactly where the unreadable track should be, so writing it would
 //  discard the one thing the refusal was protecting. WozLoader::Serialize takes
 //  the per-track bit streams verbatim and is format-agnostic, so a .dsk-sourced
 //  mount round-trips whole.
 //
-//  Never overwrites an existing file, and never touches the original or what is
-//  currently mounted -- preserving the work and adopting it are different
-//  operations, and only the first belongs here.
+//  ONE COPY PER MOUNT. A copy this mount wrote, and that nothing has changed
+//  or mounted since, is the session's: when the guest has written nothing
+//  since, nothing is written, and otherwise the copy is replaced, the same way
+//  an ordinary save replaces the original. Any other file at a recovery name
+//  is never overwritten: a new copy takes the first free name.
+//
+//  outPath is the copy's path, or, when the write failed, the path of the failed write.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
 {
-    HRESULT       hr        = S_OK;
-    string        candidate;
-    int           attempt   = 0;
-    bool          haveImage = entry.image != nullptr;
-    bool          havePath  = !entry.path.empty();
-    bool          haveName  = false;
-    vector<Byte>  wozBytes;
+    HRESULT              hr         = S_OK;
+    MountedImageState  & state      = entry.sharedState;
+    bool                 haveImage  = entry.image != nullptr;
+    bool                 havePath   = !entry.path.empty();
+    bool                 isIntact   = false;
+    bool                 isCurrent  = false;
+    vector<Byte>         wozBytes;
 
 
 
@@ -1056,62 +1115,107 @@ HRESULT DiskImageStore::TryWriteRecoveryImage (Entry & entry, string & outPath)
     CBR (haveImage);
     CBR (havePath);
 
+    isIntact  = !state.GetRecoveryPath().empty() && IsRecoveryCopyIntact (entry);
+    isCurrent = isIntact && state.IsRecoveryCurrent (entry.image->GetImageId(), entry.image->GetTrackGenerations());
+
+    if (isCurrent)
+    {
+        outPath = state.GetRecoveryPath();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     hr = WozLoader::Serialize (*entry.image, wozBytes);
     CHR (hr);
 
-    for (attempt = 0; !haveName && attempt < kMaxRecoveryNameAttempts; attempt++)
+    if (isIntact)
     {
-        candidate = MakeRecoveryPath (entry.path, attempt);
+        outPath = state.GetRecoveryPath();
 
-        // With a sink installed there is no host file to collide with -- the
-        // sink is the filesystem, and it decides what to do with the name.
-        if (m_flushSink)
-        {
-            haveName = true;
-        }
-        else
-        {
-            bool  taken = fs::exists (fs::path (candidate));
-
-            haveName = !taken;
-        }
-    }
-
-    CBREx (haveName, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
-
-    if (m_flushSink)
-    {
-        hr = m_flushSink (candidate, wozBytes);
+        hr = CommitFile (outPath, wozBytes, CommitMode::Replace);
         CHR (hr);
     }
     else
     {
-        //  Same rule as WriteFileAtomically: the filesystem's own code for a
-        //  refusal travels out, not E_FAIL. The name was just verified free,
-        //  so CREATE_NEW is faithful and refuses a race for it rather than
-        //  overwriting whoever won.
-        std::wstring  wide     = fs::path (candidate).wstring();
-        HANDLE        file     = INVALID_HANDLE_VALUE;
-        DWORD         written  = 0;
-        DWORD         lastErr  = ERROR_SUCCESS;
-        DWORD         expected = static_cast<DWORD> (wozBytes.size());
-        BOOL          ok       = FALSE;
-
-        file = CreateFileW (wide.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                            CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-        CWR (file != INVALID_HANDLE_VALUE);
-
-        ok      = WriteFile (file, wozBytes.data(), static_cast<DWORD> (wozBytes.size()),
-                             &written, nullptr);
-        lastErr = ok ? ERROR_SUCCESS : GetLastError();
-
-        CloseHandle (file);
-
-        CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
-        CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
+        hr = WriteNewRecoveryImage (entry, wozBytes, outPath);
+        CHR (hr);
     }
 
-    outPath = candidate;
+    state.SetRecovery (outPath, entry.image->GetImageId(), entry.image->GetTrackGenerations(), ReadIdentity (outPath));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::IsRecoveryCopyIntact
+//
+//  Whether the bay's recovery copy is as this mount wrote it: its identity
+//  matches the identity read after the write, or there is none (a flush sink
+//  has no file to stat), and no other bay has it mounted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsRecoveryCopyIntact (const Entry & entry)
+{
+    const MountedImageState  & state       = entry.sharedState;
+    const ImageIdentity      & recorded    = state.GetRecoveryIdentity();
+    bool                       isSame      = !recorded.recorded || ReadIdentity (state.GetRecoveryPath()).Matches (recorded);
+    int                        otherDrive  = -1;
+    bool                       isElsewhere = IsFileInAnotherBay (state.GetRecoveryPath(), entry.slot, entry.drive, otherDrive);
+
+
+
+    return isSame && !isElsewhere;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::WriteNewRecoveryImage
+//
+//  Writes a recovery copy at the first free recovery name, never over a file
+//  that is there: a name that is taken, or taken between the check and the
+//  write, steps to the next one.
+//
+//  With a flush sink and no file seam there is no file to collide with, so
+//  the first name is used.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::WriteNewRecoveryImage (const Entry & entry, const vector<Byte> & wozBytes, string & outPath)
+{
+    HRESULT  hr          = S_OK;
+    int      attempt     = 0;
+    bool     isDone      = false;
+    bool     isNameFixed = m_flushSink && m_fileIo == nullptr;
+    bool     isFree      = false;
+    bool     isTaken     = false;
+
+
+
+    for (attempt = 0; !isDone && attempt < kMaxRecoveryNameAttempts; attempt++)
+    {
+        outPath = MakeRecoveryPath (entry.path, attempt);
+        isFree  = isNameFixed || !DoesPathExist (outPath);
+
+        if (isFree)
+        {
+            hr      = CommitFile (outPath, wozBytes, CommitMode::CreateNew);
+            isTaken = hr == HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS) || hr == HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS);
+            isDone  = isNameFixed || !isTaken;
+        }
+    }
+
+    CBREx (isDone, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
+    CHR (hr);
 
 Error:
     return hr;
@@ -1368,15 +1472,28 @@ Error:
 //
 //  Tells the user a dirty image could not be saved, through the shared EHM
 //  notifier. The recovery copy's path is in the text when one was written.
-//  Every failure is reported, at every moment.
+//
+//  A FAILED SAVE NOBODY ASKED FOR IS REPORTED ONCE PER MOUNT. Every spindown
+//  saves again, and a failure reported at every one buries the user in the
+//  same notice. A new recovery copy is news, and so is the first failure with
+//  no copy. Every failure of a save the user asked for is reported.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::ReportSaveFailure (Entry & entry, FlushMoment moment, const FlushOutcome & outcome)
 {
-    UNREFERENCED_PARAMETER (moment);
+    MountedImageState  & state    = entry.sharedState;
+    string               copyPath = SUCCEEDED (outcome.recoveryError) ? outcome.recoveryPath : string();
+    bool                 isOnce   = moment == FlushMoment::Background;
 
-    EhmNotifyUser (FormatFlushLossMessage (entry.path, outcome.saveError, outcome.recoveryPath).c_str());
+
+
+    if (!isOnce || state.ShouldReportSaveFailure (copyPath))
+    {
+        EhmNotifyUser (FormatFlushLossMessage (entry.path, outcome).c_str());
+    }
+
+    state.MarkSaveFailureReported (copyPath);
 }
 
 
@@ -1406,6 +1523,7 @@ void DiskImageStore::RecordCommittedFile (Entry & entry)
 {
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+    entry.sharedState.ClearRecovery();
     MarkStatusChanged();
 
     if (entry.sharedState.GetIdentity().recorded)
@@ -3862,8 +3980,10 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     *entry.image = std::move (*loaded);
 
     //  The identity is refreshed from the file the bytes came from, so the
-    //  swap does not immediately look like another external change.
+    //  swap does not immediately look like another external change. The
+    //  session a recovery copy was taken from is gone, so its record is too.
     entry.sharedState.SetIdentity (ReadIdentity (entry.path));
+    entry.sharedState.ClearRecovery();
 
     hrAssess             = AssessSalvage (slot, drive, assessment);
     entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;

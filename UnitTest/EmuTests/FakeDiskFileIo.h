@@ -65,6 +65,11 @@ public:
     //  WHICH failure the write reports, for the same reason.
     HRESULT      nextWriteError      = E_FAIL;
 
+    //  Every write to a path that contains this fails with nextWriteError,
+    //  for as long as it is set: a folder that does not accept one kind of
+    //  file, write after write.
+    std::string  failWritesContaining;
+
     //  Set to make Stat report something different from what was recorded at
     //  read time, which is how the staleness check is exercised without a
     //  second process.
@@ -143,7 +148,7 @@ public:
         operations.push_back ("Write");
         metadata[path] = Metadata();
 
-        if (failNextWrite)
+        if (failNextWrite || (!failWritesContaining.empty() && path.find (failWritesContaining) != std::string::npos))
         {
             failNextWrite = false;
 

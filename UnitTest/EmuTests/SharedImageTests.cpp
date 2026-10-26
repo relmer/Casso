@@ -2311,6 +2311,143 @@ public:
 
 
 
+    //  The recovery record and both save-failure reports are per mount.
+    TEST_METHOD (RecoveryRecord_IsClearedByMountAndEject)
+    {
+        MountedImageState  state;
+        ImageIdentity      identity;
+
+
+
+        state.Mount (identity);
+        state.SetRecovery ("C:\\work\\Loader.recovered.woz", 7, { 1, 2 }, identity);
+        state.MarkSaveFailureReported ("C:\\work\\Loader.recovered.woz");
+        state.MarkSaveFailureReported (std::string());
+
+        state.Eject();
+
+        Assert::IsTrue (state.GetRecoveryPath().empty(), L"after an eject there is no copy");
+        Assert::IsFalse (state.IsRecoveryCurrent (7, { 1, 2 }));
+        Assert::IsFalse (state.IsSaveFailureReported(), L"and both reports");
+
+        state.SetRecovery ("C:\\work\\Loader.recovered.woz", 7, { 1, 2 }, identity);
+        state.MarkSaveFailureReported (std::string());
+
+        state.Mount (identity);
+
+        Assert::IsTrue (state.GetRecoveryPath().empty(), L"a mount starts with no copy");
+        Assert::IsFalse (state.IsSaveFailureReported(), L"and no report");
+    }
+
+
+
+    //  A copy is news once per path, and a failure with no copy once.
+    TEST_METHOD (SaveFailureReport_IsNewsOncePerPathAndOncePerPlainFailure)
+    {
+        MountedImageState  state;
+
+
+
+        state.Mount (ImageIdentity());
+
+        Assert::IsTrue (state.ShouldReportSaveFailure (std::string()), L"a first plain failure is reported");
+        state.MarkSaveFailureReported (std::string());
+        Assert::IsFalse (state.ShouldReportSaveFailure (std::string()), L"a second is not");
+        Assert::IsTrue (state.IsPlainFailureReported());
+
+        Assert::IsTrue (state.ShouldReportSaveFailure ("C:\\work\\Loader.recovered.woz"), L"a first copy is reported");
+        state.MarkSaveFailureReported ("C:\\work\\Loader.recovered.woz");
+        Assert::IsFalse (state.ShouldReportSaveFailure ("C:\\work\\Loader.recovered.woz"), L"the same copy is not");
+        Assert::IsTrue (state.ShouldReportSaveFailure ("C:\\work\\Loader.recovered.1.woz"), L"a copy at another path is");
+
+        state.ClearRecovery();
+
+        Assert::IsTrue (state.ShouldReportSaveFailure (std::string()), L"after a save, a failure is news again");
+        Assert::IsFalse (state.IsSaveFailureReported());
+    }
+
+
+
+    //  The copy is current only for the image it was written from, with the
+    //  same track generations.
+    TEST_METHOD (RecoveryRecord_IsCurrentOnlyForTheSameImageAndGenerations)
+    {
+        MountedImageState  state;
+
+
+
+        state.Mount (ImageIdentity());
+        state.SetRecovery ("C:\\work\\Loader.recovered.woz", 7, { 1, 2, 3 }, ImageIdentity());
+
+        Assert::IsTrue  (state.IsRecoveryCurrent (7, { 1, 2, 3 }), L"the same image, with no track written");
+        Assert::IsFalse (state.IsRecoveryCurrent (8, { 1, 2, 3 }), L"another image");
+        Assert::IsFalse (state.IsRecoveryCurrent (7, { 1, 2, 4 }), L"a track written since");
+
+        state.ClearRecovery();
+
+        Assert::IsFalse (state.IsRecoveryCurrent (7, { 1, 2, 3 }), L"no copy after a save");
+    }
+
+
+
+    //  A reload replaces the session the copy was taken from, so the next
+    //  copy is a new file and the first one is left as it was.
+    TEST_METHOD (AReloadAfterARecoveryCopy_StartsANewCopyRatherThanOverwritingIt)
+    {
+        Rig           rig;
+        vector<Byte>  firstCopy;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+        BreakAddressChecksum (*rig.store.GetImage (kSlot, kDrive));
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        rig.store.FlushAll();
+        Assert::IsTrue (rig.files.contains ("C:\\work\\Loader.recovered.woz"), L"the first copy");
+        firstCopy = rig.files["C:\\work\\Loader.recovered.woz"];
+
+        //  The user discards the session's writes, which reloads the file.
+        rig.WriteImage (kImagePath, 0x22);
+        AssertSucceeded (rig.store.DiscardHeldWrites());
+
+        BreakAddressChecksum (*rig.store.GetImage (kSlot, kDrive));
+        rig.store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        rig.store.FlushAll();
+
+        Assert::IsTrue (rig.files.contains ("C:\\work\\Loader.recovered.1.woz"), L"the second copy is a new file");
+        Assert::IsTrue (rig.files["C:\\work\\Loader.recovered.woz"] == firstCopy, L"and the first is left as it was");
+    }
+
+
+
+    //  Breaks the checksum of the first address field on track 0, so the track
+    //  no longer decodes and a sector format cannot store the disk.
+    static void BreakAddressChecksum (DiskImage & image)
+    {
+        vector<Byte> &  bits = image.GetTrackBitsForWrite (0);
+        size_t          i    = 0;
+        bool            done = false;
+
+
+
+        for (i = 0; i + 10 < bits.size() && !done; i++)
+        {
+            if (bits[i] == 0xD5 && bits[i + 1] == 0xAA && bits[i + 2] == 0x96)
+            {
+                bits[i + 9]  = 0xAA;
+                bits[i + 10] = 0xAA;
+                done         = true;
+            }
+        }
+
+        Assert::IsTrue (done, L"track 0 has an address field");
+    }
+
+
+
     TEST_METHOD (AMountFromBytesIsNeverStaleCheckedIntoARefusedFlush)
     {
         Rig           rig;

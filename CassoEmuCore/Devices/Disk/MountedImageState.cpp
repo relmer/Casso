@@ -23,6 +23,7 @@ void MountedImageState::Mount (const ImageIdentity & identity)
     m_ejectWhenAnswered = false;
 
     ClearPreserved();
+    ClearRecovery();
 
     return;
 }
@@ -51,6 +52,7 @@ void MountedImageState::Eject()
     m_ejectWhenAnswered = false;
 
     ClearPreserved();
+    ClearRecovery();
 
     return;
 }
@@ -94,6 +96,135 @@ void MountedImageState::ReleaseUnwrittenReservation()
     {
         m_preservedPath.clear();
     }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::IsRecoveryCurrent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MountedImageState::IsRecoveryCurrent (uint64_t imageId, const std::vector<uint64_t> & generations) const
+{
+    return !m_recoveryPath.empty()
+        && m_recoveryImageId     == imageId
+        && m_recoveryGenerations == generations;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::SetRecovery
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::SetRecovery (const std::string &           path,
+                                     uint64_t                      imageId,
+                                     const std::vector<uint64_t> & generations,
+                                     const ImageIdentity &         identity)
+{
+    m_recoveryPath        = path;
+    m_recoveryImageId     = imageId;
+    m_recoveryGenerations = generations;
+    m_recoveryIdentity    = identity;
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::ShouldReportSaveFailure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MountedImageState::ShouldReportSaveFailure (const std::string & recoveryPath) const
+{
+    bool  isNews = false;
+
+
+
+    if (recoveryPath.empty())
+    {
+        isNews = !m_isPlainFailureReported;
+    }
+    else
+    {
+        isNews = m_reportedRecoveryPath.empty() || !IsSamePath (recoveryPath, m_reportedRecoveryPath);
+    }
+
+    return isNews;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::MarkSaveFailureReported
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::MarkSaveFailureReported (const std::string & recoveryPath)
+{
+    if (recoveryPath.empty())
+    {
+        m_isPlainFailureReported = true;
+    }
+    else
+    {
+        m_reportedRecoveryPath = recoveryPath;
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::IsSaveFailureReported
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MountedImageState::IsSaveFailureReported() const
+{
+    return !m_reportedRecoveryPath.empty() || m_isPlainFailureReported;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountedImageState::ClearRecovery
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MountedImageState::ClearRecovery()
+{
+    m_recoveryPath.clear();
+    m_recoveryIdentity       = ImageIdentity();
+    m_recoveryImageId        = 0;
+    m_recoveryGenerations.clear();
+    m_reportedRecoveryPath.clear();
+    m_isPlainFailureReported = false;
 
     return;
 }

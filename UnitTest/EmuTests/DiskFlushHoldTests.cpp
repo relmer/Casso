@@ -3,6 +3,7 @@
 #include "HResultAssert.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Shell/DriveStatusPublisher.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -66,6 +67,38 @@ public:
         AssertSucceeded (store->FlushAllUnlessHeld(), L"FlushAllUnlessHeld after the hold");
 
         Assert::AreEqual<size_t> (1, files.writes, L"without the hold the automatic flush writes");
+    }
+
+
+    //  A disk whose writes cannot be stored in its format gets no recovery
+    //  copy under SetFlushHold: the save writes the copy, and
+    //  FlushAllUnlessHeld skips the save.
+    TEST_METHOD (AHeldFlushWritesNoRecoveryCopy)
+    {
+        DiskImageStore  store;
+        size_t          writes = 0;
+
+
+
+        store.SetFlushSink ([&writes] (const std::string &, const std::vector<Byte> &)
+        {
+            writes++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (s_kHoldSlot, s_kHoldDrive, "C:\\disks\\Held.dsk", DiskFormat::Dsk,
+                                               std::vector<Byte> (NibblizationLayer::kImageByteSize, 0x5A)),
+                         L"MountFromBytes");
+        BreakAddressChecksum (*store.GetImage (s_kHoldSlot, s_kHoldDrive));
+        store.GetImage (s_kHoldSlot, s_kHoldDrive)->SetLoadedForTest (true, true);
+
+        store.SetFlushHold (true);
+
+        AssertSucceeded (store.FlushAllUnlessHeld(), L"FlushAllUnlessHeld");
+        store.SoftReset();
+
+        Assert::AreEqual<size_t> (0, writes, L"no recovery copy and no save");
+        Assert::IsTrue (store.HasUnsavedWrites(), L"the writes are unsaved");
     }
 
 
@@ -277,6 +310,30 @@ private:
         AssertSucceeded (store.Mount (s_kHoldSlot, s_kHoldDrive, "hold.nib"), L"Mount");
 
         Dirty (store);
+    }
+
+
+    //  Breaks the checksum of the first address field on track 0, so the track
+    //  no longer decodes and a sector format cannot store the disk.
+    static void BreakAddressChecksum (DiskImage & image)
+    {
+        std::vector<Byte> &  bits = image.GetTrackBitsForWrite (0);
+        size_t               i    = 0;
+        bool                 done = false;
+
+
+
+        for (i = 0; i + 10 < bits.size() && !done; i++)
+        {
+            if (bits[i] == 0xD5 && bits[i + 1] == 0xAA && bits[i + 2] == 0x96)
+            {
+                bits[i + 9]  = 0xAA;
+                bits[i + 10] = 0xAA;
+                done         = true;
+            }
+        }
+
+        Assert::IsTrue (done, L"track 0 has an address field");
     }
 
 

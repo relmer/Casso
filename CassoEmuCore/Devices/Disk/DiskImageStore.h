@@ -670,6 +670,15 @@ private:
     // beside the original and losslessly. Leaves the original untouched.
     HRESULT        TryWriteRecoveryImage  (Entry & entry, string & outPath);
 
+    // TryWriteRecoveryImage's steps: whether the copy this mount wrote is as
+    // it was written, and a new copy at the first free recovery name.
+    bool           IsRecoveryCopyIntact   (const Entry & entry);
+    HRESULT        WriteNewRecoveryImage  (const Entry & entry, const vector<Byte> & wozBytes, string & outPath);
+
+    // The save-failure notice from what the save produced, including the text
+    // for a recovery copy that could not be written.
+    static wstring FormatFlushLossMessage (const string & path, const FlushOutcome & outcome);
+
     // Enough room to step past collisions without ever spinning.
     static constexpr int  kMaxRecoveryNameAttempts = 64;
 

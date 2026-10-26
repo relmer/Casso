@@ -262,6 +262,10 @@ public:
     uint64_t         GetImageId          () const { return m_imageId; }
     uint64_t         GetTrackGeneration  (int track) const;
 
+    // Every track's generation, in track order: equal for two moments exactly
+    // when no track of this medium was written between them.
+    const vector<uint64_t> &  GetTrackGenerations () const { return m_trackGeneration; }
+
     // IMachineState: the guest-visible media, that is every track's bits and
     // length or its flux, and the image and user write-protect flags. The
     // file path, format, metadata and quarter-track map come from the file and

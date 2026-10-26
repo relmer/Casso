@@ -149,6 +149,29 @@ public:
     //  A copy under this name is no longer this bay's concern.
     void  ClearPreserved ();
 
+    //  The recovery copy this mount wrote for writes its format cannot store,
+    //  and what it was written from: the image, its track generations, and the
+    //  copy file's identity once written.
+    const std::string &    GetRecoveryPath     () const { return m_recoveryPath; }
+    const ImageIdentity &  GetRecoveryIdentity () const { return m_recoveryIdentity; }
+    bool                   IsRecoveryCurrent   (uint64_t imageId, const std::vector<uint64_t> & generations) const;
+    void                   SetRecovery         (const std::string &           path,
+                                                uint64_t                      imageId,
+                                                const std::vector<uint64_t> & generations,
+                                                const ImageIdentity &         identity);
+
+    //  Whether a save failure nobody asked for is news: a recovery copy at a
+    //  path not reported yet, or, with no copy, the first plain failure. An
+    //  empty `recoveryPath` is a plain failure.
+    bool  ShouldReportSaveFailure (const std::string & recoveryPath) const;
+    void  MarkSaveFailureReported (const std::string & recoveryPath);
+    bool  IsPlainFailureReported  () const { return m_isPlainFailureReported; }
+    bool  IsSaveFailureReported   () const;
+
+    //  The session was saved, or replaced: the copy and both reports are
+    //  forgotten.
+    void  ClearRecovery ();
+
     //  Gives back a preserved name that was reserved and never used.
     //
     //  A NAME IS RESERVED WHEN A QUESTION IS PUT, so that whoever writes the
@@ -182,4 +205,11 @@ private:
     std::string    m_preservedPath;
     bool           m_preservedWritten  = false;
     bool           m_ejectWhenAnswered = false;
+
+    std::string            m_recoveryPath;
+    ImageIdentity          m_recoveryIdentity;
+    uint64_t               m_recoveryImageId        = 0;
+    std::vector<uint64_t>  m_recoveryGenerations;
+    std::string            m_reportedRecoveryPath;
+    bool                   m_isPlainFailureReported = false;
 };

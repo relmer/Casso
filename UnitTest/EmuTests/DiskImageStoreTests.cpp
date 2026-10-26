@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/ChangePrompt.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
@@ -889,6 +890,169 @@ public:
 
 
 
+    //  The recovery copies of a disk whose format cannot store its writes,
+    //  through the seam.
+    static size_t CountRecoveryFiles (const FakeDiskFileIo & io)
+    {
+        size_t  count = 0;
+
+
+
+        for (const auto & [path, bytes] : io.files)
+        {
+            if (path.find (".recovered") != string::npos)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+
+
+    TEST_METHOD (FlushEntry_UnserializableImage_LeavesOneRecoveryFile)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        DiskImageStore  reloaded;
+        string          copyPath = "Q:/casso-no-such-root/image.recovered.woz";
+        int             spin     = 0;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        for (spin = 0; spin < 3; spin++)
+        {
+            AssertFailed (store.FlushAll());
+        }
+
+        Assert::AreEqual (size_t (1), CountRecoveryFiles (io), L"three saves write one recovery file");
+
+        store.GetImage (kSlot, kDrive)->WriteBit (10, 0, 1);
+        AssertFailed (store.FlushAll());
+
+        Assert::AreEqual (size_t (1), CountRecoveryFiles (io), L"a guest write replaces it");
+        AssertSucceeded (reloaded.MountFromBytes (kSlot, kDrive, copyPath, DiskFormat::Woz, io.files[copyPath]));
+        Assert::AreEqual (Byte (1), reloaded.GetImage (kSlot, kDrive)->ReadBit (10, 0), L"and the copy has the new bit");
+    }
+
+
+
+    TEST_METHOD (FlushEntry_RecoveryCopyThatCannotBeWritten_IsReportedOnceAndKeepsTheWrites)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        wstring                   expected;
+        int                       spin = 0;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+        io.failWritesContaining = ".recovered";
+        io.nextWriteError       = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        for (spin = 0; spin < 3; spin++)
+        {
+            AssertFailed (store.FlushAll());
+        }
+
+        expected = L"Casso could not save changes to the disk image:\n\nQ:/casso-no-such-root/image.dsk"
+                   L"\n\nThe file on disk is unchanged. Its changes cannot be stored as a .dsk image. Casso tried "
+                   L"to save them to image.recovered.woz instead, but failed: "
+                 + ChangePrompt::DescribeError (HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+        if (!expected.ends_with (L"."))
+        {
+            expected += L".";
+        }
+
+        Assert::AreEqual (1, s_flushNotifyCount, L"the failure is reported once");
+        Assert::AreEqual (expected, s_flushNotifyLast, L"in the approved text, with the copy's error");
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty(), L"the writes are in the drive");
+        Assert::AreEqual (size_t (0), CountRecoveryFiles (io), L"and in no file");
+    }
+
+
+
+    TEST_METHOD (FlushEntry_RecoveryCopyChangedOutsideCasso_IsNotOverwritten)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        string                    copyPath = "Q:/casso-no-such-root/image.recovered.woz";
+        vector<Byte>              outside (100, 0x42);
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        AssertFailed (store.FlushAll());
+
+        //  Another program writes over the copy.
+        io.SeedDurable (copyPath, outside);
+
+        store.GetImage (kSlot, kDrive)->WriteBit (10, 0, 1);
+        AssertFailed (store.FlushAll());
+
+        Assert::IsTrue (io.files[copyPath] == outside, L"the changed copy is left as it is");
+        Assert::IsTrue (io.files.contains ("Q:/casso-no-such-root/image.recovered.1.woz"), L"the session goes to the next name");
+        Assert::AreEqual (2, s_flushNotifyCount, L"and the new copy is reported");
+    }
+
+
+
+    TEST_METHOD (FlushEntry_AfterASuccessfulSave_ANewFailureStartsANewCopy)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        vector<Byte>              intact;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        intact = store.GetImage (kSlot, kDrive)->GetTrackBits (3);
+
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        AssertFailed (store.FlushAll());
+
+        //  The guest writes the track back whole, so the disk saves.
+        store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (3) = intact;
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        AssertSucceeded (store.FlushAll());
+
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        AssertFailed (store.FlushAll());
+
+        Assert::IsTrue (io.files.contains ("Q:/casso-no-such-root/image.recovered.1.woz"),
+            L"the copy from before the save is left, and a new one is written");
+        Assert::AreEqual (2, s_flushNotifyCount, L"and the new failure is reported");
+    }
+
+
+
     TEST_METHOD (FlushEntry_ConflictCopy_ThroughFileIo_IsDurable)
     {
         DiskImageStore  store;
@@ -1558,6 +1722,133 @@ public:
         Assert::AreEqual (string ("C:\\disks\\Session.recovered.woz"), recoveryPath,
             L"the recovery image sits beside the original under its own name");
         Assert::IsTrue (recoveryBytes.size() > 0, L"the recovery image must have content");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  One recovery copy and one notice per mount. A save nobody asked for
+    //  fails the same way at every spindown, so without a record of the copy
+    //  every spindown wrote the copy again, and the notice appeared again.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    //  Runs the drive's motor and lets it stop, `cycles` times, each past the
+    //  one-second spindown.
+    static void SpinDown (Disk2Controller & ctrl, int cycles)
+    {
+        int  cycle = 0;
+
+
+
+        for (cycle = 0; cycle < cycles; cycle++)
+        {
+            ctrl.Write (0xC0E9, 0x00);
+            ctrl.Write (0xC0E8, 0x00);
+            ctrl.Tick  (1100000);
+        }
+    }
+
+
+    TEST_METHOD (FlushEntry_UnserializableImage_IsPreservedOnceUntilTheGuestWritesAgain)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        Disk2Controller           ctrl (6);
+        int                       recoveryWrites = 0;
+        string                    recoveryPath;
+        bool                      wroteOriginal  = false;
+
+
+
+        store.SetFlushSink ([&] (const string & path, const vector<Byte> &)
+        {
+            if (path.ends_with (".recovered.woz"))
+            {
+                recoveryWrites++;
+                recoveryPath = path;
+            }
+            else
+            {
+                wroteOriginal = true;
+            }
+
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Session.dsk",
+                                               DiskFormat::Dsk, MakeDsk (0x5A)));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        ctrl.SetMotorOffFlushCallback ([&] () { store.FlushAllUnlessHeld(); });
+
+        SpinDown (ctrl, 3);
+
+        Assert::AreEqual (1, recoveryWrites, L"one recovery copy for three spindowns");
+        Assert::AreEqual (1, s_flushNotifyCount, L"and one notice");
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty(), L"the original lacks the writes, so the disk is dirty");
+        Assert::IsFalse (wroteOriginal, L"the original is not written");
+
+        store.GetImage (kSlot, kDrive)->WriteBit (10, 0, 1);
+        SpinDown (ctrl, 1);
+
+        Assert::AreEqual (2, recoveryWrites, L"a guest write refreshes the copy");
+        Assert::AreEqual (string ("C:\\disks\\Session.recovered.woz"), recoveryPath, L"at the same path");
+        Assert::AreEqual (1, s_flushNotifyCount, L"with no second notice");
+    }
+
+
+    TEST_METHOD (FlushEntry_LockedImage_ReportsOnceAcrossSpindowns)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        Disk2Controller           ctrl (6);
+        int                       writes = 0;
+
+
+
+        store.SetFlushSink ([&] (const string &, const vector<Byte> &)
+        {
+            writes++;
+            return HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION);
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Locked.dsk",
+                                               DiskFormat::Dsk, MakeDsk (0x24)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+        ctrl.SetMotorOffFlushCallback ([&] () { store.FlushAllUnlessHeld(); });
+
+        SpinDown (ctrl, 3);
+
+        Assert::AreEqual (3, writes, L"every spindown saves again");
+        Assert::AreEqual (1, s_flushNotifyCount, L"and the failure is reported once");
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty(), L"the writes are unsaved");
+    }
+
+
+    TEST_METHOD (Flush_RepeatedFailures_ReportEveryTime)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        int                       attempt = 0;
+
+
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &)
+        {
+            return HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION);
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Locked.dsk",
+                                               DiskFormat::Dsk, MakeDsk (0x24)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+
+        for (attempt = 0; attempt < 3; attempt++)
+        {
+            AssertFailed (store.Flush (kSlot, kDrive));
+        }
+
+        Assert::AreEqual (3, s_flushNotifyCount, L"a save the user asked for reports every failure");
     }
 
 
