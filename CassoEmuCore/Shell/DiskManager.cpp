@@ -208,6 +208,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
     DiskFormat          fmt       = DiskFormat::Dsk;
     bool                readOnly  = false;
     bool                completed = false;
+    bool                isLive    = false;
     WriteProtectInfo    info;
     WriteProtectChange  plan;
     std::string         path;
@@ -216,6 +217,11 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 
 
     CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
+
+    //  A command that arrives on this thread behind live changes nothing.
+    isLive = !m_diskStore.IsFlushHeld() && !m_diskStore.IsReplaying();
+    CBRFEx (isLive, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE),
+            EhmNotifyUser (DiskImageStore::FormatBehindLiveWriteProtectMessage (drive).c_str()));
 
     image = m_diskStore.GetImage (6, drive);
     path  = m_diskStore.GetSourcePath (6, drive);
@@ -534,6 +540,75 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MountDiskForCommand
+//
+//  The IDM_DISK_INSERTn mount. A command that arrives on this thread behind
+//  live is one the window's divergence gate did not stop, so it changes
+//  nothing and is reported as MountDiskInSlot6 reports a failure. The check is not in
+//  MountDiskInSlot6, which the command line's mounts and the remounts also
+//  call, and a machine switch's remount runs after recording stops.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskManager::MountDiskForCommand (int drive, const std::string & path)
+{
+    HRESULT  hr     = S_OK;
+    bool     isLive = !m_diskStore.IsFlushHeld() && !m_diskStore.IsReplaying();
+
+
+
+    CBRFEx (isLive, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE), DeclineBehindLiveInsert (drive, path));
+
+    hr = MountDiskInSlot6 (drive, path);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DeclineBehindLiveInsert
+//
+//  The report of an insert declined behind live: the door closes again over
+//  a disk in the drive, the status is published, and the completion has
+//  MountFailure::BehindLive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::DeclineBehindLiveInsert (int drive, const std::string & path)
+{
+    MountDiagnosis  diagnosis;
+
+
+
+    diagnosis.failure = MountFailure::BehindLive;
+
+    if (m_diskStore.IsMounted (6, drive))
+    {
+        diagnosis.keptPath = m_diskStore.GetSourcePath (6, drive);
+    }
+
+    RestoreDoor (drive);
+
+    (void) PublishDriveStatus (true);
+
+    if (m_onMountCompleted)
+    {
+        m_onMountCompleted (drive, path, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE), diagnosis);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EjectDiskInSlot6
 //
 //  Auto-flushes dirty bits via the store, which announces the eject through
@@ -546,7 +621,19 @@ Error:
 
 void DiskManager::EjectDiskInSlot6 (int drive)
 {
-    m_diskStore.Eject (6, drive);
+    bool  isLive = !m_diskStore.IsFlushHeld() && !m_diskStore.IsReplaying();
+
+
+
+    //  A command that arrives on this thread behind live changes nothing.
+    if (isLive)
+    {
+        m_diskStore.Eject (6, drive);
+    }
+    else
+    {
+        EhmNotifyUser (DiskImageStore::FormatBehindLiveEjectMessage (drive).c_str());
+    }
 
     if (m_diskStore.IsMounted (6, drive))
     {
@@ -721,12 +808,13 @@ void DiskManager::PlayBayChangeEffects (int drive, BayChange change, bool suppre
 //
 //  RemountSlot6Disks
 //
-//  Re-reads every currently mounted slot-6 disk image from the host
-//  filesystem so that an external regeneration of the .dsk file (e.g.
-//  a developer iterating on a demo image) is picked up by the next
-//  boot. Used by the Reset and Power Cycle menu commands. Snapshots
-//  paths first because the re-mount path goes through Eject + Mount
-//  internally, which transiently blanks the source-path slot.
+//  Mounts every slot-6 disk again from its file, so a file regenerated
+//  outside the emulator (a developer iterating on a demo image) is what
+//  the next boot reads. Used by the Reset and Power Cycle menu commands.
+//  Each remount is a mount of the file in the bay: the disk is saved first
+//  and the file is read after, and when the file is as the bay last wrote
+//  it, the disk stays and nothing is read. A disk whose save fails is in
+//  the drive afterward, with its writes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -287,6 +287,12 @@ public:
     //  user's setting, and the file's read-only and permission state.
     void          SetUserWriteProtectFlag (int slot, int drive, bool isProtected);
     void          SetFileWriteProtect     (int slot, int drive, bool isReadOnly, bool hasNoPermission);
+
+    //  The user's write-protect setting, from a command. Protecting saves the
+    //  disk first, because a protected disk is never saved; after a failed
+    //  save the disk is writable, with its writes.
+    HRESULT       SetUserWriteProtect     (int slot, int drive, bool isProtected);
+
     void          SetFlushSink      (FlushSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_flushSink = std::move (sink); }
 
     //  Read counterpart to SetFlushSink: redirects every backing-file read
@@ -517,9 +523,10 @@ public:
     static wstring  FormatUnsavedWritesMessage (const string & path,
                                                 const MountDiagnosis & diagnosis);
 
-    //  The notice for an eject declined because the machine is behind live,
-    //  where no save can be made.
-    static wstring  FormatBehindLiveEjectMessage (int drive);
+    //  The notices for an eject and a write-protect change declined because
+    //  the machine is behind live, where no save can be made.
+    static wstring  FormatBehindLiveEjectMessage        (int drive);
+    static wstring  FormatBehindLiveWriteProtectMessage (int drive);
 
     //  Why a load of these bytes was refused, from what the bytes and the
     //  format alone can settle. Static and pure, so a test can ask it about a

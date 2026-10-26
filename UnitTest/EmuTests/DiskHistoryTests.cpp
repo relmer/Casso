@@ -429,6 +429,155 @@ public:
     }
 
 
+    //  A protect saves the disk live, and its replay sets the flag alone.
+    TEST_METHOD (ReplayingADriveWriteProtectSavesNothing)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           before     = 0;
+        uint64_t           liveEnd    = 0;
+        size_t             liveCount  = 0;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        before = machine.GetPosition();
+        machine.StepOne();
+
+        hr = ProtectDrive (machine);
+        AssertSucceeded (hr, L"ProtectDrive");
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        liveEnd   = machine.GetPosition();
+        liveCount = log.count;
+
+        hr = controller.SeekToPosition (before, result);
+        AssertSucceeded (hr, L"SeekToPosition before the protect");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition past the protect");
+
+        Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+        Assert::AreEqual<size_t>   (liveCount, log.count, L"the replay saved nothing");
+        Assert::IsTrue             (machine.GetDiskStore().GetImage (6, 0)->IsUserWriteProtected(), L"and the drive is protected at the live end");
+    }
+
+
+    //  After a protect whose save fails, the drive is unprotected, and the
+    //  boundary keyframe at its position has the drive that way, so the
+    //  replay matches it.
+    TEST_METHOD (ADeclinedProtectReplaysAsAnUnprotectedDrive)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        HRESULT            hr         = S_OK;
+        uint64_t           before     = 0;
+        uint64_t           liveEnd    = 0;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        machine.GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        before = machine.GetPosition();
+        machine.StepOne();
+
+        machine.GetDiskStore().GetImage (6, 0)->WriteBit (0, 0, (uint8_t) (machine.GetDiskStore().GetImage (6, 0)->ReadBit (0, 0) ^ 1));
+
+        hr = ProtectDrive (machine);
+        AssertFailed (hr, L"the protect's save fails");
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        liveEnd = machine.GetPosition();
+
+        hr = controller.SeekToPosition (before, result);
+        AssertSucceeded (hr, L"SeekToPosition before the protect");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition past the protect");
+
+        Assert::IsTrue  (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+        Assert::IsFalse (machine.GetDiskStore().GetImage (6, 0)->IsUserWriteProtected(), L"and the drive is unprotected at the live end");
+    }
+
+
+    //  A reset over a dirty disk saves it and reads its file back, with the
+    //  reads and saves on one file. A seek to the oldest position and back
+    //  across the reset ends at the live machine.
+    TEST_METHOD (SeekingAcrossAResetOfADirtyDiskGivesTheLiveMachine)
+    {
+        TestMachine        machine      ("Apple2e");
+        ReverseController  controller   (machine);
+        FlushLog           log;
+        ReverseResult      result;
+        std::vector<Byte>  file;
+        HRESULT            hr           = S_OK;
+        uint64_t           liveEnd      = 0;
+        uint64_t           liveChecksum = 0;
+        DiskImage        * image        = nullptr;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        AssertSucceeded (ReadPatternImage (std::string(), file), L"ReadPatternImage");
+
+        machine.GetDiskStore().SetImageReader ([&file] (const std::string &, std::vector<Byte> & bytes) { bytes = file; return S_OK; });
+        machine.GetDiskStore().SetFlushSink   ([&file, &log] (const std::string &, const std::vector<Byte> & bytes)
+        {
+            file = bytes;
+            log.count++;
+            return S_OK;
+        });
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        image = machine.GetDiskStore().GetImage (6, 0);
+        image->WriteBit (0, 0, (uint8_t) (image->ReadBit (0, 0) ^ 1));
+
+        machine.StepOne();
+        Reset (machine);
+
+        Assert::IsFalse (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"the reset saved the disk");
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        liveEnd      = machine.GetPosition();
+        liveChecksum = ReverseSessionRig::Checksum (machine);
+
+        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        AssertSucceeded (hr, L"SeekToPosition back to the start");
+
+        hr = controller.SeekToPosition (liveEnd, result);
+        AssertSucceeded (hr, L"SeekToPosition forward across the reset");
+
+        Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+        Assert::AreEqual<uint64_t> (liveChecksum, ReverseSessionRig::Checksum (machine), L"the whole machine as it was at the live end");
+    }
+
+
     //  A seek moves the disk without a bay change notice, and the next publish
     //  has the bay as the seek left it.
     TEST_METHOD (SeekingAcrossAnEjectRepublishesTheEmptyBay)
@@ -1013,6 +1162,16 @@ private:
     {
         machine.RecordInput (InputKind::DiskEject, 0, 0, {});
         machine.GetDiskStore().Eject (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+    }
+
+
+    //  Protects slot 6 drive 1 as the CPU thread does: journaled first, then
+    //  the store's protect, which saves the disk.
+    static HRESULT ProtectDrive (TestMachine & machine)
+    {
+        machine.RecordInput (InputKind::DriveWriteProtect, ReverseSessionRig::kDiskDrive, 1, {});
+
+        return machine.GetDiskStore().SetUserWriteProtect (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive, true);
     }
 
 

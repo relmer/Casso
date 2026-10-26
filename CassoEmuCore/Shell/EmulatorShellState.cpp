@@ -217,6 +217,11 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
     hr = MachineStateFile::Parse (bytes, contents, outError);
     CHR (hr);
 
+    //  Ahead of the switch to another machine and of the history's stop, so
+    //  a load declined for a disk that could not be saved changes neither.
+    hr = MachineStateFile::SaveDisksFirst (m_machine, outError);
+    CHR (hr);
+
     //  The disk images are checked here, with no machine, before another
     //  machine is opened.
     hr = MachineStateFile::CheckDisks (contents, outError);

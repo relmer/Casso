@@ -383,6 +383,8 @@ private:
             { L"GetStatusGeneration",       [&store] { (void) store.GetStatusGeneration(); } },
             { L"MarkStatusChanged",         [&store] { store.MarkStatusChanged(); } },
             { L"SetUserWriteProtectFlag",   [&store] { store.SetUserWriteProtectFlag (s_kOwnedSlot, s_kOwnedDrive, false); } },
+            { L"SetUserWriteProtect",       [&store] { (void) store.SetUserWriteProtect (s_kOwnedSlot, s_kOwnedDrive, false); } },
+            { L"AreAllWritesSaved",         [&store] { (void) store.AreAllWritesSaved(); } },
             { L"SetFileWriteProtect",       [&store] { store.SetFileWriteProtect (s_kOwnedSlot, s_kOwnedDrive, false, false); } },
             { L"SoftReset",                 [&store] { store.SoftReset(); } },
             { L"SalvageToFile",             [&store] { DenibblizeReport r; (void) store.SalvageToFile (s_kOwnedSlot, s_kOwnedDrive, 0, "salvaged.woz", r); } },

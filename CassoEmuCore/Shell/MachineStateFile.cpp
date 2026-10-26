@@ -270,10 +270,11 @@ Error:
 //
 //  Puts a parsed state into the machine, which must already be the machine
 //  kind that saved it. Check runs first, so a refused state changes
-//  nothing. Then the disks in the bays are flushed, as a machine switch
-//  flushes them, each bay is given the state's disk or emptied, and the
-//  machine's state is loaded over them. The state's disks are built from
-//  the bytes it carries; no image file is read.
+//  nothing. Then the disks in the bays are saved, as a machine switch saves
+//  them, and a disk whose writes are in no file declines the load. Each bay
+//  is given the state's disk or emptied, and the machine's state is loaded
+//  over them. The state's disks are built from the bytes it carries; no
+//  image file is read.
 //
 //  A LOAD THAT FAILS PART WAY LEAVES THE MACHINE AS IT WAS, bays included.
 //  The machine is saved before the bays are touched, and the disks that
@@ -301,10 +302,8 @@ HRESULT MachineStateFile::Apply (
     hr = Check (machine, contents, outError);
     CHR (hr);
 
-    // The disks leaving the bays keep the writes made to them, as on a
-    // machine switch.
-    hr = store.FlushAll();
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    hr = SaveDisksFirst (machine, outError);
+    CHR (hr);
 
     hr = machine.SaveState (before);
     CHRF (hr, outError = MakeError ("state not loaded", "The machine's own state could not be read, so it was left as it was."));
@@ -332,6 +331,43 @@ Error:
         store.SetMediaRetention (false);
     }
 
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStateFile::SaveDisksFirst
+//
+//  The disks leaving the bays keep the writes made to them, as on a machine
+//  switch. A load replaces the disks in the bays, so a disk whose writes
+//  could not be saved, to its file or to a current recovery copy, declines
+//  it, ahead of anything that changes the machine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineStateFile::SaveDisksFirst (
+    MachineHost        & machine,
+    MachineStateError  & outError)
+{
+    HRESULT           hr          = S_OK;
+    HRESULT           hrSave      = S_OK;
+    DiskImageStore  & store       = machine.GetDiskStore();
+    bool              areAllSaved = false;
+
+
+
+    hrSave = store.FlushAll();
+    IGNORE_RETURN_VALUE (hrSave, S_OK);
+
+    areAllSaved = store.AreAllWritesSaved();
+    CBRFEx (areAllSaved, STG_E_CANTSAVE,
+            outError = MakeError ("disk not saved", "A disk in a drive has changes that could not be saved, so the state was not loaded."));
+
+Error:
     return hr;
 }
 

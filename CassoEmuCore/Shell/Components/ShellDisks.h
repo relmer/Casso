@@ -76,9 +76,11 @@ public:
     // read-only state; all three are surfaced independently in the UI.
     std::array<bool, 2>  & GetUserWriteProtect () { return m_userWriteProtect; }
 
-    // Records the user's per-drive write-protect preference and applies it to
-    // the currently mounted image (if any) so the change takes effect
-    // immediately. CPU thread.
+    // Applies the user's per-drive write-protect preference to the mounted
+    // image, saving the disk first for a protect, and stores the preference
+    // once the drive has it, or at once for an empty drive. A value equal to
+    // the preference changes nothing, and behind live nothing changes. CPU
+    // thread.
     void  SetDriveUserWriteProtect (int drive, bool wp) override;
 
     // ICpuDiskCommands: the queued mounts, ejects and image changes, carried

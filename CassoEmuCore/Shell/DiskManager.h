@@ -74,6 +74,10 @@ public:
     //  through Mount.
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);
 
+    //  The IDM_DISK_INSERTn mount: declined while the machine is behind live,
+    //  and otherwise MountDiskInSlot6.
+    HRESULT  MountDiskForCommand    (int drive, const std::string & path);
+
     //  Called after any attempted mount, whatever started it: the command
     //  line, the picker, a machine switch, session restore. Every mount funnels
     //  through MountDiskInSlot6, so hooking it here is what makes "report a
@@ -203,6 +207,9 @@ private:
 
     //  OnBayChange's door and sound.
     void     PlayBayChangeEffects (int drive, BayChange change, bool suppressFx);
+
+    //  MountDiskForCommand's report of an insert declined behind live.
+    void     DeclineBehindLiveInsert (int drive, const std::string & path);
 
     class MachineHost                               & m_machine;
     DiskImageStore                                  & m_diskStore;

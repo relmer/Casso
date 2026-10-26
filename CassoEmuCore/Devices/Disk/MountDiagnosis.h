@@ -71,6 +71,7 @@ enum class MountFailure
     NotANibbleStream,
     AlreadyMounted,
     UnsavedWrites,
+    BehindLive,
 };
 
 

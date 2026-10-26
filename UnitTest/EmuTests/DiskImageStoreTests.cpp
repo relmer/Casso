@@ -1499,6 +1499,71 @@ public:
 
 
 
+    //  Protecting saves the disk first, under the flush hold too: an
+    //  explicit save writes under it.
+    TEST_METHOD (UserWriteProtect_SavesFirst_EvenWhileHeld)
+    {
+        DiskImageStore  store;
+        vector<string>  written;
+
+
+
+        store.SetFlushSink ([&written] (const string & path, const vector<Byte> &) { written.push_back (path); return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+        store.SetFlushHold (true);
+
+        AssertSucceeded (store.SetUserWriteProtect (kSlot, kDrive, true));
+
+        Assert::IsTrue (written == vector<string> { kEjectPath }, L"the disk is saved");
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsUserWriteProtected(), L"and then protected");
+    }
+
+
+
+    TEST_METHOD (UserWriteProtect_FlushFailure_LeavesTheDiskWritable)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<string>            written;
+
+
+
+        FailWritesToTheEjectedFile (store, written);
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+
+        AssertFailed (store.SetUserWriteProtect (kSlot, kDrive, true), L"the save fails");
+
+        Assert::IsFalse  (store.GetImage (kSlot, kDrive)->IsUserWriteProtected(), L"so the disk is writable");
+        Assert::IsTrue   (store.GetImage (kSlot, kDrive)->IsDirty(), L"with its writes");
+        Assert::AreEqual (1, s_flushNotifyCount, L"and the failure is reported");
+    }
+
+
+
+    TEST_METHOD (UserWriteProtect_UnprotectingACleanDisk_SavesNothing)
+    {
+        DiskImageStore  store;
+        vector<string>  written;
+
+
+
+        store.SetFlushSink ([&written] (const string & path, const vector<Byte> &) { written.push_back (path); return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        store.SetUserWriteProtectFlag (kSlot, kDrive, true);
+
+        AssertSucceeded (store.SetUserWriteProtect (kSlot, kDrive, false));
+
+        Assert::IsTrue  (written.empty(), L"nothing is saved");
+        Assert::IsFalse (store.GetImage (kSlot, kDrive)->IsUserWriteProtected(), L"and the disk is writable");
+    }
+
+
+
     TEST_METHOD (FlushEntry_ConflictCopy_ThroughFileIo_IsDurable)
     {
         DiskImageStore  store;
@@ -3195,6 +3260,7 @@ public:
             MountFailure::NotANibbleStream,
             MountFailure::AlreadyMounted,
             MountFailure::UnsavedWrites,
+            MountFailure::BehindLive,
         };
 
         vector<wstring>  seen;
@@ -3203,7 +3269,7 @@ public:
 
 
 
-        Assert::AreEqual ((size_t) 12, sizeof (reasons) / sizeof (reasons[0]),
+        Assert::AreEqual ((size_t) 13, sizeof (reasons) / sizeof (reasons[0]),
             L"an enumerator added without a wording must fail here, not ship silent");
 
         for (i = 0; i < sizeof (reasons) / sizeof (reasons[0]); i++)

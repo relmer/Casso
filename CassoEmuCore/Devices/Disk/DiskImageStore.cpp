@@ -1275,10 +1275,10 @@ MountDiagnosis DiskImageStore::ClassifyLoadFailure (DiskFormat fmt, const vector
 //  actionable for none of them. The reason now travels here, and the wording
 //  is the diagnosis's to give.
 //
-//  Deliberately says nothing about what happened to the drive. A rejected
-//  file leaves the bay empty, while a file that could not be read at all
-//  leaves the previous disk in place, and a message that guessed wrong about
-//  that is worse than one that stays quiet on it.
+//  After a declined mount over a disk, that disk is in the drive, and the
+//  message states it: the image is loaded before the bay is touched, so no
+//  failure empties the bay. A mount declined because the disk in the drive
+//  has writes in no file gets FormatUnsavedWritesMessage's text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3176,6 +3176,22 @@ wstring DiskImageStore::FormatBehindLiveEjectMessage (int drive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatBehindLiveWriteProtectMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatBehindLiveWriteProtectMessage (int drive)
+{
+    return L"Casso did not change write protection for drive " + std::to_wstring (drive + 1)
+         + L", because the machine was behind live in its history when the change ran. Go live and try again.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SoftReset
 //
 //  Keeps every disk mounted and flushes every dirty image, so a soft reset
@@ -3404,6 +3420,52 @@ void DiskImageStore::SetUserWriteProtectFlag (int slot, int drive, bool isProtec
         GetEntry (slot, drive).image->SetUserWriteProtected (isProtected);
         MarkStatusChanged();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetUserWriteProtect
+//
+//  The user's write-protect setting, from a command. A protected disk is
+//  never saved, so protecting saves the disk first, at Running, as an
+//  explicit save, which writes under the flush hold too.
+//
+//  AFTER A FAILED SAVE THE DISK IS WRITABLE, with its writes. The media change
+//  it reports makes the boundary keyframe at this position record the drive
+//  unprotected, so a replay of the journaled protect ends as the live machine
+//  did.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::SetUserWriteProtect (int slot, int drive, bool isProtected)
+{
+    HRESULT  hr        = S_OK;
+    bool     isValid   = IsValidBay (slot, drive);
+    bool     isMounted = false;
+
+
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    CBRAEx (isValid, E_INVALIDARG);
+
+    isMounted = GetEntry (slot, drive).mounted && GetEntry (slot, drive).image != nullptr;
+    BAIL_OUT_IF (!isMounted, S_OK);
+
+    if (isProtected)
+    {
+        hr = FlushEntry (GetEntry (slot, drive), FlushMoment::Running);
+        CHRF (hr, NotifyMediaChanged());
+    }
+
+    SetUserWriteProtectFlag (slot, drive, isProtected);
+
+Error:
+    return hr;
 }
 
 

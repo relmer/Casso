@@ -128,6 +128,10 @@ public:
     //  bad one before it opens the machine that saved the state.
     static HRESULT  CheckDisks (const MachineStateContents & contents, MachineStateError & outError);
 
+    //  Saves every disk in the bays, and fails when a guest write is in no
+    //  file, so a load declined for it changes nothing.
+    static HRESULT  SaveDisksFirst (MachineHost & machine, MachineStateError & outError);
+
     //  An error from its label and detail.
     static MachineStateError  MakeError (const char * label, const char * detail);
 

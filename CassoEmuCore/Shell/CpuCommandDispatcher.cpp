@@ -41,7 +41,9 @@ static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
 //
 //  The reset paths read the disks back from the host first, so an image
 //  regenerated outside the emulator (hack on a demo, rebuild the disk, hit
-//  Reset) is what the boot ROM finds. A power cycle remounts AFTER, because
+//  Reset) is what the boot ROM finds. Each disk is saved before its file is
+//  read back, and a disk whose save fails is in the drive afterward, with
+//  its writes. A power cycle remounts AFTER, because
 //  Disk2Controller::PowerCycle points each engine back at its empty internal
 //  sentinel and the drives would otherwise come up empty.
 //

@@ -2261,9 +2261,11 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
     switch (payload.intent)
     {
         case ExternalChangeIntent::InsertDisk:
-            //  Through the drive widget's own mount, so an occupied drive is
-            //  flushed and ejected before the new disk goes in. The answer
-            //  waits for the mount to finish on the CPU thread.
+            //  Through the drive widget's mount, so the new disk is loaded
+            //  first and the disk in an occupied drive is saved before it is
+            //  replaced. A disk whose save fails stays in the drive, and the
+            //  mount is declined. The answer waits for the mount to finish
+            //  on the CPU thread.
             widePath = fs::path (std::u8string (payload.imagePath.begin(), payload.imagePath.end())).wstring();
 
             m_intentReplies.NoteInsert (payload.drive - 1, fs::path (widePath).string(), replyTo);

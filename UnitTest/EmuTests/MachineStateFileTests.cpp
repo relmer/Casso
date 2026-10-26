@@ -344,6 +344,49 @@ public:
     }
 
 
+    //  A state is not loaded over a disk whose writes could not be saved: the
+    //  load is declined before the bays change, and the bay has the same
+    //  dirty image.
+    TEST_METHOD (AStateIsNotLoadedOverADiskWhoseWritesCouldNotBeSaved)
+    {
+        TestMachine             source ("Apple2e");
+        TestMachine             target ("Apple2e");
+        FileLog                 sourceLog;
+        FileLog                 targetLog;
+        std::vector<Byte>       bytes;
+        MachineStateContents    contents;
+        MachineStateError       error;
+        DiskImageStore        & store  = target.GetDiskStore();
+        DiskImage             * image  = nullptr;
+        HRESULT                 hr     = S_OK;
+
+
+
+        Prepare (source, sourceLog, true);
+        source.RunCycles (s_kStateWarmupCycles);
+
+        bytes = Build (source);
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+
+        Prepare (target, targetLog, true);
+
+        store.SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        image = store.GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive);
+        image->WriteBit (0, 0, (uint8_t) (image->ReadBit (0, 0) ^ 1));
+
+        hr = MachineStateFile::Apply (target, contents, error);
+
+        AssertFailed (hr, L"the state is not loaded");
+        Assert::AreEqual (std::string ("disk not saved"), error.label);
+        Assert::AreEqual (std::string ("A disk in a drive has changes that could not be saved, so the state was not loaded."), error.detail);
+        Assert::IsTrue   (store.GetImage (ReverseSessionRig::kDiskSlot, ReverseSessionRig::kDiskDrive) == image, L"the bay has the same disk");
+        Assert::IsTrue   (image->IsDirty(), L"with its changes");
+    }
+
+
     //  The drive sounds follow the bays through a failed load, fed from the
     //  bay-change sink as the shell feeds them. Drive 1 starts empty and drive
     //  2 holds a disk. The load puts the state's disk in drive 1 and empties

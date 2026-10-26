@@ -440,8 +440,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // devices are about to go; stopping it also lets the flush below write.
     m_shell.m_debugger->StopReverseRecording();
 
-    // Auto-flush every dirty disk before tearing down the previous
-    // machine so user writes survive the machine switch.
+    // Save every dirty disk before tearing down the previous machine, so
+    // user writes survive the machine switch. A disk whose save fails is
+    // in the drive after the switch, with its writes: the remount below
+    // mounts the same file, and that mount is declined.
     {
         HRESULT  hrFlush = m_shell.m_machine.GetDiskStore().FlushAll();
         IGNORE_RETURN_VALUE (hrFlush, S_OK);
@@ -565,13 +567,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // Same cold-power-on sequence as Initialize() -- seed DRAM and
     // run the 6502 /RESET sequence. Without this the newly-built
     // machine starts with a random PC into uninitialized RAM. Mounts
-    // persist across the switch (they were flushed above and re-
-    // mounted by the new config); aux RAM, LC RAM, and CPU registers
-    // are all reseeded.
+    // persist across the switch (they were saved above, and the remount
+    // below mounts them again); aux RAM, LC RAM, and CPU registers are
+    // all reseeded.
     //
-    // Must run BEFORE the per-machine remount: PowerCycle ejects every
-    // drive and rebinds the controller's engine to its empty internal
-    // disk, which would silently throw away whatever we just mounted.
+    // Must run BEFORE the per-machine remount: PowerCycle points the
+    // controller's engines at their empty internal disks, and after the
+    // remount the drives would read nothing.
     PowerCycle();
 
     // Remount per-machine disks if any were saved last time this
@@ -584,7 +586,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // If the new machine has no Disk II controller at slot 6 (future
     // non-Apple-II family), drop the carry rather than silently relying
     // on MountDiskInSlot6's nullptr CBR. The disk in DiskImageStore
-    // was already flushed above, so no user data is lost.
+    // was saved above, or, when its save failed, is in its bay with its
+    // writes.
     if (!m_shell.m_disks->GetManager()->HasSlot6Controller())
     {
         carryDisk1.clear();

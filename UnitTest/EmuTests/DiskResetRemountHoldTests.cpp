@@ -619,7 +619,267 @@ public:
         Assert::IsTrue  (afterAnswer.empty(), L"and the drive's saved path is cleared");
     }
 
+
+    //  Behind live, under the flush hold and during a replay, an insert, an
+    //  eject and the Disk menu's write-protect toggle each write nothing,
+    //  change no media and raise the approved notice, and the bay is as it
+    //  was.
+    TEST_METHOD (BehindLive_TheDiskCommandsChangeNothing)
+    {
+        for (bool isReplaying : { false, true })
+        {
+            ScopedNotifyCount   notices;
+            TestMachine         machine  ("Apple2e");
+            auto                shell    = std::make_unique<Shell>();
+            DiskImageStore    & store    = machine.GetDiskStore();
+            DiskImage         * image    = nullptr;
+            int                 writes   = 0;
+            int                 changes  = 0;
+            MountDiagnosis      diagnosis;
+
+
+
+            store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+            store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+            store.SetFlushSink      ([&writes] (const std::string &, const std::vector<Byte> &) { writes++; return S_OK; });
+
+            AssertSucceeded (store.Mount (6, s_kRemountDrive, "C:\\work\\remount.nib"), L"Mount");
+            image = store.GetImage (6, s_kRemountDrive);
+            image->WriteBit (0, s_kRemountBitIndex, image->ReadBit (0, s_kRemountBitIndex) ^ 1);
+
+            store.SetMediaChangeListener ([&changes] { changes++; });
+
+            {
+                DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                      shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                      shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+                manager.SetMountCompletedCallback ([&diagnosis] (int, const std::string &, HRESULT, const MountDiagnosis & outcome) { diagnosis = outcome; });
+
+                if (isReplaying)
+                {
+                    store.SetReplaying (true);
+                }
+                else
+                {
+                    store.SetFlushHold (true);
+                }
+
+                (void) manager.MountDiskForCommand (s_kRemountDrive, "C:\\work\\other.nib");
+                manager.EjectDiskInSlot6 (s_kRemountDrive);
+                (void) manager.ToggleImageWriteProtect (s_kRemountDrive);
+
+                store.SetReplaying (false);
+                store.SetFlushHold (false);
+            }
+
+            Assert::AreEqual (0, writes,  L"nothing is written");
+            Assert::AreEqual (0, changes, L"and no media change is reported");
+            Assert::IsTrue   (store.GetImage (6, s_kRemountDrive) == image, L"the disk is in the drive");
+            Assert::IsTrue   (image->IsDirty(), L"with the guest's write");
+            Assert::IsTrue   (diagnosis.failure == MountFailure::BehindLive, L"the insert is declined as behind live");
+            Assert::IsTrue   (ScopedNotifyCount::HasText (L"Casso did not eject the disk in drive 1, because the machine was behind live "
+                                                          L"in its history when the eject ran. Go live and try again."),
+                              L"the eject's notice");
+            Assert::IsTrue   (ScopedNotifyCount::HasText (L"Casso did not change write protection for drive 1, because the machine was "
+                                                          L"behind live in its history when the change ran. Go live and try again."),
+                              L"and the toggle's");
+        }
+    }
+
+
+    //  The decline is only for the commands: a mount from the command line
+    //  into an empty drive during a replay goes ahead, with no behind-live
+    //  notice.
+    TEST_METHOD (BehindLive_ACommandLineMountStillMounts)
+    {
+        ScopedNotifyCount   notices;
+        TestMachine         machine ("Apple2e");
+        auto                shell   = std::make_unique<Shell>();
+        DiskImageStore    & store   = machine.GetDiskStore();
+
+
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            store.SetReplaying (true);
+            manager.MountCommandLineDisks ("C:\\work\\remount.nib", "");
+            store.SetReplaying (false);
+        }
+
+        Assert::IsTrue   (store.IsMounted (6, 0), L"the disk is mounted");
+        Assert::AreEqual (0, notices.count, L"with no notice");
+    }
+
+
+    //  A reset before the motor stops remounts the disk from its file: the
+    //  save comes first, so the guest's write is in the file and the disk.
+    TEST_METHOD (ResetRemountOfADirtyDiskKeepsTheGuestsWrites)
+    {
+        RunSameFileRemount ([] (DiskManager & manager, TestMachine & machine)
+        {
+            manager.RemountSlot6Disks();
+            machine.SoftReset();
+        });
+    }
+
+
+    TEST_METHOD (SameFileReinsertKeepsTheGuestsWrites)
+    {
+        RunSameFileRemount ([] (DiskManager & manager, TestMachine &)
+        {
+            AssertSucceeded (manager.MountDiskInSlot6 (s_kRemountDrive, s_kRemountPath), L"the re-insert");
+        });
+    }
+
+
+    TEST_METHOD (PowerCycleRemountKeepsTheGuestsWrites)
+    {
+        RunSameFileRemount ([] (DiskManager & manager, TestMachine & machine)
+        {
+            machine.PowerCycle();
+            manager.RemountSlot6Disks();
+        });
+    }
+
+
+    TEST_METHOD (MachineSwitchRemountKeepsTheGuestsWrites)
+    {
+        RunSameFileRemount ([] (DiskManager & manager, TestMachine & machine)
+        {
+            AssertSucceeded (machine.GetDiskStore().FlushAll(), L"the switch's save");
+            machine.PowerCycle();
+            manager.MountCommandLineDisks (s_kRemountPath, "");
+        });
+    }
+
+
+    //  A disk mounted by a path relative to the working directory, then
+    //  inserted again by its absolute path, is the same file.
+    TEST_METHOD (ARelativeMountThenAnAbsoluteReinsertIsTheSameFile)
+    {
+        RunSameFileRemount ([] (DiskManager & manager, TestMachine &)
+        {
+            AssertSucceeded (manager.MountDiskInSlot6 (s_kRemountDrive, s_kRemountPath), L"the re-insert by absolute path");
+        },
+        "remount.nib");
+    }
+
 private:
+
+    static constexpr const char *  s_kRemountPath   = "C:\\work\\remount.nib";
+
+    //  The second bit of a nibble, so the byte with the write is a nibble,
+    //  which a .nib file can store.
+    static constexpr size_t        s_kGuestBitIndex = 201;
+
+
+    //  One in-memory file map behind a store's reads, saves and identities.
+    //  Each save sets a new identity on its file, as a real write does.
+    struct FileMap
+    {
+        std::map<std::string, std::vector<Byte>>  files;
+        std::map<std::string, int64_t>            stamps;
+        int                                       writes = 0;
+
+
+
+        void  Install (DiskImageStore & store)
+        {
+            store.SetImageReader ([this] (const std::string & path, std::vector<Byte> & bytes) -> HRESULT
+            {
+                auto  found = files.find (path);
+
+                if (found == files.end())
+                {
+                    return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+                }
+
+                bytes = found->second;
+
+                return S_OK;
+            });
+
+            store.SetIdentityReader ([this] (const std::string & path) -> ImageIdentity
+            {
+                ImageIdentity  identity;
+                auto           found    = files.find (path);
+
+                if (found != files.end())
+                {
+                    identity.recorded           = true;
+                    identity.stamp.sizeBytes    = found->second.size();
+                    identity.stamp.modifiedUnix = stamps[path];
+                }
+
+                return identity;
+            });
+
+            store.SetFlushSink ([this] (const std::string & path, const std::vector<Byte> & bytes) -> HRESULT
+            {
+                files[path] = bytes;
+                stamps[path]++;
+                writes++;
+
+                return S_OK;
+            });
+        }
+    };
+
+
+    //  Mounts s_kRemountPath, by `mountPath` through the command line when one
+    //  is given, writes one bit, runs `remount`, and asserts that the guest's
+    //  write is in the file and in the disk in the drive.
+    static void RunSameFileRemount (const std::function<void (DiskManager &, TestMachine &)> & remount,
+                                    const std::string & mountPath = std::string())
+    {
+        TestMachine         machine  ("Apple2e");
+        auto                shell    = std::make_unique<Shell>();
+        DiskImageStore    & store    = machine.GetDiskStore();
+        FileMap             map;
+        DiskImageStore      reloaded;
+        uint8_t             written  = 0;
+
+
+
+        map.files[s_kRemountPath] = MakeImage();
+        map.Install (store);
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            if (mountPath.empty())
+            {
+                AssertSucceeded (store.Mount (6, s_kRemountDrive, s_kRemountPath), L"Mount");
+            }
+            else
+            {
+                manager.MountCommandLineDisks (mountPath, "");
+            }
+
+            Assert::AreEqual (std::string (s_kRemountPath), store.GetSourcePath (6, s_kRemountDrive), L"the disk is mounted from its file");
+
+            written = (uint8_t) (store.GetImage (6, s_kRemountDrive)->ReadBit (0, s_kGuestBitIndex) ^ 1);
+            store.GetImage (6, s_kRemountDrive)->WriteBit (0, s_kGuestBitIndex, written);
+
+            remount (manager, machine);
+        }
+
+        AssertSucceeded (reloaded.MountFromBytes (6, s_kRemountDrive, s_kRemountPath, DiskFormat::Nib, map.files[s_kRemountPath]), L"the file loads");
+
+        Assert::IsTrue   (map.writes >= 1, L"the disk was saved");
+        Assert::AreEqual ((int) written, (int) reloaded.GetImage (6, s_kRemountDrive)->ReadBit (0, s_kGuestBitIndex), L"the file has the guest's write");
+        Assert::AreEqual ((int) written, (int) store.GetImage (6, s_kRemountDrive)->ReadBit (0, s_kGuestBitIndex), L"and so does the disk in the drive");
+    }
 
     //  A disk in drive s_kRemountDrive, with a guest write, whose every save
     //  fails.
@@ -654,17 +914,24 @@ private:
     }
 
 
-    //  Counts the store's notices for the span of a test.
+    //  Counts the store's notices for the span of a test, and stores their
+    //  texts.
     struct ScopedNotifyCount
     {
-        static inline int  s_count = 0;
+        static inline int                        s_count = 0;
+        static inline std::vector<std::wstring>  s_texts;
 
         int &  count = s_count;
 
-        static void  Count (const wchar_t *) { s_count++; }
+        static void  Count (const wchar_t * text) { s_count++; s_texts.push_back ((text != nullptr) ? text : L""); }
 
-        ScopedNotifyCount()  { s_count = 0; SetNotifyFunction (Count); }
+        ScopedNotifyCount()  { s_count = 0; s_texts.clear(); SetNotifyFunction (Count); }
         ~ScopedNotifyCount() { SetNotifyFunction (nullptr); }
+
+        static bool  HasText (const std::wstring & text)
+        {
+            return std::find (s_texts.begin(), s_texts.end(), text) != s_texts.end();
+        }
     };
 
 

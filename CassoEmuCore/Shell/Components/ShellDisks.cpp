@@ -910,17 +910,40 @@ bool ShellDisks::IsWriteProtectToggleOffered (int drive)
 
 void ShellDisks::SetDriveUserWriteProtect (int drive, bool wp)
 {
-    if (drive < 0 || drive >= (int) m_userWriteProtect.size())
-    {
-        return;
-    }
+    HRESULT           hr          = S_OK;
+    DiskImageStore  & store       = m_shell.m_machine.GetDiskStore();
+    bool              isValid     = drive >= 0 && drive < (int) m_userWriteProtect.size();
+    bool              isUnchanged = false;
+    bool              isLive      = false;
 
+
+
+    CBR (isValid);
+
+    //  Settings sends both drives' values on every apply, changed or not, so
+    //  a value equal to the drive's setting changes nothing and raises no
+    //  notice, behind live or not.
+    isUnchanged = m_userWriteProtect[(size_t) drive] == wp;
+    BAIL_OUT_IF (isUnchanged, S_OK);
+
+    //  A command that arrives on this thread behind live changes nothing.
+    isLive = !store.IsFlushHeld() && !store.IsReplaying();
+    CBRFEx (isLive, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE),
+            EhmNotifyUser (DiskImageStore::FormatBehindLiveWriteProtectMessage (drive).c_str()));
+
+    // Applied to whatever is mounted right now so the toggle takes effect
+    // without a remount; a later mount re-applies the standing preference
+    // via DiskManager::MountDiskInSlot6. A protect saves the disk first.
+    hr = store.SetUserWriteProtect (6, drive, wp);
+    CHR (hr);
+
+    //  Stored only once the drive has it, so after a declined protect the
+    //  next mount applies no protection the save never got, and the next
+    //  apply that sends a protect saves again.
     m_userWriteProtect[(size_t) drive] = wp;
 
-    // Apply to whatever is mounted right now so the toggle takes effect
-    // without a remount; a later mount re-applies the standing preference
-    // via DiskManager::MountDiskInSlot6.
-    m_shell.m_machine.GetDiskStore().SetUserWriteProtectFlag (6, drive, wp);
+Error:
+    return;
 }
 
 
@@ -1551,7 +1574,7 @@ void ShellDisks::RemountDisks()
 
 HRESULT ShellDisks::MountDisk (int drive, const std::string & path)
 {
-    return m_diskManager->MountDiskInSlot6 (drive, path);
+    return m_diskManager->MountDiskForCommand (drive, path);
 }
 
 

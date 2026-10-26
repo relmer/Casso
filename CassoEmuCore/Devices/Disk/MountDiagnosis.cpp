@@ -86,6 +86,10 @@ string MountDiagnosis::Describe() const
             text = "was not inserted, because the disk has changes that could not be saved";
             break;
 
+        case MountFailure::BehindLive:
+            text = "was not inserted, because the machine was behind live in its history when the insert ran";
+            break;
+
         case MountFailure::None:
         default:
             text = "could not be opened as a disk image, and Casso did not record "

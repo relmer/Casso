@@ -12,6 +12,13 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "HResultAssert.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
+#include "EmuTests/FixtureRomSource.h"
+#include "Shell/CpuManager.h"
+#include "Shell/EmulatorShell.h"
+#include "Shell/HeadlessMachineFactory.h"
+#include "Shell/MachineBuilder.h"
+#include "Shell/MachineStateFile.h"
+#include "resource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -689,6 +696,249 @@ public:
         AssertSucceeded (store.Flush (6, 0));
         Assert::AreEqual (0, sinkCalls, L"no write may happen through the gate");
         Assert::IsFalse (img->IsDirty(), L"the dirty bit is consumed");
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskShellCommandTests
+//
+//  The disk commands as the shell runs them, over a //e the headless factory
+//  builds. The store's saves go to an in-memory file through a flush sink,
+//  and its disk is mounted from bytes, so no save is written to a real file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DiskShellCommandTests)
+{
+public:
+
+    static constexpr const char *  kShellDiskPath = "C:\\work\\shell.nib";
+
+
+    //  A shell, with a disk in slot 6 drive 1. Every save is added to
+    //  `writes`, and lands in `file` when `writeResult` is a success.
+    struct ShellRig
+    {
+        std::unique_ptr<EmulatorShell>  shell       = std::make_unique<EmulatorShell>();
+        std::vector<Byte>               file        = WriteProtectToggleTests::BuildNibbleImage();
+        std::vector<std::string>        writes;
+        HRESULT                         writeResult = S_OK;
+
+
+
+        ShellRig()
+        {
+            MachineBuildServices  services;
+            MachineBuilder        builder (shell->GetMachine(), services);
+            FixtureRomSource      source;
+            std::string           error;
+            HRESULT               hr      = S_OK;
+
+
+
+            hr = HeadlessMachineFactory::Build (shell->GetMachine(), builder, source, "Apple2e", TestMachine::Slots::AsShipped, TestMachine::kSeed, error);
+            AssertSucceeded (hr, L"the shell's machine builds");
+
+            shell->GetMachine().PowerCycle();
+
+            GetStore().SetImageReader ([this] (const std::string &, std::vector<Byte> & bytes) { bytes = file; return S_OK; });
+            GetStore().SetFlushSink   ([this] (const std::string & path, const std::vector<Byte> & bytes)
+            {
+                writes.push_back (path);
+
+                if (SUCCEEDED (writeResult))
+                {
+                    file = bytes;
+                }
+
+                return writeResult;
+            });
+
+            hr = GetStore().MountFromBytes (6, 0, kShellDiskPath, DiskFormat::Nib, file);
+            AssertSucceeded (hr, L"MountFromBytes");
+        }
+
+
+
+        DiskImageStore &  GetStore() { return shell->GetMachine().GetDiskStore(); }
+        DiskImage *       GetImage() { return GetStore().GetImage (6, 0); }
+
+
+
+        void  WriteOneBit()
+        {
+            GetImage()->WriteBit (0, 0, (uint8_t) (GetImage()->ReadBit (0, 0) ^ 1));
+        }
+
+
+
+        //  A command, dispatched as the CPU thread dispatches it.
+        void  Dispatch (WORD id, const std::string & payload)
+        {
+            EmulatorCommand  command;
+
+
+
+            command.id      = id;
+            command.payload = payload;
+
+            shell->DispatchCpuCommand (command);
+        }
+    };
+
+
+    //  A state of the same machine kind, given as bytes, over a disk whose
+    //  writes cannot be saved, is declined with the approved text, and the
+    //  bay has the same dirty image.
+    TEST_METHOD (AStateLoadOverADiskWhoseWritesCannotBeSavedChangesNothing)
+    {
+        ShellRig           rig;
+        std::vector<Byte>  state;
+        MachineStateError  error;
+        DiskImage        * image = nullptr;
+        HRESULT            hr    = S_OK;
+
+
+
+        hr = MachineStateFile::Build (rig.shell->GetMachine(), state, error);
+        AssertSucceeded (hr, L"Build");
+
+        rig.writeResult = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+        rig.WriteOneBit();
+        image = rig.GetImage();
+
+        hr = rig.shell->LoadMachineStateBytes (state, error);
+
+        AssertFailed (hr, L"the state is not loaded");
+        Assert::AreEqual (std::string ("disk not saved"), error.label);
+        Assert::AreEqual (std::string ("A disk in a drive has changes that could not be saved, so the state was not loaded."), error.detail);
+        Assert::IsTrue   (rig.GetImage() == image, L"the bay has the same disk");
+        Assert::IsTrue   (image->IsDirty(), L"with its changes");
+    }
+
+
+    //  The drive's write-protect switch saves the guest's writes before it
+    //  protects the drive, because a protected disk is never saved.
+    TEST_METHOD (DriveWriteProtectSwitch_PersistsPendingGuestWritesFirst)
+    {
+        ShellRig  rig;
+
+
+
+        rig.WriteOneBit();
+        rig.Dispatch (IDM_DISK_WRITEPROTECT1, "1");
+
+        Assert::IsTrue  (rig.writes == std::vector<std::string> { kShellDiskPath }, L"the guest's write is saved");
+        Assert::IsFalse (rig.GetImage()->IsDirty(), L"so none is unsaved");
+        Assert::IsTrue  (rig.GetImage()->IsUserWriteProtected(), L"and the drive is protected");
+    }
+
+
+    //  A protect whose save fails is declined, so the next apply that sends
+    //  the same value saves again.
+    TEST_METHOD (DriveWriteProtect_AfterADeclinedProtect_ASecondApplyRetriesTheSave)
+    {
+        ShellRig  rig;
+
+
+
+        rig.writeResult = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+        rig.WriteOneBit();
+        rig.Dispatch (IDM_DISK_WRITEPROTECT1, "1");
+
+        Assert::IsFalse (rig.GetImage()->IsUserWriteProtected(), L"a protect whose save fails is declined");
+
+        rig.writeResult = S_OK;
+        rig.Dispatch (IDM_DISK_WRITEPROTECT1, "1");
+
+        Assert::AreEqual ((size_t) 2, rig.writes.size(), L"the second apply saves again");
+        Assert::IsTrue   (rig.GetImage()->IsUserWriteProtected(), L"and protects the drive");
+    }
+
+
+    //  Behind live, under the flush hold and during a replay, a protect from
+    //  Settings writes nothing and raises its notice, and the drive is
+    //  unprotected.
+    TEST_METHOD (BehindLive_AProtectFromSettingsChangesNothing)
+    {
+        for (bool isReplaying : { false, true })
+        {
+            ScopedNoticeCapture  notices;
+            ShellRig             rig;
+
+
+
+            rig.WriteOneBit();
+
+            SetBehindLive (rig, isReplaying, true);
+            rig.Dispatch (IDM_DISK_WRITEPROTECT1, "1");
+            SetBehindLive (rig, isReplaying, false);
+
+            Assert::IsTrue   (rig.writes.empty(), L"nothing is written");
+            Assert::IsFalse  (rig.GetImage()->IsUserWriteProtected(), L"the drive is unprotected");
+            Assert::AreEqual (1, ScopedNoticeCapture::s_count, L"one notice");
+            Assert::AreEqual (std::wstring (L"Casso did not change write protection for drive 1, because the machine was behind "
+                                            L"live in its history when the change ran. Go live and try again."),
+                              ScopedNoticeCapture::s_last, L"in the approved text");
+        }
+    }
+
+
+    //  Settings sends both drives' values on every apply, so a value equal to
+    //  the drive's setting raises no notice, behind live or not.
+    TEST_METHOD (BehindLive_AnUnchangedWriteProtectValueRaisesNoNotice)
+    {
+        for (bool isReplaying : { false, true })
+        {
+            ScopedNoticeCapture  notices;
+            ShellRig             rig;
+
+
+
+            rig.WriteOneBit();
+
+            SetBehindLive (rig, isReplaying, true);
+            rig.Dispatch (IDM_DISK_WRITEPROTECT1, "0");
+            SetBehindLive (rig, isReplaying, false);
+
+            Assert::IsTrue   (rig.writes.empty(), L"nothing is written");
+            Assert::IsFalse  (rig.GetImage()->IsUserWriteProtected(), L"the drive is unprotected");
+            Assert::AreEqual (0, ScopedNoticeCapture::s_count, L"and there is no notice");
+        }
+    }
+
+
+private:
+
+    //  The store's notices for the span of a test, and the last one's text.
+    struct ScopedNoticeCapture
+    {
+        static inline int           s_count = 0;
+        static inline std::wstring  s_last;
+
+        static void  Capture (const wchar_t * message) { s_count++; s_last = (message != nullptr) ? message : L""; }
+
+        ScopedNoticeCapture()  { s_count = 0; s_last.clear(); SetNotifyFunction (Capture); }
+        ~ScopedNoticeCapture() { SetNotifyFunction (nullptr); }
+    };
+
+
+    //  Behind live, by the flush hold or by a replay.
+    static void SetBehindLive (ShellRig & rig, bool isReplaying, bool isBehind)
+    {
+        if (isReplaying)
+        {
+            rig.GetStore().SetReplaying (isBehind);
+        }
+        else
+        {
+            rig.GetStore().SetFlushHold (isBehind);
+        }
     }
 };
 

@@ -9,6 +9,12 @@
 #include "Debugger/HeatKeyframeSide.h"
 #include "Debugger/MachineDebugTarget.h"
 #include "Shell/ScratchHeatReplayer.h"
+#include "Shell/ScratchReplayMachine.h"
+#include "Debugger/Reverse/ReplayDiskCopier.h"
+#include "Devices/Disk/DiskImage.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "EmuTests/TestMachine.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -1169,6 +1175,72 @@ public:
 
         hr = replayer.Rebuild (job, second);
         AssertSucceeded (hr, L"Rebuild on the test thread");
+    }
+
+
+    //  A rebuild mounts the history's disks into its scratch machine, over
+    //  the disks there. A scratch disk with guest writes its format cannot
+    //  store is replaced without a save, because the scratch machine's store
+    //  has no files.
+    TEST_METHOD (ARebuildReplacesAScratchDiskWhoseWritesCannotBeStored)
+    {
+        TestMachine           live    ("Apple2e");
+        ScratchReplayMachine  scratch;
+        ReplayDisk            first;
+        ReplayDisk            second;
+        DiskImage           * image   = nullptr;
+        HRESULT               hr      = S_OK;
+
+
+
+        first.slot       = 6;
+        first.mediaId    = 1;
+        first.trackCount = NibblizationLayer::kTrackCount;
+        first.format     = DiskFormat::Dsk;
+        first.image      = std::make_shared<const std::vector<Byte>> (NibblizationLayer::kImageByteSize, (Byte) 0x5A);
+
+        second         = first;
+        second.mediaId = 2;
+
+        scratch.SetMachine (live.GetConfig(), L"Apple2e");
+
+        hr = scratch.Build();
+        AssertSucceeded (hr, L"Build");
+
+        hr = scratch.MountDisks ({ first });
+        AssertSucceeded (hr, L"MountDisks, the first disk");
+
+        image = scratch.GetMachine()->GetDiskStore().GetImage (6, 0);
+        CorruptOneAddressField (*image, 3);
+        image->SetLoadedForTest (true, true);
+
+        hr = scratch.MountDisks ({ second });
+        AssertSucceeded (hr, L"the second disk replaces the first");
+        Assert::IsFalse (scratch.GetMachine()->GetDiskStore().GetImage (6, 0)->IsDirty(), L"and is the one in the drive");
+    }
+
+
+    //  Breaks one address field's checksum, so the track no longer
+    //  denibblizes and the image does not serialize to its format.
+    static void CorruptOneAddressField (DiskImage & img, int track)
+    {
+        std::vector<Byte> &  bits = img.GetTrackBitsForWrite (track);
+        size_t               i    = 0;
+        bool                 done = false;
+
+
+
+        for (i = 0; i + 10 < bits.size() && !done; i++)
+        {
+            if (bits[i] == 0xD5 && bits[i + 1] == 0xAA && bits[i + 2] == 0x96)
+            {
+                bits[i + 9]  = 0xAA;
+                bits[i + 10] = 0xAA;
+                done         = true;
+            }
+        }
+
+        Assert::IsTrue (done, L"the track has an address field to corrupt");
     }
 
 
