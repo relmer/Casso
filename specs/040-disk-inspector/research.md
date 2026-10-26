@@ -117,6 +117,24 @@ Each is a constant in the class that uses it. The 50% and 2% values are
 checked once against the demo disks before the analyzer phase closes; any
 change is recorded here.
 
+**Demo disk check (2026-10-26)**: the eleven WOZ images in `Apple2/Demos/`
+were opened in Casso and their Findings read. Neither threshold changed:
+
+- No track was reported unformatted. The largest random-bit total was on
+  *Where in the World is Carmen Sandiego* side B, about 740 cells a track,
+  under 2% of the turn.
+- The findings that appear are the protection on these originals: random-bit
+  regions (every WOZ), nonstandard epilogues such as FF FF EB on *Rocky's
+  Boots*, and tracks with no standard sectors on *Choplifter*, *Lode Runner*,
+  *Space Quarks* and Carmen side A.
+- *The Print Shop* sides A and B list 504 findings in the File system category. Their VTOC
+  passes the DOS 3.3 check, and the catalog chain runs through 72 sectors
+  before it ends; DOS follows the same chain, so the entries are what DOS
+  would read. The reader is bounded by its visited set. Whether the map
+  should stop treating such a disk as DOS 3.3 is a question for the owner.
+- *Bandits* (SC-012) is not on the development machine, so that check is
+  open.
+
 ## R5. The parts shared with 035: field formats and the `??` matcher
 
 **Decision**: 040 builds 035's T713 design exactly, with its file and type
