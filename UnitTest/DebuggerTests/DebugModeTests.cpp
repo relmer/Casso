@@ -4,6 +4,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Tape/TapeAudio.h"
 #include "Devices/Tape/WavCodec.h"
+#include "EmuTests/FakeDiskFileIo.h"
 #include "EmuTests/FixtureProvider.h"
 #include "EmuTests/FixtureRomSource.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -42,6 +43,7 @@ namespace DebugModeTests
     public:
         FixtureRomSource                  roms;
         InMemoryFileSystem                files;
+        FakeDiskFileIo                    diskIo;
         CommandLineOptions::DebugOptions  options;
         DebugBatchResult                  result;
 
@@ -93,7 +95,7 @@ namespace DebugModeTests
 
         int Run (const std::string & script)
         {
-            DebugBatchRunner  runner (roms, files);
+            DebugBatchRunner  runner (roms, files, diskIo);
             HRESULT           hr = runner.Run (options, script, result);
 
 
@@ -647,7 +649,7 @@ namespace DebugModeTests
         TEST_METHOD (Disk_Boots)
         {
             BatchRig          rig;
-            DebugBatchRunner  runner (rig.roms, rig.files);
+            DebugBatchRunner  runner (rig.roms, rig.files, rig.diskIo);
             Word              pc = 0;
 
 
@@ -672,6 +674,9 @@ namespace DebugModeTests
         //  flipped bit is one changed byte in the file. A .dsk is rebuilt
         //  from its decoded sectors, and a bit flipped in a gap decodes to
         //  the same sectors and the same file.
+        //
+        //  The disk is read through the file system seam and written through
+        //  the disk seam, so a written disk is in the rig's FakeDiskFileIo.
         TEST_METHOD (DiskWrites_StayInTheOverlay_UnlessWriteDisks)
         {
             std::string        dsk = BatchRig::Fixture ("Disks/Merlin-proDos2.23.dsk");
@@ -687,7 +692,7 @@ namespace DebugModeTests
             for (bool writeDisks : { false, true })
             {
                 BatchRig          rig;
-                DebugBatchRunner  runner (rig.roms, rig.files);
+                DebugBatchRunner  runner (rig.roms, rig.files, rig.diskIo);
                 std::string       original (woz.begin(), woz.end());
                 std::string       after;
                 DiskImage       * image = nullptr;
@@ -709,8 +714,46 @@ namespace DebugModeTests
 
                 Assert::AreEqual (0, rig.result.exitStatus);
                 Assert::AreEqual (S_OK, rig.files.ReadAllText (L"C:\\Work\\merlin.woz", after));
-                Assert::AreEqual (!writeDisks, after == original, writeDisks ? L"--write-disks wrote the file" : L"the overlay left the file alone");
+                Assert::IsTrue (after == original, L"nothing is written through the file system seam");
+                Assert::AreEqual (writeDisks, rig.diskIo.files.contains ("C:\\Work\\merlin.woz"),
+                                  writeDisks ? L"--write-disks wrote the file" : L"the overlay left the file alone");
             }
+        }
+
+        //  --write-disks commits a disk durably: the temporary is written,
+        //  given the image's attributes and permissions, and flushed to
+        //  storage before it replaces the image.
+        TEST_METHOD (WriteDisks_CommitsThroughTheDiskSeam)
+        {
+            std::string        dsk = BatchRig::Fixture ("Disks/Merlin-proDos2.23.dsk");
+            std::vector<Byte>  sectors (dsk.begin(), dsk.end());
+            std::vector<Byte>  woz;
+            DiskImage          nibblized;
+            BatchRig           rig;
+            DebugBatchRunner   runner (rig.roms, rig.files, rig.diskIo);
+            DiskImage        * image = nullptr;
+
+
+
+            Assert::AreEqual (S_OK, NibblizationLayer::NibblizeDsk (sectors, nibblized));
+            Assert::AreEqual (S_OK, WozLoader::Serialize (nibblized, woz));
+
+            rig.files.WriteAllText (L"C:\\Work\\merlin.woz", std::string (woz.begin(), woz.end()));
+            rig.diskIo.SeedDurable ("C:\\Work\\merlin.woz", woz);
+            rig.options.disk1      = "C:\\Work\\merlin.woz";
+            rig.options.writeDisks = true;
+
+            Assert::AreEqual (S_OK, runner.Prepare (rig.options, rig.result));
+
+            image = runner.GetHost()->GetDiskStore().GetImage (6, 0);
+            Assert::IsNotNull (image);
+            image->WriteBit (0, 0, image->ReadBit (0, 0) ^ 1);
+
+            runner.Execute (rig.options, "", rig.result);
+
+            Assert::AreEqual (0, rig.result.exitStatus);
+            Assert::IsTrue (rig.diskIo.operations == std::vector<std::string> { "Write", "CopyMetadata", "Flush", "Replace" },
+                            L"Write, CopyMetadata, Flush, Replace");
         }
 
         //  --tape puts the recording in stopped at its start; TAPE reports the

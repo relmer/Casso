@@ -29,9 +29,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DebugBatchRunner::DebugBatchRunner (const IRomSource & roms, IFileSystem & files) :
-    m_roms  (roms),
-    m_files (files)
+DebugBatchRunner::DebugBatchRunner (const IRomSource & roms, IFileSystem & files, IDiskFileIo & diskIo) :
+    m_roms   (roms),
+    m_files  (files),
+    m_diskIo (diskIo)
 {
 }
 
@@ -244,9 +245,11 @@ Error:
 //
 //  DebugBatchRunner::RouteDiskIo
 //
-//  Every byte the disk store reads or writes goes through the file system
-//  seam, and its identity check is left unrecorded: a batch run holds the
-//  file for seconds, and the seam has nothing to stat.
+//  The disk store reads images through the file system seam, and its
+//  identity check is left unrecorded: a batch run has the file open for
+//  seconds, and the seam has nothing to stat. Under --write-disks the store
+//  commits through the disk seam, so a written disk is flushed to storage
+//  before it replaces the image; otherwise every write is discarded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -269,10 +272,7 @@ void DebugBatchRunner::RouteDiskIo (bool writeThrough)
 
     if (writeThrough)
     {
-        store.SetFlushSink ([this] (const std::string & path, const std::vector<Byte> & bytes)
-        {
-            return m_files.WriteAllText (TextEncoding::NarrowToWide (path), std::string (bytes.begin(), bytes.end()));
-        });
+        store.SetFileIo (&m_diskIo);
     }
     else
     {

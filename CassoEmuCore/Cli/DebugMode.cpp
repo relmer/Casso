@@ -10,6 +10,7 @@
 #include "Core/TextEncoding.h"
 #include "Debugger/Channel/InstanceLister.h"
 #include "Debugger/Channel/Win32InstanceDirectory.h"
+#include "Seams/Win32DiskFileIo.h"
 #include "Shell/FileRomSource.h"
 
 
@@ -30,8 +31,9 @@ HRESULT DebugMode::Run (const CommandLineOptions & options, int & exitCode)
     HRESULT           hr = S_OK;
     std::string       script;
     Win32FileSystem   files;
+    Win32DiskFileIo   diskIo;
     FileRomSource     roms;
-    DebugBatchRunner  runner (roms, files);
+    DebugBatchRunner  runner (roms, files, diskIo);
     DebugBatchResult  result;
     bool              isWritten = false;
 

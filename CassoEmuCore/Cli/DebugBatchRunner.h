@@ -6,6 +6,7 @@
 #include "Shell/MachineBuilder.h"
 #include "Shell/MachineHost.h"
 
+class IDiskFileIo;
 class IFileSystem;
 class IRomSource;
 class MachineDebugTarget;
@@ -43,9 +44,9 @@ struct DebugBatchResult
 //  IFileSystem, no wall clock is read, and the DRAM seed is the option's,
 //  so two runs of one script produce the same bytes.
 //
-//  Disk images are read through the file system seam, and what the guest
-//  writes to them is flushed through the same seam only under --write-disks;
-//  otherwise the flush is discarded and the file keeps its bytes.
+//  Disk images are read through the file system seam. What the guest writes
+//  to them is committed through the disk seam only under --write-disks;
+//  otherwise the flush is discarded and the file is left as it was.
 //
 //  Prepare and Execute are the two halves of Run, separately callable so a
 //  caller can reach the machine between the mount and the script.
@@ -60,7 +61,7 @@ public:
     static constexpr int  kNothingStarted = 2;
     static constexpr int  kBudgetStop     = 3;
 
-    DebugBatchRunner (const IRomSource & roms, IFileSystem & files);
+    DebugBatchRunner (const IRomSource & roms, IFileSystem & files, IDiskFileIo & diskIo);
     ~DebugBatchRunner();
 
     // scriptText holds the --script file's lines; the command lines run
@@ -91,6 +92,7 @@ private:
 
     const IRomSource                     & m_roms;
     IFileSystem                          & m_files;
+    IDiskFileIo                          & m_diskIo;
     MachineBuildServices                   m_services;
     std::unique_ptr<MachineHost>           m_host;
     std::unique_ptr<MachineBuilder>        m_builder;
