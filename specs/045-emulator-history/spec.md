@@ -39,6 +39,8 @@ This feature adds history to the emulator window, makes it non-destructive (a ch
 - Q: Does recording pause while the user has chosen Maximum speed? -> A: No. Recording continues at every speed, which reverses 035's pause at Maximum speed. A long run at Maximum speed is most often a small loop, which adds little history, and the user can raise the budget.
 - Q: What does an eject behind live write? -> A: The eject is a change, so it forks history at the frame on screen, and the disk is written as it is there, the new active branch's version. The live-end rule covers the forced writes that do not fork: a machine switch and exit.
 - Q: How is the disk rule coordinated with 041-disk-integrity? -> A: 041 merges to master before 045. 045 builds its other stories first, merges master in before the disk rule, and builds the rule on 041's disk store.
+- Q: Which marks does the debugger timeline add to the rewind bar's? -> A: None. Both bars draw the same marks: gaps, resets, power cycles, disk mounts, ejects and swaps, write-protect changes, loaded saved states, and forks. Breakpoint stops are not marked, since a debugging session would fill the strip with them.
+- Q: What does loading a state file do to the current history? -> A: A file saved with history replaces the current history with its own, and the current history is discarded, as today. A file without history is a change: the load becomes a marked point in the current history, forking it when the machine is behind live, so the user can rewind to before the load.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -59,7 +61,7 @@ A player makes a mistake in a game, holds the rewind key, watches the game run b
 3. **Given** the machine is paused in the past, **When** the user presses Run, **Then** the machine replays the recorded future from that frame, inputs included; **When** the user presses a key the guest reads, during the replay or while paused, **Then** history forks where the guest reads it and the machine runs live from there, with no prompt.
 4. **Given** a running machine, **When** the user moves the pointer into the band at the bottom edge of the screen, **Then** the rewind bar appears: a strip of thumbnails covering the history, with the current position marked; **When** the user moves the pointer off the bar, **Then** the bar hides.
 5. **Given** the rewind bar is open, **When** the user drags along it, **Then** the frame under the pointer is drawn on the main screen, silently; **When** the user lets go and presses Run, **Then** the machine replays from that frame.
-6. **Given** the history includes a reset, a power cycle, a disk swap or a loaded saved state, **When** the rewind bar is open, **Then** each appears as a mark at its moment.
+6. **Given** the history includes a gap, a reset, a power cycle, a disk mount, eject or swap, a write-protect change or a loaded saved state, **When** the rewind bar is open, **Then** each appears as a mark at its moment.
 7. **Given** the emulator window, **When** the user opens its menus, **Then** the history commands are there (go live, step back, rewind, turn history on or off) with their keys.
 8. **Given** the machine is replaying history, **When** the emulator window is drawn, **Then** a pulsing "Replaying" indicator with the time of the position is drawn over the screen, until the machine is at the live end, forks or pauses.
 
@@ -115,7 +117,7 @@ A user closes Casso and opens it the next day; the timeline goes back into yeste
 1. **Given** captured history, **When** Casso exits or switches machines, **Then** the history, every branch and the disks in it are saved with the machine's automatic state.
 2. **Given** saved history for a machine, **When** Casso launches into that machine, **Then** the timeline spans the saved history, branches included.
 3. **Given** saved history from a build whose machine state format differs, or saved history that does not read, **When** Casso launches, **Then** the saved history is discarded and history starts fresh at the launch, with no error message.
-4. **Given** history is on, **When** the user saves a machine state file with File > Save state, **Then** the file contains the history too, and loading it restores the timeline; a state file saved with history off contains no history, and loading it starts history fresh, as today.
+4. **Given** history is on, **When** the user saves a machine state file with File > Save state, **Then** the file contains the history too, and loading it replaces the current history with the file's; a state file saved with history off contains no history, and loading it adds a marked point to the current history, forking it when the machine is behind live.
 5. **Given** history is on, **When** the user turns it off, **Then** a confirmation dialog appears, and its text specifies that all of the machine's history, in memory and saved, will be deleted; **When** the user confirms, **Then** the history is discarded and the next save contains none; **When** the user cancels, **Then** recording continues.
 
 ---
@@ -126,12 +128,12 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 
 **Why this priority**: Two histories would disagree; the debugger's reverse features depend on the same recording.
 
-**Independent Test**: Fork history in the emulator window, open the debugger; its timeline has the same path and fork marks, plus its gap and stop marks, and a branch switch in either window appears in both.
+**Independent Test**: Fork history in the emulator window, open the debugger; its timeline has the same path and the same marks, and a branch switch in either window appears in both.
 
 **Acceptance Scenarios**:
 
 1. **Given** history captured with the debugger closed, **When** the debugger opens, **Then** its timeline has the same history, position and branches as the emulator window.
-2. **Given** the debugger timeline, **When** it is drawn, **Then** it adds the debugger's gap and stop marks to the same strip, fork marks included.
+2. **Given** the debugger timeline, **When** it is drawn, **Then** it is the rewind bar's strip with the same marks, fork marks included, and no mark for a breakpoint stop.
 3. **Given** the debugger's stops and reverse continue, **When** used on the active branch, **Then** they work as 035 defines them.
 4. **Given** the history settings, **When** the user looks for them, **Then** they are in the general preferences (on or off, memory budget, keyframe interval), not only in the debugger's options.
 
@@ -163,7 +165,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **FR-001**: History MUST record and replay with the debugger window closed, using the same recording the debugger uses, and MUST be on by default.
 - **FR-002**: The emulator window MUST offer a rewind key: while it is down the machine runs backward with each frame drawn, and on release it pauses at the frame on screen. The key MUST be F2, which the guest never receives.
 - **FR-003**: The emulator window MUST open a rewind bar along the bottom of the screen when the pointer enters a band 8 DIPs tall at the bottom edge of the emulated screen, scaled with the monitor's DPI, and close it when the pointer moves off the bar; the bar MUST NOT cover the screen otherwise.
-- **FR-004**: The rewind bar MUST display thumbnails across the active path, the current position, and marks for resets, power cycles, disk swaps and loaded saved states.
+- **FR-004**: The rewind bar MUST display thumbnails across the active path, the current position, and marks for gaps, resets, power cycles, disk mounts, ejects and swaps, write-protect changes and loaded saved states.
 - **FR-005**: Dragging along the rewind bar MUST preview the frame under the pointer on the main screen; after the release, pressing Run MUST replay from that frame, and a key the guest reads MUST fork there (FR-009).
 - **FR-006**: Audio MUST be silent while rewinding and while scrubbing.
 - **FR-007**: The emulator window MUST offer the history commands (go live, step back, rewind, history on or off) in its menus with their keys.
@@ -195,13 +197,13 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **FR-022**: At exit and at a machine switch, history MUST be saved with the machine's automatic state, with every branch and the disks in it.
 - **FR-023**: At launch into a machine, its saved history MUST be loaded, and the timeline MUST span it, branches included.
 - **FR-024**: Saved history from a build whose machine state format differs, or saved history that does not read, MUST be discarded silently, and history MUST start fresh.
-- **FR-025**: While history is on, every save of the machine MUST include its history, with no option: the automatic save at exit and at a machine switch, and File > Save state. A state file with history MUST restore the timeline when loaded. While history is off, a save MUST contain no history.
+- **FR-025**: While history is on, every save of the machine MUST include its history, with no option: the automatic save at exit and at a machine switch, and File > Save state. Loading a state file with history MUST replace the current history with the file's. Loading a state file without history MUST be a change in the current history: a marked point, forking it when the machine is behind live. While history is off, a save MUST contain no history.
 - **FR-026**: Turning history off MUST first display a confirmation dialog whose text specifies that all of the machine's history, in memory and saved, will be deleted. On confirmation, recording MUST stop, the rewind bar and key MUST be disabled, the history in memory MUST be discarded, and the next save MUST contain no history. A cancel MUST NOT turn history off.
 
 **One history**
 
 - **FR-027**: The emulator window and the debugger MUST use one history: the same recording, position and branches.
-- **FR-028**: The debugger timeline MUST be the same control as the rewind bar, with the debugger's gap and stop marks added.
+- **FR-028**: The debugger timeline MUST be the same control as the rewind bar, with the same marks; breakpoint stops MUST NOT be marked.
 - **FR-029**: The debugger's stops and reverse continue MUST work on the active branch as 035 defines them.
 - **FR-030**: The cost of capturing history MUST be measured on ordinary software (games and applications at 1x, not stress workloads), and the result written in the plan's research.
 
