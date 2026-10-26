@@ -35,6 +35,7 @@ static constexpr float     s_kDiffBandDip    = 4.0f;
 static constexpr float     s_kMinHitDip      = 4.0f;
 static constexpr float     s_kHitLineDip     = 2.0f;
 static constexpr float     s_kHeadLineDip    = 2.0f;
+static constexpr uint32_t  s_kWaveShadeAlpha = 0x48000000u;
 static constexpr float     s_kTrailDip       = 48.0f;
 static constexpr int       s_kTrailSteps     = 12;
 static constexpr uint32_t  s_kTrailAlpha     = 0x90u;
@@ -274,7 +275,8 @@ void TrackStripView::PaintCells (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  On a flux track, the mean cell timing under each few pixels, nominal in
 //  the middle of the band from top to bottom, slow above and fast below,
-//  with the timing range filling it (FR-033).
+//  with the timing range filling it. In Timing mode it is a waveform over
+//  the colored bands, the area below the line shaded (FR-033).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -294,6 +296,8 @@ void TrackStripView::PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme &
     uint32_t  b      = 0;
     double    t      = 0;
     bool      isPrev = false;
+    bool      isWave = m_context.isTimingMode;
+    uint32_t  shade  = (theme.Foreground() & 0x00FFFFFFu) | s_kWaveShadeAlpha;
 
 
 
@@ -306,9 +310,14 @@ void TrackStripView::PaintTimingLine (IDxuiPainter & painter, const IDxuiTheme &
         t = std::clamp (FluxTiming::GetMeanDeviation (track, a, (b == a) ? a + 1 : b) / std::max (m_context.timingRange, 1e-6), -1.0, 1.0);
         y = mid - static_cast<float> (t) * half;
 
+        if (isPrev && isWave)
+        {
+            painter.FillConvexQuad (prevX, prevY, x + step / 2, y, x + step / 2, bottom, prevX, bottom, shade);
+        }
+
         if (isPrev)
         {
-            painter.DrawLine (prevX, prevY, x + step / 2, y, thick, theme.Foreground());
+            painter.DrawLine (prevX, prevY, x + step / 2, y, isWave ? thick * 1.5f : thick, theme.Foreground());
         }
 
         prevX  = x + step / 2;
