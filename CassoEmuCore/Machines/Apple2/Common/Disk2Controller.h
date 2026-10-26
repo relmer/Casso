@@ -62,6 +62,8 @@ public:
 
     explicit Disk2Controller (int slot);
 
+    int  GetSlot () const { return m_slot; }
+
     Byte Read (Word address) override;
     void Write (Word address, Byte value) override;
     Word GetStart() const override { return m_ioStart; }

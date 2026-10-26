@@ -633,16 +633,17 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
     }
 
     // Cache Disk2Controller pointer for the status-bar drive activity
-    // indicator. We pick the first one we find (typically slot 6).
+    // indicator and the disk store: slot 6's, else the first one found. A
+    // second card in slot 5 is built ahead of slot 6, so the first one found
+    // is not always slot 6's.
     m_host.GetRefs().diskController = nullptr;
     for (auto & dev : m_host.GetOwnedDevices())
     {
         Disk2Controller *  dc = dynamic_cast<Disk2Controller *> (dev.get());
 
-        if (dc != nullptr)
+        if (dc != nullptr && (m_host.GetRefs().diskController == nullptr || dc->GetSlot() == 6))
         {
             m_host.GetRefs().diskController = dc;
-            break;
         }
     }
 

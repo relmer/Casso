@@ -40,6 +40,13 @@ public:
     //  UI thread: called when the user closes the window.
     void      SetOnClosed (std::function<void ()> onClosed) { m_onClosed = std::move (onClosed); }
 
+    //  UI thread: the shell's functions for IsDriveAttached and
+    //  HasOtherDiskController.
+    void      SetDriveQueries (std::function<bool (int)> isAttached, std::function<bool ()> hasOther) { m_isAttached = std::move (isAttached); m_hasOther = std::move (hasOther); }
+
+    bool      IsDriveAttached        (int drive) const override { return !m_isAttached || m_isAttached (drive); }
+    bool      HasOtherDiskController () const          override { return m_hasOther && m_hasOther(); }
+
     std::shared_ptr<const DriveHeadState>  GetHeadState       (int drive) const override { return m_publisher.Get (drive); }
     void                                   SetHeadStateWanted (bool isWanted)  override { m_publisher.SetActive (isWanted); }
 
@@ -66,4 +73,6 @@ private:
     InspectorStatusPublisher                          m_publisher;
     std::array<InspectorDiskIdentity, kDriveCount>    m_identities;
     std::function<void ()>                            m_onClosed;
+    std::function<bool (int)>                         m_isAttached;
+    std::function<bool ()>                            m_hasOther;
 };

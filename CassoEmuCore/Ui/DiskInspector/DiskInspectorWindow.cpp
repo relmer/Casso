@@ -2002,6 +2002,13 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
         tip = GetButtonTip (pointPx, anchor);
     }
 
+    //  Only slot 6's drives are inspected (FR-060).
+    if (tip.empty() && m_host != nullptr && m_host->HasOtherDiskController() && IsInside (m_driveTabs->GetBounds(), pointPx))
+    {
+        tip    = L"Slot 6 drives only";
+        anchor = m_driveTabs->GetBounds();
+    }
+
     if (tip.empty() && PtInRect (&m_helpPx, pointPx))
     {
         tip    = L"Open the walkthrough";
@@ -6052,7 +6059,9 @@ void DiskInspectorWindow::PaintNoDisk (IDxuiPainter & painter, IDxuiTextRenderer
     float          rim     = std::min (m_platterAreaPx.right - m_platterAreaPx.left, m_platterAreaPx.bottom - m_platterAreaPx.top) / 2.0f - m_scaler.ToPxf (kInsetDip);
     float          line    = m_scaler.ToPxf (1.5f);
     bool           isNoCtl = m_headState != nullptr && !m_headState->hasController;
-    std::wstring   why     = isNoCtl ? std::wstring (L"This machine has no Disk II controller in slot 6") : std::format (L"No disk in drive {}", m_drive + 1);
+    bool           isOff   = m_host != nullptr && !m_host->IsDriveAttached (m_drive);
+    std::wstring   why     = isNoCtl ? std::wstring (L"This machine has no Disk II controller in slot 6") :
+                             isOff   ? std::format (L"Drive {} is not attached", m_drive + 1) : std::format (L"No disk in drive {}", m_drive + 1);
     double         a       = 0.0;
     double         b       = 0.0;
     int            k       = 0;

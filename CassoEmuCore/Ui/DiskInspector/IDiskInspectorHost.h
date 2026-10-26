@@ -36,6 +36,11 @@ public:
     //  window is shown to want them (FR-062, FR-070).
     virtual std::shared_ptr<const DriveHeadState>  GetHeadState       (int drive) const = 0;
     virtual void                                   SetHeadStateWanted (bool isWanted)  = 0;
+
+    //  UI thread: whether a drive is attached, and whether a Disk II in a
+    //  slot other than 6 has drives outside the inspector (FR-060).
+    virtual bool  IsDriveAttached        (int drive) const { (void) drive; return true; }
+    virtual bool  HasOtherDiskController () const          { return false; }
 };
 
 

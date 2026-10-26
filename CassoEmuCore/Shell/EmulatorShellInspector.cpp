@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
@@ -62,6 +63,8 @@ void EmulatorShell::ShowDiskInspector (int drive, bool activate)
 
         m_window->ApplyAppIconToWindow (m_diskInspector->GetHwnd());
         m_inspectorHost.SetOnClosed ([this] () { SaveInspectorPrefs (false); });
+        m_inspectorHost.SetDriveQueries ([this] (int index) { return index == 0 || m_disks->ShouldShowExternalDrive(); },
+                                         [this] () { return HasOtherDiskController(); });
         m_diskInspector->ApplyPrefs (m_settings->GetPrefs().diskInspector);
 
         //  The walkthrough opens the first time the inspector does (FR-153).
@@ -199,4 +202,30 @@ bool EmulatorShell::ConfirmInspectorDiscard (int drive, const std::wstring & act
 
 
     return !isMatched || !isUi || m_diskInspector->ConfirmDiscardEdits (action);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::HasOtherDiskController
+//
+//  Only slot 6's drives are inspected, and the drive selector's
+//  tooltip indicates so when another slot has a Disk II (FR-060).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::HasOtherDiskController() const
+{
+    for (const SlotConfig & entry : m_machine.GetConfig().slots)
+    {
+        if (entry.enabled && entry.device == kpszDiskIiDevice && entry.slot != ShellInspectorHost::kDiskSlot)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }

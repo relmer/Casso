@@ -224,6 +224,9 @@ private:
     void               ShowDiskInspector   (int drive, bool activate);
     void               SaveInspectorPrefs  (bool isOpen);
     void               ReopenDiskInspector ();
+
+    //  Whether an enabled Disk II card is in a slot other than 6.
+    bool               HasOtherDiskController () const;
     DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
 
