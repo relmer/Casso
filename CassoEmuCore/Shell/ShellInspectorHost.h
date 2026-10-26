@@ -45,8 +45,16 @@ public:
     void      Service       ();
     void      PublishStatus ();
 
+    //  CPU thread only, at the end of each frame: checks the applies that
+    //  wait for a safe point again (FR-103).
+    void      ServiceWaiting ();
+
 private:
-    const DiskImage *  GetImage (int drive, InspectorDiskIdentity & outIdentity) override;
+    const DiskImage *     GetImage         (int drive, InspectorDiskIdentity & outIdentity) override;
+    DiskImage *           GetImageForEdit  (int drive) override;
+    InspectorDriveMotion  GetMotion        (int drive) override;
+    InspectorSaveResult   SaveDrive        (int drive) override;
+    void                  SetMachinePaused (bool isPaused) override;
 
     CpuManager                                      & m_cpuManager;
     MachineHost                                     & m_machine;

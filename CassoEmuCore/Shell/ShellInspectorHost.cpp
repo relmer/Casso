@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Shell/ShellInspectorHost.h"
+#include "Core/TextEncoding.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "resource.h"
 
 
@@ -131,4 +133,134 @@ const DiskImage * ShellInspectorHost::GetImage (int drive, InspectorDiskIdentity
     }
 
     return image;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::ServiceWaiting
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInspectorHost::ServiceWaiting()
+{
+    if (m_queue.HasWaiting())
+    {
+        m_queue.Drain (*this);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::GetImageForEdit
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskImage * ShellInspectorHost::GetImageForEdit (int drive)
+{
+    DiskImageStore &  store = m_machine.GetDiskStore();
+
+
+
+    return (drive >= 0 && drive < kDriveCount && store.IsMounted (kDiskSlot, drive)) ? store.GetImage (kDiskSlot, drive) : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::GetMotion
+//
+//  A drive turns while the motor runs, its spin-down included, and it is
+//  the selected drive; it is writing while the write mode is on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorDriveMotion ShellInspectorHost::GetMotion (int drive)
+{
+    Disk2Controller *     controller = m_machine.GetRefs().diskController;
+    InspectorDriveMotion  motion;
+
+
+
+    motion.isPaused = m_cpuManager.IsPaused();
+
+    if (controller != nullptr && drive >= 0 && drive < kDriveCount)
+    {
+        const Disk2NibbleEngine &  engine = controller->GetEngine (drive);
+
+        motion.isTurning    = controller->IsMotorOn() && controller->GetActiveDrive() == drive;
+        motion.isWriting    = motion.isTurning && controller->IsQ7();
+        motion.slot         = engine.GetSlot();
+        motion.angle        = engine.GetAngle();
+        motion.writeNibbles = engine.GetWriteNibbles();
+    }
+
+    return motion;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::SaveDrive
+//
+//  Casso's usual save, with its checks (FR-104). When the file changed
+//  outside Casso, the save goes to a preserved copy and the drive moves to
+//  it, so the drive's path afterward differs from the one before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorSaveResult ShellInspectorHost::SaveDrive (int drive)
+{
+    DiskImageStore &     store  = m_machine.GetDiskStore();
+    std::string          before = store.GetSourcePath (kDiskSlot, drive);
+    InspectorSaveResult  result;
+
+
+
+    result.hr   = store.Flush (kDiskSlot, drive);
+    result.path = store.GetSourcePath (kDiskSlot, drive);
+
+    if (FAILED (result.hr))
+    {
+        result.reason = TextEncoding::NarrowToWide (std::system_category().message (result.hr));
+    }
+    else if (store.GetImage (kDiskSlot, drive) != nullptr && store.GetImage (kDiskSlot, drive)->IsDirty())
+    {
+        //  A save the store withheld, such as one waiting on the answer to a
+        //  question about the file, has not been written to the file.
+        result.hr     = STG_E_NOTCURRENT;
+        result.reason = L"Casso is not saving this disk until the question about its file is answered";
+    }
+
+    result.isPreservedCopy = SUCCEEDED (result.hr) && result.path != before;
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::SetMachinePaused
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellInspectorHost::SetMachinePaused (bool isPaused)
+{
+    m_cpuManager.SetPaused (isPaused);
 }
