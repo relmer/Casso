@@ -60,6 +60,12 @@ struct CassoLinkSettings
     //  each Apple whose announcement arrives instead of connecting to one.
     bool                 IsSearch          () const;
 
+    //  Whether the Apple at the other end can be started from this PC, by
+    //  typing the loader or by playing it into the cassette input: a link
+    //  over a serial card. Not an Uthernet II, which has no serial line, or
+    //  an ADTPro server, whose Apple runs ADTPro's own client.
+    bool                 CanBootstrap      () const;
+
     //  Whether a user can save the connection: every transport but a running
     //  Casso's, which is listed only while that Casso runs.
     static bool          IsSavable         (LinkTransport transport);

@@ -11640,6 +11640,28 @@ bool CassoExplorerWindow::IsSerialLink (const std::string & name) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CassoExplorerWindow::CanBootstrapLink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::CanBootstrapLink (const std::string & name) const
+{
+    const std::vector<CassoLinkSettings> &  links = m_context.links->GetLinks();
+
+
+
+    return std::any_of (links.begin(), links.end(), [&name] (const CassoLinkSettings & settings)
+    {
+        return settings.name == name && settings.CanBootstrap();
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoExplorerWindow::AddLinkRows
 //
 //  A linked machine's settings, its port and the machine itself; a drive's
@@ -11681,9 +11703,13 @@ void CassoExplorerWindow::AddLinkRows (std::vector<DxuiPopupMenuItem> & items, b
             AddMenuCommand (items, L"&Search COM ports", [this, name]() { SearchLink (name); });
         }
 
-        AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
-        AddMenuCommand (items, L"Bootstrap from the c&assette input...", [this, name]() { PlayCassetteBootstrap (name); });
-        AddMenuCommand (items, L"Save cassette boo&tstrap...", [this, name]() { SaveCassetteBootstrap (name); });
+        //  Only an Apple on a serial card can be started from here.
+        if (CanBootstrapLink (name))
+        {
+            AddMenuCommand (items, L"&Bootstrap the Apple...", [this, name]() { BootstrapLink (name); });
+            AddMenuCommand (items, L"Bootstrap from the c&assette input...", [this, name]() { PlayCassetteBootstrap (name); });
+            AddMenuCommand (items, L"Save cassette boo&tstrap...", [this, name]() { SaveCassetteBootstrap (name); });
+        }
 
         //  A boot disk is built for its link: at its speed, a Wi-Fi modem's
         //  dialing this PC, and an Uthernet II's with the link's address for
@@ -14577,9 +14603,23 @@ void CassoExplorerWindow::UndoLast()
 void CassoExplorerWindow::PasteHere (const std::wstring & folder)
 {
     IShellItemVerbs::PasteResult  pasted;
-    HRESULT                       hr     = m_shellVerbs.PasteInto (GetHwnd(), folder, pasted);
+    ComPtr<IDataObject>           data;
+    HRESULT                       hr     = OleGetClipboard (&data);
 
 
+
+    //  An image's or a linked Apple's files are written here rather than by
+    //  the folder's drop target, whose name clash prompt has no Keep both and
+    //  gives the files a folder they never came from.
+    if (SUCCEEDED (hr) && CassoExplorerActions::IsCassoCopy (data.Get()))
+    {
+        ReportOutcome (m_actions.PasteVirtualFiles (data.Get(), folder, MakeCollisionPrompt(), pasted.created), L"Copy");
+        pasted.sources.assign (pasted.created.size(), std::wstring());
+    }
+    else
+    {
+        hr = m_shellVerbs.PasteInto (GetHwnd(), folder, pasted);
+    }
 
     //  After a paste that failed or was canceled, the cut files remain cut,
     //  as in File Explorer. Any error is in the shell's dialog.

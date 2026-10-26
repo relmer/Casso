@@ -155,6 +155,12 @@ struct HardwareEntry
     // changed for the printer.
     std::string  switchesSw1BeforePrinter;
 
+    // A Super Serial Card's connector and its file as they were before the
+    // ImageWriter II took the connector, put back when the printer moves
+    // away; empty while the printer does not have the card.
+    std::string  portBeforePrinter;
+    std::string  portPathBeforePrinter;
+
     // The network card's settings; defaults for every other device.
     NetworkCardSettings  network;
 };
@@ -503,6 +509,8 @@ private:
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
     static constexpr const char *  kpszPortPathKey   = "path";
+    static constexpr const char *  kpszPortBeforeKey = "beforePrinter";
+    static constexpr const char *  kpszPortPathBeforeKey = "pathBeforePrinter";
     static constexpr const char *  kpszSwitchesKey   = "switches";
     static constexpr const char *  kpszSw1Key        = "sw1";
     static constexpr const char *  kpszSw2Key        = "sw2";

@@ -114,6 +114,11 @@ public:
     static void  BuildSerialChoices (int port, const std::vector<std::wstring> & comPorts, const std::string & current,
                                      std::vector<std::wstring> & outLabels, std::vector<std::string> & outDevices, int & outSelected);
 
+    // A serial device in words, "TCP port 6600 on this PC" for "tcp:6600";
+    // one that does not parse is shown as it is. The Serial card page uses
+    // it too, for a connector set outside its list.
+    static std::wstring  DescribeSerialDevice (const std::string & device);
+
     // The TCP port a //c serial port offers on this PC: 6501 for port 1,
     // 6502 for port 2.
     static constexpr uint16_t  kSerialTcpBasePort = 6500;
@@ -123,7 +128,6 @@ private:
     static RECT                    MakeRect (int l, int t, int w, int h);
     static DxuiTreeCapabilityFlag  MapFlag  (CapabilityFlag flag);
     static std::wstring            Widen    (const std::string & narrow);
-    static std::wstring            DescribeSerialDevice (const std::string & device);
     void                           RebuildSerialPorts   (SettingsPanelState & state);
 
     // The spec block is CPU / Clock / Memory-header (3 fixed rows) + N dynamic

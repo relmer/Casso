@@ -1175,6 +1175,44 @@ public:
     }
 
 
+    //  The connector the printer takes from the card is put back when the
+    //  printer moves away, with its file, after an Apply in between too.
+    TEST_METHOD (Printer_PutsBackTheSerialCardsConnector)
+    {
+        SettingsPanelState  st;
+        SettingsPanelState  reloaded;
+        RecordingSink       sink;
+        JsonValue           v     = ParseOrFail (kSerialCardJson);
+        JsonValue           outJson;
+        std::string         text;
+        int                 index = -1;
+
+
+
+        AssertSucceeded (st.LoadFromMachine ("X", v, v));
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        st.SetPrinterConnection (PrinterConnection());
+
+        index = st.FindSerialCard();
+        Assert::IsTrue (st.GetHardware()[(size_t) index].ports == std::vector<std::string> ({ "serial-file-out" }), L"the file attachment is back");
+        Assert::AreEqual (std::string ("C:\\out.txt"), st.GetHardware()[(size_t) index].portPath);
+        Assert::IsFalse (st.IsDirty(), L"back where it was read");
+
+        st.SetPrinterConnection (PrinterConnection { PrinterConnection::Kind::SerialCard, 2 });
+        AssertSucceeded (st.Apply (sink, outJson));
+        text = WriteCompactOrFail (outJson);
+        Assert::IsTrue (text.find ("\"beforePrinter\":\"serial-file-out\"") != std::string::npos, L"the displaced connector is written with the printer's");
+
+        AssertSucceeded (reloaded.LoadFromMachine ("X", outJson, outJson));
+        reloaded.SetPrinterConnection (PrinterConnection());
+
+        index = reloaded.FindSerialCard();
+        Assert::IsTrue (reloaded.GetHardware()[(size_t) index].ports == std::vector<std::string> ({ "serial-file-out" }), L"and put back after the Apply");
+        Assert::AreEqual (std::string ("C:\\out.txt"), reloaded.GetHardware()[(size_t) index].portPath);
+    }
+
+
     //  The printer is disconnected from a card turned off, and the
     //  change is reported; turning the card on again does not reconnect it.
     TEST_METHOD (Printer_IsDisconnectedFromACardTurnedOff)

@@ -4,6 +4,7 @@
 #include "../EmuTests/FixtureProvider.h"
 #include "../UiTests/InMemoryFileSystem.h"
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 #include "Core/AppleSingleCodec.h"
 #include "Core/TextEncoding.h"
@@ -529,6 +530,117 @@ public:
             Assert::AreEqual (choice == Collision::Replace,  host.io.files.count (kMineN) == 1, L"written over only on Replace");
             Assert::AreEqual (choice == Collision::KeepBoth, host.io.files.count ("C:\\Out\\HELLO (2).Applesoft BASIC.txt") == 1, L"numbered only on Keep both");
         }
+    }
+
+
+    //  Casso Explorer's own copy on the clipboard: two files, the second of
+    //  whose contents cannot be read when `failSecond` is set.
+    static DxuiDragDropSource * MakeCopy (bool failSecond, bool ours = true)
+    {
+        std::vector<DxuiDragDropSource::Format>  formats;
+        DxuiDragDropSource                     * source = nullptr;
+
+        formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1, [] (int, std::vector<uint8_t> & out)
+        {
+            const wchar_t  * names[] = { L"HELLO.Applesoft BASIC.txt", L"MUFFIN.Binary.bin" };
+            FILEDESCRIPTORW  items[2] = {};
+            UINT             count    = 2;
+
+            for (int i = 0; i < 2; i++)
+            {
+                items[i].dwFlags      = FD_FILESIZE;
+                items[i].nFileSizeLow = 5;
+                wcscpy_s (items[i].cFileName, names[i]);
+            }
+
+            out.assign (sizeof (UINT) + sizeof (items), 0);
+            memcpy (out.data(), &count, sizeof (count));
+            memcpy (out.data() + offsetof (FILEGROUPDESCRIPTORW, fgd), items, sizeof (items));
+            return S_OK;
+        } });
+
+        formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), 2, [failSecond] (int index, std::vector<uint8_t> & out)
+        {
+            std::string  text = (index == 0) ? "hello" : "bytes";
+
+            out.assign (text.begin(), text.end());
+            return (failSecond && index == 1) ? HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT) : S_OK;
+        } });
+
+        if (ours)
+        {
+            formats.push_back (CassoExplorerDragOut::MakeFilesMarker());
+        }
+
+        AssertSucceeded (DxuiDragDropSource::Create (std::move (formats), &source));
+        return source;
+    }
+
+
+    //  A paste of an image's files into a host folder asks about a name in
+    //  use as Get does, Keep both included, rather than leaving it to the
+    //  shell's prompt, which offers no Keep both.
+    TEST_METHOD (PasteVirtualFiles_FollowsTheCollisionChoice)
+    {
+        using Collision = CassoExplorerActions::Collision;
+
+        const wchar_t  * kMine  = L"C:\\Out\\HELLO.Applesoft BASIC.txt";
+
+        for (Collision choice : { Collision::Replace, Collision::Skip, Collision::KeepBoth })
+        {
+            Host                           host;
+            CassoExplorerActions::Outcome  outcome;
+            DxuiDragDropSource           * copy    = MakeCopy (false);
+            std::string                    text;
+            std::vector<std::wstring>      created;
+            int                            asked   = 0;
+
+            AssertSucceeded (host.fs.MakeDirectory (L"C:\\Out"));
+            AssertSucceeded (host.fs.WriteAllText (kMine, "mine"));
+
+            outcome = host.actions.PasteVirtualFiles (copy, L"C:\\Out", [&asked, choice] (const std::wstring &, int, int)
+                                                      {
+                                                          asked++;
+                                                          return choice;
+                                                      }, created);
+
+            Assert::IsTrue   (outcome.Succeeded());
+            Assert::AreEqual (1, asked, L"asked once, for the one file there already");
+            AssertSucceeded  (host.fs.ReadAllText (kMine, text));
+            Assert::IsTrue   (host.fs.Exists (L"C:\\Out\\MUFFIN.Binary.bin"), L"the other file is written");
+            Assert::AreEqual (std::string (choice == Collision::Replace ? "hello" : "mine"), text, L"written over only on Replace");
+            Assert::AreEqual (choice == Collision::KeepBoth, host.fs.Exists (L"C:\\Out\\HELLO (2).Applesoft BASIC.txt"), L"numbered only on Keep both");
+            Assert::AreEqual ((size_t) (choice == Collision::Skip ? 1 : 2), created.size(), L"each file written, for the undo");
+
+            copy->Release();
+        }
+    }
+
+
+    //  A file whose contents cannot be read is named in the message, and the
+    //  others are still written; only Casso Explorer's own copy is taken.
+    TEST_METHOD (PasteVirtualFiles_NamesAFileThatCannotBeRead)
+    {
+        Host                           host;
+        CassoExplorerActions::Outcome  outcome;
+        DxuiDragDropSource           * copy    = MakeCopy (true);
+        DxuiDragDropSource           * foreign = MakeCopy (false, false);
+        std::vector<std::wstring>      created;
+
+        AssertSucceeded (host.fs.MakeDirectory (L"C:\\Out"));
+
+        outcome = host.actions.PasteVirtualFiles (copy, L"C:\\Out", nullptr, created);
+
+        Assert::IsFalse (outcome.Succeeded());
+        Assert::IsTrue  (outcome.message.starts_with (L"Unable to copy MUFFIN.Binary.bin: "), outcome.message.c_str());
+        Assert::IsTrue  (host.fs.Exists (L"C:\\Out\\HELLO.Applesoft BASIC.txt"));
+        Assert::AreEqual ((size_t) 1, created.size());
+
+        Assert::IsTrue  (CassoExplorerActions::IsCassoCopy (copy));
+        Assert::IsFalse (CassoExplorerActions::IsCassoCopy (foreign), L"another program's files go to the shell");
+
+        copy->Release();
+        foreign->Release();
     }
 
 

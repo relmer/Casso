@@ -39,6 +39,10 @@ public:
     //  As an Apple whose Ready went out before the line was open: silent
     //  until the host sends it something.
     std::atomic<bool>                 readySentEarly { false };
+
+    //  As a boot disk still starting when the host prompts: that many of the
+    //  first prompts are lost, and it stays silent through them.
+    std::atomic<int>                  promptsMissed  { 0 };
     std::atomic<int>                  sectorDelayMs  { 0 };
     std::atomic<int>                  sectorsRead    { 0 };
     std::atomic<int>                  sectorsWritten { 0 };
@@ -176,6 +180,13 @@ private:
 
             if (!Receive (stop, line, packet, readyEveryMs))
             {
+                continue;
+            }
+
+            if (promptsMissed > 0)
+            {
+                promptsMissed--;
+                silent = true;
                 continue;
             }
 

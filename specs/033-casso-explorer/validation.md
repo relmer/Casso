@@ -595,6 +595,58 @@ Findings:
 10. The black block beside a host `.dsk`'s drag tip in the owner's picture of
     18:19 did not reproduce in four captures on the laptop.
 
+### What the lock stopped, and the findings' fixes, 2026-10-26, on the laptop
+
+x64 Debug, built from the fixes of T263 on top of `ebd1e19b5`, with Casso and
+Casso Explorer stopped before each build and the build log read. Driven as
+above, the laptop's session unlocked. The emulated Apple was the same Enhanced
+//e, its drive 1 a link disk saved from Casso Explorer and its drive 2 a fresh
+copy of the System Master, with `--serial-log` on the card.
+
+#### The link, both ways, over each card
+
+| Check | Result |
+|---|---|
+| The serial card on TCP port 6502 beside the Uthernet II (finding 1) | With the card bound first, Casso Explorer's first prompt went out at cycle 2, as the Apple powered on, and was missed; the next attempt prompted again and the Apple answered at cycle 25,003,208. Before the fix the line was kept open and never prompted again, which is the whole of finding 1 when the Apple boots after the link opens. The Uthernet II then cannot listen on 6502; T262 reports that |
+| Copy, Apple to PC, over the card | HELLO pasted into a host folder: `HELLO.Applesoft BASIC.txt`, 609 bytes, the System Master's HELLO |
+| The name clash (finding 4) | Pasting it again: Casso Explorer's own `out already has a file called "HELLO.Applesoft BASIC.txt". Replace it with the copy, skip this file, or keep both?`. Keep both wrote `HELLO (2).Applesoft BASIC.txt`, identical; no `C:\WINDOWS` |
+| Paste, PC to Apple, over the card | `SSCNEW.Applesoft BASIC.txt` pasted on drive 2: `CassoCli disk list` has ` A 002 SSCNEW`, and it reads back as `PRINT "PASTED OVER THE SSC ON 6502"` |
+| Over the Uthernet II | The card's connector set to None in Settings, the Apple power-cycled, `Uthernet II at 127.0.0.1:6502` connected. HELLO copied out: Skip left both files as they were, Keep both wrote `HELLO (3)`, identical. `UTHNEW` pasted in: ` A 002 UTHNEW`, reading back `"PASTED OVER THE UTHERNET II"`. `Casso on port 6502` left the tree while the card had no connector |
+| The waiting text (finding 2) | `Waiting for Casso on port 6502.` |
+| The Uthernet II's menu (finding 3) | Open in new tab, Edit connection, Connect, Save CassoLink disk image, Remove connection |
+
+#### Images, locks and the preview
+
+| Check | Result |
+|---|---|
+| A locked file's copy keeps its lock | HELLO, locked, copied from a System Master copy into a new DOS 3.3 image: ` *A 003 HELLO`, its bytes as the original's |
+| A move of a locked entry | FID, locked, Shift-dragged between the two images' windows with the real cursor under the tip `Move to dst.dsk`: copied, ` *B 020 FID`, and the original kept, with `src.dsk: Unable to delete FID: it is locked. Unlock it on the disk first`. Cut is not offered inside an image, so a move is a drag |
+| A copy keeps its dates | Not on screen: neither `CassoCli disk put` nor a paste into a ProDOS image writes a date, so no dated file was to hand; `ACopyBetweenImages_KeepsTheLockAndTheDates` covers it |
+| Hex preview refresh | A host file's hex preview showed new bytes within 4 seconds of another program writing them |
+| The preview's view (finding 8) | 256 bytes of $C1 preview as one line of `┴`, which is $C1 in code page 437: by `GetHostCharset`'s rule a file with no NUL and few control codes is text, and DOS text when most of its high bytes draw lines. By design |
+
+#### Settings
+
+| Check | Result |
+|---|---|
+| A connector outside the list (finding 6) | With `tcp:6600` in the user's prefs the list ends with `TCP port 6600 on this PC` |
+| The ImageWriter II's round trip (finding 6) | The card on TCP port 6502, the printer moved onto it and back: the card is on `TCP port 6502 on this PC` and in communications mode again, with both notices after the list closed |
+| An info tip on a hover | In Settings, the Interrupts tip opened after a 2.5 second rest. In the Add connection dialog the Handshake tip did not, since nothing ticked it; fixed in T263 |
+
+#### The ADTPro-compatible server
+
+| Check | Result |
+|---|---|
+| A server at a running Casso's port (finding 7) | `ADTPro server at 127.0.0.1:6600` added with Casso's card on 6600: before the fix, `Casso on port 6600` stayed listed, and opening it made a second connection to the port, which Casso never served. After it, the Casso is not listed beside the server, and one connection is open |
+| `Documents\ADTPro` | Its two files as before the server was added, by name, size and time |
+
+#### Quickstart §6
+
+| Check | Result |
+|---|---|
+| The Theme list | Casso Skeuomorphic (colors only), Casso Retro Terminal, Casso Dark Modern, Dark theme, Light theme, Follow system |
+| Follow system | Windows' app mode set to light: the window was light 933 ms later, and dark again when it was set back. Casso Explorer's theme and Windows' mode were then put back as they were |
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of

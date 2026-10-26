@@ -348,6 +348,39 @@ public:
 
 
 
+    //  An ADTPro server at a running Casso's port has that port, so the
+    //  Casso is not listed as well: a second connection to the one serial
+    //  line would wait for good on it.
+    TEST_METHOD (ARunningCasso_AtAnAdtProServersAddress_IsLeftOut)
+    {
+        Rig                         rig;
+        RunningCasso                running;
+        CassoLinkSettings           test;
+        CassoLinkSettings           server;
+        std::vector<LinkTreeEntry>  entries;
+
+        test.name      = "Test";
+        test.transport = LinkTransport::Emulated;
+        test.address   = "127.0.0.1:6502";
+
+        server.transport = LinkTransport::AdtProServer;
+        server.address   = "127.0.0.1:6600";
+        server.folder    = L"C:\\ADTPro";
+        server.name      = CassoLinkSettings::MakeName (server);
+
+        rig.links->SetLinks ({ test, server });
+
+        running.pid = 7; running.machine = "Apple //e"; running.serialPort = 2; running.address = "127.0.0.1:6600";
+        rig.links->SetRunning ({ running });
+        entries = rig.links->BuildTreeEntries();
+
+        Assert::IsTrue (std::none_of (entries.begin(), entries.end(), [] (const LinkTreeEntry & entry) { return entry.name == L"Casso on port 6600"; }));
+        Assert::AreEqual ((size_t) 2, entries.size(), L"the two saved connections only");
+    }
+
+
+
+
     //  A card in any slot is usable, since the shim finds the slot.
     TEST_METHOD (ARunningCassosCard_IsARootForItsSlot)
     {
@@ -633,6 +666,54 @@ public:
 
         Assert::AreEqual (std::wstring (L"Click My //c to connect."), CassoLinkConnections::DescribeState (LinkState::Closed, link, L"pc"));
         Assert::AreEqual (std::wstring (L"1,200"), CassoLinkConnections::FormatBaud (1200));
+    }
+
+
+
+    //  Only an Apple on a serial card can be started from the PC, so a
+    //  network card's link and an ADTPro server offer no bootstrap.
+    TEST_METHOD (OnlyALinkOverASerialCard_CanBootstrap)
+    {
+        CassoLinkSettings  link;
+
+        for (LinkTransport transport : { LinkTransport::Serial, LinkTransport::Tcp, LinkTransport::Emulated, LinkTransport::WifiModem })
+        {
+            link.transport = transport;
+            Assert::IsTrue (link.CanBootstrap());
+        }
+
+        for (LinkTransport transport : { LinkTransport::Uthernet, LinkTransport::AdtProServer })
+        {
+            link.transport = transport;
+            Assert::IsFalse (link.CanBootstrap());
+        }
+    }
+
+
+
+    //  A name made from the settings already ends in the address, so the
+    //  waiting text does not say it twice.
+    TEST_METHOD (TheWaitingText_SaysTheAddressOnce)
+    {
+        CassoLinkSettings  link;
+
+        link.transport = LinkTransport::Uthernet;
+        link.address   = "127.0.0.1:6502";
+        link.name      = CassoLinkSettings::MakeName (link);
+
+        Assert::AreEqual (std::wstring (L"Connecting to Uthernet II at 127.0.0.1:6502.\nBoot that Apple from a CassoLink disk saved from Uthernet II at 127.0.0.1:6502."),
+                          CassoLinkConnections::DescribeState (LinkState::Opening, link, L"pc"));
+
+        link.name = "Lab //e";
+        Assert::AreEqual (std::wstring (L"Connecting to Lab //e at 127.0.0.1:6502.\nBoot that Apple from a CassoLink disk saved from Lab //e."),
+                          CassoLinkConnections::DescribeState (LinkState::Opening, link, L"pc"), L"a name of its own still gets the address");
+
+        link.transport = LinkTransport::Emulated;
+        link.name      = "Casso on port 6502";
+        Assert::AreEqual (std::wstring (L"Waiting for Casso on port 6502.\nBoot a CassoLink disk in that Casso to connect."),
+                          CassoLinkConnections::DescribeState (LinkState::WaitingForReady, link, L"pc"));
+
+        Assert::IsFalse (CassoLinkConnections::NamesItsPort (L"Port 65020", L"127.0.0.1:6502"), L"the digits must stand alone");
     }
 
 

@@ -832,6 +832,7 @@ private:
     void  PlayCassetteBootstrap (const std::string & name);
     void  SaveCassetteBootstrap (const std::string & name);
     bool  IsSerialLink        (const std::string & name) const;
+    bool  CanBootstrapLink    (const std::string & name) const;
     std::wstring  GetLatestActivity () const;
     std::wstring  FormatActivity (size_t lines) const;
     void  ShowActivityLog ();

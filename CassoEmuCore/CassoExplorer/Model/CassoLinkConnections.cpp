@@ -272,9 +272,15 @@ void CassoLinkConnections::Merge()
         settings.transport = LinkTransport::Emulated;
         settings.address   = running.address;
 
+        //  A saved link at the running Casso's address has its port, and so
+        //  does an ADTPro server there: the port is one serial line, and a
+        //  second connection to it would wait for good on a line the first
+        //  one holds.
         covered = std::any_of (links.begin(), links.end(), [&settings] (const CassoLinkSettings & link)
         {
-            bool  sameAddress = (link.transport == LinkTransport::Emulated || link.transport == LinkTransport::Tcp) && link.address == settings.address;
+            bool  onTcp       = link.transport == LinkTransport::Emulated || link.transport == LinkTransport::Tcp
+                             || (link.transport == LinkTransport::AdtProServer && !link.IsComPort());
+            bool  sameAddress = onTcp && link.address == settings.address;
 
             return link.name == settings.name || sameAddress;
         });
@@ -1348,6 +1354,7 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
 {
     std::wstring  name    = TextEncoding::NarrowToWide (settings.name);
     std::wstring  address = TextEncoding::NarrowToWide (settings.address);
+    std::wstring  where   = NamesItsPort (name, address) ? name : std::format (L"{} at {}", name, address);
     std::wstring  port    = TextEncoding::NarrowToWide (settings.port);
     std::wstring  baud    = FormatBaud (settings.baud);
     std::wstring  text;
@@ -1378,7 +1385,7 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
                     break;
 
                 case LinkTransport::Emulated:
-                    text = std::format (L"Waiting for {} on {}.\nBoot a CassoLink disk in that Casso to connect.", name, address);
+                    text = std::format (L"Waiting for {}.\nBoot a CassoLink disk in that Casso to connect.", NamesItsPort (name, address) ? name : std::format (L"{} on {}", name, address));
                     break;
 
                 case LinkTransport::WifiModem:
@@ -1390,7 +1397,7 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
                     text = settings.IsSearch()
                          ? std::wstring (L"Each Apple on this PC's network that boots a CassoLink disk on an Uthernet II is listed "
                                          L"when its announcement arrives.")
-                         : std::format (L"Connecting to {} at {}.\nBoot that Apple from a CassoLink disk saved from {}.", name, address, name);
+                         : std::format (L"Connecting to {}.\nBoot that Apple from a CassoLink disk saved from {}.", where, name);
                     break;
 
                 case LinkTransport::AdtProServer:
@@ -1401,7 +1408,7 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
                     break;
 
                 default:
-                    text = std::format (L"Connecting to {} at {}.\nStart the CassoLink program on that machine.", name, address);
+                    text = std::format (L"Connecting to {}.\nStart the CassoLink program on that machine.", where);
                     break;
             }
 
@@ -1409,6 +1416,41 @@ std::wstring CassoLinkConnections::DescribeState (LinkState state, const CassoLi
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkConnections::NamesItsPort
+//
+//  The port's digits standing alone in the name: "Uthernet II at
+//  127.0.0.1:6502" and "Casso on port 6502" say it, "My //c" and
+//  "Port 65020" do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoLinkConnections::NamesItsPort (const std::wstring & name, const std::wstring & address)
+{
+    size_t        colon = address.rfind (L':');
+    std::wstring  port  = (colon == std::wstring::npos) ? std::wstring() : address.substr (colon + 1);
+    size_t        at    = port.empty() ? std::wstring::npos : name.find (port);
+    bool          found = false;
+
+
+
+    while (!found && at != std::wstring::npos)
+    {
+        bool  digitBefore = at > 0 && iswdigit (name[at - 1]);
+        bool  digitAfter  = at + port.size() < name.size() && iswdigit (name[at + port.size()]);
+
+        found = !digitBefore && !digitAfter;
+        at    = name.find (port, at + 1);
+    }
+
+    return found;
 }
 
 

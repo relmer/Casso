@@ -28,6 +28,22 @@ public:
     static constexpr const wchar_t *  kDisks = L"C:\\Disks";
 
 
+    //  The offered format registered under `name`, or null.
+    static const DxuiDragDropSource::Format * Find (const std::vector<DxuiDragDropSource::Format> & formats, const wchar_t * name)
+    {
+        CLIPFORMAT  format = (CLIPFORMAT) RegisterClipboardFormatW (name);
+
+        for (const DxuiDragDropSource::Format & entry : formats)
+        {
+            if (entry.format == format)
+            {
+                return &entry;
+            }
+        }
+
+        return nullptr;
+    }
+
 
     TEST_METHOD (FileGroupDescriptor_HoldsEachName)
     {
@@ -152,7 +168,7 @@ public:
         browser.SetSelectedRows ({ hello });
         formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log);
 
-        Assert::IsTrue   (formats[1].render (0, contents) == HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+        Assert::IsTrue   (Find (formats, CFSTR_FILECONTENTS)->render (0, contents) == HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
         Assert::AreEqual (std::wstring (L"Unable to copy HELLO: the track/sector list is damaged"), log->GetFailure());
         Assert::IsFalse  (log->IsWhole());
     }
@@ -196,11 +212,16 @@ public:
 
         formats = CassoExplorerDragOut::BuildFormats (browser, HostFileNaming::Style::Descriptive, log);
 
-        Assert::AreEqual ((size_t) 3, formats.size());
-        Assert::AreEqual (1, formats[1].count);
+        const DxuiDragDropSource::Format  * fileContents = Find (formats, CFSTR_FILECONTENTS);
+
+
+        Assert::AreEqual ((size_t) 4, formats.size());
+        Assert::IsNotNull (Find (formats, CassoExplorerDragOut::kFilesFormatName), L"marked as Casso Explorer's own copy");
+        Assert::IsNotNull (fileContents);
+        Assert::AreEqual (1, fileContents->count);
         Assert::IsFalse  (log->IsWhole(), L"a file the target has not read is not whole, so a move deletes nothing");
 
-        AssertSucceeded (formats[1].render (0, contents));
+        AssertSucceeded (fileContents->render (0, contents));
         Assert::IsTrue (log->IsWhole(), L"and once read from a sound disk it is");
 
         text.assign (contents.begin(), contents.end());

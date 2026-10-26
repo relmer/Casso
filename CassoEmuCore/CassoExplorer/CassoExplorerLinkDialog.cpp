@@ -1136,4 +1136,9 @@ void CassoExplorerLinkDialog::OnDialogTick()
         m_fitted = true;
         FitToContent();
     }
+
+    //  The Handshake info tip gets the tick, as the Settings sheet's do.
+    //  Nothing else ticks it, and it opens only once its dwell has passed,
+    //  so a hover never opened it.
+    m_handshakeTip.Tick ((int64_t) GetTickCount64());
 }

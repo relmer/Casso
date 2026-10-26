@@ -101,6 +101,14 @@ public:
     //  so a drop inside Casso Explorer reads the disk without waiting on it.
     static constexpr const wchar_t *  kDriveFormatName = L"CassoExplorer.AppleDrive";
 
+    //  On every copy of an image's, a linked Apple's or a search's files, so
+    //  a paste into a host folder knows the copy is Casso Explorer's and
+    //  writes it with Casso Explorer's own prompt for a name in use.
+    static constexpr const wchar_t *  kFilesFormatName = L"CassoExplorer.Files";
+
+    //  The marker above, as a format to offer.
+    static DxuiDragDropSource::Format  MakeFilesMarker ();
+
     //  A linked Apple's whole drive as one image file, its volume in its name:
     //  the drive's id for Casso Explorer's own drops, and the image's bytes,
     //  read over the link when a drop elsewhere requests them.

@@ -43,6 +43,25 @@ public:
     }
 
 
+    //  A connector set outside the list, such as another TCP port, is listed
+    //  in words, not by its device name.
+    TEST_METHOD (AConnectorOutsideTheList_IsListedInWords)
+    {
+        std::vector<std::wstring>  labels;
+        std::vector<std::string>   devices;
+
+
+
+        SerialCardPage::BuildAttachments (2, {}, "tcp:6600", labels, devices);
+
+        Assert::AreEqual (std::string ("tcp:6600"), devices.back());
+        Assert::AreEqual (std::wstring (L"TCP port 6600 on this PC"), labels.back());
+
+        SerialCardPage::BuildAttachments (2, {}, "imagewriter", labels, devices);
+        Assert::AreEqual (std::wstring (L"ImageWriter II"), labels.back());
+    }
+
+
     //  Restore defaults stages the switches as the card ships and nothing on
     //  the connector, and the drop-downs follow.
     TEST_METHOD (RestoreDefaultsStagesTheShippedSwitchesAndNoConnector)

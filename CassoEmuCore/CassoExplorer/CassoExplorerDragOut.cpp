@@ -390,6 +390,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildAppleDriveFor
     descriptors = std::make_shared<std::vector<DragPayload::Descriptor>> (plan.descriptors);
     group       = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (plan.descriptors));
 
+    formats.push_back (MakeFilesMarker());
     formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
                          [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
@@ -464,6 +465,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildDiskFormats (
     formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (kDriveFormatName), 1,
                          [id] (int, std::vector<uint8_t> & out) { out = id; return S_OK; } });
 
+    formats.push_back (MakeFilesMarker());
     formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
                          [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
@@ -784,6 +786,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
             log->Reset (plan.descriptors);
         }
 
+        formats.push_back (MakeFilesMarker());
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
@@ -879,6 +882,7 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
 
         group = std::make_shared<std::vector<uint8_t>> (MakeFileGroupDescriptor (*descriptors));
 
+        formats.push_back (MakeFilesMarker());
         formats.push_back ({ (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), 1,
                              [group] (int, std::vector<uint8_t> & out) { out = *group; return S_OK; } });
 
@@ -932,6 +936,25 @@ std::vector<DxuiDragDropSource::Format> CassoExplorerDragOut::BuildFormats (Cass
     formats.push_back ({ CF_HDROP, 1, [drop] (int, std::vector<uint8_t> & out) { out = *drop; return S_OK; } });
 
     return formats;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerDragOut::MakeFilesMarker
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiDragDropSource::Format CassoExplorerDragOut::MakeFilesMarker()
+{
+    return { (CLIPFORMAT) RegisterClipboardFormatW (kFilesFormatName), 1, [] (int, std::vector<uint8_t> & out)
+    {
+        out.assign (1, 0);
+        return S_OK;
+    } };
 }
 
 

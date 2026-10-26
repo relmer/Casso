@@ -224,6 +224,27 @@ public:
 
 
 
+    //  A boot disk still starting when the host first prompts it, as a
+    //  universal disk asking for an address is, misses that prompt and sends
+    //  no Ready of its own. The line is kept open between attempts, and each
+    //  attempt prompts it again; once was all it got.
+    TEST_METHOD (AnAppleThatMissedThePrompt_IsPromptedAgainOnTheNextAttempt)
+    {
+        Rig  rig;
+
+        rig.apple.startAsShim    = true;
+        rig.apple.readySentEarly = true;
+        rig.apple.promptsMissed  = 1;
+        rig.apple.readyEveryMs   = 60000;
+        rig.session->SetRetryInterval (100);
+        rig.Start (500);
+
+        Assert::IsTrue (rig.sink.WaitForState (LinkState::Ready, 20000), L"the next attempt's prompt drew the Ready");
+    }
+
+
+
+
     //  A session stopped on purpose is disconnected, not an Apple that
     //  stopped answering.
     TEST_METHOD (Stop_IsReportedAsDisconnected)

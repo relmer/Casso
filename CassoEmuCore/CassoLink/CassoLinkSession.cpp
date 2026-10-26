@@ -883,6 +883,15 @@ HRESULT CassoLinkSession::Connect (std::stop_token stop, DWORD openAt)
         speeds.insert (speeds.begin(), m_settings.bootstrapBaud);
     }
 
+    //  A line kept open between attempts is prompted again on each one. A
+    //  boot disk that started after the last prompt -- a universal disk asks
+    //  for an address first, and an Apple can be turned off and on with the
+    //  line open -- sends no Ready of its own, and was never asked again.
+    if (openAt == 0 && IsLineOpen() && m_host && !m_host->HasClient() && !m_host->HasAdtProClient())
+    {
+        m_prompted = false;
+    }
+
     //  A serial link with no port set finds one, once; the port found is
     //  used again when the line drops.
     if (openAt == 0 && m_settings.transport == LinkTransport::Serial && m_port.empty())

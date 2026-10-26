@@ -819,6 +819,45 @@ listed in validation.md.
   `FormatUnreadableList` in `CassoEmuCore/CassoLink/CassoLinkSession.cpp`;
   the read-again prompt has the list's file name. Tests in
   `UnitTest/CassoLink/CassoLinkSessionTests.cpp`.
+- [X] T262 Report in a notice an emulated Uthernet II's listen on a TCP port
+  the PC already has, once for each port until a listen on it succeeds, with
+  the Super Serial Card or serial port using that port when there is one
+  (FR-091b, Session 2026-10-26). `W5100SocketBridge::TakeListenFailures` and
+  `DescribeListenFailure`, `MachineHost::GetSerialPortOnTcp`,
+  `EmulatorShell::ReportUthernetListenFailures`. Tests in
+  `UnitTest/NetworkTests/W5100SocketBridgeTests.cpp` and
+  `UnitTest/EmuTests/Apple2cBootTests.cpp`.
+- [X] T263 Fix the findings of the 2026-10-23 to 25 checklist pass in
+  `validation.md`. Each is checked on screen on the laptop and in the 2026-10-26
+  section there.
+  - **The serial card on the boot disk's port**: an Apple whose boot disk
+    started after the PC's prompt, as a universal disk asking for an address
+    does, was never prompted again on a line kept open; each attempt now
+    prompts (`CassoLinkSession::Connect`). The universal disk's wait loop
+    listens again only with each announcement, not on every pass
+    (`Universal.s`, `w5again`). Test in `CassoLinkSessionTests.cpp`.
+  - **A paste of an image's or a linked Apple's files into a host folder**
+    is written by Casso Explorer, with its Replace, Skip and Keep both
+    prompt, rather than by the folder's drop target, whose prompt had no Keep
+    both and named the source's folder `C:\WINDOWS`
+    (`CassoExplorerActions::PasteVirtualFiles`, the `CassoExplorer.Files`
+    marker). Tests in `CassoExplorerActionsTests.cpp` and
+    `CassoExplorerDragOutTests.cpp`.
+  - **The waiting text** names an address once when the connection's name
+    already has it (`CassoLinkConnections::NamesItsPort`).
+  - **Bootstrap and the cassette items** are not on an Uthernet II's or an
+    ADTPro server's menu (`CassoLinkSettings::CanBootstrap`).
+  - **A serial connector set outside the list** is in words, "TCP port 6600
+    on this PC", and **the connector the ImageWriter II takes** is put back
+    when the printer moves away, after an Apply too (`portBeforePrinter`).
+    Tests in `SerialCardPageTests.cpp` and `SettingsPanelStateTests.cpp`.
+  - **An ADTPro server at a running Casso's port** leaves that Casso out of
+    the list, so the one serial line has one connection.
+  - **The Add connection dialog's Handshake info tip** opens on a hover; the
+    dialog never ticked it (`CassoExplorerLinkDialog::OnDialogTick`).
+  - **By design**, so not changed: no tool sets a lock, which the spec asks to
+    show and keep but not to set; and a host file's preview is chosen by its
+    bytes, so 256 bytes of $C1 are DOS text, a row of "┴".
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

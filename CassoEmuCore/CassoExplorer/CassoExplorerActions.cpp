@@ -1,9 +1,11 @@
 #include "Pch.h"
 
 #include "CassoExplorer/CassoExplorerActions.h"
+#include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoLink/LinkAudioBootstrap.h"
 #include "CassoLink/LinkProgram.h"
+#include "Devices/Disk/ChangePrompt.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "CassoExplorer/Model/CatalogModel.h"
 #include "CassoExplorer/Model/ContentSniffer.h"
@@ -844,6 +846,197 @@ CassoExplorerActions::Outcome CassoExplorerActions::GetSelected (const std::wstr
     }
 
     return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::PasteVirtualFiles
+//
+//  A folder in the descriptor is made, and its files follow it by their
+//  relative names. One file that cannot be read is reported and the rest
+//  are still written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoExplorerActions::Outcome CassoExplorerActions::PasteVirtualFiles (IDataObject * data, const std::wstring & hostFolder, const CollisionFn & collision,
+                                                                     std::vector<std::wstring> & outCreated)
+{
+    Outcome                       outcome;
+    FORMATETC                     format    = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM                     medium    = {};
+    const FILEGROUPDESCRIPTORW  * group     = nullptr;
+    std::vector<FILEDESCRIPTORW>  items;
+    std::vector<std::wstring>     hostNames;
+    int                           index     = 0;
+    int                           count     = 0;
+
+
+
+    outCreated.clear();
+
+    outcome.hr = data->GetData (&format, &medium);
+
+    if (FAILED (outcome.hr))
+    {
+        return outcome;
+    }
+
+    group = (const FILEGROUPDESCRIPTORW *) GlobalLock (medium.hGlobal);
+
+    for (UINT i = 0; group != nullptr && i < group->cItems; i++)
+    {
+        items.push_back (group->fgd[i]);
+    }
+
+    GlobalUnlock (medium.hGlobal);
+    ReleaseStgMedium (&medium);
+
+    for (const FILEDESCRIPTORW & item : items)
+    {
+        bool  folder = (item.dwFlags & FD_ATTRIBUTES) != 0 && (item.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+
+        hostNames.push_back (folder ? std::wstring() : std::wstring (item.cFileName));
+    }
+
+    count = CountCollisions (hostFolder, hostNames);
+
+    for (size_t i = 0; i < items.size(); i++)
+    {
+        std::wstring       hostPath;
+        std::vector<Byte>  bytes;
+        HRESULT            hr       = S_OK;
+
+        if (hostNames[i].empty())
+        {
+            hostPath = CassoExplorerBrowser::JoinPath (hostFolder, items[i].cFileName);
+            hr       = m_fs.DirectoryExists (hostPath) ? S_OK : m_fs.MakeDirectory (hostPath);
+        }
+        else
+        {
+            hostPath = ResolveCopyOutPath (hostFolder, hostNames[i], collision, index, count);
+
+            if (hostPath.empty())
+            {
+                outcome.skipped = true;
+                continue;
+            }
+
+            hr = ReadFileContents (data, (LONG) i, items[i], bytes);
+
+            if (SUCCEEDED (hr))
+            {
+                hr = m_fs.WriteAllText (hostPath, std::string (bytes.begin(), bytes.end()));
+            }
+
+            if (SUCCEEDED (hr))
+            {
+                outcome.written++;
+                outCreated.push_back (hostPath);
+            }
+        }
+
+        if (FAILED (hr))
+        {
+            outcome.hr       = hr;
+            outcome.message += std::format (L"{}Unable to copy {}: {}", outcome.message.empty() ? L"" : L"\n", GetLeafName (hostPath),
+                                            ChangePrompt::DescribeError (hr));
+        }
+    }
+
+    return outcome;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::IsCassoCopy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerActions::IsCassoCopy (IDataObject * data)
+{
+    FORMATETC  descriptor = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILEDESCRIPTORW), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  entries    = { (CLIPFORMAT) RegisterClipboardFormatA (DragPayload::kPrivateFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  drive      = { (CLIPFORMAT) RegisterClipboardFormatW (CassoExplorerDragOut::kDriveFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    FORMATETC  files      = { (CLIPFORMAT) RegisterClipboardFormatW (CassoExplorerDragOut::kFilesFormatName), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+
+
+
+    return data != nullptr && data->QueryGetData (&descriptor) == S_OK
+        && (data->QueryGetData (&files) == S_OK || data->QueryGetData (&entries) == S_OK || data->QueryGetData (&drive) == S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerActions::ReadFileContents
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoExplorerActions::ReadFileContents (IDataObject * data, LONG index, const FILEDESCRIPTORW & item, std::vector<Byte> & outBytes)
+{
+    HRESULT          hr     = S_OK;
+    FORMATETC        format = { (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_FILECONTENTS), nullptr, DVASPECT_CONTENT, index, TYMED_HGLOBAL | TYMED_ISTREAM };
+    STGMEDIUM        medium = {};
+    const Byte     * locked = nullptr;
+    STATSTG          stat   = {};
+    LARGE_INTEGER    start  = {};
+    ULONG            read   = 0;
+    bool             sized  = (item.dwFlags & FD_FILESIZE) != 0;
+    ULONGLONG        size   = ((ULONGLONG) item.nFileSizeHigh << 32) | item.nFileSizeLow;
+
+
+
+    outBytes.clear();
+
+    hr = data->GetData (&format, &medium);
+    CHR (hr);
+
+    if (medium.tymed == TYMED_HGLOBAL)
+    {
+        locked = (const Byte *) GlobalLock (medium.hGlobal);
+        CBREx (locked != nullptr, E_OUTOFMEMORY);
+
+        //  Global memory can be larger than asked for, so the descriptor's
+        //  size is the file's.
+        outBytes.assign (locked, locked + (sized ? (std::min) ((SIZE_T) size, GlobalSize (medium.hGlobal)) : GlobalSize (medium.hGlobal)));
+        GlobalUnlock (medium.hGlobal);
+    }
+    else
+    {
+        CBREx (medium.tymed == TYMED_ISTREAM && medium.pstm != nullptr, DV_E_TYMED);
+
+        hr = medium.pstm->Stat (&stat, STATFLAG_NONAME);
+        CHR (hr);
+
+        hr = medium.pstm->Seek (start, STREAM_SEEK_SET, nullptr);
+        CHR (hr);
+
+        outBytes.resize ((size_t) stat.cbSize.QuadPart);
+
+        if (!outBytes.empty())
+        {
+            hr = medium.pstm->Read (outBytes.data(), (ULONG) outBytes.size(), &read);
+            CHR (hr);
+
+            outBytes.resize (read);
+        }
+    }
+
+Error:
+    ReleaseStgMedium (&medium);
+
+    return hr;
 }
 
 

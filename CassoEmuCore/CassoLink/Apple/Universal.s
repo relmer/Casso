@@ -257,7 +257,10 @@ w5blank: cpy #40
         bne w5blank
 
 ; wait: until an envelope's start byte arrives on a 6551, or the PC connects
-; to the W5100. A W5100 socket that stops listening listens again.
+; to the W5100. A W5100 socket that stops listening listens again, with the
+; next announcement rather than on every pass: a 6551 holds one byte, and a
+; listen that fails each time, as one does on a port the PC has taken, made
+; the pass too slow to catch the start byte at 115,200 baud.
 wait:   ldx #0
 wtacia: cpx nacia
         beq wtw5
@@ -286,12 +289,7 @@ wtw5:   lda w5slot
         jsr wzget
         cmp #STESTAB
         beq w5go
-        cmp #STLISTEN
-        beq wtann
-        cmp #STSYNRCV
-        beq wtann
-        jsr w5listen
-wtann:  inc annlo
+        inc annlo
         bne wait
         inc annhi
         lda annhi
@@ -299,8 +297,22 @@ wtann:  inc annlo
         bne wait
         lda #0
         sta annhi
+        jsr w5again
         jsr announce
         jmp wait
+
+; w5again: socket 0 listening again if it has stopped.
+w5again: lda #$04
+        sta skpage
+        ldy #SKSR
+        jsr wzsock
+        jsr wzget
+        cmp #STLISTEN
+        beq w5still
+        cmp #STSYNRCV
+        beq w5still
+        jmp w5listen
+w5still: rts
 
 ; acgo: the 6551 shim, for the 6551 at sel, given the zero page and started.
 acgo:   ldx sel

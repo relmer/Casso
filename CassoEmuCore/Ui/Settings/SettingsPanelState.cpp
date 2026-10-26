@@ -1102,12 +1102,30 @@ void SettingsPanelState::SetPrinterConnection (const PrinterConnection & connect
         }
         else if (serial && chosen)
         {
+            //  The connector the printer displaces, to put back when it goes.
+            if (!has)
+            {
+                entry.portBeforePrinter     = entry.ports.empty() ? std::string() : entry.ports.front();
+                entry.portPathBeforePrinter = entry.portPath;
+            }
+
             entry.ports    = { kpszImageWriterDevice };
             entry.portPath.clear();
         }
         else if (serial && has)
         {
-            entry.ports = readBare ? std::vector<std::string>() : std::vector<std::string> { std::string() };
+            if (!entry.portBeforePrinter.empty())
+            {
+                entry.ports    = { entry.portBeforePrinter };
+                entry.portPath = entry.portPathBeforePrinter;
+            }
+            else
+            {
+                entry.ports = readBare ? std::vector<std::string>() : std::vector<std::string> { std::string() };
+            }
+
+            entry.portBeforePrinter.clear();
+            entry.portPathBeforePrinter.clear();
         }
     }
 
@@ -1695,6 +1713,8 @@ HRESULT SettingsPanelState::SetSerialCardAttachment (const std::string & device,
     {
         entry->ports    = { device };
         entry->portPath = path;
+        entry->portBeforePrinter.clear();
+        entry->portPathBeforePrinter.clear();
     }
 
 Error:
@@ -2699,7 +2719,9 @@ HRESULT SettingsPanelState::ExtractHardware (
 
                         if (j == 0 && port.GetType() == JsonType::Object)
                         {
-                            hw.portPath = GetStringOpt (port, kpszPortPathKey, "");
+                            hw.portPath              = GetStringOpt (port, kpszPortPathKey,       "");
+                            hw.portBeforePrinter     = GetStringOpt (port, kpszPortBeforeKey,     "");
+                            hw.portPathBeforePrinter = GetStringOpt (port, kpszPortPathBeforeKey, "");
                         }
                     }
                 }
@@ -2951,13 +2973,29 @@ JsonValue SettingsPanelState::BuildJson (
                         {
                             // The first connector of a card with a file
                             // attachment is written as an object, to include the
-                            // file's path.
-                            if (portArr.empty() && !staged->portPath.empty())
+                            // file's path, and so is one the printer has, to
+                            // include the connector it displaced.
+                            if (portArr.empty() && (!staged->portPath.empty() || !staged->portBeforePrinter.empty()))
                             {
                                 std::vector<std::pair<std::string, JsonValue>>  port;
 
                                 port.emplace_back (kpszPortDeviceKey, JsonValue (device));
-                                port.emplace_back (kpszPortPathKey,   JsonValue (staged->portPath));
+
+                                if (!staged->portPath.empty())
+                                {
+                                    port.emplace_back (kpszPortPathKey, JsonValue (staged->portPath));
+                                }
+
+                                if (!staged->portBeforePrinter.empty())
+                                {
+                                    port.emplace_back (kpszPortBeforeKey, JsonValue (staged->portBeforePrinter));
+                                }
+
+                                if (!staged->portPathBeforePrinter.empty())
+                                {
+                                    port.emplace_back (kpszPortPathBeforeKey, JsonValue (staged->portPathBeforePrinter));
+                                }
+
                                 portArr.emplace_back (JsonValue (std::move (port)));
                             }
                             else
@@ -3207,6 +3245,8 @@ bool SettingsPanelState::AreHardwareEqual (
              && a[i].switchesSw1 == b[i].switchesSw1
              && a[i].switchesSw2 == b[i].switchesSw2
              && a[i].switchesSw1BeforePrinter == b[i].switchesSw1BeforePrinter
+             && a[i].portBeforePrinter        == b[i].portBeforePrinter
+             && a[i].portPathBeforePrinter    == b[i].portPathBeforePrinter
              && a[i].network     == b[i].network;
     }
 

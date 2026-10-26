@@ -161,6 +161,18 @@ public:
 
     Outcome  GetSelected    (const std::wstring & hostFolder, HostFileNaming::Style style, const CollisionFn & collision = nullptr);
 
+    //  Files a copy put on the clipboard as file descriptors and contents,
+    //  written into the host folder by Get's rules for a name in use, so a
+    //  paste of an image's or a linked Apple's files asks Replace, Skip or
+    //  Keep both as Get does. `outCreated` is each file written, for the
+    //  paste's undo.
+    Outcome  PasteVirtualFiles (IDataObject * data, const std::wstring & hostFolder, const CollisionFn & collision,
+                                std::vector<std::wstring> & outCreated);
+
+    //  Whether the clipboard's data is Casso Explorer's own copy of an
+    //  image's or a linked Apple's files.
+    static bool  IsCassoCopy (IDataObject * data);
+
     //  Copy every file on the image into a new folder beside it, called after the
     //  image without its extension, and its directories as folders inside.
     //  `outFolder` is the folder made.
@@ -424,6 +436,10 @@ private:
     static constexpr int  kMaxCopyDepth = 16;
     void  ExtractDirectory (const std::string & image, VolumeKind kind, const std::string & directory, const std::wstring & hostFolder,
                             HostFileNaming::Style style, int depth, Outcome & inOutOutcome);
+    //  One item's FILECONTENTS, from memory or a stream, cut to the
+    //  descriptor's size where it gives one.
+    static HRESULT  ReadFileContents (IDataObject * data, LONG index, const FILEDESCRIPTORW & item, std::vector<Byte> & outBytes);
+
     std::wstring  MakeFreeFolderPath (const std::wstring & parent, const std::wstring & name);
     std::wstring  MakeFreeFilePath   (const std::wstring & folder, const std::wstring & name);
     bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);

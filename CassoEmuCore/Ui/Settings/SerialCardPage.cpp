@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SerialCardPage.h"
+#include "Ui/Settings/HardwarePage.h"
 #include "Ui/Settings/SettingsInfoTip.h"
 #include "Ui/Settings/SettingsPanelState.h"
 #include "Core/TextEncoding.h"
@@ -431,11 +432,12 @@ void SerialCardPage::BuildAttachments (int slot, const std::vector<std::wstring>
     }
 
     //  The ImageWriter II is connected on the Printing tab, so it is listed
-    //  only while it is the card's.
+    //  only while it is the card's, as is a connector set outside this list,
+    //  such as another TCP port, in words rather than its device name.
     if (std::find (outDevices.begin(), outDevices.end(), current) == outDevices.end())
     {
         outDevices.push_back (current);
-        outLabels.push_back  ((current == kpszImageWriterDevice) ? std::wstring (L"ImageWriter II") : TextEncoding::NarrowToWide (current));
+        outLabels.push_back  (HardwarePage::DescribeSerialDevice (current));
     }
 }
 
