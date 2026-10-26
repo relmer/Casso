@@ -835,6 +835,7 @@ HRESULT EmulatorShell::Initialize (
     m_tapeDeck->InsertStartupTape (tapePath);
 
     ApplyPersistedMachinePrefs();
+    ReopenDiskInspector();
 
 Error:
     return hr;

@@ -2,6 +2,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/Components/ShellChrome.h"
+#include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Ui/DiskInspector/DiskInspectorWindow.h"
 
@@ -23,11 +24,31 @@
 
 void EmulatorShell::OpenDiskInspector (int drive)
 {
-    HRESULT    hr         = S_OK;
-    HINSTANCE  hInstance  = nullptr;
-    HWND       foreground = GetForegroundWindow();
-    bool       activate   = foreground != nullptr && (GetAncestor (foreground, GA_ROOTOWNER) == m_hwnd ||
-                            (m_diskInspector != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_diskInspector->GetHwnd()));
+    HWND  foreground = GetForegroundWindow();
+    bool  activate   = foreground != nullptr && (GetAncestor (foreground, GA_ROOTOWNER) == m_hwnd ||
+                       (m_diskInspector != nullptr && GetAncestor (foreground, GA_ROOTOWNER) == m_diskInspector->GetHwnd()));
+
+
+
+    ShowDiskInspector (drive, activate);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowDiskInspector
+//
+//  The saved state is applied to a new window before ShowDrive (FR-080).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowDiskInspector (int drive, bool activate)
+{
+    HRESULT    hr        = S_OK;
+    HINSTANCE  hInstance = nullptr;
 
 
 
@@ -40,6 +61,8 @@ void EmulatorShell::OpenDiskInspector (int drive)
         CHRF (hr, m_diskInspector.reset());
 
         m_window->ApplyAppIconToWindow (m_diskInspector->GetHwnd());
+        m_inspectorHost.SetOnClosed ([this] () { SaveInspectorPrefs (false); });
+        m_diskInspector->ApplyPrefs (m_settings->GetPrefs().diskInspector);
     }
     else
     {
@@ -89,7 +112,61 @@ DxuiMessageResult EmulatorShell::OnClose()
 
 
 
+    if (isGoingOn && m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr)
+    {
+        SaveInspectorPrefs (IsWindowVisible (m_diskInspector->GetHwnd()) != FALSE);
+    }
+
     return isGoingOn ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SaveInspectorPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SaveInspectorPrefs (bool isOpen)
+{
+    DiskInspectorPrefs &  prefs = m_settings->GetPrefs().diskInspector;
+
+
+
+    if (m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr)
+    {
+        m_diskInspector->GetPrefs (prefs);
+        prefs.isOpen = isOpen;
+        m_settings->SaveGlobalPrefsDeferred();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReopenDiskInspector
+//
+//  At launch, the inspector on its last drive when it was open at exit,
+//  behind Casso's main window (FR-080).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReopenDiskInspector()
+{
+    const DiskInspectorPrefs &  prefs = m_settings->GetPrefs().diskInspector;
+
+
+
+    if (prefs.isOpen)
+    {
+        ShowDiskInspector (std::clamp (prefs.lastDrive, 0, ShellInspectorHost::kDriveCount - 1), false);
+    }
 }
 
 

@@ -1569,7 +1569,8 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
             m_changedSlots.insert (slot);
         }
 
-        m_isFilesDefaulted = false;
+        //  A saved Files choice applies to every disk (FR-080).
+        m_isFilesDefaulted = m_isFilesSaved;
 
         //  Pending edits are discarded with the disk they were made on. A
         //  remount of the same file, as Reset, Power Cycle and a machine
@@ -5870,5 +5871,116 @@ void DiskInspectorWindow::TrackLegendHover (POINT pointPx)
     else if (!isOver && m_legendPopup != nullptr && !m_isLegendPinned)
     {
         HideLegend();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetPrefs
+//
+//  The placement is the restored one, in the workspace coordinates
+//  SetWindowPlacement takes back, so a maximized window comes back to the
+//  size it had before.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
+{
+    WINDOWPLACEMENT  placement = { sizeof (WINDOWPLACEMENT) };
+
+
+
+    if (GetHwnd() != nullptr && GetWindowPlacement (GetHwnd(), &placement))
+    {
+        inOut.x           = placement.rcNormalPosition.left;
+        inOut.y           = placement.rcNormalPosition.top;
+        inOut.w           = placement.rcNormalPosition.right - placement.rcNormalPosition.left;
+        inOut.h           = placement.rcNormalPosition.bottom - placement.rcNormalPosition.top;
+        inOut.isMaximized = placement.showCmd == SW_SHOWMAXIMIZED || IsZoomed (GetHwnd());
+    }
+
+    inOut.isTimingMode  = m_context.isTimingMode;
+    inOut.isDiskGroup   = m_isDiskGroup;
+    inOut.trackTab      = m_trackTab;
+    inOut.diskTab       = (m_diskTab == kTabDifferences) ? kTabTracks : m_diskTab;
+    inOut.timingRange   = m_context.timingRange;
+    inOut.isAlignment   = m_alignmentCheck->IsChecked();
+    inOut.isFiles       = m_context.isFilesOverlay;
+    inOut.isReads       = m_context.isReadsOverlay;
+    inOut.isShowDeleted = m_mapDeleted->IsChecked();
+    inOut.isFollowHead  = m_followHead.IsOn();
+    inOut.zoom          = m_zoom;
+    inOut.lastDrive     = m_drive;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ApplyPrefs
+//
+//  A saved placement is used only while it is on a monitor, so a window
+//  saved on a monitor since removed opens centered on Casso instead. It is
+//  set twice: a move onto a monitor of another DPI rescales the window, so
+//  the second call sets the saved size at that monitor's DPI.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
+{
+    WINDOWPLACEMENT  placement = { sizeof (WINDOWPLACEMENT) };
+    RECT             saved     = { prefs.x, prefs.y, prefs.x + prefs.w, prefs.y + prefs.h };
+    int              step      = 0;
+
+
+
+    if (prefs.w > 0 && prefs.h > 0 && MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) != nullptr && GetWindowPlacement (GetHwnd(), &placement))
+    {
+        placement.rcNormalPosition = saved;
+        placement.showCmd          = prefs.isMaximized ? SW_SHOWMAXIMIZED : (IsWindowVisible (GetHwnd()) ? SW_SHOWNOACTIVATE : SW_HIDE);
+        SetWindowPlacement (GetHwnd(), &placement);
+        SetWindowPlacement (GetHwnd(), &placement);
+    }
+
+    m_context.isTimingMode   = prefs.isTimingMode;
+    m_context.isFilesOverlay = prefs.isFiles;
+    m_context.isReadsOverlay = prefs.isReads;
+    m_isFilesDefaulted       = prefs.w > 0;
+    m_isFilesSaved           = prefs.w > 0;
+    m_trackTab               = std::clamp (prefs.trackTab, 0, kTrackTabCount - 1);
+    m_diskTab                = std::clamp (prefs.diskTab,  0, kDiskTabCount  - 1);
+    m_diskTab                = (m_diskTab == kTabDifferences) ? kTabTracks : m_diskTab;
+
+    //  The timing range step nearest the saved range.
+    for (step = 0; step < static_cast<int> (std::size (s_kRanges)); step++)
+    {
+        m_rangeStep = (std::abs (s_kRanges[step] - prefs.timingRange) < std::abs (s_kRanges[m_rangeStep] - prefs.timingRange)) ? step : m_rangeStep;
+    }
+
+    m_context.timingRange = s_kRanges[m_rangeStep];
+
+    m_modeTabs->SetSelected  (prefs.isTimingMode ? 1 : 0);
+    m_alignmentCheck->SetChecked (prefs.isAlignment);
+    m_platterView->SetAlignmentShown (prefs.isAlignment);
+    m_filesCheck->SetChecked (prefs.isFiles);
+    m_readsCheck->SetChecked (prefs.isReads);
+    m_mapDeleted->SetChecked (prefs.isShowDeleted);
+    m_followCheck->SetChecked (prefs.isFollowHead);
+    SetFollowHead (prefs.isFollowHead);
+    SetZoom (prefs.zoom);
+
+    if (prefs.isDiskGroup)
+    {
+        ShowDiskTab (m_diskTab);
+    }
+    else
+    {
+        ShowTrackTab (m_trackTab);
     }
 }

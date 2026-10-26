@@ -240,7 +240,7 @@ without the others in its merge.
 - [X] T098 [US6] Follow head and "Go to head" in `UI/InspectorViewModel.cpp` and the toolbar (FR-067)
 - [X] T099 [US6] Re-analysis of written tracks within 500 ms (twice a second during continuous bit writes), written and read marks with visit counts in the Tracks tab, "Reads" overlay, Find results marked out of date, write-protect state and causes in the toolbar (FR-047, FR-056, FR-065, FR-068, FR-069)
 - [X] T100 [US6] Image tab changed-value marks, records added since load, "Checked when the file was read", save note (FR-071)
-- [ ] T101 [US6] Casso preferences: `diskInspector` block in `CEC/Config/GlobalUserPrefs.h` / `.cpp` (placement, mode, tabs, timing range, overlays, "Show deleted files", Follow head, last drive, open at exit) saved through `SaveGlobalPrefsDeferred`; reopen at launch on the last drive (FR-080)
+- [X] T101 [US6] Casso preferences: `diskInspector` block in `CEC/Config/GlobalUserPrefs.h` / `.cpp` (placement, mode, tabs, timing range, overlays, "Show deleted files", Follow head, last drive, open at exit) saved through `SaveGlobalPrefsDeferred`; reopen at launch on the last drive (FR-080)
 - [ ] T102 [US6] Measure SC-005 (five alternating pinned runs at Maximum speed; five 60 s runs at normal speed) and record results in Notes
 
 ---
@@ -407,7 +407,7 @@ Commit after each phase (constitution, Commit Discipline), with
 - [ ] T157 [US17] Add the tilted perspective view: right-drag or the tilt handle tilts and turns the platter up to 60 degrees, double-clicking the handle or "Top down" returns it flat; project the shader's lookup, hit tests, overlays, selected ring, alignment marks and nibble values; drop nibble values where rings are too thin; zoom toward the point under the pointer; add tests at 0, 30 and 60 degrees that tooltips and clicks address the projected cell, in `PlatterView.cpp`, `PlatterGeometry.cpp`, `PlatterRenderer.cpp` and `platter.ps.hlsl` per FR-151, SC-031, US17/AC5 (missing)
 - [ ] T158 [US6] In Casso, draw the head in the tilted view at the near edge as a translucent head carriage on its rail with the bullseye on the disk and a soft shadow, the pointer passing through it, in `PlatterView.cpp` per FR-152 (missing)
 - [ ] T159 [US6] With T101, save the tilt and whether the walkthrough has been seen with the window's state in `CEC/Config/GlobalUserPrefs.h/.cpp` and Explorer's preferences per FR-080 (missing)
-- [ ] T160 [US17] With T101, save the window's zoom and restore it when the window opens in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp` per FR-154, FR-080 (missing)
+- [X] T160 [US17] With T101, save the window's zoom and restore it when the window opens in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp` per FR-154, FR-080 (missing)
 - [ ] T161 [US17] Once 033 reaches master, put the status band on 033's `DxuiStatusBar`: the hint in a stretch field and `DxuiZoomControl` over a fixed field of `DxuiZoomControl::kWidthDip` at its right, in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp` per FR-154 (missing)
 
 ## Phase 19: Convergence

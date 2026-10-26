@@ -217,6 +217,13 @@ private:
     //  is discarded by `action`, or the user confirms that they are. A
     //  drive of -1 matches either drive.
     bool               ConfirmInspectorDiscard (int drive, const std::wstring & action);
+
+    //  Open the disk inspector on a drive, in the foreground only when
+    //  `activate`; save its state for the next launch; at launch, reopen it
+    //  when it was open at exit (FR-080).
+    void               ShowDiskInspector   (int drive, bool activate);
+    void               SaveInspectorPrefs  (bool isOpen);
+    void               ReopenDiskInspector ();
     DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
 

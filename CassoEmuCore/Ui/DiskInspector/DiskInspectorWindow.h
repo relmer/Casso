@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Config/DiskInspectorPrefs.h"
 #include "Devices/Disk/Inspector/InspectorSearch.h"
 #include "Seams/Win32Clipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -92,6 +93,11 @@ public:
     //  Before something discards the pending edits (FR-108): true when there
     //  are none, or the user confirms that they are discarded.
     bool     ConfirmDiscardEdits (const std::wstring & action);
+
+    //  The window's state to save, and the saved state applied to a new
+    //  window before ShowDrive (FR-080). The host sets `isOpen`.
+    void     GetPrefs    (DiskInspectorPrefs & inOut) const;
+    void     ApplyPrefs  (const DiskInspectorPrefs & prefs);
 
     void     Layout      (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -317,6 +323,7 @@ private:
     int                                     m_flownQuarterTrack  = -1;
     int                                     m_flownSector        = -1;
     bool                                    m_isFilesDefaulted   = false;
+    bool                                    m_isFilesSaved       = false;
     std::shared_ptr<const DriveHeadState>   m_headState;
     uint64_t                                m_countsGeneration   = 0;
     vector<uint64_t>                        m_writeCounts;

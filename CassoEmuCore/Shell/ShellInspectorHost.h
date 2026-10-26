@@ -35,7 +35,10 @@ public:
     uint64_t  PostInspectorRequest (const InspectorRequest & request)   override;
     void      TakeInspectorReplies (vector<InspectorReply> & outReplies) override;
     int       GetDriveCount        () const                               override { return kDriveCount; }
-    void      OnInspectorClosed    ()                                     override {}
+    void      OnInspectorClosed    ()                                     override { if (m_onClosed) { m_onClosed(); } }
+
+    //  UI thread: called when the user closes the window.
+    void      SetOnClosed (std::function<void ()> onClosed) { m_onClosed = std::move (onClosed); }
 
     std::shared_ptr<const DriveHeadState>  GetHeadState       (int drive) const override { return m_publisher.Get (drive); }
     void                                   SetHeadStateWanted (bool isWanted)  override { m_publisher.SetActive (isWanted); }
@@ -62,4 +65,5 @@ private:
     InspectorRequestQueue                             m_queue;
     InspectorStatusPublisher                          m_publisher;
     std::array<InspectorDiskIdentity, kDriveCount>    m_identities;
+    std::function<void ()>                            m_onClosed;
 };

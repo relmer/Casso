@@ -174,6 +174,66 @@ public:
     }
 
 
+    //  The disk inspector's state (FR-080) is written once the window has
+    //  been opened, and reads back field for field.
+    TEST_METHOD (DiskInspectorState_RoundTrips)
+    {
+        InMemoryFileSystem    fs;
+        GlobalUserPrefs       orig;
+        GlobalUserPrefs       loaded;
+        const JsonValue     * inspector = nullptr;
+        HRESULT               hr        = S_OK;
+
+
+
+        Assert::IsFalse (orig.ToJson().HasObject ("diskInspector", inspector), L"nothing written before the window first opens");
+
+        orig.diskInspector.x             = -1800;
+        orig.diskInspector.y             = 40;
+        orig.diskInspector.w             = 1500;
+        orig.diskInspector.h             = 1000;
+        orig.diskInspector.isMaximized   = true;
+        orig.diskInspector.isTimingMode  = true;
+        orig.diskInspector.isDiskGroup   = true;
+        orig.diskInspector.trackTab      = 2;
+        orig.diskInspector.diskTab       = 3;
+        orig.diskInspector.timingRange   = 0.1;
+        orig.diskInspector.isAlignment   = true;
+        orig.diskInspector.isReads       = true;
+        orig.diskInspector.isShowDeleted = true;
+        orig.diskInspector.isFollowHead  = true;
+        orig.diskInspector.zoom          = 1.25;
+        orig.diskInspector.lastDrive     = 1;
+        orig.diskInspector.isOpen        = true;
+
+        hr = orig.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::AreEqual (-1800, loaded.diskInspector.x);
+        Assert::AreEqual (40,    loaded.diskInspector.y);
+        Assert::AreEqual (1500,  loaded.diskInspector.w);
+        Assert::AreEqual (1000,  loaded.diskInspector.h);
+        Assert::IsTrue   (loaded.diskInspector.isMaximized);
+        Assert::IsTrue   (loaded.diskInspector.isTimingMode);
+        Assert::IsTrue   (loaded.diskInspector.isDiskGroup);
+        Assert::AreEqual (2,     loaded.diskInspector.trackTab);
+        Assert::AreEqual (3,     loaded.diskInspector.diskTab);
+        Assert::AreEqual (0.1,   loaded.diskInspector.timingRange);
+        Assert::IsTrue   (loaded.diskInspector.isAlignment);
+        Assert::IsFalse  (loaded.diskInspector.isFiles);
+        Assert::IsTrue   (loaded.diskInspector.isReads);
+        Assert::IsTrue   (loaded.diskInspector.isShowDeleted);
+        Assert::IsTrue   (loaded.diskInspector.isFollowHead);
+        Assert::AreEqual (1.25,  loaded.diskInspector.zoom);
+        Assert::AreEqual (1,     loaded.diskInspector.lastDrive);
+        Assert::IsTrue   (loaded.diskInspector.isOpen);
+        Assert::IsTrue   (loaded.unknownPassthrough.empty(), L"diskInspector is a known key");
+    }
+
+
     TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
     {
         // Regression (013 #8): "Restore defaults" left a previously-picked
