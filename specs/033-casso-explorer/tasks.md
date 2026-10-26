@@ -819,10 +819,10 @@ listed in validation.md.
   `FormatUnreadableList` in `CassoEmuCore/CassoLink/CassoLinkSession.cpp`;
   the read-again prompt has the list's file name. Tests in
   `UnitTest/CassoLink/CassoLinkSessionTests.cpp`.
-- [X] T262 Report in a notice an emulated Uthernet II's listen on a TCP port
-  the PC already has, once for each port until a listen on it succeeds, with
-  the Super Serial Card or serial port using that port when there is one
-  (FR-091b, Session 2026-10-26). `W5100SocketBridge::TakeListenFailures` and
+- [X] T262 Report an emulated Uthernet II's listen on a TCP port the PC
+  already has, in an infobar with a close box and on the Network page (the
+  Serial card page to follow), with the Super Serial Card or serial port using
+  that port when there is one (FR-091b, Session 2026-10-26). `W5100SocketBridge::TakeListenFailures` and
   `DescribeListenFailure`, `MachineHost::GetSerialPortOnTcp`,
   `EmulatorShell::ReportUthernetListenFailures`. Tests in
   `UnitTest/NetworkTests/W5100SocketBridgeTests.cpp` and
@@ -858,6 +858,17 @@ listed in validation.md.
   - **By design**, so not changed: no tool sets a lock, which the spec asks to
     show and keep but not to set; and a host file's preview is chosen by its
     bytes, so 256 bytes of $C1 are DOS text, a row of "┴".
+- [X] T264 Name each interface on the Apple's screens by what it is, then its
+  slot or port, then its speed or network port (FR-090, Session 2026-10-26):
+  the universal disk's `SSC, SLOT 2, 115200`, `SERIAL PORT 2, 115200` and
+  `UTHERNET II, SLOT 3, 10.0.65.15:6502`, and the program's connection field,
+  widened to 28 columns, with `WI-FI MODEM, SLOT 2, 115200` when the shim
+  dials a modem and `UTHERNET II, SLOT 3, 6502`. The 6551 shim's screen is
+  unchanged, being full. Also: the status bar's log tip is 720 DIPs wide so a
+  log line does not wrap (`DxuiTooltip::SetMaxTextWidthDip`), and the Add
+  connection dialog's info tip sees every move, so a hover-opened tip closes
+  when the pointer leaves. Scenario tests in `CassoLinkBootstrapTests.cpp`,
+  `CassoLinkSectorTests.cpp`, `CassoLinkSuperSerialTests.cpp` and
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

@@ -301,6 +301,7 @@ public:
     static constexpr int     kStatusDetailDip      = 280;
     static constexpr int     kStatusZoomDip        = 64;
     static constexpr size_t  kActivityTipLines     = 10;
+    static constexpr float   kActivityTipWidthDip  = 720.0f;   // a log line, time and link and all, on one line
     static constexpr int     kActivityShownMinutes = 15;
 
     //  The private message that holds a deferred Casso reply to the UI.
@@ -788,7 +789,8 @@ private:
     //  Which part of the window the hover tooltip belongs to.
     enum class TipOwner { None, Toolbar, Tree, List, Status, Menu };
 
-    void  ShowHoverTip        (TipOwner owner, const RECT & anchor, const std::wstring & text);
+    void  ShowHoverTip        (TipOwner owner, const RECT & anchor, const std::wstring & text,
+                               float maxWidthDip = DxuiTooltip::kDefaultMaxTextWidthDip);
     void  HideHoverTip        (TipOwner owner);
     void  UpdateTreeTip       (const DxuiMouseEvent & ev, POINT point);
     void  UpdateStatusTip     (const DxuiMouseEvent & ev, POINT point);

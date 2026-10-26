@@ -539,7 +539,7 @@ public:
         }
 
         Assert::IsFalse (reading.empty(), L"the screen reported the read halfway through");
-        Assert::IsTrue (reading.find ("CONNECTION: PORT 2, 115200") != std::string::npos, L"the connection");
+        Assert::IsTrue (reading.find ("CONNECTION: SERIAL PORT 2, 115200") != std::string::npos, L"the connection");
         Assert::IsTrue (reading.find ("STATUS: READING D1, T17, S") != std::string::npos, L"the drive and track on the status row");
     }
 

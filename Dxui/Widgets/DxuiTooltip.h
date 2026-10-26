@@ -79,6 +79,12 @@ public:
 
     //  A fixed-width face, for a tip whose lines are columns.
     void  SetMonospace    (bool mono) { m_monospace = mono; }
+
+    //  Text wider than this wraps onto more lines instead of growing the
+    //  balloon past the window's edge. A tip of long lines, such as a log's,
+    //  is given more.
+    static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
+    void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
     void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
@@ -197,6 +203,7 @@ private:
     int                m_dwellCloseMs      = 100;
     float              m_fontDip           = 12.0f;
     bool               m_monospace         = false;
+    float              m_maxTextWidthDip   = kDefaultMaxTextWidthDip;
     uint32_t           m_bgArgb            = 0xFF2D2D2D;
     uint32_t           m_borderArgb        = 0xFF606060;
     uint32_t           m_textArgb          = 0xFFE8EEF4;

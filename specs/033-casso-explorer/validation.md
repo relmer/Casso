@@ -614,6 +614,9 @@ copy of the System Master, with `--serial-log` on the card.
 | Over the Uthernet II | The card's connector set to None in Settings, the Apple power-cycled, `Uthernet II at 127.0.0.1:6502` connected. HELLO copied out: Skip left both files as they were, Keep both wrote `HELLO (3)`, identical. `UTHNEW` pasted in: ` A 002 UTHNEW`, reading back `"PASTED OVER THE UTHERNET II"`. `Casso on port 6502` left the tree while the card had no connector |
 | The waiting text (finding 2) | `Waiting for Casso on port 6502.` |
 | The Uthernet II's menu (finding 3) | Open in new tab, Edit connection, Connect, Save CassoLink disk image, Remove connection |
+| A drag off the Apple, real cursor | HELLO dragged from the card's drive 2 to a File Explorer folder under `+ Copy to help`: `HELLO.Applesoft BASIC.txt`, 609 bytes |
+| A drag onto the Apple, real cursor | `DRAGIN.Applesoft BASIC.txt` dragged from File Explorer onto drive 2 under `+ Copy`: ` A 002 DRAGIN`. Casso Explorer's tip as a target has no destination, where File Explorer's says `Copy to help` |
+| The Apple's screens name each interface (T264) | The universal disk waits on `SSC, SLOT 2, 115200` and `UTHERNET II, SLOT 3, 10.0.65.15:6502`; the program, connected, reads `CONNECTION: SSC, SLOT 2, 115200` over the card and `CONNECTION: UTHERNET II, SLOT 3, 6502` over the Uthernet II. A //c's `SERIAL PORT 2` and a modem's `WI-FI MODEM, SLOT 2` are in the scenario tests only |
 
 #### Images, locks and the preview
 
@@ -631,7 +634,8 @@ copy of the System Master, with `--serial-log` on the card.
 |---|---|
 | A connector outside the list (finding 6) | With `tcp:6600` in the user's prefs the list ends with `TCP port 6600 on this PC` |
 | The ImageWriter II's round trip (finding 6) | The card on TCP port 6502, the printer moved onto it and back: the card is on `TCP port 6502 on this PC` and in communications mode again, with both notices after the list closed |
-| An info tip on a hover | In Settings, the Interrupts tip opened after a 2.5 second rest. In the Add connection dialog the Handshake tip did not, since nothing ticked it; fixed in T263 |
+| An info tip on a hover | In Settings, the Interrupts tip opened after a 2.5 second rest. In the Add connection dialog the Handshake tip did not, since nothing ticked it; fixed in T263, it opened, and then stayed up after the pointer left, since a field took the moves first; fixed in T264, it opens on a rest and closes when the pointer leaves |
+| The status bar's log tip (T264) | Its lines, time, link and words, each on one line |
 
 #### The ADTPro-compatible server
 
@@ -639,6 +643,8 @@ copy of the System Master, with `--serial-log` on the card.
 |---|---|
 | A server at a running Casso's port (finding 7) | `ADTPro server at 127.0.0.1:6600` added with Casso's card on 6600: before the fix, `Casso on port 6600` stayed listed, and opening it made a second connection to the port, which Casso never served. After it, the Casso is not listed beside the server, and one connection is open |
 | `Documents\ADTPro` | Its two files as before the server was added, by name, size and time |
+| The help item dragged out, real cursor | `What's CassoLink.md`, 2278 bytes, in the File Explorer folder, starting `# What's CassoLink?`. The tip said `Move to help`: the item is a file in `%TEMP%`, on the same drive, and moving it loses nothing, as the next preview writes it again |
+| The server's menu | Bootstrap is gone; Save CassoLink disk image is still offered, which an ADTPro server has no use for |
 
 #### Quickstart §6
 

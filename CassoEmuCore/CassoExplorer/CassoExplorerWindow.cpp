@@ -16796,9 +16796,10 @@ DxuiToolbar & CassoExplorerWindow::GetToolbarUnder (const RECT & commandBarBand,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CassoExplorerWindow::ShowHoverTip (TipOwner owner, const RECT & anchor, const std::wstring & text)
+void CassoExplorerWindow::ShowHoverTip (TipOwner owner, const RECT & anchor, const std::wstring & text, float maxWidthDip)
 {
     m_tipOwner = owner;
+    m_tooltip.SetMaxTextWidthDip (maxWidthDip);
     m_tooltip.RequestShow (anchor, text, GetNowMs());
 }
 
@@ -17044,7 +17045,7 @@ void CassoExplorerWindow::UpdateStatusTip (const DxuiMouseEvent & ev, POINT poin
     if (ev.kind == DxuiMouseEventKind::Move && Contains (activity, point) && !GetLatestActivity().empty())
     {
         m_activityTip = FormatActivity (kActivityTipLines) + L"\nClick for the whole log.";
-        ShowHoverTip (TipOwner::Status, activity, m_activityTip.c_str());
+        ShowHoverTip (TipOwner::Status, activity, m_activityTip.c_str(), kActivityTipWidthDip);
         return;
     }
 

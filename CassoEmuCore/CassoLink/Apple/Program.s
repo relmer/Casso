@@ -2496,7 +2496,7 @@ ROWESC = $07D0 + 11             ; row 23, centered: how to leave CassoLink
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
 FIELD = 12
-FIELDLEN = 20
+FIELDLEN = 28
 scr = $13                       ; and $14: the field being drawn
 vtries = $15                    ; seek: address fields left to check
 acky = $16                      ; sendack: its third byte
@@ -2645,8 +2645,8 @@ showconn: ldx #<ROW2
         sta ptr+1
         jsr puttext
         ifdef W5100
-        lda slotx               ; the card's slot and the port, as
-        lsr a                   ; SLOT 3, PORT 6502
+        lda slotx               ; the card, its slot and the port, as
+        lsr a                   ; UTHERNET II, SLOT 3, 6502
         lsr a
         lsr a
         lsr a
@@ -2662,19 +2662,21 @@ showconn: ldx #<ROW2
         sta wnum+1
         jmp putword
         else
-        lda #<connslot
+        ldx #0                  ; what the 6551 is: a card or a //c's port,
+        lda $FBB3               ; by cable or through a Wi-Fi modem, as
+        eor #$06                ; SSC, SLOT 2 or WI-FI MODEM, PORT 2. A //c
+        ora $FBC0               ; has $06 at $FBB3 and $00 at $FBC0
+        bne scmodem
+        ldx #4
+scmodem: lda SHIMDIAL
+        beq scname
+        inx
+        inx
+scname: lda connnames,x
         sta ptr
-        lda #>connslot
+        lda connnames+1,x
         sta ptr+1
-        lda $FBB3               ; a //c has $06 here and $00 at $FBC0
-        eor #$06
-        ora $FBC0
-        bne scslot
-        lda #<connport
-        sta ptr
-        lda #>connport
-        sta ptr+1
-scslot: jsr puttext
+        jsr puttext
         lda slotx
         lsr a
         lsr a
@@ -2705,10 +2707,10 @@ scfound: lda speeds+1,x
         endif
 
         ifdef W5100
-conntext: .text "SLOT "
+conntext: .text "UTHERNET II, SLOT "
         .byte 0
 connport: .byte $2C
-        .text " PORT "
+        .text " "
         .byte 0
 
 ; putword: wnum in decimal, without leading zeros, into the field from Y.
@@ -2746,12 +2748,20 @@ pwtablo: .byte <1, <10, <100, <1000, <10000
 pwtabhi: .byte >1, >10, >100, >1000, >10000
         else
 conntext: .byte 0
-connport: .text "PORT "
+connssc: .text "SSC, SLOT "
         .byte 0
-connslot: .text "SLOT "
+connsscm: .text "WI-FI MODEM, SLOT "
+        .byte 0
+connport: .text "SERIAL PORT "
+        .byte 0
+connportm: .text "WI-FI MODEM, PORT "
         .byte 0
 conncomma: .text ", "
         .byte 0
+; The names above by card or port, then cable or modem. After the text, as
+; the assembler sizes a forward < or > in .byte wrongly.
+connnames: .byte <connssc, >connssc, <connsscm, >connsscm
+        .byte <connport, >connport, <connportm, >connportm
         endif
 
 

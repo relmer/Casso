@@ -442,6 +442,13 @@ hardware.
   DxuiInfoBanner, set up by flags: buttons for the actions it offers (Download,
   Restart, Save as) and an X at its right edge for putting it away, never a
   Dismiss button.
+- Q: How do the Apple's screens name a connection? → A: By what it is, then
+  its slot or port, then its speed or network port: `SSC, SLOT 2, 115200`,
+  `SERIAL PORT 2, 115200` on a //c, `WI-FI MODEM, SLOT 2, 115200` when the
+  shim dials a modem, and `UTHERNET II, SLOT 3, 6502`. The universal boot
+  disk's waiting screen gives an Uthernet II's address as well, `UTHERNET II,
+  SLOT 3, 10.0.65.15:6502`, and while it has none, `GETTING AN ADDRESS`. The
+  6551 shim's own screen is unchanged: it is full.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1737,7 +1744,8 @@ to Casso over TCP.
   every exchange in that framing, the Apple-side program MUST poll the PC for
   the next operation.
 - **FR-090**: The Apple-side program MUST display a status screen with the
-  connection, the drive, the track or block, the operation and its progress;
+  connection, named by what it is, its slot or port and its speed or network
+  port (Session 2026-10-26), the drive, the track or block, the operation and its progress;
   whether the PC is connected, or how long since its last packet; the last
   error, until the next operation succeeds; and a short label of the user's
   operation, sent by the PC. The shim MUST display a title and its state:

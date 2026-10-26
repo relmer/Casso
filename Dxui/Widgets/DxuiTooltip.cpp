@@ -16,12 +16,6 @@ static constexpr int       s_kPointerGapDip      = 26;   // above the pointer, a
 static constexpr int       s_kPointerBelowGapDip = 4;    // below the pointer's arrow, when there is no room above
 
 //
-//  Text wider than this wraps onto additional lines instead of growing the
-//  balloon past the window edge.
-//
-static constexpr float     s_kMaxTextWidthDip = 340.0f;
-
-//
 //  Fallback glyph metrics used to size the balloon when precise text
 //  measurement is unavailable (e.g. test mode, where the popup has no
 //  DWrite factory). Deliberately a little generous so text never clips.
@@ -587,7 +581,7 @@ void DxuiTooltip::ShowPopup()
         dpi    = m_scaler.GetDpi();
         dpi    = (dpi == 0) ? (UINT) DxuiDpiScaler::kBaseDpi : dpi;
         fontPx = m_scaler.ToPxf (m_fontDip);
-        maxWPx = m_scaler.ToPxf (s_kMaxTextWidthDip);
+        maxWPx = m_scaler.ToPxf (m_maxTextWidthDip);
         padXPx = m_scaler.ToPxf (s_kPadXDip);
         padYPx = m_scaler.ToPxf (s_kPadYDip);
 
@@ -756,7 +750,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     hr = const_cast<IDxuiTextRenderer &> (text).MeasureStringWrapped (
              m_text.c_str(), fontPx, GetFace(),
-             m_scaler.ToPxf (s_kMaxTextWidthDip), textW, textH);
+             m_scaler.ToPxf (m_maxTextWidthDip), textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     anchor  = GetPlacementAnchor();

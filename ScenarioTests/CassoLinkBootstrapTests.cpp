@@ -272,8 +272,8 @@ public:
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
         Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
-        Assert::IsTrue (screen[4].starts_with ("PORT 1 AT 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
-        Assert::IsTrue (screen[5].starts_with ("PORT 2 AT 115200"), TextEncoding::NarrowToWide (screen[5]).c_str());
+        Assert::IsTrue (screen[4].starts_with ("SERIAL PORT 1, 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
+        Assert::IsTrue (screen[5].starts_with ("SERIAL PORT 2, 115200"), TextEncoding::NarrowToWide (screen[5]).c_str());
 
         settings.name      = "//c";
         settings.transport = LinkTransport::Emulated;

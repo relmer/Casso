@@ -740,6 +740,9 @@ int CassoExplorerLinkPanel::GetNoteHeightPx (const DxuiLabel & note, int widthPx
 //  CassoExplorerLinkPanel::OnMouse
 //
 //  The open dropdowns first, since their lists extend over the rows below.
+//  The info tip sees every move before them: it consumes none, and closes
+//  only when it sees the pointer leave it, which a field that takes the move
+//  would otherwise keep from it. A press still goes in order.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -747,13 +750,19 @@ bool CassoExplorerLinkPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     IDxuiControl *  fields[] = { m_kids.transport, m_kids.port, m_kids.speed, m_kids.bootstrap, m_kids.address, m_kids.handshake,
                                  m_kids.folder, m_kids.browse, m_kids.handshakeTip };
+    bool            press    = ev.kind == DxuiMouseEventKind::Down;
     bool            handled  = false;
 
 
 
+    if (!press && m_kids.handshakeTip->IsVisible() && m_kids.handshakeTip->IsEnabled())
+    {
+        m_kids.handshakeTip->OnMouse (ev);
+    }
+
     for (IDxuiControl * field : fields)
     {
-        if (!field->IsVisible() || !field->IsEnabled())
+        if (!field->IsVisible() || !field->IsEnabled() || (field == m_kids.handshakeTip && !press))
         {
             continue;
         }

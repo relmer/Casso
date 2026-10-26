@@ -291,7 +291,7 @@ public:
             Assert::IsTrue (sectors == written, L"the whole disk over the card");
 
             screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-            Assert::IsTrue (screen[2].find ("SLOT 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (screen[2]).c_str());
+            Assert::IsTrue (screen[2].find ("SSC, SLOT 5, 115200") != std::string::npos, TextEncoding::NarrowToWide (screen[2]).c_str());
         }
 
         Assert::AreEqual<Byte> (0x50, machine.GetCpu()->ReadByte (0x0006), L"the program's 6551 is slot 5's");
@@ -331,7 +331,7 @@ public:
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
         Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
-        Assert::IsTrue (screen[4].starts_with ("SLOT 5 AT 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
+        Assert::IsTrue (screen[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
 
         settings.name      = "//e";
         settings.transport = LinkTransport::Emulated;

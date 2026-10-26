@@ -219,7 +219,7 @@ shw5:   lda w5slot
         jmp wait
 w5show: lda nacia
         jsr rowat
-        ldx #msgslot-msgs
+        ldx #msgw5-msgs
         ldy #0
         jsr puttext
         lda w5slot
@@ -1156,13 +1156,15 @@ msgwait: .text "WAITING FOR THE PC ON:"
         .byte 0
 msgnone: .text "NO SERIAL PORT OR CARD FOUND"
         .byte 0
-msgport: .text "PORT "
+msgport: .text "SERIAL PORT "    ; each interface by what it is, as
+        .byte 0                 ; SSC, SLOT 2, 115200
+msgslot: .text "SSC, SLOT "
         .byte 0
-msgslot: .text "SLOT "
+msgw5:  .text "UTHERNET II, SLOT "
         .byte 0
-msgat:  .text " AT "
+msgat:  .text ", "
         .byte 0
-msgdhcp: .text " GETTING AN ADDRESS"
+msgdhcp: .text ", GETTING AN ADDRESS"
         .byte 0
 
 acslots: .ds 8                  ; each 6551's slot, or a //c's port
