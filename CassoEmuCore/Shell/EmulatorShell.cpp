@@ -1497,6 +1497,12 @@ HRESULT EmulatorShell::SwitchMachine(const wstring & machineName)
 
 void EmulatorShell::PostCommand (WORD id, const string & payload)
 {
+    //  A machine switch remounts the disks, which discards inspector edits.
+    if (id == IDM_FILE_OPEN && !ConfirmInspectorDiscard (-1, L"Changing the machine"))
+    {
+        return;
+    }
+
     m_cpuManager.PostCommand (id, payload);
 }
 

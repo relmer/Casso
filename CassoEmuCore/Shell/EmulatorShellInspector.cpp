@@ -85,9 +85,33 @@ void EmulatorShell::ServiceInspectorRequests()
 
 DxuiMessageResult EmulatorShell::OnClose()
 {
-    bool  isGoingOn = m_diskInspector == nullptr || m_diskInspector->GetHwnd() == nullptr || m_diskInspector->ConfirmDiscardEdits (L"Quitting Casso");
+    bool  isGoingOn = ConfirmInspectorDiscard (-1, L"Quitting Casso");
 
 
 
     return isGoingOn ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ConfirmInspectorDiscard
+//
+//  The confirmation dialog is modal, so it appears only on the UI thread.
+//  On any other thread the function returns true.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ConfirmInspectorDiscard (int drive, const std::wstring & action)
+{
+    bool  isOpen    = m_diskInspector != nullptr && m_diskInspector->GetHwnd() != nullptr;
+    bool  isUi      = m_hwnd != nullptr && GetWindowThreadProcessId (m_hwnd, nullptr) == GetCurrentThreadId();
+    bool  isMatched = isOpen && (drive < 0 || drive == m_diskInspector->GetDrive());
+
+
+
+    return !isMatched || !isUi || m_diskInspector->ConfirmDiscardEdits (action);
 }
