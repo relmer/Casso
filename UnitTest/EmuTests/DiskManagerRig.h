@@ -38,4 +38,5 @@ struct DiskManagerRig
     UserConfigStore                                 config { L"C:\\Casso\\User" };
     InMemoryFileSystem                              fs;
     std::array<bool, 2>                             writeProtect {};
+    std::string                                     workingDirectory = "C:\\work";
 };

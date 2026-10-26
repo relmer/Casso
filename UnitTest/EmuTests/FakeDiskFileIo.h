@@ -311,6 +311,15 @@ public:
         metadata.erase (tempPath);
     }
 
+    //  The working directory a relative path resolves against: synthetic, so
+    //  no test reads the process's.
+    std::string  workingDirectory = "C:\\work";
+
+    std::string  GetWorkingDirectory () const override
+    {
+        return workingDirectory;
+    }
+
     bool  IsHeldByAnotherProcess (const std::string & path) override
     {
         UNREFERENCED_PARAMETER (path);

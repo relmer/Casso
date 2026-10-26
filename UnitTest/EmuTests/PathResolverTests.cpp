@@ -35,6 +35,31 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    //  MakeAbsolutePath, against the base C:\work
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static void AssertAbsolute (const char * path, const char * expected)
+    {
+        Assert::AreEqual (std::string (expected), PathResolver::MakeAbsolutePath (path, "C:\\work"),
+                          std::wstring (path, path + strlen (path)).c_str());
+    }
+
+
+    TEST_METHOD (MakeAbsolutePath_ResolvesAgainstTheBase)
+    {
+        AssertAbsolute ("",                  "");
+        AssertAbsolute ("D:\\disks\\..\\a.dsk", "D:\\a.dsk");
+        AssertAbsolute ("a.dsk",             "C:\\work\\a.dsk");
+        AssertAbsolute (".\\a.dsk",          "C:\\work\\a.dsk");
+        AssertAbsolute ("sub\\..\\a.dsk",    "C:\\work\\a.dsk");
+        AssertAbsolute ("\\a.dsk",           "C:\\a.dsk");
+        AssertAbsolute ("C:a.dsk",           "C:\\work\\a.dsk");
+        AssertAbsolute ("D:a.dsk",           "D:a.dsk");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     //  FindFile_FoundInFirstPath
     //
     ////////////////////////////////////////////////////////////////////////////

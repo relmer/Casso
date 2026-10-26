@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskCommandRunner.h"
+#include "Core/PathResolver.h"
 #include "Seams/IIntentChannel.h"
 #include "AppleTextCodec.h"
 #include "CommandLineParser.h"
@@ -3829,7 +3830,8 @@ void DiskCommandRunner::AnnounceIntent (const CommandLineOptions & options,
     if (m_intentChannel != nullptr && wrote && clean && stated
         && !options.disk.imagePath.empty())
     {
-        m_intentChannel->StateIntent (options.disk.imagePath, options.disk.changeIntent);
+        m_intentChannel->StateIntent (PathResolver::MakeAbsolutePath (options.disk.imagePath, m_fileIo.GetWorkingDirectory()),
+                                      options.disk.changeIntent);
     }
 
     return;

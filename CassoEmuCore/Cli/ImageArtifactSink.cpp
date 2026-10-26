@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "ImageArtifactSink.h"
+#include "Core/PathResolver.h"
 #include "Seams/IIntentChannel.h"
 
 #include "Machines/Apple2/Common/AssembledFilePlacement.h"
@@ -258,7 +259,8 @@ HRESULT ImageArtifactSink::WriteBinary (const AssemblyResult & result,
     //  by an undelivered courtesy would be worse than the problem it solves.
     if (m_intentChannel != nullptr && options.changeIntent != ExternalChangeIntent::Unstated)
     {
-        m_intentChannel->StateIntent (options.imagePath, options.changeIntent);
+        m_intentChannel->StateIntent (PathResolver::MakeAbsolutePath (options.imagePath, m_fileIo.GetWorkingDirectory()),
+                                      options.changeIntent);
     }
 
 Error:

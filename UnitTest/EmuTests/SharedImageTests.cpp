@@ -59,6 +59,7 @@ public:
 
         bool     Exists (const std::string & path) override;
         bool     IsHeldByAnotherProcess (const std::string &) override { return false; }
+        std::string  GetWorkingDirectory() const override { return kDirectory; }
 
         //  Nothing below is reached: the store reads, writes and stats through
         //  its own seams, and this exists for the two questions above.

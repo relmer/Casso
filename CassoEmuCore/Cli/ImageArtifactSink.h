@@ -44,7 +44,8 @@ class ImageArtifactSink : public ArtifactSink
 public:
 
     explicit ImageArtifactSink (IDiskFileIo & fileIo)
-        : m_session (fileIo)
+        : m_fileIo  (fileIo),
+          m_session (fileIo)
     {
     }
 
@@ -85,6 +86,7 @@ private:
                                   const std::string                   & onDisk,
                                   std::vector<Byte>                   & inOutSectors);
 
+    IDiskFileIo     & m_fileIo;
     DiskImageSession  m_session;
     FileArtifactSink  m_hostArtifacts;
     std::string       m_diagnostics;

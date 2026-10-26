@@ -63,7 +63,8 @@ public:
                  const std::wstring                              & currentMachineName,
                  UserConfigStore                                 & userConfigStore,
                  IFileSystem                                     & fileSystem,
-                 std::array<bool, 2>                             & userWriteProtect);
+                 std::array<bool, 2>                             & userWriteProtect,
+                 const std::string                               & workingDirectory);
 
     Disk2Controller *   FindSlot6Controller    ();
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
@@ -208,6 +209,9 @@ private:
     UserConfigStore                                 & m_userConfigStore;
     IFileSystem                                     & m_fileSystem;
     std::array<bool, 2>                             & m_userWriteProtect;
+
+    //  What a relative command-line disk path is resolved against.
+    std::string                                       m_workingDirectory;
 
     //  Both outlive every mount, because the store holds bare pointers to them
     //  and a watch may be started at any mount.

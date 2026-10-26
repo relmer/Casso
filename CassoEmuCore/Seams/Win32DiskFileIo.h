@@ -45,6 +45,8 @@ public:
     HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) override;
     bool     IsHeldByAnotherProcess (const std::string & path) override;
 
+    std::string  GetWorkingDirectory () const override;
+
     HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) override;
 
     //  THE INTERRUPTION SWITCH FOR THE COMMIT PATH, AND IT IS NOT IN THIS

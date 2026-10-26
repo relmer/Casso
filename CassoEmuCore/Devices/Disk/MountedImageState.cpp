@@ -346,9 +346,10 @@ bool MountedImageState::IsSamePath (const std::string & left, const std::string 
 //
 //  The directory holding a path.
 //
-//  A PATH WITH NO SEPARATOR YIELDS AN EMPTY STRING rather than a dot. The
-//  caller watches what comes back, and watching "." would watch the process's
-//  working directory, which is not where the image is.
+//  A PATH WITH NO SEPARATOR YIELDS AN EMPTY STRING rather than a dot, so a
+//  bare name is not watched. A bare name on the command line is made absolute
+//  against the working directory before it is mounted, so the image's folder
+//  is what comes back here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

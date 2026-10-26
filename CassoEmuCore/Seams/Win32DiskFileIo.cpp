@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Seams/Win32DiskFileIo.h"
+#include "Core/PathResolver.h"
 
 
 
@@ -689,3 +690,18 @@ void Win32DiskFileIo::AbortProcessNow (const wchar_t * stage)
 }
 
 #endif
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32DiskFileIo::GetWorkingDirectory
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string Win32DiskFileIo::GetWorkingDirectory() const
+{
+    return PathResolver::GetWorkingDirectory().string();
+}

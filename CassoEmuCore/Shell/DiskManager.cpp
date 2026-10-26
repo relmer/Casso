@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskManager.h"
+#include "Core/PathResolver.h"
 
 #include "Core/MemoryBus.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
@@ -44,7 +45,8 @@ DiskManager::DiskManager (
     const std::wstring                              & currentMachineName,
     UserConfigStore                                 & userConfigStore,
     IFileSystem                                     & fileSystem,
-    std::array<bool, 2>                             & userWriteProtect)
+    std::array<bool, 2>                             & userWriteProtect,
+    const std::string                               & workingDirectory)
     : m_machine            (machine),
       m_diskStore          (diskStore),
       m_diskAudioSources   (diskAudioSources),
@@ -56,7 +58,8 @@ DiskManager::DiskManager (
       m_currentMachineName (currentMachineName),
       m_userConfigStore    (userConfigStore),
       m_fileSystem         (fileSystem),
-      m_userWriteProtect   (userWriteProtect)
+      m_userWriteProtect   (userWriteProtect),
+      m_workingDirectory   (workingDirectory)
 {
 }
 
@@ -343,8 +346,8 @@ void DiskManager::MountCommandLineDisks (
     const std::string & disk2Path)
 {
     HRESULT      hr            = S_OK;
-    std::string  resolvedDisk1 = disk1Path;
-    std::string  resolvedDisk2 = disk2Path;
+    std::string  resolvedDisk1 = PathResolver::MakeAbsolutePath (disk1Path, m_workingDirectory);
+    std::string  resolvedDisk2 = PathResolver::MakeAbsolutePath (disk2Path, m_workingDirectory);
 
 
 

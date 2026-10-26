@@ -172,6 +172,55 @@ fs::path PathResolver::GetWorkingDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MakeAbsolutePath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string PathResolver::MakeAbsolutePath (const std::string & path, const std::string & baseDirectory)
+{
+    fs::path      input       (path);
+    fs::path      base        (baseDirectory);
+    std::wstring  drive       = input.root_name().wstring();
+    std::wstring  baseRoot    = base.root_name().wstring();
+    bool          isSameDrive = _wcsicmp (drive.c_str(), baseRoot.c_str()) == 0;
+    std::string   result;
+
+
+
+    if (path.empty())
+    {
+        result.clear();
+    }
+    else if (input.is_absolute())
+    {
+        result = input.lexically_normal().string();
+    }
+    else if (input.has_root_name() && !isSameDrive)
+    {
+        result = path;
+    }
+    else if (input.has_root_name())
+    {
+        result = (base / input.relative_path()).lexically_normal().string();
+    }
+    else if (input.has_root_directory())
+    {
+        result = (base.root_name() / input).lexically_normal().string();
+    }
+    else
+    {
+        result = (base / input).lexically_normal().string();
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetLocalAppDataDir
 //
 //  Resolves %LOCALAPPDATA%\<appName>\, creating the directory tree if

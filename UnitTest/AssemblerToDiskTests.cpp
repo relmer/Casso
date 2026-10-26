@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/PathResolver.h"
 
 #include "EmuTests/FakeDiskFileIo.h"
 #include "EmuTests/FakeIntentChannel.h"
@@ -219,8 +220,8 @@ namespace AssemblerToDiskTests
                               L"the intent is stated once");
             Assert::IsTrue (channel.stated[0].intent == ExternalChangeIntent::Restart,
                             L"and it is the intent the command line gave");
-            Assert::AreEqual (std::string (kImagePath), channel.stated[0].imagePath,
-                              L"about the image that was written");
+            Assert::AreEqual (PathResolver::MakeAbsolutePath (kImagePath, stating.GetWorkingDirectory()), channel.stated[0].imagePath,
+                              L"about the image that was written, by its full path");
         }
 
 

@@ -16,6 +16,7 @@
 #include "Ui/DriveWidgetState.h"
 #include "EmuTests/OwnerThreadStandIn.h"
 #include "EmuTests/DiskManagerRig.h"
+#include "EmuTests/FakeImageWatcher.h"
 #include "UiTests/InMemoryFileSystem.h"
 #include "WasapiAudio.h"
 
@@ -52,6 +53,61 @@ public:
 
 
 
+    //  A disk given on the command line by a relative path is mounted by its
+    //  full path, so the folder it is in is watched.
+    TEST_METHOD (ARelativeCommandLineDiskIsMountedByItsFullPathAndWatched)
+    {
+        TestMachine         machine ("Apple2e");
+        auto                shell   = std::make_unique<Shell>();
+        FakeImageWatcher    watcher;
+        DiskImageStore    & store   = machine.GetDiskStore();
+
+
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetImageWatcher   (&watcher);
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            manager.MountCommandLineDisks ("game.nib", "");
+        }
+
+        Assert::AreEqual (std::string ("C:\\work\\game.nib"), store.GetSourcePath (6, 0), L"the full path");
+        Assert::IsTrue (std::find (watcher.watched.begin(), watcher.watched.end(), std::string ("C:\\work")) != watcher.watched.end(),
+                        L"and its folder is watched");
+        Assert::IsTrue (store.GetSharedState (6, 0)->IsWatching());
+    }
+
+
+    //  The same file written two ways goes in drive 1 only.
+    TEST_METHOD (TwoWrittenFormsOfOneFileGoInDriveOneOnly)
+    {
+        TestMachine         machine ("Apple2e");
+        auto                shell   = std::make_unique<Shell>();
+        DiskImageStore    & store   = machine.GetDiskStore();
+
+
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            manager.MountCommandLineDisks ("game.nib", "C:\\work\\game.nib");
+        }
+
+        Assert::AreEqual (std::string ("C:\\work\\game.nib"), store.GetSourcePath (6, 0), L"drive 1 has the file");
+        Assert::IsFalse (store.IsMounted (6, 1), L"and drive 2 is empty");
+    }
+
+
     TEST_METHOD (RemountUnderHoldWritesNothingAndKeepsTheDisk)
     {
         TestMachine             machine ("Apple2e");
@@ -77,7 +133,7 @@ public:
         {
             DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
                                   shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
-                                  shell->config, shell->fs, shell->writeProtect);
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
 
             manager.RemountSlot6Disks();
         }
@@ -120,7 +176,7 @@ public:
         {
             DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
                                   shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
-                                  shell->config, shell->fs, shell->writeProtect);
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
 
             manager.RemountSlot6Disks();
         }
@@ -174,7 +230,7 @@ public:
         {
             DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
                                   shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
-                                  shell->config, shell->fs, shell->writeProtect);
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
 
             hr = standIn.Take (store.GetThreadOwnership());
             AssertSucceeded (hr, L"Take");
@@ -221,7 +277,7 @@ public:
         {
             DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
                                   shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
-                                  shell->config, shell->fs, shell->writeProtect);
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
 
             (void) manager.PublishDriveStatus (true);
 
@@ -259,7 +315,7 @@ public:
         {
             DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
                                   shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
-                                  shell->config, shell->fs, shell->writeProtect);
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
 
             (void) manager.PublishDriveStatus (true);
             manager.UpdateDriveWidgets();
@@ -295,7 +351,7 @@ public:
         {
             DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
                                   shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
-                                  shell->config, shell->fs, shell->writeProtect);
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
 
             (void) manager.PublishDriveStatus (true);
             manager.UpdateDriveWidgets();

@@ -97,6 +97,10 @@ public:
     //  cannot catch this emulator, which holds no handle on a mounted image.
     virtual bool     IsHeldByAnotherProcess (const std::string & path) = 0;
 
+    //  The process's working directory, which a relative path on the command
+    //  line is resolved against.
+    virtual std::string  GetWorkingDirectory () const = 0;
+
     //  Payload bytes to the process's own output, byte-for-byte. See the note
     //  above on why this belongs to the seam rather than to the caller.
     virtual HRESULT  WritePayloadToStandardOutput (const std::vector<Byte> & bytes) = 0;

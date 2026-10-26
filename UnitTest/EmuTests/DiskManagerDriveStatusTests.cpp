@@ -51,7 +51,7 @@ public:
         {
             DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
-                                  rig->config, rig->fs, rig->writeProtect);
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
             manager.SetMountCompletedCallback ([&] (int, const std::string &, HRESULT, const MountDiagnosis &)
             {
@@ -83,7 +83,7 @@ public:
         {
             DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
-                                  rig->config, rig->fs, rig->writeProtect);
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
             (void) manager.PublishDriveStatus (true);
             manager.SetStatusWake ([&wakes] { wakes++; });
@@ -128,7 +128,7 @@ public:
         {
             DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
-                                  rig->config, rig->fs, rig->writeProtect);
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
             manager.ApplyExternalWriteProtect (s_kShownDrive, "protect.nib");
         }
@@ -158,7 +158,7 @@ public:
         {
             DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
-                                  rig->config, rig->fs, rig->writeProtect);
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
             (void) manager.PublishDriveStatus (true);
             manager.UpdateDriveWidgets();
@@ -191,7 +191,7 @@ public:
         {
             DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
-                                  rig->config, rig->fs, rig->writeProtect);
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
             (void) manager.PublishDriveStatus (true);
 
@@ -225,7 +225,7 @@ public:
         {
             DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
-                                  rig->config, rig->fs, rig->writeProtect);
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
             store.SetUserWriteProtectFlag (6, s_kShownDrive, true);
             (void) manager.PublishDriveStatus (true);
@@ -253,7 +253,7 @@ public:
         {
             DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
-                                  rig->config, rig->fs, rig->writeProtect);
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
             hr = manager.MountDiskInSlot6 (s_kShownDrive, "paused.nib");
             (void) manager.PublishDriveStatus (true);

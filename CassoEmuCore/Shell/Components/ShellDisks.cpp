@@ -127,7 +127,8 @@ void ShellDisks::Initialize (UserConfigStore & configStore, IFileSystem & fileSy
                                                    m_shell.m_machine.GetCurrentMachineName(),
                                                    configStore,
                                                    fileSystem,
-                                                   m_userWriteProtect);
+                                                   m_userWriteProtect,
+                                                   PathResolver::GetWorkingDirectory().string());
 
     m_diskManager->InstallSharedImageSupport (imageWatchDisabled);
 

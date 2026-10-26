@@ -230,6 +230,38 @@ public:
 
 
 
+    //  The intent for a relative image path specifies the full path, which is
+    //  the path the emulator has the disk mounted by.
+    TEST_METHOD (ARelativeImagePathIsAnnouncedByItsFullPath)
+    {
+        FakeDiskFileIo      io;
+        FakeIntentChannel   channel;
+        DiskCommandResult   result;
+        CommandLineOptions  options = MakePut (ExternalChangeIntent::Restart);
+        std::vector<Byte>   image   = MakeBlankImage();
+
+
+
+        options.disk.imagePath = "Loader.dsk";
+        io.files["Loader.dsk"]  = image;
+        io.stamps["Loader.dsk"] = FileStamp { image.size(), 100 };
+        io.files[kHostFile]     = std::vector<Byte> (64, 0x42);
+        io.stamps[kHostFile]    = FileStamp { 64, 100 };
+
+        {
+            DiskCommandRunner  runner (io);
+
+            runner.SetIntentChannel (&channel);
+            result = runner.Run (options);
+        }
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::AreEqual ((size_t) 1, channel.stated.size());
+        Assert::AreEqual (std::string ("C:\\work\\Loader.dsk"), channel.stated[0].imagePath);
+    }
+
+
+
     TEST_METHOD (NoStatedIntentAnnouncesNothing)
     {
         FakeDiskFileIo     io;

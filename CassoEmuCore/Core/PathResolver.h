@@ -55,6 +55,15 @@ public:
     // Get the current working directory
     static fs::path GetWorkingDirectory ();
 
+    // `path` resolved against `baseDirectory` and normalized, with no file
+    // system access: a relative path against the directory, a rooted path
+    // (`\a.dsk`) against the base's drive, and a drive-relative path on the
+    // base's drive (`C:a.dsk`) against the directory. An absolute path is
+    // normalized; an empty one is returned empty. A drive-relative path on
+    // another drive is returned as it is: resolving it requires that drive's
+    // working directory, which is process state.
+    static std::string MakeAbsolutePath (const std::string & path, const std::string & baseDirectory);
+
     // Returns %LOCALAPPDATA%\<appName>\, creating the directory if it
     // doesn't already exist. Falls back to the %LOCALAPPDATA% env var
     // and finally %USERPROFILE%\AppData\Local if SHGetKnownFolderPath
