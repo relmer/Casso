@@ -172,6 +172,7 @@
     <ClCompile Include="GuestVisibleDirectBootTests.cpp" />
     <ClCompile Include="GuestVisiblePlacementTests.cpp" />
     <ClCompile Include="DurableCommitFileTests.cpp" />
+    <ClCompile Include="GuestVisibleInspectorEditTests.cpp" />
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="GuestVisibleApple2cSerialTests.cpp" />
