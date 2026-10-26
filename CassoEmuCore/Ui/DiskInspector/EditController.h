@@ -101,6 +101,10 @@ public:
 
     void  SetChecksumMode (int edit, ChecksumMode mode);
 
+    //  All 256 bytes of a sector at once, as one action, for "Use B's
+    //  bytes" (FR-123).
+    bool  SetSector (int edit, const PendingEdit::Sector & bytes);
+
     //  Moves each edit to the field with its sector number and encoding
     //  nearest its old cell on its record, after a guest write, undo, redo
     //  or reload. An edit whose sector's bytes changed is marked out of date;

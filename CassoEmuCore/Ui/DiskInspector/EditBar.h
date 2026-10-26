@@ -31,6 +31,7 @@ struct EditBarState
     std::wstring  applyBlocked;
     bool          isWaiting        = false;
     bool          isMachinePaused  = false;
+    bool          canUseB          = false;
 };
 
 
@@ -70,6 +71,7 @@ public:
     void  SetOnRedoApplied   (ActionFn fn) { m_onRedoApplied   = std::move (fn); }
     void  SetOnPauseApply    (ActionFn fn) { m_onPauseApply    = std::move (fn); }
     void  SetOnCancelApply   (ActionFn fn) { m_onCancelApply   = std::move (fn); }
+    void  SetOnUseB          (ActionFn fn) { m_onUseB          = std::move (fn); }
 
     void  SetState (const EditBarState & state);
 
@@ -103,6 +105,7 @@ private:
     DxuiButton    * m_redoApplied   = nullptr;
     DxuiButton    * m_pauseApply    = nullptr;
     DxuiButton    * m_cancelApply   = nullptr;
+    DxuiButton    * m_useB          = nullptr;
     ActionFn        m_onEdit;
     CheckFn         m_onChecksum;
     ActionFn        m_onDiscardSector;
@@ -113,6 +116,7 @@ private:
     ActionFn        m_onRedoApplied;
     ActionFn        m_onPauseApply;
     ActionFn        m_onCancelApply;
+    ActionFn        m_onUseB;
     DxuiDpiScaler   m_layoutScaler;
     bool            m_hasLayout     = false;
     std::wstring    m_applyBlocked;

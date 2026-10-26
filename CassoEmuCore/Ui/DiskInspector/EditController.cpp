@@ -489,6 +489,25 @@ void EditController::SetChecksumMode (int edit, ChecksumMode mode)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EditController::SetSector
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditController::SetSector (int edit, const PendingEdit::Sector & bytes)
+{
+    bool  isValid = edit >= 0 && edit < static_cast<int> (m_edits.size());
+
+
+
+    return isValid && SetBytes (edit, 0, vector<Byte> (bytes.begin(), bytes.end()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EditController::Follow
 //
 //  The undo stack refers to edits by index, so it is cleared when an edit

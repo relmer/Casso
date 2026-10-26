@@ -145,6 +145,8 @@ private:
     void  SelectHeadTrack  (int quarterTrack);
     void  OpenCompare      ();
     void  StopComparing    ();
+    void  EndComparison    (const std::wstring & why);
+    void  CheckComparedSources ();
     void  SwapSides        ();
     void  OpenBSettings    ();
     void  StepDifference   (int step);
@@ -195,6 +197,8 @@ private:
     void  RedoApplied        ();
     void  TakeApplyReply     (const InspectorReply & reply);
     void  SaveEditedCopy     ();
+    bool  GetBSectorBytes    (PendingEdit::Sector & outBytes) const;
+    void  UseBBytes          ();
     void  TakeSaveCopyReply  (const InspectorReply & reply);
     static bool  IsSameFile  (const std::filesystem::path & a, const std::filesystem::path & b);
     void  RebuildFindMarks   ();
@@ -341,6 +345,8 @@ private:
     EditController                          m_edits;
     EditBar                               * m_editBar            = nullptr;
     std::wstring                            m_editNote;
+    std::wstring                            m_statusNote;
+    int64_t                                 m_sourceCheckMs      = 0;
     int64_t                                 m_editSig            = 0;
 
     //  One apply's tracks before and after, the guest write counts it left,

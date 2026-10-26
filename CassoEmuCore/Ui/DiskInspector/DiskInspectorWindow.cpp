@@ -485,6 +485,7 @@ void DiskInspectorWindow::OnCreate()
     m_editBar->SetOnDiscard       ([this] () { m_edits.DiscardAll(); });
     m_editBar->SetOnApply         ([this] () { ApplyEdits(); });
     m_editBar->SetOnSaveCopy      ([this] () { SaveEditedCopy(); });
+    m_editBar->SetOnUseB          ([this] () { UseBBytes(); });
     m_editBar->SetOnPauseApply    ([this] () { PauseApply(); });
     m_editBar->SetOnCancelApply   ([this] () { CancelApply(); });
     m_editBar->SetOnUndoApplied   ([this] () { UndoApplied(); });
@@ -1270,7 +1271,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move)
     {
         UpdateTooltip (p);
-        m_statusText->SetText (!m_context.hasDisk ? L"" : IsInside (m_platterAreaPx, p) ? s_kpszHint : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : L"");
+        m_statusText->SetText (!m_context.hasDisk ? L"" : IsInside (m_platterAreaPx, p) ? s_kpszHint : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : m_statusNote);
     }
     else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
     {
@@ -1521,6 +1522,13 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
     uint64_t        lastMedia = m_analysis.mediaId;
 
 
+
+    //  End a comparison of this drive once its disk is ejected or replaced.
+    if (m_comparison.IsComparing() && m_sourceA == ComparisonSource { ComparisonSourceKind::DriveNow, m_drive } && lastMedia != 0 &&
+        (copy == nullptr || copy->mediaId != lastMedia))
+    {
+        EndComparison (std::format (L"The comparison ended. The disk in drive {} was ejected or replaced.", m_drive + 1));
+    }
 
     m_context.hasDisk = (copy != nullptr);
     m_openError       = reason;
@@ -2657,6 +2665,7 @@ void DiskInspectorWindow::UpdateEditBar()
     EditController::Counts counts = m_edits.GetCounts();
     int                    width  = 0;
     int                    rows   = 0;
+    PendingEdit::Sector    paired = {};
 
 
 
@@ -2680,6 +2689,7 @@ void DiskInspectorWindow::UpdateEditBar()
     state.canApply         = state.applyBlocked.empty() && m_applyRequest == 0;
     state.isWaiting        = m_isApplyWaiting;
     state.isMachinePaused  = m_isApplyPaused;
+    state.canUseB          = reason.empty() && GetBSectorBytes (paired);
     state.canUndoApplied   = m_historyAt > 0 && m_applyRequest == 0 && state.applyBlocked.empty() && IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter);
     state.canRedoApplied   = m_historyAt < static_cast<int> (m_history.size()) && m_applyRequest == 0 && state.applyBlocked.empty() &&
                              IsHistoryCurrent (m_history[m_historyAt].countsUndone);
@@ -3152,6 +3162,74 @@ void DiskInspectorWindow::TakeApplyReply (const InspectorReply & reply)
         tracks.mediaId = reply.mediaId;
         tracks.tracks  = reply.after;
         TakeWrittenTracks (tracks);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetBSectorBytes
+//
+//  B's bytes for the sector paired with A's selected one, while A is the
+//  window's disk as it is now (FR-123).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::GetBSectorBytes (PendingEdit::Sector & outBytes) const
+{
+    const TrackAnalysis *  trackA  = m_model.GetTrack();
+    const TrackAnalysis *  trackB  = m_context.trackB;
+    int                    paired  = -1;
+    bool                   isFound = false;
+
+
+
+    if (m_comparison.IsComparing() && m_sourceA == ComparisonSource { ComparisonSourceKind::DriveNow, m_drive } && trackA != nullptr && trackB != nullptr &&
+        m_model.GetSectorIndex() >= 0)
+    {
+        paired  = DiskComparer::FindPairedSector (*trackA, m_model.GetSectorIndex(), *trackB);
+        isFound = paired >= 0 && trackB->sectors[paired].dataField >= 0;
+
+        if (isFound)
+        {
+            outBytes = trackB->fields[trackB->sectors[paired].dataField].data.bytes;
+        }
+    }
+
+    return isFound;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::UseBBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::UseBBytes()
+{
+    const TrackAnalysis *  track = m_model.GetTrack();
+    PendingEdit::Sector    bytes = {};
+    std::wstring           reason;
+    int                    edit  = -1;
+
+
+
+    if (track != nullptr && GetBSectorBytes (bytes))
+    {
+        edit       = m_edits.Begin (*track, m_model.GetQuarterTrack(), m_model.GetSectorIndex(), reason);
+        m_editNote = reason;
+
+        if (edit >= 0)
+        {
+            (void) m_edits.SetSector (edit, bytes);
+        }
     }
 }
 
@@ -4715,6 +4793,83 @@ void DiskInspectorWindow::TakeComparison()
         m_diffIndex         = std::min (m_diffIndex, static_cast<int> (m_comparison.GetListed().size()) - 1);
         m_isTablesDirty     = true;
     }
+
+    CheckComparedSources();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::CheckComparedSources
+//
+//  Ends the comparison when B is the other drive and its disk is ejected or
+//  replaced. When a compared image file is deleted or renamed, a note
+//  appears in the status band and the comparison is not cleared. File
+//  existence is checked once a second.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::CheckComparedSources()
+{
+    static constexpr int64_t  kCheckMs = 1000;
+
+
+
+    int64_t                   now   = static_cast<int64_t> (GetTickCount64());
+    const ComparisonSource  & b     = m_comparison.GetSourceB();
+    uint64_t                  media = m_comparison.GetB().mediaId;
+    std::error_code           error;
+
+
+
+    if (!m_comparison.IsComparing())
+    {
+        return;
+    }
+
+    if (b.kind == ComparisonSourceKind::DriveNow && b.drive != m_drive && media != 0)
+    {
+        std::shared_ptr<const DriveHeadState>  state = m_host->GetHeadState (b.drive);
+
+        if (state != nullptr && (!state->hasDisk || state->mediaId != media))
+        {
+            EndComparison (std::format (L"The comparison ended. The disk in drive {} was ejected or replaced.", b.drive + 1));
+        }
+    }
+
+    if (m_comparison.IsComparing() && now - m_sourceCheckMs >= kCheckMs)
+    {
+        m_sourceCheckMs = now;
+
+        for (const ComparisonSource & source : { m_sourceA, b })
+        {
+            if (source.kind == ComparisonSourceKind::ImageFile && !source.path.empty() && !std::filesystem::exists (source.path, error))
+            {
+                m_statusNote = L"The compared file " + std::filesystem::path (source.path).filename().wstring() + L" is gone. This comparison is from before it was removed.";
+                m_statusText->SetText (m_statusNote);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::EndComparison
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::EndComparison (const std::wstring & why)
+{
+    StopComparing();
+    m_statusNote = why;
+    m_statusText->SetText (why);
 }
 
 

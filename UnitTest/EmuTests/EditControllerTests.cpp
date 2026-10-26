@@ -300,4 +300,26 @@ public:
         Assert::AreEqual (static_cast<size_t> (1), discarded.size());
         Assert::IsTrue   (edits.IsEmpty());
     }
+
+
+    TEST_METHOD (AWholeSectorIsOneActionForUseBsBytes)
+    {
+        DiskAnalysis         analysis;
+        EditController       edits;
+        std::wstring         reason;
+        PendingEdit::Sector  bytes = {};
+        int                  edit  = -1;
+
+
+
+        AnalyzePlanted (analysis);
+        edit = edits.Begin (GetTrack (analysis), 20, GetSectorIndex (GetTrack (analysis), 2), reason);
+        bytes.fill (0x3C);
+
+        Assert::IsTrue   (edits.SetSector (edit, bytes));
+        Assert::IsTrue   (edits.GetEdit (edit).bytes == bytes);
+        Assert::IsTrue   (edits.Undo());
+        Assert::IsTrue   (edits.GetEdit (edit).bytes == edits.GetEdit (edit).bytesAtStart, L"one undo puts the whole sector back");
+        Assert::IsFalse  (edits.SetSector (7, bytes), L"no such edit");
+    }
 };
