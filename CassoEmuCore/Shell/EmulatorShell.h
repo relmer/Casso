@@ -12,6 +12,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
 #include "Shell/MachineHost.h"
+#include "Shell/MachineChromeFacts.h"
 #include "Ui/UiShell.h"
 #include "Ui/UiCommandTypes.h"
 
@@ -427,6 +428,12 @@ private:
     // every new machine with a switch panel would need another arm added here.
     bool    MachineHasCaseSwitches () const;
 
+    // The layout's copy of the machine, and taking it again. The UI thread
+    // reads the copy rather than the machine, whose config and devices a
+    // switch rewrites on the CPU thread; see MachineChromeFacts.
+    const MachineChromeFacts &  GetChromeFacts () const { return m_chromeFacts; }
+    void                        RefreshMachineChromeFacts ();
+
 
 public:
 
@@ -684,6 +691,10 @@ protected:
     // land in the input line ahead of the pasted text). One shot: OnChar
     // consumes it, and OnKeyDown clears it on the way in.
     bool                       m_swallowMetaChar = false;
+
+    // What the layout reads about the machine, taken under the machine's
+    // lifetime lock on the UI thread (RefreshMachineChromeFacts).
+    MachineChromeFacts         m_chromeFacts;
 
     // The classifier OnKeyDown routes through. A member rather than a direct
     // call so a test can substitute one; see SetKeyOwnerFn.

@@ -219,6 +219,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     std::string            carryDisk1;
     std::string            carryDisk2;
     const JsonValue *      inputUiPrefs      = nullptr;
+    bool                   externalConnected = false;
+    bool                   mouseConnected    = true;
+    bool                   haveUiFlags       = false;
     bool                   isRebuild         = AutoStatePolicy::IsRebuild (m_shell.m_machine.GetCurrentMachineName(), machineName);
 
 
@@ -334,7 +337,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         }
                     }
 
-                    m_shell.m_disks->SetExternalDriveConnected (connected);
+                    externalConnected = connected;
+                    haveUiFlags       = true;
 
                     // //c mouse peripheral: adopt the switched-to machine's
                     // persisted connected state (default CONNECTED).
@@ -345,7 +349,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
 
-                    m_shell.m_input->SetMouseConnected (mouseConn);
+                    mouseConnected = mouseConn;
 
                     // The cassette recorder: the switched-to machine's own
                     // setting, connected unless it was disconnected.
@@ -503,6 +507,15 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         // Initialize with new config
         m_shell.m_machine.SetCurrentMachineName (machineName);
         m_shell.m_machine.GetConfig()             = newConfig;
+
+        //  Under the lock with the config, so the layout's copy of the machine
+        //  has the flags and the config of one machine.
+        if (haveUiFlags)
+        {
+            m_shell.m_disks->SetExternalDriveConnected (externalConnected);
+            m_shell.m_input->SetMouseConnected (mouseConnected);
+        }
+
         m_shell.m_cyclesPerFrame     = newConfig.cyclesPerFrame;
 
         //  The same build the initial launch runs. It used to be repeated here,

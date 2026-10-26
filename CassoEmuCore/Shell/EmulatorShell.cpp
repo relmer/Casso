@@ -676,6 +676,9 @@ HRESULT EmulatorShell::Initialize (
     m_machine.GetConfig()             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
+    // The window's first layout reads the config's facts.
+    RefreshMachineChromeFacts();
+
     // wCassoMain installed the sink already; this just gives it a shell to
     // forward to. Anything reported before now is sitting in the queue and
     // is replayed once the window exists.
@@ -702,6 +705,9 @@ HRESULT EmulatorShell::Initialize (
 
     hr = BuildMachineDevices (config);
     CHR (hr);
+
+    // And every later one the built machine's.
+    RefreshMachineChromeFacts();
 
     // The game port's sink and the controller stack, once the window and the
     // machine exist.
@@ -1116,7 +1122,7 @@ HRESULT EmulatorShell::FinishUiShellLayout()
 {
     HRESULT  hr         = S_OK;
     UINT     initialDpi = GetDpiForWindow (m_hwnd);
-    bool     fHasDisk   = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
+    bool     fHasDisk   = m_chromeFacts.hasDiskController;
 
 
 
@@ -1232,11 +1238,34 @@ std::string EmulatorShell::GetCurrentMachineNameNarrow() const
 
 bool EmulatorShell::MachineHasCaseSwitches() const
 {
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_machine.GetConfig().machineId);
+    return m_chromeFacts.hasCaseSwitches;
+}
 
 
 
-    return (definition != nullptr && definition->hasCaseSwitches);
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::RefreshMachineChromeFacts
+//
+//  Takes the layout's copy of the machine again. When a switch has the
+//  machine's lifetime lock, the copy is left as it was: that switch posts
+//  WM_APP_DXUI_UPDATE_TITLE when it finishes, and ReflectMachineChange
+//  refreshes the copy then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RefreshMachineChromeFacts()
+{
+    bool  isTaken = false;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    isTaken = MachineChromeFacts::TryCapture (m_machine, m_disks->GetExternalDriveConnectedFlag(), m_chromeFacts);
+    (void) isTaken;
 }
 
 

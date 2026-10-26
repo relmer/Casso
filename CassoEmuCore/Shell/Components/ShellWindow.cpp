@@ -570,9 +570,10 @@ void ShellWindow::UpdateWindowTitle()
 
     title += L"Casso";
 
-    if (!m_shell.m_machine.GetConfig().name.empty())
+    wideName = m_shell.GetChromeFacts().displayName;
+
+    if (!wideName.empty())
     {
-        wideName = fs::path (m_shell.m_machine.GetConfig().name).wstring();
         title += L" - ";
         title += wideName;
     }

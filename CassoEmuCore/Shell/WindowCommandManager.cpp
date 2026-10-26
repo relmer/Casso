@@ -586,25 +586,41 @@ void WindowCommandManager::OnExternalDriveCommand (int id)
 
 
 
-    if (connected != m_shell.m_disks->IsExternalDriveConnected())
     {
-        m_shell.m_disks->SetExternalDriveConnected (connected);
-        fChanged = true;
-    }
+        // A machine switch rewrites the running config under the exclusive
+        // side of this lock, so the flag and the config change only under
+        // the shared side. While a switch has it, the command is posted again
+        // for the next pass of the message loop.
+        std::shared_lock<std::shared_mutex>  lifetime (m_shell.m_machine.GetLifetimeLock(), std::try_to_lock);
 
-    // A carded machine's answer lives in the card's second connector, so the
-    // RUNNING config has to move too -- ShouldShowExternalDrive reads the
-    // attached count from there for anything that is not a //c, and would
-    // otherwise keep reporting the old one however the flag above is set.
-    if (m_shell.m_machine.GetConfig().SetDiskIiPortAttached (1, connected))
-    {
-        fChanged = true;
+        if (!lifetime.owns_lock())
+        {
+            PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (id, 0), 0);
+            return;
+        }
+
+        if (connected != m_shell.m_disks->IsExternalDriveConnected())
+        {
+            m_shell.m_disks->SetExternalDriveConnected (connected);
+            fChanged = true;
+        }
+
+        // A carded machine's answer is in the card's second connector, so the
+        // RUNNING config has to move too -- ShouldShowExternalDrive reads the
+        // attached count from there for anything that is not a //c, and would
+        // otherwise keep reporting the old one however the flag above is set.
+        if (m_shell.m_machine.GetConfig().SetDiskIiPortAttached (1, connected))
+        {
+            fChanged = true;
+        }
     }
 
     if (!fChanged)
     {
         return;
     }
+
+    m_shell.RefreshMachineChromeFacts();
 
     // A detached drive cannot still be holding a disk. Ejecting flushes it
     // through DiskImageStore, so pulling the drive does not quietly strand

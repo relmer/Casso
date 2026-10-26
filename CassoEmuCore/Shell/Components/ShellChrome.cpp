@@ -1005,7 +1005,7 @@ void ShellChrome::SyncChromeBands()
     // Which bands exist, and how tall, is ChromeBandLayout's to decide from
     // what the machine has and how it is shown; this reads those facts off
     // the shell and stamps the answers onto the bands' docked heights.
-    inputs.hasDiskController   = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
+    inputs.hasDiskController   = m_shell.GetChromeFacts().hasDiskController;
     inputs.crtMonitorActive    = m_shell.CrtMonitorActive();
     inputs.hasCaseSwitches     = m_shell.MachineHasCaseSwitches();
     inputs.driveBarThicknessDp = m_driveBarThicknessDp;
@@ -1178,7 +1178,7 @@ void ShellChrome::ReflowChromeForMachineChange()
 
     if (haveWindow)
     {
-        newHasDisk    = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
+        newHasDisk    = m_shell.GetChromeFacts().hasDiskController;
         newIsApple2c  = m_shell.MachineHasCaseSwitches();
         layoutChanged = (newHasDisk != m_chromeSizedForHasDisk) ||
                         (newIsApple2c != m_chromeSizedForApple2c);
@@ -1479,7 +1479,6 @@ void ShellChrome::LayoutSwitchBar (UINT dpi)
     }
 
     scaler.SetDpi (dpi);
-    SyncSwitchBarState();
     m_switchBar.Layout (m_switchBand.GetBounds(), scaler);
 }
 

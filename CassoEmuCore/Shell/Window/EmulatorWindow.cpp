@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Core/TextEncoding.h"
 #include "Shell/Components/ShellInput.h"
 
 #include "Core/ThreadName.h"
@@ -1486,8 +1487,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         {
             m_chrome->SetChromeHiddenForFullscreenScene (true);
             m_chrome->UpdateViewportLayout (static_cast<int> (width), renderH);
-            m_chrome->RecordSizedFor ((m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller(),
-                                      MachineHasCaseSwitches());
+            m_chrome->RecordSizedFor (m_chromeFacts.hasDiskController, MachineHasCaseSwitches());
         }
         else
         {
@@ -1508,7 +1508,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             RECT  vr            = m_chrome->ComputeViewportRect (static_cast<int> (width), renderH);
             RECT  driveRect     = m_chrome->GetDriveBandBounds();
             int   bottomInsetPx = renderH - driveRect.top;   // drive band height only
-            bool  fHasDisk      = (m_disks->GetManager() != nullptr) && m_disks->GetManager()->HasSlot6Controller();
+            bool  fHasDisk      = m_chromeFacts.hasDiskController;
 
             (void) vr;                                        // dock side-effect: bands arranged
 
@@ -2189,6 +2189,8 @@ Error:
 
 void EmulatorShell::ReflectMachineChange()
 {
+    RefreshMachineChromeFacts();
+
     m_window->UpdateWindowTitle();
     m_chrome->ReflowChromeForMachineChange();
 
@@ -2270,8 +2272,8 @@ DxuiMessageResult EmulatorShell::OnCopyData (WPARAM sender, LPARAM data)
 
         case ExternalChangeIntent::DescribeMachine:
             reply.kind       = Win32IntentChannel::ReplyKind::MachineDescription;
-            reply.driveCount = m_machine.GetConfig().AttachedDiskIiDriveCount();
-            reply.text       = m_machine.GetConfig().name;
+            reply.driveCount = m_chromeFacts.attachedDiskIiDrives;
+            reply.text       = TextEncoding::WideToNarrow (m_chromeFacts.displayName);
 
             //  Answered after this handler returns: the sender is still inside
             //  its own send, and a send back to it now would wait on itself.

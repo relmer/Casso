@@ -265,6 +265,8 @@ void EmulatorShell::ApplyPersistedChromePrefs()
                 m_disks->SetExternalDriveConnected (extConnected);
             }
         }
+
+        RefreshMachineChromeFacts();
     }
 
     hrOpt = uiPrefs->GetBool ("mouseConnected", mouseConn);

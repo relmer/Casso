@@ -161,6 +161,10 @@ public:
     bool  ShouldShowExternalDrive  () const;
     bool  IsSecondDriveOffered     () const;
     bool  IsExternalDriveConnected () const         { return m_externalDriveConnected; }
+
+    //  The flag itself, for MachineChromeFacts::TryCapture to read under the
+    //  machine's lifetime lock.
+    const bool &  GetExternalDriveConnectedFlag () const { return m_externalDriveConnected; }
     void  SetExternalDriveConnected (bool connected) { m_externalDriveConnected = connected; }
 
     // Whether the machine's drive is soldered in rather than plugged into a

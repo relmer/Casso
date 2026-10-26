@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Shell/Layout/ChromeBandLayout.h"
+#include "Shell/MachineChromeFacts.h"
+#include "EmuTests/TestMachine.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -25,6 +28,155 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (ChromeBandLayoutTests)
 {
 public:
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  The layout's copy of the machine. A switch rewrites the config and the
+    //  device references under the machine's lifetime lock, so the copy is
+    //  taken only under it, and a capture made without the lock changes
+    //  nothing.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (ChromeFactsTakenDuringARebuildKeepTheMachineTheyHad)
+    {
+        TestMachine         machine ("Apple2e");
+        TestMachine         next    ("Apple2c");
+        MachineChromeFacts  facts;
+        bool                connected = false;
+        std::atomic<bool>   isLocked  { false };
+        std::atomic<bool>   isRelease { false };
+        bool                isTaken   = false;
+
+
+
+        Assert::IsTrue (MachineChromeFacts::TryCapture (machine, connected, facts), L"the first capture");
+        Assert::IsTrue  (facts.hasDiskController);
+        Assert::IsFalse (facts.hasCaseSwitches);
+        Assert::AreEqual (2, facts.GetDeskSceneDriveCount());
+
+        std::thread  rebuild ([&]
+        {
+            std::unique_lock<std::shared_mutex>  lock (machine.GetLifetimeLock());
+
+            machine.GetConfig()               = next.GetConfig();
+            machine.GetRefs().diskController  = nullptr;
+            isLocked                          = true;
+
+            while (!isRelease)
+            {
+                std::this_thread::yield();
+            }
+        });
+
+        while (!isLocked)
+        {
+            std::this_thread::yield();
+        }
+
+        isTaken = MachineChromeFacts::TryCapture (machine, connected, facts);
+
+        isRelease = true;
+        rebuild.join();
+
+        Assert::IsFalse (isTaken, L"a capture during the rebuild does not get the lock");
+        Assert::IsFalse (facts.hasCaseSwitches, L"and the facts are the //e's");
+        Assert::IsTrue  (facts.hasDiskController);
+        Assert::AreEqual (2, facts.GetDeskSceneDriveCount());
+
+        Assert::IsTrue  (MachineChromeFacts::TryCapture (machine, connected, facts), L"the capture after it");
+        Assert::IsTrue  (facts.hasCaseSwitches, L"has the //c");
+        Assert::IsFalse (facts.hasDiskController);
+    }
+
+
+
+    //  A Disk II card in slot 6 with the given connectors.
+    static MachineConfig MakeCardConfig (std::initializer_list<const char *> ports)
+    {
+        MachineConfig  config;
+        SlotConfig     slot;
+
+
+
+        slot.slot   = 6;
+        slot.device = "disk-ii";
+
+        for (const char * port : ports)
+        {
+            slot.ports.push_back ({ "", port });
+        }
+
+        config.slots.push_back (slot);
+
+        return config;
+    }
+
+
+
+    TEST_METHOD (AnExternalDriveOnTheIIcFollowsTheConnectedFlag)
+    {
+        Disk2Controller  controller (6);
+        MachineConfig    config;
+        MachineRefs      refs;
+
+
+
+        config.systemRom.romBankSize = 0x4000;
+        refs.diskController          = &controller;
+
+        Assert::IsFalse (MachineChromeFacts::Capture (config, refs, false).ShouldShowExternalDrive());
+        Assert::AreEqual (1, MachineChromeFacts::Capture (config, refs, false).GetDeskSceneDriveCount(), L"the internal drive");
+        Assert::IsTrue  (MachineChromeFacts::Capture (config, refs, true).ShouldShowExternalDrive());
+        Assert::AreEqual (2, MachineChromeFacts::Capture (config, refs, true).GetDeskSceneDriveCount(), L"and the external one");
+    }
+
+
+
+    TEST_METHOD (ADetachedSecondPortHidesTheExternalDrive)
+    {
+        Disk2Controller     controller (6);
+        MachineRefs         refs;
+        MachineChromeFacts  facts;
+
+
+
+        refs.diskController = &controller;
+        facts               = MachineChromeFacts::Capture (MakeCardConfig ({ "disk-ii-drive", "" }), refs, true);
+
+        Assert::AreEqual (1, facts.GetDeskSceneDriveCount());
+        Assert::IsFalse (facts.ShouldShowExternalDrive(), L"the connected flag is the //c's");
+    }
+
+
+
+    TEST_METHOD (ACardWithUndeclaredPortsShowsBothDrives)
+    {
+        Disk2Controller     controller (6);
+        MachineRefs         refs;
+        MachineChromeFacts  facts;
+
+
+
+        refs.diskController = &controller;
+        facts               = MachineChromeFacts::Capture (MakeCardConfig ({}), refs, false);
+
+        Assert::AreEqual (2, facts.GetDeskSceneDriveCount());
+        Assert::IsTrue (facts.ShouldShowExternalDrive());
+    }
+
+
+
+    TEST_METHOD (NoControllerMeansNoDrives)
+    {
+        MachineRefs  refs;
+
+
+
+        Assert::AreEqual (0, MachineChromeFacts::Capture (MakeCardConfig ({}), refs, true).GetDeskSceneDriveCount());
+    }
+
+
 
     TEST_METHOD (AMachineWithoutAControllerHasNoDriveBand)
     {

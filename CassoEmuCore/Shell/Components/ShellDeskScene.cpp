@@ -987,41 +987,15 @@ void ShellDeskScene::ResetSceneView()
 //
 //  ShellDeskScene::DeskSceneDriveCount
 //
-//  The same gates the 2D widgets use: no Disk II controller means no drives
-//  at all; a //c with the external drive disconnected shows only the
-//  internal one.
-//
-//  The controller check stays first and stays separate from the config. A
-//  machine can declare drive ports it cannot use -- the //c builds its IWM in
-//  code from a banked-ROM test rather than from a slot -- so "is there a
-//  controller" and "what is attached to it" are two questions, and answering
-//  the second alone would put drives on a machine that has nowhere to run
-//  them.
+//  How many drives the scene draws, from the layout's copy of the machine.
+//  The rule is MachineChromeFacts::GetDeskSceneDriveCount, which the 2D widgets
+//  share.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int ShellDeskScene::DeskSceneDriveCount() const
 {
-    bool  hasDisk = (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
-
-
-
-    if (!hasDisk)
-    {
-        return 0;
-    }
-
-    // The //c's drives are not carded -- one is soldered in and the second
-    // hangs off the back-panel disk port -- so its slot list says nothing
-    // about them and the internal drive is always there.
-    if (m_shell.m_machine.GetConfig().slots.empty())
-    {
-        return m_shell.m_disks->ShouldShowExternalDrive() ? 2 : 1;
-    }
-
-    // A card with every port empty reports zero, which is the point of being
-    // able to detach a drive at all.
-    return m_shell.m_machine.GetConfig().AttachedDiskIiDriveCount();
+    return m_shell.GetChromeFacts().GetDeskSceneDriveCount();
 }
 
 
@@ -4552,7 +4526,7 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
 {
     bool  stripHasDrives = m_shell.DeskSceneActive()
                          ? DeskSceneDriveCount() > 0
-                         : (m_shell.m_disks->GetManager() != nullptr) && m_shell.m_disks->GetManager()->HasSlot6Controller();
+                         : m_shell.GetChromeFacts().hasDiskController;
 
 
 

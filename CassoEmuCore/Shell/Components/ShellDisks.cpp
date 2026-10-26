@@ -1452,33 +1452,14 @@ bool ShellDisks::IsSecondDriveOffered() const
 //
 //  ShellDisks::ShouldShowExternalDrive
 //
-//  The //c's second drive is an optional external unit that plugs into the
-//  disk port, so it appears only when the user has marked it connected
-//  (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected). The //c is
-//  the only machine with a banked system ROM, so romBankSize is the
-//  discriminator -- the same signal that gates the built-in IWM drive.
-//
-//  Everywhere else the second drive is whatever is attached to the Disk ][
-//  card's second connector. That used to be unconditionally true, on the
-//  reasoning that the card is two-drive hardware -- but the CARD having two
-//  connectors was never the same claim as both of them having a drive on the
-//  end, and this is the question the 2D widgets and the desk scene both ask,
-//  so answering it from the config is what keeps them agreeing.
+//  Whether the second drive is shown, from the layout's copy of the machine.
+//  The rule is MachineChromeFacts::ShouldShowExternalDrive.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellDisks::ShouldShowExternalDrive() const
 {
-    bool  externalIsOptional = (m_shell.m_machine.GetConfig().systemRom.romBankSize != 0);
-
-
-
-    if (externalIsOptional)
-    {
-        return m_externalDriveConnected;
-    }
-
-    return m_shell.m_machine.GetConfig().AttachedDiskIiDriveCount() >= kDiskIiPortCount;
+    return m_shell.GetChromeFacts().ShouldShowExternalDrive();
 }
 
 
@@ -1490,17 +1471,14 @@ bool ShellDisks::ShouldShowExternalDrive() const
 //  ShellDisks::MachineHasBuiltInDrive
 //
 //  Whether the machine's drive is soldered in rather than plugged into a card,
-//  which is what decides the drive the desk scene draws.
+//  which is what decides the drive the desk scene draws, from the layout's
+//  copy of the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellDisks::MachineHasBuiltInDrive() const
 {
-    const MachineDefinition *  definition = MachineDefinitions::Find (m_shell.m_machine.GetConfig().machineId);
-
-
-
-    return (definition != nullptr && definition->hasBuiltInDrive);
+    return m_shell.GetChromeFacts().hasBuiltInDrive;
 }
 
 

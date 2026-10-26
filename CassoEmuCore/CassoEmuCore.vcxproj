@@ -709,6 +709,7 @@
     <ClCompile Include="Shell\DiskManager.cpp" />
     <ClCompile Include="Shell\DriveStatusPublisher.cpp" />
     <ClCompile Include="Shell\MachineBuilder.cpp" />
+    <ClCompile Include="Shell\MachineChromeFacts.cpp" />
     <ClCompile Include="Shell\MachineHost.cpp" />
     <ClCompile Include="Shell\MachineStateFile.cpp" />
     <ClCompile Include="Shell\MachineManager.cpp" />
@@ -1457,6 +1458,7 @@
     <ClInclude Include="Shell\DiskManager.h" />
     <ClInclude Include="Shell\DriveStatusPublisher.h" />
     <ClInclude Include="Shell\MachineBuilder.h" />
+    <ClInclude Include="Shell\MachineChromeFacts.h" />
     <ClInclude Include="Shell\MachineHost.h" />
     <ClInclude Include="Shell\MachineStateFile.h" />
     <ClInclude Include="Shell\MachineRefs.h" />
