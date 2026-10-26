@@ -283,7 +283,8 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
 
     m_drive            = drive;
     m_sourceA          = { ComparisonSourceKind::DriveNow, drive };
-    m_requestedMediaId = 0;
+    //  No disk has this id, and an empty drive's is 0, so an eject is seen.
+    m_requestedMediaId = UINT64_MAX;
     m_host->SetHeadStateWanted (true);
 
     if (m_driveTabs != nullptr)
@@ -1271,7 +1272,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     if (ev.kind == DxuiMouseEventKind::Move)
     {
         UpdateTooltip (p);
-        m_statusText->SetText (!m_context.hasDisk ? L"" : IsInside (m_platterAreaPx, p) ? s_kpszHint : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : m_statusNote);
+        m_statusText->SetText (!m_context.hasDisk ? m_statusNote : IsInside (m_platterAreaPx, p) ? s_kpszHint : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : m_statusNote);
     }
     else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
     {
@@ -1520,8 +1521,15 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
     DecodeSettings  settings  = m_comparison.IsComparing() ? m_analysis.settings : DecodeSettings::MakeStandard();
     int             slot      = 0;
     uint64_t        lastMedia = m_analysis.mediaId;
+    std::string     lastFile  = (m_analysis.copy != nullptr) ? m_analysis.copy->fileName : std::string();
+    bool            isReload  = copy != nullptr && !lastFile.empty() && copy->fileName == lastFile;
 
 
+
+    if (copy != nullptr && copy->mediaId != lastMedia)
+    {
+        m_statusNote.clear();
+    }
 
     //  End a comparison of this drive once its disk is ejected or replaced.
     if (m_comparison.IsComparing() && m_sourceA == ComparisonSource { ComparisonSourceKind::DriveNow, m_drive } && lastMedia != 0 &&
@@ -1557,19 +1565,26 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
 
         m_isFilesDefaulted = false;
 
-        //  Pending edits are discarded with the disk they were made on (FR-108).
-        if (copy->mediaId != lastMedia && !m_edits.IsEmpty())
+        //  Pending edits are discarded with the disk they were made on. A
+        //  remount of the same file, as Reset, Power Cycle and a machine
+        //  change do, is a reload: the edits follow their fields once each
+        //  track is analyzed again (FR-108).
+        if (copy->mediaId != lastMedia && !isReload && !m_edits.IsEmpty())
         {
             m_editNote = L"Pending edits were discarded: the disk in the drive changed";
         }
 
+        if (copy->mediaId != lastMedia && !isReload)
+        {
+            m_edits = EditController();
+            m_byteView->SetEditing (false);
+        }
+
         if (copy->mediaId != lastMedia)
         {
-            m_edits     = EditController();
             m_history.clear();
             m_historyAt = 0;
             m_appliedSlots.clear();
-            m_byteView->SetEditing (false);
         }
 
         //  Hits point into the analysis they were found in.
@@ -1589,6 +1604,18 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
     }
     else
     {
+        if (!m_edits.IsEmpty())
+        {
+            m_editNote   = L"Pending edits were discarded: the disk was ejected";
+            m_statusNote = m_editNote;
+            m_statusText->SetText (m_statusNote);
+        }
+
+        m_edits = EditController();
+        m_byteView->SetEditing (false);
+        m_history.clear();
+        m_historyAt = 0;
+        m_appliedSlots.clear();
         m_model.SetDisk (0);
         m_analysis = DiskAnalysis();
     }
@@ -2786,7 +2813,10 @@ bool DiskInspectorWindow::ConfirmDiscardEdits (const std::wstring & action)
 
     if (isGoingOn && counts.sectors > 0)
     {
-        m_edits = EditController();
+        m_edits      = EditController();
+        m_editNote   = action + L" discarded the pending edits.";
+        m_statusNote = m_editNote;
+        m_statusText->SetText (m_statusNote);
         m_byteView->SetEditing (false);
     }
 

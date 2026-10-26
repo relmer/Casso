@@ -322,4 +322,38 @@ public:
         Assert::IsTrue   (edits.GetEdit (edit).bytes == edits.GetEdit (edit).bytesAtStart, L"one undo puts the whole sector back");
         Assert::IsFalse  (edits.SetSector (7, bytes), L"no such edit");
     }
+
+
+    //  After a reload, an edit stays pending until its record is analyzed
+    //  again, and then follows its field.
+    TEST_METHOD (AnEditWaitsForItsRecordAfterAReload)
+    {
+        DiskAnalysis         analysis;
+        DiskAnalysis         reloaded;
+        EditController       edits;
+        std::wstring         reason;
+        vector<PendingEdit>  discarded;
+        int                  edit  = -1;
+        int                  slot  = 0;
+        int                  s     = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        slot = analysis.entries[20].slot;
+        s    = GetSectorIndex (GetTrack (analysis), 2);
+        edit = edits.Begin (GetTrack (analysis), 20, s, reason);
+        Assert::IsTrue (edits.TypeHexDigit (edit, 0x10, true, L'9'));
+
+        reloaded = analysis;
+        reloaded.tracks[slot].reset();
+
+        edits.Follow (reloaded, discarded);
+        Assert::IsTrue (discarded.empty(), L"the edit waits for the record");
+        Assert::IsFalse (edits.IsEmpty());
+
+        edits.Follow (analysis, discarded);
+        Assert::IsTrue  (discarded.empty());
+        Assert::IsFalse (edits.GetEdit (edit).isOutOfDate, L"the record decodes to the same bytes");
+    }
 };

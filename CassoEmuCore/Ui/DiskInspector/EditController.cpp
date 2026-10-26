@@ -525,7 +525,15 @@ void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> 
 
     for (PendingEdit & edit : m_edits)
     {
-        const TrackAnalysis *  track = (edit.slot >= 0 && edit.slot < static_cast<int> (analysis.tracks.size())) ? analysis.tracks[edit.slot].get() : nullptr;
+        bool                   isSlot = edit.slot >= 0 && edit.slot < static_cast<int> (analysis.tracks.size());
+        const TrackAnalysis *  track  = isSlot ? analysis.tracks[edit.slot].get() : nullptr;
+
+        //  After a reload, an edit on a record with no analysis yet is not dropped.
+        if (isSlot && track == nullptr)
+        {
+            remaining.push_back (edit);
+            continue;
+        }
 
         field  = (track != nullptr) ? FindField (*track, edit.sectorNumber, edit.fieldKind, edit.fieldStartCell) : -1;
         sector = -1;

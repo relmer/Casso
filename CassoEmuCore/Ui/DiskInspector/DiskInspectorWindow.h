@@ -254,7 +254,7 @@ private:
     NullDiskInspectorHost                                                                        m_nullHost;
     int                                                                                          m_drive             = 0;
     uint64_t                                                                                     m_pendingRequest    = 0;
-    uint64_t                                                                                     m_requestedMediaId  = 0;
+    uint64_t                                                                                     m_requestedMediaId  = UINT64_MAX;
     DiskAnalysis                                                                                 m_analysis;
     InspectorViewModel                                                                           m_model;
     InspectorViewContext                                                                         m_context;

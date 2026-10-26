@@ -277,7 +277,7 @@ without the others in its merge.
 - [X] T117 [US9] Implement `Apply`, `Undo`, `Redo` and `CancelApply` in `CEC/Shell/InspectorRequestQueue.cpp` per contracts/emulation-thread.md, Safe point (R14): writer with `Editor` policy, re-analysis check, save through the store with `DurableCommit`, rollback, `isChangedByWriter` for the NIB rule, no change to `guestWriteCount` (FR-109)
 - [X] T118 [US9] Apply confirmation listing sectors, quarter tracks reading each record, file, TMAP-and-FLUX note, WOZ 1 to WOZ 2 note, NIB rebuild note, DOS-may-have-the-sector note before the first apply; "Waiting for the drive to stop", "Pause and apply", "Cancel", "Run to a safe point and apply" (FR-100, FR-103, FR-104)
 - [X] T119 [US9] Write-protect causes beside "Apply"; "Save edited copy..." through `DurableCommit` (CreateNew; Replace after confirmation), Save dialog excludes the disk's file and mounted files, damaged-image notes (FR-101, FR-102)
-- [ ] T120 [US9] Out-of-date edits, discard list after re-analysis, confirmations on drive switch, close, quit, machine change, decode settings change and eject (FR-108, Edge Cases)
+- [ ] T120 [US9] Out-of-date edits, discard list after re-analysis, confirmations on drive switch, close, quit, machine change, decode settings change and eject (FR-108, Edge Cases). Open: the confirmation before a machine change whose new machine has no Disk II in slot 6; the merged machine config is loaded only on the CPU thread, inside `MachineManager::SwitchMachine`
 - [X] T121 [US9] Tracks tab mark for records an applied edit changed, taken from the applied-edit history, not from the writer flag a save clears (FR-109)
 
 ---
