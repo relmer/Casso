@@ -222,16 +222,8 @@ Error:
 //
 //  UpdateIndicatorButton::PaintShimmer
 //
-//  A soft bright band sweeping left to right across the arrow and text,
-//  leaning 45 degrees like light off glass. Dxui's text renderer has no
-//  gradient brush, so the gradient is built from opacity: the band is cut
-//  into thin columns, and in each the text is drawn again in white at the
-//  opacity GetBandWeight gives that column's distance from the band's center,
-//  over the accent text beneath -- accent at the edges, white at the center,
-//  a smooth blend between. The lean comes from horizontal slices, each
-//  shifted right by its height above the baseline. Small four-point glints
-//  on the text's top and bottom edges twinkle in turn as the band passes
-//  them, kept inside the caption's height and the text's width.
+//  DxuiShimmer's band and glints across the arrow and text: the band lights
+//  both, drawn again in its color, and the glints span only the text's width.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,104 +236,30 @@ void UpdateIndicatorButton::PaintShimmer (
     float                 fontPx,
     float                 progress) const
 {
-    constexpr int       kSlices       = 6;
-    constexpr int       kColumns      = 14;
-    constexpr float     kBandFraction = UpdateIndicatorModel::kBandFraction;
-    constexpr uint32_t  kHighlight    = 0xFFFFFFFF;
-    constexpr float     kGlintDip     = 2.5f;
-    constexpr float     kEdgeOffsetEm = 0.62f;     // glint centers just off the glyph tops and bottoms
-    constexpr float     kAlphaMax     = 255.0f;
-    constexpr float     kMinSize      = 0.55f;     // a glint's size at the edges of its twinkle
-    constexpr wchar_t   kTextFamily[] = L"Segoe UI";
-    constexpr wchar_t   kMdl2Family[] = L"Segoe MDL2 Assets";
+    constexpr float    kGlintDip     = 2.5f;
+    constexpr wchar_t  kTextFamily[] = L"Segoe UI";
+    constexpr wchar_t  kMdl2Family[] = L"Segoe MDL2 Assets";
 
 
 
-    float                        bandW     = w * kBandFraction;
-    float                        sliceH    = h / (float) kSlices;
-    float                        travel    = w + bandW + h;
-    SweepPhase                   phase     = UpdateIndicatorModel::GetSweepPhase (progress);
-    float                        left      = x - bandW - h + travel * phase.band.value_or (0.0f);
-    float                        sliceLeft = 0.0f;
-    float                        columnW   = 0.0f;
-    float                        offset    = 0.0f;
-    float                        weight    = 0.0f;
-    int                          column    = 0;
-    float                        glyphW    = m_scaler.ToPxf ((float) UpdateIndicatorModel::kGlyphColumnDip);
-    float                        rMax      = m_scaler.ToPxf (kGlintDip);
-    float                        mid       = y + h * 0.5f;
-    float                        top       = std::max (y + rMax * 2.0f,     mid - fontPx * kEdgeOffsetEm);
-    float                        bottom    = std::min (y + h - rMax * 2.0f, mid + fontPx * kEdgeOffsetEm);
-    float                        r         = 0.0f;
-    uint32_t                     color     = 0;
-    HRESULT                      hr        = S_OK;
-    int                          i         = 0;
-    DxuiPointF                   star[8]   = {};
-    std::vector<IndicatorGlint>  glints;
+    float  glyphW  = m_scaler.ToPxf ((float) UpdateIndicatorModel::kGlyphColumnDip);
+    float  glyphPx = m_scaler.ToPxf (UpdateIndicatorModel::kGlyphFontDip);
 
 
 
-    columnW = bandW / (float) kColumns;
+    DxuiShimmer::Paint (text, x, y, w, h, x + glyphW, w - glyphW, fontPx, m_scaler.ToPxf (kGlintDip), progress, m_sweepGlints,
+                        [&] (uint32_t argb)
+                        {
+                            HRESULT  hr = S_OK;
 
-    // The band runs only in the second half of a sweep; the lead pass before
-    // it is glints alone.
-    for (i = 0; phase.band.has_value() && i < kSlices; i++)
-    {
-        sliceLeft = left + (float) (kSlices - 1 - i) * sliceH;
+                            hr = text.DrawString (s_kpszMdl2Download, x, y, glyphW, h, argb, glyphPx,
+                                                  kMdl2Family, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+                            IGNORE_RETURN_VALUE (hr, S_OK);
 
-        for (column = 0; column < kColumns; column++)
-        {
-            offset = ((float) column + 0.5f) * columnW - bandW * 0.5f;
-            weight = UpdateIndicatorModel::GetBandWeight (offset, bandW * 0.5f);
-            color  = ((uint32_t) (kAlphaMax * weight) << 24) | (kHighlight & 0x00FFFFFF);
-
-            if (weight <= 0.0f)
-            {
-                continue;
-            }
-
-            hr = text.PushClipRect (sliceLeft + columnW * (float) column, y + sliceH * (float) i, columnW, sliceH);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            hr = text.DrawString (s_kpszMdl2Download, x, y, glyphW, h, color, m_scaler.ToPxf (UpdateIndicatorModel::kGlyphFontDip),
-                                  kMdl2Family, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            hr = text.DrawString (m_text.c_str(), x + glyphW, y, w, h, color, fontPx,
-                                  kTextFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            hr = text.PopClipRect();
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-
-    glints = UpdateIndicatorModel::GetGlints (progress * (float) UpdateIndicatorModel::kSweepMs, m_sweepGlints, x + glyphW, w - glyphW, top, bottom);
-
-    for (const IndicatorGlint & glint : glints)
-    {
-        if (glint.intensity <= 0.0f)
-        {
-            continue;
-        }
-
-        // Opacity follows the twinkle; size only breathes with it, so the glint
-        // fades in place instead of shrinking away to a point.
-        r     = rMax * (kMinSize + (1.0f - kMinSize) * glint.intensity);
-        color = ((uint32_t) (kAlphaMax * glint.intensity) << 24) | (kHighlight & 0x00FFFFFF);
-
-        star[0] = { glint.x,             glint.y - r * 2.0f };
-        star[1] = { glint.x + r * 0.4f,  glint.y - r * 0.4f };
-        star[2] = { glint.x + r * 2.0f,  glint.y };
-        star[3] = { glint.x + r * 0.4f,  glint.y + r * 0.4f };
-        star[4] = { glint.x,             glint.y + r * 2.0f };
-        star[5] = { glint.x - r * 0.4f,  glint.y + r * 0.4f };
-        star[6] = { glint.x - r * 2.0f,  glint.y };
-        star[7] = { glint.x - r * 0.4f,  glint.y - r * 0.4f };
-
-        hr = text.FillPolygon (star, std::size (star), color);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
+                            hr = text.DrawString (m_text.c_str(), x + glyphW, y, w, h, argb, fontPx,
+                                                  kTextFamily, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                            IGNORE_RETURN_VALUE (hr, S_OK);
+                        });
 }
 
 
@@ -374,7 +292,7 @@ bool UpdateIndicatorButton::TickShimmer (int64_t nowMs)
     // A new sweep scatters its glints afresh.
     if (sweep.has_value() && !m_sweep.has_value() && m_random)
     {
-        m_sweepGlints = UpdateIndicatorModel::MakeSweepGlints (m_random);
+        m_sweepGlints = DxuiShimmer::MakeSweepGlints (m_random);
     }
 
     changed = sweep.has_value() || m_sweep.has_value();

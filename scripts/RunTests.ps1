@@ -289,6 +289,13 @@ if ($Scenario) {
     if ($LASTEXITCODE -ne 0) {
         throw 'Cannot run the scenario suite without the stock disks it boots. See above.'
     }
+
+    # The Uthernet II cases boot third-party network software, fetched the
+    # same way.
+    & (Join-Path $PSScriptRoot 'FetchNetworkDisks.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Cannot run the scenario suite without the network disks it boots. See above.'
+    }
 }
 
 $vstestArgs = @($testAssembly)

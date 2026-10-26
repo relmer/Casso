@@ -394,6 +394,66 @@ bool  MachineConfigUpgrade::TryInjectCapabilityFlag (
 
 bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
 {
+    vector<pair<string, JsonValue>>  entry;
+
+
+
+    entry.emplace_back (kpszSlotNumberKey,     JsonValue ((double) kPrinterDefaultSlot));
+    entry.emplace_back (kpszDeviceKey,         JsonValue (string (kpszPrinterDevice)));
+    entry.emplace_back (kpszCapabilityFlagKey, JsonValue (string (kpszSlotDefault)));
+
+    return TryInjectSlotEntry (arr, kPrinterDefaultSlot, std::move (entry));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryInjectSerialCardSlot
+//
+//  Add the Super Serial Card to slot 2, turned off, when slot 2 has no entry
+//  at all, as the shipped configs list it. A card already in slot 2, enabled
+//  or not, is not replaced. Returns true if an entry was appended.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool  MachineConfigUpgrade::TryInjectSerialCardSlot (JsonValue & arr)
+{
+    vector<pair<string, JsonValue>>  entry;
+
+
+
+    entry.emplace_back (kpszSlotNumberKey,     JsonValue ((double) kSerialCardDefaultSlot));
+    entry.emplace_back (kpszDeviceKey,         JsonValue (string (kpszSuperSerialCardDevice)));
+    entry.emplace_back (kpszFirmwareKey,       JsonValue (string (kpszSerialCardFirmware)));
+    entry.emplace_back (kpszEnabledKey,        JsonValue (false));
+    entry.emplace_back (kpszCapabilityFlagKey, JsonValue (string (kpszSlotDefault)));
+
+    return TryInjectSlotEntry (arr, kSerialCardDefaultSlot, std::move (entry));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryInjectSlotEntry
+//
+//  Append `entry` to the slots array `arr` when no entry for `slotNumber`
+//  exists. An existing entry for that slot, even a disabled one, blocks the
+//  append, so a slot the user turned off is never resurrected (FR-001). A
+//  non-array counts as occupied. Returns true if the entry was appended.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool  MachineConfigUpgrade::TryInjectSlotEntry (
+    JsonValue                        & arr,
+    int                                slotNumber,
+    vector<pair<string, JsonValue>>    entry)
+{
     vector<JsonValue>  rebuilt;
     size_t             i        = 0;
     int                slot     = 0;
@@ -401,22 +461,17 @@ bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
 
 
 
-    // A non-array counts as occupied so nothing is appended to it. Otherwise
-    // ANY existing slot-1 entry blocks the injection -- including a disabled
-    // one, so a slot the user turned off is never resurrected (FR-001).
     for (i = 0; !occupied && i < arr.GetArraySize(); ++i)
     {
         const JsonValue & elem = arr.GetArrayElement (i);
 
         occupied = elem.GetType() == JsonType::Object
                    && elem.HasInt (kpszSlotNumberKey, slot)
-                   && slot == kPrinterDefaultSlot;
+                   && slot == slotNumber;
     }
 
     if (!occupied)
     {
-        vector<pair<string, JsonValue>>  entry;
-
         rebuilt.reserve (arr.GetArraySize() + 1);
 
         for (i = 0; i < arr.GetArraySize(); ++i)
@@ -424,9 +479,6 @@ bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
             rebuilt.push_back (arr.GetArrayElement (i));
         }
 
-        entry.emplace_back (kpszSlotNumberKey,     JsonValue ((double) kPrinterDefaultSlot));
-        entry.emplace_back (kpszDeviceKey,         JsonValue (string (kpszPrinterDevice)));
-        entry.emplace_back (kpszCapabilityFlagKey, JsonValue (string (kpszSlotDefault)));
         rebuilt.emplace_back (JsonValue (std::move (entry)));
 
         arr = JsonValue (std::move (rebuilt));
@@ -795,6 +847,11 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
             }
 
             if (TryInjectPrinterSlot (rebuilt[(size_t) idxSlots].second))
+            {
+                fChanged = true;
+            }
+
+            if (TryInjectSerialCardSlot (rebuilt[(size_t) idxSlots].second))
             {
                 fChanged = true;
             }

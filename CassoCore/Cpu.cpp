@@ -880,6 +880,56 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReadsTarget
+//
+//  Whether an instruction reads the byte at its effective address before it
+//  executes: every memory mode except a store's. A store only writes its
+//  target, so a read there would trigger an extra access to an I/O location.
+//  The //c's ROM-bank flip-flop at $C028 toggles on any access, and the
+//  Uthernet II's data register advances its address pointer on a read; a
+//  read before the store's write switches the bank back, or puts the byte at
+//  the next address.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Cpu::ReadsTarget (const Microcode & microcode)
+{
+    bool  isMemoryMode = false;
+    bool  isStore      = false;
+
+
+
+    switch (microcode.globalAddressingMode)
+    {
+    case GlobalAddressingMode::Absolute:
+    case GlobalAddressingMode::AbsoluteX:
+    case GlobalAddressingMode::AbsoluteY:
+    case GlobalAddressingMode::ZeroPage:
+    case GlobalAddressingMode::ZeroPageX:
+    case GlobalAddressingMode::ZeroPageY:
+    case GlobalAddressingMode::ZeroPageXIndirect:
+    case GlobalAddressingMode::ZeroPageIndirectY:
+    case GlobalAddressingMode::ZeroPageIndirect:
+        isMemoryMode = true;
+        break;
+
+    default:
+        break;
+    }
+
+    isStore = microcode.operation == Microcode::Store
+           || microcode.operation == Microcode::StoreZero
+           || microcode.operation == Microcode::StoreAccumulatorAndX;
+
+    return isMemoryMode && !isStore;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FetchOperand
 //
 //  Resolves the addressing mode into operandInfo -- the effective address, and
@@ -919,7 +969,7 @@ void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
 
         switch (microcode.globalAddressingMode)
         {
-        case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
+        case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo);               break;
         case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
         case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
         case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
@@ -940,6 +990,11 @@ void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
             std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
             ASSERT (false);
             break;
+        }
+
+        if (ReadsTarget (microcode))
+        {
+            operandInfo.operand = ReadByte (operandInfo.effectiveAddress);
         }
     }
 }
@@ -964,7 +1019,6 @@ void Cpu::FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo)
     // Zero page word read wraps within zero page
     operandInfo.location         = zpBase;
     operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
-    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -981,7 +1035,6 @@ void Cpu::FetchOperandZeroPage (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location         = ReadByte (PC);
     operandInfo.effectiveAddress = operandInfo.location;
-    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -1095,7 +1148,6 @@ void Cpu::FetchOperandZeroPageIndirect (Cpu::OperandInfo & operandInfo)
 
     operandInfo.location         = zpAddr;
     operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
-    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -1178,22 +1230,10 @@ void Cpu::FetchOperandRelative (Cpu::OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, const Microcode & microcode)
+void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location         = ReadWord (PC++);
     operandInfo.effectiveAddress = operandInfo.location;
-
-    // A store (STA/STX/STY/STZ abs) never reads its target on real hardware --
-    // it only writes. Pre-reading here would fire a spurious side effect on any
-    // $C0xx soft switch. That is fatal for the Apple //c ROM-bank flip-flop at
-    // $C028, which flips on ANY access: a dummy read plus the store's own write
-    // would toggle it twice (net no bank switch) and derail the //c firmware.
-    // Stores don't use operandInfo.operand, so leaving it 0 is correct.
-    if (microcode.operation != Microcode::Store &&
-        microcode.operation != Microcode::StoreZero)
-    {
-        operandInfo.operand = ReadByte (operandInfo.effectiveAddress);
-    }
 }
 
 
@@ -1216,7 +1256,6 @@ void Cpu::FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo)
     operandInfo.location          = zpAddr;
     operandInfo.effectiveAddress  = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
     operandInfo.effectiveAddress += Y;
-    operandInfo.operand           = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -1233,7 +1272,6 @@ void Cpu::FetchOperandZeroPageX (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location         = ReadByte (PC);
     operandInfo.effectiveAddress = (operandInfo.location + X) & 0xFF;
-    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -1250,7 +1288,6 @@ void Cpu::FetchOperandZeroPageY (Cpu::OperandInfo & operandInfo)
 {
     operandInfo.location         = ReadByte (PC);
     operandInfo.effectiveAddress = (operandInfo.location + Y) & 0xFF;
-    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -1268,7 +1305,6 @@ void Cpu::FetchOperandAbsoluteY (Cpu::OperandInfo & operandInfo)
     operandInfo.location          = ReadWord (PC++);
     operandInfo.effectiveAddress  = operandInfo.location;
     operandInfo.effectiveAddress += Y;
-    operandInfo.operand           = ReadByte (operandInfo.effectiveAddress);
 }
 
 
@@ -1286,7 +1322,6 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
     operandInfo.location          = ReadWord (PC++);
     operandInfo.effectiveAddress  = operandInfo.location;
     operandInfo.effectiveAddress += X;
-    operandInfo.operand           = ReadByte (operandInfo.effectiveAddress);
 }
 
 

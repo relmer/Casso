@@ -166,8 +166,12 @@ public:
 private:
 
     static void  DispatchResolveChange (const std::string & payload, ICpuDiskCommands & disks);
+    static void  DispatchSerialCardSwitches (const std::string & payload, ICpuMachineCommands & machine);
     static void  DispatchDriveVolumes  (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
     static void  DispatchDrivePan      (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
     static void  DispatchDriveTest     (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
-    static void  DispatchDebugView     (const std::string & payload, IDebugCommandTarget & target);     static void  DispatchReverse       (const std::string & payload, IDebugCommandTarget & target);     static void  DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchDebugView      (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverse        (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchNetworkConfigure (const std::string & payload, ICpuMachineCommands & machine);
 };

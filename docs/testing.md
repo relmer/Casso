@@ -63,6 +63,14 @@ The disks are fetched on demand by `scripts/FetchStockDisks.ps1`, which
 `-Scenario` runs first, so the whole cost is one command and about nine
 seconds in Release.
 
+The Uthernet II cases (`UthernetSoftwareTests.cpp`) boot third-party network
+software, IP65's disk and Contiki's third disk, which
+`scripts/FetchNetworkDisks.ps1` fetches from the projects' GitHub releases into
+`Disks/Network/` on the same terms. They run the guest at 1.023 MHz of wall
+
+
+internet access once the disks are present, and they add about a minute.
+
 Six of these cases spent a long time in the unit suite instead, logging
 SKIPPED and returning when the master was absent -- which the runner reports
 as a pass. On any machine without the disks they announced success while
@@ -117,9 +125,9 @@ machine:
 | Scenario | 0:12    | 0:55         | 0:59  | 1:50       |
 
 Release ASan with the scenario suite is the cheap pass: under a minute, over
-the code paths where real guests drive the devices. Run it before merging a
-change to device, disk or object-lifetime code; run Debug ASan over both
-suites before a release.
+the code paths where real guests drive the devices. It is a merge-to-master
+gate (see `.github/copilot-instructions.md`); run Debug ASan over both suites
+before a release.
 ## The generated cycle reference
 
 `docs/cycle-reference.md` is not written, it is generated: `CycleReference` in

@@ -12,6 +12,26 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  s_kBaudRates
+//
+//  Bits per second for control-register baud codes 1-15, from the 6551
+//  datasheet's baud-rate generator table. Code 0 is not in the table: it
+//  selects the crystal divided by 16 (GetBaudRate).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr double  s_kBaudRates[] =
+{
+    0.0,     50.0,    75.0,    109.92,  134.58,  150.0,   300.0,   600.0,
+    1200.0,  1800.0,  2400.0,  3600.0,  4800.0,  7200.0,  9600.0,  19200.0,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Acia6551
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,9 +127,9 @@ bool Acia6551::TryPeekIo (Word address, Byte & value)
 //
 //  Write
 //
-//  A write to the status address is a programmed reset. Writing the command
-//  register can newly enable an interrupt whose condition already holds, which
-//  must fire immediately.
+//  A write to the status address is a program reset. A control write takes
+//  effect from the next character; a character already shifting finishes at
+//  the timing it started with.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,22 +146,11 @@ void Acia6551::Write (Word address, Byte value)
         break;
 
     case kRegStatus:
-        ApplyProgrammedReset();
+        ResetState (false);
         break;
 
     case kRegCommand:
-        m_command = value;
-
-        if (IsTxIrqEnabled() && (m_status & kStatusTxEmpty))
-        {
-            RaiseIrq();
-        }
-
-        if (IsRxIrqEnabled() && (m_status & kStatusRxFull))
-        {
-            RaiseIrq();
-        }
-
+        WriteCommand (value);
         break;
 
     case kRegControl:
@@ -237,27 +246,160 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReceiveByte
+//  SetIrqConnected
 //
-//  Push one byte into the receiver. If the previous byte was never read the
-//  overrun flag is set and the stale byte is overwritten.
+//  Connects or disconnects the IRQ latch from the CPU's line. A latch already
+//  set drives the line as soon as it is connected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::ReceiveByte (Byte value)
+void Acia6551::SetIrqConnected (bool connected)
 {
-    if (m_status & kStatusRxFull)
+    m_irqConnected = connected;
+
+    if (m_irqBound && m_ic != nullptr)
     {
-        m_status |= kStatusOverrun;
+        if (connected && (m_status & kStatusIrq))
+        {
+            m_ic->Assert (m_irqSource);
+        }
+        else
+        {
+            m_ic->Clear (m_irqSource);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetCpuClockHz
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetCpuClockHz (uint32_t hz)
+{
+    if (hz != 0)
+    {
+        m_cpuClockHz = hz;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Tick
+//
+//  Advances the shift register and the receive delivery by `cycles` CPU
+//  cycles. An idle chip, with nothing shifting, nothing waiting to shift,
+//  nothing queued and no modem input change, returns after the first test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::Tick (uint32_t cycles)
+{
+    HRESULT  hr          = S_OK;
+    int64_t  fixedCycles = static_cast<int64_t> (cycles) << kFixedShift;
+    bool     modemDirty  = m_modemInputDirty.load (memory_order_relaxed);
+    size_t   queued      = m_rxQueue.GetCount();
+    bool     idle        = !m_tsrBusy && !m_tdrFull && queued == 0 && !m_rxActive && !modemDirty;
+
+
+
+    BAIL_OUT_IF (idle, S_OK);
+
+    if (modemDirty)
+    {
+        ApplyPendingModemInputs();
     }
 
-    m_rxData  = value;
-    m_status |= kStatusRxFull;
+    AdvanceTransmitter (fixedCycles);
+    AdvanceReceiver    (fixedCycles);
 
-    if (IsRxIrqEnabled())
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetEndpoint
+//
+//  Any change of attachment empties the receive queue and restores the modem
+//  inputs to true, which is what a disconnected 6551 reads. The current DTR
+//  and RTS states are then passed to the new attachment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetEndpoint (IAciaEndpoint * endpoint)
+{
+    m_rxQueue.Clear();
+    m_rxActive    = false;
+    m_rxRemaining = 0;
+
+    m_pendingCts.store (true);
+    m_pendingDsr.store (true);
+    m_pendingDcd.store (true);
+    m_modemInputDirty.store (false);
+    m_cts = true;
+    m_dsr = true;
+    m_dcd = true;
+
+    m_endpoint = endpoint;
+
+    if (m_endpoint != nullptr)
     {
-        RaiseIrq();
+        m_notifiedDtr   = IsDtrOn();
+        m_notifiedRts   = IsRtsOn();
+        m_notifiedBreak = false;
+        m_endpoint->OnModemControlChanged (m_notifiedDtr, m_notifiedRts);
     }
+
+    TryLoadTransmitter();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnqueueReceivedBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::EnqueueReceivedBytes (const Byte * bytes, size_t count)
+{
+    m_rxQueue.Push (bytes, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetModemInputs
+//
+//  Stored for the emulation thread, which applies them at its next tick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetModemInputs (bool cts, bool dsr, bool dcd)
+{
+    m_pendingCts.store (cts);
+    m_pendingDsr.store (dsr);
+    m_pendingDcd.store (dcd);
+    m_modemInputDirty.store (true, memory_order_release);
 }
 
 
@@ -274,11 +416,77 @@ void Acia6551::ReceiveByte (Byte value)
 
 int Acia6551::GetWordLengthBits() const
 {
-    int   selector = (m_control & kControlWordLenMask) >> kControlWordLenShift;
+    constexpr int  kMaxWordBits = 8;
+    int            selector     = (m_control & kControlWordLenMask) >> kControlWordLenShift;
 
 
 
-    return 8 - selector;
+    return kMaxWordBits - selector;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsRtsOn
+//
+//  RTS is asserted for every transmitter-control value but 00, and in echo
+//  mode, which requires those bits clear.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Acia6551::IsRtsOn() const
+{
+    return ((m_command & kCommandTicMask) != kCommandTicOff) || ((m_command & kCommandEcho) != 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTransmitCharacterCycles
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double Acia6551::GetTransmitCharacterCycles() const
+{
+    int64_t  fixed = GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
+
+
+
+    return static_cast<double> (fixed) / static_cast<double> (1LL << kFixedShift);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBaudRate
+//
+//  Code 0 runs at the crystal divided by 16: 115,200 baud on the 1.8432 MHz
+//  crystal the //c and the Super Serial Card use.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double Acia6551::GetBaudRate (int code)
+{
+    constexpr double  kExternalDivisor = 16.0;
+    double            rate             = static_cast<double> (kCrystalHz) / kExternalDivisor;
+
+
+
+    if (code > 0 && code < static_cast<int> (size (s_kBaudRates)))
+    {
+        rate = s_kBaudRates[code];
+    }
+
+    return rate;
 }
 
 
@@ -289,9 +497,13 @@ int Acia6551::GetWordLengthBits() const
 //
 //  ResetState
 //
-//  Full register reset. A hardware/RESB reset clears command and control; a
-//  programmed reset (write to the status address) leaves control untouched and
-//  preserves only the command register's parity-mode bits.
+//  A hardware (RESB) reset clears command and control, empties both transmit
+//  registers, clears RDRF and the error and IRQ bits, and sets TDRE. A
+//  program reset (a write to the status address) clears command bits 0-4 and
+//  the same status bits, and does not alter control or command bits 5-7.
+//
+//  Neither empties the receive queue: bytes an attachment sent are on the
+//  wire, not in the chip. DTR and RTS are passed to the attachment afterward.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,30 +514,32 @@ void Acia6551::ResetState (bool hardware)
 
     if (hardware)
     {
-        m_command = 0;
-        m_control = 0;
+        m_command     = 0;
+        m_control     = 0;
+        m_tdrFull     = false;
+        m_tsrBusy     = false;
+        m_txRemaining = 0;
     }
     else
     {
         m_command &= kCommandParityMask;
     }
 
+    m_rxActive    = false;
+    m_rxRemaining = 0;
+
+    if (!m_dsr)
+    {
+        m_status |= kStatusDsr;
+    }
+
+    if (!m_dcd)
+    {
+        m_status |= kStatusDcd;
+    }
+
     LowerIrq();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyProgrammedReset
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Acia6551::ApplyProgrammedReset()
-{
-    ResetState (false);
+    NotifyModemControl();
 }
 
 
@@ -340,7 +554,7 @@ void Acia6551::ApplyProgrammedReset()
 
 Byte Acia6551::ReadData()
 {
-    m_status &= ~kStatusRxFull;
+    m_status &= ~(kStatusRxFull | kStatusOverrun);
 
     return m_rxData;
 }
@@ -376,25 +590,50 @@ Byte Acia6551::ReadStatus()
 //
 //  WriteData
 //
-//  Transmit is instantaneous: the byte is handed to the endpoint and the
-//  transmitter is immediately empty again, re-firing the TX interrupt if
-//  enabled.
+//  Fills the transmit data register and clears TDRE. The byte moves into the
+//  shift register at once when the shift register is idle.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Acia6551::WriteData (Byte value)
 {
-    if (m_endpoint != nullptr)
-    {
-        m_endpoint->OnByteTransmitted (value);
-    }
+    m_tdr      = value;
+    m_tdrFull  = true;
+    m_status  &= ~kStatusTxEmpty;
 
-    m_status |= kStatusTxEmpty;
+    TryLoadTransmitter();
+}
 
-    if (IsTxIrqEnabled())
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteCommand
+//
+//  Writing the command register can newly enable an interrupt whose
+//  condition is already true, which then fires at once. A change to DTR, RTS
+//  or break is passed to the attachment.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::WriteCommand (Byte value)
+{
+    m_command = value;
+
+    if (IsTxIrqEnabled() && (m_status & kStatusTxEmpty))
     {
         RaiseIrq();
     }
+
+    if (IsRxIrqEnabled() && (m_status & kStatusRxFull))
+    {
+        RaiseIrq();
+    }
+
+    NotifyModemControl();
+    TryLoadTransmitter();
 }
 
 
@@ -411,7 +650,7 @@ void Acia6551::RaiseIrq()
 {
     m_status |= kStatusIrq;
 
-    if (m_irqBound && (m_ic != nullptr))
+    if (m_irqBound && m_irqConnected && (m_ic != nullptr))
     {
         m_ic->Assert (m_irqSource);
     }
@@ -478,6 +717,389 @@ bool Acia6551::IsTxIrqEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CanLoadTransmitter
+//
+//  A byte moves into the shift register only while CTS is true and the
+//  transmitter is on: transmitter-control 00 turns it off and 11 sends break
+//  in place of data.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Acia6551::CanLoadTransmitter() const
+{
+    Byte  tic = static_cast<Byte> (m_command & kCommandTicMask);
+
+
+
+    return m_cts && tic != kCommandTicOff && tic != kCommandTicBreak;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryLoadTransmitter
+//
+//  Moves a waiting byte from the transmit data register into an idle shift
+//  register, sets TDRE, and raises the transmitter interrupt when enabled.
+//  A negative remainder from the character just finished is added to the new
+//  one, so back-to-back characters do not drift.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::TryLoadTransmitter()
+{
+    HRESULT  hr       = S_OK;
+    int64_t  carry    = 0;
+    bool     canStart = !m_tsrBusy && m_tdrFull && CanLoadTransmitter();
+
+
+
+    BAIL_OUT_IF (!canStart, S_OK);
+
+    carry = (m_txRemaining < 0) ? m_txRemaining : 0;
+
+    m_tsr         = m_tdr;
+    m_tdrFull     = false;
+    m_tsrBusy     = true;
+    m_txRemaining = carry + GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
+    m_status     |= kStatusTxEmpty;
+
+    if (IsTxIrqEnabled())
+    {
+        RaiseIrq();
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceTransmitter
+//
+//  Finishes the character in the shift register once its time has run out,
+//  passes it to the attachment, and loads the next one if it is waiting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AdvanceTransmitter (int64_t fixedCycles)
+{
+    HRESULT  hr   = S_OK;
+    Byte     sent = 0;
+
+
+
+    if (!m_tsrBusy)
+    {
+        TryLoadTransmitter();
+    }
+
+    BAIL_OUT_IF (!m_tsrBusy, S_OK);
+
+    m_txRemaining -= fixedCycles;
+
+    while (m_tsrBusy && m_txRemaining <= 0)
+    {
+        sent      = m_tsr;
+        m_tsrBusy = false;
+
+        if (m_endpoint != nullptr)
+        {
+            m_endpoint->OnByteTransmitted (sent);
+        }
+
+        TryLoadTransmitter();
+    }
+
+    if (!m_tsrBusy)
+    {
+        m_txRemaining = 0;
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceReceiver
+//
+//  Lands queued bytes one receiver character time apart while DTR is on. For
+//  a byte queued to an idle receiver, the countdown is set on the next tick
+//  and runs from the tick after it, so a byte queued partway through a tick
+//  (a loopback plug returning one) is not charged for time that passed before
+//  it was queued. With DTR off the countdown pauses and the queue is not
+//  emptied.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AdvanceReceiver (int64_t fixedCycles)
+{
+    HRESULT  hr         = S_OK;
+    Byte     value      = 0;
+    size_t   queued     = m_rxQueue.GetCount();
+    bool     dtrOn      = IsDtrOn();
+    bool     startedNow = false;
+
+
+
+    BAIL_OUT_IF (!dtrOn,                     S_OK);
+    BAIL_OUT_IF (!m_rxActive && queued == 0, S_OK);
+
+    startedNow = !m_rxActive;
+
+    if (startedNow)
+    {
+        m_rxActive    = true;
+        m_rxRemaining = GetCharacterFixedCycles (GetReceiveBaud());
+    }
+
+    BAIL_OUT_IF (startedNow, S_OK);
+
+    m_rxRemaining -= fixedCycles;
+
+    while (m_rxActive && m_rxRemaining <= 0)
+    {
+        if (m_rxQueue.TryPop (value))
+        {
+            LandReceivedByte (value);
+        }
+
+        if (m_rxQueue.GetCount() == 0)
+        {
+            m_rxActive    = false;
+            m_rxRemaining = 0;
+        }
+        else
+        {
+            m_rxRemaining += GetCharacterFixedCycles (GetReceiveBaud());
+        }
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LandReceivedByte
+//
+//  Moves one byte into the receive data register, masked to the word
+//  length. A byte landing over an unread one sets overrun and replaces it.
+//  In echo mode the byte is also sent back out when the shift register is
+//  idle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::LandReceivedByte (Byte value)
+{
+    constexpr int  kByteBits = 8;
+    int            wordBits  = GetWordLengthBits();
+    Byte           mask      = static_cast<Byte> ((1u << wordBits) - 1);
+
+
+
+    if (wordBits >= kByteBits)
+    {
+        mask = 0xFF;
+    }
+
+    if (m_status & kStatusRxFull)
+    {
+        m_status |= kStatusOverrun;
+    }
+
+    m_rxData  = static_cast<Byte> (value & mask);
+    m_status |= kStatusRxFull;
+
+    if (IsRxIrqEnabled())
+    {
+        RaiseIrq();
+    }
+
+    if ((m_command & kCommandEcho) && !m_tsrBusy && m_cts)
+    {
+        m_tsr         = m_rxData;
+        m_tsrBusy     = true;
+        m_txRemaining = GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyPendingModemInputs
+//
+//  Applies CTS, DSR and DCD stored by SetModemInputs. DSR and DCD read 0 in
+//  the status register while true; a change in either raises the interrupt
+//  under the same enables as the receiver's. CTS turning true lets a waiting
+//  byte start.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::ApplyPendingModemInputs()
+{
+    bool  cts     = m_pendingCts.load();
+    bool  dsr     = m_pendingDsr.load();
+    bool  dcd     = m_pendingDcd.load();
+    bool  changed = (dsr != m_dsr) || (dcd != m_dcd);
+
+
+
+    m_modemInputDirty.store (false);
+
+    m_cts = cts;
+    m_dsr = dsr;
+    m_dcd = dcd;
+
+    m_status = static_cast<Byte> ((m_status & ~(kStatusDsr | kStatusDcd)) |
+                                  (dsr ? 0 : kStatusDsr) |
+                                  (dcd ? 0 : kStatusDcd));
+
+    if (changed && IsRxIrqEnabled())
+    {
+        RaiseIrq();
+    }
+
+    TryLoadTransmitter();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyModemControl
+//
+//  Passes DTR, RTS and break to the attachment when they differ from the
+//  values last passed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::NotifyModemControl()
+{
+    HRESULT  hr       = S_OK;
+    bool     dtr      = IsDtrOn();
+    bool     rts      = IsRtsOn();
+    bool     breakNow = (m_command & kCommandTicMask) == kCommandTicBreak;
+
+
+
+    BAIL_OUT_IF (m_endpoint == nullptr, S_OK);
+
+    if (dtr != m_notifiedDtr || rts != m_notifiedRts)
+    {
+        m_notifiedDtr = dtr;
+        m_notifiedRts = rts;
+        m_endpoint->OnModemControlChanged (dtr, rts);
+    }
+
+    if (breakNow != m_notifiedBreak)
+    {
+        m_notifiedBreak = breakNow;
+        m_endpoint->OnBreakChanged (breakNow);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetCharacterFixedCycles
+//
+//  One character at `baud` in fixed-point CPU cycles: a start bit, the word,
+//  a parity bit when parity is enabled, and the stop bits. Two stop bits
+//  become one and a half with a 5-bit word and no parity. Counted in half
+//  bits so the half stop bit is exact.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int64_t Acia6551::GetCharacterFixedCycles (double baud) const
+{
+    constexpr int  kMinWordBits      = 5;
+    int            wordBits          = GetWordLengthBits();
+    bool           parity            = (m_command & kCommandParityEnable) != 0;
+    bool           twoStop           = (m_control & kControlStopBits) != 0;
+    int            halfBits          = 2 * (1 + wordBits + (parity ? 1 : 0));
+    double         cycles            = 0.0;
+
+
+
+    if (!twoStop)
+    {
+        halfBits += 2;
+    }
+    else if (wordBits == kMinWordBits && !parity)
+    {
+        halfBits += 3;
+    }
+    else
+    {
+        halfBits += 4;
+    }
+
+    cycles = static_cast<double> (m_cpuClockHz) * static_cast<double> (halfBits) / (2.0 * baud);
+
+    return static_cast<int64_t> (llround (cycles * static_cast<double> (1LL << kFixedShift)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReceiveBaud
+//
+//  Control bit 4 set runs the receiver at the transmit rate; clear runs it
+//  at the crystal divided by 16.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double Acia6551::GetReceiveBaud() const
+{
+    double  baud = GetBaudRate (0);
+
+
+
+    if (m_control & kControlRxClockBaud)
+    {
+        baud = GetBaudRate (m_control & kControlBaudMask);
+    }
+
+    return baud;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Create
 //
 //  The ACIA occupies the four registers at $C088 + slot*16.
@@ -511,10 +1133,37 @@ HRESULT Acia6551::SaveState (StateWriter & writer) const
 {
     writer.BeginSection (kStateTag, kStateVersion);
 
+    std::vector<Byte>  waiting;
+
+
+
+    m_rxQueue.CopyTo (waiting);
+
     writer.WriteByte (m_status);
     writer.WriteByte (m_command);
     writer.WriteByte (m_control);
     writer.WriteByte (m_rxData);
+
+    writer.WriteByte   (m_tdr);
+    writer.WriteBool   (m_tdrFull);
+    writer.WriteByte   (m_tsr);
+    writer.WriteBool   (m_tsrBusy);
+    writer.WriteUInt64 ((uint64_t) m_txRemaining);
+    writer.WriteBool   (m_rxActive);
+    writer.WriteUInt64 ((uint64_t) m_rxRemaining);
+    writer.WriteUInt32 ((uint32_t) waiting.size());
+    writer.WriteBytes  (waiting.data(), waiting.size());
+
+    writer.WriteBool (m_cts);
+    writer.WriteBool (m_dsr);
+    writer.WriteBool (m_dcd);
+    writer.WriteBool (m_pendingCts.load());
+    writer.WriteBool (m_pendingDsr.load());
+    writer.WriteBool (m_pendingDcd.load());
+    writer.WriteBool (m_modemInputDirty.load());
+    writer.WriteBool (m_notifiedDtr);
+    writer.WriteBool (m_notifiedRts);
+    writer.WriteBool (m_notifiedBreak);
 
     return writer.EndSection();
 }
@@ -531,8 +1180,14 @@ HRESULT Acia6551::SaveState (StateWriter & writer) const
 
 HRESULT Acia6551::LoadState (StateReader & reader)
 {
-    HRESULT   hr      = S_OK;
-    uint16_t  version = 0;
+    constexpr uint16_t  kFirstWithTiming = 2;
+    constexpr uint32_t  kMaxWaiting      = 1u << 20;
+    HRESULT             hr               = S_OK;
+    uint16_t            version          = 0;
+    uint64_t            remaining        = 0;
+    uint32_t            count            = 0;
+    bool                flag             = false;
+    std::vector<Byte>   waiting;
 
 
 
@@ -543,6 +1198,50 @@ HRESULT Acia6551::LoadState (StateReader & reader)
     reader.ReadByte (m_command);
     reader.ReadByte (m_control);
     reader.ReadByte (m_rxData);
+
+    //  A version 1 state has no transmitter or receiver in flight.
+    m_tdr         = 0;
+    m_tdrFull     = false;
+    m_tsr         = 0;
+    m_tsrBusy     = false;
+    m_txRemaining = 0;
+    m_rxActive    = false;
+    m_rxRemaining = 0;
+    m_rxQueue.Clear();
+
+    if (version >= kFirstWithTiming)
+    {
+        reader.ReadByte   (m_tdr);
+        reader.ReadBool   (m_tdrFull);
+        reader.ReadByte   (m_tsr);
+        reader.ReadBool   (m_tsrBusy);
+        reader.ReadUInt64 (remaining);
+        m_txRemaining = (int64_t) remaining;
+        reader.ReadBool   (m_rxActive);
+        reader.ReadUInt64 (remaining);
+        m_rxRemaining = (int64_t) remaining;
+        reader.ReadUInt32 (count);
+        CBREx (count <= kMaxWaiting, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+        waiting.resize (count);
+        reader.ReadBytes  (waiting.data(), waiting.size());
+        m_rxQueue.Push (waiting.data(), waiting.size());
+
+        reader.ReadBool (m_cts);
+        reader.ReadBool (m_dsr);
+        reader.ReadBool (m_dcd);
+        reader.ReadBool (flag);
+        m_pendingCts = flag;
+        reader.ReadBool (flag);
+        m_pendingDsr = flag;
+        reader.ReadBool (flag);
+        m_pendingDcd = flag;
+        reader.ReadBool (flag);
+        m_modemInputDirty = flag;
+        reader.ReadBool (m_notifiedDtr);
+        reader.ReadBool (m_notifiedRts);
+        reader.ReadBool (m_notifiedBreak);
+    }
 
     hr = reader.EndSection();
     CHR (hr);
