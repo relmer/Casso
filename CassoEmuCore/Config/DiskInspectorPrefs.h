@@ -20,22 +20,23 @@
 
 struct DiskInspectorPrefs
 {
-    int     x             = 0;
-    int     y             = 0;
-    int     w             = 0;
-    int     h             = 0;
-    bool    isMaximized   = false;
-    bool    isTimingMode  = false;
-    bool    isDiskGroup   = false;
-    int     trackTab      = 0;
-    int     diskTab       = 0;
-    double  timingRange   = 0.05;
-    bool    isAlignment   = false;
-    bool    isFiles       = false;
-    bool    isReads       = false;
-    bool    isShowDeleted = false;
-    bool    isFollowHead  = false;
-    double  zoom          = 1.0;
-    int     lastDrive     = 0;
-    bool    isOpen        = false;
+    int     x                 = 0;
+    int     y                 = 0;
+    int     w                 = 0;
+    int     h                 = 0;
+    bool    isMaximized       = false;
+    bool    isTimingMode      = false;
+    bool    isDiskGroup       = false;
+    int     trackTab          = 0;
+    int     diskTab           = 0;
+    double  timingRange       = 0.05;
+    bool    isAlignment       = false;
+    bool    isFiles           = false;
+    bool    isReads           = false;
+    bool    isShowDeleted     = false;
+    bool    isFollowHead      = false;
+    double  zoom              = 1.0;
+    int     lastDrive         = 0;
+    bool    isOpen            = false;
+    bool    isWalkthroughSeen = false;
 };

@@ -611,7 +611,8 @@ void DiskInspectorWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
     SetBounds (boundsDip);
     m_statusPx = { boundsDip.left, content.bottom, boundsDip.right, boundsDip.bottom };
-    m_statusText->Layout  ({ boundsDip.left + pad, content.bottom, boundsDip.right - zoomW - 2 * pad, boundsDip.bottom }, scaler);
+    m_helpPx   = { boundsDip.right - zoomW - 2 * pad - (status - 6), content.bottom + 3, boundsDip.right - zoomW - 2 * pad, boundsDip.bottom - 3 };
+    m_statusText->Layout  ({ boundsDip.left + pad, content.bottom, m_helpPx.left - pad, boundsDip.bottom }, scaler);
     m_zoomControl->Layout ({ boundsDip.right - zoomW - pad, content.bottom + 1, boundsDip.right - pad, boundsDip.bottom - 1 }, scaler);
     LayoutContent (content, zoomed);
 }
@@ -1102,6 +1103,8 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         PaintNoDisk (painter, text, theme);
     }
 
+    PaintHelp (text, theme);
+
     //  The view the keys act on, outlined once a key has been used (FR-059).
     if (m_isFocusShown && m_context.hasDisk && !m_is35)
     {
@@ -1109,6 +1112,11 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         InflateRect (&focus, m_scaler.ToPx (s_kFocusGapDip), m_scaler.ToPx (s_kFocusGapDip));
         painter.OutlineRect (static_cast<float> (focus.left), static_cast<float> (focus.top), static_cast<float> (focus.right - focus.left),
                              static_cast<float> (focus.bottom - focus.top), m_scaler.ToPxf (2.0f), theme.FocusRing());
+    }
+
+    if (m_walkthrough.IsOpen())
+    {
+        m_walkthrough.Paint (text, theme, m_scaler, m_boundsDip, GetWalkthroughArea (m_walkthrough.GetArea()));
     }
 }
 
@@ -1215,6 +1223,12 @@ void DiskInspectorWindow::PaintToolbar (IDxuiPainter & painter, IDxuiTextRendere
 
 bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 {
+    //  While the walkthrough is open it takes all input (FR-153).
+    if (OnWalkthroughMouse (ev))
+    {
+        return true;
+    }
+
     POINT  p         = ev.positionDip;
     int    width     = m_boundsDip.right - m_boundsDip.left;
     bool   isCovered = IsCovered (p) && ev.kind != DxuiMouseEventKind::Leave;
@@ -1323,6 +1337,11 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
     int   qt        = m_model.GetQuarterTrack();
 
 
+
+    if (OnWalkthroughKey (ev))
+    {
+        return true;
+    }
 
     //  Keys go to the find bar while it has the focus, all but the window's
     //  zoom and its Ctrl+F and Ctrl+G.
@@ -1975,6 +1994,12 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     if (tip.empty() && m_context.hasDisk)
     {
         tip = GetButtonTip (pointPx, anchor);
+    }
+
+    if (tip.empty() && PtInRect (&m_helpPx, pointPx))
+    {
+        tip    = L"Open the walkthrough";
+        anchor = m_helpPx;
     }
 
     //  A write-protected disk's causes follow its name (FR-065).
@@ -6044,4 +6069,137 @@ void DiskInspectorWindow::PaintNoDisk (IDxuiPainter & painter, IDxuiTextRenderer
                      static_cast<float> (m_platterAreaPx.right - m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.bottom - m_platterAreaPx.top),
                      theme.ForegroundMuted(), m_scaler.ToPxf (InspectorView::kTextDip + 1.0f), DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
                      DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PaintHelp
+//
+//  The "?" button in a circle in the status band, which opens the
+//  walkthrough (FR-153).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PaintHelp (IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    float  cx     = (m_helpPx.left + m_helpPx.right) / 2.0f;
+    float  cy     = (m_helpPx.top + m_helpPx.bottom) / 2.0f;
+    float  radius = std::min (m_helpPx.right - m_helpPx.left, m_helpPx.bottom - m_helpPx.top) / 2.0f;
+
+
+
+    text.DrawEllipse (cx, cy, radius - 0.5f, radius - 0.5f, 1.0f, theme.ForegroundMuted());
+    text.DrawString  (L"?", static_cast<float> (m_helpPx.left), static_cast<float> (m_helpPx.top), static_cast<float> (m_helpPx.right - m_helpPx.left),
+                      static_cast<float> (m_helpPx.bottom - m_helpPx.top), theme.Foreground(), radius * 1.3f, DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
+                      DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OnWalkthroughMouse
+//
+//  A press on "?" opens the walkthrough; while it is open, a press on its
+//  buttons steps or closes it, and every other event goes nowhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::OnWalkthroughMouse (const DxuiMouseEvent & ev)
+{
+    bool  isPress   = ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Left;
+    bool  isHandled = m_walkthrough.IsOpen();
+
+
+
+    if (isHandled && isPress)
+    {
+        switch (m_walkthrough.HitTest (ev.positionDip))
+        {
+            case WalkthroughButton::Back:  m_walkthrough.Back();  break;
+            case WalkthroughButton::Next:  m_walkthrough.Next();  break;
+            case WalkthroughButton::Close: m_walkthrough.Close(); break;
+            case WalkthroughButton::None:                         break;
+        }
+    }
+    else if (isPress && PtInRect (&m_helpPx, ev.positionDip))
+    {
+        m_tooltip.HideImmediate();
+        m_walkthrough.Open();
+        isHandled = true;
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OnWalkthroughKey
+//
+//  While the walkthrough is open: Escape closes it, Left steps back, and
+//  Right or Enter steps on. It takes every key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::OnWalkthroughKey (const DxuiKeyEvent & ev)
+{
+    bool  isHandled = m_walkthrough.IsOpen();
+
+
+
+    if (isHandled && ev.kind == DxuiKeyEventKind::Down)
+    {
+        switch (ev.vk)
+        {
+            case VK_ESCAPE: m_walkthrough.Close(); break;
+            case VK_LEFT:   m_walkthrough.Back();  break;
+            case VK_RIGHT:
+            case VK_RETURN: m_walkthrough.Next();  break;
+            default:                               break;
+        }
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetWalkthroughArea
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DiskInspectorWindow::GetWalkthroughArea (WalkthroughArea area) const
+{
+    RECT  rect   = {};
+    RECT  header = m_headerView->GetBounds();
+    RECT  row    = m_sectorRow->GetBounds();
+    RECT  tabs   = m_tabs->GetBounds();
+
+
+
+    switch (area)
+    {
+        case WalkthroughArea::Platter: rect = m_platterAreaPx;                                       break;
+        case WalkthroughArea::Toolbar: rect = m_toolbarPx;                                           break;
+        case WalkthroughArea::Track:   UnionRect (&rect, &header, &row);                             break;
+        case WalkthroughArea::Tabs:    rect = { m_trackAreaPx.left, tabs.top, m_trackAreaPx.right, m_trackAreaPx.bottom }; break;
+        case WalkthroughArea::Strip:   rect = m_stripAreaPx;                                         break;
+        case WalkthroughArea::None:                                                                  break;
+    }
+
+    return rect;
 }

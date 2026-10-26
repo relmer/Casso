@@ -13,6 +13,7 @@
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 #include "Ui/DiskInspector/InspectorTables.h"
 #include "Ui/DiskInspector/InspectorView.h"
+#include "Ui/DiskInspector/InspectorWalkthrough.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
 #include "Ui/DiskInspector/PlatterRenderer.h"
 
@@ -99,6 +100,9 @@ public:
     void     GetPrefs    (DiskInspectorPrefs & inOut) const;
     void     ApplyPrefs  (const DiskInspectorPrefs & prefs);
 
+    //  The walkthrough from its first step (FR-153).
+    void     OpenWalkthrough () { m_walkthrough.Open(); }
+
     void     Layout      (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     OnMouse     (const DxuiMouseEvent & ev) override;
@@ -161,6 +165,10 @@ private:
     bool  IsWindowDiskA    () const;
     bool  IsWriteProtected () const { return m_context.drive != nullptr && m_context.drive->writeProtect.Any(); }
     void  PaintNoDisk      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    void  PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    bool  OnWalkthroughMouse (const DxuiMouseEvent & ev);
+    bool  OnWalkthroughKey   (const DxuiKeyEvent & ev);
+    RECT  GetWalkthroughArea (WalkthroughArea area) const;
     void  TakeReplies      ();
     void  TakeResults      ();
     void  UpdateRings      ();
@@ -325,6 +333,8 @@ private:
     int                                     m_flownSector        = -1;
     bool                                    m_isFilesDefaulted   = false;
     bool                                    m_isFilesSaved       = false;
+    InspectorWalkthrough                    m_walkthrough;
+    RECT                                    m_helpPx             = {};
     std::shared_ptr<const DriveHeadState>   m_headState;
     uint64_t                                m_countsGeneration   = 0;
     vector<uint64_t>                        m_writeCounts;

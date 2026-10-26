@@ -63,6 +63,14 @@ void EmulatorShell::ShowDiskInspector (int drive, bool activate)
         m_window->ApplyAppIconToWindow (m_diskInspector->GetHwnd());
         m_inspectorHost.SetOnClosed ([this] () { SaveInspectorPrefs (false); });
         m_diskInspector->ApplyPrefs (m_settings->GetPrefs().diskInspector);
+
+        //  The walkthrough opens the first time the inspector does (FR-153).
+        if (!m_settings->GetPrefs().diskInspector.isWalkthroughSeen)
+        {
+            m_diskInspector->OpenWalkthrough();
+            m_settings->GetPrefs().diskInspector.isWalkthroughSeen = true;
+            m_settings->SaveGlobalPrefsDeferred();
+        }
     }
     else
     {

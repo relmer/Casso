@@ -1172,7 +1172,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("pendingUpdateFailure", JsonValue ((double) pendingUpdateFailure));
 
     // The disk inspector's state, once the window has been opened.
-    if (diskInspector.w > 0)
+    if (diskInspector.w > 0 || diskInspector.isWalkthroughSeen)
     {
         JsonObject  inspector;
 
@@ -1194,6 +1194,7 @@ JsonValue GlobalUserPrefs::ToJson() const
         inspector.emplace_back ("zoom",        JsonValue (diskInspector.zoom));
         inspector.emplace_back ("lastDrive",   JsonValue ((double) diskInspector.lastDrive));
         inspector.emplace_back ("open",        JsonValue (diskInspector.isOpen));
+        inspector.emplace_back ("walkthroughSeen", JsonValue (diskInspector.isWalkthroughSeen));
 
         root.emplace_back ("diskInspector", JsonValue (std::move (inspector)));
     }
@@ -1450,6 +1451,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         diskInspector.zoom          = GetNumberOpt  (*inspectorObj, "zoom",        diskInspector.zoom);
         diskInspector.lastDrive     = GetIntOpt     (*inspectorObj, "lastDrive",   diskInspector.lastDrive);
         diskInspector.isOpen        = TryGetBoolOpt (*inspectorObj, "open",        diskInspector.isOpen);
+        diskInspector.isWalkthroughSeen = TryGetBoolOpt (*inspectorObj, "walkthroughSeen", diskInspector.isWalkthroughSeen);
     }
 
     // Capture unknown top-level keys for round-tripping.

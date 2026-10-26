@@ -120,7 +120,7 @@ public:
 
         image.CountGuestWrite (kWritten);
 
-        //  The records whose write counts moved, as the window finds them.
+        //  The slots whose write counts moved; the window uses the same test.
         for (slot = 0; slot < image.GetTrackCount(); slot++)
         {
             if (image.GetGuestWriteCount (slot) != before[slot])

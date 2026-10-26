@@ -527,6 +527,7 @@
     <ClCompile Include="Ui\DiskInspector\TrackHeaderView.cpp" />
     <ClCompile Include="Ui\DiskInspector\TrackStripView.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorViewModel.cpp" />
+    <ClCompile Include="Ui\DiskInspector\InspectorWalkthrough.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterCells.cpp" />
     <ClCompile Include="Ui\DiskInspector\ExportDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\FileMapGridView.cpp" />
@@ -1024,6 +1025,7 @@
     <ClInclude Include="Ui\DiskInspector\InspectorText.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTip.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorView.h" />
+    <ClInclude Include="Ui\DiskInspector\InspectorWalkthrough.h" />
     <ClInclude Include="Ui\DiskInspector\NibblesTab.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterView.h" />
     <ClInclude Include="Ui\DiskInspector\SectorByteView.h" />
