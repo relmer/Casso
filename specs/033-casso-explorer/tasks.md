@@ -812,6 +812,13 @@ listed in validation.md.
     volume kind too. Read, remove, write and rename failures are "Unable to
     rename MEMO to HELLO: another file on this volume has that name", and a
     drag-out or Copy failure is "Unable to copy HELLO: it is locked".
+- [X] T261 [US14] Save the list of the sectors Read disk to image wrote as
+  zeros beside the image, as NAME.unreadable.txt, and remove a list of that
+  name after a read with every sector (FR-086, Session 2026-10-26).
+  `CassoLinkSession::SaveUnreadableList`, `GetUnreadableListPath` and
+  `FormatUnreadableList` in `CassoEmuCore/CassoLink/CassoLinkSession.cpp`;
+  the read-again prompt has the list's file name. Tests in
+  `UnitTest/CassoLink/CassoLinkSessionTests.cpp`.
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

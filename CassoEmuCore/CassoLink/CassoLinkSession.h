@@ -240,6 +240,12 @@ public:
     static int  GetLogicalSector  (int physical);
     static int  GetPhysicalSector (int logical);
 
+    //  The list of the sectors a read wrote as zeros, saved beside its image
+    //  as NAME.unreadable.txt: lines starting with # are comments, and each
+    //  other line is a sector's track and DOS 3.3 sector in decimal, as "17 3".
+    static std::string  GetUnreadableListPath (const std::string & imagePath);
+    static std::string  FormatUnreadableList  (const std::vector<std::pair<int, int>> & unreadable);
+
     //  A Status error code as an HRESULT.
     static HRESULT  FromStatusError (Byte error);
 
@@ -305,6 +311,7 @@ private:
     HRESULT  CheckCatalog  (int drive);
     HRESULT  RunWrite      (LinkOperation & operation, const LinkedDisk::WriteOperation & write);
     HRESULT  ReadWholeDisk (LinkOperation & operation);
+    HRESULT  SaveUnreadableList (const LinkOperation & operation);
     HRESULT  WriteWholeDisk (LinkOperation & operation);
     HRESULT  ReadBootSector (LinkOperation & operation);
     HRESULT  ReadTrack     (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable);

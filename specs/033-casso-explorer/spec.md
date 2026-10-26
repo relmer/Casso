@@ -417,6 +417,19 @@ hardware.
   PC did not start. Every other TCP transport, the ADTPro-compatible server
   included, dials out.
 
+### Session 2026-10-26
+
+- Q: How is a sector Read disk to image could not read distinguished, in a
+  later merge of several reads of one disk, from one read as zeros? → A: Read disk to
+  image saves the list of the sectors it wrote as zeros beside the image, as
+  NAME.unreadable.txt for an image NAME: lines starting with # are comments,
+  and each other line is a sector's track and DOS 3.3 sector in decimal,
+  whatever the image's format. A read with every sector removes a list of
+  that name from an earlier read, so a list beside an image is always that
+  image's. The list is for the multi-read consensus capture planned as a
+  later spec, after https://norsewanderer.com/blog/BlogDSK3.html; repeated
+  and targeted reads, the vote and their commands are that spec's.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Browse and inspect a disk (Priority: P1)
@@ -1121,7 +1134,8 @@ to Casso over TCP.
   again before any write, and a different volume is reported rather than
   written over.
 - **A disk with unreadable sectors**: Read disk to image lists them and
-  offers to write the image with them blank.
+  offers to write the image with them blank, and then saves their list beside
+  the image as NAME.unreadable.txt.
 - **An image with non-standard tracks**: Write image to disk fails with the
   reason and lists the tracks that do not decode, since only standard
   sectors are written.
@@ -1672,7 +1686,11 @@ to Casso over TCP.
   image of the same file system.
 - **FR-086**: Read disk to image MUST read a whole Apple disk's standard
   sectors and write them to an image file in any format Casso writes, a
-  .nib or .woz being built from those sectors. Write image to disk MUST
+  .nib or .woz being built from those sectors. An image written with
+  unreadable sectors as zeros MUST have their list saved beside it as
+  NAME.unreadable.txt, each sector a line of its track and DOS 3.3 sector in
+  decimal after comment lines starting with #, and a read with every sector
+  MUST remove a list of that name. Write image to disk MUST
   write every track's standard sectors, formatting as it goes, after a
   confirmation that identifies the drive and the volume, and MUST read the
   disk back to verify it. A .dsk, .do or .po is written as it is, and a .nib

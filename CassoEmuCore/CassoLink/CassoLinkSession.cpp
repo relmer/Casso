@@ -1838,8 +1838,101 @@ HRESULT CassoLinkSession::ReadWholeDisk (LinkOperation & operation)
     hr = DurableCommit::Commit (m_fileIo, operation.imagePath, bytes, m_commitTag++, CommitMode::Replace, progress);
     CHR (hr);
 
+    hr = SaveUnreadableList (operation);
+    CHRF (hr, operation.message = std::format ("The image was written, but the list of its unreadable sectors could not be saved as {}.",
+                                               GetUnreadableListPath (operation.imagePath)));
+
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::SaveUnreadableList
+//
+//  A blank sector in an image is indistinguishable from one read as zeros, so
+//  the sectors written as zeros are listed beside the image. A read with every
+//  sector removes a list from an earlier read of the same image.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CassoLinkSession::SaveUnreadableList (const LinkOperation & operation)
+{
+    HRESULT               hr    = S_OK;
+    std::string           path  = GetUnreadableListPath (operation.imagePath);
+    std::string           text;
+    CommitPlan::Progress  progress;
+    bool                  stale = false;
+
+
+
+    if (operation.unreadable.empty())
+    {
+        stale = m_fileIo.Exists (path);
+
+        if (stale)
+        {
+            hr = m_fileIo.Remove (path);
+            CHR (hr);
+        }
+    }
+    else
+    {
+        text = FormatUnreadableList (operation.unreadable);
+
+        hr = DurableCommit::Commit (m_fileIo, path, std::vector<Byte> (text.begin(), text.end()), m_commitTag++, CommitMode::Replace, progress);
+        CHR (hr);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::GetUnreadableListPath
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkSession::GetUnreadableListPath (const std::string & imagePath)
+{
+    return imagePath + ".unreadable.txt";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoLinkSession::FormatUnreadableList
+//
+//  DOS 3.3 sector numbers whatever the image's format, as a .dsk stores its
+//  sectors in that order and the link reads them by it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string CassoLinkSession::FormatUnreadableList (const std::vector<std::pair<int, int>> & unreadable)
+{
+    std::string  text = "# Sectors that could not be read when this image was made, written as zeros.\r\n"
+                        "# Each line is a sector's track and DOS 3.3 sector, in decimal.\r\n";
+
+
+
+    for (const auto & [track, sector] : unreadable)
+    {
+        text += std::format ("{} {}\r\n", track, sector);
+    }
+
+    return text;
 }
 
 

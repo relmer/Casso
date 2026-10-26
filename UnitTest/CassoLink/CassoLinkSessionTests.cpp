@@ -548,6 +548,7 @@ public:
         Assert::AreEqual (size_t (2), strict->unreadable.size());
         Assert::IsFalse (strict->message.empty());
         Assert::IsTrue (rig.fileIo.files.find ("strict.dsk") == rig.fileIo.files.end(), L"no file from a failed read");
+        Assert::IsTrue (rig.fileIo.files.find ("strict.dsk.unreadable.txt") == rig.fileIo.files.end(), L"and no list");
 
         auto  blank = rig.Finish (rig.session->ReadDisk (1, "blank.dsk", true));
 
@@ -564,6 +565,42 @@ public:
         }
 
         Assert::IsTrue (rig.fileIo.files["blank.dsk"] == expected, L"the unreadable sectors as zeros, the rest as read");
+
+        const std::vector<Byte> &  list = rig.fileIo.files["blank.dsk.unreadable.txt"];
+
+        Assert::AreEqual (CassoLinkSession::FormatUnreadableList (blank->unreadable), std::string (list.begin(), list.end()),
+                          L"the sectors written as zeros, listed beside the image");
+    }
+
+
+
+
+    TEST_METHOD (UnreadableList_IsATrackAndDos33SectorALine_AfterComments)
+    {
+        std::string  text = CassoLinkSession::FormatUnreadableList ({ { 3, 7 }, { 20, 0 } });
+
+        Assert::AreEqual (std::string ("blank.dsk.unreadable.txt"), CassoLinkSession::GetUnreadableListPath ("blank.dsk"));
+        Assert::AreEqual (std::string ("# Sectors that could not be read when this image was made, written as zeros.\r\n"
+                                       "# Each line is a sector's track and DOS 3.3 sector, in decimal.\r\n"
+                                       "3 7\r\n"
+                                       "20 0\r\n"), text);
+    }
+
+
+
+
+    TEST_METHOD (ReadDisk_WithEverySectorRead_RemovesAnEarlierUnreadableList)
+    {
+        Rig  rig;
+
+        rig.fileIo.files["again.dsk.unreadable.txt"] = { '1', ' ', '2' };
+        rig.Start();
+
+        auto  read = rig.Finish (rig.session->ReadDisk (1, "again.dsk", true));
+
+        AssertSucceeded (read->result);
+        Assert::IsTrue (read->unreadable.empty());
+        Assert::IsTrue (rig.fileIo.files.find ("again.dsk.unreadable.txt") == rig.fileIo.files.end(), L"a list from an earlier read of the image is out of date");
     }
 
 
