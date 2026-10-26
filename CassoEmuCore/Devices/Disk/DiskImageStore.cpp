@@ -2749,6 +2749,7 @@ BayStatus DiskImageStore::GetBayStatus (int slot, int drive) const
             status.format           = entry.format;
             status.writeProtect     = (entry.image != nullptr) ? entry.image->GetWriteProtectInfo() : WriteProtectInfo();
             status.isSalvageOffered = entry.salvageOffered;
+            status.wozRequirements  = (entry.image != nullptr) ? WozCompatibility::ReadRequirements (entry.image->GetWozMetadata()) : WozRequirements();
         }
     }
 

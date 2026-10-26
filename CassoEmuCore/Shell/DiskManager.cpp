@@ -806,140 +806,181 @@ void DiskManager::Eject (int slot, int drive)
 //
 //  UpdateDriveWidgets
 //
-//  Per-UI-frame sync from the (CPU-thread-owned) Disk II controller
-//  state into the (UI-thread-only) DriveWidgetState. Reads the
-//  engine's lifetime nibble counters and treats any forward movement
-//  since the previous frame as "disk active" (FR-025 active LED).
-//  Motor-on tracks the controller's IsMotorOn() directly.
+//  Per-UI-frame sync into the (UI-thread-only) DriveWidgetState from the
+//  newest published drive status, which GetShownDriveStatus then returns for
+//  the rest of the frame: the door from the bay, the lamp and head from the
+//  drive's activity, and the padlock and the WOZ info icon from the bay. It
+//  reads no store, image or controller; only the CPU thread may access those
+//  while it runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskManager::UpdateDriveWidgets()
 {
-    Disk2Controller                                     * controller   = FindSlot6Controller();
     int64_t                                               nowMs        = GetNowMs();
     std::vector<DriveWidgetController::DriveSyncEvent>    syncEvents   = m_driveWidgets.ConsumeSyncEvents();
     WozMachineFacts                                       machineFacts = WozCompatibility::GetMachineFacts (m_machine.GetConfig());
+    bool                                                  isBaysMoved  = false;
     int                                                   drive        = 0;
 
 
 
+    m_shownStatus = m_statusPublisher.Take();
+    isBaysMoved   = m_shownStatus->GetBayGeneration() != m_shownBayGeneration;
+
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)
     {
-        DriveWidgetState   & st               = m_driveWidgetState[drive];
-        const std::string  & src              = m_diskStore.GetSourcePath (6, drive);
-        std::wstring         wPath;
-        bool                 motorOn          = false;
-        int                  headQuarterTrack = -1;   // -1 == no controller, position unknown
-        bool                 active           = false;
-        uint64_t             reads            = 0;
-        uint64_t             writes           = 0;
+        DriveWidgetState  & st  = m_driveWidgetState[drive];
+        const BayStatus   & bay = m_shownStatus->GetBay (6, drive);
 
-        for (const auto & evt : syncEvents)
+        ApplySyncEvents   (st, drive, syncEvents, nowMs);
+        SyncDoorFromBay   (st, drive, bay, nowMs);
+        SyncDriveActivity (st, drive, m_shownStatus->GetActivity (drive), m_shownStatus->HasController(), nowMs);
+
+        // The padlock cue + hover tooltip, and what the image declares about
+        // the machine for the info icon, copied when a bay changed. Empty
+        // drive -> no protection, nothing declared.
+        if (isBaysMoved)
         {
-            if (evt.driveId == drive)
-            {
-                st.lastSyncEventId = evt.eventId;
-
-                // A swap keeps the same file in the bay, so the path diff
-                // below never sees it. OnBayChange publishes this instead, and
-                // it is the one door transition that comes from an event
-                // rather than from the store's path. Open, then close.
-                if (evt.action == DriveWidgetController::SyncAction::DoorReinsert)
-                {
-                    st.BeginReinsert (nowMs);
-                }
-            }
+            st.writeProtect    = bay.writeProtect;
+            st.wozRequirements = bay.wozRequirements;
         }
 
-        // mountedImagePath -- single writer (UI thread), source of
-        // truth is the DiskImageStore. Reflect door FSM transitions
-        // when mount state changes.
-        //
-        // THE NARROW PATH IS DIFFED FIRST, so the wide conversion below runs
-        // only on the frame a disk actually goes in or out, not on every one
-        // of the ~60 frames a second this loop runs to sample drive activity.
-        // A mount or eject is rare; the string it changes is not worth
-        // rebuilding continuously.
-        if (src != m_lastDriveSourcePath[drive])
+        st.wozConflict     = WozCompatibility::HasConflict (st.wozRequirements, machineFacts);
+        st.wozMachine      = machineFacts;
+
+        // Copied only when it changes, which is only on a machine switch.
+        if (st.wozMachineName != m_machine.GetConfig().name)
         {
-            m_lastDriveSourcePath[drive] = src;
-
-            // Decode the store's native-narrow source path back to wide via
-            // fs::path (the inverse of the fs::path(...).string() narrowing the
-            // mount path used). A manual wstring(begin,end) widen would
-            // sign-extend a high byte like 0xF8 ('o' with stroke) into U+FFF8
-            // and render as a tofu box in the drive label.
-            wPath = fs::path (src).wstring();
-
-            if (wPath.empty())
-            {
-                st.BeginEject (nowMs);
-            }
-            else
-            {
-                st.BeginInsert (wPath, nowMs);
-            }
-        }
-
-        st.TickDoorAnimation (nowMs);
-
-        // motorOn + diskActive sampling. The controller's engine is
-        // owned by the device, which the CPU thread mutates; we read
-        // the bool + monotonic counters with relaxed atomics
-        // semantics (existing audio-system pattern).
-
-        if (controller != nullptr)
-        {
-            auto &  engine = controller->GetEngine (drive);
-            motorOn = engine.IsMotorOn();
-            reads   = engine.GetReadNibbles();
-            writes  = engine.GetWriteNibbles();
-            headQuarterTrack = engine.GetCurrentTrack();
-
-            if (reads != m_lastReadNibbles[drive] ||
-                writes != m_lastWriteNibbles[drive])
-            {
-                active = true;
-            }
-        }
-
-        m_lastReadNibbles[drive]  = reads;
-        m_lastWriteNibbles[drive] = writes;
-
-        st.motorOn.store    (motorOn,   std::memory_order_relaxed);
-        st.diskActive.store (active,    std::memory_order_relaxed);
-        st.headQuarterTrack.store  (headQuarterTrack, std::memory_order_relaxed);
-
-        if (motorOn || active)
-        {
-            st.lastActiveMs = nowMs;
-        }
-
-        // Sample the mounted image's write-protect breakdown for the
-        // padlock cue + hover tooltip, and what it declares about the machine
-        // for the info icon. Empty drive -> no protection, nothing declared.
-        {
-            DiskImage *  image = m_diskStore.GetImage (6, drive);
-
-            st.writeProtect    = (image != nullptr) ? image->GetWriteProtectInfo()
-                                                    : WriteProtectInfo();
-            st.wozRequirements = (image != nullptr) ? WozCompatibility::ReadRequirements (image->GetWozMetadata())
-                                                    : WozRequirements();
-            st.wozConflict     = WozCompatibility::HasConflict (st.wozRequirements, machineFacts);
-            st.wozMachine      = machineFacts;
-
-            // Copied only when it changes, which is only on a machine switch.
-            if (st.wozMachineName != m_machine.GetConfig().name)
-            {
-                st.wozMachineName = m_machine.GetConfig().name;
-            }
+            st.wozMachineName = m_machine.GetConfig().name;
         }
     }
+
+    m_shownBayGeneration = m_shownStatus->GetBayGeneration();
 
     m_driveWidgets.SyncFromStates (m_driveWidgetState);
     m_driveChrome[0].SyncFromState (m_driveWidgetState[0]);
     m_driveChrome[1].SyncFromState (m_driveWidgetState[1]);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplySyncEvents
+//
+//  The one door transition that comes from an event rather than from the
+//  bay's path: after a swap the bay has the same file, so the path diff
+//  finds no change, and OnBayChange publishes a DoorReinsert instead. Open,
+//  then close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::ApplySyncEvents (
+    DriveWidgetState                                            & st,
+    int                                                           drive,
+    const std::vector<DriveWidgetController::DriveSyncEvent>    & events,
+    int64_t                                                       nowMs)
+{
+    for (const auto & evt : events)
+    {
+        if (evt.driveId == drive)
+        {
+            st.lastSyncEventId = evt.eventId;
+
+            if (evt.action == DriveWidgetController::SyncAction::DoorReinsert)
+            {
+                st.BeginReinsert (nowMs);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncDoorFromBay
+//
+//  The door follows the bay's path: an insert when a path appears or
+//  changes, an eject when it goes.
+//
+//  THE NARROW PATH IS DIFFED FIRST, so the wide conversion runs only on the
+//  frame a disk actually goes in or out, not on every one of the ~60 frames a
+//  second the widgets are synced. The wide path is decoded through fs::path,
+//  the inverse of the narrowing the mount used: a manual wstring (begin, end)
+//  widen would sign-extend a high byte like 0xF8 into U+FFF8 and render as a
+//  tofu box in the drive label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::SyncDoorFromBay (DriveWidgetState & st, int drive, const BayStatus & bay, int64_t nowMs)
+{
+    std::wstring  wPath;
+
+
+
+    if (bay.path != m_lastDriveSourcePath[drive])
+    {
+        m_lastDriveSourcePath[drive] = bay.path;
+
+        wPath = fs::path (bay.path).wstring();
+
+        if (wPath.empty())
+        {
+            st.BeginEject (nowMs);
+        }
+        else
+        {
+            st.BeginInsert (wPath, nowMs);
+        }
+    }
+
+    st.TickDoorAnimation (nowMs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncDriveActivity
+//
+//  The lamp and the head: the motor as the drive reports it, and the drive
+//  active when its nibble counters moved since the previous frame (FR-025
+//  active LED).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::SyncDriveActivity (
+    DriveWidgetState     & st,
+    int                    drive,
+    const DriveActivity  & activity,
+    bool                   hasController,
+    int64_t                nowMs)
+{
+    bool  isActive = hasController &&
+                     (activity.readNibbles  != m_lastReadNibbles[drive] ||
+                      activity.writeNibbles != m_lastWriteNibbles[drive]);
+
+
+
+    m_lastReadNibbles[drive]  = activity.readNibbles;
+    m_lastWriteNibbles[drive] = activity.writeNibbles;
+
+    st.motorOn.store          (activity.isMotorOn,        std::memory_order_relaxed);
+    st.diskActive.store       (isActive,                  std::memory_order_relaxed);
+    st.headQuarterTrack.store (activity.headQuarterTrack, std::memory_order_relaxed);
+
+    if (activity.isMotorOn || isActive)
+    {
+        st.lastActiveMs = nowMs;
+    }
 }
 
 

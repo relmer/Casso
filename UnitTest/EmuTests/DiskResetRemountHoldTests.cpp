@@ -203,6 +203,40 @@ public:
     }
 
 
+    //  The window thread's frame sync reads only the published status, so it
+    //  calls no disk store entry point while another thread has the store.
+    TEST_METHOD (UpdateDriveWidgetsTouchesNoDiskEntryPoint)
+    {
+        TestMachine          machine ("Apple2e");
+        auto                 shell   = std::make_unique<Shell>();
+        DiskImageStore     & store   = machine.GetDiskStore();
+        OwnerThreadStandIn   standIn;
+        HRESULT              hr      = S_OK;
+
+
+
+        hr = store.MountFromBytes (6, s_kRemountDrive, "frame.nib", DiskFormat::Nib, MakeImage());
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect);
+
+            (void) manager.PublishDriveStatus (true);
+
+            hr = standIn.Take (store.GetThreadOwnership());
+            AssertSucceeded (hr, L"Take");
+
+            manager.UpdateDriveWidgets();
+
+            hr = standIn.GiveBack();
+            AssertSucceeded (hr, L"GiveBack");
+        }
+
+        Assert::AreEqual (std::wstring (L"frame.nib"), shell->widgetState[s_kRemountDrive].mountedImagePath, L"the widget has the published disk");
+    }
+
 private:
 
     static std::vector<Byte> MakeImage()

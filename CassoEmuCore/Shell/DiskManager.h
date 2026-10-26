@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/BayChange.h"
 #include "Shell/DriveStatusPublisher.h"
+#include "Ui/DriveWidgetController.h"
 
 
 class CpuManager;
@@ -32,9 +33,9 @@ class IImageWatcher;
 //  list for the active controller, mounts/ejects through the
 //  DiskImageStore (which auto-flushes dirty images on Eject /
 //  SwitchMachine / PowerCycle / Shutdown), persists the per-machine
-//  last-mounted disk path, fires the drive-audio door FX, and pumps
-//  the per-frame DriveWidget sync from the CPU-thread controller
-//  state into the UI-thread chrome.
+//  last-mounted disk path, fires the drive-audio door FX, publishes the
+//  drive status on the CPU thread, and syncs the UI-thread drive widgets
+//  from that status each frame.
 //
 //  Holds back-references to every shared collection it operates on
 //  (owned-device vector, audio sources, chrome widgets, image store)
@@ -186,6 +187,12 @@ public:
                                        bool              & outNoPermission);
 
 private:
+    void     ApplySyncEvents   (DriveWidgetState & st, int drive,
+                                const std::vector<DriveWidgetController::DriveSyncEvent> & events, int64_t nowMs);
+    void     SyncDoorFromBay   (DriveWidgetState & st, int drive, const BayStatus & bay, int64_t nowMs);
+    void     SyncDriveActivity (DriveWidgetState & st, int drive, const DriveActivity & activity,
+                                bool hasController, int64_t nowMs);
+
     class MachineHost                               & m_machine;
     DiskImageStore                                  & m_diskStore;
     std::vector<std::unique_ptr<Disk2AudioSource>>  & m_diskAudioSources;
@@ -215,8 +222,10 @@ private:
     std::array<std::string, 2>  m_lastDriveSourcePath  {};
 
     bool                     m_coldBootMountWindow  = true;
+    bool                     m_programmaticRemount  = false;
 
     DriveStatusPublisher                m_statusPublisher;
     std::function<void ()>              m_statusWake;
-    std::shared_ptr<const DriveStatus>  m_shownStatus = m_statusPublisher.Take();    bool                     m_programmaticRemount  = false;
+    std::shared_ptr<const DriveStatus>  m_shownStatus        = m_statusPublisher.Take();
+    uint64_t                            m_shownBayGeneration = 0;
 };

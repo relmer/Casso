@@ -2,6 +2,7 @@
 #include "Shell/Components/ShellInput.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Devices/Disk/DriveStatus.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellWindow.h"
@@ -411,7 +412,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     else if (wpDrive != nullptr)
     {
         std::wstring  imageName = std::filesystem::path (
-            m_machine.GetDiskStore().GetSourcePath (6, wpDrive->GetDrive())).filename().wstring();
+            GetShownDriveStatus().GetBay (6, wpDrive->GetDrive()).path).filename().wstring();
 
         anchor = wpDrive->GetOuterRect();
         tip    = ComposeWriteProtectTooltip (wpDrive->GetDrive() + 1, imageName, wpDrive->WriteProtect());

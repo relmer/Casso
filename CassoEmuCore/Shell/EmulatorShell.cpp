@@ -204,6 +204,26 @@ EmulatorShell::EmulatorShell()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::GetShownDriveStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const DriveStatus & EmulatorShell::GetShownDriveStatus() const
+{
+    static const DriveStatus  s_noDrives;
+    DiskManager             * manager = (m_disks != nullptr) ? m_disks->GetManager() : nullptr;
+
+
+
+    return (manager != nullptr) ? manager->GetShownDriveStatus() : s_noDrives;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ~EmulatorShell
 //
 //  Teardown is ordered by who points at whom, and every step below is placed

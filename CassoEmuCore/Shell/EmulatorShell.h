@@ -79,6 +79,12 @@ class ShellDebugger;
 class ShellInput;
 struct DebuggerSliceHooks;
 
+class DriveStatus;
+
+
+
+
+
 class EmulatorShell : public IDxuiHostClient,
                       public IDxuiViewportInputSink,
                       private ICpuMachineCommands
@@ -131,6 +137,10 @@ public:
     // hot-path callers like the dialog primitive owner-window
     // handoff and the settings panel.
     HWND  GetHwnd () const { return m_hwnd; }
+
+    // The window thread's copy of the drive status for the current frame,
+    // or an empty one before the disks are set up.
+    const DriveStatus &  GetShownDriveStatus () const;
 
     // Execution trace (--trace switch). SetTraceCapacity must be called
     // before Initialize so the CPU's ring is allocated when the machine

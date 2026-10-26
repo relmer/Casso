@@ -138,6 +138,133 @@ public:
     }
 
 
+    //  A write-protect flag set on the image past the store does not move the
+    //  generation, so the widget has the published bay until a publish after
+    //  the store marks the change.
+    TEST_METHOD (DriveWidgetsShowThePublishedBayNotTheLiveImage)
+    {
+        TestMachine       machine ("Apple2e");
+        auto              rig     = std::make_unique<DiskManagerRig>();
+        DiskImageStore  & store   = machine.GetDiskStore();
+        bool              isRaw   = false;
+        bool              isShown = false;
+        HRESULT           hr      = S_OK;
+
+
+
+        hr = store.MountFromBytes (6, s_kShownDrive, "shown.nib", DiskFormat::Nib, MakeImage());
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        {
+            DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
+                                  rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
+                                  rig->config, rig->fs, rig->writeProtect);
+
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+
+            store.GetImage (6, s_kShownDrive)->SetUserWriteProtected (true);
+            manager.UpdateDriveWidgets();
+            isRaw = rig->widgetState[s_kShownDrive].writeProtect.userSetting;
+
+            store.MarkStatusChanged();
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+            isShown = rig->widgetState[s_kShownDrive].writeProtect.userSetting;
+        }
+
+        Assert::IsFalse (isRaw,  L"a write past the store does not reach the widget");
+        Assert::IsTrue  (isShown, L"the published change does");
+    }
+
+
+    TEST_METHOD (DriveWidgetsShowThePublishedActivityNotTheLiveEngine)
+    {
+        TestMachine       machine  ("Apple2e");
+        auto              rig      = std::make_unique<DiskManagerRig>();
+        DiskImageStore  & store    = machine.GetDiskStore();
+        bool              isLive   = false;
+        bool              isShown  = false;
+
+
+
+        {
+            DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
+                                  rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
+                                  rig->config, rig->fs, rig->writeProtect);
+
+            (void) manager.PublishDriveStatus (true);
+
+            (void) machine.GetRefs().diskController->Read (s_kShownMotorOn);
+            manager.UpdateDriveWidgets();
+            isLive = rig->widgetState[s_kShownDrive].motorOn.load();
+
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+            isShown = rig->widgetState[s_kShownDrive].motorOn.load();
+        }
+
+        Assert::IsFalse (isLive,  L"the motor the engine has is not shown before a publish");
+        Assert::IsTrue  (isShown, L"and is shown after one");
+    }
+
+
+    TEST_METHOD (AUserWriteProtectThroughTheStoreReachesTheWidget)
+    {
+        TestMachine       machine ("Apple2e");
+        auto              rig     = std::make_unique<DiskManagerRig>();
+        DiskImageStore  & store   = machine.GetDiskStore();
+        bool              isShown = false;
+        HRESULT           hr      = S_OK;
+
+
+
+        hr = store.MountFromBytes (6, s_kShownDrive, "protect.nib", DiskFormat::Nib, MakeImage());
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        {
+            DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
+                                  rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
+                                  rig->config, rig->fs, rig->writeProtect);
+
+            store.SetUserWriteProtectFlag (6, s_kShownDrive, true);
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+            isShown = rig->widgetState[s_kShownDrive].writeProtect.userSetting;
+        }
+
+        Assert::IsTrue (isShown, L"the padlock has the user's setting");
+    }
+
+
+    //  The widget has a mount made while paused once the service pass publishes it.
+    TEST_METHOD (AMountWhilePausedShowsAfterTheServicePublish)
+    {
+        TestMachine       machine ("Apple2e");
+        auto              rig     = std::make_unique<DiskManagerRig>();
+        DiskImageStore  & store   = machine.GetDiskStore();
+        std::wstring      shown;
+        HRESULT           hr      = S_OK;
+
+
+
+        PrepareStore (store);
+
+        {
+            DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
+                                  rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
+                                  rig->config, rig->fs, rig->writeProtect);
+
+            hr = manager.MountDiskInSlot6 (s_kShownDrive, "paused.nib");
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+            shown = rig->widgetState[s_kShownDrive].mountedImagePath;
+        }
+
+        AssertSucceeded (hr, L"MountDiskInSlot6");
+        Assert::AreEqual (std::wstring (L"paused.nib"), shown, L"the door closes on the disk");
+    }
+
 private:
 
     static void PrepareStore (DiskImageStore & store)

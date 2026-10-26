@@ -2,6 +2,7 @@
 
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/EmulatorShell.h"
+#include "Devices/Disk/DriveStatus.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Capture/ScreenshotMetadata.h"
 #include "Shell/Components/ShellChrome.h"
@@ -1373,7 +1374,7 @@ void ShellDeskScene::SyncSceneDriveLabels()
 
         if (visible && i < comp.driveCount && comp.driveRectPx[i].right > comp.driveRectPx[i].left)
         {
-            name = std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring();
+            name = std::filesystem::path (m_shell.GetShownDriveStatus().GetBay (6, i).path).filename().wstring();
 
             // THE PADLOCK RIDES THE NAME, not the drive. It had been a brass
             // badge stamped on the faceplate -- on a case whose whole job is
@@ -4065,7 +4066,7 @@ void ShellDeskScene::GetDriveTooltip (int x, int y, std::wstring & outTip, RECT 
             outAnchor = m_sceneDriveLabelRect[i];
             outTip    = ComposeWriteProtectTooltip (
                             i + 1,
-                            std::filesystem::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, i)).filename().wstring(),
+                            std::filesystem::path (m_shell.GetShownDriveStatus().GetBay (6, i).path).filename().wstring(),
                             states[i].writeProtect);
         }
     }
@@ -4078,7 +4079,7 @@ void ShellDeskScene::GetDriveTooltip (int x, int y, std::wstring & outTip, RECT 
         if (hit.target == SceneHitResult::Target::Drive)
         {
             std::wstring  imageName = std::filesystem::path (
-                m_shell.m_machine.GetDiskStore().GetSourcePath (6, hit.driveIndex)).filename().wstring();
+                m_shell.GetShownDriveStatus().GetBay (6, hit.driveIndex).path).filename().wstring();
 
             outAnchor = m_stripComp.driveRectPx[hit.driveIndex];
             outTip    = ComposeWriteProtectTooltip (hit.driveIndex + 1, imageName, states[hit.driveIndex].writeProtect);
@@ -4499,7 +4500,7 @@ void ShellDeskScene::SyncDeviceVisuals (bool badgeMoved)
 
             for (int i = 0; i < (int) m_sceneLabelPath.size(); i++)
             {
-                std::string  source = m_shell.m_machine.GetDiskStore().GetSourcePath (6, i);
+                std::string  source = m_shell.GetShownDriveStatus().GetBay (6, i).path;
 
                 if (source != m_sceneLabelPath[i])
                 {

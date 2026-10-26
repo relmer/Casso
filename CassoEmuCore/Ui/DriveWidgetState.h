@@ -15,24 +15,17 @@
 //
 //  DriveWidgetState
 //
-//  Per-drive runtime state shared between the CPU thread (motor + track
-//  read/write signals) and the UI thread (door animation, mounted path).
-//  Owned per-drive by `EmulatorShell`; read each UI frame and pushed into
-//  the corresponding chrome drive widget via `SyncFromState`.
+//  Per-drive state for the drive widget: the door animation, the mounted
+//  path, the motor, activity and head, and the padlock. Owned per-drive by
+//  the shell; DiskManager::UpdateDriveWidgets writes it each UI frame from
+//  the published drive status and pushes it into the chrome drive widget
+//  via `SyncFromState`.
 //
 //  Concurrency
 //  -----------
-//  Per data-model.md:
-//      mountedImagePath      -- UI thread only (insert/eject path)
-//      motorOn               -- atomic<bool>, written by CPU thread
-//      diskActive            -- atomic<bool>, written by CPU thread
-//      headQuarterTrack      -- atomic<int>, written by CPU thread
-//      doorState             -- UI thread only
-//      animationStartTimeMs  -- UI thread only
-//
-//  The atomics are the existing pattern used by the audio system to
-//  observe motor state from a second thread; no new sync primitives are
-//  introduced (P6 constitution check gate).
+//  Every field is written on the UI thread only. motorOn, diskActive and
+//  headQuarterTrack are atomics for the desk scene and the theme preview,
+//  which read them on that thread too.
 //
 //  Door animation FSM
 //  --------------------------

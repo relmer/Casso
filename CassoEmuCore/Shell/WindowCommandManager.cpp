@@ -9,6 +9,7 @@
 #include "Config/WindowPlacementProfile.h"
 #include "Devices/Tape/TapeImageLoader.h"
 #include "Shell/EmulatorShell.h"
+#include "Devices/Disk/DriveStatus.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellWindow.h"
@@ -1221,7 +1222,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     // The model refuses a target that is currently mounted in any drive; the
     // store's backing paths are UTF-8 and go wide through the same u8string
     // interpretation the MRU uses.
-    for (const DiskImageStore::MountedSource & mounted : m_shell.m_machine.GetDiskStore().GetMountedSourcePaths())
+    for (const DiskImageStore::MountedSource & mounted : m_shell.GetShownDriveStatus().GetMountedSources())
     {
         std::u8string  u8 (reinterpret_cast<const char8_t *> (mounted.path.data()),
                            mounted.path.size());

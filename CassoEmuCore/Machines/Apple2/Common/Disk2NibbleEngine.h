@@ -92,9 +92,9 @@ public:
     int        GetCurrentTrack() const { return m_currentTrack; }
     size_t     GetBitPosition() const { return m_bitPos; }
 
-    // Lifetime nibble I/O counters surfaced to the UI status-bar
-    // tooltip. The read counter increments once per assembled nibble
-    // (LSS "byte ready" rising edge); the write counter increments on
+    // Lifetime nibble I/O counters, read on the CPU thread by the drive
+    // status publisher. The read counter increments once per assembled
+    // nibble (LSS "byte ready" rising edge); the write counter increments on
     // each CPU latch write while in write mode.
     uint64_t   GetReadNibbles() const { return m_readNibbles; }
     uint64_t   GetWriteNibbles() const { return m_writeNibbles; }

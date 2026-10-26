@@ -4,6 +4,7 @@
 #include "Core/ThreadName.h"
 
 #include "Shell/EmulatorShell.h"
+#include "Devices/Disk/DriveStatus.h"
 #include "Shell/ShellDebugger.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/Components/ShellWindow.h"
@@ -601,17 +602,16 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 // preference is a different toggle and does not flip it. An
                 // empty return keeps the static "Write-protect disk N" label
                 // for an empty (disabled) drive.
-                int           drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
-                DiskImage  *  image = m_machine.GetDiskStore().GetImage (6, drive);
-                std::wstring  name;
+                int                drive = (commandId == IDM_DISK_WP1) ? 0 : 1;
+                const BayStatus &  bay   = GetShownDriveStatus().GetBay (6, drive);
+                std::wstring       name;
 
-                if (image == nullptr)
+                if (!bay.isMounted)
                 {
                     return std::wstring();
                 }
 
-                name = std::filesystem::path (
-                           m_machine.GetDiskStore().GetSourcePath (6, drive)).filename().wstring();
+                name = std::filesystem::path (bay.path).filename().wstring();
 
                 if (name.empty())
                 {
@@ -619,7 +619,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                 }
 
                 return WriteProtectChange::GetMenuLabel (
-                           WriteProtectChange::IsImageProtected (image->GetWriteProtectInfo()), name);
+                           WriteProtectChange::IsImageProtected (bay.writeProtect), name);
             }
 
             default:

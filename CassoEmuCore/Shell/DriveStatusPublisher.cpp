@@ -176,7 +176,7 @@ void DriveStatusPublisher::SampleActivity (const Disk2Controller * controller, D
             const Disk2NibbleEngine &  engine = controller->GetEngine (drive);
 
             activity.isMotorOn        = engine.IsMotorOn();
-            activity.headQuarterTrack = controller->GetQuarterTrack (drive);
+            activity.headQuarterTrack = engine.GetCurrentTrack();
             activity.readNibbles      = engine.GetReadNibbles();
             activity.writeNibbles     = engine.GetWriteNibbles();
         }

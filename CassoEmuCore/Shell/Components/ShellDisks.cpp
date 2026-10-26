@@ -4,6 +4,7 @@
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/DiskManager.h"
 #include "Shell/EmulatorShell.h"
+#include "Devices/Disk/DriveStatus.h"
 #include "Shell/WindowCommandManager.h"
 #include "Ui/Dialogs/DialogDefinition.h"
 #include "Shell/Components/ShellRenderer.h"
@@ -657,7 +658,11 @@ bool ShellDisks::IsSalvageOffered (int drive)
     // from the menu's enable query, so it runs on every draw of that menu:
     // assessing here cost 11 ms for an ordinary disk and 154 ms for a
     // copy-protected one, per drive, on the UI thread.
-    return m_shell.m_machine.GetDiskStore().IsSalvageOffered (6, drive);
+    const BayStatus &  bay = m_shell.GetShownDriveStatus().GetBay (6, drive);
+
+
+
+    return bay.isMounted && bay.isSalvageOffered;
 }
 
 
@@ -897,24 +902,18 @@ void ShellDisks::ReportDamagedMount (int drive)
 //  ShellDisks::IsWriteProtectToggleOffered
 //
 //  Whether the Disk menu should offer the write-protect toggle for a drive.
-//  Reads the bay, then defers to the pure predicate so the rule itself stays
-//  testable without a mounted store behind it.
+//  Reads the bay in the window frame's drive status, then defers to the pure
+//  predicate so the rule itself stays testable without a mounted store.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellDisks::IsWriteProtectToggleOffered (int drive)
 {
-    const DiskImage *  image   = m_shell.m_machine.GetDiskStore().GetImage (6, drive);
-    bool               mounted = m_shell.m_machine.GetDiskStore().IsMounted (6, drive);
+    const BayStatus &  bay = m_shell.GetShownDriveStatus().GetBay (6, drive);
 
 
 
-    if (image == nullptr)
-    {
-        return false;
-    }
-
-    return ShouldEnableWriteProtectMenuItem (mounted, image->GetWriteProtectInfo());
+    return bay.isMounted && ShouldEnableWriteProtectMenuItem (true, bay.writeProtect);
 }
 
 
