@@ -151,6 +151,11 @@ struct ChangePrompt
     //  answers is safe rather than inherit a rule written for a different one.
     size_t                     safeAnswer = 0;
 
+    // The image file the prompt was composed from. The answer to a question,
+    // after its modal, uses this, not the bay's path, which may have moved by
+    // then.
+    std::string                imagePath;
+
     //  Whether there is anything to show at all. An action that needs no answer
     //  composes an empty prompt rather than a blank dialog.
     bool  IsAsked () const { return !answers.empty(); }

@@ -795,6 +795,7 @@ void DiskManager::Eject (int slot, int drive)
         // flap predates the modal keep-alive; it just never PRESENTED
         // before, because the old pre-picker pump stalled.
         m_driveWidgetState[drive].StartDoorTransition (DriveWidgetState::Door::Opening, GetNowMs());
+        m_driveWidgetState[drive].isEjectPosted = true;
     }
 }
 
@@ -869,6 +870,30 @@ void DiskManager::UpdateDriveWidgets()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsReplacePromptNeeded
+//
+//  Whether inserting into a drive replaces a disk, from the window frame's
+//  drive status: a disk is in the bay, and no eject the window posted is
+//  waiting for the CPU thread.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskManager::IsReplacePromptNeeded (int drive) const
+{
+    bool  isValid   = drive >= 0 && drive < static_cast<int> (m_driveWidgetState.size());
+    bool  isMounted = m_shownStatus->GetBay (6, drive).isMounted;
+
+
+
+    return isValid && isMounted && !m_driveWidgetState[drive].isEjectPosted;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ApplySyncEvents
 //
 //  The one door transition that comes from an event rather than from the
@@ -927,6 +952,7 @@ void DiskManager::SyncDoorFromBay (DriveWidgetState & st, int drive, const BaySt
     if (bay.path != m_lastDriveSourcePath[drive])
     {
         m_lastDriveSourcePath[drive] = bay.path;
+        st.isEjectPosted             = false;
 
         wPath = fs::path (bay.path).wstring();
 

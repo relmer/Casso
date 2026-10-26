@@ -376,6 +376,7 @@ void ShellDisks::OnMountCompleted (int drive, const std::string & path, HRESULT 
     fallback.diagnosis = diagnosis;
     fallback.result    = mountResult;
     fallback.drive     = drive;
+    fallback.bay       = m_shell.m_machine.GetDiskStore().GetBayStatus (6, drive);
 
     if (m_shell.m_hwnd != nullptr)
     {
@@ -440,7 +441,7 @@ void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
             m_shell.SendIntentReply (replyTo, IntentReplyTracker::MakeInsertReply (completion.result, std::string()));
         }
 
-        ReportDamagedMount (completion.drive);
+        ReportDamagedMount (completion.drive, completion.bay);
         return;
     }
 
@@ -830,36 +831,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellDisks::ReportDamagedMount (int drive)
+void ShellDisks::ReportDamagedMount (int drive, const BayStatus & bay)
 {
-    DiskImage          * image       = m_shell.m_machine.GetDiskStore().GetImage (6, drive);
-    SalvageAssessment    assessment;
-    DialogDefinition     def;
-    HRESULT              hr          = S_OK;
-    int                  choice      = 0;
-    bool                 isOffThread = false;
+    DialogDefinition  def;
+    int               choice = 0;
 
 
 
-    if (image == nullptr)
-    {
-        return;
-    }
-
-    // Mounts run on the CPU thread -- the picker, the menu and the salvaged
-    // copy all post their insert, which is also what confirms a divergence
-    // from history and records it in the input journal -- and this raises a
-    // modal. Bounce to the UI thread rather than building a dialog from there.
-    isOffThread = (m_shell.m_hwnd != nullptr) &&
-                  (GetWindowThreadProcessId (m_shell.m_hwnd, nullptr) != GetCurrentThreadId());
-
-    if (isOffThread)
-    {
-        PostMessageW (m_shell.m_hwnd, WM_APP_REPORT_DAMAGE, (WPARAM) drive, 0);
-        return;
-    }
-
-    if (!image->IsDamaged())
+    if (!bay.isMounted || !bay.writeProtect.IsDamaged())
     {
         return;
     }
@@ -870,13 +849,10 @@ void ShellDisks::ReportDamagedMount (int drive)
     // saying anything about it makes the reader hold a path in mind with no
     // reason to yet.
     def.body.push_back (DialogTextRun {
-        DamagedMountReport::FormatBody (*image,
-            fs::path (m_shell.m_machine.GetDiskStore().GetSourcePath (6, drive)).wstring()),
+        DamagedMountReport::FormatBody (bay.writeProtect, fs::path (bay.path).filename().wstring()),
         false, std::wstring() });
 
-    hr = m_shell.m_machine.GetDiskStore().AssessSalvage (6, drive, assessment);
-
-    if (SUCCEEDED (hr) && assessment.isOffered)
+    if (bay.isSalvageOffered)
     {
         def.buttons.push_back (DialogButton { L"Salvage readable sectors...", 1,
                                               false, false, false });
@@ -1228,7 +1204,7 @@ void ShellDisks::AskAboutChange (const ChangeNotice & notice)
             break;
         }
 
-        if (AskWhereToSaveLostDisk (m_shell.m_machine.GetDiskStore().GetSourcePath (notice.slot, notice.drive),
+        if (AskWhereToSaveLostDisk (notice.prompt.imagePath,
                                     savePath))
         {
             saveTarget = fs::path (savePath).string();

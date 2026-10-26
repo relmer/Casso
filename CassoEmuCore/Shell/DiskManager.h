@@ -145,6 +145,9 @@ public:
     void                                SetStatusWake         (std::function<void ()> wake) { m_statusWake = std::move (wake); }
     std::shared_ptr<const DriveStatus>  TakeLatestDriveStatus () const { return m_statusPublisher.Take(); }
     const DriveStatus &                 GetShownDriveStatus   () const { return *m_shownStatus; }
+
+    //  Window thread: whether creating a disk into this drive replaces one.
+    bool     IsReplacePromptNeeded (int drive) const;
     // Cold-boot mount window (FR-013): suppress door-close FX while
     // command-line / autoload mounts are running at app launch.
     void     SetColdBootMountWindow (bool value) noexcept { m_coldBootMountWindow = value; }

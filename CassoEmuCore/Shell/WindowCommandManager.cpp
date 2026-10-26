@@ -1282,7 +1282,7 @@ HRESULT WindowCommandManager::CreateBlankDiskForDrive (int drive, bool & outMoun
     BAIL_OUT_IF (!dialog.GetOutcome().confirmed, S_OK);
 
     // The target drive may already hold a disk; replacing it needs a yes.
-    occupied = m_shell.m_machine.GetDiskStore().IsMounted (6, drive - 1);
+    occupied = m_shell.m_disks->GetManager()->IsReplacePromptNeeded (drive - 1);
 
     if (occupied)
     {

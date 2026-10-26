@@ -3010,9 +3010,9 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 //  Somebody says this image changed.
 //
 //  IT RECORDS AND RETURNS. The watcher calls this from its own thread and the
-//  message channel from the UI thread, while reading an image and swapping it
-//  under a running guest belongs to the thread that owns disk writes. Doing the
-//  work here would race the emulator mid-sector.
+//  message channel from the UI thread, and only the thread that has the
+//  store's token may read an image or swap it under a running guest. So the
+//  change goes into an inbox, and ApplyPendingReload matches it to the bays.
 //
 //  A PATH NO BAY HOLDS IS NOT AN ERROR. A directory watch reports every file
 //  under it, and an intent may be stated for an image nothing has mounted; both
@@ -3022,27 +3022,17 @@ void DiskImageStore::EmitBayChange (int slot, int drive, BayChange change)
 
 void DiskImageStore::NoteExternalChange (const string & path, ExternalChangeIntent intent)
 {
-    std::lock_guard<std::mutex>  held (m_pendingMutex);
-    int64_t  now   = GetNowMs();
-    int      slot  = 0;
-    int      drive = 0;
+    int64_t  now = GetNowMs();
 
 
 
-    for (slot = 0; slot < kSlotCount; slot++)
     {
-        for (drive = 0; drive < kDriveCount; drive++)
-        {
-            Entry &  entry = m_entries[slot][drive];
+        std::lock_guard<std::mutex>  lock (m_pendingMutex);
 
-            if (entry.mounted && MountedImageState::IsSamePath (entry.path, path))
-            {
-                entry.sharedState.NoteChange (now, intent);
-            }
-        }
+
+
+        m_changeInbox[path] = NotedChange { now, intent };
     }
-
-    return;
 }
 
 
@@ -3082,41 +3072,83 @@ void DiskImageStore::ApplyPendingReload()
         return;
     }
 
-    //  ONE CLOCK READING AND ONE LOCK FOR THE WHOLE WALK, not one of each per
-    //  bay. This runs sixty times a second forever, and asking the clock
-    //  sixteen times and taking the lock sixteen times cost 695 ns a call --
-    //  measured, and about a hundred times what the work itself is worth. The
-    //  snapshot below brings it back to the handful of comparisons it should be.
+    DrainChangeInbox();
+
+    //  ONE CLOCK READING FOR THE WHOLE WALK, not one per bay. This runs sixty
+    //  times a second forever, and the walk is a handful of comparisons; the
+    //  clock read per bay cost far more than the work itself.
+    for (slot = 0; slot < kSlotCount; slot++)
     {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
-
-        for (slot = 0; slot < kSlotCount; slot++)
+        for (drive = 0; drive < kDriveCount; drive++)
         {
-            for (drive = 0; drive < kDriveCount; drive++)
-            {
-                const Entry &  entry = m_entries[slot][drive];
+            const Entry &  entry = m_entries[slot][drive];
 
-                if (entry.mounted
-                 && entry.image != nullptr
-                 && entry.sharedState.IsSettled (now))
-                {
-                    readySlot[readyCount]  = slot;
-                    readyDrive[readyCount] = drive;
-                    readyCount++;
-                }
+            if (entry.mounted
+             && entry.image != nullptr
+             && entry.sharedState.IsSettled (now))
+            {
+                readySlot[readyCount]  = slot;
+                readyDrive[readyCount] = drive;
+                readyCount++;
             }
         }
     }
 
-    //  ACTED ON OUTSIDE THE LOCK. Reloading an image reads a file and swaps a
-    //  disk; holding the pending mutex across that would block the watcher
-    //  thread for the length of a read.
     for (i = 0; i < readyCount; i++)
     {
         ApplyPendingReloadToBay (readySlot[i], readyDrive[i]);
     }
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::DrainChangeInbox
+//
+//  Moves the changes noted since the last drain into the bays that have each
+//  path, on the thread that has the store's token. Only mounted bays match; a
+//  retained disk is not in a bay, so no bay's record changes for it. The lock is
+//  taken only to swap the inbox, so a watcher thread never waits on a bay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::DrainChangeInbox()
+{
+    int  slot  = 0;
+    int  drive = 0;
+
+
+
+    {
+        std::lock_guard<std::mutex>  lock (m_pendingMutex);
+
+
+
+        m_drainedChanges.swap (m_changeInbox);
+    }
+
+    for (const auto & [path, change] : m_drainedChanges)
+    {
+        for (slot = 0; slot < kSlotCount; slot++)
+        {
+            for (drive = 0; drive < kDriveCount; drive++)
+            {
+                Entry &  entry = m_entries[slot][drive];
+
+                if (entry.mounted && MountedImageState::IsSamePath (entry.path, path))
+                {
+                    entry.sharedState.NoteChange (change.atMs, change.intent);
+                }
+            }
+        }
+    }
+
+    m_drainedChanges.clear();
 }
 
 

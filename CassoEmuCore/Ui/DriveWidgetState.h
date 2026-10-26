@@ -114,6 +114,10 @@ struct DriveWidgetState
     // in the drive did not change.
     bool              reinsertPending      = false;
 
+    // The window posted an eject the CPU thread has not run yet, so the disk
+    // in the frame's drive status is on its way out.
+    bool              isEjectPosted        = false;
+
     // UI-thread mutators (pure logic)
 
     // Records a new mount and starts close-door animation if needed.

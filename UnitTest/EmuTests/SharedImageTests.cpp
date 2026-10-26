@@ -1084,6 +1084,35 @@ public:
     //  puts. Which end notices the collision first is timing the user cannot
     //  see, and it used to decide whether they were offered somewhere else to
     //  put the disk or merely told the write had not happened.
+    //  A watcher thread only puts the change in the inbox. The bay gets it when
+    //  the thread that has the store applies what is pending.
+    TEST_METHOD (AChangeNotedOffTheOwnerReachesTheBayOnlyWhenApplied)
+    {
+        Rig    rig;
+        bool   isSeenBeforeApply = true;
+        bool   isSeenAfterApply  = false;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        {
+            std::thread  watcher ([&rig] { rig.store.NoteExternalChange (kImagePath, ExternalChangeIntent::Unstated); });
+
+            watcher.join();
+        }
+
+        isSeenBeforeApply = rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen;
+
+        rig.store.ApplyPendingReload();
+
+        isSeenAfterApply = rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen;
+
+        Assert::IsFalse (isSeenBeforeApply, L"the watcher thread touched no bay");
+        Assert::IsTrue  (isSeenAfterApply,  L"the owning thread recorded the change in the bay");
+    }
+
     TEST_METHOD (AFlushThatCannotKeepTheDisplacedVersionAsksWhereToPutIt)
     {
         Rig          rig;
@@ -1125,6 +1154,9 @@ public:
                           L"the drive reads and writes the rescued file now");
         Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0],
                           L"and the original still holds the external version");
+
+        Assert::IsFalse (rig.questions.empty(), L"the flush asked");
+        Assert::AreEqual (std::string (kImagePath), rig.questions[0].imagePath, L"about the file it was composed from");
     }
 
 
@@ -1350,6 +1382,7 @@ public:
         //  What a watcher reports and what a mount recorded rarely match as
         //  strings.
         rig.store.NoteExternalChange ("c:/WORK/loader.dsk", ExternalChangeIntent::Unstated);
+        rig.store.ApplyPendingReload();
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen);
 
         rig.store.GetSharedState (kSlot, kDrive);
@@ -1357,6 +1390,7 @@ public:
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
         rig.store.NoteExternalChange ("C:\\work\\Something Else.dsk", ExternalChangeIntent::Unstated);
+        rig.store.ApplyPendingReload();
         Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                          L"a directory watch reports every file under it");
     }
@@ -2119,6 +2153,7 @@ public:
 
         rig.WriteImage (kImagePath, 0x22);
         rig.FireAndSettle (kImagePath, ExternalChangeIntent::ReloadInPlace);
+        rig.store.ApplyPendingReload();
 
         Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->GetPending().seen,
                         L"the change that arrived mid-apply is still there");

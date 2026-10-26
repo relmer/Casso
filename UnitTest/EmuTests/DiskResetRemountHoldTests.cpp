@@ -237,6 +237,81 @@ public:
         Assert::AreEqual (std::wstring (L"frame.nib"), shell->widgetState[s_kRemountDrive].mountedImagePath, L"the widget has the published disk");
     }
 
+    //  A drive with an eject the window posted gets no replace prompt, though
+    //  the CPU thread has not run the eject yet; a drive with a disk and no
+    //  eject gets one.
+    TEST_METHOD (APostedEjectNeedsNoReplacePrompt)
+    {
+        TestMachine       machine  ("Apple2e");
+        auto              shell    = std::make_unique<Shell>();
+        DiskImageStore  & store    = machine.GetDiskStore();
+        bool              isFirst  = true;
+        bool              isSecond = false;
+        HRESULT           hr       = S_OK;
+
+
+
+        hr = store.MountFromBytes (6, 0, "first.nib", DiskFormat::Nib, MakeImage());
+        AssertSucceeded (hr, L"MountFromBytes drive 1");
+        hr = store.MountFromBytes (6, 1, "second.nib", DiskFormat::Nib, MakeImage());
+        AssertSucceeded (hr, L"MountFromBytes drive 2");
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect);
+
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+
+            manager.Eject (6, 0);
+
+            isFirst  = manager.IsReplacePromptNeeded (0);
+            isSecond = manager.IsReplacePromptNeeded (1);
+        }
+
+        Assert::IsTrue  (store.IsMounted (6, 0), L"the eject is still waiting for the CPU thread");
+        Assert::IsFalse (isFirst,                L"so drive 1 needs no prompt");
+        Assert::IsTrue  (isSecond,               L"drive 2 has a disk and needs one");
+    }
+
+
+    //  The replace prompt's query reads only the window frame's status, so it
+    //  calls no disk store entry point while another thread has the store.
+    TEST_METHOD (TheReplacePromptQueryTouchesNoDiskEntryPoint)
+    {
+        TestMachine          machine  ("Apple2e");
+        auto                 shell    = std::make_unique<Shell>();
+        DiskImageStore     & store    = machine.GetDiskStore();
+        OwnerThreadStandIn   standIn;
+        bool                 isNeeded = false;
+        HRESULT              hr       = S_OK;
+
+
+
+        hr = store.MountFromBytes (6, 0, "prompt.nib", DiskFormat::Nib, MakeImage());
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect);
+
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+
+            hr = standIn.Take (store.GetThreadOwnership());
+            AssertSucceeded (hr, L"Take");
+
+            isNeeded = manager.IsReplacePromptNeeded (0);
+
+            hr = standIn.GiveBack();
+            AssertSucceeded (hr, L"GiveBack");
+        }
+
+        Assert::IsTrue (isNeeded, L"the drive has a disk, so replacing it needs a yes");
+    }
+
 private:
 
     static std::vector<Byte> MakeImage()

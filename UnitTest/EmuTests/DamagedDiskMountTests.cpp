@@ -261,6 +261,31 @@ public:
     }
 
 
+    //  The damage report built from a bay's status has the text built from
+    //  the image itself.
+    TEST_METHOD (TheReportFromTheBayStatusMatchesTheImage)
+    {
+        vector<Byte>     image   = MakeWoz (MakeSectors(), true);
+        DiskImageStore   store;
+        BayStatus        bay;
+        Byte          *  rec     = GetTrkRecord (image, 9);
+        HRESULT          hr      = S_OK;
+
+        rec[0] = 0xF0;
+        rec[1] = 0xFF;
+
+        hr = store.MountFromBytes (6, 1, "C:\\disks\\damaged.woz", DiskFormat::Woz, image);
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        bay = store.GetBayStatus (6, 1);
+
+        Assert::IsTrue (bay.writeProtect.IsDamaged(), L"the bay has the damage");
+        Assert::AreEqual (DamagedMountReport::FormatBody (*store.GetImage (6, 1), L"C:\\disks\\damaged.woz"),
+                          DamagedMountReport::FormatBody (bay.writeProtect, L"damaged.woz"),
+                          L"the same report text");
+    }
+
+
     TEST_METHOD (TrackListJoinsWholeTracksIntoRuns)
     {
         Assert::AreEqual (wstring (L"track 3"),                 DamagedMountReport::FormatTrackList ({ 12 }));

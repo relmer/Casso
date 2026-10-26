@@ -1994,14 +1994,6 @@ DxuiMessageResult EmulatorShell::OnDiskAppMessage (UINT msg, WPARAM wParam, LPAR
         return DxuiMessageResult::Handled;
     }
 
-    // A mount that ran on the CPU thread wants its damage report raised here,
-    // where a modal can be built.
-    if (msg == WM_APP_REPORT_DAMAGE)
-    {
-        m_disks->ReportDamagedMount ((int) wParam);
-
-        return DxuiMessageResult::Handled;
-    }
 
     // One mount's outcome, from whichever thread ran it. Startup mounts land
     // here too, which is what keeps a bad --disk1 from raising a dialog before

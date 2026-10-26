@@ -204,6 +204,8 @@ ChangePrompt ChangePrompt::Compose (const std::string & imagePath, int drive,
         break;
     }
 
+    prompt.imagePath = imagePath;
+
     return prompt;
 }
 
@@ -300,6 +302,8 @@ ChangePrompt ChangePrompt::ComposeReloadReport (const std::string & imagePath, i
     //  question -- so the notice does not need dismissing.
     prompt.selfDismisses = true;
 
+    prompt.imagePath = imagePath;
+
     return prompt;
 }
 
@@ -344,6 +348,8 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
                      L"of " + file + L".";
 
     prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
+
+    prompt.imagePath = imagePath;
 
     return prompt;
 }
@@ -419,6 +425,8 @@ ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, in
         prompt.answers.push_back (PromptAnswer { L"Dismiss",    ChangeAction::Ignore });
     }
 
+    prompt.imagePath = imagePath;
+
     return prompt;
 }
 
@@ -468,6 +476,8 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
 
     prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
     prompt.answers.push_back (PromptAnswer { L"Discard",    ChangeAction::Discard });
+
+    prompt.imagePath = imagePath;
 
     return prompt;
 }

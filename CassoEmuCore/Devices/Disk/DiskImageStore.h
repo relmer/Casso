@@ -423,9 +423,10 @@ public:
 
     //  A change was noticed, from a watcher or stated by a writer.
     //
-    //  CALLED FROM ANY THREAD and does no work beyond recording: the watcher
-    //  runs on its own thread and the message channel on the UI thread, while
-    //  acting on a change belongs to the thread that owns disk writes.
+    //  CALLED FROM ANY THREAD. The change goes into an inbox, and nothing else
+    //  happens: the watcher calls this from the watch thread and the
+    //  message channel from the UI thread, and ApplyPendingReload moves the
+    //  inbox into the bays on the thread that has the store's token.
     void          NoteExternalChange (const string & path, ExternalChangeIntent intent);
 
     //  Act on whatever has settled. On the thread holding the store, at a
@@ -675,6 +676,10 @@ private:
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);
 
+    //  Moves the inbox NoteExternalChange fills into the bays, on the owning
+    //  thread.
+    void           DrainChangeInbox ();
+
     //  Carries out what was decided. Split from deciding so the decision has
     //  one shape whether it came from the policy or from the user.
     //
@@ -772,9 +777,21 @@ private:
     //  Starts at 1, so the first publish builds the bay table.
     uint64_t                 m_statusGeneration = 1;
 
-    //  Guards the pending records alone. A watcher thread records a change
-    //  while the CPU thread reads it, and those two fields are the whole of
-    //  what crosses between them -- the image, the path and the identity are
-    //  touched only by the thread that owns disk writes.
-    mutable std::mutex       m_pendingMutex;
+    //  Changes noted from any thread, keyed by path, with only the latest per
+    //  path, so the inbox is bounded by the distinct paths noted. The mutex
+    //  guards the inbox alone: NoteExternalChange reads no Entry, and
+    //  ApplyPendingReload moves the inbox into the bays on the thread that has
+    //  the store's token.
+    struct NotedChange
+    {
+        int64_t               atMs   = 0;
+        ExternalChangeIntent  intent = ExternalChangeIntent::Unstated;
+    };
+
+    mutable std::mutex                   m_pendingMutex;
+    std::map<std::string, NotedChange>   m_changeInbox;
+
+    //  The owning thread's side of the swap: the inbox is swapped into it,
+    //  and it is cleared after the drain, so an idle drain allocates nothing.
+    std::map<std::string, NotedChange>   m_drainedChanges;
 };

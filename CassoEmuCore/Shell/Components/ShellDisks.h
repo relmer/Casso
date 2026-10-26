@@ -152,7 +152,7 @@ public:
     // salvage offered inline. Raised here rather than by the loader because a
     // dialog with an action on it is the shell's business, and EhmNotifyUser
     // carries a string and nothing else.
-    void  ReportDamagedMount (int drive);
+    void  ReportDamagedMount (int drive, const BayStatus & bay);
 
     // Whether the second drive is shown, and whether this machine has anywhere
     // to plug one. The //c's external drive is an optional add-on, shown only
@@ -193,6 +193,10 @@ public:
         MountDiagnosis  diagnosis;
         HRESULT         result = S_OK;
         int             drive  = 0;
+
+        // The bay as the mount left it, copied on the thread that ran the
+        // mount, so the report has the medium this mount produced.
+        BayStatus       bay;
     };
 
     // The UI-thread half: a successful mount enters the recent-disks list and
