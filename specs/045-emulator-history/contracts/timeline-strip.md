@@ -24,6 +24,7 @@ struct DxuiStripMark
     float              offset = 0.0f;     // in cells from the leading edge
     DxuiStripMarkKind  kind   = DxuiStripMarkKind::Reset;
     int                count  = 1;        // branches at a fork mark
+    wchar_t            glyph  = 0;        // drawn at the offset; the source picks it per kind
     uint64_t           id     = 0;        // the source's key for it
     std::wstring       tip;
 };
@@ -49,7 +50,7 @@ All on the UI thread, as the existing members are. A source with no marks uses t
 
 | Event | Result |
 |---|---|
-| Paint | Each mark is drawn at its offset across the pictures, with a glyph per kind from `UnicodeSymbols.h`; a fork mark with a count above 1 has the count beside it |
+| Paint | Each mark's glyph is drawn at its offset across the pictures (`HistoryThumbnails` sets the glyphs from `CassoEmuCore/Core/UnicodeSymbols.h`); a fork mark with a count above 1 has the count beside it |
 | Pointer over a mark | The mark's tip; a fork mark opens the flyout instead, after the tooltip delay |
 | Pointer over a flyout row | `OnForkRowHovered`; the host draws that picture over the viewport |
 | Click on a flyout row | `OnForkRowClicked`; the flyout closes |
