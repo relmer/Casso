@@ -7,6 +7,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/DiskInspector/AnalysisScheduler.h"
 #include "Ui/DiskInspector/ComparisonSession.h"
+#include "Ui/DiskInspector/FindSession.h"
 #include "Ui/DiskInspector/FollowHead.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 #include "Ui/DiskInspector/InspectorTables.h"
@@ -170,6 +171,8 @@ private:
     void  RunFind            (const SearchQuery & query);
     void  RefreshFindResults ();
     void  SyncFindMarks      ();
+    void  RebuildFindMarks   ();
+    void  RepeatFind         ();
     vector<int>  GetShownDiskTabs () const;
     int          GetTabIndex      () const;
     void  OpenExport ();
@@ -304,9 +307,7 @@ private:
     KeyTarget                               m_keyTarget          = KeyTarget::Platter;
     bool                                    m_isFocusShown       = false;
     Win32Clipboard                          m_clipboard;
-    SearchQuery                             m_findQuery;
-    vector<SearchHit>                       m_findHits;
-    int                                     m_findIndex          = -1;
+    FindSession                             m_find;
     FindBar                               * m_findBar            = nullptr;
     InspectorTableView                    * m_findResults        = nullptr;
     bool                                    m_isFindOpen         = false;

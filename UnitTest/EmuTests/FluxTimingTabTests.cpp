@@ -114,4 +114,20 @@ public:
         Assert::AreEqual (32, peaks[0], L"a flat top counts once, at its first bin");
         Assert::AreEqual (63, peaks[1]);
     }
+
+
+    TEST_METHOD (TheNoTimingNoteFitsTheImageFormat)
+    {
+        std::wstring  dsk = FluxTimingTab::FormatNoTiming (DiskFormat::Dsk, 0);
+        std::wstring  po  = FluxTimingTab::FormatNoTiming (DiskFormat::Po, 0);
+        std::wstring  nib = FluxTimingTab::FormatNoTiming (DiskFormat::Nib, 0);
+
+
+
+        Assert::IsTrue (dsk.find (L".dsk") != std::wstring::npos && dsk.find (L"copy protection") != std::wstring::npos, dsk.c_str());
+        Assert::IsTrue (po.find (L".po") != std::wstring::npos, po.c_str());
+        Assert::IsTrue (nib.find (L"no timing between bits") != std::wstring::npos, nib.c_str());
+        Assert::IsTrue (FluxTimingTab::FormatNoTiming (DiskFormat::Woz, 2).find (L"Only WOZ 2.1 or higher") != std::wstring::npos);
+        Assert::IsTrue (FluxTimingTab::FormatNoTiming (DiskFormat::Woz, 3).starts_with (L"This is a WOZ 2.1 disk image"));
+    }
 };

@@ -5,6 +5,7 @@
 #include "Devices/Disk/Inspector/InspectorFormat.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Ui/DiskInspector/FindBar.h"
+#include "Ui/DiskInspector/FindSession.h"
 #include "Ui/DiskInspector/InspectorTables.h"
 #include "InspectorTrackBuilder.h"
 
@@ -327,5 +328,69 @@ public:
 
         Assert::IsTrue (FindBar::GetHint (SearchKind::Nibbles).find (L"D5 AA 96") != std::wstring::npos);
         Assert::IsTrue (FindBar::GetHint (SearchKind::SectorText).find (L"high bit") != std::wstring::npos);
+    }
+
+
+    TEST_METHOD (AFindSessionStepsAroundItsHits)
+    {
+        DiskAnalysis  analysis;
+        FindSession   find;
+        SearchQuery   query;
+
+
+
+        AnalyzePlanted (analysis);
+        query.text = L"D5 AA 96";
+
+        Assert::IsTrue   (find.Run (analysis, 20, query, false));
+        Assert::AreEqual (16, find.GetCount());
+        Assert::AreEqual (-1, find.GetIndex(), L"nothing selected until a step");
+        Assert::AreEqual (0,  find.Step (1));
+        Assert::AreEqual (15, find.Step (-1), L"back from the first wraps to the last");
+        Assert::AreEqual (0,  find.Step (1),  L"on from the last wraps to the first");
+        Assert::IsTrue   (find.Choose (7));
+        Assert::IsFalse  (find.Choose (16));
+        Assert::AreEqual (7,  find.GetIndex());
+
+        query.text = L"D5 G";
+        Assert::IsFalse  (find.Run (analysis, 20, query, false), L"a pattern that cannot be read");
+        Assert::IsTrue   (find.IsEmpty());
+        Assert::AreEqual (-1, find.Step (1));
+
+        query.text.clear();
+        Assert::IsTrue   (find.Run (analysis, 20, query, false), L"an empty pattern is no error");
+        Assert::IsTrue   (find.IsEmpty());
+    }
+
+
+
+    TEST_METHOD (AFindSessionRepeatsAPartialSearchAndDropsOutOfDateHits)
+    {
+        DiskAnalysis  analysis;
+        FindSession   find;
+        SearchQuery   query;
+        int           slot = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        query.text = L"D5 AA 96";
+
+        Assert::IsTrue  (find.Run (analysis, 20, query, true));
+        Assert::IsFalse (find.IsRepeatDue (true),  L"not while the analysis is still running");
+        Assert::IsTrue  (find.IsRepeatDue (false), L"once it is done");
+
+        (void) find.Step (1);
+        (void) find.Step (1);
+        find.Repeat (analysis, false);
+        Assert::AreEqual (1, find.GetIndex(), L"the selected hit's place is kept");
+        Assert::IsFalse  (find.IsRepeatDue (false));
+
+        //  The record analyzed again: a new analysis object for the slot.
+        slot = analysis.entries[20].slot;
+        analysis.tracks[slot] = std::make_shared<const TrackAnalysis> (*analysis.tracks[slot]);
+
+        Assert::AreEqual (16, find.GetCount());
+        Assert::IsTrue   (find.GetCurrentHits (analysis).empty(), L"every hit was on the record analyzed again");
     }
 };

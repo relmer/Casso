@@ -74,7 +74,9 @@ void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 //
 //  Only a WOZ file of version 2.1 or later can image a track as flux, which
 //  has each bit's timing. A WOZ file's INFO chunk version is 3 for 2.1, 4 for
-//  2.2 and so on; in such a file, a track imaged as bits has no timing.
+//  2.2 and so on; in such a file, a track imaged as bits has no timing. A
+//  sector image has no tracks at all, so Casso builds them from its sectors,
+//  and a nibble image has the nibbles but no time between bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,11 +86,34 @@ std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format, int wozInfoVersio
 
 
 
-    return (format == DiskFormat::Woz && wozInfoVersion >= kFluxInfoVersion)
-               ? std::format (L"This is a WOZ 2.{} disk image, but this track does not contain timing information because it was imaged as bits. "
-                              L"Only tracks imaged as flux include timing information.", wozInfoVersion - kFluxInfoVersion + 1)
-               : std::wstring (L"This track does not have timing information. Only WOZ 2.1 or higher supports imaging tracks as flux, "
-                               L"which includes timing information.");
+    std::wstring  note;
+
+
+
+    switch (format)
+    {
+        case DiskFormat::Dsk:
+        case DiskFormat::Do:
+        case DiskFormat::Po:
+            note = std::format (L"This is a .{} disk image, which has only the sectors' data. Casso builds its tracks from that data, "
+                                L"so they have no timing information or copy protection.",
+                                (format == DiskFormat::Dsk) ? L"dsk" : (format == DiskFormat::Do) ? L"do" : L"po");
+            break;
+
+        case DiskFormat::Nib:
+            note = L"This is a nibble disk image, which has the nibbles of each track but no timing between bits.";
+            break;
+
+        default:
+            note = (wozInfoVersion >= kFluxInfoVersion)
+                       ? std::format (L"This is a WOZ 2.{} disk image, but this track does not contain timing information because it was imaged as bits. "
+                                      L"Only tracks imaged as flux include timing information.", wozInfoVersion - kFluxInfoVersion + 1)
+                       : std::wstring (L"This track does not have timing information. Only WOZ 2.1 or higher supports imaging tracks as flux, "
+                                       L"which includes timing information.");
+            break;
+    }
+
+    return note;
 }
 
 

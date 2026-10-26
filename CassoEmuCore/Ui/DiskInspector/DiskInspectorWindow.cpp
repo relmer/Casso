@@ -468,14 +468,14 @@ void DiskInspectorWindow::OnCreate()
     m_goToButton->SetOnClick   ([this] () { OpenGoTo(); });
     m_findButton->SetOnClick   ([this] () { OpenFindBar(); });
     m_findResults->SetColumns  (InspectorTables::GetSearchHitColumns());
-    m_findResults->SetOnSelect ([this] (const TableRow & row) { if (row.finding >= 0 && row.finding < static_cast<int> (m_findHits.size())) { m_findIndex = row.finding; SelectHit (m_findHits[m_findIndex]); m_findBar->SetResult (m_findIndex, static_cast<int> (m_findHits.size())); } });
+    m_findResults->SetOnSelect ([this] (const TableRow & row) { if (m_find.Choose (row.finding)) { SelectHit (m_find.GetHits()[row.finding]); m_findBar->SetResult (row.finding, m_find.GetCount()); } });
     m_findBar->Init            (GetHwnd(), GetTextRenderer(), GetPopupHost(), m_theme);
     m_findBar->SetOnSearch     ([this] (const SearchQuery & query) { RunFind (query); });
     m_findBar->SetOnStep       ([this] (int step) { StepFind (step); });
     m_findBar->SetOnList       ([this] () { ShowDiskTab (kTabFindResults); });
     m_findBar->SetOnClose      ([this] () { CloseFindBar(); });
     m_findBar->SetVisible      (false);
-    m_findQuery.isWholeDisk = true;
+    m_find.GetQuery().isWholeDisk = true;
     m_copySector->SetOnClick   ([this] () { CopySector(); });
     m_compareButton->SetOnClick   ([this] () { OpenCompare(); });
     m_followCheck->SetOnChange    ([this] (bool isChecked) { SetFollowHead (isChecked); });
@@ -1505,8 +1505,7 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
         m_isFilesDefaulted = false;
 
         //  Hits point into the analysis they were found in.
-        m_findHits.clear();
-        m_findIndex = -1;
+        m_find.Clear();
         m_findBar->SetResult (-1, 0);
         RefreshFindResults();
 
@@ -1569,6 +1568,18 @@ void DiskInspectorWindow::TakeResults()
         m_model.SetAnalysis (&m_analysis);
         m_comparison.MarkAChanged();
         m_isTablesDirty = true;
+
+        //  A search made while the disk was being analyzed is run again once
+        //  the analysis is done. Otherwise the marks are rebuilt without the
+        //  hits on tracks analyzed again, and with any new file map.
+        if (m_find.IsRepeatDue (m_scheduler->HasPending()))
+        {
+            RepeatFind();
+        }
+        else if (!m_find.IsEmpty())
+        {
+            RebuildFindMarks();
+        }
     }
 }
 
@@ -2236,8 +2247,8 @@ void DiskInspectorWindow::OpenFindBar()
     if (!m_isFindOpen)
     {
         m_isFindOpen = true;
-        m_findBar->SetQuery  (m_findQuery);
-        m_findBar->SetResult (m_findIndex, static_cast<int> (m_findHits.size()));
+        m_findBar->SetQuery  (m_find.GetQuery());
+        m_findBar->SetResult (m_find.GetIndex(), m_find.GetCount());
         m_findBar->SetVisible (true);
         SyncFindMarks();
         Layout (m_boundsDip, m_hostScaler);
@@ -2286,21 +2297,17 @@ void DiskInspectorWindow::CloseFindBar()
 
 void DiskInspectorWindow::RunFind (const SearchQuery & query)
 {
-    vector<SearchItem>  items;
-    bool                isRead = query.text.empty() || InspectorSearch::ParsePattern (query.text, query.kind, items);
+    bool  isRead = m_find.Run (m_analysis, m_model.GetQuarterTrack(), query, m_scheduler->HasPending());
 
 
 
-    m_findQuery = query;
-    m_findIndex = -1;
-    m_findHits.clear();
+    if (!m_context.hasDisk)
+    {
+        m_find.Clear();
+    }
+
     m_findBar->SetSearched (query);
     m_findBar->SetError (isRead ? std::wstring() : (query.kind == SearchKind::SectorText ? std::wstring (s_kpszFindBadText) : std::wstring (s_kpszFindBadHex)));
-
-    if (isRead && !query.text.empty() && m_context.hasDisk)
-    {
-        m_findHits = InspectorSearch::Find (m_analysis, m_model.GetQuarterTrack(), query);
-    }
 
     RefreshFindResults();
     StepFind (1);
@@ -2321,11 +2328,10 @@ void DiskInspectorWindow::RunFind (const SearchQuery & query)
 
 void DiskInspectorWindow::RefreshFindResults()
 {
-    m_findResults->SetRows (InspectorTables::BuildSearchHits (m_findHits, m_context.hasDisk ? &m_analysis : nullptr, GetFileMap()));
-    m_findMarks.Build (m_findHits, GetFileMap(), m_findQuery.text);
-    SyncFindMarks();
+    m_findResults->SetRows (InspectorTables::BuildSearchHits (m_find.GetHits(), m_context.hasDisk ? &m_analysis : nullptr, GetFileMap()));
+    RebuildFindMarks();
 
-    if (m_findHits.empty() && m_isDiskGroup && m_diskTab == kTabFindResults)
+    if (m_find.IsEmpty() && m_isDiskGroup && m_diskTab == kTabFindResults)
     {
         ShowDiskTab (kTabTracks);
     }
@@ -2333,6 +2339,46 @@ void DiskInspectorWindow::RefreshFindResults()
     {
         Layout (m_boundsDip, m_hostScaler);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RebuildFindMarks
+//
+//  The marks for the hits whose record has not been analyzed again since the
+//  search. A hit on a record analyzed again refers to an analysis that is
+//  gone, so it is left out before anything reads through it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RebuildFindMarks()
+{
+    m_findMarks.Build (m_find.GetCurrentHits (m_analysis), GetFileMap(), m_find.GetQuery().text);
+    SyncFindMarks();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RepeatFind
+//
+//  The last search again over the whole analysis, without moving the
+//  selection. The selected hit's index is clamped to the new count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RepeatFind()
+{
+    m_find.Repeat (m_analysis, m_scheduler->HasPending());
+    RefreshFindResults();
+    m_findBar->SetResult (m_find.GetIndex(), m_find.GetCount());
 }
 
 
@@ -2378,7 +2424,7 @@ vector<int> DiskInspectorWindow::GetShownDiskTabs() const
         shown.push_back (kTabDifferences);
     }
 
-    if (!m_findHits.empty())
+    if (!m_find.IsEmpty())
     {
         shown.push_back (kTabFindResults);
     }
@@ -2482,18 +2528,17 @@ Error:
 
 void DiskInspectorWindow::StepFind (int step)
 {
-    int  count = static_cast<int> (m_findHits.size());
+    int  index = m_find.Step (step);
 
 
 
-    if (count > 0)
+    if (index >= 0)
     {
-        m_findIndex = (m_findIndex < 0) ? (step > 0 ? 0 : count - 1) : (m_findIndex + step + count) % count;
-        SelectHit (m_findHits[m_findIndex]);
-        m_findResults->SelectRowWhere ([this] (const TableRow & row) { return row.finding == m_findIndex; });
+        SelectHit (m_find.GetHits()[index]);
+        m_findResults->SelectRowWhere ([index] (const TableRow & row) { return row.finding == index; });
     }
 
-    m_findBar->SetResult (m_findIndex, count);
+    m_findBar->SetResult (index, m_find.GetCount());
 }
 
 

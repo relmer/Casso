@@ -5,7 +5,12 @@
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
+#include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/InspectorTip.h"
+#include "Ui/DiskInspector/SectorByteView.h"
+#include "Ui/DiskInspector/SectorRowView.h"
 #include "FileMapTestImages.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -271,5 +276,138 @@ public:
 
         Assert::IsTrue   (GetLine (tip.GetText(), tip.GetSwatches().back().line).ends_with (L": HELLO, data sector 1 of 3"), tip.GetText().c_str());
         Assert::AreEqual (context.palette.GetRoleColor (MapRole::FileData), tip.GetSwatches().back().argb);
+    }
+
+
+    TEST_METHOD (TheSectorRowAndSectorDataTipsHaveTheirFindHits)
+    {
+        DiskAnalysis           analysis;
+        InspectorViewModel     model;
+        InspectorViewContext   context;
+        FindMarks              marks;
+        SearchQuery            query;
+        vector<SearchHit>      hits;
+        SearchHit              hit;
+        const TrackAnalysis *  track  = nullptr;
+        DxuiTheme              theme  = DxuiTheme::Dark();
+        DxuiDpiScaler          scaler;
+        MockDxuiPainter        painter;
+        MockDxuiTextRenderer   text;
+        std::wstring           tip;
+        std::wstring           byteTip;
+        RECT                   anchor = {};
+        int                    three  = -1;
+
+
+
+        AnalyzeDsk (analysis);
+        track = analysis.tracks[analysis.entries[68].slot].get();
+
+        for (size_t s = 0; s < track->sectors.size(); s++)
+        {
+            three = (track->sectors[s].sector == 3) ? static_cast<int> (s) : three;
+        }
+
+        query.text = L"D5 AA 96";
+        hits       = InspectorSearch::Find (analysis, 68, query);
+
+        hit.quarterTrack = 68;
+        hit.track        = track;
+        hit.sectorIndex  = three;
+        hit.offset       = 0x10;
+        hit.length       = 2;
+        hits.push_back (hit);
+        marks.Build (hits, nullptr, L"q");
+
+        model.SetDisk (1);
+        model.SetAnalysis (&analysis);
+        model.SelectSector (68, three);
+        context.analysis  = &analysis;
+        context.model     = &model;
+        context.hasDisk   = true;
+        context.findMarks = &marks;
+
+        SectorRowView   row (context);
+        SectorByteView  bytes (context);
+
+        row.Layout   ({ 0, 0, 900, 200 }, scaler);
+        bytes.Layout ({ 0, 0, 900, 700 }, scaler);
+        bytes.Paint  (painter, text, theme);
+
+        for (int y = 0; y < 200 && tip.find (L"Sector $3") == std::wstring::npos; y += 2)
+        {
+            for (int x = 0; x < 900 && tip.find (L"Sector $3") == std::wstring::npos; x += 2)
+            {
+                tip.clear();
+                (void) row.GetTooltip ({ x, y }, tip, anchor);
+            }
+        }
+
+        Assert::IsTrue (tip.ends_with (L"\n2 find hits for \"q\""), tip.c_str());
+
+        for (int y = 0; y < 700 && byteTip.empty(); y += 2)
+        {
+            for (int x = 0; x < 900 && byteTip.empty(); x += 2)
+            {
+                (void) bytes.GetTooltip ({ x, y }, byteTip, anchor);
+            }
+        }
+
+        Assert::IsTrue (byteTip == L"Byte $10\nFind hit for \"q\"" || byteTip == L"Byte $11\nFind hit for \"q\"", byteTip.c_str());
+    }
+
+
+
+    TEST_METHOD (TheFileMapCellTipHasItsFindHit)
+    {
+        vector<Byte>               image  = FileMapTestImages::MakeDos33();
+        DiskAnalysis               analysis;
+        vector<FileMap>            maps;
+        InspectorViewContext       context;
+        FindMarks                  marks;
+        SearchHit                  hit;
+        DxuiDpiScaler              scaler;
+        vector<DxuiTooltipSwatch>  swatches;
+        std::wstring               tip;
+        RECT                       rect   = {};
+        RECT                       anchor = {};
+        int                        cell   = -1;
+        int                        half   = 0;
+        int                        qt     = 0;
+
+
+
+        FileMapTestImages::Analyze (image, false, analysis);
+        maps = FileMapBuilder::Build (analysis);
+        cell = maps[0].GetCellOf (17, 0, half);
+        qt   = 17 * DiskImage::kQuarterTracksPerWholeTrack;
+
+        hit.quarterTrack = qt;
+        hit.track        = analysis.tracks[analysis.entries[qt].slot].get();
+        hit.offset       = 0;
+        hit.length       = 1;
+
+        for (size_t s = 0; s < hit.track->sectors.size(); s++)
+        {
+            hit.sectorIndex = (hit.track->sectors[s].sector == 0) ? static_cast<int> (s) : hit.sectorIndex;
+        }
+
+        marks.Build ({ hit }, &maps[0], L"VTOC");
+        Assert::IsTrue (marks.IsCellMarked (cell));
+
+        context.analysis  = &analysis;
+        context.findMarks = &marks;
+
+        FileMapGridView  grid (context);
+
+        grid.SetMap (&maps[0]);
+        grid.Layout ({ 0, 0, 640, 600 }, scaler);
+        Assert::IsTrue (grid.GetCellRect (cell, rect));
+
+        Assert::IsTrue   (grid.GetTooltip ({ (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 }, tip, anchor));
+        Assert::IsTrue   (tip.ends_with (L"\nFind hit for \"VTOC\""), tip.c_str());
+        Assert::IsTrue   (grid.GetTooltipSwatches ({ (rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2 }, swatches));
+        Assert::AreEqual (context.palette.colors.findHit, swatches.back().argb);
+        Assert::AreEqual (static_cast<int> (std::count (tip.begin(), tip.end(), L'\n')), swatches.back().line);
     }
 };
