@@ -2177,6 +2177,35 @@ public:
 
 
 
+    //  The question raised again after a failed save is the lost-file
+    //  question, so a Save as answer to it saves the disk.
+    TEST_METHOD (ASaveAfterAFailedOneSavesTheLostDisk)
+    {
+        Rig          rig;
+        std::string  chosen = "C:\\elsewhere\\Rescued.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        rig.files.erase (kImagePath);
+        rig.Stamp (kImagePath);
+        rig.FireAndSettle (kImagePath);
+
+        rig.refusePreserve = true;
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+
+        rig.refusePreserve = false;
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, chosen);
+
+        Assert::AreEqual ((size_t) 2, rig.questions.size(), L"the question is raised again after the failed save");
+        Assert::IsTrue   (rig.files.count (chosen) != 0, L"and the second answer saves the disk");
+        Assert::AreEqual (chosen, rig.store.GetSourcePath (kSlot, kDrive), L"which is in the drive, on that file");
+    }
+
+
+
     TEST_METHOD (EjectingWithWritesTheFileHasNotSeenPreservesThem)
     {
         Rig  rig;

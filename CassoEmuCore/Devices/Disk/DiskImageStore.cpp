@@ -4328,7 +4328,8 @@ void DiskImageStore::ResolveConflictAnswer (int slot, int drive, Entry & entry, 
 
 void DiskImageStore::ResolveLostFileAnswer (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath)
 {
-    HRESULT  hr = S_OK;
+    HRESULT       hr    = S_OK;
+    ChangeAction  asked = entry.sharedState.GetAskedAction();
 
 
 
@@ -4346,11 +4347,13 @@ void DiskImageStore::ResolveLostFileAnswer (int slot, int drive, Entry & entry, 
         }
 
         //  A save the user asked for and did not get must not be
-        //  followed by throwing the only copy away.
+        //  followed by throwing the only copy away. The second question
+        //  is the lost-file question, so its answer is read as one.
         if (FAILED (hr))
         {
             if (m_askSink)
             {
+                entry.sharedState.SetAskedAction (asked);
                 entry.sharedState.SetAskOutstanding (
                     m_askSink (slot, drive,
                                ChangePrompt::ComposeSaveFailure (entry.path, drive,
