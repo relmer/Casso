@@ -1002,7 +1002,7 @@ HRESULT CassoExplorerActions::ReadFileContents (IDataObject * data, LONG index, 
     hr = data->GetData (&format, &medium);
     CHR (hr);
 
-    if (medium.tymed == TYMED_HGLOBAL)
+    if ((medium.tymed & TYMED_HGLOBAL) != 0)
     {
         locked = (const Byte *) GlobalLock (medium.hGlobal);
         CBREx (locked != nullptr, E_OUTOFMEMORY);
@@ -1014,7 +1014,7 @@ HRESULT CassoExplorerActions::ReadFileContents (IDataObject * data, LONG index, 
     }
     else
     {
-        CBREx (medium.tymed == TYMED_ISTREAM && medium.pstm != nullptr, DV_E_TYMED);
+        CBREx ((medium.tymed & TYMED_ISTREAM) != 0 && medium.pstm != nullptr, DV_E_TYMED);
 
         hr = medium.pstm->Stat (&stat, STATFLAG_NONAME);
         CHR (hr);
