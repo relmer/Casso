@@ -298,14 +298,20 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HitTestCheckbox
+//  HitTestToggle
+//
+//  The checkbox and its label toggle the row, as a standalone checkbox and
+//  its label do. The label's extent comes from the row's last paint; before
+//  any paint only the checkbox counts. Past the end of the label a click
+//  selects the row and toggles nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
+bool DxuiTreeView::HitTestToggle (int x, int y, int flatRow) const
 {
     int   rowDepth  = 0;
     int   checkboxX = 0;
+    int   right     = 0;
     bool  isHit     = false;
 
 
@@ -316,7 +322,14 @@ bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
     {
         rowDepth  = m_flatRows[(size_t) flatRow].depth;
         checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx - m_leftPx;
-        isHit     = x >= checkboxX && x < checkboxX + m_checkboxPx;
+        right     = checkboxX + m_checkboxPx;
+
+        if (flatRow < (int) m_labelRightPx.size())
+        {
+            right = std::max (right, m_labelRightPx[(size_t) flatRow]);
+        }
+
+        isHit = x >= checkboxX && x < right;
     }
 
     return isHit;
@@ -382,7 +395,7 @@ bool DxuiTreeView::OnLButtonDown (int x, int y)
 //  be left set by an early exit and leak into the next click.
 //
 //  Which of the three actions fires is decided by sub-region: twisty, then
-//  checkbox, then anything else is a selection. Ordering matters because the
+//  checkbox or label, then anything else is a selection. Ordering matters because the
 //  twisty and checkbox both sit inside the row's own rect.
 //
 //  A twisty click on a childless node is consumed but does nothing, rather
@@ -414,7 +427,7 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
                 consumed = true;
             }
         }
-        else if (HitTestCheckbox (x, y, row))
+        else if (HitTestToggle (x, y, row))
         {
             ToggleRow (row);
             consumed = true;
@@ -900,6 +913,8 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     float    twistyPad    = m_scaler.ToPxf (4.0f);
     float    dividerInset = m_scaler.ToPxf (8.0f);
     float    dividerThick = (std::max) (1.0f, std::floor (m_scaler.ToPxf (1.0f)));
+    float    labelW       = 0.0f;
+    float    labelH       = 0.0f;
 
 
 
@@ -911,8 +926,6 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     for (const FlatRow & fr : m_flatRows)
     {
         const DxuiTreeNode  * node   = fr.divider ? nullptr : GetNodeAt ((int) (&fr - m_flatRows.data()));
-        float                 labelW = 0.0f;
-        float                 labelH = 0.0f;
         float                 right  = 0.0f;
 
         if (node == nullptr)
@@ -920,7 +933,8 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             continue;
         }
 
-        hr = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
+        labelW = 0.0f;
+        hr     = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
 
         right = (float) (fr.depth * m_indentPx + m_twistyPx + GetCheckboxWidthPx()) + textGap + labelW + textGap;
 
@@ -958,6 +972,8 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                             (float) GetContentWidthPx(),
                             (float) GetContentHeightPx());
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    m_labelRightPx.assign (n, 0);
 
     for (i = first; i < last; ++i)
     {
@@ -1109,6 +1125,14 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                                   DxuiFontWeight::Normal,
                                   false);   // a row is one line: a long name is cut off, never wrapped
             IGNORE_RETURN_VALUE (hr, S_OK);
+
+            // After a failed measurement the label is outside the toggle's
+            // target, so a click on it selects the row.
+            labelW = 0.0f;
+            hr     = text.MeasureString (node->label.c_str(), fontDip, DxuiTheme::kBodyFace, labelW, labelH);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            m_labelRightPx[(size_t) i] = (int) std::ceil (textX + std::min (labelW, (float) m_boundsDip.right - textX));
         }
     }
 

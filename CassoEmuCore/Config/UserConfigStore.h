@@ -207,12 +207,27 @@ private:
     static bool  TryGetIntField    (const JsonValue & obj, const std::string & key, int & out);
     static bool  TryGetStringField (const JsonValue & obj, const std::string & key, std::string & out);
 
-    // `ports` is null when the user entry declares no connector list, in
-    // which case the default's own list (if any) passes through untouched.
+    // `ports` is null when the user entry declares no connector list,
+    // `switches` when it declares no Super Serial Card switches, and `network`
+    // when it declares no network settings; in each case the default's own
+    // value (if any) passes through untouched.
     static JsonValue  BuildObjectWithOverrides (
         const JsonValue & src,
         bool              enabled,
-        const JsonValue * ports);
+        const JsonValue * ports,
+        const JsonValue * switches,
+        const JsonValue * network);
+
+    static bool  IsSameCard (
+        const JsonValue & entry,
+        const JsonValue & defaultArr,
+        int               defIdx);
+
+    static int  FindMovedCard (
+        const JsonValue          & defEntry,
+        const JsonValue          & defaultArr,
+        const JsonValue          & userArr,
+        const std::vector<bool>  & userMatched);
 
     static JsonValue  BuildUiPrefsDefaults ();
 

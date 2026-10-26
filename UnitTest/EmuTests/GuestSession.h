@@ -56,6 +56,10 @@ public:
     //  The stock ProDOS Users Disk, or a FAILED test, on the same grounds.
     static std::vector<Byte>  RequireProDosUsersDisk();
 
+    //  The Kermit-65 3.87 ProDOS disk, or a FAILED test, on the same grounds.
+    //  It contains Apple's ProDOS, so it is fetched rather than committed too.
+    static std::vector<Byte>  RequireKermitDisk();
+
     //  An image committed to the repo, such as a readout disk under
     //  Disks/Casso, found from the working directory up; or a FAILED test.
     static std::vector<Byte>  RequireRepoImage (const char * repoPath);
@@ -222,6 +226,7 @@ private:
     static constexpr const char *     kpszMasterRepoPath  = "Disks/Apple/dos33-master.dsk";
     static constexpr const wchar_t *  kpszProDosCacheName = L"ProDOS Users Disk.dsk";
     static constexpr const char *     kpszProDosRepoPath  = "Disks/Apple/prodos-users.dsk";
+    static constexpr const char *     kpszKermitRepoPath  = "Disks/ThirdParty/kermit-65.dsk";
 
     //  How far up from the working directory the repo-path search climbs. The
     //  test host's directory is not fixed, so the walk covers a binary run from
@@ -233,10 +238,10 @@ private:
     //  fixture's startup program is a five-page slideshow.
     static constexpr int  kMaxPages = 12;
 
-    //  A bare prompt row is the prompt glyph plus, on the frames it is lit, the
-    //  cursor.
-    static constexpr size_t  kPromptRowLength = 2;
-    static constexpr char    kPromptGlyph     = ']';
+    //  A bare prompt row is a prompt glyph plus, on the frames it is lit, the
+    //  cursor: Applesoft's `]`, or Integer BASIC's `>` on the original ][.
+    static constexpr size_t          kPromptRowLength = 2;
+    static constexpr const char *    kPromptGlyphs    = "]>";
 
     //  What the controller ROM reads, in the decoded buffer's own terms.
     static constexpr int  kBootTrack  = 0;
@@ -244,6 +249,16 @@ private:
 
     static constexpr Word  kBootRomEntry = 0xC600;
     static constexpr Word  kIntCxRomOff  = 0xC006;
+
+    //  The original ][ monitor's RESET entry, the value of its reset vector
+    //  at $FFFC; the Autostart ROM's is elsewhere. That monitor does not boot
+    //  a disk: it sets up the screen and the text flags, then waits at its *
+    //  prompt for the user to type C600G. kMonitorResetCycles covers that.
+    static constexpr Word      kResetVector        = 0xFFFC;
+    static constexpr Word      kOldMonitorReset    = 0xFF59;
+    static constexpr uint64_t  kMonitorResetCycles = 2'000'000ULL;
+
+    static void  RunOldMonitorReset (MachineHost & host);
 
     static constexpr int  kSlot6  = 6;
     static constexpr int  kDrive1 = 0;

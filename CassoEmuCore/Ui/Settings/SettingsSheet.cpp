@@ -12,6 +12,11 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
+#include "Shell/Components/ShellSerialCard.h"
+#include "Ui/Settings/SerialCardPage.h"
+#include "Core/MachineConfig.h"
+#include "Core/TextEncoding.h"
+#include "AssetBootstrap.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "Config/GlobalUserPrefs.h"
 #include "GeneralPageModel.h"
@@ -102,6 +107,8 @@ void SettingsSheet::OnBuildPages()
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
+    m_serialPage   = CreatePage<SerialCardPage> (L"Serial card");
+    m_networkPage  = CreatePage<NetworkPage>  (L"Network");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
     m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
 
@@ -272,7 +279,12 @@ HRESULT SettingsSheet::OpenModeless (
 
     // The Disk tab is dynamic (#84): it exists only while the staged config has
     // an enabled Disk ][ controller. Remember its page index for the toggle.
-    m_diskPageIndex = IndexOfPage (m_diskPage);
+    m_diskPageIndex   = IndexOfPage (m_diskPage);
+    m_serialPageIndex = IndexOfPage (m_serialPage);
+
+    // The Network tab likewise exists only while the staged config has the
+    // Uthernet II turned on.
+    m_networkPageIndex = IndexOfPage (m_networkPage);
 
     // Wire the pages against a fresh SettingsPanelState + machine/theme
     // catalog (the same objects the legacy SettingsPanel owns).
@@ -293,6 +305,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_hardwarePage->SetState (&m_state);
     m_diskPage->SetState     (&m_state);
     m_displayPage->SetState  (&m_state);
+    m_networkPage->SetState  (&m_state);
 
     // Disk page play (>) buttons audition the drive sounds live.
     m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)
@@ -503,6 +516,8 @@ HRESULT SettingsSheet::OpenModeless (
     m_themePage->SetPopupHost    (GetPopupHost());
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
+    m_serialPage->SetPopupHost   (GetPopupHost());
+    m_networkPage->SetPopupHost  (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
     m_controllersPage->SetPopupHost (GetPopupHost());
 
@@ -624,6 +639,43 @@ HRESULT SettingsSheet::OpenModeless (
     m_printingPage->SetPrefs (&prefs);
     m_printingPage->SetPrinterInfo (m_emuShell->GetPrinter().GetPrinterBannerMessage());
 
+    // Serial card page: the staged slot entry, the firmware's status in the
+    // running machine's config, the shell's download, and the file pickers.
+    m_serialPage->SetState          (&m_state);
+    m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
+    m_serialPage->SetOnDownload ([this] ()
+    {
+        bool  downloaded = DownloadSerialFirmware (L"The Super Serial Card firmware is not installed. "
+                                                   L"Click Download to fetch it, or Cancel to close this window.");
+
+        IGNORE_RETURN_VALUE (downloaded, false);
+    });
+    m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
+    {
+        FileDialogSpec  spec;
+        fs::path        picked;
+        bool            isPicked = false;
+        HRESULT         hr       = S_OK;
+
+        spec.filters = { { L"All files", L"*.*" } };
+
+        if (!inOutPath.empty())
+        {
+            spec.initialFolder   = fs::path (inOutPath).parent_path();
+            spec.defaultFileName = fs::path (inOutPath).filename().wstring();
+        }
+
+        hr = forOutput ? m_emuShell->GetHostDialogs().PickFileToSave (GetHwnd(), spec, picked, isPicked)
+                       : m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
+
+        if (SUCCEEDED (hr) && isPicked)
+        {
+            inOutPath = picked.string();
+        }
+
+        return SUCCEEDED (hr) && isPicked;
+    });
+
     m_shotsPage->SetDefaultFolder (ScreenshotCapture::DefaultFolder().wstring());
     m_shotsPage->SetPrefs (&prefs);
 
@@ -655,6 +707,7 @@ HRESULT SettingsSheet::OpenModeless (
     // Seed the Disk tab's presence from the loaded config before the first
     // Layout so the tab strip is correct on the very first paint.
     UpdateDiskTabVisibility();
+    UpdateSerialTabVisibility();
 
     // Show the window BEFORE the final Rebuild: the first valid layout only
     // happens once the window is shown (WM_SIZE against the real client size),
@@ -664,7 +717,9 @@ HRESULT SettingsSheet::OpenModeless (
     Show();
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
+    m_serialPage->Rebuild();
     m_displayPage->Rebuild();
+    m_networkPage->Rebuild();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
     // Capture the CRT / color / theme baseline so OnCancel can revert any
@@ -977,8 +1032,17 @@ void SettingsSheet::OnDialogTick()
     RefreshOkLabel();
     UpdateRestartNotice();
     UpdateDiskTabVisibility();
+    UpdateSerialTabVisibility();
+    UpdateNetworkTabVisibility();
+    UpdateTabSparkles();
     UpdateTickInterval();
 
+    // The Machine tab's tree, a machine switch and Cancel all change the
+    // staged card behind the Network page.
+    if (m_networkPage != nullptr)
+    {
+        m_networkPage->Sync();
+    }
 
     // Controllers that came or went while the sheet is open, then the
     // Controllers page's reading of the one it shows.
@@ -1040,6 +1104,7 @@ void SettingsSheet::OnDialogTick()
 //  While the Controllers page is shown the sheet ticks at its live rate, so
 //  the stick and the lights follow the controller at display rate; on any
 //  other page it drops back to the default, and the page stops reading.
+//  The Serial card tab's sparkle ticks at frame rate during each sweep.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1052,6 +1117,11 @@ void SettingsSheet::UpdateTickInterval()
     if (m_controllersPage != nullptr && m_controllersPage->GetPollIntervalMs() > 0)
     {
         wanted = m_controllersPage->GetPollIntervalMs();
+    }
+
+    if (IsAnyTabSweeping())
+    {
+        wanted = std::min (wanted, kSparkleTickMs);
     }
 
     if (wanted != m_tickMs)
@@ -1478,6 +1548,437 @@ void SettingsSheet::UpdateDiskTabVisibility()
 
     m_diskTabVisible = want;
     SetPageVisible (m_diskPageIndex, want);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateSerialTabVisibility
+//
+//  The Serial card tab follows the staged Super Serial Card the way the Disk
+//  tab follows the controller. When the user turns the card on and its
+//  firmware is missing, the tab is selected, so the download it offers is
+//  in front of the user at once.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateSerialTabVisibility()
+{
+    HRESULT  hr       = S_OK;
+    bool     want     = m_state.HasEnabledSerialCard();
+    bool     turnedOn = want && !m_serialTabVisible;
+    bool     settled  = m_serialPageIndex < 0 || want == m_serialTabVisible;
+    bool     missing  = false;
+    bool     fetched  = false;
+
+
+
+    BAIL_OUT_IF (settled, S_OK);
+
+    missing = turnedOn && IsSerialFirmwareMissing();
+
+    if (missing)
+    {
+        // Not without its firmware: off before the tab appears, and on again
+        // only once the download has written it.
+        SetSerialCardEnabled (false);
+
+        fetched = DownloadSerialFirmware (L"The Super Serial Card runs Apple's firmware, a 2 KB ROM that is not "
+                                          L"installed. Click Download to fetch it and turn the card on, or Cancel "
+                                          L"to leave the card off.");
+
+        if (fetched)
+        {
+            SetSerialCardEnabled (true);
+        }
+    }
+
+    BAIL_OUT_IF (missing && !fetched, S_OK);
+
+    m_serialTabVisible = want;
+    SetPageVisible (m_serialPageIndex, want);
+
+    if (turnedOn)
+    {
+        m_serialPage->Rebuild();
+    }
+
+    // The user turned this card on a moment ago and waited for its download,
+    // so its tab is opened, not just marked.
+    if (fetched)
+    {
+        SetActivePage (m_serialPageIndex);
+    }
+
+    if (turnedOn)
+    {
+        StartTabSparkle (m_serialPageIndex);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartTabSparkle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::StartTabSparkle (int pageIndex)
+{
+    if (pageIndex >= 0 && DxuiSystemSettings::Instance().AreAnimationsEnabled())
+    {
+        m_tabSparkleStartMs[pageIndex] = (int64_t) GetTickCount64();
+        UpdateTickInterval();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetTabSparkleProgress
+//
+//  The current sweep's progress over a page's tab, 0 to 1, or nothing
+//  between sweeps, once the tab has been opened, or while it is hidden.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<float> SettingsSheet::GetTabSparkleProgress (int pageIndex) const
+{
+    std::optional<float>  progress;
+    int64_t               phase   = 0;
+    auto                  start   = m_tabSparkleStartMs.find (pageIndex);
+    bool                  running = start != m_tabSparkleStartMs.end() && IsPageVisible (pageIndex) &&
+                                    GetActiveIndex() != pageIndex;
+
+
+
+    if (running)
+    {
+        phase = ((int64_t) GetTickCount64() - start->second) % kSparklePeriodMs;
+
+        if (phase < DxuiShimmer::kSweepMs)
+        {
+            progress = (float) phase / (float) DxuiShimmer::kSweepMs;
+        }
+    }
+
+    return progress;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsAnyTabSweeping
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::IsAnyTabSweeping() const
+{
+    bool  sweeping = false;
+
+
+
+    for (const auto & [pageIndex, startMs] : m_tabSparkleStartMs)
+    {
+        sweeping = sweeping || GetTabSparkleProgress (pageIndex).has_value();
+    }
+
+    return sweeping;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateTabSparkles
+//
+//  Opening a sparkling tab ends its sparkle for good, as does hiding it
+//  again by turning its card off.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateTabSparkles()
+{
+    std::erase_if (m_tabSparkleStartMs, [this] (const auto & entry)
+    {
+        return !IsPageVisible (entry.first) || GetActiveIndex() == entry.first;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Paint
+//
+//  The sheet, then each sparkling tab's sweep over its label.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    std::optional<float>  progress;
+
+
+
+    DxuiPropertySheet::Paint (painter, text, theme);
+
+    for (const auto & [pageIndex, startMs] : m_tabSparkleStartMs)
+    {
+        progress = GetTabSparkleProgress (pageIndex);
+
+        if (progress.has_value())
+        {
+            PaintTabSparkle (text, pageIndex, *progress);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintTabSparkle
+//
+//  DxuiShimmer over a page's tab label, drawn where and as the tab strip
+//  draws it; the glints span only the label text's width.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::PaintTabSparkle (IDxuiTextRenderer & text, int pageIndex, float progress)
+{
+    constexpr float  kGlintDip = 2.5f;
+
+
+
+    HRESULT                    hr      = S_OK;
+    const DxuiTabStrip::Tab *  tab     = FindTabOfPage (pageIndex);
+    DxuiDpiScaler              scaler;
+    float                      fontPx  = 0.0f;
+    float                      padX    = 0.0f;
+    float                      x       = 0.0f;
+    float                      y       = 0.0f;
+    float                      w       = 0.0f;
+    float                      h       = 0.0f;
+    float                      labelW  = 0.0f;
+    float                      labelH  = 0.0f;
+
+
+
+    BAIL_OUT_IF (tab == nullptr, S_OK);
+
+    scaler.SetDpi (GetDpi());
+    fontPx = scaler.ToPxf (DxuiTabStrip::kLabelFontDip);
+    padX   = scaler.ToPxf (DxuiTabStrip::kLabelPadXDip);
+    x      = (float) tab->rect.left + padX;
+    y      = (float) tab->rect.top;
+    w      = (float) (tab->rect.right - tab->rect.left) - padX * 2.0f;
+    h      = (float) (tab->rect.bottom - tab->rect.top);
+
+    hr = text.MeasureString (tab->label.c_str(), fontPx, DxuiTheme::kBodyFace, labelW, labelH);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    labelW = std::min (labelW, w);
+
+    DxuiShimmer::Paint (text, x, y, w, h, x + (w - labelW) * 0.5f, labelW, fontPx, scaler.ToPxf (kGlintDip), progress, m_tabSparkleGlints,
+                        [&] (uint32_t argb)
+                        {
+                            HRESULT  drawHr = S_OK;
+
+                            drawHr = text.DrawString (tab->label.c_str(), x, y, w, h, argb, fontPx, DxuiTheme::kBodyFace,
+                                                      DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+                            IGNORE_RETURN_VALUE (drawHr, S_OK);
+                        });
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSerialFirmwareMissing
+//
+//  From the running machine's config, which resolved the firmware file when
+//  it loaded, whether or not the card was turned on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::IsSerialFirmwareMissing() const
+{
+    bool  missing = false;
+
+
+
+    for (const SlotConfig & slot : m_emuShell->GetMachine().GetConfig().slots)
+    {
+        if (slot.device == kpszSuperSerialCardDevice)
+        {
+            missing = slot.firmwareStatus != SlotFirmwareStatus::Present;
+        }
+    }
+
+    // A download since the machine was built installs the file without
+    // updating the running config's status.
+    if (missing && AssetBootstrap::IsOptionalRomInstalled (kpszSerialCardFirmware))
+    {
+        missing = false;
+    }
+
+    return missing;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSerialFirmwareStatus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring SettingsSheet::GetSerialFirmwareStatus() const
+{
+    std::wstring  text    = L"The Super Serial Card firmware is installed.";
+    bool          missing = IsSerialFirmwareMissing();
+
+
+
+    for (const SlotConfig & slot : m_emuShell->GetMachine().GetConfig().slots)
+    {
+        if (missing && slot.device == kpszSuperSerialCardDevice)
+        {
+            text = L"The Super Serial Card firmware is not installed. Programs that drive the card's 6551 "
+                   L"work without it; PR# and IN# do not. Casso looked for "
+                   + TextEncoding::NarrowToWide (slot.firmwarePath) + L".";
+        }
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DownloadSerialFirmware
+//
+//  The startup download dialog, for the card's firmware alone, with `intro`
+//  above it. A failed download is reported here; Cancel is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::DownloadSerialFirmware (const std::wstring & intro)
+{
+    HRESULT       hr         = S_OK;
+    bool          downloaded = false;
+    std::string   error;
+    std::wstring  message;
+
+
+
+    hr = AssetBootstrap::OfferOptionalRomDownload (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), "SSC.rom",
+                                                   L"Super Serial Card firmware", intro, downloaded, error);
+
+    if (FAILED (hr) || !error.empty())
+    {
+        message = L"The Super Serial Card firmware could not be downloaded. " + TextEncoding::NarrowToWide (error);
+
+        DxuiMessageBox (GetHwnd(), &m_emuShell->GetChrome().GetTheme(), message.c_str(),
+                        L"Super Serial Card", MB_OK | MB_ICONWARNING);
+    }
+
+    m_serialPage->SetFirmwareStatus (GetSerialFirmwareStatus(), IsSerialFirmwareMissing());
+
+    return downloaded;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialCardEnabled
+//
+//  Stages the card's enable and refreshes the Machine tab's tree to match.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::SetSerialCardEnabled (bool enabled)
+{
+    int      index = m_state.FindSerialCard();
+    HRESULT  hr    = S_OK;
+
+
+
+    if (index >= 0)
+    {
+        hr = m_state.SetHardwareEnabled (static_cast<size_t> (index), enabled);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        m_hardwarePage->Rebuild();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateNetworkTabVisibility
+//
+//  The Network tab is present only while the staged hardware config has the
+//  Uthernet II turned on, which the Machine tab's tree sets, as the Disk tab
+//  follows the Disk ][ controller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateNetworkTabVisibility()
+{
+    bool  want = m_state.HasEnabledNetworkCard();
+
+
+
+    if (m_networkPageIndex < 0 || want == m_networkTabVisible)
+    {
+        return;
+    }
+
+    m_networkTabVisible = want;
+    SetPageVisible (m_networkPageIndex, want);
+
+    if (want)
+    {
+        StartTabSparkle (m_networkPageIndex);
+    }
 }
 
 

@@ -176,6 +176,24 @@ namespace DebuggerTests
 
         //  A run's tip has its source and its addresses, and nothing over the
         //  bounds' labels or the headings.
+        //  The read and write strips share one address axis, so an address is
+        //  at the same height in both, though the two strips' runs differ.
+        TEST_METHOD (TheMemoryMapStripsShareOneAddressAxis)
+        {
+            MemoryMapBar  bar;
+
+
+
+            bar.SetMap (MakeMap());
+            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), MemoryMapBar::kHeadingDip + 256 }, Scaler96());
+
+            for (int page = 0; page <= (int) DiagnosticsMemoryMap::kPageCount; page++)
+            {
+                Assert::AreEqual (bar.GetPageY (page, false), bar.GetPageY (page, true), 0.01f, std::format (L"page ${:02X}", page).c_str());
+            }
+        }
+
+
         TEST_METHOD (AMemoryMapRunsTipHasItsSourceAndAddresses)
         {
             constexpr LONG        kRead  = MemoryMapBar::kBoundsDip;

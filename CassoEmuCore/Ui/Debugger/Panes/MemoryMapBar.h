@@ -61,8 +61,8 @@ public:
     uint32_t                      GetColorOf      (MemorySource source) const;
 
     //  Where a strip starts, in pixels from the bar's left; and where a page's
-    //  segment starts in a strip, in pixels from the bar's top. Page 256 is
-    //  the strip's foot.
+    //  segment starts, in pixels from the bar's top, the same in both strips.
+    //  Page 256 is the strips' foot.
     float                         GetStripX (bool isWrite) const;
     float                         GetPageY  (int page, bool isWrite) const;
 
@@ -82,6 +82,8 @@ private:
     };
 
     void          PlaceRuns   ();
+    float         GetAxisY    (int page) const;
+    static void   ShareHeight (std::vector<Run> & runs, float top, float height, float minimum);
     const Run *   FindRunAt   (float y, bool isWrite) const;
     MemorySource  GetSourceOf (int page, bool isWrite) const;
     void          PaintStrip  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
@@ -91,4 +93,5 @@ private:
     DxuiDpiScaler                      m_scaler;
     SourceColors                       m_colors  = {};
     std::array<std::vector<Run>, 2>    m_runs;           // read, then write
+    std::vector<Run>                   m_axis;           // the pieces between every page where either strip changes source
 };

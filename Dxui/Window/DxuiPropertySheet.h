@@ -191,6 +191,10 @@ protected:
     //  Subclasses pass this index to SetPageVisible.
     int   IndexOfPage (const DxuiPropertyPage * page) const;
 
+    //  The tab a page has, as the strip last laid it out: its rect in the
+    //  sheet's pixels and its label. Null while the page has no tab.
+    const DxuiTabStrip::Tab *  FindTabOfPage (int pageIndex) const;
+
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;

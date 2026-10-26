@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DiskPage.h"
+#include "SettingsInfoTip.h"
 
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Settings/SettingsPanelState.h"
@@ -298,7 +299,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     // 16-bit is the common format. Some tools, among them CiderPress II, read
     // only 8-bit; recording onto an existing tape keeps its bit depth.
     m_tapeWavFormatLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_tapeWavFormatInfo.SetRect  (GetInfoTipRect (m_tapeWavFormatLabel, scaler));
+    m_tapeWavFormatInfo.SetRect  (SettingsInfoTip::GetRect (m_tapeWavFormatLabel, scaler, GetMeasuringRenderer()));
     m_tapeWavFormat.SetRect      (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_tapeWavFormat.SetItems     ({ L"16-bit", L"8-bit" });
     m_tapeWavFormatInfo.SetText  (L"Casso reads 8-bit and 16-bit tapes alike. Some other tools, such as "
@@ -384,48 +385,6 @@ IDxuiTextRenderer * DiskPage::GetMeasuringRenderer() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskPage::MeasureLabelPx
-//
-//  How wide the label's text draws, in the face and size it draws in. With
-//  nothing to measure with, or a measurement that fails, an average glyph
-//  width per character stands in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DiskPage::MeasureLabelPx (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
-{
-    constexpr int  kGlyphWidthDp = 7;
-
-
-
-    HRESULT              hr       = S_OK;
-    IDxuiTextRenderer  * text     = GetMeasuringRenderer();
-    float                widthPx  = 0.0f;
-    float                heightPx = 0.0f;
-
-
-
-    if (text != nullptr)
-    {
-        hr = text->MeasureString (label.GetText().c_str(), scaler.ToPxf (label.GetFontSizeDip()), DxuiTheme::kBodyFace, widthPx, heightPx);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    // A failed measurement leaves the width at zero, as no renderer does.
-    if (widthPx <= 0.0f)
-    {
-        widthPx = (float) (label.GetText().size() * scaler.ToPx (kGlyphWidthDp));
-    }
-
-    return (int) std::ceil (widthPx);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskPage::GetLabelColumnPx
 //
 //  Wide enough that no label wraps: the widest label at its indent, with its
@@ -443,65 +402,31 @@ int DiskPage::GetLabelColumnPx (const DxuiDpiScaler & scaler) const
 
     const DxuiLabel  * topLevel[] = { &m_wpLabel, &m_writeModeLabel, &m_audioLabel, &m_tapeLabel,
                                       &m_tapeVolumeLabel, &m_tapeAutoStopLabel, &m_tapeIdleStopLabel };
-    const DxuiLabel  * nested[]   = { &m_mechLabel, &m_motorLabel, &m_headLabel, &m_doorLabel, &m_panOneLabel, &m_panTwoLabel };
-    const DxuiLabel  * tipped[]   = { &m_tapeWavFormatLabel };
-    int                indent     = scaler.ToPx (DxuiTreeView::kIndentDip);
-    int                tipReach   = scaler.ToPx (kInfoTipGapDp) + (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
-    int                widest     = 0;
+    const DxuiLabel    * nested[] = { &m_mechLabel, &m_motorLabel, &m_headLabel, &m_doorLabel, &m_panOneLabel, &m_panTwoLabel };
+    const DxuiLabel    * tipped[] = { &m_tapeWavFormatLabel };
+    IDxuiTextRenderer  * text     = GetMeasuringRenderer();
+    int                  indent   = scaler.ToPx (DxuiTreeView::kIndentDip);
+    int                  tipReach = scaler.ToPx (SettingsInfoTip::kGapDp) + (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
+    int                  widest   = 0;
 
 
 
     for (const DxuiLabel * label : topLevel)
     {
-        widest = std::max (widest, MeasureLabelPx (*label, scaler));
+        widest = std::max (widest, SettingsInfoTip::MeasureLabelPx (*label, scaler, text));
     }
 
     for (const DxuiLabel * label : nested)
     {
-        widest = std::max (widest, indent + MeasureLabelPx (*label, scaler));
+        widest = std::max (widest, indent + SettingsInfoTip::MeasureLabelPx (*label, scaler, text));
     }
 
     for (const DxuiLabel * label : tipped)
     {
-        widest = std::max (widest, MeasureLabelPx (*label, scaler) + tipReach);
+        widest = std::max (widest, SettingsInfoTip::MeasureLabelPx (*label, scaler, text) + tipReach);
     }
 
     return std::max (scaler.ToPx (s_kLabelWidthDp), widest + scaler.ToPx (kLabelGapDp));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskPage::GetInfoTipRect
-//
-//  A row-high square whose glyph starts a small gap past the end of the
-//  label's text. The glyph is centered in the square, so the square starts
-//  half its margin before that point. It drops by a fraction of the label's
-//  font size to put the ring's center on the capitals' center.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DiskPage::GetInfoTipRect (const DxuiLabel & label, const DxuiDpiScaler & scaler) const
-{
-    // Centering the two boxes leaves the ring riding high, because the icon
-    // font's ink sits higher in its box than the body face's capitals do in
-    // theirs. Measured from rendered captures.
-    constexpr float  kInfoTipDropEm = 0.05f;
-
-
-
-    RECT  row     = label.GetRect();
-    int   size    = row.bottom - row.top;
-    int   glyphPx = (int) std::ceil (scaler.ToPxf (DxuiInfoTip::kGlyphDip));
-    int   glyphX  = row.left + MeasureLabelPx (label, scaler) + scaler.ToPx (kInfoTipGapDp);
-    int   drop    = (int) std::lround (scaler.ToPxf (label.GetFontSizeDip()) * kInfoTipDropEm);
-
-
-
-    return MakeRect (glyphX - (size - glyphPx) / 2, row.top + drop, size, size);
 }
 
 

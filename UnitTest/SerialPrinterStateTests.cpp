@@ -90,6 +90,18 @@ namespace SerialPrinterState
             Assert::AreEqual (m_rxData,  other.m_rxData,  L"receive data");
         }
 
+        // Queues a received byte and runs the ACIA long enough for it to land
+        // in the receive data register.
+        void Land (Byte value)
+        {
+            static constexpr uint32_t  kLandCycles = 100000;
+
+
+
+            EnqueueReceivedBytes (&value, 1);
+            Tick (kLandCycles);
+        }
+
         // Receives two bytes and reads back the data and status registers
         // after each.
         std::vector<Byte> Exchange()
@@ -98,12 +110,12 @@ namespace SerialPrinterState
 
 
 
-            ReceiveByte (0x41);
+            Land (0x41);
             out.push_back (Read (static_cast<Word> (kAciaBase + kRegStatus)));
             out.push_back (Read (static_cast<Word> (kAciaBase + kRegData)));
 
-            ReceiveByte (0x42);
-            ReceiveByte (0x43);
+            Land (0x42);
+            Land (0x43);
             out.push_back (Read (static_cast<Word> (kAciaBase + kRegStatus)));
             out.push_back (Read (static_cast<Word> (kAciaBase + kRegData)));
             out.push_back (Read (static_cast<Word> (kAciaBase + kRegStatus)));
@@ -146,7 +158,7 @@ namespace SerialPrinterState
 
             acia.Write (static_cast<Word> (kAciaBase + Acia6551::kRegControl), 0x1E);
             acia.Write (static_cast<Word> (kAciaBase + Acia6551::kRegCommand), Acia6551::kCommandDtr);
-            acia.ReceiveByte (0x7F);
+            acia.Land (0x7F);
 
             saved    = Save (acia);
             expected = acia.Exchange();

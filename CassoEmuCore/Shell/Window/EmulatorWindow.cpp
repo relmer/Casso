@@ -13,6 +13,7 @@
 #include "Shell/WindowManager.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellSerialCard.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
@@ -418,6 +419,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_scene->AdoptOverlays (m_host->GetRoot());
     m_chrome->AdoptToolbar (m_host->GetRoot());
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
+    m_host->GetRoot().Adopt (m_serialCard->GetBanner());
     m_chrome->AdoptBanners (m_host->GetRoot());
 
     // Give the host the chrome theme so its paint pump renders the

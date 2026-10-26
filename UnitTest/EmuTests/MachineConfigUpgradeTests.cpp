@@ -622,9 +622,11 @@ public:
 
         // The occupant is deliberately NOT a disk-ii: a Disk ][ entry with no
         // `ports` is itself something to migrate, which would make `changed`
-        // true for a reason that has nothing to do with slot 1.
+        // true for a reason that has nothing to do with slot 1. Slot 2 is
+        // occupied for the same reason: a free slot 2 is given the serial card.
         string   input    = "{ \"$cassoMachineVersion\": 7,"
                             "  \"slots\": ["
+                            "    { \"slot\": 2, \"device\": \"super-serial-card\", \"capabilityFlag\": \"optional\" },"
                             "    { \"slot\": 1, \"device\": \"mockingboard\", \"capabilityFlag\": \"optional\" }"
                             "  ] }";
         hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
@@ -696,6 +698,7 @@ public:
         // injection and set `changed` for a reason unrelated to ports.
         string   input    = "{ \"$cassoMachineVersion\": 9,"
                             "  \"slots\": ["
+                            "    { \"slot\": 2, \"device\": \"super-serial-card\", \"capabilityFlag\": \"optional\" },"
                             "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\" },"
                             "    { \"slot\": 6, \"device\": \"disk-ii\", \"rom\": \"Disk2.rom\","
                             "      \"capabilityFlag\": \"optional\","
@@ -726,6 +729,7 @@ public:
 
         string   input    = "{ \"$cassoMachineVersion\": 9,"
                             "  \"slots\": ["
+                            "    { \"slot\": 2, \"device\": \"super-serial-card\", \"capabilityFlag\": \"optional\" },"
                             "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\" },"
                             "    { \"slot\": 4, \"device\": \"mockingboard\", \"capabilityFlag\": \"optional\" }"
                             "  ] }";
@@ -894,6 +898,70 @@ public:
     }
 
 
+    //
+    //  The Super Serial Card joins slot 2 of every existing config that has
+    //  slot 2 free, turned off, as the shipped configs list it.
+    //
+    TEST_METHOD (MigrateUserConfig_AddsSerialCardToFreeSlot2)
+    {
+        string   migrated;
+        bool     changed  = false;
+        HRESULT  hr       = S_OK;
+
+
+
+        string   input    = "{ \"$cassoMachineVersion\": 9,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (changed, L"a free slot 2 is given the serial card");
+        Assert::IsTrue (migrated.find ("\"super-serial-card\"") != string::npos);
+        Assert::IsTrue (migrated.find ("\"SSC.rom\"") != string::npos, L"with its firmware file");
+        Assert::IsTrue (migrated.find ("\"enabled\": false") != string::npos, L"turned off");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_NeverReplacesACardInSlot2)
+    {
+        string   migrated;
+        bool     changed  = false;
+        HRESULT  hr       = S_OK;
+
+
+
+        string   input    = "{ \"$cassoMachineVersion\": 9,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\" },"
+                            "    { \"slot\": 2, \"device\": \"mockingboard\", \"capabilityFlag\": \"optional\", \"enabled\": false }"
+                            "  ] }";
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsFalse (changed, L"an occupied slot 2, even a disabled one, is left as it is");
+        Assert::IsTrue (migrated.find ("\"super-serial-card\"") == string::npos);
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_GivesNoSerialCardToAMachineWithoutSlots)
+    {
+        string   migrated;
+        bool     changed  = false;
+        HRESULT  hr       = S_OK;
+
+
+
+        string   input    = "{ \"$cassoMachineVersion\": 5, \"name\": \"Apple //c\" }";
+        hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
+
+        AssertSucceeded (hr);
+        Assert::IsTrue (migrated.find ("\"super-serial-card\"") == string::npos,
+            L"a //c has no slots and gets no card");
+    }
+
+
     TEST_METHOD (MigrateUserConfig_NeverResurrectsDisabledPrinter)
     {
         string   migrated;
@@ -904,6 +972,7 @@ public:
 
         string   input    = "{ \"$cassoMachineVersion\": 7,"
                             "  \"slots\": ["
+                            "    { \"slot\": 2, \"device\": \"super-serial-card\", \"capabilityFlag\": \"optional\" },"
                             "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\", \"enabled\": false }"
                             "  ] }";
         hr = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);

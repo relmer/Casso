@@ -184,6 +184,10 @@
     <ClCompile Include="DebugEventLogScrollTests.cpp" />
     <ClCompile Include="IoLogCostTests.cpp" />
     <ClCompile Include="MachineStateCompatibilityTests.cpp" />
+    <ClCompile Include="GuestVisibleApple2cSerialTests.cpp" />
+    <ClCompile Include="GuestVisibleSuperSerialCardTests.cpp" />
+    <ClCompile Include="GuestVisibleKermitTests.cpp" />
+    <ClCompile Include="GuestVisibleTextScreenTests.cpp" />
     <ClCompile Include="..\UnitTest\ModuleSetup.cpp" />
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
@@ -195,6 +199,9 @@
     <ClCompile Include="..\UnitTest\EmuTests\MachineIdle.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TextScreenScraper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FluxTestImages.cpp" />
+    <ClCompile Include="UthernetLoopbackTests.cpp" />
+    <ClCompile Include="UthernetSoftwareTests.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\W5100Driver.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Pch.h" />

@@ -8,6 +8,9 @@
 #include "Core/TextEncoding.h"
 #include "Shell/CpuManager.h"
 #include "Debugger/Reverse/InputJournal.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonValue.h"
+#include "Config/NetworkCardSettings.h"
 
 
 
@@ -83,6 +86,14 @@ void CpuCommandDispatcher::Dispatch (const EmulatorCommand & cmd, const CpuComma
 
         case IDM_DEBUG_SAVE_TRACE:
             targets.machine.SaveTrace();
+            break;
+
+        case IDM_NETWORK_CONFIGURE:
+            DispatchNetworkConfigure (cmd.payload, targets.machine);
+            break;
+
+        case IDM_SSC_SWITCHES:
+            DispatchSerialCardSwitches (cmd.payload, targets.machine);
             break;
 
         case IDM_FILE_SAVE_STATE:
@@ -498,6 +509,31 @@ void CpuCommandDispatcher::DispatchSalvageWrite (const std::string & payload, IC
     }
 
     disks.WriteSalvagedCopy (drive, mediaId, path);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchSerialCardSwitches
+//
+//  "<sw1>|<sw2>", each bank as the card's "on off ..." text. A payload with
+//  no separator is ignored.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchSerialCardSwitches (const std::string & payload, ICpuMachineCommands & machine)
+{
+    size_t  split = payload.find ('|');
+
+
+
+    if (split != std::string::npos)
+    {
+        machine.SetSerialCardSwitches (payload.substr (0, split), payload.substr (split + 1));
+    }
 }
 
 
@@ -1160,3 +1196,34 @@ std::filesystem::path CpuCommandDispatcher::PayloadToPath (const std::string & p
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchNetworkConfigure
+//
+//  The Uthernet II's settings as JSON. A payload that does not parse changes
+//  nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuCommandDispatcher::DispatchNetworkConfigure (const std::string & payload, ICpuMachineCommands & machine)
+{
+    HRESULT                   hr       = S_OK;
+    JsonValue                 json;
+    JsonParseError            error;
+    NetworkCardSettings       settings;
+    std::vector<std::string>  warnings;
+
+
+
+    hr = JsonParser::Parse (payload, json, error);
+    CHR (hr);
+
+    hr = NetworkCardSettings::FromJson (json, settings, warnings);
+    CHR (hr);
+
+    machine.ConfigureNetworkCard (settings);
+
+Error:
+    return;
+}

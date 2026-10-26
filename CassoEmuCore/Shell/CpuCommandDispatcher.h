@@ -165,15 +165,17 @@ public:
 
 private:
 
-    static bool  DispatchDriveCommand   (const EmulatorCommand & cmd, ICpuDiskCommands & disks, ICpuDriveAudioCommands & driveAudio);
-    static bool  DispatchDebugCommand   (const EmulatorCommand & cmd, IDebugCommandTarget & debug);
-    static bool  DispatchTapeCommand    (const EmulatorCommand & cmd, ICpuTapeCommands & tape);
-    static void  DispatchResolveChange  (const std::string & payload, ICpuDiskCommands & disks);
-    static void  DispatchSalvageWrite   (const std::string & payload, ICpuDiskCommands & disks);
-    static void  DispatchDriveVolumes   (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
-    static void  DispatchDrivePan       (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
-    static void  DispatchDriveTest      (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
-    static void  DispatchDebugView      (const std::string & payload, IDebugCommandTarget & target);
-    static void  DispatchReverse        (const std::string & payload, IDebugCommandTarget & target);
-    static void  DispatchReverseOptions (const std::string & payload, IDebugCommandTarget & target);
+    static bool  DispatchDriveCommand       (const EmulatorCommand & cmd, ICpuDiskCommands & disks, ICpuDriveAudioCommands & driveAudio);
+    static bool  DispatchDebugCommand       (const EmulatorCommand & cmd, IDebugCommandTarget & debug);
+    static bool  DispatchTapeCommand        (const EmulatorCommand & cmd, ICpuTapeCommands & tape);
+    static void  DispatchResolveChange      (const std::string & payload, ICpuDiskCommands & disks);
+    static void  DispatchSalvageWrite       (const std::string & payload, ICpuDiskCommands & disks);
+    static void  DispatchSerialCardSwitches (const std::string & payload, ICpuMachineCommands & machine);
+    static void  DispatchDriveVolumes       (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
+    static void  DispatchDrivePan           (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
+    static void  DispatchDriveTest          (const std::string & payload, ICpuDriveAudioCommands & driveAudio);
+    static void  DispatchDebugView          (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverse            (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchReverseOptions     (const std::string & payload, IDebugCommandTarget & target);
+    static void  DispatchNetworkConfigure   (const std::string & payload, ICpuMachineCommands & machine);
 };
