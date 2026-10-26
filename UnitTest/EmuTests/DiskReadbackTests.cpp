@@ -435,62 +435,6 @@ public:
         return hr;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Read every (track, sector) from a sentinel disk and verify each
-    //  decoded sector matches what the nibblizer wrote. This exercises
-    //  the whole disk subsystem -- nibblization, controller phase-step,
-    //  engine bit-streaming, LSS latch -- in the same access pattern
-    //  RWTS uses to read the catalog. No CPU, no boot ROM.
-    //
-    //  If the boot ROM tests pass but this fails, the bug is in the
-    //  runtime engine path (track stepping, latch state across track
-    //  changes, motor cycling). If both fail, it's the on-disk format.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (DumpFirstNibblesOnTrack0)
-    {
-        TestMachine    machine ("Apple2e");
-        vector<Byte>    raw            = BuildSentinelDisk();
-        DWORD           pl             = 0;
-        FILE          * fp             = nullptr;
-        uint64_t        spent          = 0;
-        int             validCount     = 0;
-        char            path[MAX_PATH] = {};
-        wchar_t         msg[128]       = {};
-
-        MountAndSpinUp (machine, raw);
-
-        // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
-        // can see what the engine actually presents to the bus.
-        pl = GetTempPathA (MAX_PATH, path);
-        if (pl > 0 && pl < MAX_PATH - 32)
-        {
-            strcat_s (path, "readback-trace.log");
-            (void) fopen_s (&fp, path, "w");
-        }
-
-        for (int i = 0; i < 64; i++)
-        {
-            Byte n = ReadNextNibble (machine, spent);
-            if (fp != nullptr)
-            {
-                fprintf (fp, "[%2d] %02X (after %llu ticks)\n",
-                         i, n, (unsigned long long) spent);
-            }
-
-            if (n != 0) validCount++;
-        }
-
-        if (fp != nullptr) fclose (fp);
-
-        swprintf_s (msg, L"Got %d/64 valid nibbles (see readback-trace.log)",
-                    validCount);
-        Assert::IsTrue (validCount > 32, msg);
-    }
-
-
     TEST_METHOD (ReadAllSectorsOnTrack0_FromSentinelDsk)
     {
         TestMachine  machine ("Apple2e");

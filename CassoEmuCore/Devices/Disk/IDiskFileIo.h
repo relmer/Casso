@@ -73,8 +73,9 @@ public:
     virtual bool     Exists        (const std::string & path) = 0;
     virtual HRESULT  Remove        (const std::string & path) = 0;
 
-    //  Replaces the target with the temporary in one step, so an interrupted
-    //  write cannot leave a half-written image behind.
+    //  Replaces the target with the temporary in one step, so the target is
+    //  either the old file or the new one. DurableCommit flushes the temporary
+    //  first, so the new one's bytes survive a power cut.
     virtual HRESULT  ReplaceAtomically (const std::string & tempPath,
                                         const std::string & targetPath) = 0;
 

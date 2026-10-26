@@ -14,11 +14,12 @@
 //
 //  The platform half of the disk-command seam: syscalls and nothing else.
 //
-//  Every decision the disk commands make lives above this class, in
-//  DiskCommandRunner, which the test assembly links and exercises. This one is
-//  UNTESTABLE BY CONSTRUCTION -- the test project does not reference the console
-//  executable -- so anything here that could be gotten wrong in an interesting
-//  way is in the wrong place. What remains is opening, reading, writing and
+//  Every decision the disk commands make is above this class, in
+//  DiskCommandRunner and DurableCommit, which the unit suite exercises over
+//  FakeDiskFileIo. This class touches real files, so the cases for it are in the
+//  scenario suite (Win32DiskFileIoTests and DurableCommitFileTests), and
+//  anything here that could be gotten wrong in an interesting way is in the
+//  wrong place. What remains is opening, reading, writing, flushing and
 //  replacing files.
 //
 //  With one exception that could not be moved: the translation mode of the

@@ -206,9 +206,10 @@ HRESULT Win32DiskFileIo::Remove (const std::string & path)
 //
 //  Win32DiskFileIo::ReplaceAtomically
 //
-//  MoveFileExW with REPLACE_EXISTING and WRITE_THROUGH, so an interrupted write
-//  cannot leave the target half-written: it is either the old file or the new
-//  one, never a mixture.
+//  MoveFileExW with REPLACE_EXISTING and WRITE_THROUGH, so the target is either
+//  the old file or the new one, never a mixture. The new one's bytes survive a
+//  power cut only when the temporary was flushed first, which DurableCommit
+//  does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -541,10 +542,9 @@ Error:
 //  THIS DOES NOT OVERLAP THE SUBSTITUTE FILE INTERFACE, and both are needed.
 //  The substitute covers every DECISION above the seam -- the ordering, each
 //  refusal, the cleanup rule -- deterministically, in the test assembly, over
-//  nothing real. What it structurally cannot cover is this class: the test
-//  project does not link the console executable, and the property at stake is
-//  what a REAL file on a REAL filesystem looks like once the process has
-//  stopped existing. A substitute that recorded the right intentions in memory
+//  nothing real. What it structurally cannot cover is this class: the
+//  property at stake is what a REAL file on a REAL filesystem looks like once
+//  the process has stopped existing. A substitute that recorded the right intentions in memory
 //  would pass either way.
 //
 //  IT CANNOT EXIST UNLESS SOMEBODY ASKED FOR IT. The declarations, these

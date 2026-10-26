@@ -1,5 +1,5 @@
 #include "Pch.h"
-#include "../EhmTestHelper.h"
+#include "EhmTestHelper.h"
 #include "Devices/Disk/Win32ImageWatcher.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "HResultAssert.h"

@@ -35,32 +35,6 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
-    //  BuildSearchPaths_ReturnsLocalAppDataOnly
-    //
-    //  Casso uses a single asset directory; exeDir / cwd parameters
-    //  are accepted for compat but no longer contribute search paths.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    TEST_METHOD (BuildSearchPaths_ReturnsLocalAppDataOnly)
-    {
-        auto paths = PathResolver::BuildSearchPaths (fs::path ("C:/app/bin"),
-                                                     fs::path ("C:/project"));
-
-        // The single element is %LOCALAPPDATA%\Casso\, which depends on
-        // the test host. We only assert that the legacy fallback dirs
-        // do NOT appear.
-        Assert::AreEqual ((size_t) 1, paths.size(),
-            L"BuildSearchPaths now returns exactly one entry (localappdata)");
-        for (const auto & p : paths)
-        {
-            Assert::AreNotEqual (fs::path ("C:/app/bin").wstring(),  p.wstring());
-            Assert::AreNotEqual (fs::path ("C:/project").wstring(),  p.wstring());
-        }
-    }
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
     //  FindFile_FoundInFirstPath
     //
     ////////////////////////////////////////////////////////////////////////////

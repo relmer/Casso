@@ -1,0 +1,497 @@
+#include "Pch.h"
+#include "TestMachine.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "HResultAssert.h"
+
+using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskReadbackTests
+//
+//  End-to-end "Casso writes a disk image, then Casso's Disk2Controller
+//  + LSS engine reads it back through the bus" tests. No boot ROM, no
+//  CPU -- just the disk subsystem driven via direct controller API
+//  calls and bus reads of $C0E0-$C0EF (slot 6).
+//
+//  This complements BootRomDecoderTests: those exercise the on-disk
+//  format against the real Disk2.rom firmware as a spec oracle. These
+//  exercise the runtime path -- phase stepping, multi-track reads,
+//  multi-sector reads, motor on/off cycles -- in a way the boot ROM
+//  tests can't (the boot ROM only reads sector 0 of track 0 with
+//  the head already at home position).
+//
+//  Each disk is built with a unique sentinel byte at the start of every
+//  (track, sector) so any byte-swap / off-by-one in the indexing
+//  surfaces as a clear "T17S00 expected $11, got $XX" message.
+//
+//  This file has the nibble dump, which writes a trace log to the system temp
+//  folder. The rest are in the unit suite's DiskReadbackTests.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+TEST_CLASS (DiskReadbackTests)
+{
+public:
+
+    static constexpr int        kSlot6               = 6;
+    static constexpr int        kDrive1              = 0;
+    static constexpr int        kSectorBytes         = 256;
+    static constexpr int        kSectorsPerTrack     = 16;
+    static constexpr int        kTrackCount          = 35;
+
+    // I/O offsets within the slot 6 soft-switch range $C0E0-$C0EF.
+    static constexpr Word       kSlotIoBase          = 0xC0E0;
+    static constexpr Word       kPhase0Off           = kSlotIoBase + 0x0;
+    static constexpr Word       kPhase0On            = kSlotIoBase + 0x1;
+    static constexpr Word       kPhase1Off           = kSlotIoBase + 0x2;
+    static constexpr Word       kPhase1On            = kSlotIoBase + 0x3;
+    static constexpr Word       kPhase2Off           = kSlotIoBase + 0x4;
+    static constexpr Word       kPhase2On            = kSlotIoBase + 0x5;
+    static constexpr Word       kPhase3Off           = kSlotIoBase + 0x6;
+    static constexpr Word       kPhase3On            = kSlotIoBase + 0x7;
+    static constexpr Word       kMotorOff            = kSlotIoBase + 0x8;
+    static constexpr Word       kMotorOn             = kSlotIoBase + 0x9;
+    static constexpr Word       kSelectDrive1        = kSlotIoBase + 0xA;
+    static constexpr Word       kSelectDrive2        = kSlotIoBase + 0xB;
+    static constexpr Word       kReadLatch           = kSlotIoBase + 0xC;
+    static constexpr Word       kQ6On                = kSlotIoBase + 0xD;
+    static constexpr Word       kQ7Off               = kSlotIoBase + 0xE;
+    static constexpr Word       kQ7On                = kSlotIoBase + 0xF;
+
+    static constexpr Byte       kAddrProlog0         = 0xD5;
+    static constexpr Byte       kAddrProlog1         = 0xAA;
+    static constexpr Byte       kAddrProlog2         = 0x96;
+    static constexpr Byte       kDataProlog2         = 0xAD;
+
+    // Generous tick budget per attempted byte-fetch -- one revolution
+    // is ~50,000 bits = ~12,500 nibbles, plus margin for the latch
+    // delay window. 64 cycles gets us a guaranteed advance of one
+    // bit-cell-pair through the LSS regardless of the current latch
+    // state, so 8 calls per nibble worst case.
+    static constexpr uint32_t   kTicksPerLatchPoll   = 4;
+    static constexpr uint64_t   kMaxNibblesPerSector = 100'000ULL;
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Synthesizers / decoders
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    // Each (track, sector)'s first byte = (track << 4) | sector_logical.
+    // Subsequent bytes scale the same value by index for further
+    // discrimination.
+    Byte SectorSentinel (int track, int sector, int byteOffset)
+    {
+        Byte base = static_cast<Byte> ((track << 4) | (sector & 0x0F));
+        return static_cast<Byte> (base ^ static_cast<Byte> (byteOffset));
+    }
+
+
+    // DOS 3.3 nibblizes physical sector P with the source bytes from
+    // logical sector kDsk_PhysicalToFile[P]. So when we read physical sector
+    // P, the byte we get is whatever was stamped for that logical sector.
+    int PhysicalToLogicalDosSector (int physical)
+    {
+        static constexpr int kDsk_PhysicalToFile[16] = {
+            0, 7, 14, 6, 13, 5, 12, 4, 11, 3, 10, 2, 9, 1, 8, 15
+        };
+        return kDsk_PhysicalToFile[physical];
+    }
+
+
+    Byte ExpectedSectorByte (int track, int physicalSector, int byteOffset)
+    {
+        int logical = PhysicalToLogicalDosSector (physicalSector);
+        return SectorSentinel (track, logical, byteOffset);
+    }
+
+
+    vector<Byte> BuildSentinelDisk()
+    {
+        int            track  = 0;
+        int            sector = 0;
+        int            i      = 0;
+
+
+
+        vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
+
+        for (track = 0; track < kTrackCount; track++)
+        {
+            for (sector = 0; sector < kSectorsPerTrack; sector++)
+            {
+                size_t offset = static_cast<size_t> (track * kSectorsPerTrack + sector)
+                              * kSectorBytes;
+
+                for (i = 0; i < kSectorBytes; i++)
+                {
+                    raw[offset + i] = SectorSentinel (track, sector, i);
+                }
+            }
+        }
+
+        return raw;
+    }
+
+
+    DiskImage * MountAndSpinUp (MachineHost & machine,
+                                const vector<Byte> & raw)
+    {
+        HRESULT      hr        = S_OK;
+        DiskImage *  external  = nullptr;
+
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2");
+
+        machine.PowerCycle();
+
+        hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive1,
+                                             "readback.dsk",
+                                             DiskFormat::Dsk, raw);
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        external = machine.GetDiskStore().GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (external, L"GetImage");
+
+        // DiskReadbackTests drive the controller via direct bus reads
+        // + manual Tick(N) pumping, without running the CPU. The
+        // catch-up-on-read path needs a live, advancing CPU cycle
+        // counter to do its job; detach the source so Tick(N) goes
+        // back to advancing the engine bit cursor itself.
+        machine.GetRefs().diskController->SetCpuCycleSource (nullptr);
+
+        // Spin up: select drive 1, motor on, set Q7=0/Q6=0 (read mode).
+        machine.GetMemoryBus().ReadByte (kSelectDrive1);
+        machine.GetMemoryBus().ReadByte (kMotorOn);
+        machine.GetMemoryBus().ReadByte (kQ6On);     // ensures Q6=1 first
+        machine.GetMemoryBus().ReadByte (kSlotIoBase + 0xC); // Q6=0
+        machine.GetMemoryBus().ReadByte (kQ7Off);
+
+        // Issue #67: drain the motor spin-up window so the very next
+        // read returns real bit-stream data rather than the synthetic
+        // zeros the controller hands back during spin-up. Tests
+        // written before #67 expected immediate readiness; the
+        // controller now models the ~70 ms physical spin-up.
+        machine.GetRefs().diskController->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        return external;
+    }
+
+
+    // Walk the head to a target full track via the controller's phase-
+    // magnet API. Issues the phase-on/phase-off pulses that DOS RWTS
+    // and the boot ROM use; stepping is two quarter-tracks per full
+    // track and follows the standard "energize next phase, de-energize
+    // previous" sequence.
+    void SeekToTrack (MachineHost & machine, int targetTrack)
+    {
+        int currentTrack = machine.GetRefs().diskController->GetCurrentTrack();
+
+        while (currentTrack != targetTrack)
+        {
+            int currentQt   = machine.GetRefs().diskController->GetQuarterTrack();
+            int targetQt    = targetTrack * 4;
+            int direction   = (targetQt > currentQt) ? +1 : -1;
+
+            int currentPhase = (currentQt / 2) & 3;
+            int nextPhase    = (currentPhase + direction) & 3;
+
+            // Energize next phase, then de-energize current. Two quarter-
+            // tracks per full step.
+            machine.GetMemoryBus().ReadByte (static_cast<Word> (kSlotIoBase + 0x1 + nextPhase * 2));
+            machine.GetMemoryBus().ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + currentPhase * 2));
+
+            // Pump engine cycles so the head physically settles before
+            // the next pulse.
+            machine.GetRefs().diskController->Tick (16);
+
+            currentTrack = machine.GetRefs().diskController->GetCurrentTrack();
+
+            // Safety: don't loop forever.
+            if (currentTrack == targetTrack) break;
+        }
+
+        // De-energize all phases.
+        for (int p = 0; p < 4; p++)
+        {
+            machine.GetMemoryBus().ReadByte (static_cast<Word> (kSlotIoBase + 0x0 + p * 2));
+        }
+
+        machine.GetRefs().diskController->Tick (16);
+    }
+
+
+    // Pull the next valid (MSB-set) nibble from the controller's read
+    // latch. After capturing one nibble, advances the engine ~10 cycles
+    // (past the LSS latch-hold window) so the subsequent call returns
+    // a fresh nibble rather than the same captured value again.
+    Byte ReadNextNibble (MachineHost & machine, uint64_t & ticksOut)
+    {
+        Byte            latch  = 0;
+        const uint64_t  budget = 500'000ULL;
+        uint64_t        i      = 0;
+
+        for (i = 0; i < budget; i += kTicksPerLatchPoll)
+        {
+            machine.GetRefs().diskController->Tick (kTicksPerLatchPoll);
+            latch = machine.GetMemoryBus().ReadByte (kReadLatch);
+
+            if (latch & 0x80)
+            {
+                // Step past the latch-hold window so the next call sees
+                // the following nibble. The LSS holds a complete nibble
+                // for ~2 bit cells (8 cycles) after MSB-set; ticking 12
+                // here guarantees we're shifting bits into a fresh
+                // working register before the caller polls again.
+                machine.GetRefs().diskController->Tick (12);
+                ticksOut += i + kTicksPerLatchPoll + 12;
+                return latch;
+            }
+        }
+
+        ticksOut += budget;
+        return 0;
+    }
+
+
+    Byte Decode44 (Byte odd, Byte even)
+    {
+        return static_cast<Byte> (((odd << 1) | 1) & even);
+    }
+
+
+    static inline const Byte sg_kWriteTranslate[64] =
+    {
+        0x96,0x97,0x9A,0x9B,0x9D,0x9E,0x9F,0xA6,
+        0xA7,0xAB,0xAC,0xAD,0xAE,0xAF,0xB2,0xB3,
+        0xB4,0xB5,0xB6,0xB7,0xB9,0xBA,0xBB,0xBC,
+        0xBD,0xBE,0xBF,0xCB,0xCD,0xCE,0xCF,0xD3,
+        0xD6,0xD7,0xD9,0xDA,0xDB,0xDC,0xDD,0xDE,
+        0xDF,0xE5,0xE6,0xE7,0xE9,0xEA,0xEB,0xEC,
+        0xED,0xEE,0xEF,0xF2,0xF3,0xF4,0xF5,0xF6,
+        0xF7,0xF9,0xFA,0xFB,0xFC,0xFD,0xFE,0xFF
+    };
+
+
+    // 0xFF means "not a valid 6-and-2 nibble" -- it is outside the 0..63 range
+    // every real entry decodes to, so it cannot collide with a hit.
+    Byte InverseTranslate (Byte nib)
+    {
+        Byte  decoded = 0xFF;
+        int   i       = 0;
+
+        for (i = 0; decoded == 0xFF && i < 64; i++)
+        {
+            if (sg_kWriteTranslate[i] == nib)
+            {
+                decoded = static_cast<Byte> (i);
+            }
+        }
+
+        return decoded;
+    }
+
+
+    // Spin the bus reading the latch until we find an address-field
+    // matching the requested logical sector on the current track.
+    // On success the caller can then call ReadDataFieldAtCursor to
+    // harvest the 256 decoded bytes.
+    HRESULT FindAddressField (MachineHost & machine, int wantTrack, int wantSector,
+                              int & outVolume)
+    {
+        HRESULT   hr    = S_OK;
+        Byte      n0    = 0, n1 = 0, n2 = 0;
+        uint64_t  spent = 0;
+        // Bound: ~3 disk revolutions worth of cycles.
+        const uint64_t  kMaxSpent = 1'500'000ULL;
+        bool            found     = false;
+        bool            spinning  = true;
+
+        while (spinning && !found && spent < kMaxSpent)
+        {
+            n0 = ReadNextNibble (machine, spent);
+
+            // A zero nibble is the per-nibble timeout, not data -- the head is
+            // not producing bytes, so no amount of further spinning helps.
+            if (n0 == 0)
+            {
+                spinning = false;
+            }
+            else if (n0 == kAddrProlog0)
+            {
+                n1 = ReadNextNibble (machine, spent);
+                n2 = (n1 == kAddrProlog1) ? ReadNextNibble (machine, spent) : Byte (0);
+
+                // Anything but the full D5 AA 96 prologue means this was not an
+                // address field; fall back to the outer spin, which resyncs on
+                // the next nibble rather than the next field.
+                if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
+                {
+                    Byte vOdd  = ReadNextNibble (machine, spent);
+                    Byte vEven = ReadNextNibble (machine, spent);
+                    Byte tOdd  = ReadNextNibble (machine, spent);
+                    Byte tEven = ReadNextNibble (machine, spent);
+                    Byte sOdd  = ReadNextNibble (machine, spent);
+                    Byte sEven = ReadNextNibble (machine, spent);
+
+                    int  vol  = Decode44 (vOdd, vEven);
+                    int  trk  = Decode44 (tOdd, tEven);
+                    int  sec  = Decode44 (sOdd, sEven);
+
+                    if (trk == wantTrack && sec == wantSector)
+                    {
+                        outVolume = vol;
+                        found     = true;
+
+                        // skip the checksum nibble pair + epilogue (3 nibbles)
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
+                        ReadNextNibble (machine, spent);
+                    }
+                }
+            }
+        }
+
+        CBR (found);
+
+    Error:
+        return hr;
+    }
+
+
+    // After FindAddressField succeeds, spin until the data prologue
+    // (D5 AA AD) appears, then decode the 343 nibbles and unpack
+    // back into 256 bytes per the standard 6-and-2 inverse.
+    HRESULT ReadDataFieldAtCursor (MachineHost & machine, vector<Byte> & outData)
+    {
+        HRESULT         hr        = S_OK;
+        Byte            n0        = 0, n1 = 0, n2 = 0;
+        uint64_t        spent     = 0;
+        const uint64_t  kMaxSpent = 500'000ULL;
+        // 342 raw + 1 checksum
+        Byte  encoded[342] = {};
+        Byte  prev         = 0;
+        Byte  chkNib       = 0;
+        Byte  chk          = 0;
+
+        while (spent < kMaxSpent)
+        {
+            n0 = ReadNextNibble (machine, spent);
+            // A zero nibble is the per-nibble timeout: the head is not
+            // producing bytes, so no amount of further spinning helps.
+            CBR (n0 != 0);
+            if (n0 != kAddrProlog0) continue;
+            n1 = ReadNextNibble (machine, spent);
+            if (n1 != kAddrProlog1) continue;
+            n2 = ReadNextNibble (machine, spent);
+            if (n2 == kDataProlog2) break;
+        }
+
+        CBR (spent < kMaxSpent);
+
+        for (int i = 0; i < 342; i++)
+        {
+            Byte nib  = ReadNextNibble (machine, spent);
+            Byte raw  = static_cast<Byte> (InverseTranslate (nib) ^ prev);
+            encoded[i] = raw;
+            prev = raw;
+        }
+
+        // Verify checksum
+        chkNib = ReadNextNibble (machine, spent);
+        chk    = static_cast<Byte> (InverseTranslate (chkNib) ^ prev);
+        CBR (chk == 0);
+
+        // Unpack: bytes 86..341 carry high 6 bits; bytes 0..85 each
+        // carry 2 low bits for three source bytes.
+        outData.assign (kSectorBytes, 0);
+
+        for (int i = 0; i < kSectorBytes; i++)
+        {
+            int  idx, shift;
+            Byte  high = 0;
+            Byte  b0 = 0;
+            Byte  b1 = 0;
+            if (i < 86)        { idx = i;           shift = 0; }
+            else if (i < 172)  { idx = i - 86;      shift = 2; }
+            else               { idx = i - 172;     shift = 4; }
+
+            high = static_cast<Byte> (encoded[86 + i] << 2);
+            b0 = static_cast<Byte> ((encoded[idx] >> (shift + 1)) & 1);
+            b1 = static_cast<Byte> ((encoded[idx] >> (shift + 0)) & 1);
+            outData[i] = static_cast<Byte> (high | (b0 << 0) | (b1 << 1));
+        }
+
+    Error:
+        return hr;
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Read every (track, sector) from a sentinel disk and verify each
+    //  decoded sector matches what the nibblizer wrote. This exercises
+    //  the whole disk subsystem -- nibblization, controller phase-step,
+    //  engine bit-streaming, LSS latch -- in the same access pattern
+    //  RWTS uses to read the catalog. No CPU, no boot ROM.
+    //
+    //  If the boot ROM tests pass but this fails, the bug is in the
+    //  runtime engine path (track stepping, latch state across track
+    //  changes, motor cycling). If both fail, it's the on-disk format.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DumpFirstNibblesOnTrack0)
+    {
+        TestMachine    machine ("Apple2e");
+        vector<Byte>    raw            = BuildSentinelDisk();
+        DWORD           pl             = 0;
+        FILE          * fp             = nullptr;
+        uint64_t        spent          = 0;
+        int             validCount     = 0;
+        char            path[MAX_PATH] = {};
+        wchar_t         msg[128]       = {};
+
+        MountAndSpinUp (machine, raw);
+
+        // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
+        // can see what the engine actually presents to the bus.
+        pl = GetTempPathA (MAX_PATH, path);
+        if (pl > 0 && pl < MAX_PATH - 32)
+        {
+            strcat_s (path, "readback-trace.log");
+            (void) fopen_s (&fp, path, "w");
+        }
+
+        for (int i = 0; i < 64; i++)
+        {
+            Byte n = ReadNextNibble (machine, spent);
+            if (fp != nullptr)
+            {
+                fprintf (fp, "[%2d] %02X (after %llu ticks)\n",
+                         i, n, (unsigned long long) spent);
+            }
+
+            if (n != 0) validCount++;
+        }
+
+        if (fp != nullptr) fclose (fp);
+
+        swprintf_s (msg, L"Got %d/64 valid nibbles (see readback-trace.log)",
+                    validCount);
+        Assert::IsTrue (validCount > 32, msg);
+    }
+
+};
+

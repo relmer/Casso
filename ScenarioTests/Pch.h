@@ -3,11 +3,13 @@
 //
 //  SCENARIO TESTS, NOT UNIT TESTS. Everything in this project needs external
 //  inputs -- the stock DOS 3.3 System Master or ProDOS Users Disk, fetched
-//  rather than committed --
-//  and a booted guest executing real 6502 code. CI has no copy of the master
-//  and never will, so these cases live in their own binary: a separate DLL is
-//  what makes running them a deliberate act (RunTests.ps1 -Scenario) rather
-//  than something a filter forgets to exclude.
+//  rather than committed -- and a booted guest executing real 6502 code, or
+//  touches real files: every case that creates, writes, renames, deletes or
+//  watches a file or folder, or reads one outside the checkout, is here,
+//  because the unit suite touches none. CI has no copy of the master and never
+//  will, so these cases are in ScenarioTests.dll: a separate DLL is what makes
+//  running them a deliberate act (RunTests.ps1 -Scenario) rather than
+//  something a filter forgets to exclude.
 //
 
 // CassoEmuCore/Pch.h must come first: it includes <windows.h> before

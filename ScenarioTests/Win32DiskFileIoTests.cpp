@@ -134,4 +134,59 @@ public:
         Assert::IsTrue (hr != E_FAIL, L"never the code that says nothing");
         Assert::IsTrue (back.empty(), L"nothing was read");
     }
+
+
+    TEST_METHOD (CopyFileMetadata_FromAMissingFile_ReportsFileNotFound_NotEFail)
+    {
+        Win32DiskFileIo     io;
+        std::vector<Byte>   bytes  { 0x42 };
+        std::string         from   = (Scratch() / L"absent-source.bin").string();
+        std::string         to     = (Scratch() / L"metadata-target.bin").string();
+        HRESULT             hrSeed = S_OK;
+        HRESULT             hr     = S_OK;
+
+
+
+        std::filesystem::remove (from);
+
+        hrSeed = io.WriteAllBytes (to, bytes);
+        hr     = io.CopyFileMetadata (from, to);
+
+        std::filesystem::remove (to);
+
+        Assert::IsTrue (SUCCEEDED (hrSeed), L"the file to receive the metadata was written first");
+        Assert::AreEqual ((int) HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), (int) hr,
+                          L"the system's own code for a source that is not there");
+        Assert::IsTrue (hr != E_FAIL, L"never the code that says nothing");
+    }
+
+
+
+    TEST_METHOD (ReplaceAtomically_FromAMissingTemporary_ReportsFileNotFound_AndLeavesTheTarget)
+    {
+        Win32DiskFileIo     io;
+        std::vector<Byte>   before { 0x11, 0x22, 0x33 };
+        std::vector<Byte>   back;
+        std::string         temp   = (Scratch() / L"absent-temporary.bin").string();
+        std::string         target = (Scratch() / L"replace-target.bin").string();
+        HRESULT             hrSeed = S_OK;
+        HRESULT             hrRead = S_OK;
+        HRESULT             hr     = S_OK;
+
+
+
+        std::filesystem::remove (temp);
+
+        hrSeed = io.WriteAllBytes (target, before);
+        hr     = io.ReplaceAtomically (temp, target);
+        hrRead = io.ReadAllBytes (target, back);
+
+        std::filesystem::remove (target);
+
+        Assert::IsTrue (SUCCEEDED (hrSeed), L"the target was written first");
+        Assert::AreEqual ((int) HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), (int) hr,
+                          L"the system's own code for a temporary that is not there");
+        Assert::IsTrue (hr != E_FAIL, L"never the code that says nothing");
+        Assert::IsTrue (SUCCEEDED (hrRead) && back == before, L"and the target is as it was");
+    }
 };

@@ -8,7 +8,8 @@
     in `CassoCore/Debugger/CommandModeHelp.cpp`, so the document cannot list a
     command help does not.
 
-    This script builds, runs the guard test (DebuggerCommandsDocTests), and
+    This script builds, runs the guard test (the scenario suite's
+    DebuggerCommandsDocTests), and
     copies the document the test wrote to `%TEMP%\Casso\Debugger-Commands.md`
     into `docs/` with CRLF endings. The test never writes into the tree.
 
@@ -71,7 +72,7 @@ if (Test-Path -LiteralPath $generated) {
     Remove-Item -LiteralPath $generated -Force
 }
 
-$arguments = @{ Configuration = $Configuration; Platform = $Platform; Filter = $filter }
+$arguments = @{ Configuration = $Configuration; Platform = $Platform; Filter = $filter; Scenario = $true }
 
 if (-not $SkipBuild) {
     $arguments['Build'] = $true

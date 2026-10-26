@@ -8,9 +8,9 @@
     document cannot describe a machine other than the one the build emulates,
     and a changed cycle count cannot leave a stale reference behind it.
 
-    The generator lives in `CassoCore/CycleReference.cpp` where `UnitTest` can
-    link it. This script is the crank that turns it: it builds, runs the guard
-    test, and copies the document the test produced into `docs/`.
+    The generator is in `CassoCore/CycleReference.cpp`. This script builds,
+    runs the guard test in the scenario suite, and copies the document the test
+    produced into `docs/`.
 
     THE TEST WRITES THE DOCUMENT, NOT THIS SCRIPT, and it writes it outside the
     repository -- to `%TEMP%\Casso\cycle-reference.md` -- on every run, pass or
@@ -80,7 +80,7 @@ if (Test-Path -LiteralPath $generated) {
     Remove-Item -LiteralPath $generated -Force
 }
 
-$arguments = @{ Configuration = $Configuration; Platform = $Platform; Filter = $filter }
+$arguments = @{ Configuration = $Configuration; Platform = $Platform; Filter = $filter; Scenario = $true }
 
 if (-not $SkipBuild) {
     $arguments['Build'] = $true

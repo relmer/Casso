@@ -438,7 +438,6 @@
     <ClCompile Include="CliMainTests.cpp" />
     <ClCompile Include="CliOutputTests.cpp" />
     <ClCompile Include="CliSwitchCoverageTests.cpp" />
-    <ClCompile Include="Win32DiskFileIoTests.cpp" />
     <ClCompile Include="UsageTextTests.cpp" />
     <ClCompile Include="DirectiveTests.cpp" />
     <ClCompile Include="DirectiveTokenTests.cpp" />
@@ -464,7 +463,6 @@
     <ClCompile Include="OutputFormatTests.cpp" />
     <ClCompile Include="ConformanceTests.cpp" />
     <ClCompile Include="DialectEquivalenceTests.cpp" />
-    <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
     <ClCompile Include="TestCpu65C02Tests.cpp" />
@@ -567,7 +565,6 @@
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
     <ClCompile Include="EmuTests\SharedImageTests.cpp" />
-    <ClCompile Include="EmuTests\Win32ImageWatcherTests.cpp" />
     <ClCompile Include="EmuTests\IntentChannelTests.cpp" />
     <ClCompile Include="EmuTests\PreservedCopyTests.cpp" />
     <ClCompile Include="EmuTests\EmuCpuTests.cpp" />
@@ -577,7 +574,6 @@
     <ClCompile Include="EmuTests\PrngTests.cpp" />
     <ClCompile Include="EmuTests\MockIrqAsserter.cpp" />
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
-    <ClCompile Include="EmuTests\GoldenImage.cpp" />
     <ClCompile Include="EmuTests\FixtureProviderTests.cpp" />
     <ClCompile Include="Cassque\CassqueFixtureTests.cpp" />
     <ClCompile Include="Cassque\CassqueShellTests.cpp" />
@@ -645,7 +641,6 @@
     <ClCompile Include="EmuTests\Phase8IntegrationTests.cpp" />
     <ClCompile Include="EmuTests\Phase9IntegrationTests.cpp" />
     <ClCompile Include="EmuTests\Phase11IntegrationTests.cpp" />
-    <ClCompile Include="EmuTests\BootRomDecoderTests.cpp" />
     <ClCompile Include="EmuTests\BootDiskTests.cpp" />
     <ClCompile Include="EmuTests\GameBootTests.cpp" />
     <ClCompile Include="EmuTests\DiskWritePathTests.cpp" />
@@ -1092,7 +1087,6 @@
     <ClInclude Include="EmuTests\InlineWorkQueue.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
-    <ClInclude Include="EmuTests\GoldenImage.h" />
     <ClInclude Include="CaptureTests\FakeHostDialogs.h" />
     <ClInclude Include="UpdateTests\FakeInstallEnvironment.h" />
     <ClInclude Include="UpdateTests\FakeSignatureVerifier.h" />
