@@ -19,6 +19,11 @@
 #include "Config/CrtResolver.h"
 #include "Print/PrintJobStore.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Machines/Apple2/Common/SscSwitches.h"
+#include "Machines/Apple2/Common/SuperSerialCard.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
+#include "Shell/Components/ShellChrome.h"
+#include "Core/TextEncoding.h"
 #include "Ui/PrinterPanel.h"
 #include "Core/PathResolver.h"
 #include "Version.h"
@@ -219,6 +224,38 @@ void EmulatorShell::StepInstruction()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ConfigureNetworkCard
+//
+//  LAN access and port forwards apply to the running card; a forward whose
+//  host port cannot be opened is reported as a notice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ConfigureNetworkCard (const NetworkCardSettings & settings)
+{
+    UthernetCard *  card = m_machine.GetRefs().uthernet;
+
+
+
+    if (card == nullptr)
+    {
+        return;
+    }
+
+    card->ApplySettings (settings);
+
+    for (const std::string & error : card->GetNetworkErrors())
+    {
+        m_chrome->PostNotice (TextEncoding::NarrowToWide (error));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HoldAppleKeysThroughReset
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,6 +265,40 @@ void EmulatorShell::HoldAppleKeysThroughReset (bool openApple, bool closedApple)
     if (m_machine.GetRefs().iieKeyboard != nullptr)
     {
         m_machine.GetRefs().iieKeyboard->HoldAppleKeysThroughReset (openApple, closedApple);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialCardSwitches
+//
+//  On the CPU thread, where the card reads its switches. A bank that does not
+//  parse does not change the card's current positions.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetSerialCardSwitches (const std::string & sw1, const std::string & sw2)
+{
+    SuperSerialCard  * card     = m_machine.GetRefs().superSerialCard;
+    SscSwitches        switches;
+    bool               parsed   = false;
+
+
+
+    if (card != nullptr)
+    {
+        switches = card->GetSwitches();
+
+        parsed = switches.TryParseBankText (SscBank::Sw1, sw1);
+        IGNORE_RETURN_VALUE (parsed, false);
+        parsed = switches.TryParseBankText (SscBank::Sw2, sw2);
+        IGNORE_RETURN_VALUE (parsed, false);
+
+        card->SetSwitches (switches);
     }
 }
 

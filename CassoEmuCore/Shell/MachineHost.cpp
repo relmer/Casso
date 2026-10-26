@@ -15,6 +15,8 @@
 #include "Machines/Apple2/Apple2e/Apple2eSoftSwitchBank.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/SiriusJoyport.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
+#include "Devices/Acia6551.h"
 
 
 
@@ -237,6 +239,16 @@ Byte MachineHost::StepOne()
     if (m_refs.mockingboard != nullptr)
     {
         m_refs.mockingboard->Tick (cycles);
+    }
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->Tick (cycles);
+    }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->Tick (cycles);
     }
 
     return (cycles);

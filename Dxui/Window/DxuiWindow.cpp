@@ -236,6 +236,7 @@ int DxuiWindow::ShowModalDialog (int defaultButtonId)
         ownerDisabled = true;
     }
 
+    OnDialogShowing();
     Show();
 
     while (!m_modalDone)
@@ -305,6 +306,7 @@ void DxuiWindow::ShowModelessDialog (int defaultButtonId)
 
         m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
 
+        OnDialogShowing();
         Show();
     }
 }

@@ -103,6 +103,11 @@
 #define IDM_DISK_INSPECT1           40089
 #define IDM_DISK_INSPECT2           40090
 #define IDM_DISK_INSPECTOR_SERVICE  40091  // internal: the CPU thread answers the disk inspector's requests
+#define IDM_SSC_SWITCHES            40400  // Settings: the Super Serial Card's DIP switches
+
+// Apply the Uthernet II's LAN access and port forwards to the running card.
+// The payload is the card's settings as JSON.
+#define IDM_NETWORK_CONFIGURE       40300
 
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).

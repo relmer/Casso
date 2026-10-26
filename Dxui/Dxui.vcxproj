@@ -197,6 +197,7 @@
     <ClCompile Include="Widgets\DxuiSearchBox.cpp" />
     <ClCompile Include="Widgets\DxuiSlider.cpp" />
     <ClCompile Include="Widgets\DxuiZoomControl.cpp" />
+    <ClCompile Include="Widgets\DxuiShimmer.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
@@ -285,6 +286,7 @@
     <ClInclude Include="Widgets\DxuiZoomControl.h" />
     <ClInclude Include="Widgets\DxuiCustomVisual.h" />
     <ClInclude Include="Widgets\DxuiSurface.h" />
+    <ClInclude Include="Widgets\DxuiShimmer.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />

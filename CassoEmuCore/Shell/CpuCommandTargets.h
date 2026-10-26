@@ -3,6 +3,9 @@
 #include "Pch.h"
 
 
+class NetworkCardSettings;
+
+
 
 
 
@@ -56,6 +59,13 @@ public:
     virtual void     StepInstruction           ()                                  = 0;
     virtual void     SaveTrace                 ()                                  = 0;
     virtual void     ServiceInspectorRequests  ()                                  = 0;
+
+    // The Super Serial Card's DIP switches, as "on off ..." text per bank.
+    virtual void     SetSerialCardSwitches     (const std::string & sw1,
+                                                const std::string & sw2)           = 0;
+
+    // The network card's host interface, protocol and link settings.
+    virtual void     ConfigureNetworkCard      (const NetworkCardSettings & settings) = 0;
 };
 
 
