@@ -20,6 +20,7 @@ void MountedImageState::Mount (const ImageIdentity & identity)
     m_watching       = false;
     m_askOutstanding    = false;
     m_askedAction       = ChangeAction::Ignore;
+    m_askedCause        = SaveFailureCause::ExternalChange;
     m_ejectWhenAnswered = false;
 
     ClearPreserved();
@@ -49,6 +50,7 @@ void MountedImageState::Eject()
     m_watching       = false;
     m_askOutstanding    = false;
     m_askedAction       = ChangeAction::Ignore;
+    m_askedCause        = SaveFailureCause::ExternalChange;
     m_ejectWhenAnswered = false;
 
     ClearPreserved();

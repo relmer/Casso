@@ -32,6 +32,11 @@ public:
         DoorOpen,
         DoorClose,
         DoorReinsert,
+
+        //  A declined insert or eject: the disk is in the drive, so the door
+        //  the window opened closes again.
+        DoorRestore,
+
         SpinStart,
         SpinStop,
     };

@@ -1274,12 +1274,28 @@ public:
 
 
 
-    //  AND A DISK NOBODY CAN BE ASKED ABOUT STILL COMES OUT. Without a sink
-    //  there is no question to wait for, and a bay that waited anyway would be
-    //  one the user could never empty.
-    TEST_METHOD (AnEjectWithNothingToAskStillEmptiesTheDrive)
+    //  The store's notices for the span of a test, and the last one's text.
+    struct ScopedNoticeCapture
     {
-        Rig  rig;
+        static inline int           s_count = 0;
+        static inline std::wstring  s_last;
+
+        static void  Capture (const wchar_t * message) { s_count++; s_last = (message != nullptr) ? message : L""; }
+
+        ScopedNoticeCapture()  { s_count = 0; s_last.clear(); SetNotifyFunction (Capture); }
+        ~ScopedNoticeCapture() { SetNotifyFunction (nullptr); }
+    };
+
+
+
+    //  AND WITH NO QUESTION POSSIBLE THE DISK STAYS IN THE DRIVE. Its writes
+    //  are in no file, so emptying the bay would destroy them. The notice
+    //  states that the disk is in the drive and that another eject raises the
+    //  question again.
+    TEST_METHOD (AnEjectOverAChangedFileWithNoQuestionPossibleKeepsTheDisk)
+    {
+        ScopedNoticeCapture  notices;
+        Rig                  rig;
 
 
 
@@ -1295,8 +1311,56 @@ public:
 
         rig.store.Eject (kSlot, kDrive);
 
-        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive),
-                         L"a question that could not be put does not hold the disk in");
+        Assert::IsTrue   (rig.store.IsMounted (kSlot, kDrive), L"the disk is in the drive");
+        Assert::IsTrue   (rig.store.GetImage (kSlot, kDrive)->IsDirty(), L"with the guest's writes");
+        Assert::AreEqual (1, ScopedNoticeCapture::s_count, L"one notice");
+        Assert::IsTrue   (ScopedNoticeCapture::s_last.rfind (L"Casso could not save your changes to the disk image:\n\nC:\\work\\Loader.dsk\n\n"
+                                                             L"Another program changed this file after it was inserted, so Casso did not "
+                                                             L"overwrite it.", 0) == 0,
+                          L"in the approved text");
+        Assert::IsTrue   (ScopedNoticeCapture::s_last.ends_with (L"\n\nThe disk is still in drive 1 with your changes. Eject it again to "
+                                                                 L"choose another place to save them. The file on disk has the other "
+                                                                 L"program's version."),
+                          L"which ends with the eject's paragraph");
+        Assert::AreEqual ((int) 0x33, (int) rig.files[kImagePath][0], L"and the file has the other program's version");
+    }
+
+
+
+    //  An insert while an eject waits for its answer is declined: the disk's
+    //  writes are in no file, so the disk is in the drive, and the answer
+    //  finishes the eject.
+    TEST_METHOD (AnInsertWhileAnEjectWaitsOnItsAnswerLeavesTheDiskInTheDrive)
+    {
+        Rig          rig;
+        std::string  otherPath = "C:\\elsewhere\\Other.dsk";
+        DiskImage  * image     = nullptr;
+        HRESULT      hrMount   = S_OK;
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        rig.WriteImage (otherPath, 0x44);
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
+
+        image = rig.store.GetImage (kSlot, kDrive);
+        image->GetTrackBitsForWrite (0)[0] = 0x7F;
+        image->SetLoadedForTest (true, true);
+        rig.WriteImage (kImagePath, 0x33);
+
+        rig.refusePreserve = true;
+
+        rig.store.Eject (kSlot, kDrive);
+        hrMount = rig.store.Mount (kSlot, kDrive, otherPath);
+
+        Assert::IsTrue (FAILED (hrMount), L"the insert is declined");
+        Assert::IsTrue (rig.store.GetImage (kSlot, kDrive) == image, L"the disk is in the drive");
+        Assert::IsTrue (image->IsDirty(), L"with the guest's writes");
+        Assert::AreEqual ((size_t) 1, rig.questions.size(), L"and the eject's question is the only one");
+
+        rig.store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard, "");
+
+        Assert::IsFalse (rig.store.IsMounted (kSlot, kDrive), L"the answer finishes the eject");
     }
 
 

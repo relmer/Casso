@@ -273,7 +273,9 @@ private:
     //
     // Returns false where the user cancelled, which is the same outcome as
     // declining: the drive is emptied either way and nothing is written.
-    bool  AskWhereToSaveLostDisk (const std::string & imagePath, std::wstring & outPath);
+    //
+    //  `suggestedPath`, when not empty, is the file the picker opens on.
+    bool  AskWhereToSaveLostDisk (const std::string & imagePath, const std::string & suggestedPath, std::wstring & outPath);
 
     //  Closes the change band and gives its height back to the picture.
     void  HideChangeBanner ();

@@ -56,6 +56,15 @@ enum class SaveFailureCause
     //  Here the bay is about to be emptied, so declining is the end of that
     //  disk -- and the offer has to say so rather than reading as "not now".
     Ejecting,
+
+    //  The disk's file could not be written, found as the disk was coming out
+    //  of the drive.
+    Unwritable,
+
+    //  The disk's format cannot store its writes, and the WOZ copy of them
+    //  could not be written either, found as the disk was coming out of the
+    //  drive.
+    Unserializable,
 };
 
 
@@ -156,6 +165,11 @@ struct ChangePrompt
     // then.
     std::string                imagePath;
 
+    //  The file a Save as answer's picker opens on, or empty for the image's
+    //  file. A disk whose format cannot store its writes is saved as WOZ, so
+    //  its question offers a .woz name.
+    std::string                suggestedSavePath;
+
     //  Whether there is anything to show at all. An action that needs no answer
     //  composes an empty prompt rather than a blank dialog.
     bool  IsAsked () const { return !answers.empty(); }
@@ -229,6 +243,15 @@ struct ChangePrompt
                                              HRESULT             reason,
                                              SaveFailureCause    cause);
 
+    //  ComposeSaveFailure for an eject whose save to the disk's file failed.
+    //  The message for `Unwritable` contains the file whose write failed, and
+    //  for `Unserializable` the WOZ copy whose write failed. The eject waits
+    //  for the answer.
+    static ChangePrompt  ComposeEjectSaveFailure (const std::string & imagePath, int drive,
+                                                  const std::string & attemptedPath,
+                                                  HRESULT             reason,
+                                                  SaveFailureCause    cause);
+
     //  What is shown when the file behind a mounted disk has gone or can no
     //  longer be read, with the offer to write out what is still in memory.
     //
@@ -252,4 +275,8 @@ struct ChangePrompt
     //  system's own text when there is one, because a bare code sends the
     //  reader to a search engine and text alone cannot be looked up at all.
     static std::wstring  DescribeError (HRESULT reason);
+
+    //  DescribeError, ending with a period, for a sentence that ends with the
+    //  reason.
+    static std::wstring  DescribeErrorAsSentence (HRESULT reason);
 };

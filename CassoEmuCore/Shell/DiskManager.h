@@ -112,6 +112,10 @@ public:
 
     void     EjectDiskInSlot6       (int drive);
 
+    //  After a declined insert or eject, the window closes the door it opened
+    //  when the disk is in the drive.
+    void     RestoreDoor            (int drive);
+
     //  The one reaction to a disk changing in a bay, whoever caused it: a user
     //  mount or eject, a pick-up of an external change, a file that vanished.
     //  Re-points the controller, re-applies write protection, logs the debug

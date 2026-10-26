@@ -507,6 +507,13 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     }
 
 Error:
+    //  After a declined insert the disk that was in the drive is there, so the
+    //  door the window opened for the insert closes again.
+    if (attempted && FAILED (hr))
+    {
+        RestoreDoor (drive);
+    }
+
     // Last, and on the way out of both paths, so anything the callback does
     // (raising a dialog, say) sees the drive in its settled state -- fully
     // mounted, or left as the failure left it.
@@ -531,7 +538,9 @@ Error:
 //
 //  Auto-flushes dirty bits via the store, which announces the eject through
 //  its bay-change sink -- so detaching the controller, the debug event, the
-//  door and its sound all happen in OnBayChange, not here.
+//  door, its sound and the saved disk path all happen in OnBayChange, not
+//  here. After a declined eject, or one waiting for an answer, the disk is in
+//  the drive, and the door closes again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -539,13 +548,30 @@ void DiskManager::EjectDiskInSlot6 (int drive)
 {
     m_diskStore.Eject (6, drive);
 
-    // Clear the per-machine remembered path so the next launch comes
-    // up empty in this slot.
-    if (!m_currentMachineName.empty())
+    if (m_diskStore.IsMounted (6, drive))
     {
-        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem,
-                                                           drive, m_currentMachineName, L"");
-        IGNORE_RETURN_VALUE (hrReg, S_OK);
+        RestoreDoor (drive);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RestoreDoor
+//
+//  Publishes DoorRestore for a drive whose disk is in its bay. A drive with no
+//  disk rests with its door open, as a real Disk II does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::RestoreDoor (int drive)
+{
+    if (m_diskStore.IsMounted (6, drive))
+    {
+        m_driveWidgets.PublishSyncEvent (drive, DriveWidgetController::SyncAction::DoorRestore, GetNowMs());
     }
 }
 
@@ -611,6 +637,15 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
         {
             controller->NotifyDiskEjected (drive);
         }
+    }
+
+    //  The disk left, by a user eject, an eject an answer finished or a file
+    //  that vanished: the next launch comes up with this drive empty.
+    if (!inserted && !m_currentMachineName.empty())
+    {
+        HRESULT  hrReg = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem,
+                                                           drive, m_currentMachineName, L"");
+        IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 
     PlayBayChangeEffects (drive, change, suppressFx);
@@ -918,10 +953,12 @@ bool DiskManager::IsReplacePromptNeeded (int drive) const
 //
 //  ApplySyncEvents
 //
-//  The one door transition that comes from an event rather than from the
-//  bay's path: after a swap the bay has the same file, so the path diff
-//  finds no change, and OnBayChange publishes a DoorReinsert instead. Open,
-//  then close.
+//  The door transitions that come from an event rather than from the bay's
+//  path. After a swap the bay has the same file, so the path diff finds no
+//  change, and OnBayChange publishes a DoorReinsert instead: open, then
+//  close. After a declined insert or eject the bay has the same file too, and
+//  DoorRestore closes the door the window opened. It also clears the window's
+//  posted eject, so a later insert into the drive raises the replace prompt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -940,6 +977,15 @@ void DiskManager::ApplySyncEvents (
             if (evt.action == DriveWidgetController::SyncAction::DoorReinsert)
             {
                 st.BeginReinsert (nowMs);
+            }
+            else if (evt.action == DriveWidgetController::SyncAction::DoorRestore)
+            {
+                st.isEjectPosted = false;
+
+                if (st.IsMounted())
+                {
+                    st.StartDoorTransition (DriveWidgetState::Door::Closing, nowMs);
+                }
             }
         }
     }

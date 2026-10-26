@@ -517,6 +517,10 @@ public:
     static wstring  FormatUnsavedWritesMessage (const string & path,
                                                 const MountDiagnosis & diagnosis);
 
+    //  The notice for an eject declined because the machine is behind live,
+    //  where no save can be made.
+    static wstring  FormatBehindLiveEjectMessage (int drive);
+
     //  Why a load of these bytes was refused, from what the bytes and the
     //  format alone can settle. Static and pure, so a test can ask it about a
     //  buffer without mounting anything.
@@ -645,13 +649,32 @@ private:
 
     //  Asks the shell where to put a disk on the way out and writes it there,
     //  without returning until it is done. Only ever called at ShuttingDown.
-    bool          RescueOnTheWayOut (Entry & entry, const string & original);
+    //  A disk whose format cannot store its writes is offered a .woz name, and
+    //  any disk that does not serialize natively is written as WOZ.
+    bool          RescueOnTheWayOut (Entry & entry, const string & original, bool isUnserializable);
 
-    //  Why a disk's changes are going, said where claiming they are safe would
-    //  be false.
-    static wstring FormatDiscardedWritesMessage (const string & path,
+    //  The eject's question for a save to the disk's file that failed with no
+    //  recovery copy. Returns whether the question was delivered, in which
+    //  case the eject waits for its answer.
+    bool          AskBeforeEject (Entry & entry, const FlushOutcome & outcome);
+
+    //  Writes the bay's image as WOZ at `path` with a .woz extension, and
+    //  makes it the bay's recovery copy, marked as reported. The bay stays on
+    //  its file, whose format cannot change.
+    HRESULT       WriteWozCopy (Entry & entry, const string & path, string & outPath);
+
+    //  A Save as answer: a native copy at `savePath`, with the bay moved onto
+    //  it, or, finishing an eject, a WOZ copy when the image does not
+    //  serialize natively. outPath is the file written or attempted.
+    HRESULT       SaveAnswerCopy (Entry & entry, const string & savePath, bool isEjecting, string & outPath);
+
+    //  Why the guest's version could not be written beside a file another
+    //  program changed, at an eject or a quit.
+    static wstring FormatPreserveFailureMessage (const string & path,
                                                  const string & attemptedPath,
-                                                 HRESULT        reason);
+                                                 HRESULT        reason,
+                                                 int            drive,
+                                                 FlushMoment    moment);
 
     //  Whether some other bay already reads and writes this file, and which
     //  drive has it. The bay being mounted into is excluded, because putting
@@ -699,8 +722,9 @@ private:
     HRESULT        WriteNewRecoveryImage  (const Entry & entry, const vector<Byte> & wozBytes, string & outPath);
 
     // The save-failure notice from what the save produced, including the text
-    // for a recovery copy that could not be written.
-    static wstring FormatFlushLossMessage (const string & path, const FlushOutcome & outcome);
+    // for a recovery copy that could not be written. At an eject or a quit with
+    // no copy, the tail states what happens to the changes.
+    static wstring FormatFlushLossMessage (const string & path, const FlushOutcome & outcome, FlushMoment moment);
 
     // Enough room to step past collisions without ever spinning.
     static constexpr int  kMaxRecoveryNameAttempts = 64;

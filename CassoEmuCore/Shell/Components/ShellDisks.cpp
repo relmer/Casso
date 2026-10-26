@@ -457,7 +457,12 @@ void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
         return;
     }
 
-    EhmNotifyUser (message.c_str());
+    //  A same-file remount whose save failure was already reported for this
+    //  mount raises no second dialog.
+    if (completion.diagnosis.ShouldReport())
+    {
+        EhmNotifyUser (message.c_str());
+    }
 }
 
 
@@ -979,7 +984,7 @@ void ShellDisks::InstallChangeReporting()
     {
         std::wstring  chosen;
 
-        if (!AskWhereToSaveLostDisk (imagePath, chosen))
+        if (!AskWhereToSaveLostDisk (imagePath, std::string(), chosen))
         {
             return false;
         }
@@ -1206,6 +1211,7 @@ void ShellDisks::AskAboutChange (const ChangeNotice & notice)
         }
 
         if (AskWhereToSaveLostDisk (notice.prompt.imagePath,
+                                    notice.prompt.suggestedSavePath,
                                     savePath))
         {
             saveTarget = fs::path (savePath).string();
@@ -1241,23 +1247,35 @@ void ShellDisks::AskAboutChange (const ChangeNotice & notice)
 //
 //  THEY CAN STILL TYPE ANYTHING. This is the default, not the rule.
 //
+//  A QUESTION'S SUGGESTED PATH TAKES THE PLACE OF THAT NAME. A disk whose
+//  format cannot store its writes is saved as WOZ, so its question suggests a
+//  .woz name, and the filter lists *.woz first.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellDisks::AskWhereToSaveLostDisk (const std::string & imagePath,
-                                         std::wstring & outPath)
+                                         const std::string & suggestedPath,
+                                         std::wstring      & outPath)
 {
-    HRESULT         hr       = S_OK;
+    HRESULT         hr        = S_OK;
     FileDialogSpec  spec;
-    fs::path        original (imagePath);
+    fs::path        original  (imagePath);
+    fs::path        suggested (suggestedPath);
     fs::path        chosen;
-    bool            picked   = false;
+    bool            picked    = false;
+    bool            isWoz     = _wcsicmp (suggested.extension().c_str(), L".woz") == 0;
 
 
 
-    spec.filters       = { { L"Disk image", L"*.dsk;*.do;*.po;*.woz" } };
+    spec.filters       = { { L"Disk image", isWoz ? L"*.woz;*.dsk;*.do;*.po" : L"*.dsk;*.do;*.po;*.woz" } };
     spec.initialFolder = original.parent_path();
 
-    if (!original.filename().empty())
+    if (!suggested.filename().empty())
+    {
+        spec.initialFolder   = suggested.parent_path();
+        spec.defaultFileName = suggested.filename().wstring();
+    }
+    else if (!original.filename().empty())
     {
         std::string  suggested = PreservedCopy::MakePath (
                                      imagePath,

@@ -966,4 +966,57 @@ public:
         }
     }
 
+
+
+    //  The eject question's answers, the safe one first.
+    static void AssertEjectAnswers (const ChangePrompt & prompt)
+    {
+        Assert::AreEqual (std::wstring (L"Disk not saved"), prompt.title);
+        Assert::AreEqual ((size_t) 2, prompt.answers.size());
+        Assert::AreEqual (std::wstring (L"Save as..."), prompt.answers[0].label);
+        Assert::IsTrue   (prompt.answers[0].action == ChangeAction::PreserveCopy);
+        Assert::AreEqual (std::wstring (L"Eject and discard"), prompt.answers[1].label);
+        Assert::IsTrue   (prompt.answers[1].action == ChangeAction::Discard);
+        Assert::AreEqual ((size_t) 0, prompt.safeAnswer, L"Enter and the close box take Save as");
+    }
+
+
+
+    TEST_METHOD (ComposeSaveFailure_Unwritable_OffersSaveAsAndEjectAndDiscard)
+    {
+        HRESULT       reason   = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+        ChangePrompt  prompt   = ChangePrompt::ComposeSaveFailure ("C:\\work\\Loader.dsk", 1, "C:\\work\\Loader.dsk",
+                                                                   reason, SaveFailureCause::Unwritable);
+        std::wstring  expected = L"Your changes to Loader.dsk could not be saved to\n\nC:\\work\\Loader.dsk\n\nError: "
+                               + ChangePrompt::DescribeError (reason)
+                               + L"\n\nThe disk is still in drive 2. Save the changes to another file before ejecting, "
+                                 L"or eject the disk and discard them.";
+
+
+
+        Assert::AreEqual (expected, prompt.message, L"the approved text");
+        AssertEjectAnswers (prompt);
+    }
+
+
+
+    TEST_METHOD (ComposeSaveFailure_Unserializable_OffersAWozCopy)
+    {
+        HRESULT       reason   = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+        ChangePrompt  prompt   = ChangePrompt::ComposeSaveFailure ("C:\\work\\Loader.dsk", 0,
+                                                                   "C:\\work\\Loader.recovered.woz",
+                                                                   reason, SaveFailureCause::Unserializable);
+        std::wstring  expected = L"Your changes to Loader.dsk cannot be stored as a .dsk image. Casso tried to save "
+                                 L"them to Loader.recovered.woz instead, but failed: "
+                               + ChangePrompt::DescribeErrorAsSentence (reason)
+                               + L"\n\nThe disk is still in drive 1. Save a WOZ copy to another file before ejecting, "
+                                 L"or eject the disk and discard the changes.";
+
+
+
+        Assert::AreEqual (expected, prompt.message, L"the approved text");
+        Assert::IsTrue   (prompt.message.find (L"Another program") == std::wstring::npos, L"no program changed the file");
+        AssertEjectAnswers (prompt);
+    }
+
 };

@@ -2,6 +2,7 @@
 
 #include "EmuTests/TestMachine.h"
 #include "HResultAssert.h"
+#include "Config/DiskSettings.h"
 #include "Config/UserConfigStore.h"
 #include "Debugger/Reverse/DivergenceGate.h"
 #include "Devices/Disk/DiskImageStore.h"
@@ -482,7 +483,176 @@ public:
         Assert::IsTrue (isNeeded, L"the drive has a disk, so replacing it needs a yes");
     }
 
+
+    //  A declined insert and a declined eject each close the door the window
+    //  opened, because the disk is in the drive.
+    TEST_METHOD (DeclinedInsertAndEjectPutTheDoorBack)
+    {
+        ScopedNotifyCount        notices;
+        TestMachine              machine     ("Apple2e");
+        auto                     shell       = std::make_unique<Shell>();
+        DiskImageStore         & store       = machine.GetDiskStore();
+        DiskImage              * image       = nullptr;
+        DriveWidgetState::Door   afterInsert = DriveWidgetState::Door::Opening;
+        DriveWidgetState::Door   afterEject  = DriveWidgetState::Door::Opening;
+        HRESULT                  hr          = S_OK;
+
+
+
+        MountDirtyDiskWhoseSaveFails (store, image);
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+
+            //  The window opens the door for the insert; the emulation thread
+            //  declines it.
+            shell->widgetState[s_kRemountDrive].StartDoorTransition (DriveWidgetState::Door::Opening, 0);
+            hr = manager.MountDiskInSlot6 (s_kRemountDrive, "C:\\work\\other.nib");
+            manager.UpdateDriveWidgets();
+            afterInsert = shell->widgetState[s_kRemountDrive].doorState;
+
+            manager.Eject (6, s_kRemountDrive);
+            manager.EjectDiskInSlot6 (s_kRemountDrive);
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+            afterEject = shell->widgetState[s_kRemountDrive].doorState;
+        }
+
+        AssertFailed (hr, L"the insert is declined");
+        Assert::IsTrue (store.GetImage (6, s_kRemountDrive) == image, L"the disk is in the drive");
+        Assert::IsTrue (IsDoorClosing (afterInsert), L"the declined insert closes the door");
+        Assert::IsTrue (IsDoorClosing (afterEject),  L"and so does the declined eject");
+    }
+
+
+    //  The window posted the eject, and the emulation thread declined it, so
+    //  an insert into the drive replaces a disk again.
+    TEST_METHOD (ADeclinedEjectStillNeedsTheReplacePrompt)
+    {
+        ScopedNotifyCount   notices;
+        TestMachine         machine  ("Apple2e");
+        auto                shell    = std::make_unique<Shell>();
+        DiskImageStore    & store    = machine.GetDiskStore();
+        DiskImage         * image    = nullptr;
+        bool                isNeeded = false;
+
+
+
+        MountDirtyDiskWhoseSaveFails (store, image);
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+
+            manager.Eject (6, s_kRemountDrive);
+            manager.EjectDiskInSlot6 (s_kRemountDrive);
+            (void) manager.PublishDriveStatus (true);
+            manager.UpdateDriveWidgets();
+
+            isNeeded = manager.IsReplacePromptNeeded (s_kRemountDrive);
+        }
+
+        Assert::IsTrue (store.IsMounted (6, s_kRemountDrive), L"the eject is declined");
+        Assert::IsTrue (isNeeded, L"so an insert into the drive raises the replace prompt");
+    }
+
+
+    //  While an eject waits for an answer, the drive's saved disk path is the
+    //  mounted disk's, and the answer that finishes the eject clears it.
+    TEST_METHOD (EjectFinishedByAnAnswerClearsTheRememberedPath)
+    {
+        TestMachine         machine  ("Apple2e");
+        auto                shell    = std::make_unique<Shell>();
+        DiskImageStore    & store    = machine.GetDiskStore();
+        DiskImage         * image    = nullptr;
+        int                 asked    = 0;
+        std::wstring        afterMount;
+        std::wstring        whileAsked;
+        std::wstring        afterAnswer;
+
+
+
+        shell->machineName = L"Apple2e";
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([] (const std::string &, const std::vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+        store.SetAskSink        ([&asked] (int, int, const ChangePrompt &) { asked++; return true; });
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            //  The store's bay changes go to the manager, as
+            //  InstallSharedImageSupport routes them in the emulator.
+            store.SetBayChangeSink ([&manager] (int slot, int drive, BayChange change) { manager.OnBayChange (slot, drive, change); });
+
+            AssertSucceeded (manager.MountDiskInSlot6 (s_kRemountDrive, "C:\\work\\remount.nib"), L"MountDiskInSlot6");
+            afterMount = ReadRememberedPath (*shell);
+
+            image = store.GetImage (6, s_kRemountDrive);
+            image->WriteBit (0, s_kRemountBitIndex, image->ReadBit (0, s_kRemountBitIndex) ^ 1);
+
+            manager.EjectDiskInSlot6 (s_kRemountDrive);
+            whileAsked = ReadRememberedPath (*shell);
+
+            store.ResolvePendingChange (6, s_kRemountDrive, ChangeAction::Discard, "");
+            afterAnswer = ReadRememberedPath (*shell);
+
+            store.SetBayChangeSink (nullptr);
+        }
+
+        Assert::IsTrue  (afterMount.find (L"remount.nib") != std::wstring::npos, L"the mount saves the disk's path");
+        Assert::AreEqual (1, asked, L"the eject raises a question");
+        Assert::IsTrue  (whileAsked == afterMount, L"and the saved path is the disk's while the question is open");
+        Assert::IsFalse (store.IsMounted (6, s_kRemountDrive), L"the answer finishes the eject");
+        Assert::IsTrue  (afterAnswer.empty(), L"and the drive's saved path is cleared");
+    }
+
 private:
+
+    //  A disk in drive s_kRemountDrive, with a guest write, whose every save
+    //  fails.
+    static void MountDirtyDiskWhoseSaveFails (DiskImageStore & store, DiskImage *& outImage)
+    {
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([] (const std::string &, const std::vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        AssertSucceeded (store.Mount (6, s_kRemountDrive, "C:\\work\\remount.nib"), L"Mount");
+        outImage = store.GetImage (6, s_kRemountDrive);
+        outImage->WriteBit (0, s_kRemountBitIndex, outImage->ReadBit (0, s_kRemountBitIndex) ^ 1);
+    }
+
+
+    static bool IsDoorClosing (DriveWidgetState::Door door)
+    {
+        return door == DriveWidgetState::Door::Closing || door == DriveWidgetState::Door::Closed;
+    }
+
+
+    static std::wstring ReadRememberedPath (Shell & shell)
+    {
+        std::wstring  path;
+        HRESULT       hr = DiskSettings::ReadSavedDiskPath (shell.config, shell.fs, s_kRemountDrive, shell.machineName, path);
+
+
+
+        AssertSucceeded (hr, L"ReadSavedDiskPath");
+
+        return path;
+    }
+
 
     //  Counts the store's notices for the span of a test.
     struct ScopedNotifyCount

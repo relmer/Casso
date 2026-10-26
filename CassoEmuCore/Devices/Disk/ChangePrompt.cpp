@@ -112,6 +112,33 @@ std::wstring ChangePrompt::DescribeError (HRESULT reason)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ChangePrompt::DescribeErrorAsSentence
+//
+//  DescribeError with a closing period. The system's text usually ends with
+//  one, and a code with no text has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ChangePrompt::DescribeErrorAsSentence (HRESULT reason)
+{
+    std::wstring  described = DescribeError (reason);
+
+
+
+    if (!described.ends_with (L"."))
+    {
+        described += L".";
+    }
+
+    return described;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ChangePrompt::Compose
 //
 //  The question put when something else changed a mounted file.
@@ -416,49 +443,110 @@ ChangePrompt ChangePrompt::ComposeSaveFailure (const std::string & imagePath, in
 
 
 
-    prompt.title = L"Error saving to disk";
-
-    prompt.message = (cause == SaveFailureCause::FileLost)
-                         ? (file + L" is gone. Your changes could not be saved to")
-                         : (L"Another program modified " + file
-                            + L". Your changes could not be saved to");
-
-    prompt.message += L"\n\n" + full + L"\n\nError: " + DescribeError (reason) + L"\n\n";
-
-    if (cause == SaveFailureCause::FileLost)
+    if (cause == SaveFailureCause::Unwritable || cause == SaveFailureCause::Unserializable)
     {
-        prompt.message += L"Your disk is still in " + where + L".";
-    }
-    else if (cause == SaveFailureCause::Ejecting)
-    {
-        prompt.message += L"Your changes are only in " + where + L", which is about to "
-                          L"be emptied. Save them somewhere, or let them go.";
+        prompt = ComposeEjectSaveFailure (imagePath, drive, attemptedPath, reason, cause);
     }
     else
     {
-        prompt.message += L"Your changes are still in " + where + L", and the modified "
-                        + file + L" hasn't been inserted.";
+        prompt.title = L"Error saving to disk";
+
+        prompt.message = (cause == SaveFailureCause::FileLost)
+                             ? (file + L" is gone. Your changes could not be saved to")
+                             : (L"Another program modified " + file
+                                + L". Your changes could not be saved to");
+
+        prompt.message += L"\n\n" + full + L"\n\nError: " + DescribeError (reason) + L"\n\n";
+
+        if (cause == SaveFailureCause::FileLost)
+        {
+            prompt.message += L"Your disk is still in " + where + L".";
+        }
+        else if (cause == SaveFailureCause::Ejecting)
+        {
+            prompt.message += L"Your changes are only in " + where + L", which is about to "
+                              L"be emptied. Save them somewhere, or let them go.";
+        }
+        else
+        {
+            prompt.message += L"Your changes are still in " + where + L", and the modified "
+                            + file + L" hasn't been inserted.";
+        }
+
+        if (cause == SaveFailureCause::Ejecting)
+        {
+            //  THE DISK COMES OUT EITHER WAY, and the labels say which of the two
+            //  ways. There is no answer here that costs nothing: the nearest is
+            //  the one that keeps the disk, so that is what Enter and the close
+            //  box take.
+            prompt.safeAnswer = 0;
+
+            prompt.answers.push_back (PromptAnswer { L"Save as...",       ChangeAction::PreserveCopy });
+            prompt.answers.push_back (PromptAnswer { L"Eject and discard", ChangeAction::Discard });
+        }
+        else
+        {
+            //  Dismissing leaves the copy unwritten and the drive as it was.
+            prompt.safeAnswer = 1;
+
+            prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
+            prompt.answers.push_back (PromptAnswer { L"Dismiss",    ChangeAction::Ignore });
+        }
+
+        prompt.imagePath = imagePath;
     }
 
-    if (cause == SaveFailureCause::Ejecting)
-    {
-        //  THE DISK COMES OUT EITHER WAY, and the labels say which of the two
-        //  ways. There is no answer here that costs nothing: the nearest is
-        //  the one that keeps the disk, so that is what Enter and the close
-        //  box take.
-        prompt.safeAnswer = 0;
+    return prompt;
+}
 
-        prompt.answers.push_back (PromptAnswer { L"Save as...",       ChangeAction::PreserveCopy });
-        prompt.answers.push_back (PromptAnswer { L"Eject and discard", ChangeAction::Discard });
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChangePrompt::ComposeEjectSaveFailure
+//
+//  The question an eject raises when its save to the disk's file failed and
+//  there is no current recovery copy. Either answer finishes the eject, and
+//  the safe answer is Save as.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChangePrompt ChangePrompt::ComposeEjectSaveFailure (const std::string & imagePath, int drive,
+                                                    const std::string & attemptedPath,
+                                                    HRESULT             reason,
+                                                    SaveFailureCause    cause)
+{
+    ChangePrompt  prompt;
+    std::wstring  file  = GetFileName (imagePath);
+    std::wstring  where = L"drive " + std::to_wstring (drive + 1);
+
+
+
+    prompt.title = L"Disk not saved";
+
+    if (cause == SaveFailureCause::Unserializable)
+    {
+        prompt.message = L"Your changes to " + file + L" cannot be stored as a "
+                       + fs::path (imagePath).extension().wstring() + L" image. Casso tried to save them to "
+                       + fs::path (attemptedPath).filename().wstring() + L" instead, but failed: "
+                       + DescribeErrorAsSentence (reason)
+                       + L"\n\nThe disk is still in " + where + L". Save a WOZ copy to another file before "
+                         L"ejecting, or eject the disk and discard the changes.";
     }
     else
     {
-        //  Dismissing leaves the copy unwritten and the drive as it was.
-        prompt.safeAnswer = 1;
-
-        prompt.answers.push_back (PromptAnswer { L"Save as...", ChangeAction::PreserveCopy });
-        prompt.answers.push_back (PromptAnswer { L"Dismiss",    ChangeAction::Ignore });
+        prompt.message = L"Your changes to " + file + L" could not be saved to\n\n"
+                       + fs::path (attemptedPath).wstring() + L"\n\nError: " + DescribeError (reason)
+                       + L"\n\nThe disk is still in " + where + L". Save the changes to another file before "
+                         L"ejecting, or eject the disk and discard them.";
     }
+
+    prompt.safeAnswer = 0;
+
+    prompt.answers.push_back (PromptAnswer { L"Save as...",        ChangeAction::PreserveCopy });
+    prompt.answers.push_back (PromptAnswer { L"Eject and discard", ChangeAction::Discard });
 
     prompt.imagePath = imagePath;
 

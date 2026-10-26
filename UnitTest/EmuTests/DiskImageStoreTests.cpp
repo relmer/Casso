@@ -484,6 +484,7 @@ public:
         store.Eject (kSlot, kDrive);
 
         Assert::AreEqual (1, s_flushNotifyCount, L"Eject flush failure must surface via the notifier");
+        Assert::IsTrue   (store.IsMounted (kSlot, kDrive), L"and the disk stays in the drive");
     }
 
     TEST_METHOD (FlushAll_ClearsDirtyFlags)
@@ -1158,6 +1159,342 @@ public:
         Assert::IsTrue (io.files.contains ("Q:/casso-no-such-root/image.recovered.1.woz"),
             L"the copy from before the save is left, and a new one is written");
         Assert::AreEqual (2, s_flushNotifyCount, L"and the new failure is reported");
+    }
+
+
+
+    //  The eject of a disk whose writes could not be saved to its file.
+    static constexpr const char *  kEjectPath  = "C:\\work\\e.dsk";
+    static constexpr const char *  kChosenPath = "C:\\work\\saved.dsk";
+
+
+
+    //  The questions the store raised. `isDelivered` is what the sink returns.
+    struct AskRecorder
+    {
+        vector<ChangePrompt>  prompts;
+        bool                  isDelivered = true;
+    };
+
+
+
+    static void RecordAsks (DiskImageStore & store, AskRecorder & recorder)
+    {
+        store.SetAskSink ([&recorder] (int, int, const ChangePrompt & prompt)
+        {
+            recorder.prompts.push_back (prompt);
+            return recorder.isDelivered;
+        });
+    }
+
+
+
+    //  Every write to kEjectPath fails, and every other one is added to `written`.
+    static void FailWritesToTheEjectedFile (DiskImageStore & store, vector<string> & written)
+    {
+        store.SetFlushSink ([&written] (const string & path, const vector<Byte> &)
+        {
+            if (path == kEjectPath)
+            {
+                return HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+            }
+
+            written.push_back (path);
+            return S_OK;
+        });
+    }
+
+
+
+    TEST_METHOD (Eject_Unwritable_RaisesTheQuestionAndWaits)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        AskRecorder               asks;
+        vector<string>            written;
+
+
+
+        FailWritesToTheEjectedFile (store, written);
+        RecordAsks (store, asks);
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsTrue   (store.IsMounted (kSlot, kDrive), L"the disk is in the drive while the question stands");
+        Assert::AreEqual (size_t (1), asks.prompts.size(), L"one question");
+        Assert::AreEqual (wstring (L"Disk not saved"), asks.prompts[0].title);
+        Assert::IsTrue   (asks.prompts[0].message.find (L"could not be saved to\n\nC:\\work\\e.dsk") != wstring::npos,
+            L"about the disk's file");
+        Assert::AreEqual (0, s_flushNotifyCount, L"and no notice besides");
+    }
+
+
+
+    TEST_METHOD (Eject_Unwritable_SaveAsFinishes)
+    {
+        DiskImageStore  store;
+        AskRecorder     asks;
+        vector<string>  written;
+
+
+
+        FailWritesToTheEjectedFile (store, written);
+        RecordAsks (store, asks);
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsTrue (store.IsMounted (kSlot, kDrive), L"the disk waits for the answer");
+
+        store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, kChosenPath);
+
+        Assert::IsTrue  (written == vector<string> { kChosenPath }, L"the changes are saved to the file chosen");
+        Assert::IsFalse (store.IsMounted (kSlot, kDrive), L"and the answer finishes the eject");
+    }
+
+
+
+    TEST_METHOD (Eject_Unwritable_DiscardFinishes)
+    {
+        DiskImageStore  store;
+        AskRecorder     asks;
+        vector<string>  written;
+
+
+
+        FailWritesToTheEjectedFile (store, written);
+        RecordAsks (store, asks);
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsTrue (store.IsMounted (kSlot, kDrive), L"the disk waits for the answer");
+
+        store.ResolvePendingChange (kSlot, kDrive, ChangeAction::Discard, string());
+
+        Assert::IsFalse  (store.IsMounted (kSlot, kDrive), L"the answer finishes the eject");
+        Assert::IsTrue   (written.empty(), L"and nothing is written");
+        Assert::AreEqual (size_t (1), asks.prompts.size(), L"with no second question");
+    }
+
+
+
+    //  With no sink, and with a question the sink could not deliver, the disk
+    //  stays in the drive and the notice states it.
+    TEST_METHOD (Eject_Unwritable_NoQuestionPossible_KeepsTheDisk)
+    {
+        for (bool hasSink : { false, true })
+        {
+            ScopedFlushNotifyCapture  capture;
+            DiskImageStore            store;
+            AskRecorder               asks;
+            vector<string>            written;
+
+
+
+            FailWritesToTheEjectedFile (store, written);
+            asks.isDelivered = false;
+
+            if (hasSink)
+            {
+                RecordAsks (store, asks);
+            }
+
+            AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+            WriteOneBit (store);
+            store.Eject (kSlot, kDrive);
+
+            Assert::IsTrue   (store.IsMounted (kSlot, kDrive), L"the disk is in the drive");
+            Assert::IsTrue   (store.GetImage (kSlot, kDrive)->IsDirty(), L"with its changes");
+            Assert::AreEqual (1, s_flushNotifyCount, L"one notice");
+            Assert::IsTrue   (s_flushNotifyLast.find (L"The disk was not ejected, and the drive still has your changes.") != wstring::npos,
+                L"which states that the disk was not ejected");
+            Assert::IsTrue   (s_flushNotifyLast.find (L"still has them") == wstring::npos,
+                L"in the eject's text, not the background save's");
+        }
+    }
+
+
+
+    //  A replay writes nothing, so an eject during one is declined.
+    TEST_METHOD (Eject_DuringAReplay_KeepsTheDisk)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<string>            written;
+
+
+
+        store.SetFlushSink ([&written] (const string & path, const vector<Byte> &) { written.push_back (path); return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+        store.SetReplaying (true);
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsTrue   (store.IsMounted (kSlot, kDrive), L"the disk is in the drive");
+        Assert::IsTrue   (written.empty(), L"and nothing is written");
+        Assert::AreEqual (1, s_flushNotifyCount, L"one notice");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"Casso did not eject the disk in drive 1, because the machine was behind live") == 0,
+            L"with the reason");
+    }
+
+
+
+    TEST_METHOD (Eject_RescuedUnserializableDisk_Ejects)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        AskRecorder               asks;
+
+
+
+        UseFileIo (store, io);
+        RecordAsks (store, asks);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsFalse  (store.IsMounted (kSlot, kDrive), L"the bay is emptied");
+        Assert::AreEqual (size_t (1), CountRecoveryFiles (io), L"its changes are in the recovery copy");
+        Assert::AreEqual (size_t (0), asks.prompts.size(), L"with no question");
+        Assert::AreEqual (1, s_flushNotifyCount, L"and the copy is reported");
+    }
+
+
+
+    TEST_METHOD (Eject_UnserializableCopyFailed_OffersAWozCopy)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        AskRecorder     asks;
+        DiskImageStore  reloaded;
+        string          wozPath = "Q:/casso-no-such-root/chosen.woz";
+
+
+
+        UseFileIo (store, io);
+        RecordAsks (store, asks);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+        io.failWritesContaining = ".recovered";
+        io.nextWriteError       = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        store.GetImage (kSlot, kDrive)->WriteBit (10, 0, 1);
+        store.Eject (kSlot, kDrive);
+
+        Assert::IsTrue   (store.IsMounted (kSlot, kDrive), L"the disk waits for the answer");
+        Assert::AreEqual (size_t (1), asks.prompts.size(), L"one question");
+        Assert::AreEqual (string ("Q:/casso-no-such-root/image.recovered.woz"), asks.prompts[0].suggestedSavePath,
+            L"which offers a WOZ copy");
+        Assert::IsTrue   (asks.prompts[0].message.find (L"cannot be stored as a .dsk image") != wstring::npos,
+            L"because the disk's format cannot store the changes");
+
+        store.ResolvePendingChange (kSlot, kDrive, ChangeAction::PreserveCopy, "Q:/casso-no-such-root/chosen.dsk");
+
+        Assert::IsFalse (store.IsMounted (kSlot, kDrive), L"the answer finishes the eject");
+        Assert::IsFalse (io.files.contains ("Q:/casso-no-such-root/chosen.dsk"), L"no .dsk is written");
+        Assert::IsTrue  (io.files.contains (wozPath), L"the changes are in a WOZ copy at the chosen name");
+        AssertSucceeded (reloaded.MountFromBytes (kSlot, kDrive, wozPath, DiskFormat::Woz, io.files[wozPath]));
+        Assert::AreEqual (Byte (1), reloaded.GetImage (kSlot, kDrive)->ReadBit (10, 0), L"with the guest's write");
+    }
+
+
+
+    //  The last save of the process offers the rescue for a disk whose file
+    //  could not be written.
+    TEST_METHOD (FlushAllForShutdown_Unwritable_OffersTheRescue)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<string>            written;
+        string                    offered;
+
+
+
+        FailWritesToTheEjectedFile (store, written);
+        store.SetRescueSink ([&offered] (const string & imagePath, string & outPath)
+        {
+            offered = imagePath;
+            outPath = kChosenPath;
+            return true;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+        AssertFailed (store.FlushAllForShutdown(), L"the disk's file is not written");
+
+        Assert::AreEqual (string (kEjectPath), offered, L"the rescue is offered for the disk's file");
+        Assert::IsTrue   (written == vector<string> { kChosenPath }, L"and the changes are saved where it chose");
+        Assert::AreEqual (0, s_flushNotifyCount, L"with no notice");
+    }
+
+
+
+    TEST_METHOD (FlushAllForShutdown_RescueDeclined_StatesTheChangesCannotBeKept)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<string>            written;
+        int                       rescues = 0;
+
+
+
+        FailWritesToTheEjectedFile (store, written);
+        store.SetRescueSink ([&rescues] (const string &, string &) { rescues++; return false; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, kEjectPath, DiskFormat::Dsk, MakeDsk (0)));
+        WriteOneBit (store);
+        AssertFailed (store.FlushAllForShutdown(), L"the disk's file is not written");
+
+        Assert::AreEqual (1, rescues, L"the rescue is offered");
+        Assert::AreEqual (1, s_flushNotifyCount, L"and declining it raises one notice");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"Casso is closing, so these changes cannot be kept.") != wstring::npos,
+            L"which states that the changes cannot be kept");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"still has them") == wstring::npos);
+    }
+
+
+
+    TEST_METHOD (FlushAllForShutdown_UnserializableCopyFailed_RescuesAWozCopy)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        string                    offered;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+        io.failWritesContaining = ".recovered";
+        io.nextWriteError       = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+        store.SetRescueSink ([&offered] (const string & imagePath, string & outPath)
+        {
+            offered = imagePath;
+            outPath = "Q:/casso-no-such-root/kept.dsk";
+            return true;
+        });
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        AssertFailed (store.FlushAllForShutdown(), L"the disk's file is not written");
+
+        Assert::AreEqual (string ("Q:/casso-no-such-root/image.recovered.woz"), offered, L"the rescue offers a WOZ name");
+        Assert::IsTrue   (io.files.contains ("Q:/casso-no-such-root/kept.woz"), L"and the changes are in a WOZ copy");
+        Assert::AreEqual (0, s_flushNotifyCount, L"with no notice");
     }
 
 

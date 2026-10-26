@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "ImageIdentity.h"
 #include "ExternalChangePolicy.h"
+#include "ChangePrompt.h"
 
 
 
@@ -115,6 +116,11 @@ public:
     ChangeAction  GetAskedAction () const           { return m_askedAction; }
     void          SetAskedAction (ChangeAction action) { m_askedAction = action; }
 
+    //  For a Conflict question, why the save failed, so a second question
+    //  after a failed answer is put in the same terms.
+    SaveFailureCause  GetAskedCause () const                 { return m_askedCause; }
+    void              SetAskedCause (SaveFailureCause cause) { m_askedCause = cause; }
+
     //  The name the guest's version goes under, and whether it is there yet.
     //
     //  RESERVED BEFORE IT IS WRITTEN, and that separation is the point. A
@@ -196,15 +202,16 @@ public:
     static std::string  GetDirectory (const std::string & path);
 
 private:
-    ImageIdentity  m_identity;
-    PendingChange  m_pending;
-    bool           m_mounted           = false;
-    bool           m_watching          = false;
-    bool           m_askOutstanding    = false;
-    ChangeAction   m_askedAction       = ChangeAction::Ignore;
-    std::string    m_preservedPath;
-    bool           m_preservedWritten  = false;
-    bool           m_ejectWhenAnswered = false;
+    ImageIdentity     m_identity;
+    PendingChange     m_pending;
+    bool              m_mounted           = false;
+    bool              m_watching          = false;
+    bool              m_askOutstanding    = false;
+    ChangeAction      m_askedAction       = ChangeAction::Ignore;
+    SaveFailureCause  m_askedCause        = SaveFailureCause::ExternalChange;
+    std::string       m_preservedPath;
+    bool              m_preservedWritten  = false;
+    bool              m_ejectWhenAnswered = false;
 
     std::string            m_recoveryPath;
     ImageIdentity          m_recoveryIdentity;

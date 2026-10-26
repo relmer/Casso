@@ -626,9 +626,11 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
 //  on the answer, but it runs on the UI thread with its apartment still up, so
 //  it asks through a blocking dialog instead and writes the copy itself.
 //
-//  ONLY A REFUSED OR IMPOSSIBLE RESCUE IS ANNOUNCED. Saying "your writes are
-//  still in memory" is true while the machine runs and a lie as the drive
-//  empties, so the sentence the user gets says which of the two happened.
+//  WITH NO QUESTION POSSIBLE, THE DISK STAYS IN THE DRIVE. The guest's version
+//  is in no file, so an eject is declined, and the notice states that the disk
+//  is in the drive and that another eject raises the question again. At a quit
+//  there is no drive for the disk, and the notice states that the changes are
+//  lost.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -636,9 +638,11 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
                                             const string & attemptedPath, HRESULT hrKeep,
                                             const string & original)
 {
-    SaveFailureCause  cause = (moment == FlushMoment::Ejecting)
-                                  ? SaveFailureCause::Ejecting
-                                  : SaveFailureCause::ExternalChange;
+    SaveFailureCause  cause     = (moment == FlushMoment::Ejecting)
+                                      ? SaveFailureCause::Ejecting
+                                      : SaveFailureCause::ExternalChange;
+    bool              isAskable = m_askSink && !entry.sharedState.IsAskOutstanding();
+    bool              isAsked   = false;
 
 
 
@@ -646,50 +650,41 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
     {
         //  The last chance there is. A copy written here is written by this
         //  call rather than by an answer that will never arrive.
-        if (RescueOnTheWayOut (entry, original))
+        if (!RescueOnTheWayOut (entry, original, false))
         {
-            return;
+            EhmNotifyUser (FormatPreserveFailureMessage (original, attemptedPath, hrKeep, entry.drive, moment).c_str());
         }
-
-        EhmNotifyUser (FormatDiscardedWritesMessage (original, attemptedPath, hrKeep).c_str());
-
-        return;
     }
-
-    if (!m_askSink || entry.sharedState.IsAskOutstanding())
+    else
     {
-        //  Nothing can ask. An eject still empties the bay, so it gets the
-        //  sentence that says the writes are going rather than the one that
-        //  says they are waiting.
-        if (moment == FlushMoment::Ejecting)
+        if (isAskable)
         {
-            EhmNotifyUser (FormatDiscardedWritesMessage (original, attemptedPath,
-                                                         hrKeep).c_str());
+            entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+            entry.sharedState.SetAskedCause  (cause);
+
+            isAsked = m_askSink (entry.slot, entry.drive,
+                                 ChangePrompt::ComposeSaveFailure (original, entry.drive, attemptedPath,
+                                                                   hrKeep, cause));
+
+            entry.sharedState.SetAskOutstanding (isAsked);
         }
-        else
+
+        //  THE EJECT WAITS ON THE ANSWER, but only when the question actually
+        //  went up. Without one the eject is declined, because the disk's
+        //  writes are in no file, and a notice takes the question's place.
+        if (moment == FlushMoment::Ejecting && isAsked)
+        {
+            entry.sharedState.SetEjectWhenAnswered (true);
+        }
+        else if (moment == FlushMoment::Ejecting)
+        {
+            EhmNotifyUser (FormatPreserveFailureMessage (original, attemptedPath, hrKeep, entry.drive, moment).c_str());
+        }
+        else if (!isAsked)
         {
             EhmNotifyUser (FormatExternalChangeMessage (original).c_str());
         }
-
-        return;
     }
-
-    entry.sharedState.SetAskedAction (ChangeAction::Conflict);
-
-    entry.sharedState.SetAskOutstanding (
-        m_askSink (entry.slot, entry.drive,
-                   ChangePrompt::ComposeSaveFailure (original, entry.drive, attemptedPath,
-                                                     hrKeep, cause)));
-
-    //  THE EJECT WAITS ON THE ANSWER, but only when the question actually went
-    //  up. One that could not be delivered must not leave a disk nobody can get
-    //  out of the drive.
-    if (moment == FlushMoment::Ejecting && entry.sharedState.IsAskOutstanding())
-    {
-        entry.sharedState.SetEjectWhenAnswered (true);
-    }
-
-    return;
 }
 
 
@@ -709,39 +704,41 @@ void DiskImageStore::ReportPreserveFailure (Entry & entry, FlushMoment moment,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
+bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original, bool isUnserializable)
 {
-    HRESULT       hr = S_OK;
+    HRESULT       hr        = S_OK;
+    string        offered   = isUnserializable ? MakeRecoveryPath (original, 0) : original;
     string        chosen;
+    string        written;
+    bool          isChosen  = false;
+    bool          isNative  = false;
     vector<Byte>  held;
 
 
 
-    if (!m_rescueSink)
-    {
-        return false;
-    }
+    isChosen = m_rescueSink && m_rescueSink (offered, chosen) && !chosen.empty();
+    CBR (isChosen);
 
-    if (!m_rescueSink (original, chosen) || chosen.empty())
-    {
-        return false;
-    }
+    hr       = entry.image->Serialize (held);
+    isNative = SUCCEEDED (hr);
 
-    hr = entry.image->Serialize (held);
-
-    if (SUCCEEDED (hr))
+    //  A disk whose format cannot store its writes goes out as WOZ, the one
+    //  format that stores them whole.
+    if (isNative)
     {
         hr = CommitFile (chosen, held, CommitMode::Replace);
-    }
+        CHR (hr);
 
-    if (FAILED (hr))
+        entry.image->MarkSaved (held);
+    }
+    else
     {
-        return false;
+        hr = WriteWozCopy (entry, chosen, written);
+        CHR (hr);
     }
 
-    entry.image->MarkSaved (held);
-
-    return true;
+Error:
+    return SUCCEEDED (hr);
 }
 
 
@@ -750,24 +747,169 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::FormatDiscardedWritesMessage
+//  DiskImageStore::AskBeforeEject
 //
-//  What is said when a disk's last chance to be written has gone.
+//  The question an eject raises when its save to the disk's file failed and
+//  no recovery copy has the writes. The eject waits for the answer, which
+//  finishes it either way.
 //
-//  IT DOES NOT CLAIM THE WRITES ARE SAFE. The message for a running machine
-//  says they are still in memory and still flushable, which is true there and
-//  is why a later attempt can succeed. Said as the drive empties or the process
-//  exits it was simply false: the memory it pointed at is released a few lines
-//  later.
+//  A DISK WHOSE FORMAT CANNOT STORE ITS WRITES IS OFFERED A WOZ COPY, at the
+//  name the failed recovery copy had, so the picker opens on a .woz name.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring DiskImageStore::FormatDiscardedWritesMessage (const string & path,
-                                                      const string & attemptedPath,
-                                                      HRESULT        reason)
+bool DiskImageStore::AskBeforeEject (Entry & entry, const FlushOutcome & outcome)
 {
-    wstring  widePath  = fs::path (path).wstring();
-    wstring  wideTried = fs::path (attemptedPath).wstring();
+    MountedImageState  & state     = entry.sharedState;
+    bool                 isAskable = m_askSink && !state.IsAskOutstanding();
+    bool                 isAsked   = false;
+    SaveFailureCause     cause     = outcome.isUnserializable ? SaveFailureCause::Unserializable : SaveFailureCause::Unwritable;
+    ChangePrompt         prompt;
+
+
+
+    if (isAskable)
+    {
+        if (outcome.isUnserializable)
+        {
+            prompt = ChangePrompt::ComposeSaveFailure (entry.path, entry.drive, outcome.recoveryPath,
+                                                       outcome.recoveryError, cause);
+
+            prompt.suggestedSavePath = MakeRecoveryPath (entry.path, 0);
+        }
+        else
+        {
+            prompt = ChangePrompt::ComposeSaveFailure (entry.path, entry.drive, entry.path,
+                                                       outcome.saveError, cause);
+        }
+
+        state.SetAskedAction (ChangeAction::Conflict);
+        state.SetAskedCause  (cause);
+
+        isAsked = m_askSink (entry.slot, entry.drive, prompt);
+
+        state.SetAskOutstanding   (isAsked);
+        state.SetEjectWhenAnswered (isAsked);
+    }
+
+    return isAsked;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::WriteWozCopy
+//
+//  The bay's image, as WOZ, at the path the user chose with its extension
+//  changed to .woz. A sector format cannot store what the guest wrote, so a
+//  file with that format's extension would misstate its contents.
+//
+//  IT BECOMES THE RECOVERY COPY, marked as reported, because the user chose
+//  where it went. The bay stays on its file, and at a later save that cannot
+//  be stored either, this copy is current and nothing is written.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::WriteWozCopy (Entry & entry, const string & path, string & outPath)
+{
+    HRESULT       hr = S_OK;
+    vector<Byte>  wozBytes;
+
+
+
+    outPath = fs::path (path).replace_extension (".woz").string();
+
+    hr = WozLoader::Serialize (*entry.image, wozBytes);
+    CHR (hr);
+
+    hr = CommitFile (outPath, wozBytes, CommitMode::Replace);
+    CHR (hr);
+
+    entry.sharedState.SetRecovery (outPath, entry.image->GetImageId(), entry.image->GetTrackGenerations(), ReadIdentity (outPath));
+    entry.sharedState.MarkSaveFailureReported (outPath);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::SaveAnswerCopy
+//
+//  Writes the copy for a Save as answer. A native copy moves the bay
+//  onto the new file, the same outcome as keeping the disk in any other
+//  question. Finishing an eject, an image that does not serialize natively is
+//  written as WOZ, with the bay on its file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::SaveAnswerCopy (Entry & entry, const string & savePath, bool isEjecting, string & outPath)
+{
+    HRESULT       hr        = S_OK;
+    HRESULT       hrRepoint = S_OK;
+    bool          isWoz     = false;
+    vector<Byte>  held;
+
+
+
+    outPath = savePath;
+
+    hr    = entry.image->Serialize (held);
+    isWoz = FAILED (hr) && isEjecting;
+
+    if (isWoz)
+    {
+        hr = WriteWozCopy (entry, savePath, outPath);
+        CHR (hr);
+    }
+    else
+    {
+        CHR (hr);
+
+        hr = CommitFile (savePath, held, CommitMode::Replace);
+        CHR (hr);
+
+        entry.image->MarkSaved (held);
+        entry.sharedState.SetPreservedPath (string());
+
+        hrRepoint = RepointBayToFile (entry.slot, entry.drive, savePath);
+        IGNORE_RETURN_VALUE (hrRepoint, S_OK);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::FormatPreserveFailureMessage
+//
+//  The notice for a guest's version that could not be written beside a file
+//  another program changed, with no question possible. At an eject the disk
+//  is in the drive, and another eject raises the question again; at a quit
+//  the changes are lost.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatPreserveFailureMessage (const string & path,
+                                                      const string & attemptedPath,
+                                                      HRESULT        reason,
+                                                      int            drive,
+                                                      FlushMoment    moment)
+{
+    wstring  widePath = fs::path (path).wstring();
+    wstring  message;
 
 
 
@@ -776,13 +918,24 @@ wstring DiskImageStore::FormatDiscardedWritesMessage (const string & path,
         widePath = L"(unknown path)";
     }
 
-    return L"Casso could not save your changes to the disk image:\n\n" + widePath +
-           L"\n\nThe file was changed by something else since it was mounted, so your "
-           L"version could not be written over it. Casso tried to save it here "
-           L"instead:\n\n" + wideTried +
-           L"\n\nError: " + ChangePrompt::DescribeError (reason) +
-           L"\n\nThe disk is leaving the drive, so these changes cannot be recovered. "
-           L"The file on disk keeps the other program's version.";
+    message = L"Casso could not save your changes to the disk image:\n\n" + widePath
+            + L"\n\nAnother program changed this file after it was inserted, so Casso did not overwrite it. "
+              L"Casso tried to save your changes to " + fs::path (attemptedPath).filename().wstring()
+            + L" instead, but failed: " + ChangePrompt::DescribeErrorAsSentence (reason);
+
+    if (moment == FlushMoment::ShuttingDown)
+    {
+        message += L"\n\nCasso is closing, so your changes are lost. The file on disk has the other "
+                   L"program's version.";
+    }
+    else
+    {
+        message += L"\n\nThe disk is still in drive " + std::to_wstring (drive + 1)
+                 + L" with your changes. Eject it again to choose another place to save them. The file "
+                   L"on disk has the other program's version.";
+    }
+
+    return message;
 }
 
 
@@ -1319,41 +1472,58 @@ wstring DiskImageStore::FormatFlushLossMessage (const string & path,
 //  not be written either, gets a separate tail. The copy's error is in place
 //  of the head's Error line, which would otherwise contain the serializer's.
 //
+//  THE TAIL FOR A DISK THAT STAYS IN THE DRIVE IS FALSE AT AN EJECT OR A QUIT.
+//  With no copy, a declined eject states that the disk was not ejected, and a
+//  quit states that the changes are gone.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-wstring DiskImageStore::FormatFlushLossMessage (const string & path, const FlushOutcome & outcome)
+wstring DiskImageStore::FormatFlushLossMessage (const string & path, const FlushOutcome & outcome, FlushMoment moment)
 {
     bool     isCopyFailed = outcome.isUnserializable && FAILED (outcome.recoveryError);
+    bool     hasCopy      = SUCCEEDED (outcome.recoveryError) && !outcome.recoveryPath.empty();
     wstring  widePath     = fs::path (path).wstring();
-    wstring  reason;
+    wstring  tail;
     wstring  message;
 
 
 
-    if (!isCopyFailed)
+    if (widePath.empty())
     {
-        message = FormatFlushLossMessage (path, outcome.saveError,
-                                          SUCCEEDED (outcome.recoveryError) ? outcome.recoveryPath : string());
+        widePath = L"(unknown path)";
     }
-    else
+
+    if (moment == FlushMoment::Ejecting)
     {
-        if (widePath.empty())
-        {
-            widePath = L"(unknown path)";
-        }
+        tail = L"The disk was not ejected, and the drive still has your changes.";
+    }
+    else if (moment == FlushMoment::ShuttingDown)
+    {
+        tail = L"Casso is closing, so these changes cannot be kept.";
+    }
 
-        reason = ChangePrompt::DescribeError (outcome.recoveryError);
-
-        if (!reason.ends_with (L"."))
-        {
-            reason += L".";
-        }
-
+    if (isCopyFailed)
+    {
         message = L"Casso could not save changes to the disk image:\n\n" + widePath
                 + L"\n\nThe file on disk is unchanged. Its changes cannot be stored as a "
                 + fs::path (path).extension().wstring() + L" image. Casso tried to save them to "
                 + fs::path (outcome.recoveryPath).filename().wstring() + L" instead, but failed: "
-                + reason;
+                + ChangePrompt::DescribeErrorAsSentence (outcome.recoveryError);
+
+        if (!tail.empty())
+        {
+            message += L" " + tail;
+        }
+    }
+    else if (hasCopy || tail.empty())
+    {
+        message = FormatFlushLossMessage (path, outcome.saveError, hasCopy ? outcome.recoveryPath : string());
+    }
+    else
+    {
+        message = L"Casso could not save changes to the disk image:\n\n" + widePath
+                + L"\n\nError: " + ChangePrompt::DescribeError (outcome.saveError)
+                + L"\n\nThe file on disk is unchanged. " + tail;
     }
 
     return message;
@@ -1822,6 +1992,7 @@ void DiskImageStore::ReportSaveFailure (Entry & entry, FlushMoment moment, const
 {
     MountedImageState  & state    = entry.sharedState;
     string               copyPath = SUCCEEDED (outcome.recoveryError) ? outcome.recoveryPath : string();
+    bool                 hasCopy  = !copyPath.empty();
     bool                 isNews   = state.ShouldReportSaveFailure (copyPath);
     bool                 isShown  = true;
 
@@ -1829,18 +2000,30 @@ void DiskImageStore::ReportSaveFailure (Entry & entry, FlushMoment moment, const
 
     //  Before a mount, only a first recovery copy is news: a failure with
     //  writes in no file declines the mount, and the decline is the report.
+    //  With a copy, the eject goes ahead and the quit discards nothing, so the
+    //  copy is reported as at a background save. Without one, the eject raises
+    //  a question about where the changes go and the quit offers the rescue,
+    //  and the notice is for when neither happens.
     if (moment == FlushMoment::Replacing)
     {
-        isShown = !copyPath.empty() && isNews;
+        isShown = hasCopy && isNews;
     }
-    else if (moment == FlushMoment::Background)
+    else if (moment == FlushMoment::Background || (hasCopy && moment != FlushMoment::Running))
     {
         isShown = isNews;
+    }
+    else if (moment == FlushMoment::Ejecting)
+    {
+        isShown = !AskBeforeEject (entry, outcome);
+    }
+    else if (moment == FlushMoment::ShuttingDown)
+    {
+        isShown = !RescueOnTheWayOut (entry, entry.path, outcome.isUnserializable);
     }
 
     if (isShown)
     {
-        EhmNotifyUser (FormatFlushLossMessage (entry.path, outcome).c_str());
+        EhmNotifyUser (FormatFlushLossMessage (entry.path, outcome, moment).c_str());
         state.MarkSaveFailureReported (copyPath);
     }
 }
@@ -2915,52 +3098,76 @@ HRESULT DiskImageStore::FlushEveryBay (FlushMoment moment)
 //
 //  Eject
 //
-//  Auto-flush dirty before releasing. Honors FR-025.
+//  Saves the disk, then empties the bay.
+//
+//  THE BAY IS EMPTIED ONLY WHEN EVERY GUEST WRITE IS IN A FILE: the disk's
+//  file, or a recovery copy that is current. After a failed save, either a
+//  question is up, and its answer finishes the eject, or a notice states why
+//  the disk is in the drive. During a replay nothing is saved or reported, so
+//  the decline is reported here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::Eject (int slot, int drive)
 {
-    HRESULT   hr = S_OK;
+    HRESULT   hr        = S_OK;
+    bool      isMounted = false;
+    bool      isWaiting = false;
+    bool      isSaved   = false;
 
 
 
     ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     // An out-of-range bay and an empty one are both nothing to eject.
-    if (IsValidBay (slot, drive) && GetEntry (slot, drive).mounted)
+    isMounted = IsValidBay (slot, drive) && GetEntry (slot, drive).mounted;
+
+    if (isMounted)
     {
         Entry &   entry = GetEntry (slot, drive);
 
-        // Flush failures are reported to the user by FlushEntry itself; the
-        // eject proceeds either way, because refusing to unmount would leave
-        // the user with no way to get the disk out.
         hr = FlushEntry (entry, FlushMoment::Ejecting);
-        IGNORE_RETURN_VALUE (hr, S_OK);
 
-        //  EXCEPT WHEN THE FLUSH PUT A QUESTION UP, which it does only when
-        //  the guest's version has nowhere to go and this eject is what would
-        //  destroy it. The disk stays until the answer comes, and the answer
-        //  finishes what this call started -- both of the answers it offers
-        //  end with the drive empty, so nothing is stuck.
-        if (entry.sharedState.IsEjectWhenAnswered())
+        isWaiting = entry.sharedState.IsEjectWhenAnswered();
+        isSaved   = AreWritesSaved (entry);
+
+        if (!isWaiting && !isSaved && SUCCEEDED (hr))
         {
-            return;
+            EhmNotifyUser (FormatBehindLiveEjectMessage (drive).c_str());
         }
 
-        //  Before the path goes: the watch is keyed by the directory the
-        //  image sits in, and there is no finding that from a cleared path.
-        EndWatching (slot, drive);
+        if (!isWaiting && isSaved)
+        {
+            //  Before the path goes: the watch is keyed by the directory the
+            //  image sits in, and there is no finding that from a cleared path.
+            EndWatching (slot, drive);
 
-        //  Kept in memory while reverse execution may still put it back.
-        RetireBay (entry);
+            //  Kept in memory while reverse execution may still put it back.
+            RetireBay (entry);
 
-        //  The disk left. Emitted after the bay is empty, so the handler that
-        //  detaches the controller sees the post-eject state.
-        EmitBayChange (slot, drive, BayChange::Ejected);
+            //  The disk left. Emitted after the bay is empty, so the handler
+            //  that detaches the controller sees the post-eject state.
+            EmitBayChange (slot, drive, BayChange::Ejected);
 
-        NotifyMediaChanged();
+            NotifyMediaChanged();
+        }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatBehindLiveEjectMessage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatBehindLiveEjectMessage (int drive)
+{
+    return L"Casso did not eject the disk in drive " + std::to_wstring (drive + 1)
+         + L", because the machine was behind live in its history when the eject ran. Go live and try again.";
 }
 
 
@@ -4022,14 +4229,19 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 //  "Save as..." after a copy could not be written where this store
 //  chose. The disk stays in the drive and the bay moves onto the file
 //  the user picked, which is the same outcome as keeping it -- only the
-//  folder is theirs rather than ours.
+//  folder is theirs rather than ours. Finishing an eject, a disk whose
+//  format cannot store its writes is saved as WOZ instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::ResolveConflictAnswer (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath)
 {
-    HRESULT  hr          = S_OK;
-    bool     finishEject = entry.sharedState.IsEjectWhenAnswered();
+    HRESULT           hr          = S_OK;
+    bool              finishEject = entry.sharedState.IsEjectWhenAnswered();
+    SaveFailureCause  cause       = entry.sharedState.GetAskedCause();
+    bool              isAsked     = false;
+    string            written;
+    ChangePrompt      prompt;
 
 
 
@@ -4037,36 +4249,32 @@ void DiskImageStore::ResolveConflictAnswer (int slot, int drive, Entry & entry, 
 
     if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
     {
-        vector<Byte>  held;
-
-        hr = entry.image->Serialize (held);
-
-        if (SUCCEEDED (hr))
-        {
-            hr = CommitFile (savePath, held, CommitMode::Replace);
-        }
+        hr = SaveAnswerCopy (entry, savePath, finishEject, written);
 
         if (FAILED (hr))
         {
             //  Still nowhere to put it. The disk is untouched and the
-            //  question stands rather than being quietly dropped.
+            //  question stands rather than being quietly dropped. The second
+            //  question is in the terms of the first.
             if (m_askSink)
             {
-                entry.sharedState.SetAskOutstanding (
-                    m_askSink (slot, drive,
-                               ChangePrompt::ComposeSaveFailure (
-                                   entry.path, drive, savePath, hr,
-                                   SaveFailureCause::ExternalChange)));
+                prompt = ChangePrompt::ComposeSaveFailure (entry.path, drive, written, hr, cause);
+
+                if (cause == SaveFailureCause::Unserializable)
+                {
+                    prompt.suggestedSavePath = MakeRecoveryPath (entry.path, 0);
+                }
+
+                entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+
+                isAsked = m_askSink (slot, drive, prompt);
             }
+
+            entry.sharedState.SetAskOutstanding   (isAsked);
+            entry.sharedState.SetEjectWhenAnswered (finishEject && isAsked);
 
             return;
         }
-
-        entry.image->MarkSaved (held);
-        entry.sharedState.SetPreservedPath (string());
-
-        hr = RepointBayToFile (slot, drive, savePath);
-        IGNORE_RETURN_VALUE (hr, S_OK);
     }
     else if (finishEject)
     {
