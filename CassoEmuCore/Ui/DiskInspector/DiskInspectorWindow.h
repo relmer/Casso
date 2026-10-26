@@ -181,6 +181,7 @@ private:
     void  TrackLegendHover (POINT pointPx);
     bool  IsImageShown     () const;
     void  LayoutPlatterControls (const RECT & area, const DxuiDpiScaler & scaler);
+    int   GetPlatterControlsWidthPx (const DxuiDpiScaler & scaler) const;
     int   LayoutTabs       (const RECT & area, const DxuiDpiScaler & scaler);
     static int  GetLabelWidthPx (LPCWSTR label, int padDip, const DxuiDpiScaler & scaler);
     static bool  IsStripKey (WPARAM vk);

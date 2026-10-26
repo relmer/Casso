@@ -787,6 +787,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     int                        i         = 0;
     int                        header    = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
     int                        rowsH     = 0;
+    int                        minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), GetPlatterControlsWidthPx (scaler));
     RECT                       right     = {};
     RECT                       platter   = {};
     vector<DxuiTabStrip::Tab>  tabs;
@@ -795,9 +796,9 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     //  A platter its height limits leaves its column no wider than it and its
     //  control row need, and the track column gains the rest.
-    if (column > std::max (areaH, scaler.ToPx (s_kMinPlatterColumnDip)))
+    if (column > std::max (areaH, minColumn))
     {
-        column = std::max (areaH, scaler.ToPx (s_kMinPlatterColumnDip));
+        column = std::max (areaH, minColumn);
         splitX = boundsDip.left + 2 * margin + column;
         side   = std::min (column, areaH);
     }
@@ -946,6 +947,40 @@ void DiskInspectorWindow::LayoutPlatterControls (const RECT & area, const DxuiDp
     }
 
     m_legendButton->Layout ({ area.right - scaler.ToPx (s_kLegendButtonDip), area.top, area.right, area.bottom }, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetPlatterControlsWidthPx
+//
+//  The width LayoutPlatterControls lays its row out in, so the platter
+//  column is never narrower than the row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::GetPlatterControlsWidthPx (const DxuiDpiScaler & scaler) const
+{
+    int  gap   = scaler.ToPx (s_kMarginDip) / 2;
+    int  width = 2 * scaler.ToPx (s_kButtonDip) + scaler.ToPx (s_kFitDip) + gap + scaler.ToPx (s_kZoomLabelDip) + gap +
+                 GetLabelWidthPx (L"Top down", s_kCheckLabelPadDip, scaler) + gap + scaler.ToPx (s_kLegendButtonDip);
+
+
+
+    for (LPCWSTR label : { L"Alignment", L"Files", L"Reads" })
+    {
+        width += GetLabelWidthPx (label, s_kCheckLabelPadDip, scaler) + gap;
+    }
+
+    if (m_comparison.IsComparing())
+    {
+        width += GetLabelWidthPx (L"Differences", s_kCheckLabelPadDip, scaler) + gap;
+    }
+
+    return width;
 }
 
 
