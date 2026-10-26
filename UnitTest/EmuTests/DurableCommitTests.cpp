@@ -70,6 +70,85 @@ public:
 
 
 
+    //  The temporary is flushed to the storage before it replaces the target,
+    //  so after a power cut following the commit the file contains the new
+    //  bytes, not zeros.
+    TEST_METHOD (Commit_PowerCutAfterItReturns_LeavesTheNewBytesWhole)
+    {
+        FakeDiskFileIo        io;
+        CommitPlan::Progress  progress;
+
+
+
+        io.SeedDurable (kTarget, MakeBytes (0x11));
+
+        AssertSucceeded (DurableCommit::Commit (io, kTarget, MakeBytes (0x22), kTag, CommitMode::Replace, progress));
+
+        io.SimulatePowerLoss();
+
+        Assert::IsTrue (io.files[kTarget] == MakeBytes (0x22), L"the new bytes are whole after the power cut");
+    }
+
+
+
+    TEST_METHOD (Commit_PowerCutBeforeTheReplace_LeavesTheOldBytesWhole)
+    {
+        FakeDiskFileIo        io;
+        CommitPlan::Progress  progress;
+        HRESULT               hr = S_OK;
+
+
+
+        io.SeedDurable (kTarget, MakeBytes (0x11));
+        io.failNextReplace = true;
+
+        hr = DurableCommit::Commit (io, kTarget, MakeBytes (0x22), kTag, CommitMode::Replace, progress);
+
+        io.SimulatePowerLoss();
+
+        Assert::IsTrue (FAILED (hr), L"the replace failed");
+        Assert::IsTrue (io.files[kTarget] == MakeBytes (0x11), L"the old bytes are whole after the power cut");
+    }
+
+
+
+    TEST_METHOD (Commit_OverAnExistingFile_KeepsItsAttributesAndPermissions)
+    {
+        FakeDiskFileIo            io;
+        CommitPlan::Progress      progress;
+        FakeDiskFileIo::Metadata  before;
+
+
+
+        io.SeedDurable (kTarget, MakeBytes (0x11));
+
+        before.attributes   = FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
+        before.permissions  = "O:BAG:BAD:(A;;FA;;;BA)";
+        io.metadata[kTarget] = before;
+
+        AssertSucceeded (DurableCommit::Commit (io, kTarget, MakeBytes (0x22), kTag, CommitMode::Replace, progress));
+
+        Assert::IsTrue (io.metadata[kTarget] == before, L"the new version has the old file's attributes and permissions");
+    }
+
+
+
+    TEST_METHOD (Commit_FlushesTheTemporaryBeforeItReplacesTheTarget)
+    {
+        FakeDiskFileIo        io;
+        CommitPlan::Progress  progress;
+
+
+
+        io.SeedDurable (kTarget, MakeBytes (0x11));
+
+        AssertSucceeded (DurableCommit::Commit (io, kTarget, MakeBytes (0x22), kTag, CommitMode::Replace, progress));
+
+        Assert::IsTrue (io.operations == vector<std::string> ({ "Write", "CopyMetadata", "Flush", "Replace" }),
+                        L"write, copy the metadata, flush, then replace");
+    }
+
+
     TEST_METHOD (ReplaceOfAMissingFileCopiesNoMetadata)
     {
         FakeDiskFileIo        io;

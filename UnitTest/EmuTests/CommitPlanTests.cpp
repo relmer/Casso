@@ -156,6 +156,8 @@ public:
     static bool IsAfterTheTemporaryCouldExist (CommitPlan::Step step)
     {
         return step == CommitPlan::Step::WriteTemporary
+            || step == CommitPlan::Step::CopyMetadata
+            || step == CommitPlan::Step::FlushTemporary
             || step == CommitPlan::Step::Replace;
     }
 
@@ -167,13 +169,15 @@ public:
             CommitPlan::Step::Probe,
             CommitPlan::Step::Reverify,
             CommitPlan::Step::WriteTemporary,
+            CommitPlan::Step::CopyMetadata,
+            CommitPlan::Step::FlushTemporary,
             CommitPlan::Step::Replace,
         };
 
         CommitPlan::Progress  progress;
         size_t                i = 0;
 
-        Assert::AreEqual (size_t (5), sizeof (steps) / sizeof (steps[0]),
+        Assert::AreEqual (size_t (7), sizeof (steps) / sizeof (steps[0]),
             L"a step was added to the plan without being decided about here");
 
         for (i = 0; i < sizeof (steps) / sizeof (steps[0]); i++)
@@ -212,6 +216,18 @@ public:
         progress.replaceSucceeded  = true;
 
         Assert::IsFalse (CommitPlan::ShouldRemoveTemporary (progress));
+    }
+
+    TEST_METHOD (Temporary_IsRemovedWhenTheFlushFailed)
+    {
+        // The temporary was written and its metadata copied, and the flush that
+        // would make it durable failed: the temporary is there, so it goes.
+        CommitPlan::Progress  progress;
+
+        progress.furthestAttempted = CommitPlan::Step::FlushTemporary;
+        progress.replaceSucceeded  = false;
+
+        Assert::IsTrue (CommitPlan::ShouldRemoveTemporary (progress));
     }
 
     TEST_METHOD (Temporary_IsRemovedWhenTheReplaceFailed)

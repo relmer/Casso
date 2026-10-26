@@ -81,6 +81,41 @@ public:
     //  durable before it became the target.
     vector<std::string>  flushedPaths;
 
+    //  What is on the storage, as opposed to in the cache. A write sets the
+    //  file's size there with zeros for its bytes, as NTFS logs a file's size
+    //  before its data; a flush copies the bytes there. SimulatePowerLoss puts the files
+    //  back to it.
+    std::unordered_map<std::string, vector<Byte>>  durable;
+
+    //  A file's attributes and permissions. A write starts a file with none;
+    //  CopyFileMetadata copies them; a replace or rename moves them.
+    struct Metadata
+    {
+        uint32_t     attributes = 0;
+        std::string  permissions;
+
+        bool  operator== (const Metadata &) const = default;
+    };
+
+    std::unordered_map<std::string, Metadata>  metadata;
+
+    //  Every write, metadata copy, flush, replace and rename, in order.
+    vector<std::string>  operations;
+
+    //  The power goes off: every file is what the storage has.
+    void  SimulatePowerLoss ()
+    {
+        files = durable;
+    }
+
+    //  A file as it is after a flush, so it survives a power loss.
+    void  SeedDurable (const std::string & path, const vector<Byte> & bytes)
+    {
+        files[path]   = bytes;
+        durable[path] = bytes;
+        stamps[path]  = FileStamp { bytes.size(), 1 };
+    }
+
     HRESULT  ReadAllBytes (const std::string & path, vector<Byte> & outBytes) override
     {
         auto  found = files.find (path);
@@ -105,19 +140,23 @@ public:
     {
         writeCount++;
         writtenPaths.push_back (path);
+        operations.push_back ("Write");
+        metadata[path] = Metadata();
 
         if (failNextWrite)
         {
             failNextWrite = false;
 
-            files[path]  = vector<Byte> (bytes.begin(), bytes.begin() + (bytes.size() / 2));
-            stamps[path] = FileStamp { files[path].size(), 1 };
+            files[path]   = vector<Byte> (bytes.begin(), bytes.begin() + (bytes.size() / 2));
+            stamps[path]  = FileStamp { files[path].size(), 1 };
+            durable[path] = vector<Byte> (files[path].size(), 0);
 
             return nextWriteError;
         }
 
-        files[path]  = bytes;
-        stamps[path] = FileStamp { bytes.size(), 1 };
+        files[path]   = bytes;
+        stamps[path]  = FileStamp { bytes.size(), 1 };
+        durable[path] = vector<Byte> (bytes.size(), 0);
 
         return S_OK;
     }
@@ -152,6 +191,8 @@ public:
         removeCount++;
         files.erase (path);
         stamps.erase (path);
+        durable.erase (path);
+        metadata.erase (path);
 
         return S_OK;
     }
@@ -161,6 +202,7 @@ public:
         auto  found = files.find (tempPath);
 
         replaceCount++;
+        operations.push_back ("Replace");
 
         if (failNextReplace)
         {
@@ -173,11 +215,7 @@ public:
             return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
         }
 
-        files[targetPath]  = found->second;
-        stamps[targetPath] = FileStamp { found->second.size(), 2 };
-
-        files.erase (tempPath);
-        stamps.erase (tempPath);
+        Move (tempPath, targetPath);
 
         return S_OK;
     }
@@ -186,6 +224,7 @@ public:
     {
         flushCount++;
         flushedPaths.push_back (path);
+        operations.push_back ("Flush");
 
         if (failNextFlush)
         {
@@ -193,12 +232,20 @@ public:
             return HRESULT_FROM_WIN32 (ERROR_IO_DEVICE);
         }
 
-        return Exists (path) ? S_OK : HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        if (!Exists (path))
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        durable[path] = files[path];
+
+        return S_OK;
     }
 
     HRESULT  CopyFileMetadata (const std::string & fromPath, const std::string & toPath) override
     {
         metadataCount++;
+        operations.push_back ("CopyMetadata");
 
         if (failNextMetadata)
         {
@@ -206,7 +253,14 @@ public:
             return E_ACCESSDENIED;
         }
 
-        return (Exists (fromPath) && Exists (toPath)) ? S_OK : HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        if (!Exists (fromPath) || !Exists (toPath))
+        {
+            return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
+        }
+
+        metadata[toPath] = metadata[fromPath];
+
+        return S_OK;
     }
 
     HRESULT  RenameWithoutReplacing (const std::string & tempPath, const std::string & targetPath) override
@@ -214,6 +268,7 @@ public:
         auto  found = files.find (tempPath);
 
         renameCount++;
+        operations.push_back ("Rename");
 
         if (failNextRename)
         {
@@ -231,13 +286,24 @@ public:
             return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
         }
 
-        files[targetPath]  = found->second;
-        stamps[targetPath] = FileStamp { found->second.size(), 2 };
+        Move (tempPath, targetPath);
+
+        return S_OK;
+    }
+
+    //  A replace or rename: the file's bytes, its storage copy and its metadata
+    //  move to the target name together.
+    void  Move (const std::string & tempPath, const std::string & targetPath)
+    {
+        files[targetPath]    = files[tempPath];
+        stamps[targetPath]   = FileStamp { files[tempPath].size(), 2 };
+        durable[targetPath]  = durable[tempPath];
+        metadata[targetPath] = metadata[tempPath];
 
         files.erase (tempPath);
         stamps.erase (tempPath);
-
-        return S_OK;
+        durable.erase (tempPath);
+        metadata.erase (tempPath);
     }
 
     bool  IsHeldByAnotherProcess (const std::string & path) override

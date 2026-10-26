@@ -434,6 +434,68 @@ public:
     //  ------------------------------------------------------------------
     //
 
+    //  A put commits through DurableCommit, so after a power cut right after
+    //  it the file contains the whole new image, not zeros.
+    TEST_METHOD (APowerCutRightAfterThePut_LeavesTheImageWhollyOldOrWhollyNew)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+        vector<Byte>       written;
+
+        SeedFile (io, kBlankDsk, BlankDos33Sectors());
+        SeedFile (io, kHostFile, MakePayload());
+        io.durable[kBlankDsk] = BlankDos33Sectors();
+
+        result  = runner.Run (MakePutOptions (kBlankDsk, kRealFile));
+        written = io.files[kBlankDsk];
+
+        io.SimulatePowerLoss();
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (written != BlankDos33Sectors(), L"the put changed the image");
+        Assert::IsTrue (io.files[kBlankDsk] == written, L"after the power cut the image is the whole new version");
+    }
+
+    TEST_METHOD (APutOverAnImageWithCustomPermissions_KeepsThem)
+    {
+        FakeDiskFileIo            io;
+        DiskCommandRunner         runner (io);
+        DiskCommandResult         result;
+        FakeDiskFileIo::Metadata  before;
+
+        SeedFile (io, kBlankDsk, BlankDos33Sectors());
+        SeedFile (io, kHostFile, MakePayload());
+
+        before.attributes      = FILE_ATTRIBUTE_HIDDEN;
+        before.permissions     = "O:BAG:BAD:(A;;FA;;;BA)";
+        io.metadata[kBlankDsk] = before;
+
+        result = runner.Run (MakePutOptions (kBlankDsk, kRealFile));
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (io.metadata[kBlankDsk] == before, L"the new version has the image's attributes and permissions");
+    }
+
+    //  The metadata copy is best-effort: when the copy fails, the put writes
+    //  the image and reports nothing.
+    TEST_METHOD (APutOverAnImageWhoseMetadataCopyFails_StillCompletesWithoutAMessage)
+    {
+        FakeDiskFileIo     io;
+        DiskCommandRunner  runner (io);
+        DiskCommandResult  result;
+
+        SeedFile (io, kBlankDsk, BlankDos33Sectors());
+        SeedFile (io, kHostFile, MakePayload());
+        io.failNextMetadata = true;
+
+        result = runner.Run (MakePutOptions (kBlankDsk, kRealFile));
+
+        Assert::AreEqual (DiskCommandResult::kClean, result.exitStatus);
+        Assert::IsTrue (io.files[kBlankDsk] != BlankDos33Sectors(), L"the image was written");
+        Assert::IsTrue (result.diagnostics.empty(), L"and nothing was reported");
+    }
+
     TEST_METHOD (AVolumeWithNoRoom_RefusesThePutAndLeavesAMountableImageUnchanged)
     {
         FakeDiskFileIo     io;
