@@ -128,4 +128,10 @@ public:
     //  rest of Casso does not call it.
     static std::wstring  GetPrimaryExtensionText (DiskFormat fmt);
     static std::wstring  GetContainerCaption     (DiskFormat fmt);
+
+private:
+
+    //  Describe's clause for a file whose size or contents are not the format
+    //  its extension claims.
+    string  DescribeFormatFailure () const;
 };

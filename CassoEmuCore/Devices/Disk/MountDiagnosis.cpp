@@ -31,9 +31,6 @@
 string MountDiagnosis::Describe() const
 {
     char    note[400] = {};
-    string  observed;
-    string  required;
-    string  second;
     string  text;
 
 
@@ -56,6 +53,70 @@ string MountDiagnosis::Describe() const
             text = "is empty. There is nothing in it to read as a disk";
             break;
 
+        case MountFailure::WrongSizeForFormat:
+        case MountFailure::NotAWozFile:
+        case MountFailure::MalformedWoz:
+        case MountFailure::WrongSizeForNibble:
+        case MountFailure::NotANibbleStream:
+            text = DescribeFormatFailure();
+            break;
+
+        case MountFailure::AlreadyMounted:
+            //  ONE FILE, ONE DRIVE. Two bays reading and writing one file are
+            //  two independent copies of the disk from the moment the guest
+            //  writes to either: each flush lands the whole image, so each
+            //  overwrites whatever the other saved, and one external change
+            //  raises the conflict twice.
+            snprintf (note, sizeof (note),
+                      "is already in drive %d. A disk image can only be in one "
+                      "drive at a time -- the two drives would hold separate "
+                      "copies of it, and each would overwrite the other's "
+                      "changes",
+                      occupiedDrive + 1);
+
+            text = note;
+            break;
+
+        case MountFailure::Unrecognized:
+            text = "could not be read as a disk image. Its contents are not a "
+                   "layout this loader accepts";
+            break;
+
+        case MountFailure::None:
+        default:
+            text = "could not be opened as a disk image, and Casso did not record "
+                   "why. That is a defect in Casso rather than a fault in the file";
+            break;
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiagnosis::DescribeFormatFailure
+//
+//  Describe's clause for a file whose size or contents are not the format its
+//  extension claims.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+string MountDiagnosis::DescribeFormatFailure() const
+{
+    char    note[400] = {};
+    string  observed;
+    string  required;
+    string  second;
+    string  text;
+
+
+
+    switch (failure)
+    {
         case MountFailure::WrongSizeForFormat:
             observed = FormatByteCount (fileByteSize);
             required = FormatByteCount ((size_t) NibblizationLayer::kImageByteSize);
@@ -112,31 +173,7 @@ string MountDiagnosis::Describe() const
                    "kind of file";
             break;
 
-        case MountFailure::AlreadyMounted:
-            //  ONE FILE, ONE DRIVE. Two bays reading and writing one file are
-            //  two independent copies of the disk from the moment the guest
-            //  writes to either: each flush lands the whole image, so each
-            //  overwrites whatever the other saved, and one external change
-            //  raises the conflict twice.
-            snprintf (note, sizeof (note),
-                      "is already in drive %d. A disk image can only be in one "
-                      "drive at a time -- the two drives would hold separate "
-                      "copies of it, and each would overwrite the other's "
-                      "changes",
-                      occupiedDrive + 1);
-
-            text = note;
-            break;
-
-        case MountFailure::Unrecognized:
-            text = "could not be read as a disk image. Its contents are not a "
-                   "layout this loader accepts";
-            break;
-
-        case MountFailure::None:
         default:
-            text = "could not be opened as a disk image, and Casso did not record "
-                   "why. That is a defect in Casso rather than a fault in the file";
             break;
     }
 

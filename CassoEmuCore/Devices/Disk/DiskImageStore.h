@@ -706,6 +706,11 @@ private:
     //  ApplyPendingReloadToBay's steps: whether the noticed change is due,
     //  reading and trial-loading the file, moving the guest's version to a
     //  separate file in a conflict, and putting the question.
+    //  ResolvePendingChange's answers: to a conflict whose copy could not be
+    //  written, and to a question about a file that is gone.
+    void           ResolveConflictAnswer        (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath);
+    void           ResolveLostFileAnswer        (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath);
+
     bool           IsReloadDue                  (Entry & entry, ExternalChangeIntent & outIntent);
     bool           ReadChangedImage             (const Entry & entry, vector<Byte> & outBytes) const;
     bool           PreserveGuestCopyForConflict (int slot, int drive, Entry & entry, string & outSavePath);

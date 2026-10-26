@@ -3631,148 +3631,15 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
             return;
         }
 
-        //  "Save as..." after a copy could not be written where this store
-        //  chose. The disk stays in the drive and the bay moves onto the file
-        //  the user picked, which is the same outcome as keeping it -- only the
-        //  folder is theirs rather than ours.
         if (entry.sharedState.GetAskedAction() == ChangeAction::Conflict)
         {
-            bool  finishEject = entry.sharedState.IsEjectWhenAnswered();
-
-            entry.sharedState.SetAskedAction (ChangeAction::Ignore);
-
-            if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
-            {
-                vector<Byte>  held;
-
-                hr = entry.image->Serialize (held);
-
-                if (SUCCEEDED (hr))
-                {
-                    hr = CommitFile (savePath, held, CommitMode::Replace);
-                }
-
-                if (FAILED (hr))
-                {
-                    //  Still nowhere to put it. The disk is untouched and the
-                    //  question stands rather than being quietly dropped.
-                    if (m_askSink)
-                    {
-                        entry.sharedState.SetAskOutstanding (
-                            m_askSink (slot, drive,
-                                       ChangePrompt::ComposeSaveFailure (
-                                           entry.path, drive, savePath, hr,
-                                           SaveFailureCause::ExternalChange)));
-                    }
-
-                    return;
-                }
-
-                entry.image->MarkSaved (held);
-                entry.sharedState.SetPreservedPath (string());
-
-                hr = RepointBayToFile (slot, drive, savePath);
-                IGNORE_RETURN_VALUE (hr, S_OK);
-            }
-            else if (finishEject)
-            {
-                //  THE USER CHOSE TO LET IT GO, so the dirty bit goes with it.
-                //  Left standing, the eject below would find the same collision
-                //  and put the same question up again, and the disk they just
-                //  discarded would be undiscardable.
-                entry.image->ClearDirty();
-            }
-
-            {
-                std::lock_guard<std::mutex>  guard (m_pendingMutex);
-
-                entry.sharedState.ClearPending();
-            }
-
-            //  Dismissed rather than answered, so the name this store had
-            //  picked goes back with the question that offered it.
-            entry.sharedState.ReleaseUnwrittenReservation();
-
-            //  The eject that raised this question, now that it has an answer.
-            //  Either answer leaves nothing for the flush inside it to do: the
-            //  copy landed and cleared the dirty bit, or the discard did.
-            if (finishEject)
-            {
-                entry.sharedState.SetEjectWhenAnswered (false);
-
-                Eject (slot, drive);
-            }
-
+            ResolveConflictAnswer (slot, drive, entry, chosen, savePath);
             return;
         }
 
-        //  An answer about a file that has gone is being given to a question
-        //  that no longer applies. Saving what is held and emptying the drive
-        //  is the only thing still on offer.
-        //
-        //  THE SAVE HAPPENS BEFORE THE EJECT, always. The eject is what
-        //  discards the in-memory disk, so a failure between the two must
-        //  leave the disk in the drive rather than gone from both places.
         if (ExternalChangePolicy::IsFileLost (entry.sharedState.GetAskedAction()))
         {
-            entry.sharedState.SetAskedAction (ChangeAction::Ignore);
-
-            if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
-            {
-                vector<Byte>  held;
-
-                hr = entry.image->Serialize (held);
-
-                if (SUCCEEDED (hr))
-                {
-                    hr = CommitFile (savePath, held, CommitMode::Replace);
-                }
-
-                //  A save the user asked for and did not get must not be
-                //  followed by throwing the only copy away.
-                if (FAILED (hr))
-                {
-                    if (m_askSink)
-                    {
-                        entry.sharedState.SetAskOutstanding (
-                            m_askSink (slot, drive,
-                                       ChangePrompt::ComposeSaveFailure (entry.path, drive,
-                                                                         savePath, hr,
-                                                                         SaveFailureCause::FileLost)));
-                    }
-
-                    return;
-                }
-
-                //  THE DISK STAYS IN THE DRIVE, ON THE FILE THE USER PICKED.
-                //  Serialize writes a whole image, not a fragment, so the drive
-                //  now has somewhere to live -- and emptying it would mean
-                //  handing back a complete disk and then making them go and
-                //  find it. Keeping a version during a conflict already works
-                //  this way, and one act should not have two outcomes.
-                entry.image->MarkSaved (held);
-
-                hr = RepointBayToFile (slot, drive, savePath);
-                IGNORE_RETURN_VALUE (hr, S_OK);
-
-                return;
-            }
-
-            //  Nothing was saved, so there is nothing to point at.
-            //
-            //  THE SHELL CAN ONLY SEND BACK AN ANSWER THE PROMPT OFFERED, so a
-            //  third value is a coding error rather than a user choice -- and
-            //  one that would empty the drive of a disk existing nowhere else.
-            //  The disk stays put rather than paying for the mistake.
-            ASSERT (chosen == ChangeAction::Discard);
-
-            if (chosen != ChangeAction::Discard)
-            {
-                return;
-            }
-
-            EjectLostImage (slot, drive);
-
+            ResolveLostFileAnswer (slot, drive, entry, chosen, savePath);
             return;
         }
 
@@ -3791,6 +3658,180 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
     //  and one arriving while the question stood on screen does not turn the
     //  answer into somebody else's reload.
     CarryOutChangeAction (slot, drive, chosen, bytes, ChangeAuthor::AnotherProgram);
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ResolveConflictAnswer
+//
+//  "Save as..." after a copy could not be written where this store
+//  chose. The disk stays in the drive and the bay moves onto the file
+//  the user picked, which is the same outcome as keeping it -- only the
+//  folder is theirs rather than ours.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ResolveConflictAnswer (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath)
+{
+    HRESULT  hr          = S_OK;
+    bool     finishEject = entry.sharedState.IsEjectWhenAnswered();
+
+
+
+    entry.sharedState.SetAskedAction (ChangeAction::Ignore);
+
+    if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
+    {
+        vector<Byte>  held;
+
+        hr = entry.image->Serialize (held);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = CommitFile (savePath, held, CommitMode::Replace);
+        }
+
+        if (FAILED (hr))
+        {
+            //  Still nowhere to put it. The disk is untouched and the
+            //  question stands rather than being quietly dropped.
+            if (m_askSink)
+            {
+                entry.sharedState.SetAskOutstanding (
+                    m_askSink (slot, drive,
+                               ChangePrompt::ComposeSaveFailure (
+                                   entry.path, drive, savePath, hr,
+                                   SaveFailureCause::ExternalChange)));
+            }
+
+            return;
+        }
+
+        entry.image->MarkSaved (held);
+        entry.sharedState.SetPreservedPath (string());
+
+        hr = RepointBayToFile (slot, drive, savePath);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else if (finishEject)
+    {
+        //  THE USER CHOSE TO LET IT GO, so the dirty bit goes with it.
+        //  Left standing, the eject below would find the same collision
+        //  and put the same question up again, and the disk they just
+        //  discarded would be undiscardable.
+        entry.image->ClearDirty();
+    }
+
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        entry.sharedState.ClearPending();
+    }
+
+    //  Dismissed rather than answered, so the name this store had
+    //  picked goes back with the question that offered it.
+    entry.sharedState.ReleaseUnwrittenReservation();
+
+    //  The eject that raised this question, now that it has an answer.
+    //  Either answer leaves nothing for the flush inside it to do: the
+    //  copy landed and cleared the dirty bit, or the discard did.
+    if (finishEject)
+    {
+        entry.sharedState.SetEjectWhenAnswered (false);
+
+        Eject (slot, drive);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ResolveLostFileAnswer
+//
+//  An answer about a file that has gone is being given to a question
+//  that no longer applies. Saving what is held and emptying the drive
+//  is the only thing still on offer.
+//
+//  THE SAVE HAPPENS BEFORE THE EJECT, always. The eject is what
+//  discards the in-memory disk, so a failure between the two must
+//  leave the disk in the drive rather than gone from both places.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ResolveLostFileAnswer (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    entry.sharedState.SetAskedAction (ChangeAction::Ignore);
+
+    if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
+    {
+        vector<Byte>  held;
+
+        hr = entry.image->Serialize (held);
+
+        if (SUCCEEDED (hr))
+        {
+            hr = CommitFile (savePath, held, CommitMode::Replace);
+        }
+
+        //  A save the user asked for and did not get must not be
+        //  followed by throwing the only copy away.
+        if (FAILED (hr))
+        {
+            if (m_askSink)
+            {
+                entry.sharedState.SetAskOutstanding (
+                    m_askSink (slot, drive,
+                               ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                                 savePath, hr,
+                                                                 SaveFailureCause::FileLost)));
+            }
+
+            return;
+        }
+
+        //  THE DISK STAYS IN THE DRIVE, ON THE FILE THE USER PICKED.
+        //  Serialize writes a whole image, not a fragment, so the drive
+        //  now has somewhere to live -- and emptying it would mean
+        //  handing back a complete disk and then making them go and
+        //  find it. Keeping a version during a conflict already works
+        //  this way, and one act should not have two outcomes.
+        entry.image->MarkSaved (held);
+
+        hr = RepointBayToFile (slot, drive, savePath);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        return;
+    }
+
+    //  Nothing was saved, so there is nothing to point at.
+    //
+    //  THE SHELL CAN ONLY SEND BACK AN ANSWER THE PROMPT OFFERED, so a
+    //  third value is a coding error rather than a user choice -- and
+    //  one that would empty the drive of a disk existing nowhere else.
+    //  The disk stays put rather than paying for the mistake.
+    ASSERT (chosen == ChangeAction::Discard);
+
+    if (chosen != ChangeAction::Discard)
+    {
+        return;
+    }
+
+    EjectLostImage (slot, drive);
 
     return;
 }

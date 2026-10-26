@@ -568,7 +568,6 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     DiskImage *        image      = nullptr;
     bool               inserted   = false;
     bool               suppressFx = false;
-    int64_t            nowMs      = 0;
 
 
 
@@ -614,10 +613,30 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
         }
     }
 
-    //  Door and sound. The visual door for a plain insert or eject rides the
-    //  source-path poll in UpdateDriveWidgets, which sees the file in the bay
-    //  change; a swap keeps the same file, so its open-then-close door is
-    //  published here as the event the poll cannot infer.
+    PlayBayChangeEffects (drive, change, suppressFx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskManager::PlayBayChangeEffects
+//
+//  The door and the sound of a bay change. The visual door for a plain insert
+//  or eject rides the source-path poll in UpdateDriveWidgets, which sees the
+//  file in the bay change; a swap keeps the same file, so its open-then-close
+//  door is published here as the event the poll cannot infer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::PlayBayChangeEffects (int drive, BayChange change, bool suppressFx)
+{
+    int64_t  nowMs = 0;
+
+
+
     if (drive >= static_cast<int> (m_diskAudioSources.size()) ||
         m_diskAudioSources[drive] == nullptr)
     {

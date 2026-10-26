@@ -197,6 +197,9 @@ private:
     void     SyncDriveActivity (DriveWidgetState & st, int drive, const DriveActivity & activity,
                                 bool hasController, int64_t nowMs);
 
+    //  OnBayChange's door and sound.
+    void     PlayBayChangeEffects (int drive, BayChange change, bool suppressFx);
+
     class MachineHost                               & m_machine;
     DiskImageStore                                  & m_diskStore;
     std::vector<std::unique_ptr<Disk2AudioSource>>  & m_diskAudioSources;
