@@ -28,10 +28,10 @@ HRESULT LinkProgram::AssembleShim (std::vector<Byte> & outBytes, std::string & o
 
 
 
-    hr = Assemble (GetShimSource(), GetShimAddress (chip), chip, outBytes, outErrors);
+    hr = Assemble (GetShimSource(), kShimAddress, chip, outBytes, outErrors);
     CHR (hr);
 
-    fits = outBytes.size() <= GetShimLimit (chip);
+    fits = outBytes.size() <= kShimLimit;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -60,7 +60,7 @@ HRESULT LinkProgram::AssembleProgram (std::vector<Byte> & outBytes, std::string 
 
     //  The program ends below the shim's copy of the zero page, and the shim,
     //  which it returns to.
-    fits = kProgramAddress + outBytes.size() <= GetZeroPageSave (chip);
+    fits = kProgramAddress + outBytes.size() <= kZeroPageSave;
     CBREx (fits, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
 Error:
@@ -169,8 +169,8 @@ HRESULT LinkProgram::BuildBootDisk (const LinkShimOptions & options, std::vector
     hr = BuildShim (options, shim);
     CHR (hr);
 
-    spec.loadAddress  = GetShimAddress (options.chip);
-    spec.entryAddress = GetShimAddress (options.chip);
+    spec.loadAddress  = kShimAddress;
+    spec.entryAddress = kShimAddress;
 
     hr = DirectBootBuilder::Build (shim, spec, outDisk, refusal);
     CHR (hr);
@@ -276,7 +276,7 @@ HRESULT LinkProgram::BuildUniversalBootDisk (const LinkShimOptions & options, st
     CHR (hr);
 
     payload.insert (payload.end(), shim.begin(), shim.end());
-    payload.resize (kUniversalW5100 - kUniversalAddress + kW5100ShimLimit, 0);
+    payload.resize (kUniversalW5100 - kUniversalAddress + kShimLimit, 0);
 
     spec.loadAddress  = kUniversalAddress;
     spec.entryAddress = kUniversalAddress;
@@ -396,7 +396,7 @@ HRESULT LinkProgram::BuildBootstrapImage (const LinkShimOptions & options, std::
 
 
     outImage.clear();
-    outStart = GetShimAddress (options.chip);
+    outStart = kShimAddress;
 
     hr = BuildShim (options, shim);
     CHR (hr);

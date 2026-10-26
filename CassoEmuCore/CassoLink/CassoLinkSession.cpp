@@ -809,7 +809,7 @@ HRESULT CassoLinkSession::RunBootstrap (std::stop_token stop, LinkOperation & op
     hr = OpenStream (m_settings.bootstrapBaud, stop);
     CHR (hr);
 
-    hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); }, LinkBootstrap::kCharPauseUs);
+    hr = LinkBootstrap::Send (*m_stream, lines, m_bootstrapPauseMs, [&stop]() { return stop.stop_requested(); }, m_charPauseUs);
     CHR (hr);
 
     //  The shim starts on the open line and sends Ready unprompted. With an

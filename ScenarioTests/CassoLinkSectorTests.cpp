@@ -272,7 +272,7 @@ public:
                 rows.push_back (screen.substr (start, end - start));
             }
 
-            for (size_t row = 11; row < 23 && row < rows.size(); row++)
+            for (size_t row = 12; row < 23 && row < rows.size(); row++)
             {
                 Assert::AreEqual (std::string::npos, rows[row].find_first_not_of (' '), std::format (L"row {} is blank", row).c_str());
             }
@@ -302,9 +302,9 @@ public:
 
         rows = TextScreenScraper::Scrape (rig.machine);
 
-        Assert::AreEqual (std::string::npos, rows[6].find_first_not_of (' '), L"the label row is blank");
+        Assert::AreEqual (std::string::npos, rows[7].find_first_not_of (' '), L"the label row is blank");
         Assert::AreNotEqual (std::string::npos, rows[3].find ("WAITING"), L"the PC is waited for");
-        Assert::AreNotEqual (std::string::npos, rows[5].find ("STATUS: WAITING FOR CONNECTION"), L"and the status says so");
+        Assert::AreNotEqual (std::string::npos, rows[6].find ("STATUS: WAITING FOR CONNECTION"), L"and the status row");
     }
 
 

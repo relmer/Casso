@@ -448,7 +448,22 @@ hardware.
   shim dials a modem, and `UTHERNET II, SLOT 3, 6502`. The universal boot
   disk's waiting screen gives an Uthernet II's address as well, `UTHERNET II,
   SLOT 3, 10.0.65.15:6502`, and while it has none, `GETTING AN ADDRESS`. The
-  6551 shim's own screen is unchanged: it is full.
+  6551 shim's screens follow in the next answer.
+- Q: Where does the 6551 shim find room for its interface's name, and what
+  is on its screens and the program's for a link with an address? → A: The
+  6551 shim moves to $3B00, where the W5100 shim loads, with its copy of the
+  zero page at $3A00 and the slot finder at $3AA0, so both shims have $3B00 to
+  $3FFF. The universal boot disk has the 6551 shim at $2C00 and the W5100 shim
+  at $3100. The dialing screen has the target, as `DIALING
+  CASSO.LOCAL:6400`, in capitals for a ][+. The waiting screen has
+  `WAITING FOR THE PC ON:` and, below a blank row, the interface as the
+  universal disk lists it, such as `WI-FI MODEM, PORT 2, 115200`. The
+  program's status screen has a row below CONNECTION for a link with an
+  address: `DIALED:` and the modem's target, or `ADDRESS:` and the Uthernet
+  II's address and port, with the PC's row below it; the history then starts
+  a row lower and is a row shorter. A boot disk written before the move has its
+  shim at $3D00, where the program no longer jumps back to, so it must be
+  written again. The typed bootstrap is 105 bytes longer.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1745,12 +1760,14 @@ to Casso over TCP.
   the next operation.
 - **FR-090**: The Apple-side program MUST display a status screen with the
   connection, named by what it is, its slot or port and its speed or network
-  port (Session 2026-10-26), the drive, the track or block, the operation and its progress;
+  port (Session 2026-10-26), and for a Wi-Fi modem or an Uthernet II the
+  target dialed or the card's address and port; the drive, the track or block, the operation and its progress;
   whether the PC is connected, or how long since its last packet; the last
   error, until the next operation succeeds; and a short label of the user's
   operation, sent by the PC. The shim MUST display a title and its state:
-  waiting for the PC, with the port and speed; loading the program, with a
-  percentage; and starting the program's version. Below the status, the
+  dialing a Wi-Fi modem, with the target; waiting for the PC, with the
+  interface and speed; loading the program, with a percentage; and starting
+  the program's version. Below the status, the
   program's screen MUST have a history of the user's operations and the PC's
   connections, newest at the top, each with the PC's time.
 - **FR-091**: The Apple-side program MUST be a resident shim that, at each

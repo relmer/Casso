@@ -211,7 +211,8 @@ public:
         machine.RunCycles (20'000'000ULL);
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON PORT 2 AT 115200"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[1] + " | " + screen[2]).c_str());
+        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[1] + " | " + screen[2]).c_str());
+        Assert::IsTrue (screen[4].starts_with ("SERIAL PORT 2, 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
 
         settings.name      = "//c";
         settings.transport = LinkTransport::Emulated;
@@ -302,13 +303,15 @@ public:
 
 
     //  A Wi-Fi modem between the //c and the PC: it reads the dial command,
-    //  replies CONNECT as a modem does, and then passes bytes both ways.
+    //  replies CONNECT as a modem does while `answer` is true, and then passes
+    //  bytes both ways.
     struct Modem
     {
         std::shared_ptr<InProcessByteStream>  serial;
         std::shared_ptr<InProcessByteStream>  network;
         std::mutex                            lock;
         std::string                           dialed;
+        std::atomic<bool>                     answer { true };
         std::jthread                          thread;
 
         void  Run (std::stop_token stop)
@@ -332,21 +335,21 @@ public:
                     else
                     {
                         command.append (chunk, chunk + got);
-
-                        size_t  end = command.find ('\r');
-
-                        if (end != std::string::npos)
-                        {
-                            {
-                                std::lock_guard<std::mutex>  guard (lock);
-
-                                dialed = command.substr (0, end);
-                            }
-
-                            serial->Write (reinterpret_cast<const Byte *> ("CONNECT\r\n"), 9);
-                            online = true;
-                        }
                     }
+                }
+
+                size_t  end = command.find ('\r');
+
+                if (!online && answer && end != std::string::npos)
+                {
+                    {
+                        std::lock_guard<std::mutex>  guard (lock);
+
+                        dialed = command.substr (0, end);
+                    }
+
+                    serial->Write (reinterpret_cast<const Byte *> ("CONNECT\r\n"), 9);
+                    online = true;
                 }
 
                 read = online ? network->Read (chunk, sizeof (chunk), 0, got) : E_PENDING;
@@ -385,12 +388,13 @@ public:
         std::vector<uint8_t>                  bytes;
         std::vector<Byte>                     disk;
         std::vector<Byte>                     boot;
+        std::vector<std::string>              screen;
         CassoLinkSettings                     settings;
         uint64_t                              spent = 0;
 
 
 
-        AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, boot, "ATDT CASSO.LOCAL:6400"));
+        AssertSucceeded (LinkProgram::BuildBootDisk (CassoLinkSettings::kDefaultBaud, boot, "ATDT casso.local:6400"));
         AssertSucceeded (fixtures.OpenFixture ("CassoExplorer/dos33.dsk", bytes));
         disk.assign (bytes.begin(), bytes.end());
 
@@ -403,7 +407,15 @@ public:
         InProcessByteStream::CreatePair (machineEnd, modem.serial);
         InProcessByteStream::CreatePair (modem.network, factory.pcEnd);
         Assert::AreEqual (S_OK, machine.AttachSerialStream (2, machineEnd));
+        modem.answer = false;
         modem.thread = std::jthread ([&modem] (std::stop_token stop) { modem.Run (stop); });
+
+        //  The shim draws the target in capitals while the modem dials.
+        machine.RunCycles (20'000'000ULL);
+
+        screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+        Assert::AreEqual (std::string ("DIALING CASSO.LOCAL:6400"), screen[2].substr (0, screen[2].find_last_not_of (' ') + 1));
+        modem.answer = true;
 
         settings.name      = "Modem";
         settings.transport = LinkTransport::WifiModem;
@@ -434,11 +446,15 @@ public:
             Assert::IsTrue (sink.IsDone (list), std::format (L"state {}, dialed {}, PC {:04X}", (int) session.GetState(), TextEncoding::NarrowToWide (modem.dialed), machine.GetCpu()->GetPC()).c_str());
             AssertSucceeded (list->result);
             Assert::IsFalse (list->listing.entries.empty(), L"drive 2's catalog through the modem");
+
+            screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
+            Assert::IsTrue (screen[2].starts_with ("CONNECTION: WI-FI MODEM, PORT 2, 115200"), TextEncoding::NarrowToWide (screen[2]).c_str());
+            Assert::IsTrue (screen[3].starts_with ("DIALED:     CASSO.LOCAL:6400"), TextEncoding::NarrowToWide (screen[3]).c_str());
         }
 
         modem.thread.request_stop();
         modem.thread.join();
 
-        Assert::AreEqual (std::string ("ATDT CASSO.LOCAL:6400"), modem.dialed);
+        Assert::AreEqual (std::string ("ATDT casso.local:6400"), modem.dialed);
     }
 };

@@ -733,6 +733,11 @@ polling loops.
   `WAITING FOR THE PC ON PORT 2 AT <speed>`, `LOADING PROGRAM <n>%` as each
   page arrives, and `STARTING VERSION <n>`. The typed bootstrap grows to
   about 14 seconds at 9,600 baud, within SC-033.
+
+  **Update (2026-10-26)**: the 6551 shim moved again, to $3B00 beside the
+  W5100 shim, for room to name its interface and the target a modem dials.
+  Its copy of the zero page is at $3A00 and the slot finder at $3AA0
+  (spec Clarifications, Session 2026-10-26).
 - **The shim's speed is a data byte** at a fixed offset, the 6551 control
   byte. Save link to disk and the emulated link's boot disk write it at the
   link's speed; for the typed bootstrap it is 9,600 (FR-094).

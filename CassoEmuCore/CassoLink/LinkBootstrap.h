@@ -20,7 +20,7 @@ class IByteStream;
 //  arrives on the port is then typed: Ctrl-X, which cancels any partial line
 //  that stray bytes on the port put in the input buffer, CALL -151 for the
 //  monitor, the slot finder and the shim as monitor lines of eight bytes from
-//  $3CA0, and 3CA0G. The finder takes the slot IN# set, and the shim runs at
+//  $3AA0, and 3AA0G. The finder takes the slot IN# set, and the shim runs at
 //  the bootstrap speed and sends Ready.
 //
 //  Each line ends with a carriage return and is followed by a pause, as

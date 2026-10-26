@@ -398,9 +398,10 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 - **ADTPro's undocumented details**: the CRC, RLE and timeouts come from
   recordings (R15). A recording that does not settle one blocks phase 18,
   not the link: Casso's own client uses neither ADTPro's RLE nor its CRC.
-- **The shim's new address**: $3D00 is in hi-res page 1. The program draws
-  only text, and a program that grows past $3DFF fails the build's size
-  check rather than overwriting the shim.
+- **The shim's new address**: $3B00, as of 2026-10-26, is in hi-res page 1.
+  The program draws only text, and a program that grows past $39FF fails
+  the build's size check rather than overwriting the shim's copy of the
+  zero page.
 - **Card features slipping**: phase 23 waits on 042 and 043; everything
   before it runs on the //c.
 - **Saved links from older builds**: an `Emulated` link is dropped on load,

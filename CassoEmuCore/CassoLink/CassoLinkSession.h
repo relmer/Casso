@@ -185,8 +185,8 @@ public:
     //  How long a disconnected session waits before connecting again.
     void       SetRetryInterval (DWORD retryMs) { m_retryMs = retryMs; }
 
-    //  The pause after each line of the loader.
-    void       SetBootstrapPause (DWORD pauseMs) { m_bootstrapPauseMs = pauseMs; }
+    //  The pauses after each line of the loader and each of its characters.
+    void       SetBootstrapPause (DWORD pauseMs, DWORD charPauseUs = LinkBootstrap::kCharPauseUs) { m_bootstrapPauseMs = pauseMs; m_charPauseUs = charPauseUs; }
     void       Stop   ();
 
     //  Stops the running operation; queued ones remain.
@@ -343,6 +343,7 @@ private:
     uint64_t                                    m_nextId           = 1;
     DWORD                                       m_connectTimeoutMs = kConnectTimeoutMs;
     DWORD                                       m_bootstrapPauseMs = LinkBootstrap::kLinePauseMs;
+    DWORD                                       m_charPauseUs      = LinkBootstrap::kCharPauseUs;
     DWORD                                       m_retryMs          = kRetryMs;
     bool                                        m_peerSeen         = false;
     uint64_t                                    m_peerOffSinceMs   = 0;

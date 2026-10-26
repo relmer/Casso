@@ -240,7 +240,8 @@ public:
             Assert::AreEqual (catalog.entries[0].name, list->listing.entries[0].name);
             Assert::AreEqual (LinkProgram::kProgramVersion, (Word) (rig.machine.GetCpu()->ReadByte (0x0803) | (rig.machine.GetCpu()->ReadByte (0x0804) << 8)), L"the program was loaded");
             Assert::AreEqual (std::string ("UTHERNET II, SLOT 3, 26502"), rig.Row (kRow2, kField));
-            Assert::AreEqual (std::string ("CONNECTED"),          rig.Row (kRow3, kField));
+            Assert::AreEqual (std::format ("ADDRESS:    127.0.0.1:{}", kPort), rig.Row (kRow3));
+            Assert::AreEqual (std::string ("CONNECTED"),          rig.Row (kRow4, kField));
 
             AssertSucceeded (Dos33Volume (dos).Write (FilePath::Parse ("FROMPC"), payload, written));
 
@@ -445,7 +446,7 @@ public:
         const Byte  header[] = { 0xC1, 0x09, 0x00, CassoLinkCodec::kReady };
         Word        found    = 0;
 
-        for (Word at = LinkProgram::kProgramAddress; at < LinkProgram::kW5100ZeroPageSave && found == 0; at++)
+        for (Word at = LinkProgram::kProgramAddress; at < LinkProgram::kZeroPageSave && found == 0; at++)
         {
             bool  match = true;
 

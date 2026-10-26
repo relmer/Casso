@@ -759,9 +759,9 @@ listed in validation.md.
   dropped past `s_kMaxCachedIcons`, and a failed one is read again after
   `s_kRetryFailedMs`. The shim's page check moves to T257.
 - [ ] T257 Check the 6551 shim's page number against the page count in
-  `CassoEmuCore/CassoLink/Apple/Shim.s`. The check takes room in a shim that
-  is full at 768 bytes (`kShimLimit`). After the owner's //c walkthrough
-  (T214), so the shim that walkthrough checks is the one that ships.
+  `CassoEmuCore/CassoLink/Apple/Shim.s`. Since T265 the shim has room for
+  it, up to `kShimLimit`. After the owner's //c walkthrough (T214), so the
+  shim that walkthrough checks is the one that ships.
 - [X] T258 Report why a file in an image could not be read, found on
   2026-10-25 with an image whose file points at track 40. A drag of it to
   File Explorer was reported as "Unspecified error", and Copy as "The files
@@ -870,6 +870,34 @@ listed in validation.md.
   connection dialog's info tip sees every move, so a hover-opened tip closes
   when the pointer leaves. Scenario tests in `CassoLinkBootstrapTests.cpp`,
   `CassoLinkSectorTests.cpp`, `CassoLinkSuperSerialTests.cpp` and
+  `CassoLinkUthernetTests.cpp`.
+- [X] T265 Move the 6551 shim to $3B00 for room on its screens (FR-090,
+  Session 2026-10-26):
+  - both shims at $3B00 to $3FFF, the zero page copy at $3A00 and the slot
+    finder at $3AA0, in `Shim.s`, `SlotFinder.s`, `Program.s` and
+    `LinkProgram.h`; the universal disk's 6551 shim at $2C00, W5100 shim at
+    $3100 and zero page copy at $3600, in `Universal.s`; shim version 6,
+    program version 51;
+  - the dialing screen's `DIALING <target>`, in capitals, and the waiting
+    screen's `WAITING FOR THE PC ON:` with the interface below a blank row,
+    as the universal disk lists it;
+  - the program's row below CONNECTION: `DIALED:` and the target for a
+    Wi-Fi modem, `ADDRESS:` and the address and port for an Uthernet II,
+    with the PC's row below it and the status, label, error and history a
+    row lower, the history a row shorter;
+  - Load program sets bit 7 of the dial command's first byte rather than
+    clearing it, so the program loaded after it has the command for its
+    screen;
+  - `CassoLinkSession::SetBootstrapPause` takes the pause after each
+    character too, which `CassoLinkSearchTests.cpp` sets to zero, since the
+    shim is 105 bytes longer to type.
+
+  Scenario tests: the modem in `CassoLinkBootstrapTests.cpp` replies only
+  after the dialing screen is checked, then the CONNECTION and DIALED rows;
+  the Uthernet II's ADDRESS row in `CassoLinkUthernetTests.cpp`; the new rows
+  in `CassoLinkSessionTests.cpp`, `CassoLinkSectorTests.cpp` and
+  `CassoLinkSuperSerialTests.cpp`. A boot disk saved before this is written
+  again.
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

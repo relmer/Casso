@@ -1,8 +1,8 @@
 ; Casso's CassoLink: the universal boot disk's first stage.
 ;
-; Loaded at $2000 with both shims after it: the 6551 shim at $2C00, as built
-; for $3D00, and the W5100 shim at $2F00, as built for $3B00, each with its
-; header written by the host. The stage finds every interface the machine
+; Loaded at $2000 with both shims after it: the 6551 shim at $2C00 and the
+; W5100 shim at $3100, each built for $3B00 and with its header written by
+; the host. The stage finds every interface the machine
 ; has: a //c's ports 1 and 2; a Super Serial Card in any slot, by its
 ; firmware's identification bytes; and an Uthernet II in any other slot but
 ; a Disk II's, by its W5100 taking and returning its address pointer.
@@ -24,13 +24,11 @@
 ;
 ; NMOS 6502 code throughout.
 
-ACIMG    = $2C00                ; the 6551 shim, as built for $3D00
-W5IMG    = $2F00                ; the W5100 shim, as built for $3B00
-ACSHIM   = $3D00
-W5SHIM   = $3B00
-ACZPSAVE = $3C00                ; each shim's copy of the machine's zero page
-W5ZPSAVE = $3A00
-ZPCOPY   = $3400                ; the stage's, until a shim is chosen
+ACIMG    = $2C00                ; the 6551 shim, as built for SHIM
+W5IMG    = $3100                ; the W5100 shim, as built for SHIM
+SHIM     = $3B00
+ZPSAVE   = $3A00                ; the shim's copy of the machine's zero page
+ZPCOPY   = $3600                ; the stage's, until a shim is chosen
 
 HCTL     = $02                  ; a shim's header: the 6551 control byte,
 HSPEED   = $06                  ; the speed's text, six characters,
@@ -320,16 +318,20 @@ acgo:   ldx sel
         sta ACIMG+HSLOT
         ldx #0
 acgocopy: lda ZPCOPY,x
-        sta ACZPSAVE,x
+        sta ZPSAVE,x
         lda ACIMG,x
-        sta ACSHIM,x
+        sta SHIM,x
         lda ACIMG+$100,x
-        sta ACSHIM+$100,x
+        sta SHIM+$100,x
         lda ACIMG+$200,x
-        sta ACSHIM+$200,x
+        sta SHIM+$200,x
+        lda ACIMG+$300,x
+        sta SHIM+$300,x
+        lda ACIMG+$400,x
+        sta SHIM+$400,x
         inx
         bne acgocopy
-        jmp ACSHIM
+        jmp SHIM
 
 ; w5go: the W5100 shim, with the address in use, given the zero page and
 ; started. The PC is connected already, and the shim goes on with that
@@ -338,20 +340,20 @@ w5go:   lda w5slot
         sta W5IMG+HSLOT
         ldx #0
 w5gocopy: lda ZPCOPY,x
-        sta W5ZPSAVE,x
+        sta ZPSAVE,x
         lda W5IMG,x
-        sta W5SHIM,x
+        sta SHIM,x
         lda W5IMG+$100,x
-        sta W5SHIM+$100,x
+        sta SHIM+$100,x
         lda W5IMG+$200,x
-        sta W5SHIM+$200,x
+        sta SHIM+$200,x
         lda W5IMG+$300,x
-        sta W5SHIM+$300,x
+        sta SHIM+$300,x
         lda W5IMG+$400,x
-        sta W5SHIM+$400,x
+        sta SHIM+$400,x
         inx
         bne w5gocopy
-        jmp W5SHIM
+        jmp SHIM
 
 
 ; addacia: the 6551 in slot A listed, and set to the shim's speed with DTR

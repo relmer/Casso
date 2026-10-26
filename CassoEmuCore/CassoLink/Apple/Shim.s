@@ -1,32 +1,35 @@
 ; Casso's CassoLink: the shim.
 ;
-; Resident at $3D00, below the program's first table at $4000. It sets the
+; Resident at $3B00, below the program's first table at $4000. It sets the
 ; 6551 to its speed, sends Ready with no program loaded, and takes the
 ; reply. Load program brings the program as Sector data packets, one page
 ; each, the page number in the track field: each page is stored from $0800 up
 ; and checked against its CRC-16/XMODEM, and the shim sends a bare ACK or NAK
 ; byte for it. After the last page the shim jumps to the program.
 ;
-; The 6551 control byte for the starting speed is at $3D02 and the speed's
-; text, six characters, at $3D06. The host writes both for the link's speed;
-; as assembled they are 9,600 baud. At $3D0C is a Wi-Fi modem's dial
-; command, ending in a zero byte: when it is not empty, the shim sends it
-; and a carriage return, and waits for the end of the modem's reply line
-; before its first Ready.
+; The 6551 control byte for the starting speed is at $3B02 and the speed's
+; text, six characters, at $3B06. The host writes both for the link's speed;
+; as assembled they are 9,600 baud. At $3B0C is a Wi-Fi modem's dial
+; command, ending in a zero byte: when it is not empty, the shim draws the
+; target it dials, sends the command and a carriage return, and waits for
+; the end of the modem's reply line before its first Ready. The program sets
+; bit 7 of the command's first byte before Load program, as the modem is
+; connected then.
 ;
-; The 6551's slot is at $3D38: 2 for the //c's port 2, as assembled, 1 for
+; The 6551's slot is at $3B38: 2 for the //c's port 2, as assembled, 1 for
 ; its port 1, or a Super Serial Card's slot. The host writes it, and the
 ; shim sets its own reads and writes of the 6551 from it.
 ;
 ; The shim draws its state on the text page: a title, then waiting for the
-; PC, the program's loading as a percentage, and the version it starts. Each
-; page's percentage is drawn before its ACK, since the host sends the next
-; page only after the ACK and the 6551 has room for one byte.
+; PC with the interface below it, the program's loading as a percentage, and
+; the version it starts. Each page's percentage is drawn before its ACK,
+; since the host sends the next page only after the ACK and the 6551 has
+; room for one byte.
 ;
 ; NMOS 6502 code throughout. The program finds the 6551 through slotx, which
 ; the shim sets.
 ;
-; The W5100 build, for an Uthernet II, loads at $3B00 with the same header.
+; The W5100 build, for an Uthernet II, has the same header and address.
 ; In the dial command's place are the card's address, subnet mask, gateway
 ; and MAC address, and the TCP port, high byte first; the speed is not used.
 ; The shim sets the chip from them, assigns all 8 KB of the chip's receive
@@ -90,16 +93,13 @@ ACK      = $06
 NAK      = $15
 
 PROGRAM  = $0800
-        ifdef W5100
 ZPSAVE   = $3A00                ; the machine's zero page, as the shim found it,
-        else
-ZPSAVE   = $3C00                ; the machine's zero page, as the shim found it,
-        endif
                                 ; on the page below the shim, which runs to $3FFF
 PROGVERLO = $0803               ; the program's version, low byte
 
 ROW0     = $0400                ; the title
 ROW2     = $0500                ; the state
+ROW4     = $0600                ; the interface, below a blank row
 
 slotx    = $06                  ; the 6551's index, slot * 16, for the program
 crclo    = $07                  ; the CRC being computed
@@ -128,20 +128,16 @@ savx     = $20                  ; getbto and putb: X and Y as they came
 savy     = $21
         endif
 
-        ifdef W5100
         .org $3B00
-        else
-        .org $3D00
-        endif
 
         sei
-        lda #$1E                ; $3D02: 8 data bits, 1 stop bit, 9,600 baud
+        lda #$1E                ; $3B02: 8 data bits, 1 stop bit, 9,600 baud
         jmp start
-speedtxt: .text "9600  "        ; $3D06: the speed, six characters
-dialtxt: .ds 40                  ; $3D0C: the modem's dial command, or empty
-zpsaved: .byte 0                 ; $3D34: nonzero once the machine's state is saved
-oldreset: .byte 0, 0, 0          ; $3D35: the reset vector and its check byte
-slot:   .byte 2                  ; $3D38: the 6551's slot
+speedtxt: .text "9600  "        ; $3B06: the speed, six characters
+dialtxt: .ds 40                  ; $3B0C: the modem's dial command, or empty
+zpsaved: .byte 0                 ; $3B34: nonzero once the machine's state is saved
+oldreset: .byte 0, 0, 0          ; $3B35: the reset vector and its check byte
+slot:   .byte 2                  ; $3B38: the 6551's slot
 
 ; The first start saves the machine's zero page at ZPSAVE and its reset
 ; vector, for the program to put back when CassoLink ends. A bootstrap or a
@@ -187,11 +183,29 @@ zpdone:
         sta ACIACMD,x
         jsr home
 
-        lda dialtxt
-        beq ready
-        ldx #msgdial-msgs
-        jsr drawstate
-        ldx #0
+        lda dialtxt             ; bit 7 of its first byte is set once the modem
+        beq ready               ; is connected, as back from Load program
+        bmi ready
+        ldx #msgdial-msgs       ; the target, as the command has it after ATDT
+        jsr drawstate           ; and its spaces, in capitals and to 40 columns
+        ldx #4
+dlskip: lda dialtxt,x
+        cmp #$20
+        bne dltarget
+        inx
+        bne dlskip
+dltarget: lda dialtxt,x
+        beq dlsend
+        cmp #$61
+        bcc dlcaps
+        and #$DF
+dlcaps: ora #$80
+        sta ROW2,y
+        inx
+        iny
+        cpy #40
+        bne dltarget
+dlsend: ldx #0
 dial:   lda dialtxt,x
         beq dialed
         jsr putb
@@ -226,26 +240,37 @@ wdport: lda #$BA                ; a colon
         jsr putport
         jsr wzwait
         else
-        ldx #msgslot-msgs       ; a card's slot, or on a //c, its port
-        lda $FBB3               ; a //c has $06 here and $00 at $FBC0
-        eor #$06
-        ora $FBC0
-        bne rdport
-        ldx #msgport-msgs
-rdport: jsr shtext
-        iny                     ; the row is blank, so a column skipped is a space
-        lda slot
+        ldx #0                  ; the interface, as the universal disk lists it:
+        lda $FBB3               ; a card or a //c's port, by cable or through
+        eor #$06                ; a Wi-Fi modem, as SSC, SLOT 2, 115200. A //c
+        ora $FBC0               ; has $06 at $FBB3 and $00 at $FBC0
+        bne rdmodem
+        ldx #2
+rdmodem: lda dialtxt
+        beq rdname
+        inx
+rdname: lda ifnames,x
+        tax
+        ldy #0
+rdtext: lda msgs,x
+        beq rdslot
+        ora #$80
+        sta ROW4,y
+        iny
+        inx
+        bne rdtext
+rdslot: lda slot
         ora #$B0
-        sta ROW2,y
+        sta ROW4,y
         iny
+        lda #$AC                ; a comma, and the row is blank, so a column
+        sta ROW4,y              ; skipped is a space
         iny
-        ldx #msgat-msgs
-        jsr shtext
         iny
         ldx #0
 spdtext: lda speedtxt,x
         ora #$80
-        sta ROW2,y
+        sta ROW4,y
         iny
         inx
         cpx #6
@@ -354,12 +379,13 @@ hmtitle: lda title,x
 hmdone: rts
 
 
-; drawstate: the state row cleared and the message at msgs+X drawn from column 0.
-; Y is the column after it.
+; drawstate: the state's rows cleared and the message at msgs+X drawn from
+; column 0. Y is the column after it.
 
 drawstate:   ldy #39
         lda #$A0
 shclear: sta ROW2,y
+        sta ROW4,y
         dey
         bpl shclear
         iny
@@ -825,13 +851,15 @@ msgs:
 msgwait: .text "WAITING FOR PC AT "      ; and the address and port, to 39 columns
         .byte 0
         else
-msgwait: .text "WAITING FOR THE PC "
+msgwait: .text "WAITING FOR THE PC ON:"
         .byte 0
-msgport: .text "ON PORT"
+msgssc: .text "SSC, SLOT "
         .byte 0
-msgslot: .text "IN SLOT"
+msgsscm: .text "WI-FI MODEM, SLOT "
         .byte 0
-msgat:  .text "AT"
+msgport: .text "SERIAL PORT "
+        .byte 0
+msgportm: .text "WI-FI MODEM, PORT "
         .byte 0
         endif
 msgload: .text "LOADING PROGRAM "
@@ -839,8 +867,12 @@ msgload: .text "LOADING PROGRAM "
 msgstart: .text "STARTING VERSION "
         .byte 0
         ifndef W5100
-msgdial: .text "DIALING THE PC"
+msgdial: .text "DIALING "
         .byte 0
+
+; The interface's name by card or port, then cable or modem. After the
+; text, as the assembler sizes a forward reference in .byte wrongly.
+ifnames: .byte msgssc-msgs, msgsscm-msgs, msgport-msgs, msgportm-msgs
         endif
 
 ; Ready with no program: version 0, the shim's version, no drives.

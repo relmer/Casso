@@ -27,7 +27,7 @@ TEST_CLASS (LinkBootstrapTests)
 {
 public:
 
-    //  The slot finder at $3CA0, then the shim from $3D00, with the zeros
+    //  The slot finder at $3AA0, then the shim from $3B00, with the zeros
     //  between them not typed, and the finder run.
     TEST_METHOD (Lines_TypeTheFinderAndTheShimIntoTheMonitor_AndRunTheFinder)
     {
@@ -46,7 +46,7 @@ public:
         Assert::AreEqual (LinkProgram::kSlotFinderAddress, start);
         Assert::AreEqual (std::string ("\x18"),        lines[0], L"Ctrl-X cancels a partial line from stray bytes");
         Assert::AreEqual (std::string ("CALL -151\r"), lines[1]);
-        Assert::AreEqual (std::string ("3CA0G\r"),     lines.back());
+        Assert::AreEqual (std::string ("3AA0G\r"),     lines.back());
 
         typed.assign (image.size(), 0);
 
@@ -90,7 +90,7 @@ public:
 
         AssertSucceeded (LinkProgram::BuildBootstrapImage (options, shim, start));
         AssertSucceeded (LinkAudioBootstrap::BuildAudio (options, audio, command));
-        Assert::AreEqual (std::string ("3CA0.3FFFR 3CA0G\r"), command, L"the finder and the shim, to the shim's end");
+        Assert::AreEqual (std::string ("3AA0.3E68R 3AA0G\r"), command, L"the finder and the shim, to the shim's end");
         Assert::AreEqual (LinkAudioBootstrap::kSampleRate, audio.sampleRate);
 
         LinkAudioBootstrap::AppendRecord (shim, halves);

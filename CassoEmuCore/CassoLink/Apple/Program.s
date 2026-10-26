@@ -138,22 +138,15 @@ CMDLABEL  = $DC
 CMDLOG    = $DD
 CMDTIME   = $DE
 CMDEXIT   = $DF
-        ifdef W5100
 SHIM      = $3B00
-        else
-SHIM      = $3D00
-        endif
 SHIMSPEED = SHIM + $02            ; the shim's 6551 control byte
 SHIMTEXT  = SHIM + $06            ; its speed's text, six characters
 SHIMDIAL  = SHIM + $0C            ; a Wi-Fi modem's dial command
+SHIMADDR  = SHIM + $0C            ; a W5100 shim's address
 SHIMPORT  = SHIM + $1E            ; a W5100 shim's TCP port, high byte first
 SHIMSAVED = SHIM + $34            ; nonzero once the shim saved the machine's state
 SHIMRESET = SHIM + $35            ; the reset vector the shim found, and its check
-        ifdef W5100
 ZPSAVE    = $3A00                 ; the zero page the shim found, below the shim
-        else
-ZPSAVE    = $3C00
-        endif
 ACK       = $06
 NAK       = $15
 
@@ -505,8 +498,8 @@ getgap: lda #10
 ggdone: rts
 
 ; doload: back to the shim, at the speed the 6551 is at now, which is the
-; speed the host sends the program at; and with no dial command, as a modem
-; link is connected already. A W5100's connection is left open, with what
+; speed the host sends the program at; and with the dial command marked as
+; dialed, as a modem link is connected already. A W5100's connection is left open, with what
 ; was read given back and what was put sent.
         ifdef W5100
 doload: jsr flush
@@ -542,9 +535,11 @@ dlpad:  lda #' '
         iny
         cpy #6
         bne dlpad
-dlgo:   lda #0
+dlgo:   lda SHIMDIAL            ; the dial command marked as dialed, which the
+        beq dlnone              ; shim skips and the program reads
+        ora #$80
         sta SHIMDIAL
-        jmp SHIM
+dlnone: jmp SHIM
         endif
 ; cancel: the operation stops where it is, and the loop starts again.
 cancel: jsr motoroff
@@ -2486,12 +2481,13 @@ dlinner: dey
 
 ROW0 = $0400                    ; the title
 ROW2 = $0500                    ; the connection
-ROW3 = $0580                    ; the PC
-ROWST = $0680                   ; row 5: the status, after a blank row
-ROWLB = $0700                   ; row 6: the label of the user's operation
-ROWER = $0428                   ; row 8: the last error, when there is one
-ROWHIST = $0528                 ; row 10: the history's title, its lines below
-LOGROWS = 12                    ; the history's lines, rows 11 to 22
+ROW3 = $0580                    ; where the link goes, or the PC
+ROW4 = $0600                    ; the PC, below where the link goes
+ROWST = $0700                   ; row 6: the status, after a blank row
+ROWLB = $0780                   ; row 7: the label of the user's operation
+ROWER = $04A8                   ; row 9: the last error, when there is one
+ROWHIST = $05A8                 ; row 11: the history's title, its lines below
+LOGROWS = 11                    ; the history's lines, rows 12 to 22
 ROWESC = $07D0 + 11             ; row 23, centered: how to leave CassoLink
 PCGONE = 5                      ; seconds with no reply before the PC is gone
 IDLEOFF = 18                    ; Idles, 110 ms apart, before the motor stops
@@ -2539,6 +2535,15 @@ dstext: lda labels,x
 dsnext: inx
         jmp dsline
 dsdone: jsr showconn
+        jsr showaddr
+        ldx pcrow
+        lda pcrow+1
+        jsr fullrow
+        lda #<pclabel
+        sta ptr
+        lda #>pclabel
+        sta ptr+1
+        jsr puttext
         jsr showpc
         jmp showstatus
 
@@ -2547,9 +2552,6 @@ labels: .byte <ROW0, >ROW0
         .byte 0
         .byte <ROW2, >ROW2
         .text "CONNECTION"
-        .byte $3A, 0
-        .byte <ROW3, >ROW3
-        .text "PC"
         .byte $3A, 0
         .byte <ROWHIST, >ROWHIST
         .text "HISTORY"
@@ -2765,6 +2767,83 @@ connnames: .byte <connssc, >connssc, <connsscm, >connsscm
         endif
 
 
+; showaddr: below the connection, where the link goes when it has an
+; address: DIALED: and the target a Wi-Fi modem dialed, as the command has it
+; after ATDT and its spaces, or ADDRESS: and the Uthernet II's address and
+; port. The PC's row is below it, or below the connection when there is none.
+showaddr: lda #<ROW3
+        sta pcrow
+        lda #>ROW3
+        sta pcrow+1
+        ifndef W5100
+        lda SHIMDIAL
+        bne sahas
+        rts
+sahas:
+        endif
+        lda #<ROW4
+        sta pcrow
+        lda #>ROW4
+        sta pcrow+1
+        ldx #<ROW3
+        lda #>ROW3
+        jsr fullrow
+        lda #<addrlabel
+        sta ptr
+        lda #>addrlabel
+        sta ptr+1
+        jsr puttext
+        ldy #FIELD
+        ifdef W5100
+        lda #0
+        sta sacount
+saip:   ldx sacount             ; the address, a byte at a time, then the port
+        lda SHIMADDR,x
+        jsr putdec
+        inc sacount
+        lda sacount
+        cmp #4
+        beq saport
+        lda #'.'
+        jsr putch
+        jmp saip
+saport: lda #':'
+        jsr putch
+        lda SHIMPORT+1
+        sta wnum
+        lda SHIMPORT
+        sta wnum+1
+        jmp putword
+        else
+        ldx #4
+saskip: lda SHIMDIAL,x
+        cmp #' '
+        bne satext
+        inx
+        bne saskip
+satext: lda SHIMDIAL,x          ; in capitals, for a ][+
+        beq sadone
+        cmp #'a'
+        bcc sacaps
+        and #$DF
+sacaps: jsr putch
+        inx
+        bne satext
+sadone: rts
+        endif
+
+pcrow:  .byte <ROW3, >ROW3      ; the PC's row
+pclabel: .text "PC"
+        .byte $3A, 0
+        ifdef W5100
+sacount: .byte 0                ; showaddr: the address's bytes drawn
+addrlabel: .text "ADDRESS"
+        .byte $3A, 0
+        else
+addrlabel: .text "DIALED"
+        .byte $3A, 0
+        endif
+
         ifndef W5100
 s9600:   .text "9600"
          .byte 0
@@ -2938,8 +3017,8 @@ frclear: sta (scr),y
 
 ; showpc: the PC: waiting for its first reply, connected, or how long since
 ; its last reply.
-showpc: ldx #<ROW3
-        lda #>ROW3
+showpc: ldx pcrow
+        lda pcrow+1
         jsr field
         lda silent
         bne spquiet
@@ -3162,6 +3241,6 @@ p2ones: sta tmp2
         ora #'0'
         jmp putch
 
-; The history's lines, rows 11 to 22 of the text page.
-logrowlo: .byte $A8, $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50
-logrowhi: .byte $05, $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07
+; The history's lines, rows 12 to 22 of the text page.
+logrowlo: .byte $28, $A8, $28, $A8, $50, $D0, $50, $D0, $50, $D0, $50
+logrowhi: .byte $06, $06, $07, $07, $04, $04, $05, $05, $06, $06, $07

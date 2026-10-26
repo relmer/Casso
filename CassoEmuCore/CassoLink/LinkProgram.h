@@ -78,7 +78,7 @@ struct LinkShimOptions
 //  LinkProgram
 //
 //  The Apple side of Casso's link, built from the 6502 sources compiled into
-//  the core: the shim, resident at $3D00, and the program it loads at $0800.
+//  the core: the shim, resident at $3B00, and the program it loads at $0800.
 //  Both are assembled here with CassoCore's assembler, in the AS65 dialect,
 //  for the NMOS 6502.
 //
@@ -91,18 +91,12 @@ struct LinkShimOptions
 class LinkProgram
 {
 public:
-    static constexpr Word    kProgramVersion    = 50;
-    static constexpr Byte    kShimVersion       = 5;
-    static constexpr Word    kShimAddress       = 0x3D00;
-    static constexpr Word    kZeroPageSave      = 0x3C00;   // the shim's copy of the machine's zero page, below it
+    static constexpr Word    kProgramVersion    = 51;
+    static constexpr Byte    kShimVersion       = 6;
+    static constexpr Word    kShimAddress       = 0x3B00;
+    static constexpr Word    kZeroPageSave      = 0x3A00;   // the shim's copy of the machine's zero page, below it
     static constexpr Word    kProgramAddress    = 0x0800;
-    static constexpr size_t  kShimLimit         = 0x300;   // $3D00-$3FFF, below the program's tables
-
-    //  A W5100 shim's driver does not fit in a 6551 shim's space, so it loads
-    //  lower, with its copy of the zero page below it.
-    static constexpr Word    kW5100ShimAddress  = 0x3B00;
-    static constexpr Word    kW5100ZeroPageSave = 0x3A00;
-    static constexpr size_t  kW5100ShimLimit    = 0x500;   // $3B00-$3FFF
+    static constexpr size_t  kShimLimit         = 0x500;   // $3B00-$3FFF, below the program's tables
 
     //  Where the host writes the shim's starting speed: the 6551 control
     //  byte, and its text, padded with spaces.
@@ -135,18 +129,14 @@ public:
     static constexpr Word    kUniversalAddress  = 0x2000;
     static constexpr size_t  kUniversalLimit    = 0xC00;
     static constexpr Word    kUniversalAcia     = 0x2C00;
-    static constexpr Word    kUniversalW5100    = 0x2F00;
+    static constexpr Word    kUniversalW5100    = 0x3100;
 
     //  The UDP port a universal disk's W5100 broadcasts its announcements to.
     static constexpr uint16_t  kAnnouncePort  = 6510;
 
     //  The slot finder, which runs ahead of a 6551 shim typed in or read from
     //  tape, in the page the shim's copy of the zero page later fills.
-    static constexpr Word    kSlotFinderAddress = 0x3CA0;
-
-    static Word         GetShimAddress   (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimAddress  : kShimAddress; }
-    static Word         GetZeroPageSave  (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ZeroPageSave : kZeroPageSave; }
-    static size_t       GetShimLimit     (LinkChip chip) { return chip == LinkChip::W5100 ? kW5100ShimLimit    : kShimLimit; }
+    static constexpr Word    kSlotFinderAddress = 0x3AA0;
 
     static HRESULT      AssembleShim     (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);
     static HRESULT      AssembleProgram  (std::vector<Byte> & outBytes, std::string & outErrors, LinkChip chip = LinkChip::Acia);

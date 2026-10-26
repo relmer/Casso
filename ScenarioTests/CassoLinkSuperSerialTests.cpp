@@ -248,7 +248,8 @@ public:
         machine.RunCycles (20'000'000ULL);
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC IN SLOT 5 AT 115200"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
+        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC ON:"), TextEncoding::NarrowToWide (screen[0] + " | " + screen[2]).c_str());
+        Assert::IsTrue (screen[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (screen[4]).c_str());
 
         settings.name      = "//e";
         settings.transport = LinkTransport::Emulated;
@@ -436,7 +437,7 @@ public:
         double                                seconds = 0.0;
 
         AssertSucceeded (LinkAudioBootstrap::BuildWav (options, wav, command));
-        Assert::AreEqual (std::string ("3CA0.3FFFR 3CA0G\r"), command, L"the slot finder ahead of the shim");
+        Assert::AreEqual (std::string ("3AA0.3E68R 3AA0G\r"), command, L"the slot finder ahead of the shim");
         Assert::AreEqual (S_OK, TapeImageLoader::Load (wav, "bootstrap.wav", false, mp3, image, error), TextEncoding::NarrowToWide (error).c_str());
 
         seconds = (double) image.signal.lengthSamples / image.signal.sampleRate;
@@ -463,7 +464,7 @@ public:
         machine.GetTapeDeck().Update (*machine.GetCpu()->GetBusCyclePtr());
 
         screen = TextScreenScraper::Scrape40 (machine.GetMemoryBus(), 0x0400);
-        Assert::IsTrue (screen[2].starts_with ("WAITING FOR THE PC IN SLOT 5 AT 115200"), TextEncoding::NarrowToWide (JoinRows (screen)).c_str());
+        Assert::IsTrue (screen[4].starts_with ("SSC, SLOT 5, 115200"), TextEncoding::NarrowToWide (JoinRows (screen)).c_str());
 
         settings.name      = "//e";
         settings.transport = LinkTransport::Emulated;

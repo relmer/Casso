@@ -131,7 +131,7 @@ for the sector, $30 the data field did not decode, $40 the sector read back
 differently, $50 the host's data did not arrive whole, $60 no such drive.
 A sector is the physical sector, the number in its address field.
 
-The shim occupies $3D00 to $3FFF, with the 6551 control byte for its starting speed at $3D02, the speed's text at $3D06, a Wi-Fi modem's dial command, ending in a zero byte, at $3D0C (R24), and the 6551's slot at $3D38: 2 for the //c's port 2, or a Super Serial Card's slot. The program
+The shim occupies $3B00 to $3FFF, with its copy of the machine's zero page at $3A00, the 6551 control byte for its starting speed at $3B02, the speed's text at $3B06, a Wi-Fi modem's dial command, ending in a zero byte, at $3B0C (R24), and the 6551's slot at $3B38: 2 for the //c's port 2, or a Super Serial Card's slot. Before Load program, the program sets bit 7 of the dial command's first byte, and the shim does not dial a command marked this way. The W5100 shim has the same address and header. The program
 runs from $0800 and uses $4000 to $92FF for buffers, with no DOS or ProDOS
 in memory.
 
@@ -280,9 +280,15 @@ else the input hook's high byte at $39 when it is $C1 to $C7, as `IN#n`
 left it; else the first slot with the Super Serial Card's identification
 bytes. The 6551 is at $C088 plus 16 times the slot.
 
-The shim's screen: a title, then `WAITING FOR THE PC ON PORT 2 AT <speed>`
-on a //c or `WAITING FOR THE PC IN SLOT <n> AT <speed>` on a card,
-`LOADING PROGRAM <n>%` and `STARTING VERSION <n>`. The program adds a PC line,
+The shim's screen: a title, then `DIALING <target>` while a Wi-Fi modem
+dials, the dial command after `ATDT` and its spaces in capitals; `WAITING FOR
+THE PC ON:` with the interface below a blank row, as the universal disk lists
+it: `SERIAL PORT <n>, <speed>` on a //c, `SSC, SLOT <n>, <speed>` on a card,
+and `WI-FI MODEM, PORT <n>, <speed>` or `WI-FI MODEM, SLOT <n>, <speed>`
+through a modem; `LOADING PROGRAM <n>%` and `STARTING VERSION <n>`. The
+program's status screen has the connection; for a modem, `DIALED:` and the
+target on the row below it, and for an Uthernet II, `ADDRESS:` and the card's
+address and port. The program adds a PC line,
 `CONNECTED` or `NO REPLY FOR <n> S`, sending Ready again after each second
 with no reply; an error line with the last Status error until an operation
 succeeds; and the last Label.
@@ -290,8 +296,9 @@ succeeds; and the last Label.
 ## The universal boot disk
 
 Casso Explorer's boot disk works on every interface, as ADTPro's does. It
-loads a first stage at $2000, with the 6551 shim at $2C00, built for $3D00,
-and the W5100 shim at $2F00, built for $3B00. The host writes both shims'
+loads a first stage at $2000, with the 6551 shim at $2C00 and the W5100
+shim at $3100, both built for $3B00, and the stage's copy of the zero page
+at $3600. The host writes both shims'
 headers as for their own disks.
 
 The stage finds:
@@ -325,8 +332,8 @@ port 6510 from port 6511 about every two seconds:
 | 6 | its MAC address |
 
 The screen: the title, `WAITING FOR THE PC ON:`, then a row for each
-interface: `PORT <n> AT <speed>` on a //c, `SLOT <n> AT <speed>` for a card,
-and `SLOT <n> AT <address>:<port>` for the Uthernet II.
+interface: `SERIAL PORT <n>, <speed>` on a //c, `SSC, SLOT <n>, <speed>` for
+a card, and `UTHERNET II, SLOT <n>, <address>:<port>` for the Uthernet II.
 
 The stage waits on all of them. A $C1 byte, an envelope's start, on a 6551,
 or a connection to the W5100 chooses that interface: the stage copies the

@@ -258,7 +258,7 @@ public:
         settings.name      = "Test";
         settings.transport = LinkTransport::Serial;
 
-        rig.session->SetBootstrapPause (0);
+        rig.session->SetBootstrapPause (0, 0);
         AssertSucceeded (rig.session->StartWithBootstrap (settings, bootstrap));
         Assert::IsTrue  (rig.sink.WaitForState (LinkState::Ready), L"connected after the bootstrap");
         Assert::IsTrue  (rig.factory.comOpened.front() == L"COM3", L"the loader went to the only port, with no search");
