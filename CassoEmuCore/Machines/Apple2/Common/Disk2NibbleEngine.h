@@ -227,6 +227,13 @@ private:
     };
 
     void       StepLss();
+
+    //  StepLss's steps: the read pulse for this clock, the sequencer's
+    //  command and next state, and the bit cell's write and head motion.
+    uint8_t    SampleReadPulse (bool readClock, bool hasTrack);
+    void       RunSequencer (uint8_t pulse);
+    void       StepBitCell (bool hasTrack);
+
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
     size_t     GetCurrentTrackBits() const;

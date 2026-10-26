@@ -629,26 +629,13 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 
 void Disk2NibbleEngine::StepLss()
 {
-    constexpr int      kLssMaxClock    = 7;
-    constexpr uint8_t  kIdxNoPulse     = 0x01;
-    constexpr uint8_t  kIdxLatchMsb    = 0x02;
-    constexpr uint8_t  kIdxQ6          = 0x04;
-    constexpr uint8_t  kIdxQ7          = 0x08;
-    constexpr int      kIdxStateShift  = 4;
-    constexpr uint8_t  kLssCommandMask = 0x0F;
-    constexpr int      kLssStateShift  = 4;
-    constexpr uint8_t  kLssStateMask   = 0x0F;
+    constexpr int  kLssMaxClock = 7;
 
 
 
     bool     readClock = (m_lssClock == kLssReadClock);
     bool     hasTrack  = false;
-    bool     writing   = false;
-    bool     prevMsb   = false;
     uint8_t  pulse     = 0;
-    uint8_t  outBit    = 0;
-    uint8_t  command   = 0;
-    size_t   trackBits = 0;
 
     if (m_disk != nullptr && m_disk->GetLayoutGeneration() != m_layoutGeneration)
     {
@@ -658,9 +645,41 @@ void Disk2NibbleEngine::StepLss()
     // A mapped track implies a disk; with no disk the slot is -1.
     hasTrack = (m_slot >= 0);
 
-    // Read side. A flux track can deliver a pulse on any clock; a bit track
-    // delivers one bit per cell, on the read clock. With no track under the
-    // head the head window turns silence into noise, as an empty drive does.
+    pulse = SampleReadPulse (readClock, hasTrack);
+
+    RunSequencer (pulse);
+
+    if (readClock)
+    {
+        StepBitCell (hasTrack);
+    }
+
+    if (++m_lssClock > kLssMaxClock)
+    {
+        m_lssClock = 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SampleReadPulse
+//
+//  The read side. A flux track can deliver a pulse on any clock; a bit track
+//  delivers one bit per cell, on the read clock. With no track under the
+//  head the head window turns silence into noise, as an empty drive does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint8_t Disk2NibbleEngine::SampleReadPulse (bool readClock, bool hasTrack)
+{
+    uint8_t  pulse = 0;
+
+
+
     if (m_isFluxSlot)
     {
         m_fluxNow += kFluxUnitsPerLssClock;
@@ -675,9 +694,37 @@ void Disk2NibbleEngine::StepLss()
         pulse = ApplyHeadWindow (hasTrack ? m_disk->ReadBit (m_slot, m_bitPos) : 0);
     }
 
-    // The sequencer: index the P6 ROM by {state, Q7, Q6, latch MSB, no pulse}
-    // and run the command it gives.
-    prevMsb = (m_readLatch & kLatchMsbMask) != 0;
+    return pulse;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunSequencer
+//
+//  The sequencer: index the P6 ROM by {state, Q7, Q6, latch MSB, no pulse},
+//  run the command it gives, and advance to the next state.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::RunSequencer (uint8_t pulse)
+{
+    constexpr uint8_t  kIdxNoPulse     = 0x01;
+    constexpr uint8_t  kIdxLatchMsb    = 0x02;
+    constexpr uint8_t  kIdxQ6          = 0x04;
+    constexpr uint8_t  kIdxQ7          = 0x08;
+    constexpr int      kIdxStateShift  = 4;
+    constexpr uint8_t  kLssCommandMask = 0x0F;
+    constexpr int      kLssStateShift  = 4;
+    constexpr uint8_t  kLssStateMask   = 0x0F;
+
+
+
+    bool     prevMsb = (m_readLatch & kLatchMsbMask) != 0;
+    uint8_t  command = 0;
     command = kSequencerRom16[(m_lssState << kIdxStateShift)
                               | (m_writeMode     ? kIdxQ7       : 0)
                               | (m_shiftLoadMode ? kIdxQ6       : 0)
@@ -720,54 +767,64 @@ void Disk2NibbleEngine::StepLss()
         m_latchIsFresh = true;
         m_readNibbles++;
     }
+}
 
-    // Write side and head motion, once per cell. The bit written is the latch
-    // MSB -- the shift register's serial output -- not the sequencer state's
-    // high bit: the two only agree in the hardware's sub-clock lockstep,
-    // which catching the sequencer up in bursts cannot hold (GH #89).
-    if (readClock)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StepBitCell
+//
+//  The write side and head motion, once per cell, on the read clock. The bit
+//  written is the latch MSB -- the shift register's serial output -- not the
+//  sequencer state's high bit: the two only agree in the hardware's
+//  sub-clock lockstep, which catching the sequencer up in bursts cannot hold
+//  (GH #89).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2NibbleEngine::StepBitCell (bool hasTrack)
+{
+    bool     writing   = m_writeMode && hasTrack && !m_disk->IsWriteProtected();
+    uint8_t  outBit    = (m_readLatch & kLatchMsbMask) ? 1 : 0;
+    size_t   trackBits = 0;
+
+
+
+    if (m_isFluxSlot)
     {
-        writing = m_writeMode && hasTrack && !m_disk->IsWriteProtected();
-        outBit  = (m_readLatch & kLatchMsbMask) ? 1 : 0;
-
-        if (m_isFluxSlot)
+        // Flux keeps its own time, so there is no cursor to move. The
+        // cells are collected and spliced in when the write ends.
+        if (writing)
         {
-            // Flux keeps its own time, so there is no cursor to move. The
-            // cells are collected and spliced in when the write ends.
-            if (writing)
-            {
-                RecordFluxWriteBit (outBit);
-            }
-            else if (m_burstActive)
-            {
-                CommitPendingWrite();
-            }
+            RecordFluxWriteBit (outBit);
         }
-        else if (hasTrack)
+        else if (m_burstActive)
         {
-            if (writing)
-            {
-                m_disk->WriteBit (m_slot, m_bitPos, outBit);
-            }
-
-            trackBits = m_disk->GetTrackBitCount (m_slot);
-
-            if (trackBits > 0)
-            {
-                m_bitPos = (m_bitPos + 1) % trackBits;
-            }
-        }
-        else if (m_disk != nullptr)
-        {
-            // A disk with nothing recorded at this position still turns
-            // under the head.
-            m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
+            CommitPendingWrite();
         }
     }
-
-    if (++m_lssClock > kLssMaxClock)
+    else if (hasTrack)
     {
-        m_lssClock = 0;
+        if (writing)
+        {
+            m_disk->WriteBit (m_slot, m_bitPos, outBit);
+        }
+
+        trackBits = m_disk->GetTrackBitCount (m_slot);
+
+        if (trackBits > 0)
+        {
+            m_bitPos = (m_bitPos + 1) % trackBits;
+        }
+    }
+    else if (m_disk != nullptr)
+    {
+        // A disk with nothing recorded at this position still turns
+        // under the head.
+        m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
     }
 }
 
