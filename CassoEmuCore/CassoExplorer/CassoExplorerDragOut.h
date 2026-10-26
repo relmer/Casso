@@ -113,8 +113,7 @@ public:
     static DiskOperations::Encoding  GetEncoding (const DragPayload::Descriptor & descriptor);
 
     //  A file that could not be read, as a whole message: "Unable to copy
-    //  HELLO: the track/sector list is damaged" for a damaged file, in its file
-    //  system's terms, and "The files could not be copied: HELLO is not on this
-    //  volume" for any other failure.
+    //  HELLO: the track/sector list is damaged", with a damaged file's reason
+    //  in its file system's terms.
     static std::wstring  DescribeReadFailure (const DragPayload::Descriptor & descriptor, HRESULT hr, VolumeKind kind);
 };

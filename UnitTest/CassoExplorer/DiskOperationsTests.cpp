@@ -449,7 +449,7 @@ public:
         result = ops.Rename (kFacadeImage, "MEMO", "HELLO");
 
         Assert::IsFalse (result.Succeeded());
-        Assert::IsTrue  (result.message.find ("already the name") != std::string::npos);
+        Assert::IsTrue  (result.message.find ("Unable to rename MEMO to HELLO: another file on this volume has that name") != std::string::npos);
         Assert::IsTrue  (io.HasNoTemporaryFiles());
     }
 

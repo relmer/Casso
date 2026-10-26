@@ -679,13 +679,11 @@ std::wstring CassoExplorerDragOut::DescribeReadFailure (const DragPayload::Descr
 {
     size_t       slash  = descriptor.catalogPath.rfind ('/');
     std::string  name   = (slash == std::string::npos) ? descriptor.catalogPath : descriptor.catalogPath.substr (slash + 1);
-    std::string  damage = DiskCommandRunner::DescribeDamage (hr, kind);
-    std::string  reason = (hr == E_FAIL) ? std::string ("could not be read") : DiskOperations::DescribeVolumeRefusal (hr);
+    std::string  reason = (hr == E_FAIL) ? std::string ("it could not be read") : DiskOperations::DescribeVolumeRefusal (hr, kind);
 
 
 
-    return TextEncoding::NarrowToWide (damage.empty() ? std::format ("The files could not be copied: {} {}", name, reason)
-                                                      : std::format ("Unable to copy {}: {}", name, damage));
+    return TextEncoding::NarrowToWide (std::format ("Unable to copy {}: {}", name, reason));
 }
 
 

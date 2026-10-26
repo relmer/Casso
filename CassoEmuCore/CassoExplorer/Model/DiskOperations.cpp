@@ -62,20 +62,24 @@ CommandLineOptions DiskOperations::MakeOptions (Command command, const std::stri
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr)
+std::string DiskOperations::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
 {
-    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))          { return "is not on this volume"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS))             { return "is already the name of another file on this volume"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))            { return "is not a name this file system can store"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))           { return "is locked"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))               { return "does not fit: the volume has no room for it"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE))             { return "does not fit: the volume directory is full, with room for 51 entries"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))          { return "is larger than this file system can record"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED)) { return "is a directory, which this operation does not handle"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))       { return "needs a load address"; }
-    if (hr == HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF))              { return "is damaged and cannot be read"; }
+    std::string  damage = DiskCommandRunner::DescribeDamage (hr, kind);
 
-    return std::format ("could not be processed (0x{:08X})", (unsigned) hr);
+
+
+    if (!damage.empty())                                          { return damage; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND))          { return "it is not on this volume"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS))             { return "another file on this volume has that name"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_NAME))            { return "the name is not valid on this file system"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED))           { return "it is locked"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DISK_FULL))               { return "the volume has no room for it"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE))             { return "the volume directory is full, with room for 51 entries"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE))          { return "it is larger than this file system can record"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED)) { return "it is a directory, and this operation is for files only"; }
+    if (hr == HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER))       { return "it requires a load address"; }
+
+    return std::format ("the volume returned error 0x{:08X}", (unsigned) hr);
 }
 
 
@@ -298,7 +302,7 @@ DiskOperations::Result DiskOperations::Read (const std::string & imagePath, cons
         if (FAILED (hr))
         {
             result.hr      = hr;
-            result.message = DiskCommandResult::FormatFailure (imagePath, name, DescribeVolumeRefusal (hr));
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to read {}: {}", name, DescribeVolumeRefusal (hr, opened.kind)));
         }
 
         result.unreadSectors = lost.GetCount();
@@ -387,7 +391,7 @@ DiskOperations::Result DiskOperations::BuildRemovalPlan (
         if (FAILED (hr))
         {
             result.hr      = hr;
-            result.message = DiskCommandResult::FormatFailure (imagePath, path, DescribeVolumeRefusal (hr));
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to remove {}: {}", path, DescribeVolumeRefusal (hr, opened.kind)));
         }
     }
 
@@ -790,7 +794,7 @@ DiskOperations::Result DiskOperations::WritePayload (
         if (FAILED (hr))
         {
             result.hr      = hr;
-            result.message = DiskCommandResult::FormatFailure (imagePath, name, DescribeVolumeRefusal (hr));
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to write {}: {}", name, DescribeVolumeRefusal (hr, opened.kind)));
         }
     }
 
@@ -838,7 +842,7 @@ DiskOperations::Result DiskOperations::Rename (
         if (FAILED (hr))
         {
             result.hr      = hr;
-            result.message = DiskCommandResult::FormatFailure (imagePath, to, DescribeVolumeRefusal (hr));
+            result.message = DiskCommandResult::FormatFailure (imagePath, "", std::format ("Unable to rename {} to {}: {}", from, to, DescribeVolumeRefusal (hr, opened.kind)));
         }
     }
 

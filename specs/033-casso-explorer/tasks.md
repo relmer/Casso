@@ -794,7 +794,7 @@ listed in validation.md.
   in four captures over File Explorer and over Casso Explorer's own tree.
   That drag goes through `Win32ShellItemVerbs::DragItems` and the shell's own
   drop source, which this change does not touch.
-- [ ] T260 Report every volume refusal as "Unable to <verb> <file>: <what is
+- [X] T260 Report every volume refusal as "Unable to <verb> <file>: <what is
   wrong>", in the file system's terms where they differ, as T258 does for a
   damaged file. The sentences are in `DiskCommandRunner::DescribeVolumeRefusal`,
   `DiskOperations::DescribeVolumeRefusal` and the commands' `Fail` calls in
@@ -804,10 +804,10 @@ listed in validation.md.
     delete PROG: it is locked", and `DiskCommandRunner::DescribeVolumeRefusal`
     takes the volume kind for a damaged file's terms. The list, mkdir, rmdir,
     get, put, delete and boot refusals use it.
-  - **Left**: `DiskOperations::DescribeVolumeRefusal` and its four
-    `FormatFailure` calls, for Casso Explorer's dialogs. Its other caller is
-    `DescribeReadFailure` in `CassoExplorerDragOut.cpp`, so both convert
-    together once the T259 work in that file is done.
+  - **Casso Explorer done**: `DiskOperations::DescribeVolumeRefusal` takes the
+    volume kind too. Read, remove, write and rename failures are "Unable to
+    rename MEMO to HELLO: another file on this volume has that name", and a
+    drag-out or Copy failure is "Unable to copy HELLO: it is locked".
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

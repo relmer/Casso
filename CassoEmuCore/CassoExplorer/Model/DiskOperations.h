@@ -123,8 +123,10 @@ public:
     //  The options a command-line invocation of this verb would parse to.
     static CommandLineOptions  MakeOptions (Command command, const std::string & imagePath);
 
-    //  A volume-layer refusal in the words a user reads.
-    static std::string  DescribeVolumeRefusal (HRESULT hr);
+    //  A volume-layer refusal in the words a user reads, as the reason in
+    //  "Unable to read HELLO: it is locked". A damaged file's is in the terms
+    //  of kind's file system.
+    static std::string  DescribeVolumeRefusal (HRESULT hr, VolumeKind kind);
 
 private:
     //  Counts the sectors a read touches that the image's decode did not
