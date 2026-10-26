@@ -1963,6 +1963,397 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
+    //  A mount over a disk loads the new image first, and the disk in the
+    //  drive is retired only when every guest write is in a file.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Mount_UnloadableOverAMountedDisk_LeavesThatDiskInTheDrive)
+    {
+        DiskImageStore   store;
+        Disk2Controller  controller (6);
+        DiskImage      * image = nullptr;
+        HRESULT          hr    = S_OK;
+
+
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Kept.dsk", DiskFormat::Dsk, MakeDsk (0x11)));
+        image = store.GetImage (kSlot, kDrive);
+        controller.SetExternalDisk (kDrive, image);
+
+        hr = store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Short.dsk", DiskFormat::Dsk, vector<Byte> (4096, 0));
+
+        Assert::IsTrue (FAILED (hr), L"a file that does not load is not mounted");
+        Assert::IsTrue (store.GetImage (kSlot, kDrive) == image, L"the disk that was there is in the drive");
+        Assert::AreEqual (string ("C:\\disks\\Kept.dsk"), store.GetSourcePath (kSlot, kDrive));
+
+        controller.SoftReset();
+
+        Assert::IsTrue (controller.HasExternalDisk (kDrive), L"and the drive is on it");
+    }
+
+
+    TEST_METHOD (MountFromBytes_UnloadableOverADirtyDisk_WritesNothing)
+    {
+        DiskImageStore  store;
+        int             writes = 0;
+
+
+
+        store.SetFlushSink ([&writes] (const string &, const vector<Byte> &) { writes++; return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Kept.dsk", DiskFormat::Dsk, MakeDsk (0x11)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+
+        AssertFailed (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Short.dsk", DiskFormat::Dsk, vector<Byte> (4096, 0)));
+
+        Assert::AreEqual (0, writes, L"nothing is saved for a mount that does not happen");
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty(), L"and the writes are in the drive");
+    }
+
+
+    TEST_METHOD (MountFromBytes_OtherFileOverAnUnwritableDisk_KeepsTheDisk)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        MountDiagnosis            diagnosis;
+        DiskImage               * image = nullptr;
+        HRESULT                   hr    = S_OK;
+
+
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Kept.dsk", DiskFormat::Dsk, MakeDsk (0x11)));
+        image = store.GetImage (kSlot, kDrive);
+        image->WriteBit (0, 0, 1);
+
+        hr = store.MountFromBytes (kSlot, kDrive, "C:\\disks\\New.dsk", DiskFormat::Dsk, MakeDsk (0x22), diagnosis);
+
+        Assert::IsTrue (FAILED (hr), L"the insert is declined");
+        Assert::IsTrue (diagnosis.failure == MountFailure::UnsavedWrites);
+        Assert::AreEqual ((int) HRESULT_FROM_WIN32 (ERROR_DISK_FULL), (int) diagnosis.saveError, L"with the save's error");
+        Assert::AreEqual (string ("C:\\disks\\Kept.dsk"), diagnosis.keptPath);
+        Assert::IsFalse (diagnosis.isSameFile);
+        Assert::IsTrue (store.GetImage (kSlot, kDrive) == image, L"the disk is in the drive");
+        Assert::IsTrue (image->IsDirty(), L"with its writes");
+        Assert::AreEqual (0, s_flushNotifyCount, L"the mount's decline is the report");
+    }
+
+
+    TEST_METHOD (MountFromBytes_OtherFileOverASavableDisk_WritesOnceAndReplaces)
+    {
+        DiskImageStore  store;
+        vector<string>  written;
+
+
+
+        store.SetFlushSink ([&written] (const string & path, const vector<Byte> &) { written.push_back (path); return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Kept.dsk", DiskFormat::Dsk, MakeDsk (0x11)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\New.dsk", DiskFormat::Dsk, MakeDsk (0x22)));
+
+        Assert::AreEqual ((size_t) 1, written.size(), L"one save");
+        Assert::AreEqual (string ("C:\\disks\\Kept.dsk"), written[0], L"of the disk that was there");
+        Assert::AreEqual (string ("C:\\disks\\New.dsk"), store.GetSourcePath (kSlot, kDrive), L"and the new disk is in the drive");
+    }
+
+
+    TEST_METHOD (Mount_OtherFileOverARescuedUnserializableDisk_Replaces)
+    {
+        DiskImageStore  store;
+        int             recoveryWrites = 0;
+
+
+
+        store.SetFlushSink ([&recoveryWrites] (const string & path, const vector<Byte> &)
+        {
+            if (path.ends_with (".recovered.woz"))
+            {
+                recoveryWrites++;
+            }
+
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Session.dsk", DiskFormat::Dsk, MakeDsk (0x5A)));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        AssertFailed (store.FlushAll());
+        Assert::AreEqual (1, recoveryWrites, L"the session is in a recovery copy");
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\New.dsk", DiskFormat::Dsk, MakeDsk (0x22)));
+
+        Assert::AreEqual (string ("C:\\disks\\New.dsk"), store.GetSourcePath (kSlot, kDrive), L"the copy lets the new disk in");
+        Assert::AreEqual (1, recoveryWrites, L"with no second copy");
+    }
+
+
+    TEST_METHOD (MountRestored_UnloadableBytes_LeavesTheBay)
+    {
+        DiskImageStore  store;
+        DiskImage     * image = nullptr;
+
+
+
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Kept.dsk", DiskFormat::Dsk, MakeDsk (0x11)));
+        image = store.GetImage (kSlot, kDrive);
+
+        AssertFailed (store.MountRestored (kSlot, kDrive, "C:\\disks\\Saved.dsk", DiskFormat::Dsk, vector<Byte> (4096, 0)));
+
+        Assert::IsTrue (store.GetImage (kSlot, kDrive) == image, L"the disk that was there is in the drive");
+        Assert::AreEqual (string ("C:\\disks\\Kept.dsk"), store.GetSourcePath (kSlot, kDrive));
+    }
+
+
+    TEST_METHOD (SetFileBacked_False_WritesNothingAndEjects)
+    {
+        DiskImageStore  store;
+        int             writes = 0;
+
+
+
+        store.SetFileBacked (false);
+        store.SetFlushSink ([&writes] (const string &, const vector<Byte> &) { writes++; return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "C:\\disks\\Scratch.dsk", DiskFormat::Dsk, MakeDsk (0x11)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+
+        store.Eject (kSlot, kDrive);
+
+        Assert::AreEqual (0, writes, L"a store with no files writes nothing");
+        Assert::IsFalse (store.IsMounted (kSlot, kDrive), L"and its eject goes ahead");
+    }
+
+
+    //  The same file mounted again over a disk with guest writes: the disk is
+    //  saved first, and the file read after the save, so the drive and the
+    //  file both have the writes.
+    TEST_METHOD (Mount_SameFileOverADirtyDisk_ReadsWhatTheFlushWrote)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        DiskImage     * image   = nullptr;
+        Byte            written = 0;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamWozPath, MakeWoz());
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamWozPath));
+        image   = store.GetImage (kSlot, kDrive);
+        written = static_cast<Byte> (image->ReadBit (0, 200) ^ 1);
+        image->WriteBit (0, 200, written);
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamWozPath));
+
+        Assert::AreEqual (written, store.GetImage (kSlot, kDrive)->ReadBit (0, 200), L"the drive has the write");
+        Assert::IsFalse (store.GetImage (kSlot, kDrive)->IsDirty(), L"and it is in the file");
+    }
+
+
+    TEST_METHOD (Mount_SameFileOverAnUnwritableDisk_KeepsTheDisk)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        MountDiagnosis  diagnosis;
+        DiskImage     * image = nullptr;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamWozPath, MakeWoz());
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamWozPath));
+        image = store.GetImage (kSlot, kDrive);
+        image->WriteBit (0, 200, static_cast<Byte> (image->ReadBit (0, 200) ^ 1));
+
+        io.failWritesContaining = "casso-no-such-root";
+        io.nextWriteError       = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+        AssertFailed (store.Mount (kSlot, kDrive, kSeamWozPath, diagnosis));
+        Assert::IsTrue (diagnosis.failure == MountFailure::UnsavedWrites);
+        Assert::IsTrue (diagnosis.isSameFile);
+        Assert::IsFalse (diagnosis.wasReported, L"the first decline is reported");
+
+        AssertFailed (store.Mount (kSlot, kDrive, kSeamWozPath, diagnosis));
+        Assert::IsTrue (diagnosis.wasReported, L"the second is not");
+
+        Assert::IsTrue (store.GetImage (kSlot, kDrive) == image, L"the disk is in the drive");
+        Assert::IsTrue (image->IsDirty(), L"with its writes");
+    }
+
+
+    TEST_METHOD (Mount_SameFileOverARescuedUnserializableDisk_KeepsTheSession)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        DiskImage     * image = nullptr;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        image = store.GetImage (kSlot, kDrive);
+        CorruptOneAddressField (*image, 3);
+        image->SetLoadedForTest (true, true);
+
+        AssertFailed (store.FlushAll());
+        AssertFailed (store.Mount (kSlot, kDrive, kSeamImagePath), L"the file is not read over the session");
+
+        Assert::IsTrue (store.GetImage (kSlot, kDrive) == image, L"the session is in the drive");
+        Assert::IsTrue (image->IsDirty());
+    }
+
+
+    TEST_METHOD (Mount_SameFileOverAnUnserializableDiskWithNoCopy_GivesOneNotice)
+    {
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        MountDiagnosis            diagnosis;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x5A));
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        CorruptOneAddressField (*store.GetImage (kSlot, kDrive), 3);
+        store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        AssertFailed (store.Mount (kSlot, kDrive, kSeamImagePath, diagnosis));
+
+        Assert::AreEqual (1, s_flushNotifyCount, L"the first recovery copy is reported");
+        Assert::IsFalse (diagnosis.ShouldReport(), L"and the decline is not reported again");
+    }
+
+
+    TEST_METHOD (Mount_SameUnchangedFile_KeepsTheImageWithNoMediaChange)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        DiskImage     * image   = nullptr;
+        int             changes = 0;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamWozPath, MakeWoz());
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamWozPath));
+        image = store.GetImage (kSlot, kDrive);
+        store.SetMediaChangeListener ([&changes] { changes++; });
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamWozPath));
+
+        Assert::IsTrue (store.GetImage (kSlot, kDrive) == image, L"the image that is the file stays");
+        Assert::AreEqual (0, changes, L"and no media change is reported");
+    }
+
+
+    TEST_METHOD (MountDiagnosis_ShouldReport_IsFalseOnlyForAReportedSameFileDecline)
+    {
+        MountDiagnosis  diagnosis;
+
+
+
+        diagnosis.failure     = MountFailure::UnsavedWrites;
+        diagnosis.isSameFile  = true;
+        diagnosis.wasReported = true;
+        Assert::IsFalse (diagnosis.ShouldReport(), L"a same-file decline already reported");
+
+        diagnosis.wasReported = false;
+        Assert::IsTrue (diagnosis.ShouldReport(), L"a same-file decline not reported yet");
+
+        diagnosis.isSameFile  = false;
+        diagnosis.wasReported = true;
+        Assert::IsTrue (diagnosis.ShouldReport(), L"an insert of another file always");
+
+        diagnosis.failure = MountFailure::WrongSizeForFormat;
+        Assert::IsTrue (diagnosis.ShouldReport(), L"and any other decline");
+    }
+
+
+    static MountDiagnosis UnsavedWritesOver (const char * keptPath, HRESULT saveError, bool isSameFile)
+    {
+        MountDiagnosis  diagnosis;
+
+
+
+        diagnosis.failure       = MountFailure::UnsavedWrites;
+        diagnosis.keptPath      = keptPath;
+        diagnosis.saveError     = saveError;
+        diagnosis.isSameFile    = isSameFile;
+        diagnosis.occupiedDrive = 0;
+
+        return diagnosis;
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_UnsavedWrites_OtherFile)
+    {
+        wstring  reason = ChangePrompt::DescribeError (HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+
+
+        Assert::AreEqual (wstring (L"Casso did not insert this disk image:\n\nC:\\disks\\New.dsk\n\n"
+                                   L"The disk already in drive 1 has changes that could not be saved to its file:\n\n"
+                                   L"C:\\disks\\Kept.dsk\n\nError: ") + reason +
+                          L"\n\nThat disk is still in the drive with its changes. Eject it to save them to another file.",
+                          DiskImageStore::FormatMountFailureMessage ("C:\\disks\\New.dsk",
+                              UnsavedWritesOver ("C:\\disks\\Kept.dsk", HRESULT_FROM_WIN32 (ERROR_DISK_FULL), false)));
+
+        Assert::AreEqual (wstring (L"Casso did not insert this disk image:\n\nC:\\disks\\New.dsk\n\n"
+                                   L"The disk already in drive 1 has changes that have not been saved to its file yet:\n\n"
+                                   L"C:\\disks\\Kept.dsk\n\n"
+                                   L"That disk is still in the drive with its changes. Eject it to save them to another file."),
+                          DiskImageStore::FormatMountFailureMessage ("C:\\disks\\New.dsk",
+                              UnsavedWritesOver ("C:\\disks\\Kept.dsk", S_OK, false)),
+                          L"with no save attempted, no Error paragraph");
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_UnsavedWrites_SameFile)
+    {
+        wstring  reason = ChangePrompt::DescribeError (HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
+
+
+
+        Assert::AreEqual (wstring (L"Casso could not save changes to the disk image:\n\nC:\\disks\\Kept.dsk\n\nError: ") + reason +
+                          L"\n\nThe file on disk is unchanged, and the disk was not read from it again. The drive still has your changes.",
+                          DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Kept.dsk",
+                              UnsavedWritesOver ("C:\\disks\\Kept.dsk", HRESULT_FROM_WIN32 (ERROR_DISK_FULL), true)));
+    }
+
+
+    TEST_METHOD (FormatMountFailureMessage_KeptDiskIsStated)
+    {
+        MountDiagnosis  diagnosis = DiagnosisOf (MountFailure::WrongSizeForFormat, DiskFormat::Dsk, 4096);
+        wstring         message;
+
+
+
+        diagnosis.keptPath = "C:\\disks\\Kept.dsk";
+        message            = DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Short.dsk", diagnosis);
+
+        Assert::IsTrue (message.ends_with (L"\n\nThe disk already in the drive was not changed."),
+                        L"a decline over an occupied drive states that the disk there was not changed");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
     //  Mount diagnosis
     //
     //  A mount that did not happen has to say WHICH way it did not happen.
@@ -2463,6 +2854,10 @@ public:
             MountFailure::NotAWozFile,
             MountFailure::MalformedWoz,
             MountFailure::Unrecognized,
+            MountFailure::WrongSizeForNibble,
+            MountFailure::NotANibbleStream,
+            MountFailure::AlreadyMounted,
+            MountFailure::UnsavedWrites,
         };
 
         vector<wstring>  seen;
@@ -2471,7 +2866,7 @@ public:
 
 
 
-        Assert::AreEqual ((size_t) 8, sizeof (reasons) / sizeof (reasons[0]),
+        Assert::AreEqual ((size_t) 12, sizeof (reasons) / sizeof (reasons[0]),
             L"an enumerator added without a wording must fail here, not ship silent");
 
         for (i = 0; i < sizeof (reasons) / sizeof (reasons[0]); i++)

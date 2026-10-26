@@ -253,13 +253,15 @@ HRESULT DiskImageStore::MountFromBytes (
     const vector<Byte>  &  bytes,
     MountDiagnosis      &  outDiagnosis)
 {
-    HRESULT   hr = S_OK;
+    HRESULT       hr = S_OK;
+    FlushOutcome  outcome;
 
 
 
     ASSERT_THREAD_OWNERSHIP (m_ownership);
 
-    hr = LoadIntoBay (slot, drive, virtualPath, fmt, bytes, outDiagnosis);
+    hr = ReplaceBay (slot, drive, virtualPath, fmt, bytes, outDiagnosis, outcome);
+    ReportReplaceOutcome (slot, drive, virtualPath, hr, outcome);
     CHR (hr);
 
     EmitBayChange (slot, drive, BayChange::Inserted);
@@ -274,28 +276,117 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LoadIntoBay
+//  DiskImageStore::LoadImage
 //
-//  Replaces a bay's image with one loaded from bytes, flushing the old one
-//  first. When the loader cannot load the bytes, the bay ends empty.
-//
-//  THE OLD IMAGE IS FREED BEFORE THE LOAD, so a bay that had a disk and ends
-//  empty calls the bay-change sink with Ejected. Without that call, a
-//  controller attached to the old image reads freed memory after a failed
-//  remount.
+//  The image the bytes make, built apart from every bay, so the bay is as it
+//  was when the file does not load. On failure, outDiagnosis indicates why.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::LoadIntoBay (
-    int                    slot,
-    int                    drive,
-    const string        &  virtualPath,
-    DiskFormat             fmt,
-    const vector<Byte>  &  bytes,
-    MountDiagnosis      &  outDiagnosis)
+HRESULT DiskImageStore::LoadImage (DiskFormat fmt, const vector<Byte> & bytes, const string & path,
+                                   unique_ptr<DiskImage> & outImage, MountDiagnosis & outDiagnosis)
 {
-    HRESULT   hr         = S_OK;
-    bool      wasMounted = false;
+    HRESULT  hr       = S_OK;
+    bool     isLoaded = false;
+
+
+
+    outImage = make_unique<DiskImage>();
+    outImage->LoadFromBytes (fmt, bytes, path);
+
+    isLoaded = outImage->IsLoaded();
+
+    if (!isLoaded)
+    {
+        outImage.reset();
+        outDiagnosis = ClassifyLoadFailure (fmt, bytes);
+    }
+
+    CBR (isLoaded);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::SaveBeforeReplace
+//
+//  Saves the disk in the bay before a mount over it, and declines the mount
+//  when a guest write is in no file afterward. A recovery copy that is
+//  current lets another file in, because the copy has every write; it does
+//  not let the same file be read again, which would put the file's older
+//  contents in place of the session.
+//
+//  THE DECLINE TESTS THE DATA, NOT THE SAVE'S RESULT. A save that writes
+//  nothing, as during a replay, returns success with the image dirty, and a
+//  test of the result would retire that disk from its bay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::SaveBeforeReplace (Entry & entry, const string & newPath,
+                                           MountDiagnosis & outDiagnosis, FlushOutcome & outOutcome)
+{
+    HRESULT  hr         = S_OK;
+    HRESULT  hrSave     = S_OK;
+    HRESULT  hrDecline  = S_OK;
+    bool     isSameFile = false;
+    bool     canReplace = false;
+
+
+
+    BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
+
+    hrSave = FlushEntry (entry, FlushMoment::Replacing, outOutcome);
+    IGNORE_RETURN_VALUE (hrSave, S_OK);
+
+    isSameFile = IsSameFile (entry.path, newPath);
+    canReplace = !entry.image->IsDirty() || (!isSameFile && IsRecoveryCurrent (entry));
+    hrDecline  = FAILED (outOutcome.saveError) ? outOutcome.saveError : E_PENDING;
+
+    if (!canReplace)
+    {
+        outDiagnosis.failure       = MountFailure::UnsavedWrites;
+        outDiagnosis.saveError     = outOutcome.saveError;
+        outDiagnosis.keptPath      = entry.path;
+        outDiagnosis.isSameFile    = isSameFile;
+        outDiagnosis.occupiedDrive = entry.drive;
+        outDiagnosis.wasReported   = entry.sharedState.IsSaveFailureReported();
+
+        entry.sharedState.MarkSaveFailureReported (string());
+    }
+
+    CBREx (canReplace, hrDecline);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ReplaceBay
+//
+//  A mount over a bay: the new image is loaded first, then the disk in the
+//  bay is saved, and the two are swapped only when the save allows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::ReplaceBay (int slot, int drive, const string & path, DiskFormat fmt,
+                                    const vector<Byte> & bytes, MountDiagnosis & outDiagnosis,
+                                    FlushOutcome & outOutcome)
+{
+    HRESULT                hr      = S_OK;
+    bool                   isValid = IsValidBay (slot, drive);
+    string                 target  = path;
+    unique_ptr<DiskImage>  loaded;
 
 
 
@@ -303,65 +394,188 @@ HRESULT DiskImageStore::LoadIntoBay (
     outDiagnosis.format       = fmt;
     outDiagnosis.fileByteSize = bytes.size();
 
-    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
+    CBRAEx (isValid, E_INVALIDARG);
 
-    {
-        Entry &   entry = GetEntry (slot, drive);
+    hr = LoadImage (fmt, bytes, target, loaded, outDiagnosis);
+    CHR (hr);
 
-        wasMounted = entry.mounted;
+    hr = SaveBeforeReplace (GetEntry (slot, drive), target, outDiagnosis, outOutcome);
+    CHR (hr);
 
-        //  The watch is keyed by the old image's directory, so it is dropped
-        //  before the path changes; Mount watches the new one on success.
-        if (wasMounted)
-        {
-            hr = FlushEntry (entry, FlushMoment::Running);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            EndWatching (slot, drive);
-            RetireBay (entry);
-        }
-
-        entry.image   = make_unique<DiskImage> ();
-        entry.path    = virtualPath;
-        entry.format  = fmt;
-        entry.mounted = true;
-
-        entry.image->LoadFromBytes (fmt, bytes, virtualPath);
-
-        // A format the loader rejects leaves the slot empty rather than
-        // half-mounted.
-        if (!entry.image->IsLoaded())
-        {
-            entry.image.reset();
-            entry.path.clear();
-            entry.mounted        = false;
-            entry.salvageOffered = false;
-            outDiagnosis         = ClassifyLoadFailure (fmt, bytes);
-            hr = E_FAIL;
-
-            if (wasMounted)
-            {
-                entry.sharedState.Eject();
-                EmitBayChange (slot, drive, BayChange::Ejected);
-            }
-        }
-        else
-        {
-            // Decide the salvage question once, here, where the cost is paid
-            // by a mount the user already asked for. Undamaged images settle
-            // it for free; a damaged one is decoded once instead of on every
-            // menu draw.
-            SalvageAssessment  assessment;
-            HRESULT            hrAssess = AssessSalvage (slot, drive, assessment);
-
-            entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
-        }
-
-        MarkStatusChanged();
-    }
+    SwapInImage (GetEntry (slot, drive), std::move (loaded), target, fmt);
 
 Error:
+    //  A disk that stays in the drive is stated in the decline's text.
+    if (FAILED (hr) && isValid && GetEntry (slot, drive).mounted && outDiagnosis.keptPath.empty())
+    {
+        outDiagnosis.keptPath = GetEntry (slot, drive).path;
+    }
+
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::SwapInImage
+//
+//  Puts a loaded image in a bay. The disk that was there is retired, its
+//  watch dropped first because the watch is keyed by its directory, and the
+//  salvage question is settled once, here, where the cost is paid by a mount
+//  the user already asked for. Undamaged images settle it for free; a damaged
+//  one is decoded once instead of on every menu draw.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SwapInImage (Entry & entry, unique_ptr<DiskImage> loaded,
+                                  const string & path, DiskFormat fmt)
+{
+    SalvageAssessment  assessment;
+    HRESULT            hrAssess = S_OK;
+
+
+
+    if (entry.mounted)
+    {
+        EndWatching (entry.slot, entry.drive);
+        RetireBay (entry);
+    }
+
+    entry.image   = std::move (loaded);
+    entry.path    = path;
+    entry.format  = fmt;
+    entry.mounted = true;
+
+    hrAssess             = AssessSalvage (entry.slot, entry.drive, assessment);
+    entry.salvageOffered = SUCCEEDED (hrAssess) && assessment.isOffered;
+
+    MarkStatusChanged();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ReportReplaceOutcome
+//
+//  Reports a guest copy the save before a mount moved off a file another
+//  program changed. The text depends on how the mount ended: the same file
+//  reloaded, another file inserted, or no swap at all, with the bay on the
+//  copy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::ReportReplaceOutcome (int slot, int drive, const string & newPath, HRESULT hr,
+                                           const FlushOutcome & outcome)
+{
+    ChangePrompt  prompt;
+
+
+
+    if (outcome.movedTo.empty() || !m_reportSink)
+    {
+        return;
+    }
+
+    if (FAILED (hr))
+    {
+        prompt = ChangePrompt::ComposeConflictReport (outcome.movedFrom, drive, outcome.movedTo);
+    }
+    else if (IsSameFile (outcome.movedFrom, newPath))
+    {
+        prompt = ChangePrompt::ComposeReloadReport (outcome.movedFrom, drive, false, m_machineName,
+                                                    ChangeAuthor::AnotherProgram, outcome.movedTo, true);
+    }
+    else
+    {
+        prompt = ChangePrompt::ComposeReplacedReport (outcome.movedFrom, drive, outcome.movedTo, newPath);
+    }
+
+    m_reportSink (slot, drive, prompt);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::IsSameFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsSameFile (const string & left, const string & right)
+{
+    return MountedImageState::IsSamePath (fs::path (left).lexically_normal().string(),
+                                          fs::path (right).lexically_normal().string());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::AreWritesSaved
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::AreWritesSaved (Entry & entry)
+{
+    return !entry.mounted || entry.image == nullptr || !entry.image->IsDirty() || IsRecoveryCurrent (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::IsRecoveryCurrent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsRecoveryCurrent (Entry & entry)
+{
+    return entry.image != nullptr
+        && entry.sharedState.IsRecoveryCurrent (entry.image->GetImageId(), entry.image->GetTrackGenerations())
+        && IsRecoveryCopyIntact (entry);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::AreAllWritesSaved
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::AreAllWritesSaved()
+{
+    int   slot    = 0;
+    int   drive   = 0;
+    bool  isSaved = true;
+
+
+
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    for (slot = 0; slot < kSlotCount; slot++)
+    {
+        for (drive = 0; drive < kDriveCount; drive++)
+        {
+            isSaved = isSaved && AreWritesSaved (m_entries[slot][drive]);
+        }
+    }
+
+    return isSaved;
 }
 
 
@@ -647,9 +861,13 @@ bool DiskImageStore::IsFileInAnotherBay (const string & path, int exceptSlot, in
 HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
                                MountDiagnosis & outDiagnosis)
 {
-    HRESULT       hr        = S_OK;
-    DiskFormat    fmt       = DiskFormat::Dsk;
-    bool          elsewhere = false;
+    HRESULT       hr          = S_OK;
+    DiskFormat    fmt         = DiskFormat::Dsk;
+    bool          elsewhere   = false;
+    bool          isSameFile  = false;
+    bool          isUnchanged = false;
+    bool          isValid     = IsValidBay (slot, drive);
+    FlushOutcome  outcome;
     vector<Byte>  bytes;
 
 
@@ -657,6 +875,8 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     ASSERT_THREAD_OWNERSHIP (m_ownership);
 
     outDiagnosis = MountDiagnosis();
+
+    CBRAEx (isValid, E_INVALIDARG);
 
     //  ONE FILE, ONE DRIVE, and refused before a byte is read -- the bytes are
     //  not what is wrong with it. Two bays on one file each hold their own
@@ -678,10 +898,34 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
 
     outDiagnosis.format = fmt;
 
+    //  THE FILE IN THE BAY IS SAVED BEFORE IT IS READ. Reading first would load
+    //  the file without the writes the save is about to put in it, and the next
+    //  save would write that older disk back over them. When nothing is unsaved
+    //  after the save and the file is as the bay last read or wrote it, the
+    //  mounted image is the file, so it stays: nothing is read or swapped, and
+    //  the history gets no media change.
+    {
+        Entry &  entry = GetEntry (slot, drive);
+
+        isSameFile = entry.mounted && IsSameFile (entry.path, path);
+
+        if (isSameFile)
+        {
+            hr = SaveBeforeReplace (entry, path, outDiagnosis, outcome);
+            CHR (hr);
+
+            isUnchanged = !entry.image->IsDirty()
+                       && entry.sharedState.GetIdentity().recorded
+                       && entry.sharedState.GetIdentity().Matches (ReadIdentity (path));
+        }
+    }
+
+    BAIL_OUT_IF (isUnchanged, S_OK);
+
     hr = ReadImageFile (path, bytes);
     CHRF (hr, outDiagnosis.failure = MountFailure::FileUnreadable);
 
-    hr = LoadIntoBay (slot, drive, path, fmt, bytes, outDiagnosis);
+    hr = ReplaceBay (slot, drive, path, fmt, bytes, outDiagnosis, outcome);
     CHR (hr);
 
     //  Recorded AFTER the read and only on success, matching the command
@@ -705,6 +949,17 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path,
     NotifyMediaChanged();
 
 Error:
+    if (isValid)
+    {
+        //  A disk that stays in the drive is stated in the decline's text.
+        if (FAILED (hr) && GetEntry (slot, drive).mounted && outDiagnosis.keptPath.empty())
+        {
+            outDiagnosis.keptPath = GetEntry (slot, drive).path;
+        }
+
+        ReportReplaceOutcome (slot, drive, path, hr, outcome);
+    }
+
     return hr;
 }
 
@@ -721,8 +976,10 @@ Error:
 //  sees what it saw at the save even if the file has changed since. The
 //  bay still answers to the file's path, which is where a later guest write
 //  is flushed, and the file is watched from here like any mounted image.
-//  A disk the bay held is retired without a flush; the caller flushes first
-//  when it wants one.
+//
+//  THE IMAGE IS LOADED FIRST, so the bay is as it was when the bytes do not
+//  load. A disk in the bay is retired without a save, so the caller saves
+//  first, and the swap does not happen while a guest write is in no file.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -733,9 +990,12 @@ HRESULT DiskImageStore::MountRestored (
     DiskFormat             fmt,
     const vector<Byte>  &  bytes)
 {
-    HRESULT        hr       = S_OK;
-    bool           isValid  = IsValidBay (slot, drive);
-    ImageIdentity  identity;
+    HRESULT                hr           = S_OK;
+    bool                   isValid      = IsValidBay (slot, drive);
+    bool                   isSafeToSwap = false;
+    unique_ptr<DiskImage>  loaded;
+    MountDiagnosis         diagnosis;
+    ImageIdentity          identity;
 
 
 
@@ -743,18 +1003,17 @@ HRESULT DiskImageStore::MountRestored (
 
     CBRAEx (isValid, E_INVALIDARG);
 
+    hr = LoadImage (fmt, bytes, path, loaded, diagnosis);
+    CHR (hr);
+
     {
         Entry &  entry = GetEntry (slot, drive);
 
-        if (entry.mounted)
-        {
-            EndWatching (slot, drive);
-            RetireBay (entry);
-        }
-    }
+        isSafeToSwap = AreWritesSaved (entry);
+        CBREx (isSafeToSwap, E_UNEXPECTED);
 
-    hr = MountFromBytes (slot, drive, path, fmt, bytes);
-    CHR (hr);
+        SwapInImage (entry, std::move (loaded), path, fmt);
+    }
 
     identity = ReadIdentity (path);
 
@@ -878,13 +1137,79 @@ wstring DiskImageStore::FormatMountFailureMessage (const string & path,
 
 
 
+    wstring  message;
+
+
+
     if (widePath.empty())
     {
         widePath = L"(unknown path)";
     }
 
-    return L"Casso could not open this file as a disk image:\n\n" + widePath +
-           L"\n\nThis file " + reason + L".";
+    if (diagnosis.failure == MountFailure::UnsavedWrites)
+    {
+        message = FormatUnsavedWritesMessage (path, diagnosis);
+    }
+    else
+    {
+        message = L"Casso could not open this file as a disk image:\n\n" + widePath +
+                  L"\n\nThis file " + reason + L".";
+
+        if (!diagnosis.keptPath.empty())
+        {
+            message += L"\n\nThe disk already in the drive was not changed.";
+        }
+    }
+
+    return message;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormatUnsavedWritesMessage
+//
+//  The text for a mount declined because the disk in the drive has writes in
+//  no file. For another file, the insert did not happen; for the file the disk
+//  was read from, the save failed and the file was not read again. With no save
+//  attempted, there is no Error paragraph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatUnsavedWritesMessage (const string & path, const MountDiagnosis & diagnosis)
+{
+    wstring  widePath  = fs::path (path).wstring();
+    wstring  wideKept  = fs::path (diagnosis.keptPath).wstring();
+    wstring  errorPara;
+    wstring  message;
+
+
+
+    if (FAILED (diagnosis.saveError))
+    {
+        errorPara = L"\n\nError: " + ChangePrompt::DescribeError (diagnosis.saveError);
+    }
+
+    if (diagnosis.isSameFile)
+    {
+        message = L"Casso could not save changes to the disk image:\n\n" + wideKept + errorPara
+                + L"\n\nThe file on disk is unchanged, and the disk was not read from it again. "
+                  L"The drive still has your changes.";
+    }
+    else
+    {
+        message = L"Casso did not insert this disk image:\n\n" + widePath
+                + L"\n\nThe disk already in drive " + std::to_wstring (diagnosis.occupiedDrive + 1)
+                + (FAILED (diagnosis.saveError) ? L" has changes that could not be saved to its file:\n\n"
+                                                : L" has changes that have not been saved to its file yet:\n\n")
+                + wideKept + errorPara
+                + L"\n\nThat disk is still in the drive with its changes. Eject it to save them to another file.";
+    }
+
+    return message;
 }
 
 
@@ -1286,6 +1611,13 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment, FlushOutc
     // the image is not dirty until it is committed.
     entry.image->CommitPendingWrite();
 
+    //  A store with no files, such as a scratch machine's, saves nothing.
+    if (!m_isFileBacked)
+    {
+        entry.image->ClearDirty();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
 
     if (entry.image->IsWriteProtected())
@@ -1311,7 +1643,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment, FlushOutc
     // so the gate above returns before this point and the file is never
     // rewritten. The user is told at mount instead, which is earlier and is
     // where the decision actually gets made.
-    hr = PreserveConflictingCopy (entry, moment, isPreserved);
+    hr = PreserveConflictingCopy (entry, moment, isPreserved, outOutcome);
     CHR (hr);
 
     //  Nothing is written over the original. It is not this bay's file any
@@ -1372,7 +1704,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved)
+HRESULT DiskImageStore::PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved, FlushOutcome & outOutcome)
 {
     HRESULT        hr           = S_OK;
     HRESULT        hrKeep       = S_OK;
@@ -1451,8 +1783,14 @@ HRESULT DiskImageStore::PreserveConflictingCopy (Entry & entry, FlushMoment mome
     IGNORE_RETURN_VALUE (hrKeep, S_OK);
 
     //  Composed from the path the bay HAD, since that is the file the
-    //  message is about and the repoint above has already moved it.
-    if (m_reportSink)
+    //  message is about and the repoint above has already moved it. Before a
+    //  mount, the mount reports the copy, in a text that depends on its end.
+    if (moment == FlushMoment::Replacing)
+    {
+        outOutcome.movedFrom = original;
+        outOutcome.movedTo   = preservedPath;
+    }
+    else if (m_reportSink)
     {
         m_reportSink (entry.slot, entry.drive,
                       ChangePrompt::ComposeConflictReport (original, entry.drive, preservedPath));
@@ -1484,16 +1822,27 @@ void DiskImageStore::ReportSaveFailure (Entry & entry, FlushMoment moment, const
 {
     MountedImageState  & state    = entry.sharedState;
     string               copyPath = SUCCEEDED (outcome.recoveryError) ? outcome.recoveryPath : string();
-    bool                 isOnce   = moment == FlushMoment::Background;
+    bool                 isNews   = state.ShouldReportSaveFailure (copyPath);
+    bool                 isShown  = true;
 
 
 
-    if (!isOnce || state.ShouldReportSaveFailure (copyPath))
+    //  Before a mount, only a first recovery copy is news: a failure with
+    //  writes in no file declines the mount, and the decline is the report.
+    if (moment == FlushMoment::Replacing)
     {
-        EhmNotifyUser (FormatFlushLossMessage (entry.path, outcome).c_str());
+        isShown = !copyPath.empty() && isNews;
+    }
+    else if (moment == FlushMoment::Background)
+    {
+        isShown = isNews;
     }
 
-    state.MarkSaveFailureReported (copyPath);
+    if (isShown)
+    {
+        EhmNotifyUser (FormatFlushLossMessage (entry.path, outcome).c_str());
+        state.MarkSaveFailureReported (copyPath);
+    }
 }
 
 

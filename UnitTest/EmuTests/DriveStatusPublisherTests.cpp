@@ -230,7 +230,6 @@ public:
     {
         Rig                 rig;
         std::vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
-        std::vector<Byte>   bad (16, 0);
         std::vector<Byte>   saved;
         uint64_t            mediaId = 0;
         bool                changed = false;
@@ -242,7 +241,6 @@ public:
         rig.Write ("C:\\work\\a.woz",   MakeWoz());
 
         Step (rig, L"MountFromBytes", [&] { hr = rig.store.MountFromBytes (s_kStatusSlot, s_kStatusDrive, "bytes.dsk", DiskFormat::Dsk, raw); AssertSucceeded (hr, L"MountFromBytes"); });
-        Step (rig, L"MountFromBytes, bytes that do not load", [&] { (void) rig.store.MountFromBytes (s_kStatusSlot, s_kStatusDrive, "bad.dsk", DiskFormat::Dsk, bad); });
         Step (rig, L"Mount", [&] { hr = rig.store.Mount (s_kStatusSlot, s_kStatusDrive, "C:\\work\\a.dsk"); AssertSucceeded (hr, L"Mount"); });
         Step (rig, L"Eject", [&] { rig.store.Eject (s_kStatusSlot, s_kStatusDrive); });
 

@@ -51,6 +51,9 @@
 //                          header or checksum, so a file that is the right size
 //                          and holds high bits is indistinguishable from a real
 //                          one until something tries to boot it.
+//      UnsavedWrites       the disk already in the drive has writes that are in
+//                          no file, so it stays in the drive and the mount does
+//                          not happen
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +70,7 @@ enum class MountFailure
     WrongSizeForNibble,
     NotANibbleStream,
     AlreadyMounted,
+    UnsavedWrites,
 };
 
 
@@ -105,7 +109,20 @@ public:
     //  on its own sends the reader to look in both drives.
     int           occupiedDrive = -1;
 
+    //  For a decline over an occupied drive: the path of the disk that stays
+    //  in it, and for UnsavedWrites the save's error (S_OK when no save was
+    //  attempted), whether the new path is that disk's file, and whether this
+    //  mount had already reported a save failure.
+    string        keptPath;
+    HRESULT       saveError     = S_OK;
+    bool          isSameFile    = false;
+    bool          wasReported   = false;
+
     bool    HasFailure () const { return failure != MountFailure::None; }
+
+    //  Whether the decline is reported: false only for a same-file decline whose
+    //  save failure this mount has already reported.
+    bool    ShouldReport () const;
 
     //  The reason as a clause about the file, ready to follow its name.
     string  Describe   () const;

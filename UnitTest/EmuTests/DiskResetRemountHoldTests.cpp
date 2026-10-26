@@ -149,6 +149,120 @@ public:
     //  disk has no file behind it, so a write around the store has nowhere to
     //  go, yet it still clears the dirty bit without reaching the counting
     //  sink: the disk staying dirty is what shows nothing wrote it.
+    //  After a remount whose save fails, the drive, the image and the guest's
+    //  write are as they were.
+    TEST_METHOD (RemountAfterAFailedFlushKeepsTheDisk)
+    {
+        TestMachine         machine ("Apple2e");
+        auto                shell   = std::make_unique<Shell>();
+        DiskImageStore    & store   = machine.GetDiskStore();
+        DiskImage         * image   = nullptr;
+
+
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([] (const std::string &, const std::vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        AssertSucceeded (store.Mount (6, s_kRemountDrive, "C:\\work\\remount.nib"), L"Mount");
+        image = store.GetImage (6, s_kRemountDrive);
+        machine.GetRefs().diskController->SetExternalDisk (s_kRemountDrive, image);
+        image->WriteBit (0, s_kRemountBitIndex, image->ReadBit (0, s_kRemountBitIndex) ^ 1);
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            manager.RemountSlot6Disks();
+        }
+
+        machine.SoftReset();
+
+        Assert::IsTrue (store.GetImage (6, s_kRemountDrive) == image, L"the same disk is in the drive");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (s_kRemountDrive) == image, L"and the drive is on it");
+        Assert::IsTrue (image->IsDirty(), L"with the guest's write");
+    }
+
+
+    //  After a remount of a file that no longer loads, the disk that loaded is in the drive.
+    TEST_METHOD (RemountOfAFileThatNoLongerLoadsKeepsTheDisk)
+    {
+        TestMachine         machine  ("Apple2e");
+        auto                shell    = std::make_unique<Shell>();
+        DiskImageStore    & store    = machine.GetDiskStore();
+        DiskImage         * image    = nullptr;
+        bool                isBroken = false;
+
+
+
+        store.SetImageReader    ([&isBroken] (const std::string &, std::vector<Byte> & bytes)
+        {
+            bytes = isBroken ? std::vector<Byte> (16, 0) : MakeImage();
+            return S_OK;
+        });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store.Mount (6, s_kRemountDrive, "C:\\work\\remount.nib"), L"Mount");
+        image = store.GetImage (6, s_kRemountDrive);
+        machine.GetRefs().diskController->SetExternalDisk (s_kRemountDrive, image);
+
+        isBroken = true;
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            manager.RemountSlot6Disks();
+        }
+
+        machine.SoftReset();
+
+        Assert::IsTrue (store.GetImage (6, s_kRemountDrive) == image, L"the disk that loaded is in the drive");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (s_kRemountDrive) == image, L"and the drive is on it");
+    }
+
+
+    //  A machine switch saves every disk, power-cycles and mounts its disks
+    //  again; a disk whose save failed is in the drive afterward, with its writes.
+    TEST_METHOD (MachineSwitchKeepsADiskWhoseFlushFailed)
+    {
+        ScopedNotifyCount   notices;
+        TestMachine         machine ("Apple2e");
+        auto                shell   = std::make_unique<Shell>();
+        DiskImageStore    & store   = machine.GetDiskStore();
+        DiskImage         * image   = nullptr;
+
+
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([] (const std::string &, const std::vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        AssertSucceeded (store.Mount (6, s_kRemountDrive, "C:\\work\\remount.nib"), L"Mount");
+        image = store.GetImage (6, s_kRemountDrive);
+        image->WriteBit (0, s_kRemountBitIndex, image->ReadBit (0, s_kRemountBitIndex) ^ 1);
+
+        AssertFailed (store.FlushAll(), L"the switch's save fails");
+        machine.PowerCycle();
+
+        {
+            DiskManager  manager (machine, store, shell->audioSources, shell->audio, shell->widgets,
+                                  shell->widgetState, shell->chrome, shell->cpuManager, shell->machineName,
+                                  shell->config, shell->fs, shell->writeProtect, shell->workingDirectory);
+
+            manager.MountCommandLineDisks ("C:\\work\\remount.nib", "");
+        }
+
+        Assert::IsTrue (store.GetImage (6, s_kRemountDrive) == image, L"the same disk is in the drive");
+        Assert::IsTrue (machine.GetRefs().diskController->GetDisk (s_kRemountDrive) == image, L"and the drive is on it");
+        Assert::IsTrue (image->IsDirty(), L"with the guest's write");
+        Assert::AreEqual (1, notices.count, L"one notice");
+    }
+
+
     TEST_METHOD (ResetUnderHoldWritesNothingAndKeepsTheWrites)
     {
         TestMachine             machine ("Apple2e");
@@ -369,6 +483,20 @@ public:
     }
 
 private:
+
+    //  Counts the store's notices for the span of a test.
+    struct ScopedNotifyCount
+    {
+        static inline int  s_count = 0;
+
+        int &  count = s_count;
+
+        static void  Count (const wchar_t *) { s_count++; }
+
+        ScopedNotifyCount()  { s_count = 0; SetNotifyFunction (Count); }
+        ~ScopedNotifyCount() { SetNotifyFunction (nullptr); }
+    };
+
 
     static std::vector<Byte> MakeImage()
     {

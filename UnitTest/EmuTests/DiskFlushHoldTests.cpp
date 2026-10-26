@@ -260,6 +260,83 @@ public:
 
 
 
+    //  A mount that fails retires nothing and saves nothing.
+    TEST_METHOD (AFailedMountRetiresNothingWhileRetained)
+    {
+        auto      store = std::make_unique<DiskImageStore>();
+        Files     files;
+        uint64_t  now   = 0;
+
+
+
+        PrepareDirtyDisk (*store, files);
+        store->SetPositionSource (&now);
+        store->SetMediaRetention (true);
+
+        AssertFailed (store->MountFromBytes (s_kHoldSlot, s_kHoldDrive, "junk.dsk", DiskFormat::Dsk, std::vector<Byte> (16, 0)),
+                      L"bytes that do not load");
+
+        Assert::AreEqual<size_t> (0, store->GetRetainedMediaCount(), L"nothing is retired");
+        Assert::AreEqual<size_t> (0, files.writes, L"and nothing is saved");
+        Assert::IsTrue (store->HasUnsavedWrites(), L"the disk with its writes is in the drive");
+    }
+
+
+    //  A mount declined for unsaved writes is no event for the history.
+    TEST_METHOD (DeclinedMountForUnsavedWritesRecordsNothing)
+    {
+        DiskImageStore  store;
+        uint64_t        now     = 0;
+        uint64_t        mediaId = 0;
+        int             changes = 0;
+
+
+
+        store.SetImageReader    ([] (const std::string &, std::vector<Byte> & bytes) { bytes = MakeImage(); return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([] (const std::string &, const std::vector<Byte> &) { return HRESULT_FROM_WIN32 (ERROR_DISK_FULL); });
+
+        AssertSucceeded (store.Mount (s_kHoldSlot, s_kHoldDrive, "hold.nib"), L"Mount");
+        Dirty (store);
+
+        store.SetPositionSource      (&now);
+        store.SetMediaRetention      (true);
+        store.SetMediaChangeListener ([&changes] { changes++; });
+        mediaId = store.GetMediaId (s_kHoldSlot, s_kHoldDrive);
+
+        AssertFailed (store.MountFromBytes (s_kHoldSlot, s_kHoldDrive, "other.nib", DiskFormat::Nib, MakeImage()),
+                      L"the insert is declined");
+
+        Assert::AreEqual (0, changes, L"no media change");
+        Assert::AreEqual<size_t> (0, store.GetRetainedMediaCount(), L"nothing retired");
+        Assert::AreEqual<uint64_t> (mediaId, store.GetMediaId (s_kHoldSlot, s_kHoldDrive), L"the same disk");
+    }
+
+
+    //  After a save a replay skipped, the disk is dirty, and the mount over it
+    //  is declined rather than retiring the writes.
+    TEST_METHOD (ReplaySkippedSaveDoesNotLetAMountRetireTheDisk)
+    {
+        auto          store = std::make_unique<DiskImageStore>();
+        Files         files;
+        DiskImage   * image = nullptr;
+
+
+
+        PrepareDirtyDisk (*store, files);
+        image = store->GetImage (s_kHoldSlot, s_kHoldDrive);
+
+        store->SetReplaying (true);
+
+        AssertFailed (store->MountFromBytes (s_kHoldSlot, s_kHoldDrive, "other.nib", DiskFormat::Nib, MakeImage()),
+                      L"the mount is declined");
+
+        Assert::IsTrue (store->GetImage (s_kHoldSlot, s_kHoldDrive) == image, L"the disk is in the drive");
+        Assert::IsTrue (image->IsDirty(), L"with its writes");
+        Assert::AreEqual<size_t> (0, files.writes, L"and the replay wrote nothing");
+    }
+
+
     //  The owner's answer: held writes are saved by default when the disk
     //  leaves, the machine is switched, or the emulator exits.
     TEST_METHOD (HoldStillSavesOnEjectSwitchAndExit)

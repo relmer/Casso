@@ -156,7 +156,7 @@ public:
     //  The flushes nobody asked for: the motor spinning down, a reset and a
     //  power cycle. They do nothing while the flush hold is on or a replay is
     //  running; every other flush (eject, machine switch, exit, an explicit
-    //  save) still writes, and writes the disk as it stands now.
+    //  save, a mount over a disk) writes, and writes the disk as it is now.
     HRESULT       FlushAllUnlessHeld ();
 
     //  Reverse execution keeps guest writes in memory while it records: the
@@ -166,6 +166,10 @@ public:
     void          SetFlushHold      (bool isHeld) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_isFlushHeld = isHeld; }
     bool          IsFlushHeld       () const      { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_isFlushHeld; }
     bool          HasUnsavedWrites  () const;
+
+    //  Whether every bay's guest writes are in a file: the disk is clean, or
+    //  its recovery copy is current.
+    bool          AreAllWritesSaved ();
     int           CountUnsavedDisks () const;
     HRESULT       CommitHeldWrites  ();
     HRESULT       DiscardHeldWrites ();
@@ -306,6 +310,10 @@ public:
     //  without it a pick-up cannot be deferred for a third-party writer, and
     //  the quiet period is the only debounce.
     void          SetFileIo (IDiskFileIo * fileIo) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_fileIo = fileIo; }
+
+    //  False for a store whose disks have no file to save to, such as a
+    //  scratch machine's: its saves write nothing and clear the dirty bits.
+    void          SetFileBacked (bool isFileBacked) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_isFileBacked = isFileBacked; }
 
     //  The machine as the user knows it, for the notices that mention it.
     //  "Apple //e" rather than "the Apple", which is not what is in front of
@@ -504,6 +512,11 @@ public:
     static wstring  FormatMountFailureMessage (const string & path,
                                                const MountDiagnosis & diagnosis);
 
+    //  FormatMountFailureMessage's text for a mount declined because the disk
+    //  in the drive has writes in no file, for another file or the same one.
+    static wstring  FormatUnsavedWritesMessage (const string & path,
+                                                const MountDiagnosis & diagnosis);
+
     //  Why a load of these bytes was refused, from what the bytes and the
     //  format alone can settle. Static and pure, so a test can ask it about a
     //  buffer without mounting anything.
@@ -577,6 +590,11 @@ private:
         //  question goes the same way as at Running.
         Background,
 
+        //  The save before a mount over the bay. Only a first recovery copy is
+        //  reported; a save after which writes are in no file declines the
+        //  mount, and the mount's text reports it.
+        Replacing,
+
         //  The disk is coming out. The question goes the same way, but the
         //  eject waits for it: emptying the bay is what would destroy a disk
         //  whose copy could not be written, so it does not happen until the
@@ -598,6 +616,11 @@ private:
         bool     isUnserializable = false;
         string   recoveryPath;
         HRESULT  recoveryError    = S_OK;
+
+        //  At Replacing, the file another program changed and where the
+        //  guest's version went instead, for the mount to report.
+        string   movedFrom;
+        string   movedTo;
     };
 
     Entry &       GetEntry          (int slot, int drive);
@@ -609,7 +632,7 @@ private:
     //  FlushEntry's steps: moving the guest's version to a separate file when
     //  another program changed the bay's file, telling the user a save
     //  failed, and recording the file the save committed.
-    HRESULT       PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved);
+    HRESULT       PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved, FlushOutcome & outOutcome);
     void          ReportSaveFailure       (Entry & entry, FlushMoment moment, const FlushOutcome & outcome);
     void          RecordCommittedFile     (Entry & entry, const vector<Byte> & savedBytes);
 
@@ -781,11 +804,30 @@ private:
     //  Milliseconds now, through the injected clock when one is installed.
     int64_t        GetNowMs () const;
 
-    //  Loads bytes into a bay for MountFromBytes and Mount, which each call the
-    //  bay-change sink after a successful load, in their own order.
-    HRESULT        LoadIntoBay (int slot, int drive, const string & virtualPath,
-                                DiskFormat fmt, const vector<Byte> & bytes,
-                                MountDiagnosis & outDiagnosis);
+    //  A mount over a bay, in its order: load the new image, save the disk in
+    //  the bay, and swap them only when the save left no write in no file.
+    //  LoadImage builds the image without touching the bay; SaveBeforeReplace
+    //  declines with UnsavedWrites; SwapInImage retires the old disk and seats
+    //  the new one; ReportReplaceOutcome reports a guest copy the save moved.
+    static HRESULT  LoadImage          (DiskFormat fmt, const vector<Byte> & bytes, const string & path,
+                                        unique_ptr<DiskImage> & outImage, MountDiagnosis & outDiagnosis);
+    HRESULT         SaveBeforeReplace  (Entry & entry, const string & newPath,
+                                        MountDiagnosis & outDiagnosis, FlushOutcome & outOutcome);
+    HRESULT         ReplaceBay         (int slot, int drive, const string & path, DiskFormat fmt,
+                                        const vector<Byte> & bytes, MountDiagnosis & outDiagnosis,
+                                        FlushOutcome & outOutcome);
+    void            SwapInImage        (Entry & entry, unique_ptr<DiskImage> loaded,
+                                        const string & path, DiskFormat fmt);
+    void            ReportReplaceOutcome (int slot, int drive, const string & newPath, HRESULT hr,
+                                          const FlushOutcome & outcome);
+
+    //  Whether a bay's guest writes are in a file, and whether its recovery
+    //  copy is current and as this mount wrote it.
+    bool            AreWritesSaved     (Entry & entry);
+    bool            IsRecoveryCurrent  (Entry & entry);
+
+    //  Whether two paths are one file, after `..` and `.\` are resolved.
+    static bool     IsSameFile         (const string & left, const string & right);
 
     //  Tells the shell a bay's disk changed, when a sink is installed. The one
     //  chokepoint every mutation path calls, so the door and its sounds cannot
@@ -798,8 +840,9 @@ private:
     IdentityReader           m_identityReader;
     string                   m_emptyPath;
 
-    IImageWatcher *          m_watcher  = nullptr;
-    IDiskFileIo *            m_fileIo   = nullptr;
+    IImageWatcher *          m_watcher      = nullptr;
+    IDiskFileIo *            m_fileIo       = nullptr;
+    bool                     m_isFileBacked = true;
 
     std::function<void ()>   m_restartCallback;
     string                   m_machineName;

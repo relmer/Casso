@@ -378,9 +378,10 @@ public:
 
 
 
-    //  A failed remount empties the bay, so it drops the watch and the
-    //  identity as an eject does.
-    TEST_METHOD (AFailedRemountDropsTheWatchAndTheIdentity)
+    //  After a mount fails over a disk, that disk is in the drive, its folder
+    //  is watched and its identity is set: the watched set is the mounted
+    //  bays' folders.
+    TEST_METHOD (AFailedMountOverADiskKeepsItsFolderWatched)
     {
         Rig                rig;
         std::vector<Byte>  junk (0x10, 0);
@@ -391,12 +392,13 @@ public:
         rig.WriteImage (kImagePath, 0x11);
         AssertSucceeded (rig.store.Mount (kSlot, kDrive, kImagePath));
 
-        hrMount = rig.store.MountFromBytes (kSlot, kDrive, "junk.dsk", DiskFormat::Dsk, junk);
+        hrMount = rig.store.MountFromBytes (kSlot, kDrive, "C:\\elsewhere\\junk.dsk", DiskFormat::Dsk, junk);
 
         Assert::IsTrue  (FAILED (hrMount));
-        Assert::AreEqual ((size_t) 0, rig.watcher.watched.size());
-        Assert::AreEqual ((size_t) 1, rig.watcher.unwatched.size());
-        Assert::IsFalse (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity().recorded);
+        Assert::IsTrue  (rig.store.IsMounted (kSlot, kDrive), L"the disk is in the drive");
+        Assert::IsTrue  (rig.watcher.watched == std::vector<std::string> { kDirectory }, L"and its folder is the one watched");
+        Assert::AreEqual ((size_t) 0, rig.watcher.unwatched.size());
+        Assert::IsTrue  (rig.store.GetSharedState (kSlot, kDrive)->GetIdentity().recorded, L"with its identity");
     }
 
 
@@ -1697,8 +1699,8 @@ public:
             Assert::IsTrue (rig->bayChanges[0] == BayChange::Inserted);
         }
 
-        //  A failed remount frees the mounted disk and empties the bay ->
-        //  Ejected.
+        //  After a failed remount the mounted disk is in the bay, so there is
+        //  no bay change.
         {
             auto               rig      = std::make_unique<Rig>();
             std::vector<Byte>  junk (0x10, 0);
@@ -1710,9 +1712,8 @@ public:
             hrMount = rig->store.MountFromBytes (kSlot, kDrive, "junk.dsk", DiskFormat::Dsk, junk);
 
             Assert::IsTrue (FAILED (hrMount));
-            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
-            Assert::IsTrue (rig->bayChanges[1] == BayChange::Ejected);
-            Assert::IsFalse (rig->store.IsMounted (kSlot, kDrive));
+            Assert::AreEqual ((size_t) 1, rig->bayChanges.size());
+            Assert::IsTrue (rig->store.IsMounted (kSlot, kDrive));
         }
     }
 
@@ -2547,6 +2548,60 @@ public:
             rig.bayChanges.push_back (change);
             eng.SetDiskImage (rig.store.GetImage (kSlot, kDrive));
         });
+    }
+
+
+
+    //  The save before an insert of another file finds the disk's file
+    //  changed: the guest's version goes to a new file first, then the new
+    //  disk goes in, and the report has both.
+    TEST_METHOD (AnInsertOverAChangedFileSavesTheGuestCopyFirst)
+    {
+        auto         rig   = std::make_unique<Rig>();
+        std::string  other = "C:\\work\\Other.dsk";
+
+
+
+        rig->WriteImage (kImagePath, 0x11);
+        rig->WriteImage (other, 0x33);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+        rig->store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig->store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        rig->WriteImage (kImagePath, 0x22);
+
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, other));
+
+        Assert::AreEqual ((size_t) 1, rig->PreservedPaths().size(), L"the guest's version is in a copy");
+        Assert::AreEqual (other, rig->store.GetSourcePath (kSlot, kDrive), L"the new disk is in the drive");
+        Assert::AreEqual ((size_t) 1, rig->reports.size());
+        Assert::IsTrue (rig->reports[0].message.find (L"and then inserted") != std::wstring::npos, rig->reports[0].message.c_str());
+    }
+
+
+
+    //  The same for a remount of the changed file: the copy first, then the
+    //  file as the other program left it.
+    TEST_METHOD (ARemountOverAChangedFileReportsTheReloadAndTheCopy)
+    {
+        auto  rig = std::make_unique<Rig>();
+
+
+
+        rig->WriteImage (kImagePath, 0x11);
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+        rig->store.GetImage (kSlot, kDrive)->GetTrackBitsForWrite (0)[0] = 0x7F;
+        rig->store.GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+
+        rig->WriteImage (kImagePath, 0x22);
+
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+
+        Assert::AreEqual ((size_t) 1, rig->PreservedPaths().size(), L"the guest's version is in a copy");
+        Assert::AreEqual (std::string (kImagePath), rig->store.GetSourcePath (kSlot, kDrive), L"the drive has the file");
+        Assert::AreEqual ((size_t) 1, rig->reports.size());
+        Assert::IsTrue (rig->reports[0].message.find (L"now has the modified version") != std::wstring::npos, rig->reports[0].message.c_str());
+        Assert::IsTrue (rig->reports[0].message.find (L"remounted in") == std::wstring::npos);
     }
 
 

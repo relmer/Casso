@@ -308,9 +308,9 @@ public:
 
     //  The machine's store re-points the slot 6 controller on every bay
     //  change, with no SetExternalDisk call from the caller: a mount attaches
-    //  the store's image, and a failed remount, which frees that image, puts
-    //  the drive back on the controller's own empty disk.
-    TEST_METHOD (StoreMounts_RepointTheController_AndAFailedRemountDetachesIt)
+    //  the store's image, and after a failed remount that image is in the bay
+    //  and the drive is on it.
+    TEST_METHOD (StoreMounts_RepointTheController_AndAFailedRemountKeepsTheDisk)
     {
         TestMachine          machine ("Apple2e");
         Disk2Controller   *  disk    = machine.GetRefs().diskController;
@@ -330,8 +330,9 @@ public:
 
         hr = machine.GetDiskStore().MountFromBytes (kSlot6, kDrive2, "junk.dsk", DiskFormat::Dsk, junk);
 
-        Assert::IsTrue  (FAILED (hr),                     L"too few bytes for a .dsk");
-        Assert::IsFalse (disk->HasExternalDisk (kDrive2), L"the freed image is no longer attached");
+        Assert::IsTrue (FAILED (hr), L"too few bytes for a .dsk");
+        Assert::IsTrue (disk->GetDisk (kDrive2) == machine.GetDiskStore().GetImage (kSlot6, kDrive2),
+                        L"the drive is on the disk that stayed");
     }
 };
 

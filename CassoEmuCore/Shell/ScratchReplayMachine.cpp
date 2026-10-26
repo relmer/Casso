@@ -100,7 +100,8 @@ HRESULT ScratchReplayMachine::Build()
     hr = m_builder->Build (config);
     CHR (hr);
 
-    m_machine->GetDiskStore().SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+    //  A scratch machine's disks have no file: its saves write nothing.
+    m_machine->GetDiskStore().SetFileBacked (false);
 
     m_replayer = std::make_unique<Replayer> (*m_machine, m_noKeyframes);
     m_replayer->SetOverMountedMedia (true);

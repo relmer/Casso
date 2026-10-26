@@ -212,6 +212,13 @@ struct ChangePrompt
     static ChangePrompt  ComposeConflictReport (const std::string & imagePath, int drive,
                                                 const std::string & copyPath);
 
+    //  The notice when the save before an insert of another file finds the
+    //  disk's file changed by another program: the guest's version is written
+    //  to a new file, and then the new disk is inserted.
+    static ChangePrompt  ComposeReplacedReport (const std::string & imagePath, int drive,
+                                                const std::string & copyPath,
+                                                const std::string & insertedPath);
+
     //  The failure shown when a copy could not be written.
     //
     //  IT CARRIES THE PATH IT TRIED AND WHAT THE SYSTEM SAID, and offers

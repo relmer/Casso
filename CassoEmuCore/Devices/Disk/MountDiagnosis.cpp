@@ -82,6 +82,10 @@ string MountDiagnosis::Describe() const
                    "layout this loader accepts";
             break;
 
+        case MountFailure::UnsavedWrites:
+            text = "was not inserted, because the disk has changes that could not be saved";
+            break;
+
         case MountFailure::None:
         default:
             text = "could not be opened as a disk image, and Casso did not record "
@@ -90,6 +94,21 @@ string MountDiagnosis::Describe() const
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MountDiagnosis::ShouldReport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MountDiagnosis::ShouldReport() const
+{
+    return !(failure == MountFailure::UnsavedWrites && isSameFile && wasReported);
 }
 
 

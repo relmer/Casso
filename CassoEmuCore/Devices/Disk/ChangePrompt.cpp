@@ -360,6 +360,41 @@ ChangePrompt ChangePrompt::ComposeConflictReport (const std::string & imagePath,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ChangePrompt::ComposeReplacedReport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ChangePrompt ChangePrompt::ComposeReplacedReport (const std::string & imagePath, int drive,
+                                                  const std::string & copyPath,
+                                                  const std::string & insertedPath)
+{
+    ChangePrompt  prompt;
+    std::wstring  file     = GetFileName (imagePath);
+    std::wstring  copy     = fs::path (copyPath).wstring();
+    std::wstring  inserted = fs::path (insertedPath).wstring();
+
+
+
+    prompt.title   = L"Disk modified outside Casso";
+
+    prompt.message = L"Another program changed " + file + L" while drive " + std::to_wstring (drive + 1)
+                   + L" had unsaved changes to it. Casso saved your version to\n\n" + copy
+                   + L"\n\nand then inserted\n\n" + inserted
+                   + L"\n\nThe original file keeps the other program's version.";
+
+    prompt.answers.push_back (PromptAnswer { L"Dismiss", ChangeAction::Ignore });
+
+    prompt.imagePath = imagePath;
+
+    return prompt;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ChangePrompt::ComposeSaveFailure
 //
 //  A copy that could not be written.

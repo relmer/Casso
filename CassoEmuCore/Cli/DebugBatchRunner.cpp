@@ -182,9 +182,10 @@ void DebugBatchRunner::Execute (const CommandLineOptions::DebugOptions & options
 
     RunLines (options, lines, session, result);
 
+    //  The process exits next, so this is the last save.
     if (options.writeDisks)
     {
-        hr = m_host->GetDiskStore().FlushAll();
+        hr = m_host->GetDiskStore().FlushAllForShutdown();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
@@ -276,7 +277,7 @@ void DebugBatchRunner::RouteDiskIo (bool writeThrough)
     }
     else
     {
-        store.SetFlushSink ([] (const std::string &, const std::vector<Byte> &) { return S_OK; });
+        store.SetFileBacked (false);
     }
 }
 
