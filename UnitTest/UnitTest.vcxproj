@@ -477,6 +477,7 @@
     <ClCompile Include="EmuTests\BackwardsCompatTests.cpp" />
     <ClCompile Include="EmuTests\AssetBootstrapTests.cpp" />
     <ClCompile Include="EmuTests\DiskAudioFetchTests.cpp" />
+    <ClCompile Include="EmuTests\InspectorPerformanceTests.cpp" />
     <ClCompile Include="EmuTests\PerformanceTests.cpp" />
     <ClCompile Include="Audio\AudioEndpointNotifierTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceStateTests.cpp" />
