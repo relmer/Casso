@@ -776,41 +776,24 @@ listed in validation.md.
   broken chain, and Copy's message is "Unable to copy HELLO: the track/sector
   list is damaged." Checked on screen for Copy and the CLI; the drag to
   File Explorer is the owner's. Test in `CassoExplorerDragOutTests.cpp`.
-- [ ] T259 Show the drop tip, as "Move to out", on a drag out of an image to
-  File Explorer, which a drag of host files has and a drag of an image's
-  files does not. `DxuiDragDropSource::Begin` now sets up the shell's drag
-  helper from the window when the drag image cannot be set, but every Apple
-  file icon passes `SetDragImage`'s check at 32 to 96 pixels, so that is not
-  the cause. A drag of host files uses the shell's data object and an
-  image's files use `DxuiDragDropSource`, so what the shell stores in the
-  data object through `SetData` is what to look at next. Checking it takes a real drag
-  to check.
-
-  A debug build writes `%TEMP%\DxuiDragTrace.log`: the drag image's setup
-  and its HRESULT, each format set on the object, the shell's
-  `IsShowingLayered` as it changes, and how `DoDragDrop` ended. After one drag
-  of a file out of an image onto a File Explorer folder, the log has which
-  half fails. With `IsShowingLayered` at 0 throughout, the shell never put its
-  drag window up for this object. With it set and no `DropDescription`
-  among the formats, File Explorer never sent the words. Take the trace out
-  once the cause is found.
-
-  The fallback to the shell's helper was taken out again, as a precaution:
-  the owner saw Casso's icon beside an empty white box, and a broken tip, on
-  a drag of a disk image after it went in. That fallback runs only for a
-  drag from inside an image or of an image's tree node; a disk image dragged
-  from a host folder's list goes through `Win32ShellItemVerbs::DragItems`,
-  which calls `SetDragImage` and `SHDoDragDrop` and was not changed.
-
-  The owner's first trace, on 2026-10-25: `SetDragImage` succeeds at
-  144x144, `IsShowingLayered` is 1 from the start, and File Explorer sets a
-  `DropDescription` on every move, so the drag window is up and has the
-  words. Over File Explorer it then requests `UntrustedDragDrop`, which the
-  object does not offer, and sets `DisableDragText` about every 60 ms. That
-  Casso Explorer was elevated, started from an elevated terminal, which may
-  account for those two; the owner's earlier repro was not elevated and
-  looked the same. The trace now has each four-byte format's value, for
-  whether `DisableDragText` is 1.
+- [X] T259 Show the drop tip, as "Copy to out", on a drag out of an image to
+  File Explorer, which a drag of host files had and a drag of an image's
+  files did not. The shell's drag window draws a drop description only when
+  the drop source posts it DDWM_UPDATEWINDOW (`WM_USER + 3`, which the SDK
+  does not declare), and the shell's own drop source does that for host
+  files. File Explorer also clears the description to `DROPIMAGE_INVALID`
+  with no words wherever it has no effect yet, leaving the type to the
+  source. `DxuiDragDropSource::GiveFeedback` now fills an invalid type in from
+  the effect, copy when the target offers copy or move, makes a description
+  for a target that sets none, and posts the update after each change to the
+  description, the target's included. Checked on screen with a real drag of
+  HELLO out of a DOS 3.3 image and cancelled over File Explorer: "+ Copy to
+  out" under the image. Tests in `DxuiDragDropSourceTests.cpp`. The debug
+  trace and drag mode file used to find it were taken out. The black block
+  beside a host disk image's tip, in the owner's picture, did not reproduce
+  in four captures over File Explorer and over Casso Explorer's own tree.
+  That drag goes through `Win32ShellItemVerbs::DragItems` and the shell's own
+  drop source, which this change does not touch.
 - [ ] T260 Report every volume refusal as "Unable to <verb> <file>: <what is
   wrong>", in the file system's terms where they differ, as T258 does for a
   damaged file. The sentences are in `DiskCommandRunner::DescribeVolumeRefusal`,

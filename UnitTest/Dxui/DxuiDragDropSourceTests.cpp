@@ -265,4 +265,173 @@ public:
                           L"The helper stores a stream as well as the image, and fails if the object refuses it");
         Assert::AreEqual (S_OK, fixture.source->QueryGetData (&bits));
     }
+
+
+    //  Sets `size` bytes under a registered format, as a target or the shell's
+    //  drag window does.
+    static void  Store (DxuiDragDropSource * source, const wchar_t * name, const void * bytes, size_t size)
+    {
+        FORMATETC   format = { (CLIPFORMAT) RegisterClipboardFormatW (name), nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+        STGMEDIUM   medium = {};
+        HGLOBAL     global = GlobalAlloc (GMEM_MOVEABLE, size);
+        void      * locked = nullptr;
+
+        Assert::IsNotNull (global);
+        locked = GlobalLock (global);
+        Assert::IsNotNull (locked);
+
+        memcpy (locked, bytes, size);
+        GlobalUnlock (global);
+        medium.tymed   = TYMED_HGLOBAL;
+        medium.hGlobal = global;
+
+        Assert::AreEqual (S_OK, source->SetData (&format, &medium, TRUE));
+    }
+
+
+    static void  StoreDword (DxuiDragDropSource * source, const wchar_t * name, DWORD value)
+    {
+        Store (source, name, &value, sizeof (value));
+    }
+
+
+    static void  StoreDescription (DxuiDragDropSource * source, DROPIMAGETYPE type, const wchar_t * message, const wchar_t * insert)
+    {
+        DROPDESCRIPTION  description = {};
+
+        description.type = type;
+        wcscpy_s (description.szMessage, message);
+        wcscpy_s (description.szInsert,  insert);
+
+        Store (source, CFSTR_DROPDESCRIPTION, &description, sizeof (description));
+    }
+
+
+    static DROPDESCRIPTION  ReadDescription (DxuiDragDropSource * source)
+    {
+        DROPDESCRIPTION       description = {};
+        HRESULT               hr          = S_OK;
+        std::vector<uint8_t>  bytes       = Pull (source, (CLIPFORMAT) RegisterClipboardFormatW (CFSTR_DROPDESCRIPTION), -1, hr);
+
+        Assert::AreEqual (S_OK, hr, L"A description is on the object");
+        Assert::IsTrue (bytes.size() >= sizeof (description));
+
+        memcpy (&description, bytes.data(), sizeof (description));
+
+        return description;
+    }
+
+
+    //  The drag window's rereads asked of it so far, taken off its queue.
+    static int  CountUpdates (HWND window)
+    {
+        MSG  message = {};
+        int  count   = 0;
+
+        //  DDWM_UPDATEWINDOW.
+        while (PeekMessageW (&message, window, WM_USER + 3, WM_USER + 3, PM_REMOVE))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
+
+    //  File Explorer words its description and leaves the type invalid, for
+    //  the source to fill in; the drag window draws nothing until it is.
+    TEST_METHOD (GiveFeedback_FillsInTheTypeATargetLeftInvalid)
+    {
+        Fixture          fixture;
+        DROPDESCRIPTION  description = {};
+
+        Build (fixture);
+
+        StoreDword (fixture.source, L"IsShowingLayered", 1);
+        StoreDescription (fixture.source, DROPIMAGE_INVALID, L"Copy to %1", L"out");
+
+        Assert::AreEqual (S_OK, fixture.source->GiveFeedback (DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_SCROLL));
+
+        description = ReadDescription (fixture.source);
+        Assert::AreEqual ((int) DROPIMAGE_COPY, (int) description.type, L"An effect of copy or move is described as a copy");
+        Assert::AreEqual (L"Copy to %1", description.szMessage, false, L"and the target's words are kept");
+        Assert::AreEqual (L"out",        description.szInsert,  false);
+
+        fixture.source->GiveFeedback (DROPEFFECT_MOVE);
+        Assert::AreEqual ((int) DROPIMAGE_MOVE, (int) ReadDescription (fixture.source).type, L"A type the source set follows the effect");
+
+        fixture.source->GiveFeedback (DROPEFFECT_NONE);
+        Assert::AreEqual ((int) DROPIMAGE_NONE, (int) ReadDescription (fixture.source).type);
+    }
+
+
+    TEST_METHOD (GiveFeedback_LeavesATypeTheTargetChose)
+    {
+        Fixture  fixture;
+
+        Build (fixture);
+
+        StoreDword (fixture.source, L"IsShowingLayered", 1);
+        StoreDescription (fixture.source, DROPIMAGE_WARNING, L"Cannot copy here", L"");
+
+        fixture.source->GiveFeedback (DROPEFFECT_COPY);
+
+        Assert::AreEqual ((int) DROPIMAGE_WARNING, (int) ReadDescription (fixture.source).type);
+    }
+
+
+    TEST_METHOD (GiveFeedback_DescribesTheEffectForATargetThatSetsNoDescription)
+    {
+        Fixture          fixture;
+        DROPDESCRIPTION  description = {};
+
+        Build (fixture);
+
+        fixture.source->GiveFeedback (DROPEFFECT_LINK);
+        Assert::AreEqual ((DWORD) 0, fixture.source->GetStoredDword (CFSTR_DROPDESCRIPTION, 0),
+                          L"Without the shell's drag window, OLE's cursors show the effect and no description is made");
+
+        StoreDword (fixture.source, L"IsShowingLayered", 1);
+        fixture.source->GiveFeedback (DROPEFFECT_LINK);
+
+        description = ReadDescription (fixture.source);
+        Assert::AreEqual ((int) DROPIMAGE_LINK, (int) description.type, L"so the drag window draws the effect's icon");
+        Assert::AreEqual (L"", description.szMessage, false);
+    }
+
+
+    //  The drag window rereads a description only when told to, a target's
+    //  as well as the source's, and once per change is enough.
+    TEST_METHOD (GiveFeedback_TellsTheDragWindowOfEachChange)
+    {
+        Fixture  fixture;
+        HWND     window = CreateWindowExW (0, L"STATIC", nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
+
+        Assert::IsNotNull (window);
+        Build (fixture);
+
+        StoreDword (fixture.source, L"IsShowingLayered", 1);
+        StoreDword (fixture.source, L"DragWindow", (DWORD) (ULONG_PTR) window);
+        StoreDescription (fixture.source, DROPIMAGE_INVALID, L"", L"");
+
+        fixture.source->GiveFeedback (DROPEFFECT_NONE);
+        Assert::AreEqual (1, CountUpdates (window), L"The source's first description");
+
+        fixture.source->GiveFeedback (DROPEFFECT_NONE);
+        Assert::AreEqual (0, CountUpdates (window), L"The same description again is not redrawn");
+
+        StoreDescription (fixture.source, DROPIMAGE_COPY, L"Copy to %1", L"out");
+        fixture.source->GiveFeedback (DROPEFFECT_COPY);
+        Assert::AreEqual (1, CountUpdates (window), L"The target's words, which the window would otherwise never draw");
+
+        StoreDescription (fixture.source, DROPIMAGE_INVALID, L"Copy to %1", L"out");
+        fixture.source->GiveFeedback (DROPEFFECT_COPY);
+        Assert::AreEqual (0, CountUpdates (window), L"A type left invalid and filled in to what is drawn already");
+
+        StoreDescription (fixture.source, DROPIMAGE_INVALID, L"", L"");
+        fixture.source->GiveFeedback (DROPEFFECT_NONE);
+        Assert::AreEqual (1, CountUpdates (window), L"Leaving the target");
+
+        DestroyWindow (window);
+    }
 };

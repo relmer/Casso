@@ -99,21 +99,20 @@ private:
 
     static HRESULT  ReadStream (IStream * stream, std::vector<uint8_t> & outBytes);
 
-    //  A line in %TEMP%\DxuiDragTrace.log, in a debug build only, to find why
-    //  a drag out of an image has no drop tip: the drag image's setup, each
-    //  format set on the object, and the shell's IsShowingLayered.
-    static void     Trace (const std::wstring & line);
-    static std::wstring  GetFormatName (CLIPFORMAT format);
-    static std::wstring  GetDragMode ();
+    //  Gives the drop description the type that matches `effect` when the
+    //  target left it to the source, and has the drag window redraw.
+    void  DescribeEffect (DWORD effect);
 
-    //  The "small" drag mode's image size.
-    static constexpr int  s_kSmallDragImagePx = 96;
+    //  DDWM_UPDATEWINDOW, which the SDK does not declare: the shell's drag
+    //  window rereads the drop description on it.
+    static constexpr UINT  s_kUpdateDragWindowMessage = WM_USER + 3;
 
     std::atomic<ULONG>                                         m_refCount = 1;
-    DWORD                                                       m_tracedLayered = MAXDWORD;   // IsShowingLayered as last traced
     std::vector<Format>                                         m_formats;
     std::map<std::pair<CLIPFORMAT, int>, std::vector<uint8_t>>  m_rendered;
     std::map<std::pair<CLIPFORMAT, int>, int>                   m_renderCounts;
     std::map<CLIPFORMAT, std::vector<uint8_t>>                  m_stored;
-    std::map<CLIPFORMAT, DWORD>                                 m_storedTymed;   // the medium each was set in, read back in it
+    std::map<CLIPFORMAT, DWORD>                                 m_storedTymed;        // the medium each was set in, read back in it
+    bool                                                        m_describesEffect = false;   // the stored description's type is one GiveFeedback set
+    std::vector<uint8_t>                                        m_shownDescription;   // the description the drag window was last told to draw
 };
