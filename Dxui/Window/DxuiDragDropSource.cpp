@@ -87,7 +87,9 @@ HRESULT DxuiDragDropSource::Begin (std::vector<Format> formats, DWORD allowedEff
         hrImage = SetDragImage (static_cast<IDataObject *> (source), *dragImage);
         IGNORE_RETURN_VALUE (hrImage, S_OK);
     }
-    else
+
+    //  S_FALSE is a debug build's drag mode for the shell's image.
+    if (dragImage == nullptr || hrImage == S_FALSE)
     {
         hrImage = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
 
@@ -148,20 +150,36 @@ Error:
 
 HRESULT DxuiDragDropSource::SetDragImage (IDataObject * data, const DxuiIconImage & image)
 {
-    HRESULT                      hr     = S_OK;
+    HRESULT                      hr       = S_OK;
     ComPtr<IDragSourceHelper2>   helper;
-    BITMAPINFO                   info   = {};
-    void                       * bits   = nullptr;
-    HBITMAP                      bitmap = nullptr;
-    SHDRAGIMAGE                  drag   = {};
-    size_t                       pixels = (size_t) image.width * (size_t) image.height;
-    bool                         sized  = image.width > 0 && image.height > 0 && image.bgraPremul.size() == pixels;
-    const wchar_t              * step   = L"size";
+    BITMAPINFO                   info     = {};
+    void                       * bits     = nullptr;
+    HBITMAP                      bitmap   = nullptr;
+    SHDRAGIMAGE                  drag     = {};
+    std::wstring                 mode     = GetDragMode();
+    DxuiIconImage                source   = (mode == L"small") ? DxuiIconImage::Resample (image, s_kSmallDragImagePx) : image;
+    size_t                       pixels   = (size_t) source.width * (size_t) source.height;
+    bool                         sized    = source.width > 0 && source.height > 0 && source.bgraPremul.size() == pixels;
+    bool                         bottomUp = mode == L"bottomup";
+    const wchar_t              * step     = L"size";
+    int                          row      = 0;
 
 
 
     CBRAEx (data != nullptr, E_INVALIDARG);
     CBREx  (sized, E_INVALIDARG);
+
+    //  The shell's image instead, which the caller sets up.
+    step = L"shell";
+    BAIL_OUT_IF (mode == L"shell", S_FALSE);   // EHM-ALLOW-SFALSE: a debug build's drag mode, which has the caller set up the shell's image
+
+    if (mode == L"opaque")
+    {
+        for (uint32_t & pixel : source.bgraPremul)
+        {
+            pixel |= 0xFF000000u;
+        }
+    }
 
     step = L"CoCreateInstance";
     hr   = CoCreateInstance (CLSID_DragDropHelper, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&helper));
@@ -173,8 +191,8 @@ HRESULT DxuiDragDropSource::SetDragImage (IDataObject * data, const DxuiIconImag
 
     //  Top-down, as the image's rows run.
     info.bmiHeader.biSize        = sizeof (info.bmiHeader);
-    info.bmiHeader.biWidth       = image.width;
-    info.bmiHeader.biHeight      = -image.height;
+    info.bmiHeader.biWidth       = source.width;
+    info.bmiHeader.biHeight      = bottomUp ? source.height : -source.height;
     info.bmiHeader.biPlanes      = 1;
     info.bmiHeader.biBitCount    = 32;
     info.bmiHeader.biCompression = BI_RGB;
@@ -182,10 +200,16 @@ HRESULT DxuiDragDropSource::SetDragImage (IDataObject * data, const DxuiIconImag
     bitmap = CreateDIBSection (nullptr, &info, DIB_RGB_COLORS, &bits, nullptr, 0);
     CBREx (bitmap != nullptr && bits != nullptr, E_OUTOFMEMORY);
 
-    memcpy (bits, image.bgraPremul.data(), pixels * sizeof (uint32_t));
+    for (row = 0; row < source.height; row++)
+    {
+        int  from = bottomUp ? source.height - 1 - row : row;
 
-    drag.sizeDragImage = SIZE  { image.width, image.height };
-    drag.ptOffset      = POINT { image.width / 2, image.height };
+        memcpy ((uint32_t *) bits + (size_t) row * (size_t) source.width, source.bgraPremul.data() + (size_t) from * (size_t) source.width,
+                (size_t) source.width * sizeof (uint32_t));
+    }
+
+    drag.sizeDragImage = SIZE  { source.width, source.height };
+    drag.ptOffset      = (mode == L"center") ? POINT { source.width / 2, source.height / 2 } : POINT { source.width / 2, source.height };
     drag.hbmpDragImage = bitmap;
     drag.crColorKey    = CLR_NONE;
 
@@ -201,9 +225,73 @@ Error:
         DeleteObject (bitmap);
     }
 
-    Trace (std::format (L"SetDragImage {}x{} at {} -> 0x{:08X}", image.width, image.height, step, (unsigned) hr));
+    Trace (std::format (L"SetDragImage mode {} {}x{} at {} -> 0x{:08X}", mode, source.width, source.height, step, (unsigned) hr));
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDragDropSource::GetDragMode
+//
+//  The first word of %TEMP%\DxuiDragMode.txt, read at each drag, which sets
+//  how the next drag's image is made with no rebuild: bitmap, shell, small,
+//  opaque, bottomup or center. Always bitmap in a release build.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiDragDropSource::GetDragMode()
+{
+    std::wstring  mode             = L"bitmap";
+    wchar_t       folder[MAX_PATH] = {};
+    DWORD         length           = 0;
+    HANDLE        file             = INVALID_HANDLE_VALUE;
+    char          text[32]         = {};
+    DWORD         read             = 0;
+    BOOL          got              = FALSE;
+    std::string   word;
+
+
+
+#if defined (_DEBUG)
+    length = GetTempPathW (ARRAYSIZE (folder), folder);
+
+    if (length > 0 && length < ARRAYSIZE (folder))
+    {
+        file = CreateFileW ((std::wstring (folder) + L"DxuiDragMode.txt").c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                            OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    }
+
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        got = ReadFile (file, text, (DWORD) sizeof (text) - 1, &read, nullptr);
+        CloseHandle (file);
+    }
+
+    for (DWORD i = 0; got && i < read && isalpha ((unsigned char) text[i]); i++)
+    {
+        word += (char) tolower ((unsigned char) text[i]);
+    }
+
+    if (!word.empty())
+    {
+        mode.assign (word.begin(), word.end());
+    }
+#else
+    UNREFERENCED_PARAMETER (folder);
+    UNREFERENCED_PARAMETER (length);
+    UNREFERENCED_PARAMETER (file);
+    UNREFERENCED_PARAMETER (text);
+    UNREFERENCED_PARAMETER (read);
+    UNREFERENCED_PARAMETER (got);
+    UNREFERENCED_PARAMETER (word);
+#endif
+
+    return mode;
 }
 
 
@@ -745,6 +833,16 @@ STDMETHODIMP DxuiDragDropSource::SetData (FORMATETC * format, STGMEDIUM * medium
     }
 
 Error:
+    //  A drop description's type and words, for whether a target sent any.
+    if (format != nullptr && GetFormatName (format->cfFormat) == CFSTR_DROPDESCRIPTION && m_stored[format->cfFormat].size() >= sizeof (DROPDESCRIPTION))
+    {
+        const DROPDESCRIPTION  * description = (const DROPDESCRIPTION *) m_stored[format->cfFormat].data();
+
+        Trace (std::format (L"DropDescription type {} message '{}' insert '{}'", (int) description->type,
+                            std::wstring_view (description->szMessage, wcsnlen (description->szMessage, ARRAYSIZE (description->szMessage))),
+                            std::wstring_view (description->szInsert,  wcsnlen (description->szInsert,  ARRAYSIZE (description->szInsert)))));
+    }
+
     Trace (std::format (L"SetData {} tymed {} bytes {} value {} -> 0x{:08X}", (format != nullptr) ? GetFormatName (format->cfFormat) : std::wstring (L"(null)"),
                         (unsigned) tymed,
                         (format != nullptr && m_stored.contains (format->cfFormat)) ? m_stored[format->cfFormat].size() : (size_t) 0,

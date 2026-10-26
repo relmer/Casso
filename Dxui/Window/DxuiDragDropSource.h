@@ -104,6 +104,10 @@ private:
     //  format set on the object, and the shell's IsShowingLayered.
     static void     Trace (const std::wstring & line);
     static std::wstring  GetFormatName (CLIPFORMAT format);
+    static std::wstring  GetDragMode ();
+
+    //  The "small" drag mode's image size.
+    static constexpr int  s_kSmallDragImagePx = 96;
 
     std::atomic<ULONG>                                         m_refCount = 1;
     DWORD                                                       m_tracedLayered = MAXDWORD;   // IsShowingLayered as last traced
