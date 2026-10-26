@@ -347,7 +347,8 @@ bool InspectorRequestQueue::TryApply (uint64_t id, const InspectorRequest & requ
     }
     else if (!IsSafePoint (request, motion))
     {
-        isDone = false;
+        isDone                   = false;
+        outReply.isMachinePaused = motion.isPaused;
 
         if (request.applyMode == ApplyMode::RunToSafePointStayPaused && motion.isPaused)
         {

@@ -179,6 +179,16 @@ private:
     bool  IsSectorImage      () const;
     int   GetSelectedEdit    () const;
     bool  HandleEditKey      (const DxuiKeyEvent & ev);
+    bool  ConfirmEdit        (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
+    std::wstring  GetApplyBlock () const;
+    bool  IsHistoryCurrent   (const vector<RecordWriteCount> & counts) const;
+    void  ApplyEdits         ();
+    void  PostApply          (const InspectorRequest & request);
+    void  PauseApply         ();
+    void  CancelApply        ();
+    void  UndoApplied        ();
+    void  RedoApplied        ();
+    void  TakeApplyReply     (const InspectorReply & reply);
     void  RebuildFindMarks   ();
     void  RepeatFind         ();
     vector<int>  GetShownDiskTabs () const;
@@ -324,6 +334,26 @@ private:
     EditBar                               * m_editBar            = nullptr;
     std::wstring                            m_editNote;
     int64_t                                 m_editSig            = 0;
+
+    //  One apply's tracks before and after, the guest write counts it left,
+    //  and those an undo of it left (FR-107).
+    struct AppliedEditRecord
+    {
+        vector<std::shared_ptr<const TrackCopy>>  before;
+        vector<std::shared_ptr<const TrackCopy>>  after;
+        vector<RecordWriteCount>                  countsAfter;
+        vector<RecordWriteCount>                  countsUndone;
+        std::string                               savedTo;
+    };
+
+    vector<AppliedEditRecord>               m_history;
+    int                                     m_historyAt          = 0;
+    InspectorRequest                        m_lastApply;
+    uint64_t                                m_applyRequest       = 0;
+    bool                                    m_isApplyWaiting     = false;
+    bool                                    m_isApplyPaused      = false;
+    bool                                    m_isFirstApplyDone   = false;
+    std::set<int>                           m_appliedSlots;
     GoToKind                                m_goToKind           = GoToKind::Track;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     PlatterView                           * m_platterView        = nullptr;

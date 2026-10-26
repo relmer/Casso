@@ -227,6 +227,34 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatEdited
+//
+//  The Tracks tab's Edited column: the record's sectors with pending edits,
+//  and "applied" once an apply changed the record, apart from the marks for
+//  guest writes (FR-097, FR-109).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::wstring FormatEdited (int slot, const EditController * edits, const std::set<int> * appliedSlots)
+{
+    int           pending   = (edits != nullptr && slot >= 0) ? edits->CountChangedSectors (slot) : 0;
+    bool          isApplied = appliedSlots != nullptr && appliedSlots->contains (slot);
+    std::wstring  text;
+
+
+
+    text = (pending > 0) ? InspectorText::FormatCount (pending, L"sector", L"sectors") + L" pending" : std::wstring();
+    text = isApplied ? (text.empty() ? std::wstring (L"Applied") : text + L", applied") : text;
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorTables::BuildTracks
 //
 //  All 160 quarter tracks (FR-047). A quarter track that shares its record
@@ -234,7 +262,7 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, const FindMarks * marks, const EditController * edits)
+vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, const FindMarks * marks, const EditController * edits, const std::set<int> * appliedSlots)
 {
     static constexpr double  kNominalCells = 51200.0;
 
@@ -270,7 +298,7 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
             flux ? InspectorFormat::FormatPercent (track->measurements.deviation) : std::wstring (s_kpszNone),
             (e.findingCount > 0) ? std::to_wstring (e.findingCount) : std::wstring(),
             (marks != nullptr && marks->GetTrackHits (track) > 0) ? std::to_wstring (marks->GetTrackHits (track)) : std::wstring(),
-            (edits != nullptr && edits->CountChangedSectors (e.slot) > 0) ? InspectorText::FormatCount (edits->CountChangedSectors (e.slot), L"sector", L"sectors") : std::wstring(),
+            FormatEdited (e.slot, edits, appliedSlots),
             e.isBeyondHeadReach ? L"Beyond the head's reach" : L"",
         };
 

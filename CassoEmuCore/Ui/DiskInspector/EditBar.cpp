@@ -19,6 +19,8 @@ static constexpr int  s_kSaveCopyDip  = 140;
 static constexpr int  s_kUndoDip      = 144;
 static constexpr int  s_kRedoDip      = 140;
 static constexpr int  s_kMinNoteDip   = 120;
+static constexpr int  s_kPauseDip     = 230;
+static constexpr int  s_kCancelDip    = 76;
 
 
 
@@ -42,6 +44,8 @@ EditBar::EditBar()
     m_saveCopy      = CreateChild<DxuiButton>   (L"Save edited copy...");
     m_undoApplied   = CreateChild<DxuiButton>   (L"Undo applied edit");
     m_redoApplied   = CreateChild<DxuiButton>   (L"Redo applied edit");
+    m_pauseApply    = CreateChild<DxuiButton>   (L"Pause and apply");
+    m_cancelApply   = CreateChild<DxuiButton>   (L"Cancel");
 
     m_edit->SetOnClick          ([this] () { if (m_onEdit)          { m_onEdit(); } });
     m_checksum->SetOnChange     ([this] (bool isChecked) { if (m_onChecksum) { m_onChecksum (isChecked); } });
@@ -51,6 +55,8 @@ EditBar::EditBar()
     m_saveCopy->SetOnClick      ([this] () { if (m_onSaveCopy)      { m_onSaveCopy(); } });
     m_undoApplied->SetOnClick   ([this] () { if (m_onUndoApplied)   { m_onUndoApplied(); } });
     m_redoApplied->SetOnClick   ([this] () { if (m_onRedoApplied)   { m_onRedoApplied(); } });
+    m_pauseApply->SetOnClick    ([this] () { if (m_onPauseApply)    { m_onPauseApply(); } });
+    m_cancelApply->SetOnClick   ([this] () { if (m_onCancelApply)   { m_onCancelApply(); } });
 
     SetState (EditBarState());
 }
@@ -87,12 +93,17 @@ void EditBar::SetState (const EditBarState & state)
     m_note->SetText  (state.note);
 
     m_discardSector->SetVisible (state.hasSectorEdit);
-    m_discard->SetVisible       (hasEdits);
-    m_apply->SetVisible         (hasEdits);
+    //  While an apply waits, only the ways to end the wait are offered, so
+    //  the pending edits cannot change under it (FR-103).
+    m_discard->SetVisible       (hasEdits && !state.isWaiting);
+    m_apply->SetVisible         (hasEdits && !state.isWaiting);
     m_apply->SetEnabled         (state.canApply);
-    m_saveCopy->SetVisible      (hasEdits);
-    m_undoApplied->SetVisible   (state.canUndoApplied);
-    m_redoApplied->SetVisible   (state.canRedoApplied);
+    m_saveCopy->SetVisible      (hasEdits && !state.isWaiting);
+    m_undoApplied->SetVisible   (state.canUndoApplied && !state.isWaiting);
+    m_redoApplied->SetVisible   (state.canRedoApplied && !state.isWaiting);
+    m_pauseApply->SetVisible    (state.isWaiting);
+    m_pauseApply->SetLabel      (state.isMachinePaused ? L"Run to a safe point and apply" : L"Pause and apply");
+    m_cancelApply->SetVisible   (state.isWaiting);
 
     //  Each control's place depends on which controls are visible.
     if (m_hasLayout)
@@ -131,6 +142,8 @@ std::wstring EditBar::GetTip (POINT pointPx, RECT & outAnchorPx) const
         { m_saveCopy,      L"Save the disk with the pending edits to a new file",                           L"" },
         { m_undoApplied,   L"Put back the sectors the last apply changed, and save",                        L"" },
         { m_redoApplied,   L"Apply the last undone edit again, and save",                                   L"" },
+        { m_pauseApply,    L"Let the machine run to the next moment the head is clear of the edited fields, and apply there", L"" },
+        { m_cancelApply,   L"Stop waiting; the edits stay pending",                                         L"" },
     };
 
     std::wstring  tip;
@@ -208,6 +221,8 @@ void EditBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     placeLeft  (m_checksum,      s_kChecksumDip);
     placeLeft  (m_discardSector, s_kDiscardSecDip);
 
+    placeRight (m_cancelApply,   s_kCancelDip);
+    placeRight (m_pauseApply,    s_kPauseDip);
     placeRight (m_redoApplied,   s_kRedoDip);
     placeRight (m_undoApplied,   s_kUndoDip);
     placeRight (m_saveCopy,      s_kSaveCopyDip);
@@ -257,8 +272,9 @@ int EditBar::GetRowCount (int widthPx, const DxuiDpiScaler & scaler) const
 int EditBar::GetGroupWidthPx (bool isLeft, const DxuiDpiScaler & scaler) const
 {
     const std::array<std::pair<const IDxuiControl *, int>, 3>  left  = {{ { m_edit, s_kEditDip }, { m_checksum, s_kChecksumDip }, { m_discardSector, s_kDiscardSecDip } }};
-    const std::array<std::pair<const IDxuiControl *, int>, 5>  right = {{ { m_discard, s_kDiscardDip }, { m_apply, s_kApplyDip }, { m_saveCopy, s_kSaveCopyDip },
-                                                                          { m_undoApplied, s_kUndoDip }, { m_redoApplied, s_kRedoDip } }};
+    const std::array<std::pair<const IDxuiControl *, int>, 7>  right = {{ { m_discard, s_kDiscardDip }, { m_apply, s_kApplyDip }, { m_saveCopy, s_kSaveCopyDip },
+                                                                          { m_undoApplied, s_kUndoDip }, { m_redoApplied, s_kRedoDip },
+                                                                          { m_pauseApply, s_kPauseDip }, { m_cancelApply, s_kCancelDip } }};
     int                                                        width = 0;
 
 

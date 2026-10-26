@@ -188,13 +188,14 @@ struct InspectorReply
     std::string                                 fileName;
     std::wstring                                reason;
 
-    ApplyKind                                   applyKind    = ApplyKind::Apply;
-    ApplyOutcome                                applyOutcome = ApplyOutcome::None;
-    vector<std::shared_ptr<const TrackCopy>>    before;
-    vector<std::shared_ptr<const TrackCopy>>    after;
-    vector<RecordWriteCount>                    countsAfter;
-    std::string                                 savedPath;
-    vector<SectorWriteError>                    writeErrors;
+    ApplyKind                                 applyKind       = ApplyKind::Apply;
+    ApplyOutcome                              applyOutcome    = ApplyOutcome::None;
+    vector<std::shared_ptr<const TrackCopy>>  before;
+    vector<std::shared_ptr<const TrackCopy>>  after;
+    vector<RecordWriteCount>                  countsAfter;
+    std::string                               savedPath;
+    vector<SectorWriteError>                  writeErrors;
+    bool                                      isMachinePaused = false;
 };
 
 

@@ -24,6 +24,8 @@
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
+#include "Ui/Dialogs/DialogBodyContent.h"
+#include "Ui/Dialogs/MessageDialog.h"
 #include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Ui/DiskInspector/GoToDialog.h"
 #include "Ui/DiskInspector/NibblesTab.h"
@@ -475,6 +477,11 @@ void DiskInspectorWindow::OnCreate()
     m_editBar->SetOnChecksum      ([this] (bool isOn) { m_edits.SetChecksumMode (GetSelectedEdit(), isOn ? ChecksumMode::Recompute : ChecksumMode::KeepStored); });
     m_editBar->SetOnDiscardSector ([this] () { m_edits.DiscardSector (GetSelectedEdit()); });
     m_editBar->SetOnDiscard       ([this] () { m_edits.DiscardAll(); });
+    m_editBar->SetOnApply         ([this] () { ApplyEdits(); });
+    m_editBar->SetOnPauseApply    ([this] () { PauseApply(); });
+    m_editBar->SetOnCancelApply   ([this] () { CancelApply(); });
+    m_editBar->SetOnUndoApplied   ([this] () { UndoApplied(); });
+    m_editBar->SetOnRedoApplied   ([this] () { RedoApplied(); });
     m_findResults->SetOnSelect ([this] (const TableRow & row) { if (m_find.Choose (row.finding)) { SelectHit (m_find.GetHits()[row.finding]); m_findBar->SetResult (row.finding, m_find.GetCount()); } });
     m_findBar->Init            (GetHwnd(), GetTextRenderer(), GetPopupHost(), m_theme);
     m_findBar->SetOnSearch     ([this] (const SearchQuery & query) { RunFind (query); });
@@ -1472,6 +1479,10 @@ void DiskInspectorWindow::TakeReplies()
             m_trackRequest = 0;
             TakeWrittenTracks (reply);
         }
+        else if (reply.kind == InspectorRequestKind::Apply && reply.requestId == m_applyRequest)
+        {
+            TakeApplyReply (reply);
+        }
     }
 }
 
@@ -1531,7 +1542,10 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
 
         if (copy->mediaId != lastMedia)
         {
-            m_edits = EditController();
+            m_edits     = EditController();
+            m_history.clear();
+            m_historyAt = 0;
+            m_appliedSlots.clear();
             m_byteView->SetEditing (false);
         }
 
@@ -2043,7 +2057,7 @@ void DiskInspectorWindow::RefreshTables()
     if (m_isTablesDirty)
     {
         vector<std::wstring>  columns = InspectorTables::GetTrackColumns();
-        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis, m_context.findMarks, &m_edits) : vector<TableRow>();
+        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis, m_context.findMarks, &m_edits, &m_appliedSlots) : vector<TableRow>();
 
         //  While comparing, each quarter track's verdict (FR-121).
         if (m_comparison.IsComparing())
@@ -2609,7 +2623,13 @@ void DiskInspectorWindow::UpdateEditBar()
     state.isChecksumLocked = IsSectorImage();
     state.bytes            = counts.bytes;
     state.sectors          = counts.sectors;
-    state.canApply         = false;
+    state.applyBlocked     = GetApplyBlock();
+    state.canApply         = state.applyBlocked.empty() && m_applyRequest == 0;
+    state.isWaiting        = m_isApplyWaiting;
+    state.isMachinePaused  = m_isApplyPaused;
+    state.canUndoApplied   = m_historyAt > 0 && m_applyRequest == 0 && state.applyBlocked.empty() && IsHistoryCurrent (m_history[m_historyAt - 1].countsAfter);
+    state.canRedoApplied   = m_historyAt < static_cast<int> (m_history.size()) && m_applyRequest == 0 && state.applyBlocked.empty() &&
+                             IsHistoryCurrent (m_history[m_historyAt].countsUndone);
     state.note             = !m_editNote.empty() ? m_editNote : (m_model.GetSector() != nullptr && !reason.empty()) ? L"Cannot edit: " + reason : std::wstring();
 
     //  A change of the bar's rows moves the bytes under it.
@@ -2617,6 +2637,437 @@ void DiskInspectorWindow::UpdateEditBar()
     rows  = m_editBar->GetRowCount (width, m_scaler);
     m_editBar->SetState (state);
     m_isLayoutStale = m_isLayoutStale || (width > 0 && m_editBar->GetRowCount (width, m_scaler) != rows);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ConfirmEdit
+//
+//  A modal question with the lines given and a button for the action and
+//  one for Cancel; true for the action.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::ConfirmEdit (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action)
+{
+    static constexpr int  kWidthDip  = 560;
+    static constexpr int  kChromeDip = 108;
+    static constexpr int  kMaxDip    = 640;
+    static constexpr int  kYes       = 1;
+
+
+
+    auto                                content = std::make_unique<DialogBodyContent>();
+    MessageDialog                       dialog;
+    DxuiWindow::CreateParams            params;
+    vector<DialogTextRun>               runs;
+    HRESULT                             hr      = S_OK;
+    int                                 result  = 0;
+
+
+
+    for (const std::wstring & line : lines)
+    {
+        runs.push_back ({ line + L"\n" });
+    }
+
+    content->SetRuns (runs);
+    params.initialSizeDip = { kWidthDip, std::min (kMaxDip, kChromeDip + content->GetPreferredHeightDip()) };
+
+    dialog.Configure (std::move (content), { { action, kYes, true, false }, { L"Cancel", 0, false, true } }, 0);
+
+    params.title                    = title;
+    params.hInstance                = GetModuleHandle (nullptr);
+    params.ownerHwnd                = GetHwnd();
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.placement                = DxuiWindowPlacement::CenteredOnOwner;
+
+    hr = dialog.Create (params);
+    CHRA (hr);
+
+    dialog.SetTheme (m_theme);
+    result = dialog.TranslateResult (dialog.ShowModalDialog (dialog.GetDefaultCommandId()));
+
+Error:
+    return result == kYes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetApplyBlock
+//
+//  Why "Apply", "Undo applied edit" and "Redo applied edit" cannot change
+//  the disk now, with every write-protect cause listed, or empty
+//  (FR-102).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskInspectorWindow::GetApplyBlock() const
+{
+    const DriveHeadState *  state  = m_headState.get();
+    std::wstring            causes;
+
+
+
+    auto  add = [&causes] (bool isCause, LPCWSTR text) { causes += isCause ? (causes.empty() ? L"" : L"; ") + std::wstring (text) : L""; };
+
+    if (!IsWindowDiskA() || state == nullptr || !state->hasDisk)
+    {
+        causes = L"Only the disk in the drive can be changed";
+    }
+    else
+    {
+        add (state->writeProtect.imageFlag,        L"the image's write-protect flag is set");
+        add (state->writeProtect.userSetting,      L"write protection is on for this drive");
+        add (state->writeProtect.readOnlyFile,     L"the file is read-only");
+        add (state->writeProtect.noPermission,     L"Casso cannot write the file");
+        add (state->writeProtect.checksumMismatch, L"the image's checksum does not match its contents");
+        add (state->writeProtect.damagedTracks,    L"the image has damaged track records");
+
+        causes = causes.empty() ? causes : L"Write-protected: " + causes;
+    }
+
+    return causes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsHistoryCurrent
+//
+//  An applied edit can be undone, or an undone one redone, only while the
+//  guest has not written to any record it changed since (FR-107).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsHistoryCurrent (const vector<RecordWriteCount> & counts) const
+{
+    return std::all_of (counts.begin(), counts.end(), [this] (const RecordWriteCount & count)
+                        { return count.slot >= 0 && count.slot < static_cast<int> (m_writeCounts.size()) && m_writeCounts[count.slot] == count.guestWriteCount; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ApplyEdits
+//
+//  Nothing changes until the user confirms the list of changes (FR-100).
+//  The edits then go to the emulation thread, which applies them at once
+//  when the drive is not turning, or waits for it to stop (FR-103).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ApplyEdits()
+{
+    InspectorRequest       request;
+    vector<std::wstring>   lines;
+    std::wstring           records;
+    EditController::Counts counts  = m_edits.GetCounts();
+    bool                   isWoz1  = m_analysis.copy != nullptr && m_analysis.copy->format == DiskFormat::Woz && m_analysis.copy->woz.info.version < 2;
+    bool                   isNib   = m_analysis.copy != nullptr && m_analysis.copy->format == DiskFormat::Nib;
+    HRESULT                hr      = S_OK;
+
+
+
+    request.kind      = InspectorRequestKind::Apply;
+    request.drive     = m_drive;
+    request.mediaId   = m_analysis.mediaId;
+    request.applyKind = ApplyKind::Apply;
+    request.applyMode = ApplyMode::WaitForStop;
+    request.writes    = m_edits.BuildWrites (m_analysis);
+
+    BAIL_OUT_IF (request.writes.empty(), S_OK);
+
+    lines.push_back (L"Apply " + EditBar::FormatCount (counts.bytes, counts.sectors).substr (0, EditBar::FormatCount (counts.bytes, counts.sectors).size() - std::wstring (L" changed").size())
+                     + L" and save " + GetFileName() + L"?");
+
+    for (const PendingEdit & edit : m_edits.GetEdits())
+    {
+        const TrackAnalysis *  track = (edit.slot >= 0 && edit.slot < static_cast<int> (m_analysis.tracks.size())) ? m_analysis.tracks[edit.slot].get() : nullptr;
+        vector<int>            readers;
+
+        if (edit.CountChanged() == 0 || track == nullptr)
+        {
+            continue;
+        }
+
+        for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+        {
+            if (m_analysis.entries[qt].slot == edit.slot)
+            {
+                readers.push_back (qt);
+            }
+        }
+
+        records = L"Sector " + InspectorFormat::FormatSector (edit.sectorNumber) + L", read at track " + InspectorFormat::FormatQuarterTrackList (readers);
+        records += edit.isOutOfDate ? L": changed since editing began, so only the bytes you changed are written" : L"";
+        records += m_analysis.entries[readers.empty() ? 0 : readers.front()].isFromFluxMap ? L"; only the flux record changes, and the bit record is left as it was" : L"";
+        records += (isNib && m_writtenSlots.contains (edit.slot)) ? L"; the guest also wrote this track, so Casso rebuilds it when saving" : L"";
+        lines.push_back (records);
+
+        request.expectedCounts.push_back ({ edit.slot, track->guestWriteCount });
+
+        for (const LocatedField & field : track->fields)
+        {
+            if (field.startCell == edit.fieldStartCell && track->framed.cellCount > 0)
+            {
+                request.spans.push_back ({ edit.slot, static_cast<double> (field.startCell) / track->framed.cellCount, static_cast<double> (field.endCell) / track->framed.cellCount });
+            }
+        }
+    }
+
+    if (isWoz1)
+    {
+        lines.push_back (L"This disk is a WOZ 1 image. Casso saves it as WOZ 2.");
+    }
+
+    if (!m_isFirstApplyDone)
+    {
+        lines.push_back (L"DOS or ProDOS may have one of these sectors in memory and write its own copy back over the edit.");
+    }
+
+    if (ConfirmEdit (L"Apply edits", lines, L"Apply"))
+    {
+        PostApply (request);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PostApply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PostApply (const InspectorRequest & request)
+{
+    m_lastApply      = request;
+    m_applyRequest   = m_host->PostInspectorRequest (request);
+    m_isApplyWaiting = false;
+    m_editNote       = L"Applying...";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PauseApply
+//
+//  The waiting apply again, made at the next safe point with the machine
+//  running on, or for a paused machine with it paused again afterward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PauseApply()
+{
+    InspectorRequest  cancel;
+    InspectorRequest  request = m_lastApply;
+
+
+
+    cancel.kind     = InspectorRequestKind::CancelApply;
+    cancel.drive    = m_drive;
+    request.applyMode = m_isApplyPaused ? ApplyMode::RunToSafePointStayPaused : ApplyMode::PauseAtSafePoint;
+
+    m_applyRequest = 0;
+    (void) m_host->PostInspectorRequest (cancel);
+    PostApply (request);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::CancelApply
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::CancelApply()
+{
+    InspectorRequest  cancel;
+
+
+
+    cancel.kind  = InspectorRequestKind::CancelApply;
+    cancel.drive = m_drive;
+    (void) m_host->PostInspectorRequest (cancel);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::UndoApplied
+//
+//  Undo and redo each restore tracks exactly as the history has them, once the
+//  user confirms (FR-107).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::UndoApplied()
+{
+    InspectorRequest  request;
+    HRESULT           hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_historyAt <= 0, S_OK);
+
+    request.kind           = InspectorRequestKind::Apply;
+    request.drive          = m_drive;
+    request.mediaId        = m_analysis.mediaId;
+    request.applyKind      = ApplyKind::Undo;
+    request.restore        = m_history[m_historyAt - 1].before;
+    request.expectedCounts = m_history[m_historyAt - 1].countsAfter;
+
+    if (ConfirmEdit (L"Undo applied edit", { L"Put back the sectors the last apply changed, and save " + GetFileName() + L"?" }, L"Undo"))
+    {
+        PostApply (request);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::RedoApplied
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RedoApplied()
+{
+    InspectorRequest  request;
+    HRESULT           hr = S_OK;
+
+
+
+    BAIL_OUT_IF (m_historyAt >= static_cast<int> (m_history.size()), S_OK);
+
+    request.kind           = InspectorRequestKind::Apply;
+    request.drive          = m_drive;
+    request.mediaId        = m_analysis.mediaId;
+    request.applyKind      = ApplyKind::Redo;
+    request.restore        = m_history[m_historyAt].after;
+    request.expectedCounts = m_history[m_historyAt].countsUndone;
+
+    if (ConfirmEdit (L"Redo applied edit", { L"Apply the undone edit again, and save " + GetFileName() + L"?" }, L"Redo"))
+    {
+        PostApply (request);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::TakeApplyReply
+//
+//  The window marks an edit as applied only once the file has it (FR-100);
+//  the changed tracks then go into the window's copy, so only they are
+//  analyzed again. A new apply clears the redo history (FR-107).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::TakeApplyReply (const InspectorReply & reply)
+{
+    InspectorReply  tracks;
+    bool            isApplied = reply.applyOutcome == ApplyOutcome::Applied || reply.applyOutcome == ApplyOutcome::AppliedToPreservedCopy;
+
+
+
+    m_isApplyWaiting = reply.applyOutcome == ApplyOutcome::Waiting;
+    m_isApplyPaused  = reply.isMachinePaused;
+
+    switch (reply.applyOutcome)
+    {
+        case ApplyOutcome::Waiting:   m_editNote = m_isApplyPaused ? L"The machine is paused with the head over an edited field" : L"Waiting for the drive to stop"; break;
+        case ApplyOutcome::Cancelled: m_editNote = L"Apply canceled; the edits are still pending";                                                               break;
+        case ApplyOutcome::WaitEnded: m_editNote = L"The guest wrote to a track these edits change. Check the edits and apply again.";                           break;
+        case ApplyOutcome::NotApplied: m_editNote = reply.reason;                                                                                               break;
+        default:                       break;
+    }
+
+    if (!m_isApplyWaiting)
+    {
+        m_applyRequest = 0;
+    }
+
+    if (isApplied)
+    {
+        if (reply.applyKind == ApplyKind::Apply)
+        {
+            m_history.resize (m_historyAt);
+            m_history.push_back ({ reply.before, reply.after, reply.countsAfter, {}, reply.savedPath });
+            m_historyAt        = static_cast<int> (m_history.size());
+            m_edits            = EditController();
+            m_isFirstApplyDone = true;
+            m_byteView->SetEditing (false);
+        }
+        else if (reply.applyKind == ApplyKind::Undo)
+        {
+            m_historyAt--;
+            m_history[m_historyAt].countsUndone = reply.countsAfter;
+        }
+        else
+        {
+            m_history[m_historyAt].countsAfter = reply.countsAfter;
+            m_historyAt++;
+        }
+
+        for (const std::shared_ptr<const TrackCopy> & copy : reply.after)
+        {
+            m_appliedSlots.insert (copy->slot);
+        }
+
+        m_isTablesDirty = true;
+
+        m_editNote = (reply.applyOutcome == ApplyOutcome::AppliedToPreservedCopy)
+                         ? L"Saved to a preserved copy, since the file changed outside Casso: " + std::filesystem::path (TextEncoding::Utf8ToWide (reply.savedPath)).filename().wstring()
+                         : std::wstring ((reply.applyKind == ApplyKind::Undo) ? L"Undone" : (reply.applyKind == ApplyKind::Redo) ? L"Redone" : L"Applied") + L" and saved to "
+                           + std::filesystem::path (TextEncoding::Utf8ToWide (reply.savedPath)).filename().wstring();
+
+        tracks.mediaId = reply.mediaId;
+        tracks.tracks  = reply.after;
+        TakeWrittenTracks (tracks);
+    }
 }
 
 
