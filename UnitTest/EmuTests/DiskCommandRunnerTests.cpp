@@ -4673,7 +4673,7 @@ public:
     //  system's terms; any other failure has no damage to name.
     TEST_METHOD (Damage_IsInTheFileSystemsTerms)
     {
-        HRESULT  broken = HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
+        constexpr HRESULT  broken = HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF);
 
         Assert::AreEqual (std::string ("the track/sector list is damaged"), DiskCommandRunner::DescribeDamage (broken, VolumeKind::Dos33));
         Assert::AreEqual (std::string ("the index block is damaged"),       DiskCommandRunner::DescribeDamage (broken, VolumeKind::ProDos));

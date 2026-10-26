@@ -321,7 +321,7 @@ void Win32FolderWatcher::RunService()
                 std::lock_guard<std::mutex>  held  = std::lock_guard<std::mutex> (m_lock);
                 auto                         found = m_folders.find (directory);
 
-                if (found != m_folders.end() && found->second.notification == notification)
+                if (notification != nullptr && found != m_folders.end() && found->second.notification == notification)
                 {
                     FindCloseChangeNotification (notification);
                     m_folders.erase (found);

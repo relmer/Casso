@@ -564,7 +564,7 @@ void NetworkPage::SyncFirewall()
         if (m_blocked.empty())
         {
             text     = FirewallText::DescribeCause (verdict, s_kFirewallTitle, port);
-            onPublic = verdict.profile == FirewallProfile::Public;
+            onPublic = verdict.IsOnPublic();
         }
 
         m_blocked.push_back (port);

@@ -89,7 +89,7 @@ public:
 
         Assert::IsTrue   (verdict.admission == FirewallAdmission::Refused);
         Assert::AreEqual (std::wstring (L"Block"), verdict.rule);
-        Assert::IsTrue   (verdict.profile == FirewallProfile::Public);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Public, (uint32_t) verdict.profile);
     }
 
 
@@ -98,7 +98,7 @@ public:
         FirewallVerdict  verdict = Check (MakeSnapshot (FirewallProfile::Public, {}));
 
         Assert::IsTrue (verdict.admission == FirewallAdmission::NoRule);
-        Assert::IsTrue (verdict.profile == FirewallProfile::Public);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Public, (uint32_t) verdict.profile);
     }
 
 
@@ -116,7 +116,7 @@ public:
         FirewallVerdict  verdict = Check (MakeSnapshot (FirewallProfile::Private | FirewallProfile::Public, { MakeRule (true, FirewallProfile::Private) }));
 
         Assert::IsTrue (verdict.admission == FirewallAdmission::OtherProfile);
-        Assert::IsTrue (verdict.profile == FirewallProfile::Public);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Public, (uint32_t) verdict.profile);
     }
 
 
@@ -127,7 +127,7 @@ public:
         FirewallVerdict  verdict = Check (MakeSnapshot (FirewallProfile::Private | FirewallProfile::Public, { MakeRule (false, FirewallProfile::All) }));
 
         Assert::IsTrue (verdict.admission == FirewallAdmission::Refused);
-        Assert::IsTrue (verdict.profile == FirewallProfile::Public);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Public, (uint32_t) verdict.profile);
     }
 
 

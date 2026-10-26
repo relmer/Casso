@@ -93,7 +93,7 @@ public:
         firewall.active = FirewallProfile::Private;
 
         Assert::IsTrue (monitor.Update());
-        Assert::IsTrue (monitor.GetSnapshot().active == FirewallProfile::Private);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Private, (uint32_t) monitor.GetSnapshot().active);
     }
 
 

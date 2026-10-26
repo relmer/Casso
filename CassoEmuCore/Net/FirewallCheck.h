@@ -65,6 +65,7 @@ struct FirewallVerdict
     std::wstring       rule;
 
     bool  IsAdmitted () const { return admission == FirewallAdmission::Admitted; }
+    bool  IsOnPublic () const { return (profile & FirewallProfile::Public) != FirewallProfile::None; }
 };
 
 

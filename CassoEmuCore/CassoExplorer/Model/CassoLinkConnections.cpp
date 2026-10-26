@@ -147,7 +147,7 @@ void CassoLinkConnections::AddFirewall (const CassoLinkSettings & settings, Link
     }
 
     entry.firewall       = FirewallText::DescribeCause (verdict, kFirewallTitle, port);
-    entry.firewallPublic = verdict.profile == FirewallProfile::Public;
+    entry.firewallPublic = verdict.IsOnPublic();
     entry.status         = std::format (L"{}{}{}\n\n{}", entry.firewall, entry.firewallPublic ? L" " : L"",
                                         entry.firewallPublic ? FirewallText::kPublicChoice : L"", entry.status);
 }

@@ -71,7 +71,7 @@ public:
 
         plan = MakePlan (snapshot, false);
 
-        Assert::IsTrue   (plan.profiles == FirewallProfile::Public);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Public, (uint32_t) plan.profiles);
         Assert::AreEqual ((size_t) 2, plan.ports.size(), L"the TCP port has no rule at all");
         Assert::IsFalse  (plan.markPrivate);
     }
@@ -86,7 +86,7 @@ public:
 
         plan = MakePlan (snapshot, true);
 
-        Assert::IsTrue (plan.profiles == FirewallProfile::Private);
+        Assert::AreEqual ((uint32_t) FirewallProfile::Private, (uint32_t) plan.profiles);
         Assert::IsTrue (plan.markPrivate);
     }
 
