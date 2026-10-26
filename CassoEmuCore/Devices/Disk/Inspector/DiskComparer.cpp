@@ -95,50 +95,113 @@ DiskComparison DiskComparer::Compare (const DiskAnalysis & a, const DiskAnalysis
 
     for (qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
     {
-        TrackComparison &          t       = out.tracks[qt];
-        const QuarterTrackEntry &  entryA  = a.entries[qt];
-        const QuarterTrackEntry &  entryB  = b.entries[qt];
-        const TrackAnalysis *      trackA  = (entryA.slot >= 0 && entryA.slot < static_cast<int> (a.tracks.size())) ? a.tracks[entryA.slot].get() : nullptr;
-        const TrackAnalysis *      trackB  = (entryB.slot >= 0 && entryB.slot < static_cast<int> (b.tracks.size())) ? b.tracks[entryB.slot].get() : nullptr;
-        bool                       isA     = entryA.content != QuarterTrackContent::Nothing;
-        bool                       isB     = entryB.content != QuarterTrackContent::Nothing;
-
-        t.quarterTrack = qt;
-        t.slotA        = entryA.slot;
-        t.slotB        = entryB.slot;
-
-        if (!isA && !isB)
-        {
-            t.verdict = TrackVerdict::NothingRecorded;
-        }
-        else if (qt % s_kPerTrack != 0 && IsStandardLayout (a, qt) && IsStandardLayout (b, qt))
-        {
-            t.verdict = TrackVerdict::StandardLayout;
-        }
-        else if (entryA.content == QuarterTrackContent::Damaged || entryB.content == QuarterTrackContent::Damaged)
-        {
-            t.verdict = TrackVerdict::NotCompared;
-            t.reason  = std::format (L"{} record is damaged", entryA.content == QuarterTrackContent::Damaged ? L"A's" : L"B's");
-        }
-        else if (isA != isB)
-        {
-            t.verdict = isA ? TrackVerdict::OnlyInA : TrackVerdict::OnlyInB;
-            out.differences.push_back ({ isA ? DifferenceKind::TrackOnlyInA : DifferenceKind::TrackOnlyInB, qt });
-        }
-        else if (trackA == nullptr || trackB == nullptr)
-        {
-            t.verdict = TrackVerdict::NotCompared;
-            t.reason  = L"Still being analyzed";
-        }
-        else
-        {
-            CompareTrack (*trackA, *trackB, qt, t, out.differences);
-        }
+        CompareQuarterTrack (a, b, qt, out.tracks[qt], out.differences);
     }
 
     CompareFiles (a, b, out);
 
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::Recompare
+//
+//  The listed quarter tracks compared again over an earlier result, their
+//  differences put back in disk order, and the files compared again whole,
+//  since a changed track can change any file (FR-122).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskComparer::Recompare (const DiskAnalysis & a, const DiskAnalysis & b, const std::set<int> & quarterTracks, DiskComparison & inOutComparison)
+{
+    vector<Difference>  kept;
+
+
+
+    inOutComparison.tracks.resize (DiskImage::kQuarterTrackCount);
+
+    for (const Difference & d : inOutComparison.differences)
+    {
+        if (d.quarterTrack >= 0 && !quarterTracks.contains (d.quarterTrack))
+        {
+            kept.push_back (d);
+        }
+    }
+
+    for (int qt : quarterTracks)
+    {
+        if (qt >= 0 && qt < DiskImage::kQuarterTrackCount)
+        {
+            inOutComparison.tracks[qt] = TrackComparison();
+            CompareQuarterTrack (a, b, qt, inOutComparison.tracks[qt], kept);
+        }
+    }
+
+    std::stable_sort (kept.begin(), kept.end(), [] (const Difference & x, const Difference & y) { return x.quarterTrack < y.quarterTrack; });
+
+    inOutComparison.differences = std::move (kept);
+    inOutComparison.files.clear();
+    inOutComparison.fileNote.clear();
+    CompareFiles (a, b, inOutComparison);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskComparer::CompareQuarterTrack
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskComparer::CompareQuarterTrack (const DiskAnalysis & a, const DiskAnalysis & b, int qt, TrackComparison & t, vector<Difference> & inOutDiffs)
+{
+    const QuarterTrackEntry &  entryA  = a.entries[qt];
+    const QuarterTrackEntry &  entryB  = b.entries[qt];
+    const TrackAnalysis *      trackA  = (entryA.slot >= 0 && entryA.slot < static_cast<int> (a.tracks.size())) ? a.tracks[entryA.slot].get() : nullptr;
+    const TrackAnalysis *      trackB  = (entryB.slot >= 0 && entryB.slot < static_cast<int> (b.tracks.size())) ? b.tracks[entryB.slot].get() : nullptr;
+    bool                       isA     = entryA.content != QuarterTrackContent::Nothing;
+    bool                       isB     = entryB.content != QuarterTrackContent::Nothing;
+
+
+
+    t.quarterTrack = qt;
+    t.slotA        = entryA.slot;
+    t.slotB        = entryB.slot;
+
+    if (!isA && !isB)
+    {
+        t.verdict = TrackVerdict::NothingRecorded;
+    }
+    else if (qt % s_kPerTrack != 0 && IsStandardLayout (a, qt) && IsStandardLayout (b, qt))
+    {
+        t.verdict = TrackVerdict::StandardLayout;
+    }
+    else if (entryA.content == QuarterTrackContent::Damaged || entryB.content == QuarterTrackContent::Damaged)
+    {
+        t.verdict = TrackVerdict::NotCompared;
+        t.reason  = std::format (L"{} record is damaged", entryA.content == QuarterTrackContent::Damaged ? L"A's" : L"B's");
+    }
+    else if (isA != isB)
+    {
+        t.verdict = isA ? TrackVerdict::OnlyInA : TrackVerdict::OnlyInB;
+        inOutDiffs.push_back ({ isA ? DifferenceKind::TrackOnlyInA : DifferenceKind::TrackOnlyInB, qt });
+    }
+    else if (trackA == nullptr || trackB == nullptr)
+    {
+        t.verdict = TrackVerdict::NotCompared;
+        t.reason  = L"Still being analyzed";
+    }
+    else
+    {
+        CompareTrack (*trackA, *trackB, qt, t, inOutDiffs);
+    }
 }
 
 

@@ -69,6 +69,10 @@ public:
     void  Tick (const DiskAnalysis & a, bool isAReady, vector<LoadedDisk> & outLoadsForA);
 
     void  MarkAChanged     ();
+
+    //  Only these quarter tracks of A changed, by a guest write or an
+    //  applied edit, so only they are compared again (FR-122).
+    void  MarkAChanged     (const std::set<int> & quarterTracks);
     void  ApplySettings    (const DecodeSettings & settings);
     void  ApplyOwnSettings (const DecodeSettings & settings);
     void  SetOptions       (const ComparisonOptions & options);
@@ -92,6 +96,11 @@ public:
     const std::wstring &        GetAError      () const { return m_errors[kSideA]; }
     uint64_t                    GetVersion     () const { return m_version; }
 
+    //  The quarter tracks waiting to be compared again, or being compared,
+    //  while the rest of the result is current; empty for a whole comparison.
+    std::set<int>               GetComparing   () const;
+    bool                        IsWhollyBusy   () const { return IsBusy() && (m_isFullChange || !m_isPartialRun || !m_hasResult); }
+
 private:
     struct Read
     {
@@ -107,6 +116,7 @@ private:
         DiskComparison  result;
     };
 
+    void  NoteChange  (bool isWhole);
     void  StartRead   (int side, IDiskInspectorHost & host);
     void  ReadFile    (int side, const std::string & utf8Path);
     void  ReadBytes   (int side, std::shared_ptr<const vector<Byte>> bytes, const std::string & utf8Path);
@@ -132,6 +142,10 @@ private:
     uint64_t                            m_version        = 0;
     uint64_t                            m_generation     = 0;
     uint64_t                            m_changes        = 0;
+    bool                                m_isFullChange   = true;
+    bool                                m_isPartialRun   = false;
+    std::set<int>                       m_changedQts;
+    std::set<int>                       m_comparingQts;
     uint64_t                            m_posted         = 0;
     bool                                m_isRunning      = false;
 

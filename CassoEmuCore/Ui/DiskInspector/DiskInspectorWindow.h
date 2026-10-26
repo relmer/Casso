@@ -176,6 +176,7 @@ private:
     void  RunFind            (const SearchQuery & query);
     void  RefreshFindResults ();
     void  SyncFindMarks      ();
+    std::set<int>  GetQuarterTracksOf (const vector<RecordResult> & results) const;
     void  ToggleEditing      ();
     void  UpdateEditBar      ();
     void  PasteIntoEdit      ();

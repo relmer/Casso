@@ -1626,7 +1626,7 @@ void DiskInspectorWindow::TakeResults()
     {
         DiskAnalyzer::Assemble (m_analysis);
         m_model.SetAnalysis (&m_analysis);
-        m_comparison.MarkAChanged();
+        m_comparison.MarkAChanged (GetQuarterTracksOf (results));
         m_isTablesDirty = true;
         FollowEdits();
 
@@ -1642,6 +1642,41 @@ void DiskInspectorWindow::TakeResults()
             RebuildFindMarks();
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetQuarterTracksOf
+//
+//  Every quarter track mapped to one of the analyzed tracks' slots.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<int> DiskInspectorWindow::GetQuarterTracksOf (const vector<RecordResult> & results) const
+{
+    std::set<int>  slots;
+    std::set<int>  quarterTracks;
+
+
+
+    for (const RecordResult & result : results)
+    {
+        slots.insert (result.slot);
+    }
+
+    for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+    {
+        if (slots.contains (m_analysis.entries[qt].slot))
+        {
+            quarterTracks.insert (qt);
+        }
+    }
+
+    return quarterTracks;
 }
 
 
@@ -2077,7 +2112,7 @@ void DiskInspectorWindow::RefreshTables()
         //  While comparing, each quarter track's verdict (FR-121).
         if (m_comparison.IsComparing())
         {
-            ComparisonText::AddVerdictColumn (columns, rows, m_comparison.GetResult(), m_comparison.IsBusy() || !m_comparison.HasResult());
+            ComparisonText::AddVerdictColumn (columns, rows, m_comparison.GetResult(), m_comparison.IsWhollyBusy() || !m_comparison.HasResult(), m_comparison.GetComparing());
         }
 
         if (m_comparison.IsComparing() != m_isTracksCompared)

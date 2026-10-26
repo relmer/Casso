@@ -439,7 +439,8 @@ std::array<int, ComparisonText::kGroupCount> ComparisonText::CountGroups (const 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ComparisonText::AddVerdictColumn (vector<std::wstring> & inOutColumns, vector<TableRow> & inOutRows, const DiskComparison & comparison, bool isComparing)
+void ComparisonText::AddVerdictColumn (vector<std::wstring> & inOutColumns, vector<TableRow> & inOutRows, const DiskComparison & comparison, bool isComparing,
+                                       const std::set<int> & comparing)
 {
     int  qt = 0;
 
@@ -451,7 +452,7 @@ void ComparisonText::AddVerdictColumn (vector<std::wstring> & inOutColumns, vect
     {
         qt = row.quarterTrack;
 
-        if (isComparing || qt < 0 || qt >= static_cast<int> (comparison.tracks.size()))
+        if (isComparing || comparing.contains (qt) || qt < 0 || qt >= static_cast<int> (comparison.tracks.size()))
         {
             row.cells.insert (row.cells.begin() + 1, s_kpszComparing);
         }

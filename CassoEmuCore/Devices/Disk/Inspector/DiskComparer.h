@@ -32,6 +32,10 @@ public:
 
     static DiskComparison  Compare (const DiskAnalysis & a, const DiskAnalysis & b);
 
+    //  The listed quarter tracks, and the files, compared again over an
+    //  earlier result (FR-122).
+    static void  Recompare (const DiskAnalysis & a, const DiskAnalysis & b, const std::set<int> & quarterTracks, DiskComparison & inOutComparison);
+
     //  The rotation, in nibbles, that best lines B's nibbles up with A's.
     static int  Align (const TrackAnalysis & a, const TrackAnalysis & b);
 
@@ -57,6 +61,7 @@ public:
 
 private:
     static bool            IsStandardLayout (const DiskAnalysis & disk, int quarterTrack);
+    static void            CompareQuarterTrack (const DiskAnalysis & a, const DiskAnalysis & b, int qt, TrackComparison & t, vector<Difference> & inOutDiffs);
     static void            CompareTrack     (const TrackAnalysis & a, const TrackAnalysis & b, int quarterTrack, TrackComparison & inOut, vector<Difference> & inOutDiffs);
     static bool            IsSameCells      (const TrackAnalysis & a, const TrackAnalysis & b, int & outRotation, bool & outIsTimingSame);
     static bool            IsSameNibbles    (const TrackAnalysis & a, const TrackAnalysis & b);

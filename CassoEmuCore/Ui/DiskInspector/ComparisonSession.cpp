@@ -88,6 +88,10 @@ void ComparisonSession::End()
     m_result      = DiskComparison();
     m_hasResult   = false;
     m_isRunning   = false;
+    m_isFullChange = true;
+    m_isPartialRun = false;
+    m_changedQts.clear();
+    m_comparingQts.clear();
     m_listed.clear();
     m_version++;
 }
@@ -210,7 +214,64 @@ void ComparisonSession::Tick (const DiskAnalysis & a, bool isAReady, vector<Load
 
 void ComparisonSession::MarkAChanged()
 {
+    NoteChange (true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonSession::MarkAChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonSession::MarkAChanged (const std::set<int> & quarterTracks)
+{
+    m_changedQts.insert (quarterTracks.begin(), quarterTracks.end());
+    NoteChange (false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonSession::NoteChange
+//
+//  A change of only some of A's quarter tracks is compared again over the
+//  last result; any other change, of B, the settings or A as a whole, is
+//  compared again whole.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonSession::NoteChange (bool isWhole)
+{
     m_changes++;
+    m_isFullChange = m_isFullChange || isWhole;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComparisonSession::GetComparing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::set<int> ComparisonSession::GetComparing() const
+{
+    std::set<int>  comparing = m_comparingQts;
+
+
+
+    comparing.insert (m_changedQts.begin(), m_changedQts.end());
+
+    return comparing;
 }
 
 
@@ -234,7 +295,7 @@ void ComparisonSession::ApplySettings (const DecodeSettings & settings)
     {
         m_b.settings = settings;
         m_bScheduler->Restart (m_b.copy, settings);
-        m_changes++;
+        NoteChange (true);
     }
 }
 
@@ -256,7 +317,7 @@ void ComparisonSession::ApplyOwnSettings (const DecodeSettings & settings)
     {
         m_b.settings = settings;
         m_bScheduler->Restart (m_b.copy, settings);
-        m_changes++;
+        NoteChange (true);
     }
 }
 
@@ -300,7 +361,7 @@ void ComparisonSession::Swap (DiskAnalysis & inOutA, std::unique_ptr<AnalysisSch
 
     m_sources[kSideA] = inOutSource;
     m_generation++;
-    m_changes++;
+    NoteChange (true);
     m_isRunning = false;
 }
 
@@ -460,7 +521,7 @@ void ComparisonSession::Deliver (LoadedDisk loaded, vector<LoadedDisk> & outLoad
         outLoadsForA.push_back (std::move (loaded));
     }
 
-    m_changes++;
+    NoteChange (true);
     m_version++;
 }
 
@@ -515,7 +576,7 @@ void ComparisonSession::TakeBResults()
     if (!results.empty())
     {
         DiskAnalyzer::Assemble (m_b);
-        m_changes++;
+        NoteChange (true);
         m_version++;
     }
 }
@@ -535,19 +596,33 @@ void ComparisonSession::TakeBResults()
 
 void ComparisonSession::StartCompare (const DiskAnalysis & a)
 {
-    auto      copyA      = std::make_shared<const DiskAnalysis> (a);
-    auto      copyB      = std::make_shared<const DiskAnalysis> (m_b);
-    uint64_t  generation = m_generation;
-    uint64_t  change     = m_changes;
+    auto           copyA      = std::make_shared<const DiskAnalysis> (a);
+    auto           copyB      = std::make_shared<const DiskAnalysis> (m_b);
+    uint64_t       generation = m_generation;
+    uint64_t       change     = m_changes;
+    bool           isPartial  = m_hasResult && !m_isFullChange && !m_changedQts.empty();
+    std::set<int>  qts        = m_changedQts;
+    auto           base       = std::make_shared<const DiskComparison> (isPartial ? m_result : DiskComparison());
 
 
 
-    m_posted    = m_changes;
-    m_isRunning = true;
+    m_posted       = m_changes;
+    m_isRunning    = true;
+    m_isPartialRun = isPartial;
+    m_comparingQts = isPartial ? qts : std::set<int>();
+    m_changedQts.clear();
+    m_isFullChange = false;
 
-    m_queue.Post ([this, copyA, copyB, generation, change] ()
+    m_queue.Post ([this, copyA, copyB, generation, change, isPartial, qts, base] ()
     {
-        Compared  compared { generation, change, DiskComparer::Compare (*copyA, *copyB) };
+        DiskComparison  result = isPartial ? *base : DiskComparer::Compare (*copyA, *copyB);
+
+        if (isPartial)
+        {
+            DiskComparer::Recompare (*copyA, *copyB, qts, result);
+        }
+
+        Compared  compared { generation, change, std::move (result) };
 
         std::scoped_lock  lock (m_lock);
 
@@ -585,6 +660,7 @@ void ComparisonSession::TakeCompared()
             m_listed    = m_result.GetListed (m_options);
             m_hasResult = true;
             m_isRunning = false;
+            m_comparingQts.clear();
             m_version++;
         }
     }

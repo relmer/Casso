@@ -445,4 +445,58 @@ public:
         Assert::AreEqual (5, hunks[1].firstA);
         Assert::AreEqual (1, hunks[1].countA);
     }
+
+
+    //  FR-122: comparing only the changed quarter tracks again over an
+    //  earlier result matches the result of comparing everything again.
+    TEST_METHOD (ComparingChangedTracksAgainMatchesAWholeComparison)
+    {
+        Pairs::TrackSpec  same;
+        Pairs::TrackSpec  changed;
+        DiskAnalysis      a;
+        DiskAnalysis      b;
+        DiskAnalysis      a2;
+        DiskComparison    before;
+        DiskComparison    whole;
+        DiskComparison    partial;
+        std::set<int>     quarterTracks;
+
+
+
+        changed.changedSector = 4;
+
+        Pairs::AnalyzeDisk (-1, same, a);
+        Pairs::AnalyzeDisk (-1, same, b);
+        Pairs::AnalyzeDisk (12, changed, a2);
+
+        before = DiskComparer::Compare (a, b);
+        Assert::IsTrue (before.differences.empty());
+
+        //  A's track 12 changed since: its quarter tracks are compared again.
+        for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+        {
+            if (qt / DiskImage::kQuarterTracksPerWholeTrack == 12)
+            {
+                quarterTracks.insert (qt);
+            }
+        }
+
+        whole   = DiskComparer::Compare (a2, b);
+        partial = before;
+        DiskComparer::Recompare (a2, b, quarterTracks, partial);
+
+        Assert::AreEqual (whole.differences.size(), partial.differences.size());
+        Assert::IsFalse  (partial.differences.empty(), L"the changed sector is listed");
+
+        for (size_t i = 0; i < whole.differences.size(); i++)
+        {
+            Assert::IsTrue   (whole.differences[i].kind == partial.differences[i].kind);
+            Assert::AreEqual (whole.differences[i].quarterTrack, partial.differences[i].quarterTrack);
+        }
+
+        for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+        {
+            Assert::IsTrue (whole.tracks[qt].verdict == partial.tracks[qt].verdict);
+        }
+    }
 };
