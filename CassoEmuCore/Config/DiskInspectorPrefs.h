@@ -36,6 +36,7 @@ struct DiskInspectorPrefs
     bool    isShowDeleted     = false;
     bool    isFollowHead      = false;
     double  zoom              = 1.0;
+    double  tilt              = 0.0;
     int     lastDrive         = 0;
     bool    isOpen            = false;
     bool    isWalkthroughSeen = false;

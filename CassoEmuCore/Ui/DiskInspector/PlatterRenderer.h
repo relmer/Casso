@@ -35,6 +35,7 @@ struct PlatterPlacement
     float  outerRadiusPx = 0.0f;
     float  rotation      = 0.0f;
     int    headLimitRing = DiskImage::kQuarterTrackCount;
+    float  tilt          = 0.0f;
 };
 
 
@@ -91,7 +92,8 @@ private:
         float  slowColor[4];
         float  timingMode;
         float  timingRange;
-        float  padding[2];
+        float  tiltSin;
+        float  tiltCos;
     };
 
     struct Ring

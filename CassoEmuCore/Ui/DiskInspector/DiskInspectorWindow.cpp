@@ -388,6 +388,7 @@ void DiskInspectorWindow::OnCreate()
     m_zoomOut     = CreateChild<DxuiButton> (s_kpszMinus);
     m_zoomIn      = CreateChild<DxuiButton> (L"+");
     m_fit         = CreateChild<DxuiButton> (L"Fit");
+    m_topDown     = CreateChild<DxuiButton> (L"Top down");
     m_zoomLabel   = CreateChild<DxuiLabel> (L"",         DxuiTextRole::Body,    DxuiTextHAlign::Left);
     m_hintLabel   = CreateChild<DxuiLabel> (s_kpszHint,  DxuiTextRole::Muted  , DxuiTextHAlign::Left);
     m_headerView  = CreateChild<TrackHeaderView> (m_context);
@@ -472,6 +473,7 @@ void DiskInspectorWindow::OnCreate()
     m_zoomOut->SetOnClick    ([this] () { m_platterView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_zoomIn->SetOnClick     ([this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
     m_fit->SetOnClick        ([this] () { m_model.Fit(); });
+    m_topDown->SetOnClick    ([this] () { m_model.SetTilt (0.0); });
     m_stripOut->SetOnClick   ([this] () { m_stripView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_stripIn->SetOnClick    ([this] () { m_stripView->ZoomAboutCenter (kZoomStep); });
     m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
@@ -931,6 +933,8 @@ void DiskInspectorWindow::LayoutPlatterControls (const RECT & area, const DxuiDp
     x += scaler.ToPx (s_kFitDip) + gap;
     m_zoomLabel->Layout ({ x, area.top, x + scaler.ToPx (s_kZoomLabelDip), area.bottom }, scaler);
     x += scaler.ToPx (s_kZoomLabelDip) + gap;
+    m_topDown->Layout   ({ x, area.top, x + GetLabelWidthPx (L"Top down", s_kCheckLabelPadDip, scaler), area.bottom }, scaler);
+    x += GetLabelWidthPx (L"Top down", s_kCheckLabelPadDip, scaler) + gap;
 
     for (const auto & [check, label] : { std::pair { m_alignmentCheck, L"Alignment" }, std::pair { m_filesCheck, L"Files" }, std::pair { m_readsCheck, L"Reads" },
                                      std::pair { m_diffsCheck, L"Differences" } })
@@ -1835,6 +1839,7 @@ void DiskInspectorWindow::UpdateControls()
     {
         m_zoomLabel->SetText    (std::format (L"{:.0f}{}", m_model.GetZoom(), s_kpszMultiplyX));
         m_fit->SetEnabled       (!m_model.IsAtFit());
+    m_topDown->SetEnabled   (m_model.IsTilted());
         m_zoomOut->SetEnabled   (!m_model.IsAtFit());
         m_zoomOut->SetVisible   (m_context.hasDisk);
         m_decodeButton->SetVisible (m_context.hasDisk);
@@ -1861,6 +1866,7 @@ void DiskInspectorWindow::UpdateControls()
         m_bSettingsButton->SetEnabled (m_comparison.GetB().copy != nullptr);
         m_zoomIn->SetVisible    (m_context.hasDisk);
         m_fit->SetVisible       (m_context.hasDisk);
+        m_topDown->SetVisible   (m_context.hasDisk);
         m_zoomLabel->SetVisible (m_context.hasDisk);
         m_hintLabel->SetVisible    (false);
         m_legend->SetVisible       (false);
@@ -4053,6 +4059,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         { m_zoomOut,         L"Zoom the platter out (minus)",                                    L"The whole disk is shown, so the platter cannot zoom out further" },
         { m_zoomIn,          L"Zoom the platter in (plus)",                                      nullptr },
         { m_fit,             L"Show the whole disk (0)",                                         L"The whole disk is already shown" },
+        { m_topDown,         L"See the platter from above, not tilted",                         L"The platter is not tilted" },
         { m_alignmentCheck,  L"Mark where sector 0 and the longest sync start on each track",   nullptr },
         { m_filesCheck,      L"Color each sector's data field by its role in the file map",     nullptr },
         { m_readsCheck,      L"Mark each quarter track the drive has read since the disk was inserted", nullptr },
@@ -5414,11 +5421,11 @@ void DiskInspectorWindow::TickHead()
     m_context.drive = isOnDisk ? m_headState.get() : nullptr;
 
     //  While the drive turns, the platter turns under the head at 12
-    //  o'clock. Zoomed in, the platter does not turn and the head moves
-    //  around it (FR-064).
+    //  o'clock, or at the near edge when tilted (FR-152). Zoomed in, the
+    //  platter does not turn and the head moves around it (FR-064).
     if (isOnDisk && m_headState->isTurning && m_model.IsAtFit())
     {
-        m_model.SetRotation (-m_headState->angle);
+        m_model.SetRotation ((m_model.IsTilted() ? 0.5 : 0.0) - m_headState->angle);
     }
 
     if (qt >= 0)
@@ -5945,6 +5952,7 @@ void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
     inOut.isShowDeleted = m_mapDeleted->IsChecked();
     inOut.isFollowHead  = m_followHead.IsOn();
     inOut.zoom          = m_zoom;
+    inOut.tilt          = m_model.GetTilt();
     inOut.lastDrive     = m_drive;
 }
 
@@ -6005,6 +6013,7 @@ void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
     m_followCheck->SetChecked (prefs.isFollowHead);
     SetFollowHead (prefs.isFollowHead);
     SetZoom (prefs.zoom);
+    m_model.SetTilt (prefs.tilt);
 
     if (prefs.isDiskGroup)
     {

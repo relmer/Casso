@@ -127,12 +127,12 @@ bool PlatterGeometry::IsGrooveOutside (int quarterTrack)
 PlatterHit PlatterGeometry::HitTest (const PlatterPlacement & view, POINT pointPx)
 {
     PlatterHit  hit;
-    double      dx = pointPx.x + 0.5 - view.centerXPx;
-    double      dy = pointPx.y + 0.5 - view.centerYPx;
+    double      dx = 0;
+    double      dy = 0;
 
 
 
-    if (view.outerRadiusPx > 0)
+    if (view.outerRadiusPx > 0 && Unproject (view, pointPx.x + 0.5, pointPx.y + 0.5, dx, dy))
     {
         hit.quarterTrack = GetQuarterTrackAt (std::hypot (dx, dy) / view.outerRadiusPx);
         hit.isOnDisk     = hit.quarterTrack >= 0;
@@ -327,15 +327,36 @@ bool PlatterGeometry::IsCellInSpan (uint32_t cell, uint32_t start, uint32_t end,
 
 void PlatterGeometry::GetVisibleRings (const PlatterPlacement & view, const RECT & boundsPx, int & outFirst, int & outLast)
 {
-    double  nearX = std::clamp (static_cast<double> (view.centerXPx), static_cast<double> (boundsPx.left), static_cast<double> (boundsPx.right));
-    double  nearY = std::clamp (static_cast<double> (view.centerYPx), static_cast<double> (boundsPx.top),  static_cast<double> (boundsPx.bottom));
-    double  farX  = std::max (std::abs (boundsPx.left - view.centerXPx), std::abs (boundsPx.right  - view.centerXPx));
-    double  farY  = std::max (std::abs (boundsPx.top  - view.centerYPx), std::abs (boundsPx.bottom - view.centerYPx));
-    double  r     = std::max (static_cast<double> (view.outerRadiusPx), 1.0);
-    double  inner = std::hypot (nearX - view.centerXPx, nearY - view.centerYPx) / r;
-    double  outer = std::hypot (farX, farY) / r;
+    std::array<std::pair<double, double>, 4>  corners = {};
+    bool                                      isPlane = GetPlaneCorners (view, boundsPx, corners);
+    bool                                      isIn    = view.centerXPx >= boundsPx.left && view.centerXPx <= boundsPx.right &&
+                                                        view.centerYPx >= boundsPx.top  && view.centerYPx <= boundsPx.bottom;
+    double                                    r       = std::max (static_cast<double> (view.outerRadiusPx), 1.0);
+    double                                    inner   = isIn ? 0.0 : std::numeric_limits<double>::max();
+    double                                    outer   = 0.0;
+    double                                    ex      = 0;
+    double                                    ey      = 0;
+    double                                    t       = 0;
+    size_t                                    k       = 0;
 
 
+
+    //  The farthest corner, and the nearest point of the corners' outline
+    //  on the disk's plane when the center is outside it.
+    for (k = 0; isPlane && k < corners.size(); k++)
+    {
+        const auto &  a = corners[k];
+        const auto &  b = corners[(k + 1) % corners.size()];
+
+        ex     = b.first - a.first;
+        ey     = b.second - a.second;
+        t      = std::clamp (-(a.first * ex + a.second * ey) / std::max (ex * ex + ey * ey, 1e-9), 0.0, 1.0);
+        outer  = std::max (outer, std::hypot (a.first, a.second) / r);
+        inner  = isIn ? inner : std::min (inner, std::hypot (a.first + t * ex, a.second + t * ey) / r);
+    }
+
+    inner = isPlane ? inner : 0.0;
+    outer = isPlane ? outer : 1.0;
 
     outFirst = std::clamp (static_cast<int> (std::floor ((1.0 - outer) / GetRingWidth())), 0, DiskImage::kQuarterTrackCount - 1);
     outLast  = std::clamp (static_cast<int> (std::floor ((1.0 - inner) / GetRingWidth())), 0, DiskImage::kQuarterTrackCount - 1);
@@ -356,23 +377,23 @@ void PlatterGeometry::GetVisibleRings (const PlatterPlacement & view, const RECT
 
 bool PlatterGeometry::GetVisibleTurns (const PlatterPlacement & view, const RECT & boundsPx, double & outStart, double & outEnd)
 {
-    const std::array<POINT, 4>  corners   = { POINT { boundsPx.left, boundsPx.top }, POINT { boundsPx.right, boundsPx.top },
-                                              POINT { boundsPx.right, boundsPx.bottom }, POINT { boundsPx.left, boundsPx.bottom } };
-    bool                        isPartial = view.centerXPx < boundsPx.left || view.centerXPx > boundsPx.right ||
-                                            view.centerYPx < boundsPx.top  || view.centerYPx > boundsPx.bottom;
-    double                      first     = GetTurnAt (corners[0].x - view.centerXPx, corners[0].y - view.centerYPx);
-    double                      low       = 0;
-    double                      high      = 0;
-    double                      delta     = 0;
+    std::array<std::pair<double, double>, 4>  corners   = {};
+    bool                                      isPlane   = GetPlaneCorners (view, boundsPx, corners);
+    bool                                      isPartial = isPlane && (view.centerXPx < boundsPx.left || view.centerXPx > boundsPx.right ||
+                                                                      view.centerYPx < boundsPx.top  || view.centerYPx > boundsPx.bottom);
+    double                                    first     = GetTurnAt (corners[0].first, corners[0].second);
+    double                                    low       = 0;
+    double                                    high      = 0;
+    double                                    delta     = 0;
 
 
 
     outStart = 0.0;
     outEnd   = 1.0;
 
-    for (const POINT & corner : corners)
+    for (const auto & corner : corners)
     {
-        delta  = GetTurnAt (corner.x - view.centerXPx, corner.y - view.centerYPx) - first;
+        delta  = GetTurnAt (corner.first, corner.second) - first;
         delta -= std::round (delta);
         low    = std::min (low, delta);
         high   = std::max (high, delta);
@@ -386,4 +407,128 @@ bool PlatterGeometry::GetVisibleTurns (const PlatterPlacement & view, const RECT
     }
 
     return isPartial;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::Project
+//
+//  Tilted back by t about the horizontal diameter, a point (dx, dy) is at
+//  depth (dy / R) sin t toward the eye and height dy cos t, and the eye at
+//  kEyeDistance radii scales it by D / (D - depth).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterGeometry::Project (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY)
+{
+    double  s = GetScaleAt (view, dy);
+
+
+
+    outX = static_cast<float> (view.centerXPx + dx * s);
+    outY = static_cast<float> (view.centerYPx + dy * std::cos (view.tilt) * s);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::ProjectAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterGeometry::ProjectAt (const PlatterPlacement & view, double turn, double radiusPx, float & outX, float & outY)
+{
+    static constexpr double  kTwoPi = 6.283185307179586;
+
+
+
+    double  angle = (turn + view.rotation) * kTwoPi;
+
+
+
+    Project (view, radiusPx * std::sin (angle), -radiusPx * std::cos (angle), outX, outY);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::Unproject
+//
+//  Project solved for the point: from the pixel's height y' and the depth,
+//  dy = y' D R / (D R cos t + y' sin t), and dx is x' divided by the scale at dy.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterGeometry::Unproject (const PlatterPlacement & view, double x, double y, double & outDx, double & outDy)
+{
+    double  r     = std::max (static_cast<double> (view.outerRadiusPx), 1.0);
+    double  py    = y - view.centerYPx;
+    double  denom = kEyeDistance * r * std::cos (view.tilt) + py * std::sin (view.tilt);
+    bool    isOn  = denom > 1e-9;
+
+
+
+    outDy = isOn ? py * kEyeDistance * r / denom : 0.0;
+    outDx = isOn ? (x - view.centerXPx) / GetScaleAt (view, outDy) : 0.0;
+
+    return isOn;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::GetScaleAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double PlatterGeometry::GetScaleAt (const PlatterPlacement & view, double dy)
+{
+    double  r = std::max (static_cast<double> (view.outerRadiusPx), 1.0);
+
+
+
+    return kEyeDistance / std::max (kEyeDistance - (dy / r) * std::sin (view.tilt), 1e-6);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterGeometry::GetPlaneCorners
+//
+//  The rectangle's corners on the disk's plane; false when one is beyond
+//  the horizon, where nothing can be culled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterGeometry::GetPlaneCorners (const PlatterPlacement & view, const RECT & boundsPx, std::array<std::pair<double, double>, 4> & outCorners)
+{
+    const std::array<POINT, 4>  corners = { POINT { boundsPx.left, boundsPx.top }, POINT { boundsPx.right, boundsPx.top },
+                                            POINT { boundsPx.right, boundsPx.bottom }, POINT { boundsPx.left, boundsPx.bottom } };
+    bool                        isAll   = true;
+    size_t                      k       = 0;
+
+
+
+    for (k = 0; k < corners.size(); k++)
+    {
+        isAll = Unproject (view, corners[k].x, corners[k].y, outCorners[k].first, outCorners[k].second) && isAll;
+    }
+
+    return isAll;
 }

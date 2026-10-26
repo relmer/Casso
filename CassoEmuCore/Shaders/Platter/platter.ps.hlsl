@@ -17,8 +17,12 @@
 //  two pixels, a dark seam between rings at least kSeamMinPx wide, and a
 //  darker rim.
 //
+//  In the tilted view (FR-151) the pixel is first taken back to the point
+//  on the disk's plane under it, as PlatterGeometry::Unproject does, and
+//  each pixel covers less of the disk by the scale there.
+//
 //  Must match PlatterRenderer: kTextureWidth, kRingStride, kTimingFlag and
-//  the state values.
+//  the state values, and PlatterGeometry: kEyeDistance.
 
 static const uint  kTextureWidth = 4096;
 static const uint  kMaxLevels    = 17;
@@ -41,6 +45,7 @@ static const float kSeamDark     = 0.72;
 static const float kSeamMinPx    = 3.0;
 static const float kRimPx        = 6.0;
 static const float kRimDark      = 0.55;
+static const float kEyeDistance  = 3.0;
 
 cbuffer Platter : register (b0)
 {
@@ -63,7 +68,8 @@ cbuffer Platter : register (b0)
     float4  slowColor;
     float   timingMode;
     float   timingRange;
-    float2  padding;
+    float   tiltSin;
+    float   tiltCos;
 };
 
 Texture2D<uint>  Kinds  : register (t0);
@@ -86,7 +92,7 @@ uint Hash (uint x)
 
 
 
-float4 SampleRing (uint ring, float turn, float radiusPx, float2 position)
+float4 SampleRing (uint ring, float turn, float radiusPx, float2 position, float scale)
 {
     uint    base   = ring * kRingStride;
     uint    count  = Rings[base];
@@ -110,7 +116,7 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position)
     }
     else if (state == kStateData && count > 0)
     {
-        float  cellsPerPixel = count / max (kTwoPi * radiusPx, 1.0);
+        float  cellsPerPixel = count / max (kTwoPi * radiusPx * scale, 1.0);
         uint   level         = cellsPerPixel <= 1.0 ? 0 : min ((uint) ceil (log2 (cellsPerPixel)), kMaxLevels - 1);
         uint   levelCount    = (count + (1u << level) - 1) >> level;
         uint   index         = min (((uint) (turn * count)) >> level, levelCount - 1);
@@ -155,7 +161,11 @@ float4 SampleRing (uint ring, float turn, float radiusPx, float2 position)
 
 float4 main (float4 position : SV_Position) : SV_Target
 {
-    float2  d          = position.xy - center;
+    float2  p          = position.xy - center;
+    float   denom      = kEyeDistance * outerRadiusPx * tiltCos + p.y * tiltSin;
+    float   dy         = p.y * kEyeDistance * outerRadiusPx / max (denom, 1e-6);
+    float   scale      = kEyeDistance / max (kEyeDistance - dy / outerRadiusPx * tiltSin, 1e-6);
+    float2  d          = float2 (p.x / scale, dy);
     float   radiusPx   = length (d);
     float   r          = radiusPx / outerRadiusPx;
     float   ringPx     = (1.0 - innerFraction) * outerRadiusPx / ringCount;
@@ -166,16 +176,18 @@ float4 main (float4 position : SV_Position) : SV_Target
 
 
 
-    if (r > 1.0 || r < innerFraction || ring >= (uint) ringCount)
+    if (denom <= 0.0 || r > 1.0 || r < innerFraction || ring >= (uint) ringCount)
     {
         discard;
     }
 
-    color = SampleRing (ring, turn, radiusPx, position.xy);
+    color = SampleRing (ring, turn, radiusPx, position.xy, scale);
 
     //  A groove at each whole-track boundary, once whole tracks are far
     //  enough apart for one to read as a line, and a dark seam at every other
     //  ring's edge once rings are wide enough for one.
+    ringPx *= scale;
+
     if (ring % 4 == 0 && frac (ringF) * ringPx < 1.0 && ringPx * 4.0 >= grooveMinPx)
     {
         color = grooveColor;
@@ -186,7 +198,7 @@ float4 main (float4 position : SV_Position) : SV_Target
     }
 
     //  The rim darkens toward the disk's edge.
-    color.rgb *= lerp (kRimDark, 1.0, saturate ((outerRadiusPx - radiusPx) / kRimPx));
+    color.rgb *= lerp (kRimDark, 1.0, saturate ((outerRadiusPx - radiusPx) * scale / kRimPx));
 
     if ((float) ring >= headLimitRing)
     {

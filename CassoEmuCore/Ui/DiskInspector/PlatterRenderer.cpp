@@ -194,6 +194,8 @@ HRESULT PlatterRenderer::Render (const DxuiCustomDrawArgs & args, const PlatterP
 
     c.timingMode  = m_isTimingMode ? 1.0f : 0.0f;
     c.timingRange = static_cast<float> (m_timingRange);
+    c.tiltSin     = std::sin (view.tilt);
+    c.tiltCos     = std::cos (view.tilt);
 
     hr = context->Map (m_constants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHRA (hr);

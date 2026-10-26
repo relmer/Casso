@@ -103,8 +103,20 @@ public:
     double  GetRotation     () const { return m_rotation; }
     void    SetRotation     (double rotation) { m_rotation = rotation; }
 
-    //  A point on a ring at fit, zoom 1 and no pan.
-    static Point  GetFitPoint (int quarterTrack, double turn);
+    //  How far the platter is tilted back from flat, in radians, up to
+    //  kMaxTilt (FR-151).
+    static constexpr double  kMaxTilt = 1.0471975511965976;
+
+    double  GetTilt         () const { return m_tilt; }
+    void    SetTilt         (double tilt) { m_tilt = std::clamp (tilt, 0.0, kMaxTilt); }
+    bool    IsTilted        () const { return m_tilt > 0.0; }
+
+    //  A point on a ring at fit, zoom 1 and no pan, as the tilt draws it.
+    Point   GetFitPoint     (int quarterTrack, double turn) const;
+
+    //  Tilted, the disk at fit is drawn smaller by a scale and moved down
+    //  by an offset in fit units, so all of its projection is in view.
+    void    GetTiltFit      (double & outScale, double & outOffsetY) const;
 
     //  The view that centers the chord from `from` to `to`, given at fit, at
     //  the zoom that makes it kFlightFill of the line through the view's
@@ -158,6 +170,7 @@ private:
     bool                  m_hasAnchor     = false;
     double                m_zoom          = 1.0;
     double                m_rotation      = 0.0;
+    double                m_tilt          = 0.0;
     Point                 m_pan;
     double                m_stripStart    = 0.0;
     double                m_stripSpan     = kDefaultStripSpan;

@@ -18,10 +18,16 @@
 
 void InspectorViewModel::SetDisk (uint64_t mediaId)
 {
+    double  tilt = m_tilt;
+
+
+
+    //  The tilt is the window's, saved with its state, so it outlasts the disk.
     if (mediaId != m_mediaId)
     {
         *this     = InspectorViewModel();
         m_mediaId = mediaId;
+        m_tilt    = tilt;
     }
 }
 
@@ -535,17 +541,66 @@ InspectorViewModel::Point InspectorViewModel::GetDiskPoint (int quarterTrack, do
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-InspectorViewModel::Point InspectorViewModel::GetFitPoint (int quarterTrack, double turn)
+InspectorViewModel::Point InspectorViewModel::GetFitPoint (int quarterTrack, double turn) const
 {
     static constexpr double  kTwoPi = 6.283185307179586;
 
 
 
-    double  r = GetRingRadius (quarterTrack);
+    double  r      = GetRingRadius (quarterTrack);
+    double  u      = r * std::sin (kTwoPi * turn);
+    double  v      = -r * std::cos (kTwoPi * turn);
+    double  s      = PlatterGeometry::kEyeDistance / (PlatterGeometry::kEyeDistance - v * std::sin (m_tilt));
+    double  scale  = 1.0;
+    double  offset = 0.0;
 
 
 
-    return { r * std::sin (kTwoPi * turn), -r * std::cos (kTwoPi * turn) };
+    GetTiltFit (scale, offset);
+
+    return { u * s * scale, v * std::cos (m_tilt) * s * scale + offset };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::GetTiltFit
+//
+//  From the tilted rim's extent: the scale that fits its larger half in a
+//  radius of 1, and the offset that centers it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::GetTiltFit (double & outScale, double & outOffsetY) const
+{
+    static constexpr double  kTwoPi  = 6.283185307179586;
+    static constexpr int     kPoints = 64;
+
+
+
+    double  top    = 0.0;
+    double  bottom = 0.0;
+    double  wide   = 0.0;
+    double  v      = 0.0;
+    double  s      = 0.0;
+    int     k      = 0;
+
+
+
+    for (k = 0; k < kPoints; k++)
+    {
+        v      = -std::cos (kTwoPi * k / kPoints);
+        s      = PlatterGeometry::kEyeDistance / (PlatterGeometry::kEyeDistance - v * std::sin (m_tilt));
+        wide   = std::max (wide, std::abs (std::sin (kTwoPi * k / kPoints)) * s);
+        top    = std::min (top, v * std::cos (m_tilt) * s);
+        bottom = std::max (bottom, v * std::cos (m_tilt) * s);
+    }
+
+    outScale   = 1.0 / std::max ({ wide, (bottom - top) / 2.0, 1e-6 });
+    outOffsetY = -(top + bottom) / 2.0 * outScale;
 }
 
 
@@ -739,14 +794,21 @@ double InspectorViewModel::Ease (double t)
 PlatterPlacement InspectorViewModel::GetPlacement (const RECT & boundsPx) const
 {
     PlatterPlacement  view;
-    double            fit  = std::max (0.0, std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0 - kRimInsetPx);
+    double            fit    = std::max (0.0, std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0 - kRimInsetPx);
+    double            scale  = 1.0;
+    double            offset = 0.0;
 
 
 
+    GetTiltFit (scale, offset);
+
+    //  The tilted disk scales about the pan point with the zoom, so the
+    //  point under the pointer stays put as it zooms (FR-151).
     view.centerXPx     = static_cast<float> ((boundsPx.left + boundsPx.right) / 2.0 + m_pan.x * fit);
-    view.centerYPx     = static_cast<float> ((boundsPx.top + boundsPx.bottom) / 2.0 + m_pan.y * fit);
-    view.outerRadiusPx = static_cast<float> (fit * m_zoom);
+    view.centerYPx     = static_cast<float> ((boundsPx.top + boundsPx.bottom) / 2.0 + (m_pan.y + offset * m_zoom) * fit);
+    view.outerRadiusPx = static_cast<float> (fit * m_zoom * scale);
     view.rotation      = static_cast<float> (m_rotation);
+    view.tilt          = static_cast<float> (m_tilt);
     view.headLimitRing = (m_analysis != nullptr) ? m_analysis->headLimit + 1 : DiskImage::kQuarterTrackCount;
 
     return view;

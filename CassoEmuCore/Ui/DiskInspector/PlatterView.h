@@ -41,7 +41,7 @@ public:
 
     PlatterRenderer &  GetRenderer ()       { return m_renderer; }
     PlatterHit         HitTest     (POINT pointPx) const;
-    bool               IsDragging  () const { return m_isPanning; }
+    bool               IsDragging  () const { return m_isPanning || m_isTilting || m_isTiltHandle; }
     void               ZoomBy      (double factor, POINT anchorPx);
     void               ZoomAboutCenter (double factor);
     //  Where the head's bullseye is drawn, or false when there is no head.
@@ -103,19 +103,36 @@ private:
     void           PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     void           PaintReads     (IDxuiPainter & painter, const PlatterPlacement & view) const;
+    void           PaintTiltHandle (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    bool           OnTiltMouse    (const DxuiMouseEvent & ev);
+    RECT           GetTiltHandleRect () const;
+    void           SetTiltFromHandle (LONG yPx);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
     static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);
+
+    //  A circle on the disk around its center: round in the flat view, and
+    //  drawn through Project in the tilted one.
+    static void    StrokeDiskCircle (IDxuiPainter & painter, const PlatterPlacement & view, float radiusPx, float thicknessPx, uint32_t argb);
+    static void    FillDiskCircle   (IDxuiPainter & painter, const PlatterPlacement & view, float radiusPx, uint32_t argb);
+
+    //  How many pixels one pixel of the flat disk at a point is drawn as,
+    //  the smaller of along the ring and across it; 1 in the flat view.
+    static double  GetLocalScale    (const PlatterPlacement & view, double turn, double radiusPx);
     PlatterPlacement  MakeView       () const;
     InspectorViewModel::Point  ToViewPoint (POINT pointPx) const;
 
     PlatterRenderer            m_renderer;
-    bool                       m_isRendererReady  = false;
-    bool                       m_isAlignmentShown = false;
-    bool                       m_isPressed        = false;
-    bool                       m_isPanning        = false;
-    POINT                      m_pressAt          = {};
-    POINT                      m_lastAt           = {};
-    int64_t                    m_lastClickMs      = 0;
-    int                        m_hoverRing        = -1;
+    bool                       m_isRendererReady   = false;
+    bool                       m_isAlignmentShown  = false;
+    bool                       m_isPressed         = false;
+    bool                       m_isPanning         = false;
+    bool                       m_isTilting         = false;
+    bool                       m_isTiltHandle      = false;
+    POINT                      m_tiltAt            = {};
+    int64_t                    m_lastHandleClickMs = 0;
+    POINT                      m_pressAt           = {};
+    POINT                      m_lastAt            = {};
+    int64_t                    m_lastClickMs       = 0;
+    int                        m_hoverRing         = -1;
     mutable vector<RingTurns>  m_ringTurns;
 };

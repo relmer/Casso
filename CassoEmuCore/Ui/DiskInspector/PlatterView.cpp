@@ -48,6 +48,12 @@ static constexpr float    s_kHeadArmDip      = 12.0f;
 static constexpr float    s_kHeadEyeDip      = 6.0f;
 static constexpr uint32_t s_kHeadArmAlpha    = 0x50000000u;
 static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
+static constexpr float    s_kHeadShadowDip   = 6.0f;
+static constexpr uint32_t s_kHeadShadowArgb  = 0x40000000u;
+static constexpr int      s_kTiltInsetDip    = 16;
+static constexpr int      s_kTiltTrackDip    = 96;
+static constexpr int      s_kTiltGrabDip     = 10;
+static constexpr float    s_kTiltKnobDip     = 6.0f;
 static constexpr float    s_kReadsMinDip     = 2.0f;
 static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
@@ -89,6 +95,7 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         PaintDisk    (painter, theme, view);
         PaintNibbles (painter, text, theme, view);
         PaintHead    (painter, theme, view);
+        PaintTiltHandle (painter, theme);
         painter.SetClipRect (hadClip ? &oldClip : nullptr);
     }
 }
@@ -106,8 +113,11 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
 {
     float            hub  = view.outerRadiusPx * PlatterRenderer::kInnerFraction;
-    float            a    = static_cast<float> (view.rotation * s_kTwoPi);
     float            mark = m_scaler.ToPxf (s_kIndexMarkDip);
+    float            x0   = 0.0f;
+    float            y0   = 0.0f;
+    float            x1   = 0.0f;
+    float            y1   = 0.0f;
     vector<FileArc>  arcs;
 
 
@@ -121,24 +131,24 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     }
 
     //  The hub: a raised ring inside the tracks and the spindle hole.
-    painter.FillCircle (view.centerXPx, view.centerYPx, hub * s_kHubFraction,     theme.BackgroundElevated());
-    painter.FillCircle (view.centerXPx, view.centerYPx, hub * s_kSpindleFraction, theme.Background());
+    FillDiskCircle (painter, view, hub * s_kHubFraction,     theme.BackgroundElevated());
+    FillDiskCircle (painter, view, hub * s_kSpindleFraction, theme.Background());
 
     //  A lit edge around the spindle hole and around the raised ring (FR-149).
-    OutlineCircle (painter, view.centerXPx, view.centerYPx, hub * s_kSpindleFraction + m_scaler.ToPxf (s_kHubLightDip) / 2.0f, m_scaler.ToPxf (s_kHubLightDip),
+    StrokeDiskCircle (painter, view, hub * s_kSpindleFraction + m_scaler.ToPxf (s_kHubLightDip) / 2.0f, m_scaler.ToPxf (s_kHubLightDip),
                    DxuiColor::Lerp (theme.BackgroundElevated(), 0xFFFFFFFF, s_kHubLightShare));
-    OutlineCircle (painter, view.centerXPx, view.centerYPx, hub * s_kHubFraction - m_scaler.ToPxf (s_kHubLightDip) / 2.0f, m_scaler.ToPxf (s_kHubLightDip) / 2.0f,
+    StrokeDiskCircle (painter, view, hub * s_kHubFraction - m_scaler.ToPxf (s_kHubLightDip) / 2.0f, m_scaler.ToPxf (s_kHubLightDip) / 2.0f,
                    DxuiColor::Lerp (theme.BackgroundElevated(), 0xFFFFFFFF, s_kHubLightShare / 2.0f));
 
     //  The index mark just outside the rim, where each track starts.
-    painter.DrawLine (view.centerXPx + (view.outerRadiusPx + 2.0f) * std::sin (a),        view.centerYPx - (view.outerRadiusPx + 2.0f) * std::cos (a),
-                      view.centerXPx + (view.outerRadiusPx + 2.0f + mark) * std::sin (a), view.centerYPx - (view.outerRadiusPx + 2.0f + mark) * std::cos (a),
-                      m_scaler.ToPxf (s_kSelectOutlineDip), theme.Foreground());
+    PlatterGeometry::ProjectAt (view, 0.0, view.outerRadiusPx + 2.0f,        x0, y0);
+    PlatterGeometry::ProjectAt (view, 0.0, view.outerRadiusPx + 2.0f + mark, x1, y1);
+    painter.DrawLine (x0, y0, x1, y1, m_scaler.ToPxf (s_kSelectOutlineDip), theme.Foreground());
 
     //  The line at the head's limit (FR-004).
     if (view.headLimitRing < PlatterRenderer::kRingCount)
     {
-        OutlineCircle (painter, view.centerXPx, view.centerYPx, static_cast<float> (PlatterGeometry::GetRingOuter (view.headLimitRing)) * view.outerRadiusPx,
+        StrokeDiskCircle (painter, view, static_cast<float> (PlatterGeometry::GetRingOuter (view.headLimitRing)) * view.outerRadiusPx,
                        m_scaler.ToPxf (s_kHoverOutlineDip), theme.ForegroundMuted());
     }
 
@@ -263,6 +273,7 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
     double               b          = 0;
     double               arc        = 0;
     double               turn       = 0;
+    double               local      = 1.0;
     uint32_t             color      = 0;
     uint32_t             ink        = 0;
 
@@ -290,10 +301,14 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
                 ShadeArc (painter, view, a, b, rInner, rOuter, (theme.Accent() & 0x00FFFFFFu) | s_kSelectionAlpha);
             }
 
-            if (showValues && arc >= m_scaler.ToPxf (s_kValueMinDip))
+            //  Tilted, a value is left out where the ring is drawn too thin for
+            //  it (FR-151).
+            local = GetLocalScale (view, (a + b) / 2, rMid);
+
+            if (showValues && arc * local >= m_scaler.ToPxf (s_kValueMinDip) && ringW * local >= m_scaler.ToPxf (kSmallDip))
             {
                 DrawRadial (painter, view, a, rInner, rOuter, 1.0f, theme.Background());
-                DrawUpright (text, view, (a + b) / 2, rText, std::format (L"{:02X}", framed.nibbles[i].value), static_cast<float> (arc), textPx, ink);
+                DrawUpright (text, view, (a + b) / 2, rText, std::format (L"{:02X}", framed.nibbles[i].value), static_cast<float> (arc * local), textPx, ink);
             }
 
             if (showTicks)
@@ -332,14 +347,16 @@ void PlatterView::PaintRing (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
 void PlatterView::DrawRadial (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb)
 {
-    double  angle = (turn + view.rotation) * s_kTwoPi;
-    double  s     = std::sin (angle);
-    double  co    = std::cos (angle);
+    float  x0 = 0.0f;
+    float  y0 = 0.0f;
+    float  x1 = 0.0f;
+    float  y1 = 0.0f;
 
 
 
-    painter.DrawLine (static_cast<float> (view.centerXPx + r0 * s), static_cast<float> (view.centerYPx - r0 * co),
-                      static_cast<float> (view.centerXPx + r1 * s), static_cast<float> (view.centerYPx - r1 * co), thicknessPx, argb);
+    PlatterGeometry::ProjectAt (view, turn, r0, x0, y0);
+    PlatterGeometry::ProjectAt (view, turn, r1, x1, y1);
+    painter.DrawLine (x0, y0, x1, y1, thicknessPx, argb);
 }
 
 
@@ -357,17 +374,15 @@ void PlatterView::DrawRadial (IDxuiPainter & painter, const PlatterPlacement & v
 
 void PlatterView::ShadeArc (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb)
 {
-    double  angleA = (a + view.rotation) * s_kTwoPi;
-    double  angleB = (b + view.rotation) * s_kTwoPi;
-    float   cx     = view.centerXPx;
-    float   cy     = view.centerYPx;
+    std::array<float, 8>  q = {};
 
 
 
-    painter.FillConvexQuad (static_cast<float> (cx + r0 * std::sin (angleA)), static_cast<float> (cy - r0 * std::cos (angleA)),
-                            static_cast<float> (cx + r1 * std::sin (angleA)), static_cast<float> (cy - r1 * std::cos (angleA)),
-                            static_cast<float> (cx + r1 * std::sin (angleB)), static_cast<float> (cy - r1 * std::cos (angleB)),
-                            static_cast<float> (cx + r0 * std::sin (angleB)), static_cast<float> (cy - r0 * std::cos (angleB)), argb);
+    PlatterGeometry::ProjectAt (view, a, r0, q[0], q[1]);
+    PlatterGeometry::ProjectAt (view, a, r1, q[2], q[3]);
+    PlatterGeometry::ProjectAt (view, b, r1, q[4], q[5]);
+    PlatterGeometry::ProjectAt (view, b, r0, q[6], q[7]);
+    painter.FillConvexQuad (q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], argb);
 }
 
 
@@ -406,11 +421,12 @@ bool PlatterView::IsSelectedNibble (int quarterTrack, int nibble) const
 void PlatterView::DrawUpright (IDxuiTextRenderer & text, const PlatterPlacement & view, double turn, double radius, const std::wstring & value, float widthPx,
                                float textPx, uint32_t argb) const
 {
-    double  angle = (turn + view.rotation) * s_kTwoPi;
-    float   x     = static_cast<float> (view.centerXPx + radius * std::sin (angle));
-    float   y     = static_cast<float> (view.centerYPx - radius * std::cos (angle));
+    float  x = 0.0f;
+    float  y = 0.0f;
 
 
+
+    PlatterGeometry::ProjectAt (view, turn, radius, x, y);
 
     if (x - textPx >= m_boundsDip.left && x + textPx <= m_boundsDip.right && y - textPx >= m_boundsDip.top && y + textPx <= m_boundsDip.bottom)
     {
@@ -435,12 +451,14 @@ bool PlatterView::IsShowingValues (const PlatterPlacement & view, int quarterTra
 {
     const TrackAnalysis *  track = GetRingTrack (quarterTrack);
     double                 rMid  = PlatterGeometry::GetRingMiddle (quarterTrack) * view.outerRadiusPx;
-    double                 ringW = PlatterGeometry::GetRingWidth() * view.outerRadiusPx;
+    double                 most  = PlatterGeometry::GetScaleAt (view, view.outerRadiusPx);
+    double                 ringW = PlatterGeometry::GetRingWidth() * view.outerRadiusPx * most;
 
 
 
+    //  Tilted, the near side is drawn larger, so values can fit there.
     return track != nullptr && !track->framed.nibbles.empty() && ringW >= m_scaler.ToPxf (kSmallDip) &&
-           s_kTwoPi * rMid / track->framed.nibbles.size() >= m_scaler.ToPxf (s_kValueMinDip);
+           s_kTwoPi * rMid * most / track->framed.nibbles.size() >= m_scaler.ToPxf (s_kValueMinDip);
 }
 
 
@@ -740,8 +758,8 @@ void PlatterView::PaintMarquee (IDxuiPainter & painter, const PlatterPlacement &
     double            inner  = 0;
     float             s      = 0;
 
-    auto  getX = [&] (double turn, double r) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
-    auto  getY = [&] (double turn, double r) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+    auto  getX = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return x; };
+    auto  getY = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return y; };
 
     //  The parts of `of` outside every span of `minus`.
     auto  subtract = [] (const Spans & of, const Spans & minus)
@@ -937,8 +955,8 @@ void PlatterView::PaintArcMark (IDxuiPainter & painter, const PlatterPlacement &
     double    a      = 0;
     double    b      = 0;
     double    m      = 0;
-    auto      getX   = [&] (double turn, double r) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
-    auto      getY   = [&] (double turn, double r) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+    auto      getX   = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return x; };
+    auto      getY   = [&] (double turn, double r) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return y; };
     auto      drawOutline = [&] (float w, const std::function<uint32_t (float, float)> & colorAt)
     {
         for (const std::pair<double, double> & part : GetVisibleParts (view, start, end))
@@ -1035,6 +1053,14 @@ void PlatterView::GetVisibleRadii (const PlatterPlacement & view, double r0, dou
 
 
 
+    //  Tilted, the whole band is taken as visible.
+    if (view.tilt != 0.0f)
+    {
+        outNear = r0;
+        outFar  = r1;
+        return;
+    }
+
     for (LONG x : { m_boundsDip.left, m_boundsDip.right })
     {
         for (LONG y : { m_boundsDip.top, m_boundsDip.bottom })
@@ -1065,8 +1091,8 @@ RECT PlatterView::GetArcBox (const PlatterPlacement & view, double start, double
     RECT    box    = { LONG_MAX, LONG_MAX, LONG_MIN, LONG_MIN };
     int     pieces = 0;
     double  t      = 0;
-    double  x      = 0;
-    double  y      = 0;
+    float   x      = 0;
+    float   y      = 0;
 
 
 
@@ -1076,12 +1102,11 @@ RECT PlatterView::GetArcBox (const PlatterPlacement & view, double start, double
 
         for (int k = 0; k <= pieces; k++)
         {
-            t = (part.first + (part.second - part.first) * k / pieces + view.rotation) * s_kTwoPi;
+            t = part.first + (part.second - part.first) * k / pieces;
 
             for (double r : { r0, r1 })
             {
-                x          = view.centerXPx + r * std::sin (t);
-                y          = view.centerYPx - r * std::cos (t);
+                PlatterGeometry::ProjectAt (view, t, r, x, y);
                 box.left   = std::min (box.left,   static_cast<LONG> (std::floor (x)));
                 box.top    = std::min (box.top,    static_cast<LONG> (std::floor (y)));
                 box.right  = std::max (box.right,  static_cast<LONG> (std::ceil (x)));
@@ -1141,8 +1166,9 @@ bool PlatterView::IsOverSelection (const PlatterPlacement & view, POINT pointPx)
 {
     double  end    = 0;
     double  start  = m_context.model->GetSelectionTurn (end);
-    double  dx     = pointPx.x - view.centerXPx;
-    double  dy     = pointPx.y - view.centerYPx;
+    double  dx     = 0;
+    double  dy     = 0;
+    bool    isOn   = PlatterGeometry::Unproject (view, pointPx.x, pointPx.y, dx, dy);
     double  r      = std::hypot (dx, dy);
     double  slack  = m_scaler.ToPxf (s_kSelectOutlineDip) + 2.0;
     double  r0     = 0;
@@ -1153,7 +1179,7 @@ bool PlatterView::IsOverSelection (const PlatterPlacement & view, POINT pointPx)
 
 
 
-    if (start >= 0 && r > 0 && PtInRect (&m_boundsDip, pointPx))
+    if (isOn && start >= 0 && r > 0 && PtInRect (&m_boundsDip, pointPx))
     {
         GetMarkBand (view, m_context.model->GetQuarterTrack(), r0, r1);
 
@@ -1222,10 +1248,14 @@ void PlatterView::DrawMarqueeClear (const InspectorMarquee & marquee, IDxuiPaint
     vector<std::pair<double, double>>   moved;
     auto                                step   = [&] (double turn, double from, double to)
     {
-        marquee.DrawLine (painter, static_cast<float> (view.centerXPx + from * std::sin ((turn + view.rotation) * s_kTwoPi)),
-                          static_cast<float> (view.centerYPx - from * std::cos ((turn + view.rotation) * s_kTwoPi)),
-                          static_cast<float> (view.centerXPx + to * std::sin ((turn + view.rotation) * s_kTwoPi)),
-                          static_cast<float> (view.centerYPx - to * std::cos ((turn + view.rotation) * s_kTwoPi)), 0);
+        float  x0 = 0.0f;
+        float  y0 = 0.0f;
+        float  x1 = 0.0f;
+        float  y1 = 0.0f;
+
+        PlatterGeometry::ProjectAt (view, turn, from, x0, y0);
+        PlatterGeometry::ProjectAt (view, turn, to,   x1, y1);
+        marquee.DrawLine (painter, x0, y0, x1, y1, 0);
     };
 
 
@@ -1317,8 +1347,8 @@ void PlatterView::DrawMarqueeArc (const InspectorMarquee & marquee, IDxuiPainter
 {
     float  s      = 0;
     int    pieces = 0;
-    auto   getX   = [&] (double turn) { return static_cast<float> (view.centerXPx + r * std::sin ((turn + view.rotation) * s_kTwoPi)); };
-    auto   getY   = [&] (double turn) { return static_cast<float> (view.centerYPx - r * std::cos ((turn + view.rotation) * s_kTwoPi)); };
+    auto   getX   = [&] (double turn) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return x; };
+    auto   getY   = [&] (double turn) { float x = 0.0f; float y = 0.0f; PlatterGeometry::ProjectAt (view, turn, r, x, y); return y; };
 
 
 
@@ -1402,7 +1432,7 @@ bool PlatterView::IsBandVisible (const PlatterPlacement & view, double r0, doubl
 
 
 
-    return r1 >= nearest && r0 <= std::hypot (farX, farY);
+    return view.tilt != 0.0f || (r1 >= nearest && r0 <= std::hypot (farX, farY));
 }
 
 
@@ -1682,15 +1712,12 @@ void PlatterView::ShadeRingArc (IDxuiPainter & painter, const PlatterPlacement &
 
 void PlatterView::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
 {
-    static constexpr double  kTwoPi = 6.283185307179586;
-
-
-
     float                  dot   = m_scaler.ToPxf (s_kAlignmentDotDip);
     int                    qt    = 0;
     const TrackAnalysis *  track = nullptr;
     double                 r     = 0;
-    double                 turn  = 0;
+    float                  x     = 0.0f;
+    float                  y     = 0.0f;
 
 
 
@@ -1709,16 +1736,14 @@ void PlatterView::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & the
 
         if (track->measurements.longestSync.count > 0)
         {
-            turn = TrackAnalyzer::GetAngle (*track, track->measurements.longestSync.startCell) + view.rotation;
-            painter.FillCircle (view.centerXPx + static_cast<float> (r * std::sin (kTwoPi * turn)), view.centerYPx - static_cast<float> (r * std::cos (kTwoPi * turn)),
-                                dot, theme.ForegroundMuted());
+            PlatterGeometry::ProjectAt (view, TrackAnalyzer::GetAngle (*track, track->measurements.longestSync.startCell), r, x, y);
+            painter.FillCircle (x, y, dot, theme.ForegroundMuted());
         }
 
         if (track->measurements.sector0Angle >= 0)
         {
-            turn = track->measurements.sector0Angle + view.rotation;
-            painter.FillCircle (view.centerXPx + static_cast<float> (r * std::sin (kTwoPi * turn)), view.centerYPx - static_cast<float> (r * std::cos (kTwoPi * turn)),
-                                dot, theme.Accent());
+            PlatterGeometry::ProjectAt (view, track->measurements.sector0Angle, r, x, y);
+            painter.FillCircle (x, y, dot, theme.Accent());
         }
     }
 }
@@ -1748,6 +1773,12 @@ bool PlatterView::OnMouse (const DxuiMouseEvent & ev)
     bool        isInside  = PtInRect (&m_boundsDip, p) != FALSE;
 
 
+
+    //  The tilt handle and a right drag tilt and turn the platter (FR-151).
+    if (m_context.hasDisk && OnTiltMouse (ev))
+    {
+        return true;
+    }
 
     //  With no disk the view takes nothing, as if the pointer had left it.
     switch (m_context.hasDisk ? ev.kind : DxuiMouseEventKind::Leave)
@@ -1863,9 +1894,19 @@ bool PlatterView::OnMouse (const DxuiMouseEvent & ev)
 bool PlatterView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
 {
     InspectorTip  tip;
-    bool          hasTip = BuildTip (pointPx, tip);
+    RECT          handle = GetTiltHandleRect();
+    bool          hasTip = false;
 
 
+
+    if (PtInRect (&handle, pointPx))
+    {
+        outText     = L"Drag to tilt the platter, or drag with the right mouse button anywhere on it. Double-click here, or click Top down, to see it from above.";
+        outAnchorPx = handle;
+        return true;
+    }
+
+    hasTip = BuildTip (pointPx, tip);
 
     if (hasTip)
     {
@@ -2032,8 +2073,8 @@ void PlatterView::OutlineRing (IDxuiPainter & painter, const PlatterPlacement & 
 
 
 
-    OutlineCircle (painter, view.centerXPx, view.centerYPx, outer + thicknessPx / 2, thicknessPx, argb);
-    OutlineCircle (painter, view.centerXPx, view.centerYPx, inner - thicknessPx / 2, thicknessPx, argb);
+    StrokeDiskCircle (painter, view, outer + thicknessPx / 2, thicknessPx, argb);
+    StrokeDiskCircle (painter, view, inner - thicknessPx / 2, thicknessPx, argb);
 }
 
 
@@ -2112,12 +2153,14 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
     PlatterPlacement  view    = MakeView();
     bool              isShown = m_context.head.isShown && m_context.head.quarterTrack >= 0 && m_context.head.quarterTrack < PlatterRenderer::kRingCount;
     double            radius  = isShown ? PlatterGeometry::GetRingMiddle (m_context.head.quarterTrack) * view.outerRadiusPx : 0.0;
-    double            angle   = (m_context.head.turn + view.rotation) * s_kTwoPi;
+    float             x       = 0.0f;
+    float             y       = 0.0f;
 
 
 
-    outPointPx.x = static_cast<LONG> (std::lround (view.centerXPx + radius * std::sin (angle)));
-    outPointPx.y = static_cast<LONG> (std::lround (view.centerYPx - radius * std::cos (angle)));
+    PlatterGeometry::ProjectAt (view, m_context.head.turn, radius, x, y);
+    outPointPx.x = static_cast<LONG> (std::lround (x));
+    outPointPx.y = static_cast<LONG> (std::lround (y));
 
     return isShown;
 }
@@ -2130,34 +2173,38 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintHead
 //
-//  The head marker: a translucent arm from beyond the rim in to the head's
-//  ring, and a bullseye exactly on the head's quarter track and angle. The
-//  color indicates idle, reading or writing, and a blocked write adds a
-//  cross. The marker is drawn over everything and is not hit-tested, so the
-//  pointer acts on the platter under it (FR-064).
+//  The head marker: a bullseye exactly on the head's quarter track and
+//  angle, and in the flat view a translucent arm along the radius out past
+//  the rim (FR-064); in the tilted view a translucent head carriage on its
+//  rail, with a soft shadow under it (FR-152). The color indicates idle,
+//  reading or writing, and a blocked write adds a cross. The marker is
+//  drawn over everything and is not hit-tested, so the pointer acts on the
+//  platter under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const
 {
-    const DiskInspectorColors  & colors = m_context.palette.colors;
+    const DiskInspectorColors &  colors = m_context.palette.colors;
     POINT                        eyeAt  = {};
-    double                       angle  = (m_context.head.turn + view.rotation) * s_kTwoPi;
-    float                        sinA   = static_cast<float> (std::sin (angle));
-    float                        cosA   = static_cast<float> (std::cos (angle));
     float                        outer  = view.outerRadiusPx + m_scaler.ToPxf (s_kHeadReachDip);
     float                        half   = m_scaler.ToPxf (s_kHeadArmDip) / 2.0f;
     float                        eye    = m_scaler.ToPxf (s_kHeadEyeDip);
     float                        line   = m_scaler.ToPxf (s_kSelectOutlineDip);
+    float                        drop   = m_scaler.ToPxf (s_kHeadShadowDip);
+    float                        cross  = eye * 0.7f;
     float                        ex     = 0.0f;
     float                        ey     = 0.0f;
-    float                        ox     = view.centerXPx + outer * sinA;
-    float                        oy     = view.centerYPx - outer * cosA;
-    float                        px     = half * cosA;
-    float                        py     = half * sinA;
-    float                        cross  = eye * 0.7f;
+    float                        ox     = 0.0f;
+    float                        oy     = 0.0f;
+    float                        ux     = 0.0f;
+    float                        uy     = 0.0f;
+    float                        len    = 0.0f;
+    float                        px     = 0.0f;
+    float                        py     = 0.0f;
     uint32_t                     argb   = colors.headIdle;
     uint32_t                     halo   = (theme.Background() & 0x00FFFFFFu) | s_kHeadHaloAlpha;
+    std::array<float, 8>         body   = {};
 
 
 
@@ -2170,10 +2217,39 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     ey   = static_cast<float> (eyeAt.y);
     argb = (m_context.head.activity == HeadActivity::Reading) ? colors.headReading
          : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
-                                                      : colors.headWriting;
+                                                              : colors.headWriting;
 
-    //  The arm, along the radius from the bullseye out past the rim.
-    painter.FillConvexQuad (ex + px, ey + py, ox + px, oy + py, ox - px, oy - py, ex - px, ey - py, (argb & 0x00FFFFFFu) | s_kHeadArmAlpha);
+    //  Outward along the radius on screen, and across it.
+    PlatterGeometry::ProjectAt (view, m_context.head.turn, outer, ox, oy);
+    len = std::max (std::hypot (ox - ex, oy - ey), 1.0f);
+    ux  = (ox - ex) / len;
+    uy  = (oy - ey) / len;
+    px  = -uy * half;
+    py  = ux * half;
+
+    if (view.tilt == 0.0f)
+    {
+        painter.FillConvexQuad (ex + px, ey + py, ox + px, oy + py, ox - px, oy - py, ex - px, ey - py, (argb & 0x00FFFFFFu) | s_kHeadArmAlpha);
+    }
+    else
+    {
+        //  The rail from the carriage out past the rim, the shadow, then the
+        //  carriage around the bullseye.
+        painter.DrawLine (ex, ey, ox + ux * half * 4.0f, oy + uy * half * 4.0f, half * 0.6f, (theme.ForegroundMuted() & 0x00FFFFFFu) | s_kHeadArmAlpha);
+
+        body = { ex - ux * half * 1.5f + px * 1.6f, ey - uy * half * 1.5f + py * 1.6f,
+                 ex + ux * half * 4.0f + px * 1.6f, ey + uy * half * 4.0f + py * 1.6f,
+                 ex + ux * half * 4.0f - px * 1.6f, ey + uy * half * 4.0f - py * 1.6f,
+                 ex - ux * half * 1.5f - px * 1.6f, ey - uy * half * 1.5f - py * 1.6f };
+
+        painter.FillConvexQuad (body[0], body[1] + drop, body[2], body[3] + drop, body[4], body[5] + drop, body[6], body[7] + drop, s_kHeadShadowArgb);
+        painter.FillConvexQuad (body[0], body[1], body[2], body[3], body[4], body[5], body[6], body[7], (argb & 0x00FFFFFFu) | s_kHeadArmAlpha);
+
+        for (size_t k = 0; k < body.size(); k += 2)
+        {
+            painter.DrawLine (body[k], body[k + 1], body[(k + 2) % body.size()], body[(k + 3) % body.size()], line / 2.0f, argb);
+        }
+    }
 
     //  The bullseye: a dark halo so it reads over any ring color, its ring,
     //  and a dot on the head's position.
@@ -2215,7 +2291,274 @@ void PlatterView::PaintReads (IDxuiPainter & painter, const PlatterPlacement & v
     {
         if (m_context.drive->visitCounts[qt] > 0)
         {
-            OutlineCircle (painter, view.centerXPx, view.centerYPx, static_cast<float> (PlatterGeometry::GetRingMiddle (qt)) * view.outerRadiusPx, band, argb);
+            StrokeDiskCircle (painter, view, static_cast<float> (PlatterGeometry::GetRingMiddle (qt)) * view.outerRadiusPx, band, argb);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::StrokeDiskCircle
+//
+//  Tilted, the circle is a closed line through its projected points, about
+//  six pixels apart.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::StrokeDiskCircle (IDxuiPainter & painter, const PlatterPlacement & view, float radiusPx, float thicknessPx, uint32_t argb)
+{
+    int    count = std::clamp (static_cast<int> (s_kTwoPi * radiusPx / 6.0), 48, 720);
+    float  x0    = 0.0f;
+    float  y0    = 0.0f;
+    float  x1    = 0.0f;
+    float  y1    = 0.0f;
+    int    k     = 0;
+
+
+
+    if (view.tilt == 0.0f)
+    {
+        OutlineCircle (painter, view.centerXPx, view.centerYPx, radiusPx, thicknessPx, argb);
+    }
+    else if (radiusPx > 0.0f)
+    {
+        PlatterGeometry::Project (view, 0.0, -radiusPx, x0, y0);
+
+        for (k = 1; k <= count; k++)
+        {
+            PlatterGeometry::Project (view, radiusPx * std::sin (s_kTwoPi * k / count), -radiusPx * std::cos (s_kTwoPi * k / count), x1, y1);
+            painter.DrawLine (x0, y0, x1, y1, thicknessPx, argb);
+            x0 = x1;
+            y0 = y1;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::FillDiskCircle
+//
+//  Tilted, the disk is a fan of triangles from its center. The projection
+//  maps the center to a point inside the projected disk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::FillDiskCircle (IDxuiPainter & painter, const PlatterPlacement & view, float radiusPx, uint32_t argb)
+{
+    int    count = std::clamp (static_cast<int> (s_kTwoPi * radiusPx / 6.0), 48, 720);
+    float  x0    = 0.0f;
+    float  y0    = 0.0f;
+    float  x1    = 0.0f;
+    float  y1    = 0.0f;
+    int    k     = 0;
+
+
+
+    if (view.tilt == 0.0f)
+    {
+        painter.FillCircle (view.centerXPx, view.centerYPx, radiusPx, argb);
+    }
+    else if (radiusPx > 0.0f)
+    {
+        PlatterGeometry::Project (view, 0.0, -radiusPx, x0, y0);
+
+        for (k = 1; k <= count; k++)
+        {
+            PlatterGeometry::Project (view, radiusPx * std::sin (s_kTwoPi * k / count), -radiusPx * std::cos (s_kTwoPi * k / count), x1, y1);
+            painter.FillConvexQuad (view.centerXPx, view.centerYPx, x0, y0, x1, y1, x1, y1, argb);
+            x0 = x1;
+            y0 = y1;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetLocalScale
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double PlatterView::GetLocalScale (const PlatterPlacement & view, double turn, double radiusPx)
+{
+    float   x0    = 0.0f;
+    float   y0    = 0.0f;
+    float   x1    = 0.0f;
+    float   y1    = 0.0f;
+    float   x2    = 0.0f;
+    float   y2    = 0.0f;
+    double  scale = 1.0;
+
+
+
+    if (view.tilt != 0.0f && radiusPx > 0.0)
+    {
+        PlatterGeometry::ProjectAt (view, turn,                                     radiusPx,       x0, y0);
+        PlatterGeometry::ProjectAt (view, turn + 1.0 / (s_kTwoPi * radiusPx),       radiusPx,       x1, y1);
+        PlatterGeometry::ProjectAt (view, turn,                                     radiusPx + 1.0, x2, y2);
+
+        scale = std::min (std::hypot (x1 - x0, y1 - y0), std::hypot (x2 - x0, y2 - y0));
+    }
+
+    return scale;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetTiltHandleRect
+//
+//  The tilt handle: a short vertical track along the view's right edge,
+//  flat at its top and tilted fully at its bottom, and the area around it
+//  that takes the pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT PlatterView::GetTiltHandleRect() const
+{
+    LONG  x     = m_boundsDip.right - m_scaler.ToPx (s_kTiltInsetDip);
+    LONG  top   = m_boundsDip.top + m_scaler.ToPx (s_kTiltInsetDip);
+    LONG  reach = m_scaler.ToPx (s_kTiltGrabDip);
+
+
+
+    return { x - reach, top - reach, x + reach, top + m_scaler.ToPx (s_kTiltTrackDip) + reach };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::SetTiltFromHandle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::SetTiltFromHandle (LONG yPx)
+{
+    double  top    = m_boundsDip.top + m_scaler.ToPxf (s_kTiltInsetDip);
+    double  length = std::max (m_scaler.ToPxf (s_kTiltTrackDip), 1.0f);
+
+
+
+    m_context.model->SetTilt ((yPx - top) / length * InspectorViewModel::kMaxTilt);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintTiltHandle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintTiltHandle (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    float   x      = static_cast<float> (m_boundsDip.right - m_scaler.ToPx (s_kTiltInsetDip));
+    float   top    = static_cast<float> (m_boundsDip.top + m_scaler.ToPx (s_kTiltInsetDip));
+    float   length = m_scaler.ToPxf (s_kTiltTrackDip);
+    float   knob   = m_scaler.ToPxf (s_kTiltKnobDip);
+    float   y      = top + static_cast<float> (m_context.model->GetTilt() / InspectorViewModel::kMaxTilt) * length;
+
+
+
+    painter.DrawLine (x, top, x, top + length, m_scaler.ToPxf (s_kSelectOutlineDip), theme.ForegroundMuted());
+    painter.FillCircle (x, y, knob, m_context.model->IsTilted() ? theme.Accent() : theme.Foreground());
+    OutlineCircle (painter, x, y, knob, 1.0f, theme.Background());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::OnTiltMouse
+//
+//  A press on the tilt handle sets the tilt from where it is on the track,
+//  and a double-click there returns the platter to flat. A right drag tilts
+//  the platter by its height and turns it by its width (FR-151).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
+{
+    POINT    p         = ev.positionDip;
+    RECT     handle    = GetTiltHandleRect();
+    int64_t  now       = static_cast<int64_t> (GetTickCount64());
+    double   half      = std::max (1.0f, std::min (GetWidth(), GetHeight()) / 2.0f);
+    double   radius    = std::max (MakeView().outerRadiusPx, 1.0f);
+    bool     isHandled = false;
+
+
+
+    switch (ev.kind)
+    {
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left && PtInRect (&handle, p) && now - m_lastHandleClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
+            {
+                m_context.model->SetTilt (0.0);
+                m_lastHandleClickMs = 0;
+                isHandled           = true;
+            }
+            else if (ev.button == DxuiMouseButton::Left && PtInRect (&handle, p))
+            {
+                m_isTiltHandle      = true;
+                m_lastHandleClickMs = now;
+                SetTiltFromHandle (p.y);
+                isHandled           = true;
+            }
+            else if (ev.button == DxuiMouseButton::Right && PtInRect (&m_boundsDip, p))
+            {
+                m_isTilting = true;
+                m_tiltAt    = p;
+                isHandled   = true;
+            }
+
+            break;
+
+        case DxuiMouseEventKind::Move:
+            if (m_isTiltHandle)
+            {
+                SetTiltFromHandle (p.y);
+                isHandled = true;
+            }
+            else if (m_isTilting)
+            {
+                m_context.model->SetTilt     (m_context.model->GetTilt() + (p.y - m_tiltAt.y) / half);
+                m_context.model->SetRotation (m_context.model->GetRotation() + (p.x - m_tiltAt.x) / (s_kTwoPi * radius));
+                m_tiltAt  = p;
+                isHandled = true;
+            }
+
+            break;
+
+        case DxuiMouseEventKind::Up:
+            isHandled      = m_isTiltHandle || (m_isTilting && ev.button == DxuiMouseButton::Right);
+            m_isTiltHandle = false;
+            m_isTilting    = m_isTilting && ev.button != DxuiMouseButton::Right;
+            break;
+
+        default:
+            break;
+    }
+
+    return isHandled;
 }
