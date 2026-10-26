@@ -45,6 +45,7 @@ public:
 
     // A port some other program on the PC has bound.
     void  OccupyPort      (HostSocketKind kind, uint16_t port) { m_occupied.insert ({ kind, port }); }
+    void  ReleasePort     (HostSocketKind kind, uint16_t port) { m_occupied.erase ({ kind, port }); }
     void  SetDnsServer    (uint32_t ipv4)                     { m_dnsServer = ipv4; }
     void  FailCreate      (bool fail)                         { m_failCreate = fail; }
 

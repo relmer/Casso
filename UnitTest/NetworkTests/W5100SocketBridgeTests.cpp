@@ -321,9 +321,9 @@ namespace W5100SocketBridgeTests
         }
 
 
-        //  The link boot disk listens again every few seconds, so a port in use
-        //  is listed once, not on each listen.
-        TEST_METHOD (AListenOnAPortInUse_IsListedOnce)
+        //  The link boot disk listens again every few seconds, so a port in
+        //  use is one entry until a listen on it succeeds or the card resets.
+        TEST_METHOD (AListenOnAPortInUse_IsListedUntilAListenSucceeds)
         {
             UthernetRig                                    rig;
             std::vector<W5100SocketBridge::ListenFailure>  failures;
@@ -331,19 +331,34 @@ namespace W5100SocketBridgeTests
             rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
             rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
             rig.bus.Command (0, R::kCmdListen);
-
-            failures = rig.card.GetBridge().TakeListenFailures();
-
-            Assert::AreEqual ((size_t) 1, failures.size());
-            Assert::AreEqual ((uint16_t) kAdtPro, failures[0].port);
-            Assert::AreEqual (HRESULT_FROM_WIN32 (WSAEADDRINUSE), failures[0].hr);
-
             rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
             rig.bus.Command (0, R::kCmdListen);
 
-            Assert::IsTrue (rig.card.GetBridge().TakeListenFailures().empty(), L"the second listen is not listed again");
+            failures = rig.card.GetBridge().GetFailedListens();
+
+            Assert::AreEqual ((size_t) 1, failures.size(), L"two listens, one entry");
+            Assert::AreEqual ((uint16_t) kAdtPro, failures[0].port);
+            Assert::AreEqual (HRESULT_FROM_WIN32 (WSAEADDRINUSE), failures[0].hr);
+
+            rig.network.ReleasePort (HostSocketKind::Tcp, kAdtPro);
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+
+            Assert::IsTrue (rig.card.GetBridge().GetFailedListens().empty(), L"the port opened");
         }
 
+
+        TEST_METHOD (AResetClearsTheFailedListens)
+        {
+            UthernetRig  rig;
+
+            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+            rig.card.GetBridge().OnReset();
+
+            Assert::IsTrue (rig.card.GetBridge().GetFailedListens().empty(), L"a guest after a reset has listened on nothing yet");
+        }
 
         TEST_METHOD (AFailedListen_IsDescribedByWhatHasThePort)
         {
@@ -351,7 +366,7 @@ namespace W5100SocketBridgeTests
             W5100SocketBridge::ListenFailure  other { 6502, E_FAIL };
 
             Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502, because the Super Serial Card in slot 2 is already using that port. "
-                                           "Change the card's serial connector in Settings."),
+                                           "Change the card's serial connector on the Serial card tab in Settings."),
                               W5100SocketBridge::DescribeListenFailure (inUse, 2, true));
             Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502, because serial port 2 is already using that port. "
                                            "Change that port's connector in Settings."),

@@ -43,6 +43,7 @@ class ShellDisks;
 class ShellPrinter;
 class ShellSettings;
 class ShellSerialCard;
+class ShellNetworkCard;
 class ShellTapeDeck;
 class ShellUpdater;
 struct MonitorSpec;
@@ -168,6 +169,7 @@ public:
     // The printer drain, print preview, status light and print dialog.
     ShellPrinter &  GetPrinter();
     ShellSerialCard &  GetSerialCard() { return *m_serialCard; }
+    ShellNetworkCard & GetNetworkCard() { return *m_networkCard; }
 
     // The Disk II drives: the DiskManager, the drive widgets and their state,
     // the recent-disks list, salvage and the external-change notice.
@@ -698,6 +700,7 @@ private:
     friend class ShellPrinter;
     friend class ShellSettings;
     friend class ShellSerialCard;
+    friend class ShellNetworkCard;
     friend class ShellTapeDeck;
     friend class ShellUpdater;
     friend class MachineManager;
@@ -953,6 +956,8 @@ private:
     std::unique_ptr<ShellDisks>               m_disks;
     std::unique_ptr<ShellTapeDeck>            m_tapeDeck;
     std::unique_ptr<ShellSerialCard>          m_serialCard;
+    std::unique_ptr<ShellNetworkCard>         m_networkCard;
+    std::wstring                              m_lastListenProblem;   // CPU thread: the sentence last passed to m_networkCard
     std::unique_ptr<MachineBuilder>           m_machineBuilder;
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;

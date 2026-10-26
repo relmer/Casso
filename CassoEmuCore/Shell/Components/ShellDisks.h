@@ -223,7 +223,7 @@ public:
     // oversight: the action it carries is the restart, which is what the user
     // reaches for once the program starts misbehaving, and a notice that faded
     // would take that action with it.
-    DxuiActionBanner &  GetChangeBanner () { return m_changeBanner; }
+    DxuiInfoBanner &  GetChangeBanner () { return m_changeBanner; }
 
     // How tall the notice's band is right now: zero when nothing is being
     // reported, and the height its wrapped text needs when something is.
@@ -294,7 +294,7 @@ private:
     // fixed hardware (they have no banked ROM, so the gate is always open).
     bool                               m_externalDriveConnected = false;
 
-    DxuiActionBanner                   m_changeBanner;
+    DxuiInfoBanner                     m_changeBanner;
 
     //  When the change band closes itself, and the frame that last looked.
     //  Zero means it stands until dismissed. Hovering does not extend the

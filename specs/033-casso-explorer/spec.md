@@ -431,11 +431,17 @@ hardware.
   and targeted reads, the vote and their commands are that spec's.
 - Q: What happens when an emulated Uthernet II's guest listens on a TCP port
   the PC already has, as when the Super Serial Card's connector is on TCP port
-  6502, the port the link boot disk listens on? → A: Casso reports it in a
-  notice, once for each port until a listen on it succeeds: the Super Serial
-  Card or serial port on that port when one is, and otherwise another program
-  on the PC. Before this the listen failed with no word, and the link over the
-  card did not connect either.
+  6502, the port the link boot disk listens on? → A: Casso reports it in an
+  infobar over the machine that is up until the port opens or the user
+  closes it with the X at its right, and in a warning on Settings' Network and
+  Serial card pages: the Super Serial Card or serial port on that port when one
+  is, and otherwise another program on the PC. A different problem raises the
+  infobar again. Before this the listen failed with no word, and the link over
+  the card did not connect either.
+- Q: How does a notice strip offer its choices? → A: Every one is a
+  DxuiInfoBanner, set up by flags: buttons for the actions it offers (Download,
+  Restart, Save as) and an X at its right edge for putting it away, never a
+  Dismiss button.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1151,8 +1157,9 @@ to Casso over TCP.
 - **The COM port is in use by another program**: opening it fails with the
   reason, and nothing else is changed; a search for a running link skips it.
 - **An emulated Uthernet II's port already in use on the PC**: Casso reports
-  it in a notice, once for each port, with the Super Serial Card in the slot
-  that has the port when it is the card's connector.
+  it in an infobar the user can close and on the Settings pages it concerns,
+  with the Super Serial Card in the slot that has the port when it is the
+  card's connector.
 - **Another device on a searched COM port**: a modem or printer on a
   searched port receives only the link's short greeting, and the search
   moves to the next port when no link replies.
@@ -1758,9 +1765,9 @@ to Casso over TCP.
   as an Uthernet II link root, never saved, at the announcement's address, or at
   127.0.0.1 for an announcement from the PC itself. When an emulated
   Uthernet II cannot open on the PC the TCP port its guest listens on, Casso
-  MUST report it in a notice once for each port until a listen on it
-  succeeds, and MUST identify the machine's serial connector when that
-  connector is on the port.
+  MUST report it in an infobar that is up until the port opens or the user
+  closes it, and on Settings' Network and Serial card pages, and MUST
+  identify the machine's serial connector when that connector is on the port.
 - **FR-091c**: The boot disk's built-in MAC address MUST be salted with the
   monitor's RNDL and RNDH ($4E and $4F) and a hash of $4000-$BFFF. The disk
   MUST detect an Uthernet II by reading its mode register first, and MUST

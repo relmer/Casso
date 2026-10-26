@@ -19,6 +19,7 @@
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "AssetBootstrap.h"
@@ -144,6 +145,7 @@ EmulatorShell::EmulatorShell() :
     m_printer       = std::make_unique<ShellPrinter> (*this);
     m_disks         = std::make_unique<ShellDisks> (*this);
     m_serialCard    = std::make_unique<ShellSerialCard> (*this);
+    m_networkCard   = std::make_unique<ShellNetworkCard> (*this);
     m_scene         = std::make_unique<ShellDeskScene> (*this);
     m_chrome        = std::make_unique<ShellChrome> (*this);
     m_renderer      = std::make_unique<ShellRenderer> (*this);

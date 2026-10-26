@@ -51,7 +51,7 @@ NetworkPage::NetworkPage (std::wstring title)
 
 
     for (IDxuiControl * control : std::initializer_list<IDxuiControl *> {
-             &m_banner, &m_macLabel, &m_mac,
+             &m_banner, &m_listenBanner, &m_macLabel, &m_mac,
              &m_lan, &m_forwardsLabel, &m_forwards, &m_protocol, &m_hostPortLabel, &m_hostPort,
              &m_guestPortLabel, &m_guestPort, &m_add, &m_remove, &m_firewallBanner, &m_error })
     {
@@ -73,6 +73,9 @@ NetworkPage::NetworkPage (std::wstring title)
 
     m_error.SetSeverity (DxuiInfoBanner::Severity::Warning);
     m_error.SetVisible  (false);
+
+    m_listenBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_listenBanner.SetVisible  (false);
 
     WireCallbacks();
 }
@@ -115,6 +118,53 @@ void NetworkPage::SetFirewall (FirewallMonitor * firewall, GuestPortsFn guestPor
     m_firewallDrawn = false;
 
     SyncFirewall();
+    SyncListenProblem();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NetworkPage::SetListenProblem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkPage::SetListenProblem (ListenProblemFn listenProblem)
+{
+    m_listenProblem = std::move (listenProblem);
+
+    SyncListenProblem();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NetworkPage::SyncListenProblem
+//
+//  Called each dialog tick; the page is laid out again only when the
+//  sentence changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NetworkPage::SyncListenProblem()
+{
+    std::wstring  text    = m_listenProblem ? m_listenProblem() : std::wstring();
+    bool          changed = text != m_listenBanner.GetText() || text.empty() == m_listenBanner.IsVisible();
+
+
+
+    if (changed)
+    {
+        m_listenBanner.SetText    (text);
+        m_listenBanner.SetVisible (!text.empty());
+
+        Relayout();
+    }
 }
 
 
@@ -196,6 +246,7 @@ void NetworkPage::Layout (
     int   width     = (rect.right - rect.left) - pad * 2;
     int   bannerH   = (int) std::ceil (m_banner.GetPreferredHeightPx ((float) width, scaler));
     int   firewallH = 0;
+    int   listenH   = 0;
     int   errorH    = 0;
 
 
@@ -206,6 +257,14 @@ void NetworkPage::Layout (
 
     m_banner.SetRect (MakeRect (x, y, width, bannerH));
     y += bannerH + gap;
+
+    //  Under the card's description, which the port is the guest's half of.
+    if (m_listenBanner.IsVisible())
+    {
+        listenH = (int) std::ceil (m_listenBanner.GetPreferredHeightPx ((float) width, scaler));
+        m_listenBanner.Layout (MakeRect (x, y, width, listenH), scaler);
+        y += listenH + gap;
+    }
 
     y = LayoutCardRows    (x, y, width, scaler);
     y = LayoutForwardRows (x + scaler.ToPx (s_kLabelWidthDp), y, scaler);
@@ -461,6 +520,7 @@ void NetworkPage::Sync()
     }
 
     SyncFirewall();
+    SyncListenProblem();
 }
 
 

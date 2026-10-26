@@ -175,7 +175,6 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Widgets/DxuiWarningBadge.h"
 #include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiTimedInfoBanner.h"
-#include "Widgets/DxuiActionBanner.h"
 #include "Widgets/DxuiNoticeStack.h"
 #include "Widgets/DxuiHudNotice.h"
 #include "Widgets/DxuiOrbitControl.h"

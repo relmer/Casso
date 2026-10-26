@@ -87,6 +87,7 @@ void W5100SocketBridge::OnCommand (
 void W5100SocketBridge::OnReset()
 {
     CloseAll();
+    m_failedListens.clear();
 }
 
 
@@ -162,17 +163,20 @@ void W5100SocketBridge::GetInboundPorts (std::vector<FirewallPort> & outPorts) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  W5100SocketBridge::TakeListenFailures
+//  W5100SocketBridge::GetFailedListens
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<W5100SocketBridge::ListenFailure> W5100SocketBridge::TakeListenFailures()
+std::vector<W5100SocketBridge::ListenFailure> W5100SocketBridge::GetFailedListens() const
 {
     std::vector<ListenFailure>  failures;
 
 
 
-    failures.swap (m_listenFailures);
+    for (const auto & [port, hr] : m_failedListens)
+    {
+        failures.push_back ({ port, hr });
+    }
 
     return failures;
 }
@@ -200,7 +204,7 @@ std::string W5100SocketBridge::DescribeListenFailure (const ListenFailure & fail
 
     if (serialPort != 0 && onCard)
     {
-        text += std::format (", because the Super Serial Card in slot {} is already using that port. Change the card's serial connector in Settings.", serialPort);
+        text += std::format (", because the Super Serial Card in slot {} is already using that port. Change the card's serial connector on the Serial card tab in Settings.", serialPort);
     }
     else if (serialPort != 0)
     {
@@ -230,14 +234,7 @@ std::string W5100SocketBridge::DescribeListenFailure (const ListenFailure & fail
 
 void W5100SocketBridge::NoteListenFailure (uint16_t port, HRESULT hr)
 {
-    bool  first = m_reportedPorts.insert (port).second;
-
-
-
-    if (first)
-    {
-        m_listenFailures.push_back ({ port, hr });
-    }
+    m_failedListens[port] = hr;
 }
 
 
@@ -392,7 +389,7 @@ void W5100SocketBridge::OnListen (int socket)
     slot.phase    = Phase::Listening;
     slot.hostPort = m_chip.GetSourcePort (socket);
     m_chip.SetSocketStatus (socket, R::kSockListen);
-    m_reportedPorts.erase (slot.hostPort);
+    m_failedListens.erase (slot.hostPort);
 
 Error:
     if (FAILED (hr))

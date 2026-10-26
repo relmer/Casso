@@ -6,6 +6,7 @@
 #include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/DiskManager.h"
@@ -259,27 +260,38 @@ void EmulatorShell::ConfigureNetworkCard (const NetworkCardSettings & settings)
 //
 //  ReportUthernetListenFailures
 //
-//  A port the guest cannot listen on is reported as a notice, with the
-//  machine's serial connector when that connector has the port.
+//  The ports the guest cannot listen on, as the network card's infobar
+//  sentence, with the machine's serial connector when that connector has the
+//  port. Passed to the infobar only when it changes; a frame with no failed
+//  listen builds nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ReportUthernetListenFailures()
 {
-    UthernetCard *  card = m_machine.GetRefs().uthernet;
+    UthernetCard *                                 card     = m_machine.GetRefs().uthernet;
+    std::vector<W5100SocketBridge::ListenFailure>  failures;
+    std::wstring                                   text;
+    int                                            serial   = 0;
 
 
 
-    if (card == nullptr)
+    if (card != nullptr)
     {
-        return;
+        failures = card->GetBridge().GetFailedListens();
     }
 
-    for (const W5100SocketBridge::ListenFailure & failure : card->GetBridge().TakeListenFailures())
+    for (const W5100SocketBridge::ListenFailure & failure : failures)
     {
-        int  serialPort = m_machine.GetSerialPortOnTcp (failure.port);
+        serial  = m_machine.GetSerialPortOnTcp (failure.port);
+        text   += (text.empty() ? L"" : L"\n")
+                + TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serial, m_machine.IsSerialPortOnCard (serial)));
+    }
 
-        m_chrome->PostNotice (TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serialPort, m_machine.IsSerialPortOnCard (serialPort))));
+    if (text != m_lastListenProblem)
+    {
+        m_lastListenProblem = text;
+        m_networkCard->NoteListenProblem (text);
     }
 }
 

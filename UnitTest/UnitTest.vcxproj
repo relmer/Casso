@@ -636,7 +636,6 @@
     <ClCompile Include="Dxui\DxuiDragDropSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiSvgPathTests.cpp" />
     <ClCompile Include="Dxui\DxuiInfoBannerTests.cpp" />
-    <ClCompile Include="Dxui\DxuiActionBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTimedInfoBannerTests.cpp" />
     <ClCompile Include="Dxui\DxuiNoticeStackTests.cpp" />
     <ClCompile Include="Dxui\DxuiSlideTests.cpp" />

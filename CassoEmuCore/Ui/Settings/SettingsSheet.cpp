@@ -12,6 +12,7 @@
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Ui/Settings/SerialCardPage.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
@@ -303,6 +304,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_displayPage->SetState  (&m_state);
     m_networkPage->SetState  (&m_state);
     m_networkPage->SetFirewall (&emuShell.GetFirewall(), [&emuShell] () { return emuShell.GetGuestInboundPorts(); });
+    m_networkPage->SetListenProblem ([&emuShell] () { return emuShell.GetNetworkCard().GetListenProblem(); });
 
     // Disk page play (>) buttons audition the drive sounds live.
     m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)

@@ -1095,6 +1095,11 @@ void ShellDisks::InstallChangeReporting()
         HideChangeBanner();
     });
 
+    m_changeBanner.SetOnDismiss ([this] ()
+    {
+        HideChangeBanner();
+    });
+
     return;
 }
 
@@ -1121,17 +1126,28 @@ void ShellDisks::InstallChangeReporting()
 void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
 {
     std::vector<std::wstring>  labels;
-    size_t                     i = 0;
+    bool                       dismissible = false;
+    size_t                     i           = 0;
 
 
 
+    //  The Ignore answer is the strip's close box; a dialog built from the
+    //  same prompt has it as a button.
     for (i = 0; i < notice.prompt.answers.size(); i++)
     {
-        labels.push_back (notice.prompt.answers[i].label);
+        if (notice.prompt.answers[i].action == ChangeAction::Ignore)
+        {
+            dismissible = true;
+        }
+        else
+        {
+            labels.push_back (notice.prompt.answers[i].label);
+        }
     }
 
-    m_changeBanner.SetText    (notice.prompt.message);
-    m_changeBanner.SetActions (labels);
+    m_changeBanner.SetText        (notice.prompt.message);
+    m_changeBanner.SetActions     (labels);
+    m_changeBanner.SetDismissible (dismissible);
 
     //  RE-ARMED ON EVERY CHANGE, not only the first. A later change re-words
     //  the strip already on screen, and a countdown left running from the
@@ -1143,7 +1159,7 @@ void ShellDisks::ShowChangeBanner (const ChangeNotice & notice)
 
     //  Replaced rather than stacked: a standing report absorbs later changes,
     //  so a second one re-words the strip already on screen.
-    m_changeBanner.SetVisible (!labels.empty());
+    m_changeBanner.SetVisible (!labels.empty() || dismissible);
 
     //  The band just changed height, so everything below it moves and the
     //  picture is rescaled into what is left. Nothing here positions the

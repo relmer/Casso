@@ -9,6 +9,7 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellUpdater.h"
@@ -1315,7 +1316,8 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     //  overlaps nothing, so an event inside it belongs to it and to nothing
     //  else.
     if (m_disks->OfferMouseToChangeBanner (DxuiMouseEventKind::Down, x, y) ||
-        m_serialCard->OfferMouseToBanner  (DxuiMouseEventKind::Down, x, y))
+        m_serialCard->OfferMouseToBanner  (DxuiMouseEventKind::Down, x, y) ||
+        m_networkCard->OfferMouseToBanner (DxuiMouseEventKind::Down, x, y))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1638,7 +1640,8 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     //  The release is what makes a button fire, so the bar has to see both
     //  halves of the click.
     if (m_disks->OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y) ||
-        m_serialCard->OfferMouseToBanner  (DxuiMouseEventKind::Up, x, y))
+        m_serialCard->OfferMouseToBanner  (DxuiMouseEventKind::Up, x, y) ||
+        m_networkCard->OfferMouseToBanner (DxuiMouseEventKind::Up, x, y))
     {
         return DxuiMessageResult::Handled;
     }

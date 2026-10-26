@@ -9,6 +9,7 @@
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
 #include "Shell/Components/ShellSerialCard.h"
+#include "Shell/Components/ShellNetworkCard.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/EmulatorShellInternal.h"
@@ -1011,7 +1012,8 @@ void ShellChrome::SyncChromeBands()
     // Measuring against the viewport is what put the text off the edge: the
     // picture keeps its own aspect and can be wider than the window.
     inputs.changeBandPx        = m_shell.m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx)
-                               + m_shell.m_serialCard->GetBandThicknessPx (m_lastClientWidthPx);
+                               + m_shell.m_serialCard->GetBandThicknessPx (m_lastClientWidthPx)
+                               + m_shell.m_networkCard->GetBandThicknessPx (m_lastClientWidthPx);
     inputs.captureBandPx       = GetCaptureBandThicknessPx (m_lastClientWidthPx);
 
     px = ChromeBandLayout::Compute (inputs, m_shell.m_scaler);
@@ -1114,17 +1116,22 @@ RECT ShellChrome::ComputeViewportRect (int widthPx, int heightPx)
 
     //  The notices ride their band the way the toolbar rides its own, so a
     //  resize or a DPI change reflows them with everything else. The band
-    //  stacks the disk-change notice over the serial card's.
+    //  stacks the disk-change notice over the serial card's, and that over the
+    //  network card's.
     {
-        RECT  band       = m_changeBand.GetBounds();
-        RECT  diskBand   = band;
-        RECT  serialBand = band;
+        RECT  band        = m_changeBand.GetBounds();
+        RECT  diskBand    = band;
+        RECT  serialBand  = band;
+        RECT  networkBand = band;
 
-        diskBand.bottom = band.top + m_shell.m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx);
-        serialBand.top  = diskBand.bottom;
+        diskBand.bottom   = band.top + m_shell.m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx);
+        serialBand.top    = diskBand.bottom;
+        serialBand.bottom = serialBand.top + m_shell.m_serialCard->GetBandThicknessPx (m_lastClientWidthPx);
+        networkBand.top   = serialBand.bottom;
 
         m_shell.m_disks->LayoutChangeBanner (diskBand);
         m_shell.m_serialCard->LayoutBanner (serialBand);
+        m_shell.m_networkCard->LayoutBanner (networkBand);
     }
 
     //  AND SO DOES THE INPUT-MODE BAR. It was laid out only from the present
@@ -1896,6 +1903,7 @@ LONG ShellChrome::ComputeTopOverlayEdgePx (const RECT & client) const
                                             &m_toolbar,
                                             &m_shell.m_disks->GetChangeBanner(),
                                             &m_shell.m_serialCard->GetBanner(),
+                                            &m_shell.m_networkCard->GetBanner(),
                                             &m_standInBarSurface,
                                             &m_standInBar };
     LONG                        top     = client.top;

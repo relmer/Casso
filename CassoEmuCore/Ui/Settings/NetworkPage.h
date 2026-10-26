@@ -31,13 +31,17 @@ class SettingsPanelState;
 //  forward or a guest's port that Windows Firewall blocks, with Allow, and
 //  Make private on a public network, which run the elevated helper.
 //
+//  A warning banner under the card's description reports a port the running
+//  guest cannot listen on, as the infobar over the machine does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class NetworkPage : public DxuiPropertyPage
 {
 public:
 
-    using GuestPortsFn = std::function<std::vector<FirewallPort> ()>;
+    using GuestPortsFn    = std::function<std::vector<FirewallPort> ()>;
+    using ListenProblemFn = std::function<std::wstring ()>;
 
     explicit NetworkPage (std::wstring title = L"Network");
     ~NetworkPage () override;
@@ -49,6 +53,10 @@ public:
     //  Without them, no port is reported blocked.
     void  SetFirewall  (FirewallMonitor * firewall, GuestPortsFn guestPorts);
 
+    //  The sentence for the ports the running guest cannot listen on, empty
+    //  when it has none. Without it, none is reported.
+    void  SetListenProblem (ListenProblemFn listenProblem);
+
     //  The ports other computers send to: each port forward's host port, and
     //  each of the guest's, once; none while LAN access is off, since every
     //  one of them is then on the loopback address or drops what arrives
@@ -57,6 +65,8 @@ public:
 
     const std::wstring & GetFirewallText () const { return m_firewallBanner.GetText(); }
     bool                 IsFirewallShown () const { return m_firewallBanner.IsVisible(); }
+    const std::wstring & GetListenText   () const { return m_listenBanner.GetText(); }
+    bool                 IsListenShown   () const { return m_listenBanner.IsVisible(); }
 
     void  Layout       (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild      ();
@@ -105,6 +115,7 @@ private:
     void      OnAddForward        ();
     void      OnRemoveForward     ();
     void      SyncFirewall        ();
+    void      SyncListenProblem   ();
     void      OnFirewallAction    (size_t index);
 
     SettingsPanelState  * m_state       = nullptr;
@@ -121,8 +132,10 @@ private:
     std::vector<FirewallPort>    m_blocked;
     HANDLE                       m_firewallHelper  = nullptr;    // the elevated helper, until it exits
     bool                         m_firewallDrawn   = false;
+    ListenProblemFn              m_listenProblem;
 
     DxuiInfoBanner    m_banner;
+    DxuiInfoBanner    m_listenBanner;
     DxuiLabel         m_macLabel;
     DxuiTextInput     m_mac;
     DxuiCheckbox      m_lan;
@@ -135,6 +148,6 @@ private:
     DxuiTextInput     m_guestPort;
     DxuiButton        m_add;
     DxuiButton        m_remove;
-    DxuiActionBanner  m_firewallBanner;
+    DxuiInfoBanner    m_firewallBanner;
     DxuiInfoBanner    m_error;
 };

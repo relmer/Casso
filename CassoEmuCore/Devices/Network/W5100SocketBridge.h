@@ -55,10 +55,10 @@ public:
     //  socket's bound to its guest port.
     void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const;
 
-    //  The listens that failed since the last call. Each port is listed once
-    //  until a listen on it succeeds, as the link boot disk listens again
-    //  every few seconds.
-    std::vector<ListenFailure>  TakeListenFailures ();
+    //  The ports whose last listen failed, in port order. A port is removed
+    //  from the list when a listen on it succeeds or the card is reset, so a
+    //  guest that listens again every few seconds is one entry, not many.
+    std::vector<ListenFailure>  GetFailedListens () const;
 
     //  A failed listen as a notice's sentence. `serialPort` is the serial
     //  port whose connector has the same TCP port, 0 for none, and `onCard`
@@ -128,6 +128,5 @@ private:
     uint64_t                        m_now         = 0;
     std::array<Slot, kSocketCount>  m_slots;
     std::vector<Byte>               m_buffer;
-    std::vector<ListenFailure>      m_listenFailures;
-    std::set<uint16_t>              m_reportedPorts;   // failed listens already listed
+    std::map<uint16_t, HRESULT>     m_failedListens;   // each port's last failed listen
 };

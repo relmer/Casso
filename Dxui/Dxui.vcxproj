@@ -183,7 +183,6 @@
     <ClCompile Include="Widgets\DxuiOrbitControl.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
     <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
-    <ClCompile Include="Widgets\DxuiActionBanner.cpp" />
     <ClCompile Include="Widgets\DxuiTimedInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiNoticeStack.cpp" />
     <ClCompile Include="Widgets\DxuiWarningBadge.cpp" />
@@ -294,7 +293,6 @@
     <ClInclude Include="Widgets\DxuiOrbitControl.h" />
     <ClInclude Include="Widgets\DxuiIconButton.h" />
     <ClInclude Include="Widgets\DxuiInfoBanner.h" />
-    <ClInclude Include="Widgets\DxuiActionBanner.h" />
     <ClInclude Include="Widgets\DxuiTimedInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiNoticeStack.h" />
     <ClInclude Include="Widgets\DxuiWarningBadge.h" />
