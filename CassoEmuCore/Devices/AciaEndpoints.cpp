@@ -17,7 +17,7 @@ void AciaLoopbackEndpoint::OnByteTransmitted (Byte value)
 {
     if (m_acia != nullptr)
     {
-        m_acia->EnqueueReceivedBytes (&value, 1);
+        m_acia->EnqueueLoopedBackByte (value);
     }
 }
 

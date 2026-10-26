@@ -5,6 +5,8 @@
 #include "Core/MachineConfig.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
+#include "Shell/HostInputGate.h"
 
 
 
@@ -308,7 +310,8 @@ void Acia6551::Tick (uint32_t cycles)
     int64_t  fixedCycles = static_cast<int64_t> (cycles) << kFixedShift;
     bool     modemDirty  = m_modemInputDirty.load (memory_order_relaxed);
     size_t   queued      = m_rxQueue.GetCount();
-    bool     idle        = !m_tsrBusy && !m_tdrFull && queued == 0 && !m_rxActive && !modemDirty;
+    size_t   arrived     = m_rxInbox.GetCount();
+    bool     idle        = !m_tsrBusy && !m_tdrFull && queued == 0 && arrived == 0 && !m_rxActive && !modemDirty;
 
 
 
@@ -317,6 +320,11 @@ void Acia6551::Tick (uint32_t cycles)
     if (modemDirty)
     {
         ApplyPendingModemInputs();
+    }
+
+    if (arrived != 0)
+    {
+        TakeHostBytes (cycles);
     }
 
     AdvanceTransmitter (fixedCycles);
@@ -342,6 +350,7 @@ Error:
 
 void Acia6551::SetEndpoint (IAciaEndpoint * endpoint)
 {
+    m_rxInbox.Clear();
     m_rxQueue.Clear();
     m_rxActive    = false;
     m_rxRemaining = 0;
@@ -379,7 +388,102 @@ void Acia6551::SetEndpoint (IAciaEndpoint * endpoint)
 
 void Acia6551::EnqueueReceivedBytes (const Byte * bytes, size_t count)
 {
-    m_rxQueue.Push (bytes, count);
+    m_rxInbox.Push (bytes, count);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnqueueLoopedBackByte
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::EnqueueLoopedBackByte (Byte value)
+{
+    m_rxQueue.Push (&value, 1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetInputJournal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetInputJournal (InputJournal * journal, uint16_t chipIndex)
+{
+    m_inputJournal = journal;
+    m_chipIndex    = chipIndex;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyInput
+//
+//  A journaled byte goes back into the receive queue where the emulation
+//  thread took it live, ahead of the receiver's tick.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Acia6551::ApplyInput (const InputRecord & record)
+{
+    bool  isApplied = record.kind == InputKind::AciaByte && record.detail == m_chipIndex;
+
+
+
+    if (isApplied)
+    {
+        m_rxQueue.Push (&record.value, 1);
+    }
+
+    return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TakeHostBytes
+//
+//  Moves an attachment's bytes into the receive queue and, while the input
+//  journal is attached, journals each as made during the instruction just
+//  run. Behind live, when HostInputGate::IsHeld returns true, the journal
+//  supplies the bytes, so these wait.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::TakeHostBytes (uint32_t cycles)
+{
+    Byte  value = 0;
+
+
+
+    if (m_inputGate != nullptr && m_inputGate->IsHeld())
+    {
+        return;
+    }
+
+    while (m_rxInbox.TryPop (value))
+    {
+        m_rxQueue.Push (&value, 1);
+
+        if (m_inputJournal != nullptr)
+        {
+            m_inputJournal->RecordObserved (m_inputJournal->GetCycle() - cycles, InputKind::AciaByte, value, m_chipIndex, 0);
+        }
+    }
 }
 
 

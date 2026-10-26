@@ -96,9 +96,12 @@ public:
     //  through it.
     MachineBuilder  &  GetBuilder() noexcept { return m_builder; }
 
+    //  The shipped config with the fixture ROMs, for a test that builds
+    //  another host, such as a shell's machine, from it.
+    static void  LoadConfig (const std::string & machineId, MachineConfig & outConfig);
+
 private:
 
-    static void         LoadConfig   (const std::string & machineId, MachineConfig & outConfig);
     static std::string  GetShippedId (const std::string & machineId);
     void         BuildFrom  (const std::string & machineId, const MachineConfig & config);
 

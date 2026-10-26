@@ -9,8 +9,11 @@
 
 class MemoryBus;
 class IAciaEndpoint;
+class InputJournal;
+class HostInputGate;
 
 struct DeviceConfig;
+struct InputRecord;
 
 
 
@@ -40,6 +43,14 @@ struct DeviceConfig;
 //  single receive data register one character time apart; a byte landing
 //  over an unread one sets overrun, as on the part. The queue is not a FIFO
 //  the guest can see.
+//
+//  A host attachment's bytes arrive from outside the machine, so the
+//  emulation thread takes them into the receive queue at an instruction
+//  boundary and, while the input journal is attached, journals each one
+//  there; in a replay they come from the journal. Behind live, while
+//  HostInputGate::IsHeld returns true, the bytes wait. A byte a loopback plug
+//  returns follows from what the chip sent, so a replay sends it again; it
+//  goes straight into the queue.
 //
 //  The IRQ status bit (bit 7) is a latch: set when an enabled interrupt
 //  condition occurs, cleared by reading the status register. Whether the
@@ -129,7 +140,19 @@ public:
     // Called by an attachment, from any thread.
     void    EnqueueReceivedBytes  (const Byte * bytes, size_t count);
     void    SetModemInputs        (bool cts, bool dsr, bool dcd);
-    size_t  GetQueuedReceiveCount () const { return m_rxQueue.GetCount(); }
+    size_t  GetQueuedReceiveCount () const { return m_rxInbox.GetCount() + m_rxQueue.GetCount(); }
+
+    // Called by a loopback plug, on the emulation thread, with a byte the
+    // chip itself sent.
+    void    EnqueueLoopedBackByte (Byte value);
+
+    // Reverse execution: the journal for the bytes taken from an attachment,
+    // or null, with this chip's index among the machine's serial chips; the
+    // gate checked before they are taken; and, in a replay, a journaled byte
+    // put back into the receive queue. Emulation thread.
+    void    SetInputJournal  (InputJournal * journal, uint16_t chipIndex);
+    void    SetHostInputGate (const HostInputGate * gate) { m_inputGate = gate; }
+    bool    ApplyInput       (const InputRecord & record);
 
     // Inspectors for tests and board wiring.
     Byte    GetStatus  () const { return m_status; }
@@ -177,6 +200,7 @@ private:
     bool    CanLoadTransmitter     () const;
     void    TryLoadTransmitter     ();
     void    AdvanceTransmitter     (int64_t fixedCycles);
+    void    TakeHostBytes          (uint32_t cycles);
     void    AdvanceReceiver        (int64_t fixedCycles);
     void    LandReceivedByte       (Byte value);
     void    ApplyPendingModemInputs();
@@ -200,6 +224,7 @@ private:
     bool                     m_tsrBusy     = false;
     int64_t                  m_txRemaining = 0;
 
+    SerialByteQueue          m_rxInbox;                // an attachment's bytes, until the emulation thread takes them
     SerialByteQueue          m_rxQueue;
     bool                     m_rxActive    = false;
     int64_t                  m_rxRemaining = 0;
@@ -224,4 +249,8 @@ private:
     bool                      m_irqConnected = true;
 
     IAciaEndpoint *           m_endpoint = nullptr;
+
+    InputJournal         *    m_inputJournal = nullptr;
+    uint16_t                  m_chipIndex    = 0;
+    const HostInputGate  *    m_inputGate    = nullptr;
 };

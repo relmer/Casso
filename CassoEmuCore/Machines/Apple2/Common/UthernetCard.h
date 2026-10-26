@@ -81,6 +81,9 @@ public:
     W5100              & GetChip   ()       { return m_chip; }
     W5100SocketBridge  & GetBridge ()       { return m_bridge; }
     VirtualNetwork     & GetNetwork()       { return m_network; }
+
+    // A guest socket or a host flow is open.
+    bool                 IsActive  () const { return m_bridge.IsActive(); }
     uint64_t             GetCycles () const { return m_cycles; }
 
 private:
