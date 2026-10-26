@@ -28,6 +28,7 @@ class FluxTimingTab;
 class FileMapGridView;
 class DifferencesTab;
 class FindBar;
+class EditBar;
 
 
 
@@ -171,6 +172,13 @@ private:
     void  RunFind            (const SearchQuery & query);
     void  RefreshFindResults ();
     void  SyncFindMarks      ();
+    void  ToggleEditing      ();
+    void  UpdateEditBar      ();
+    void  PasteIntoEdit      ();
+    void  FollowEdits        ();
+    bool  IsSectorImage      () const;
+    int   GetSelectedEdit    () const;
+    bool  HandleEditKey      (const DxuiKeyEvent & ev);
     void  RebuildFindMarks   ();
     void  RepeatFind         ();
     vector<int>  GetShownDiskTabs () const;
@@ -312,6 +320,10 @@ private:
     InspectorTableView                    * m_findResults        = nullptr;
     bool                                    m_isFindOpen         = false;
     FindMarks                               m_findMarks;
+    EditController                          m_edits;
+    EditBar                               * m_editBar            = nullptr;
+    std::wstring                            m_editNote;
+    int64_t                                 m_editSig            = 0;
     GoToKind                                m_goToKind           = GoToKind::Track;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     PlatterView                           * m_platterView        = nullptr;

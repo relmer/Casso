@@ -22,6 +22,7 @@
 #include "Ui/DiskInspector/ExportDialog.h"
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/FileMapText.h"
+#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/DiskInspector/FluxTimingTab.h"
 #include "Ui/DiskInspector/GoToDialog.h"
@@ -435,6 +436,7 @@ void DiskInspectorWindow::OnCreate()
     m_diffsTab    = CreateChild<DifferencesTab> (m_context, m_comparison);
     m_findResults = CreateChild<InspectorTableView> (m_context);
     m_findBar     = CreateChild<FindBar>();
+    m_editBar     = CreateChild<EditBar>();
 
     m_driveTabs->SetOnChange ([this] (int index) { (void) ShowDrive (index); });
     m_legendButton->SetOnClick ([this] () { if (m_isLegendPinned) { HideLegend(); } else if (static_cast<int64_t> (GetTickCount64()) - m_legendClosedMs > s_kLegendReopenMs) { ShowLegend (true); } });
@@ -468,6 +470,11 @@ void DiskInspectorWindow::OnCreate()
     m_goToButton->SetOnClick   ([this] () { OpenGoTo(); });
     m_findButton->SetOnClick   ([this] () { OpenFindBar(); });
     m_findResults->SetColumns  (InspectorTables::GetSearchHitColumns());
+    m_context.edits = &m_edits;
+    m_editBar->SetOnEdit          ([this] () { ToggleEditing(); });
+    m_editBar->SetOnChecksum      ([this] (bool isOn) { m_edits.SetChecksumMode (GetSelectedEdit(), isOn ? ChecksumMode::Recompute : ChecksumMode::KeepStored); });
+    m_editBar->SetOnDiscardSector ([this] () { m_edits.DiscardSector (GetSelectedEdit()); });
+    m_editBar->SetOnDiscard       ([this] () { m_edits.DiscardAll(); });
     m_findResults->SetOnSelect ([this] (const TableRow & row) { if (m_find.Choose (row.finding)) { SelectHit (m_find.GetHits()[row.finding]); m_findBar->SetResult (row.finding, m_find.GetCount()); } });
     m_findBar->Init            (GetHwnd(), GetTextRenderer(), GetPopupHost(), m_theme);
     m_findBar->SetOnSearch     ([this] (const SearchQuery & query) { RunFind (query); });
@@ -840,10 +847,15 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     m_diskContentPx = { right.left, y, right.right, right.bottom };
 
-    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_byteView, m_nibblesTab, m_fieldsTab, m_fluxTab, m_tracksTab, m_findingsTab, m_imageTab, m_diffsTab, m_findResults })
+    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_nibblesTab, m_fieldsTab, m_fluxTab, m_tracksTab, m_findingsTab, m_imageTab, m_diffsTab, m_findResults })
     {
         content->Layout (m_diskContentPx, scaler);
     }
+
+    //  The edit bar above the Sector data tab's header and bytes.
+    m_editBar->Layout  ({ right.left, y, right.right, y + m_editBar->GetHeightPx (right.right - right.left, scaler) }, scaler);
+    y += m_editBar->GetHeightPx (right.right - right.left, scaler);
+    m_byteView->Layout ({ right.left, y, right.right, right.bottom }, scaler);
 
     LayoutFileMap (m_diskContentPx, scaler);
 
@@ -1287,6 +1299,12 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
     {
         isHandled = true;
     }
+    else if (m_keyTarget == KeyTarget::SectorData && m_byteView->IsEditing() && HandleEditKey (ev))
+    {
+        //  While editing, the Sector data tab takes typing, Ctrl+Z, Ctrl+Y
+        //  and Ctrl+V, and Escape stops editing (FR-097).
+        isHandled = true;
+    }
     else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && IsZoomKey (ev.vk))
     {
         //  Ctrl with 0, + or - zooms the whole window (FR-154).
@@ -1472,8 +1490,9 @@ void DiskInspectorWindow::TakeReplies()
 
 void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason)
 {
-    DecodeSettings  settings = m_comparison.IsComparing() ? m_analysis.settings : DecodeSettings::MakeStandard();
-    int             slot     = 0;
+    DecodeSettings  settings  = m_comparison.IsComparing() ? m_analysis.settings : DecodeSettings::MakeStandard();
+    int             slot      = 0;
+    uint64_t        lastMedia = m_analysis.mediaId;
 
 
 
@@ -1503,6 +1522,18 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
         }
 
         m_isFilesDefaulted = false;
+
+        //  Pending edits are discarded with the disk they were made on (FR-108).
+        if (copy->mediaId != lastMedia && !m_edits.IsEmpty())
+        {
+            m_editNote = L"Pending edits were discarded: the disk in the drive changed";
+        }
+
+        if (copy->mediaId != lastMedia)
+        {
+            m_edits = EditController();
+            m_byteView->SetEditing (false);
+        }
 
         //  Hits point into the analysis they were found in.
         m_find.Clear();
@@ -1568,6 +1599,7 @@ void DiskInspectorWindow::TakeResults()
         m_model.SetAnalysis (&m_analysis);
         m_comparison.MarkAChanged();
         m_isTablesDirty = true;
+        FollowEdits();
 
         //  A search made while the disk was being analyzed is run again once
         //  the analysis is done. Otherwise the marks are rebuilt without the
@@ -1680,6 +1712,8 @@ void DiskInspectorWindow::UpdateControls()
         m_goToButton->SetVisible   (m_context.hasDisk);
         m_findButton->SetVisible   (m_context.hasDisk);
         m_copySector->SetVisible   (m_context.hasDisk && !m_isDiskGroup && m_trackTab == kTabSectorData);
+        m_editBar->SetVisible      (m_context.hasDisk && !m_isDiskGroup && m_trackTab == kTabSectorData);
+        UpdateEditBar();
         m_copySector->SetEnabled   (m_model.GetSector() != nullptr && m_model.GetSector()->dataField >= 0);
         m_compareButton->SetVisible   (m_context.hasDisk || m_comparison.IsComparing());
         m_followCheck->SetVisible     (IsHeadShown());
@@ -2009,7 +2043,7 @@ void DiskInspectorWindow::RefreshTables()
     if (m_isTablesDirty)
     {
         vector<std::wstring>  columns = InspectorTables::GetTrackColumns();
-        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis, m_context.findMarks) : vector<TableRow>();
+        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis, m_context.findMarks, &m_edits) : vector<TableRow>();
 
         //  While comparing, each quarter track's verdict (FR-121).
         if (m_comparison.IsComparing())
@@ -2339,6 +2373,250 @@ void DiskInspectorWindow::RefreshFindResults()
     {
         Layout (m_boundsDip, m_hostScaler);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::GetSelectedEdit
+//
+//  The selected sector's pending edit, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskInspectorWindow::GetSelectedEdit() const
+{
+    const TrackAnalysis *  track = m_model.GetTrack();
+
+
+
+    return (track != nullptr) ? m_edits.Find (*track, m_model.GetSectorIndex()) : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsSectorImage
+//
+//  A .dsk, .do or .po stores only sector data, so its checksum is always
+//  recomputed (FR-098).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsSectorImage() const
+{
+    DiskFormat  format = (m_analysis.copy != nullptr) ? m_analysis.copy->format : DiskFormat::Woz;
+
+
+
+    return format == DiskFormat::Dsk || format == DiskFormat::Do || format == DiskFormat::Po;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ToggleEditing
+//
+//  Starting to edit begins an edit on the selected sector, selects its
+//  first byte when no byte is selected, and moves the keys to the Sector
+//  data tab.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::ToggleEditing()
+{
+    const TrackAnalysis *  track = m_model.GetTrack();
+    std::wstring           reason;
+    int                    edit  = -1;
+
+
+
+    if (m_byteView->IsEditing())
+    {
+        m_byteView->SetEditing (false);
+    }
+    else if (track != nullptr)
+    {
+        edit       = m_edits.Begin (*track, m_model.GetQuarterTrack(), m_model.GetSectorIndex(), reason);
+        m_editNote = reason;
+
+        if (edit >= 0)
+        {
+            m_byteView->SetEditing (true);
+            m_keyTarget = KeyTarget::SectorData;
+
+            if (m_model.GetFirstByte() < 0)
+            {
+                m_model.SelectBytes (0, 1, false);
+            }
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::HandleEditKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::HandleEditKey (const DxuiKeyEvent & ev)
+{
+    bool  isHandled = true;
+
+
+
+    m_editNote.clear();
+
+    if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'Z')
+    {
+        (void) m_edits.Undo();
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'Y')
+    {
+        (void) m_edits.Redo();
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.ctrl && !ev.alt && ev.vk == 'V')
+    {
+        PasteIntoEdit();
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE)
+    {
+        ToggleEditing();
+    }
+    else
+    {
+        isHandled = m_byteView->OnEditKey (ev);
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PasteIntoEdit
+//
+//  From the cursor, in the column it is in; the bytes past $FF are counted
+//  in the note.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PasteIntoEdit()
+{
+    std::wstring  text;
+    int           overflow = 0;
+    int           written  = 0;
+
+
+
+    if (GetSelectedEdit() >= 0 && m_model.GetFirstByte() >= 0 && m_clipboard.GetText (GetHwnd(), text))
+    {
+        written    = m_edits.Paste (GetSelectedEdit(), m_model.GetFirstByte(), text, m_model.IsTextColumn(), overflow);
+        m_editNote = (written == 0)  ? std::wstring (m_model.IsTextColumn() ? L"Nothing to paste: the clipboard has no printable text"
+                                                                            : L"Nothing to paste: the clipboard has no pairs of hex digits")
+                   : (overflow > 0)  ? InspectorText::FormatCount (overflow, L"byte", L"bytes") + L" did not fit before the end of the sector"
+                                     : std::wstring();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::FollowEdits
+//
+//  After re-analysis, each pending edit moves with its field; the window
+//  lists the edits whose sectors can no longer be edited (FR-108).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::FollowEdits()
+{
+    vector<PendingEdit>  discarded;
+    std::wstring         list;
+
+
+
+    m_edits.Follow (m_analysis, discarded);
+
+    for (const PendingEdit & edit : discarded)
+    {
+        list += (list.empty() ? L"" : L", ") + InspectorFormat::FormatSector (edit.sectorNumber) + L" on track " + InspectorFormat::FormatQuarterTrack (edit.quarterTrack);
+    }
+
+    if (!list.empty())
+    {
+        m_editNote = L"Edits discarded, the sectors can no longer be edited: " + list;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::UpdateEditBar
+//
+//  While editing, moving to another editable sector begins an edit there,
+//  so typing always goes to the selected sector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::UpdateEditBar()
+{
+    const TrackAnalysis *  track  = m_model.GetTrack();
+    std::wstring           reason = (track != nullptr) ? EditController::GetUneditableReason (*track, m_model.GetSectorIndex()) : std::wstring (L"No track");
+    int                    edit   = GetSelectedEdit();
+    EditBarState           state;
+    EditController::Counts counts = m_edits.GetCounts();
+    int                    width  = 0;
+    int                    rows   = 0;
+
+
+
+    if (m_byteView->IsEditing() && edit < 0 && reason.empty())
+    {
+        edit = m_edits.Begin (*track, m_model.GetQuarterTrack(), m_model.GetSectorIndex(), reason);
+    }
+
+    //  The Tracks tab counts the edited sectors of each track.
+    m_isTablesDirty = m_isTablesDirty || (static_cast<int64_t> (counts.bytes) << 16 | counts.sectors) != m_editSig;
+    m_editSig       = static_cast<int64_t> (counts.bytes) << 16 | counts.sectors;
+
+    state.canEdit          = m_context.hasDisk && reason.empty();
+    state.isEditing        = m_byteView->IsEditing();
+    state.hasSectorEdit    = edit >= 0;
+    state.isChecksumOn     = IsSectorImage() || edit < 0 || m_edits.GetEdit (edit).checksumMode == ChecksumMode::Recompute;
+    state.isChecksumLocked = IsSectorImage();
+    state.bytes            = counts.bytes;
+    state.sectors          = counts.sectors;
+    state.canApply         = false;
+    state.note             = !m_editNote.empty() ? m_editNote : (m_model.GetSector() != nullptr && !reason.empty()) ? L"Cannot edit: " + reason : std::wstring();
+
+    //  A change of the bar's rows moves the bytes under it.
+    width = m_editBar->GetBounds().right - m_editBar->GetBounds().left;
+    rows  = m_editBar->GetRowCount (width, m_scaler);
+    m_editBar->SetState (state);
+    m_isLayoutStale = m_isLayoutStale || (width > 0 && m_editBar->GetRowCount (width, m_scaler) != rows);
 }
 
 
@@ -2995,7 +3273,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
 
     RECT          modes = m_modeTabs->GetBounds();
-    std::wstring  tip;
+    std::wstring  tip   = m_editBar->IsVisible() ? m_editBar->GetTip (pointPx, outAnchorPx) : std::wstring();
 
 
 

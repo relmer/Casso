@@ -113,6 +113,11 @@ public:
     //  contents (FR-108).
     vector<SectorWrite>  BuildWrites (const DiskAnalysis & analysis) const;
 
+    //  Whether a sector of a record has changed bytes pending, and how many
+    //  of a record's sectors do, for the marks in other views (FR-097).
+    bool                         HasChanges         (int slot, Byte sectorNumber) const;
+    int                          CountChangedSectors (int slot) const;
+
     Counts                       GetCounts () const;
     bool                         IsEmpty   () const { return GetCounts().sectors == 0; }
     const vector<PendingEdit> &  GetEdits  () const { return m_edits; }

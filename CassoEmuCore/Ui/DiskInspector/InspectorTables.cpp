@@ -54,7 +54,7 @@ vector<std::wstring> InspectorTables::GetFindingColumns()
 vector<std::wstring> InspectorTables::GetTrackColumns()
 {
     return { L"Track", L"Recorded", L"Shared with", L"Class", L"Sectors good", L"Nibbles", L"Length", L"Longest sync",
-             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Reach" };
+             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Edited", L"Reach" };
 }
 
 
@@ -234,7 +234,7 @@ vector<TableRow> InspectorTables::BuildFindings (const DiskAnalysis & analysis, 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, const FindMarks * marks)
+vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, const FindMarks * marks, const EditController * edits)
 {
     static constexpr double  kNominalCells = 51200.0;
 
@@ -270,6 +270,7 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
             flux ? InspectorFormat::FormatPercent (track->measurements.deviation) : std::wstring (s_kpszNone),
             (e.findingCount > 0) ? std::to_wstring (e.findingCount) : std::wstring(),
             (marks != nullptr && marks->GetTrackHits (track) > 0) ? std::to_wstring (marks->GetTrackHits (track)) : std::wstring(),
+            (edits != nullptr && edits->CountChangedSectors (e.slot) > 0) ? InspectorText::FormatCount (edits->CountChangedSectors (e.slot), L"sector", L"sectors") : std::wstring(),
             e.isBeyondHeadReach ? L"Beyond the head's reach" : L"",
         };
 

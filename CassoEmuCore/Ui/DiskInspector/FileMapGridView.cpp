@@ -522,6 +522,12 @@ void FileMapGridView::PaintCell (IDxuiPainter & painter, IDxuiTextRenderer & tex
                          DxuiTextHAlign::Center, DxuiTextVAlign::Center, number > 0 ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal, false);
     }
 
+    //  A cell with pending edits (FR-097): a band along its left side.
+    if (IsEditedCell (cell))
+    {
+        painter.FillRect (x, y, m_scaler.ToPxf (s_kDiffBandDip), h, m_context.palette.colors.pendingEdit);
+    }
+
     //  A cell with find hits (FR-056): a band along its top.
     if (IsHitCell (cell))
     {
@@ -944,6 +950,35 @@ bool FileMapGridView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatc
 bool FileMapGridView::IsHitCell (int cell) const
 {
     return m_context.findMarks != nullptr && m_context.findMarks->IsCellMarked (cell);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FileMapGridView::IsEditedCell
+//
+//  A cell's sector has pending edits on its whole track's record.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FileMapGridView::IsEditedCell (int cell) const
+{
+    int  half = 0;
+    int  qt   = 0;
+
+
+
+    if (m_context.edits == nullptr || m_context.analysis == nullptr || m_map == nullptr || m_context.edits->IsEmpty())
+    {
+        return false;
+    }
+
+    qt = m_map->GetTrack (cell) * DiskImage::kQuarterTracksPerWholeTrack;
+
+    return qt >= 0 && qt < DiskImage::kQuarterTrackCount && m_context.edits->HasChanges (m_context.analysis->entries[qt].slot, static_cast<Byte> (m_map->GetPhysical (cell, half)));
 }
 
 

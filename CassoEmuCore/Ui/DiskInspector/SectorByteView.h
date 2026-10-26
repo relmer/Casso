@@ -32,6 +32,12 @@ public:
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;
     bool  GetTooltip         (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const override;
+
+    //  Editing (FR-097): typing goes to the selected sector's pending edit at
+    //  the cursor, the first selected byte, in the column last clicked.
+    void  SetEditing (bool isEditing) { m_isEditing = isEditing; m_isLowNibble = false; }
+    bool  IsEditing  () const         { return m_isEditing; }
+    bool  OnEditKey  (const DxuiKeyEvent & ev);
     bool  GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const override;
 
     //  Pixels at the right of the header's first line reserved for the
@@ -44,6 +50,9 @@ public:
 
 private:
     float  PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
+    void   PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme);
+    void   MoveCursor  (int offset, bool isTextColumn, bool isLowNibble);
+    int    GetEdit     () const;
     void   PaintBytes  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y);
     void   PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme);
     int    HitTest     (POINT pointPx, bool & outIsText) const;
@@ -61,10 +70,12 @@ private:
     };
 
     void                   PaintGrid      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
-                                           std::span<const Byte> other, std::span<const Byte> hits, float textPx);
+                                           std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx);
     std::span<const Byte>  GetPairedBytes (const TrackAnalysis & track) const;
 
     ByteGrid  m_grid;
     float     m_headerReservePx = 0.0f;
     bool      m_isDragging      = false;
+    bool      m_isEditing       = false;
+    bool      m_isLowNibble     = false;
 };

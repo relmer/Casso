@@ -87,6 +87,7 @@ private:
     void  PaintMarquee (IDxuiPainter & painter, const Grid & g, const vector<int> & numbers) const;
     bool      IsDimmed     (int cell) const;
     bool      IsHitCell    (int cell) const;
+    bool      IsEditedCell (int cell) const;
     uint32_t  GetCellColor (int cell) const;
 
     void      MakeRoleLabels (IDxuiTextRenderer & text, const Grid & g, float textPx);

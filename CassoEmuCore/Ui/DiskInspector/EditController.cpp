@@ -588,6 +588,37 @@ vector<SectorWrite> EditController::BuildWrites (const DiskAnalysis & analysis) 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EditController::HasChanges
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EditController::HasChanges (int slot, Byte sectorNumber) const
+{
+    return std::any_of (m_edits.begin(), m_edits.end(),
+                        [&] (const PendingEdit & edit) { return edit.slot == slot && edit.sectorNumber == sectorNumber && edit.CountChanged() > 0; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditController::CountChangedSectors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EditController::CountChangedSectors (int slot) const
+{
+    return static_cast<int> (std::count_if (m_edits.begin(), m_edits.end(), [slot] (const PendingEdit & edit) { return edit.slot == slot && edit.CountChanged() > 0; }));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EditController::GetCounts
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/Inspector/DiskComparison.h"
 #include "Ui/DiskInspector/DiskInspectorPalette.h"
+#include "Ui/DiskInspector/EditController.h"
 #include "Ui/DiskInspector/FindMarks.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
 
@@ -43,6 +44,7 @@ struct InspectorViewContext
     const vector<Difference>  * nibbleDiffs       = nullptr;
     const vector<int>         * diffCells         = nullptr;
     const FindMarks           * findMarks         = nullptr;
+    EditController            * edits             = nullptr;
     const IDxuiControl        * selectionSource   = nullptr;
     std::function<void ()>    onSelectionChanged;
 

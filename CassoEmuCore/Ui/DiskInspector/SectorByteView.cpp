@@ -22,6 +22,8 @@ static constexpr uint32_t  s_kDiffAlpha      = 0x50000000u;
 static constexpr uint32_t  s_kHitAlpha       = 0x60000000u;
 static constexpr float     s_kDiffLineDip    = 2.0f;
 static constexpr float     s_kMinRowDip      = 11.0f;
+static constexpr float     s_kMarkDip        = 5.0f;
+static constexpr float     s_kCursorDip      = 1.5f;
 
 
 
@@ -113,6 +115,12 @@ float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & 
 
 
 
+    //  With a pending edit, the data checksum result once applied (FR-098).
+    if (int edit = GetEdit(); edit >= 0)
+    {
+        items.push_back ({ L"Checksum after apply", EditController::IsChecksumGoodAfter (m_context.edits->GetEdit (edit), track) ? L"Good" : L"Bad" });
+    }
+
     //  On a whole track of a mapped volume, the sector's role and owners.
     if (m_context.fileMap != nullptr && m_context.model->GetQuarterTrack() % DiskImage::kQuarterTracksPerWholeTrack == 0)
     {
@@ -165,7 +173,10 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
     bool                     isBad   = sector.isDataCheck && !sector.isDataGood;
     int                      rows    = static_cast<int> (data.bytes.size() + kBytesPerRow - 1) / kBytesPerRow;
     int                      index   = static_cast<int> (&sector - track.sectors.data());
+    int                      edit    = GetEdit();
+    std::span<const Byte>    shown   = (edit >= 0) ? std::span<const Byte> (m_context.edits->GetEdit (edit).bytes) : std::span<const Byte> (data.bytes);
     vector<Byte>             hits    (data.bytes.size(), 0);
+    vector<Byte>             changed (data.bytes.size(), 0);
     ByteGrid                 grid;
 
 
@@ -194,9 +205,15 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
         hits[i] = m_context.findMarks->IsByteMarked (&track, index, static_cast<int> (i)) ? 1 : 0;
     }
 
+    for (size_t i = 0; edit >= 0 && i < changed.size(); i++)
+    {
+        changed[i] = m_context.edits->GetEdit (edit).IsChanged (static_cast<int> (i)) ? 1 : 0;
+    }
+
     m_grid = grid;
     PaintSelection (painter, theme);
-    PaintGrid      (painter, text, theme, grid, data.bytes, bytesB, hits, textPx);
+    PaintGrid      (painter, text, theme, grid, shown, bytesB, hits, changed, textPx);
+    PaintCursor    (painter, theme);
 
     if (isB)
     {
@@ -207,7 +224,7 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
         if (!bytesB.empty())
         {
-            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, {}, textPx);
+            PaintGrid (painter, text, theme, grid, bytesB, data.bytes, {}, {}, textPx);
         }
     }
 }
@@ -223,12 +240,13 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //  Rows of 16 under their offsets, hex then text. A byte that differs from
 //  the other side's is tinted and underlined, so it shows without color;
 //  with no other side, nothing is marked. A byte of a find hit is tinted
-//  and outlined in both columns.
+//  and outlined in both columns. A byte a pending edit changed is drawn in
+//  the edit color with a corner mark in both columns (FR-097).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
-                                std::span<const Byte> other, std::span<const Byte> hits, float textPx)
+                                std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx)
 {
     float     left   = static_cast<float> (m_boundsDip.left);
     float     line   = m_scaler.ToPxf (s_kDiffLineDip);
@@ -237,6 +255,9 @@ void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text
     int       col    = 0;
     float     rowTop = 0;
     uint32_t  color  = 0;
+    float     mark   = m_scaler.ToPxf (s_kMarkDip);
+    float     hx     = 0;
+    float     tx     = 0;
     wchar_t   ch[2]  = {};
 
 
@@ -247,6 +268,8 @@ void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text
         col    = static_cast<int> (i) % kBytesPerRow;
         rowTop = grid.top + row * grid.rowH;
         color  = (bytes[i] == 0) ? theme.ForegroundMuted() : theme.Foreground();
+        hx     = grid.hexLeft + col * grid.byteW;
+        tx     = grid.textLeft + col * grid.charW;
 
         //  A row that does not fit in the view is left out rather than drawn
         //  over what lies below it.
@@ -273,6 +296,13 @@ void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text
             painter.FillRect (grid.hexLeft + col * grid.byteW, rowTop, grid.byteW * 0.8f, grid.rowH, (m_context.palette.colors.difference & 0x00FFFFFFu) | s_kDiffAlpha);
             painter.FillRect (grid.hexLeft + col * grid.byteW, rowTop + grid.rowH - line, grid.byteW * 0.8f, line, m_context.palette.colors.difference);
             painter.FillRect (grid.textLeft + col * grid.charW, rowTop + grid.rowH - line, grid.charW, line, m_context.palette.colors.difference);
+        }
+
+        if (i < changed.size() && changed[i] != 0)
+        {
+            color = m_context.palette.colors.pendingEdit;
+            painter.FillConvexQuad (hx, rowTop, hx + mark, rowTop, hx, rowTop + mark, hx, rowTop + mark, color);
+            painter.FillConvexQuad (tx, rowTop, tx + mark, rowTop, tx, rowTop + mark, tx, rowTop + mark, color);
         }
 
         text.DrawString (std::format (L"{:02X}", bytes[i]).c_str(), grid.hexLeft + col * grid.byteW, rowTop, grid.byteW, grid.rowH, color, textPx,
@@ -373,6 +403,7 @@ bool SectorByteView::OnMouse (const DxuiMouseEvent & ev)
         else
         {
             m_context.model->SelectBytes (index, 1, isText);
+            m_isLowNibble = !isText && ev.positionDip.x >= m_grid.hexLeft + (index % kBytesPerRow) * m_grid.byteW + m_grid.byteW * 0.4f;
         }
 
         m_isDragging = true;
@@ -391,6 +422,165 @@ bool SectorByteView::OnMouse (const DxuiMouseEvent & ev)
     {
         m_isDragging = false;
         isHandled    = true;
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::GetEdit
+//
+//  The selected sector's pending edit, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int SectorByteView::GetEdit() const
+{
+    const TrackAnalysis *  track = m_context.GetTrack();
+
+
+
+    return (m_context.edits != nullptr && track != nullptr) ? m_context.edits->Find (*track, m_context.model->GetSectorIndex()) : -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::PaintCursor
+//
+//  While editing, a box around the hex digit or the character typing goes
+//  to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorByteView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme)
+{
+    int    offset = m_context.model->GetFirstByte();
+    float  row    = 0;
+    float  col    = 0;
+    float  digitW = m_grid.byteW * 0.4f;
+
+
+
+    if (m_isEditing && m_grid.isShown && offset >= 0 && offset < DiskFieldFormat::kSectorBytes && GetEdit() >= 0)
+    {
+        row = m_grid.top + (offset / kBytesPerRow) * m_grid.rowH;
+        col = static_cast<float> (offset % kBytesPerRow);
+
+        if (m_context.model->IsTextColumn())
+        {
+            painter.OutlineRect (m_grid.textLeft + col * m_grid.charW, row, m_grid.charW, m_grid.rowH, m_scaler.ToPxf (s_kCursorDip), theme.Accent());
+        }
+        else
+        {
+            painter.OutlineRect (m_grid.hexLeft + col * m_grid.byteW + (m_isLowNibble ? digitW : 0.0f), row, digitW, m_grid.rowH, m_scaler.ToPxf (s_kCursorDip), theme.Accent());
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::MoveCursor
+//
+//  The cursor is the selection's first byte, so moving it selects that
+//  byte alone; it stops at the sector's first and last bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SectorByteView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble)
+{
+    if (offset < 0)
+    {
+        offset      = 0;
+        isLowNibble = false;
+    }
+    else if (offset >= DiskFieldFormat::kSectorBytes)
+    {
+        offset      = DiskFieldFormat::kSectorBytes - 1;
+        isLowNibble = !isTextColumn;
+    }
+
+    m_isLowNibble = isLowNibble && !isTextColumn;
+    m_context.model->SelectBytes (offset, 1, isTextColumn);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorByteView::OnEditKey
+//
+//  In the hex column a digit sets the digit under the cursor and moves to
+//  the next one; in the text column a character sets the byte and moves on.
+//  The arrows move by a digit or a character and by a row, Home and End to
+//  the row's ends, and Tab between the columns.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SectorByteView::OnEditKey (const DxuiKeyEvent & ev)
+{
+    int   edit      = GetEdit();
+    int   offset    = m_context.model->GetFirstByte();
+    bool  isText    = m_context.model->IsTextColumn();
+    bool  isHandled = false;
+
+
+
+    if (!m_isEditing || edit < 0 || offset < 0)
+    {
+        return false;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Char && !ev.ctrl && !ev.alt)
+    {
+        if (isText)
+        {
+            isHandled = m_context.edits->TypeCharacter (edit, offset, static_cast<wchar_t> (ev.vk));
+
+            if (isHandled)
+            {
+                MoveCursor (offset + 1, true, false);
+            }
+        }
+        else
+        {
+            isHandled = m_context.edits->TypeHexDigit (edit, offset, !m_isLowNibble, static_cast<wchar_t> (ev.vk));
+
+            if (isHandled)
+            {
+                MoveCursor (m_isLowNibble ? offset + 1 : offset, false, !m_isLowNibble);
+            }
+        }
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && !ev.ctrl && !ev.alt && !ev.shift)
+    {
+        isHandled = true;
+
+        switch (ev.vk)
+        {
+            case VK_LEFT:  MoveCursor ((isText || !m_isLowNibble) ? offset - 1 : offset, isText, !isText && !m_isLowNibble); break;
+            case VK_RIGHT: MoveCursor ((isText || m_isLowNibble) ? offset + 1 : offset, isText, !isText && !m_isLowNibble);  break;
+            case VK_UP:    MoveCursor (offset - kBytesPerRow, isText, m_isLowNibble);                                          break;
+            case VK_DOWN:  MoveCursor (offset + kBytesPerRow, isText, m_isLowNibble);                                          break;
+            case VK_HOME:  MoveCursor (offset - offset % kBytesPerRow, isText, false);                                         break;
+            case VK_END:   MoveCursor (offset - offset % kBytesPerRow + kBytesPerRow - 1, isText, !isText);                    break;
+            case VK_TAB:   MoveCursor (offset, !isText, false);                                                                break;
+            default:       isHandled = false;                                                                                  break;
+        }
     }
 
     return isHandled;

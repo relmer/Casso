@@ -62,6 +62,14 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
             text.DrawString (caption.c_str(), static_cast<float> (r.left), static_cast<float> (r.top), static_cast<float> (r.right - r.left), static_cast<float> (r.bottom - r.top),
                              color, m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
 
+            //  A corner mark at the top left of a sector with pending edits (FR-097).
+            if (m_context.edits != nullptr && m_context.edits->HasChanges (track->slot, sector.sector))
+            {
+                painter.FillConvexQuad (static_cast<float> (r.left), static_cast<float> (r.top), static_cast<float> (r.left) + m_scaler.ToPxf (3.0f * s_kHitDotDip), static_cast<float> (r.top),
+                                        static_cast<float> (r.left), static_cast<float> (r.top) + m_scaler.ToPxf (3.0f * s_kHitDotDip),
+                                        static_cast<float> (r.left), static_cast<float> (r.top) + m_scaler.ToPxf (3.0f * s_kHitDotDip), m_context.palette.colors.pendingEdit);
+            }
+
             //  A dot in the top right corner of a sector with find hits (FR-056).
             if (m_context.findMarks != nullptr && m_context.findMarks->GetSectorHits (track, order[i]) > 0)
             {

@@ -121,7 +121,7 @@ public:
         Assert::AreEqual (std::wstring (L"Bit track"), rows[68].cells[1]);
         Assert::AreEqual (InspectorFormat::FormatQuarterTrackList (analysis.entries[68].sharesWith), rows[68].cells[2]);
         Assert::AreEqual (std::wstring (L"15 of 16"), rows[20].cells[4], L"track 5 has one bad sector");
-        Assert::AreEqual (std::wstring (L"Beyond the head's reach"), rows[DiskImage::kQuarterTrackCount - 1].cells[13]);
+        Assert::AreEqual (std::wstring (L"Beyond the head's reach"), rows[DiskImage::kQuarterTrackCount - 1].cells[14]);
         Assert::IsFalse (InspectorTables::IsAlignmentNoteShown (analysis), L"no note for a DSK");
     }
 
