@@ -4,6 +4,8 @@
 
 #include "Shell/DiskMru.h"
 
+class JsonValue;
+
 
 
 
@@ -142,6 +144,14 @@ public:
                                            const wstring          & machineName,
                                            bool                   & outHasDiskController,
                                            string                 & outError);
+
+    // Whether the machine has slot 6's drives: an enabled Disk II card in
+    // slot 6, or the //c's built-in drive.
+    static HRESULT  HasSlot6Drives        (HINSTANCE                hInstance,
+                                           const wstring          & machineName,
+                                           bool                   & outHasDrives,
+                                           string                 & outError);
+    static bool     HasSlot6Drives        (const JsonValue        & config);
 
     // In-memory OGG Vorbis fetch + decode + resample to mono float32
     // at `targetSampleRate`. Stereo input is downmixed to mono via
@@ -294,4 +304,11 @@ public:
 
     // Whether that ROM is in its device folder under the asset base, at the
     // size the catalog lists.
-    static bool      IsOptionalRomInstalled (string_view cassoName);};
+    static bool      IsOptionalRomInstalled (string_view cassoName);
+
+private:
+    static HRESULT  LoadMergedConfig      (HINSTANCE                hInstance,
+                                           const wstring          & machineName,
+                                           JsonValue              & outMerged,
+                                           string                 & outError);
+};

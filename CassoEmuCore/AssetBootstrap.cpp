@@ -1680,15 +1680,71 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssetBootstrap::LoadMergedConfig
+//
+//  The machine `machineName` as the user currently has it configured: the
+//  embedded default config with the user's per-machine delta folded in, so
+//  a slot the user disabled in Settings > Machine ("enabled": false) reads
+//  as it does when the machine is built (MachineConfig::Parse). Falls back
+//  to the embedded config if the merge fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::LoadMergedConfig (
+    HINSTANCE         hInstance,
+    const wstring   & machineName,
+    JsonValue       & outMerged,
+    string          & outError)
+{
+    HRESULT          hr         = S_OK;
+    HRESULT          hrMerge    = S_OK;
+    string           jsonText;
+    string           narrowName;
+    JsonValue        root;
+    JsonValue        mergedTmp;
+    JsonParseError   parseError;
+    Win32FileSystem  fsMerge;
+    UserConfigStore  store      (GetAssetBaseDirectory().wstring());
+
+
+
+    hr = LoadEmbeddedJson (hInstance, machineName, jsonText, narrowName, outError);
+    CHR (hr);
+
+    hr = JsonParser::Parse (jsonText, root, parseError);
+    CHRF (hr,
+          outError = format ("Embedded config for '{}' is malformed: {} at line {}",
+                             narrowName, parseError.message, parseError.line));
+
+    hrMerge = store.Load (narrowName, root, fsMerge, mergedTmp);
+
+    if (SUCCEEDED (hrMerge) && mergedTmp.GetType() == JsonType::Object)
+    {
+        outMerged = std::move (mergedTmp);
+    }
+    else
+    {
+        outMerged = std::move (root);
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HasDiskController
 //
 //  True iff the machine `machineName`, as the user currently has it
-//  configured, has an ENABLED Disk ][ controller slot. Starts from the
-//  embedded default config and folds in the user's per-machine delta so a
-//  slot the user disabled in Settings > Machine ("enabled": false) is
-//  reported as absent -- otherwise we'd offer a boot-disk download / pop the
-//  boot-disk picker for a machine the user deliberately stripped of its
-//  controller. Used to gate the boot-disk flow.
+//  configured, has an ENABLED Disk ][ controller slot. A slot the user
+//  disabled in Settings > Machine is reported as absent -- otherwise we'd
+//  offer a boot-disk download / pop the boot-disk picker for a machine the
+//  user deliberately stripped of its controller. Used to gate the boot-disk
+//  flow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1699,47 +1755,18 @@ HRESULT AssetBootstrap::HasDiskController (
     string          & outError)
 {
     HRESULT             hr           = S_OK;
-    string              jsonText;
-    string              narrowName;
-    JsonValue           root;
     JsonValue           merged;
-    JsonParseError      parseError;
     const JsonValue   * pSlots       = nullptr;
     HRESULT             hrOpt        = S_OK;
     size_t              idx          = 0;
     string              device;
-    Win32FileSystem     fsMerge;
-    UserConfigStore     store        (GetAssetBaseDirectory().wstring());
 
 
 
     outHasDiskController = false;
 
-    hr = LoadEmbeddedJson (hInstance, machineName, jsonText, narrowName, outError);
+    hr = LoadMergedConfig (hInstance, machineName, merged, outError);
     CHR (hr);
-
-    hr = JsonParser::Parse (jsonText, root, parseError);
-    CHRF (hr,
-          outError = format ("Embedded config for '{}' is malformed: {} at line {}",
-                             narrowName, parseError.message, parseError.line));
-
-    // Fold the user's saved per-machine delta over the embedded default so a
-    // Settings-disabled slot ("enabled": false) is honored here exactly as it
-    // is when the machine is built (MachineConfig::Parse). Fall back to the
-    // base config if the merge fails.
-    {
-        JsonValue  mergedTmp;
-        HRESULT    hrMerge = store.Load (narrowName, root, fsMerge, mergedTmp);
-
-        if (SUCCEEDED (hrMerge) && mergedTmp.GetType() == JsonType::Object)
-        {
-            merged = std::move (mergedTmp);
-        }
-        else
-        {
-            merged = root;
-        }
-    }
 
     // `slots` is optional (][/][+ omit it); a missing slots array
     // simply means there is no Disk ][ controller for this machine.
@@ -1768,6 +1795,96 @@ HRESULT AssetBootstrap::HasDiskController (
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssetBootstrap::HasSlot6Drives
+//
+//  Whether the machine `machineName`, as the user currently has it
+//  configured, has slot 6's drives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::HasSlot6Drives (
+    HINSTANCE         hInstance,
+    const wstring   & machineName,
+    bool            & outHasDrives,
+    string          & outError)
+{
+    HRESULT    hr = S_OK;
+    JsonValue  merged;
+
+
+
+    outHasDrives = false;
+
+    hr = LoadMergedConfig (hInstance, machineName, merged, outError);
+    CHR (hr);
+
+    outHasDrives = HasSlot6Drives (merged);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssetBootstrap::HasSlot6Drives
+//
+//  Whether a machine config has slot 6's drives: an enabled Disk II card in
+//  slot 6, or the //c's built-in drive. The //c is the only machine with a
+//  banked system ROM, the same discriminator ShellDisks uses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::HasSlot6Drives (const JsonValue & config)
+{
+    const JsonValue  * pRom      = nullptr;
+    const JsonValue  * pSlots    = nullptr;
+    string             bankSize;
+    string             device;
+    int                slot      = 0;
+    bool               isEnabled = true;
+    bool               hasDrives = false;
+    HRESULT            hrRom     = config.GetObject ("systemRom", pRom);
+    HRESULT            hrSlots   = config.GetArray ("slots", pSlots);
+    HRESULT            hrBank    = S_OK;
+    HRESULT            hrDevice  = S_OK;
+    HRESULT            hrSlot    = S_OK;
+    HRESULT            hrEnabled = S_OK;
+    size_t             idx       = 0;
+
+
+
+    if (SUCCEEDED (hrRom) && pRom != nullptr)
+    {
+        hrBank    = pRom->GetString ("romBankSize", bankSize);
+        hasDrives = SUCCEEDED (hrBank);
+    }
+
+    for (idx = 0; !hasDrives && SUCCEEDED (hrSlots) && pSlots != nullptr && idx < pSlots->GetArraySize(); idx++)
+    {
+        const JsonValue  & entry = pSlots->GetArrayElement (idx);
+
+        isEnabled = true;
+        hrDevice  = entry.GetString ("device", device);
+        hrSlot    = entry.GetInt ("slot", slot);
+        hrEnabled = entry.GetBool ("enabled", isEnabled);
+        IGNORE_RETURN_VALUE (hrEnabled, S_OK);
+
+        hasDrives = SUCCEEDED (hrDevice) && SUCCEEDED (hrSlot) && device == kpszDiskIiDevice && slot == 6 && isEnabled;
+    }
+
+    return hasDrives;
 }
 
 

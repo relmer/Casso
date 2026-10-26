@@ -364,6 +364,18 @@ void SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
         // already know they backed out.
         selected = !userExited;
 
+        //  A machine without slot 6's drives ejects both disks, which
+        //  discards the disk inspector's pending edits (FR-108).
+        if (selected && SUCCEEDED (hr))
+        {
+            bool         hasDrives = true;
+            std::string  drivesErr;
+            HRESULT      hrDrives  = AssetBootstrap::HasSlot6Drives (hInstance, wideName, hasDrives, drivesErr);
+
+            IGNORE_RETURN_VALUE (hrDrives, S_OK);
+            selected = hasDrives || m_emuShell->ConfirmInspectorDiscard (-1, L"Switching to a machine with no Disk II in slot 6");
+        }
+
         if (selected && FAILED (hr))
         {
             DialogDefinition  def;
