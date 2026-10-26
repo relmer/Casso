@@ -69,3 +69,25 @@ void EmulatorShell::ServiceInspectorRequests()
 {
     m_inspectorHost.Service();
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::OnClose
+//
+//  With pending edits in the disk inspector, a confirmation comes first,
+//  and Casso stays open when the user cancels (FR-108).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnClose()
+{
+    bool  isGoingOn = m_diskInspector == nullptr || m_diskInspector->GetHwnd() == nullptr || m_diskInspector->ConfirmDiscardEdits (L"Quitting Casso");
+
+
+
+    return isGoingOn ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
+}

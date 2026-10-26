@@ -89,6 +89,10 @@ public:
     HRESULT  RenderFrame ();
     int      GetDrive    () const { return m_drive; }
 
+    //  Before something discards the pending edits (FR-108): true when there
+    //  are none, or the user confirms that they are discarded.
+    bool     ConfirmDiscardEdits (const std::wstring & action);
+
     void     Layout      (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool     OnMouse     (const DxuiMouseEvent & ev) override;

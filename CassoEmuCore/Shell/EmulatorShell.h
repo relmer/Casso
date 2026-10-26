@@ -211,6 +211,7 @@ private:
     static EmulatorShell *  s_pNotifyShell;
     DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnCommand       (WORD commandId) override;
+    DxuiMessageResult  OnClose         () override;
     DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
 

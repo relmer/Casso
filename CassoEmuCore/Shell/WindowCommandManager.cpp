@@ -621,7 +621,11 @@ void WindowCommandManager::OnFileCommand (int id)
 
         case IDM_FILE_EXIT:
         {
-            DestroyWindow (m_shell.m_hwnd);
+            if (m_shell.OnClose() == DxuiMessageResult::NotHandled)
+            {
+                DestroyWindow (m_shell.m_hwnd);
+            }
+
             break;
         }
     }

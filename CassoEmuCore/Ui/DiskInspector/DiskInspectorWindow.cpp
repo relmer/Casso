@@ -268,6 +268,12 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
 
     CBRA (drive >= 0);
 
+    if (drive != m_drive && !ConfirmDiscardEdits (L"Switching to the other drive"))
+    {
+        m_driveTabs->SetSelected (m_drive);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
     //  Another drive's disk ends a comparison of this one.
     if (m_comparison.IsComparing())
     {
@@ -561,11 +567,15 @@ Error:
 
 void DiskInspectorWindow::OnWindowClose()
 {
-    m_tooltip.HideImmediate();
-    HideLegend();
-    m_host->SetHeadStateWanted (false);
-    Hide();
-    m_host->OnInspectorClosed();
+    //  The window stays open when the user cancels (FR-108).
+    if (ConfirmDiscardEdits (L"Closing the disk inspector"))
+    {
+        m_tooltip.HideImmediate();
+        HideLegend();
+        m_host->SetHeadStateWanted (false);
+        Hide();
+        m_host->OnInspectorClosed();
+    }
 }
 
 
@@ -2240,7 +2250,10 @@ Error:
 
 void DiskInspectorWindow::ApplySettings (const DecodeSettings & settings)
 {
-    if (m_context.hasDisk && m_analysis.copy != nullptr)
+    //  Edits on sectors that no longer decode under the new settings are
+    //  discarded after the analysis (FR-108).
+    if (m_context.hasDisk && m_analysis.copy != nullptr && (m_edits.IsEmpty() ||
+        ConfirmEdit (L"Decode settings", { L"Pending edits on sectors that no longer decode as editable under the new settings are discarded." }, L"Change settings")))
     {
         m_analysis.settings = settings;
         m_scheduler->Restart (m_analysis.copy, settings);
@@ -2701,6 +2714,38 @@ bool DiskInspectorWindow::ConfirmEdit (const std::wstring & title, const vector<
 
 Error:
     return result == kYes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::ConfirmDiscardEdits
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::ConfirmDiscardEdits (const std::wstring & action)
+{
+    EditController::Counts  counts    = m_edits.GetCounts();
+    bool                    isGoingOn = counts.sectors == 0;
+
+
+
+    if (!isGoingOn)
+    {
+        isGoingOn = ConfirmEdit (L"Pending edits", { EditBar::FormatCount (counts.bytes, counts.sectors) + L" and not applied.",
+                                                     action + L" discards these edits." }, L"Discard edits");
+    }
+
+    if (isGoingOn && counts.sectors > 0)
+    {
+        m_edits = EditController();
+        m_byteView->SetEditing (false);
+    }
+
+    return isGoingOn;
 }
 
 
