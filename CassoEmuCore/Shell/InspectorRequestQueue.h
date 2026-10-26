@@ -65,6 +65,7 @@ public:
     virtual InspectorDriveMotion  GetMotion        (int drive)        { (void) drive; return {}; }
     virtual InspectorSaveResult   SaveDrive        (int drive)        { (void) drive; return { E_NOTIMPL, {}, false, L"This program cannot save the disk" }; }
     virtual void                  SetMachinePaused (bool isPaused)    { (void) isPaused; }
+    virtual vector<std::string>   GetMountedPaths  ()                 { return {}; }
 };
 
 
@@ -96,6 +97,10 @@ enum class InspectorRequestKind
     //  and end a wait for one.
     Apply,
     CancelApply,
+
+    //  The disk with the pending edits applied, serialized for "Save edited
+    //  copy..." without changing the drive's disk (FR-101).
+    SaveCopy,
 };
 
 
@@ -196,6 +201,7 @@ struct InspectorReply
     std::string                               savedPath;
     vector<SectorWriteError>                  writeErrors;
     bool                                      isMachinePaused = false;
+    vector<std::string>                       mountedPaths;
 };
 
 
@@ -240,6 +246,7 @@ private:
     };
 
     static InspectorReply  Answer (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source);
+    static void            AnswerSaveCopy (const InspectorRequest & request, IInspectorDiskSource & source, InspectorReply & inOutReply);
 
     //  Makes an apply at a safe point; false while it waits for one.
     bool  TryApply (uint64_t id, const InspectorRequest & request, IInspectorDiskSource & source, bool & inOutIsRunForced, InspectorReply & outReply);

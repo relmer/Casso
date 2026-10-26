@@ -55,6 +55,7 @@ private:
     InspectorDriveMotion  GetMotion        (int drive) override;
     InspectorSaveResult   SaveDrive        (int drive) override;
     void                  SetMachinePaused (bool isPaused) override;
+    vector<std::string>   GetMountedPaths  () override;
 
     CpuManager                                      & m_cpuManager;
     MachineHost                                     & m_machine;

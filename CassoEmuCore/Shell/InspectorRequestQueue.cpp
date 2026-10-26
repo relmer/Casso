@@ -478,6 +478,10 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
             reply.tracks.push_back (TrackCopy::MakeFromImage (*image, s));
         }
     }
+    else if (request.kind == InspectorRequestKind::SaveCopy)
+    {
+        AnswerSaveCopy (request, source, reply);
+    }
     else if (request.quarterTrack >= 0 && request.quarterTrack < DiskImage::kQuarterTrackCount)
     {
         slot = image->ResolveQuarterTrack (request.quarterTrack);
@@ -489,4 +493,57 @@ InspectorReply InspectorRequestQueue::Answer (uint64_t id, const InspectorReques
     }
 
     return reply;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorRequestQueue::AnswerSaveCopy
+//
+//  The drive's disk as it is now, guest writes and applied edits included,
+//  with the pending edits written into a copy of it, all or nothing, and
+//  serialized in the disk's format (FR-101). The drive's disk is not
+//  changed. The mounted files go back too, since the copy must not be saved
+//  over any of them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorRequestQueue::AnswerSaveCopy (const InspectorRequest & request, IInspectorDiskSource & source, InspectorReply & inOutReply)
+{
+    DiskImage *               image  = source.GetImageForEdit (request.drive);
+    vector<SectorWriteError>  errors;
+    vector<Byte>              bytes;
+    HRESULT                   hr     = E_NOTIMPL;
+
+
+
+    inOutReply.mountedPaths = source.GetMountedPaths();
+    inOutReply.reason       = L"This program cannot save a copy of the disk";
+
+    if (image != nullptr)
+    {
+        image->CommitPendingWrite();
+
+        DiskImage  copy = *image;
+
+        copy.SetPendingWriteOwner (nullptr);
+
+        hr = SectorFieldWriter::Write (copy, request.writes, SectorWritePolicy::Editor, errors);
+        inOutReply.writeErrors = errors;
+        inOutReply.reason      = errors.empty() ? std::wstring (L"The sectors could not be written") : TextEncoding::Utf8ToWide (SectorFieldWriter::Describe (errors.front()));
+
+        if (SUCCEEDED (hr))
+        {
+            hr = copy.Serialize (bytes);
+            inOutReply.reason = FAILED (hr) ? std::wstring (L"The disk could not be saved in its format") : std::wstring();
+        }
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        inOutReply.sourceBytes = std::make_shared<const vector<Byte>> (std::move (bytes));
+    }
 }

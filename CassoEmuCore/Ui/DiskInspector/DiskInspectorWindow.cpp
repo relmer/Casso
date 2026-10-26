@@ -478,6 +478,7 @@ void DiskInspectorWindow::OnCreate()
     m_editBar->SetOnDiscardSector ([this] () { m_edits.DiscardSector (GetSelectedEdit()); });
     m_editBar->SetOnDiscard       ([this] () { m_edits.DiscardAll(); });
     m_editBar->SetOnApply         ([this] () { ApplyEdits(); });
+    m_editBar->SetOnSaveCopy      ([this] () { SaveEditedCopy(); });
     m_editBar->SetOnPauseApply    ([this] () { PauseApply(); });
     m_editBar->SetOnCancelApply   ([this] () { CancelApply(); });
     m_editBar->SetOnUndoApplied   ([this] () { UndoApplied(); });
@@ -1482,6 +1483,10 @@ void DiskInspectorWindow::TakeReplies()
         else if (reply.kind == InspectorRequestKind::Apply && reply.requestId == m_applyRequest)
         {
             TakeApplyReply (reply);
+        }
+        else if (reply.requestId == m_saveCopyRequest)
+        {
+            TakeSaveCopyReply (reply);
         }
     }
 }
@@ -3068,6 +3073,137 @@ void DiskInspectorWindow::TakeApplyReply (const InspectorReply & reply)
         tracks.tracks  = reply.after;
         TakeWrittenTracks (tracks);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::SaveEditedCopy
+//
+//  "Save edited copy..." (FR-101): the emulation thread builds the copy's
+//  bytes from the drive's disk and the pending edits, and the reply opens
+//  the Save dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::SaveEditedCopy()
+{
+    InspectorRequest  request;
+
+
+
+    request.kind      = InspectorRequestKind::SaveCopy;
+    request.drive     = m_drive;
+    request.mediaId   = m_analysis.mediaId;
+    request.writes    = m_edits.BuildWrites (m_analysis);
+    m_saveCopyRequest = m_host->PostInspectorRequest (request);
+    m_editNote        = L"Preparing the copy...";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::TakeSaveCopyReply
+//
+//  The copy goes to a new file the user chooses, never the disk's file
+//  or one in a drive, whole or not at all through DurableCommit. The
+//  pending edits stay pending, and the drive's disk and its file are left
+//  as they were.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::TakeSaveCopyReply (const InspectorReply & reply)
+{
+    HRESULT                hr        = S_OK;
+    Win32HostDialogs       dialogs;
+    Win32DiskFileIo        fileIo;
+    FileDialogSpec         spec;
+    CommitPlan::Progress   progress;
+    std::filesystem::path  image     = std::filesystem::path (TextEncoding::Utf8ToWide (m_analysis.copy != nullptr ? m_analysis.copy->fileName : std::string()));
+    std::filesystem::path  target;
+    std::wstring           extension = image.has_extension() ? image.extension().wstring().substr (1) : std::wstring (L"dsk");
+    bool                   isPicked  = false;
+    bool                   isTaken   = true;
+    bool                   isDamaged = m_analysis.copy != nullptr && (!m_analysis.copy->damagedTracks.empty() || !m_analysis.copy->damagedQuarterTracks.empty());
+
+
+
+    m_saveCopyRequest = 0;
+    m_editNote.clear();
+
+    if (reply.status != InspectorReplyStatus::Done || reply.sourceBytes == nullptr)
+    {
+        m_editNote = L"Not saved: " + (reply.reason.empty() ? std::wstring (L"the disk in the drive changed") : reply.reason);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    if (isDamaged)
+    {
+        BAIL_OUT_IF (!ConfirmEdit (L"Save edited copy", { L"This image is damaged. The copy gets a new checksum, and each damaged track record is saved as Casso read it.",
+                                                         L"Save the copy?" }, L"Save"), S_OK);
+    }
+
+    extension             = (m_analysis.copy != nullptr && m_analysis.copy->format == DiskFormat::Woz) ? std::wstring (L"woz") : extension;
+    spec.filters          = { { L"Disk images", L"*." + extension } };
+    spec.defaultExtension = extension;
+    spec.defaultFileName  = image.stem().wstring() + L" edited." + extension;
+    spec.initialFolder    = image.parent_path();
+
+    //  Open the Save dialog again until the file is neither the disk's file
+    //  nor one in a drive.
+    while (isTaken)
+    {
+        hr = dialogs.PickFileToSave (GetHwnd(), spec, target, isPicked);
+        CHR (hr);
+        BAIL_OUT_IF (!isPicked, S_OK);
+
+        isTaken = IsSameFile (target, image);
+
+        for (const std::string & mounted : reply.mountedPaths)
+        {
+            isTaken = isTaken || IsSameFile (target, std::filesystem::path (TextEncoding::Utf8ToWide (mounted)));
+        }
+
+        if (isTaken)
+        {
+            (void) DxuiMessageBox (GetHwnd(), m_theme, L"That file is a disk in a drive. Choose another file for the copy.", L"Save edited copy", MB_OK | MB_ICONWARNING);
+        }
+    }
+
+    hr = DurableCommit::Commit (fileIo, TextEncoding::WideToUtf8 (target.wstring()), *reply.sourceBytes, GetTickCount64(),
+                                std::filesystem::exists (target) ? CommitMode::Replace : CommitMode::CreateNew, progress);
+
+    m_editNote = SUCCEEDED (hr) ? L"Saved a copy with the pending edits to " + target.filename().wstring()
+                                : L"Not saved: the copy could not be written to " + target.filename().wstring();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::IsSameFile
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::IsSameFile (const std::filesystem::path & a, const std::filesystem::path & b)
+{
+    std::error_code  error;
+    bool             isSame = std::filesystem::equivalent (a, b, error);
+
+
+
+    return (!error && isSame) || _wcsicmp (std::filesystem::absolute (a, error).wstring().c_str(), std::filesystem::absolute (b, error).wstring().c_str()) == 0;
 }
 
 

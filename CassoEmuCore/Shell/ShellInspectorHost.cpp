@@ -264,3 +264,27 @@ void ShellInspectorHost::SetMachinePaused (bool isPaused)
 {
     m_cpuManager.SetPaused (isPaused);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellInspectorHost::GetMountedPaths
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<std::string> ShellInspectorHost::GetMountedPaths()
+{
+    vector<std::string>  paths;
+
+
+
+    for (const DiskImageStore::MountedSource & mounted : m_machine.GetDiskStore().GetMountedSourcePaths())
+    {
+        paths.push_back (mounted.path);
+    }
+
+    return paths;
+}

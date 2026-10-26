@@ -413,4 +413,32 @@ public:
         Assert::IsTrue   (reply.applyOutcome == ApplyOutcome::NotApplied);
         Assert::AreEqual (0, source.saves);
     }
+
+
+    TEST_METHOD (ASavedCopyHasTheEditsAndTheDriveDiskHasNot)
+    {
+        EditSource                        source;
+        InspectorRequestQueue             queue;
+        InspectorRequest                  request;
+        InspectorReply                    reply;
+        std::shared_ptr<const TrackCopy>  before;
+        vector<Byte>                      run (DiskFieldFormat::kSectorBytes, 0xA5);
+
+
+
+        MakeSource (source);
+        before       = TrackCopy::MakeFromImage (source.image, source.image.ResolveWholeTrack (3));
+        request      = MakeApply (source.image, ApplyMode::WaitForStop);
+        request.kind = InspectorRequestKind::SaveCopy;
+
+        queue.Post (request);
+        reply = DrainOne (queue, source);
+
+        Assert::IsNotNull (reply.sourceBytes.get(), reply.reason.c_str());
+        Assert::AreEqual  (static_cast<size_t> (NibblizationLayer::kImageByteSize), reply.sourceBytes->size());
+        Assert::IsTrue    (std::search (reply.sourceBytes->begin(), reply.sourceBytes->end(), run.begin(), run.end()) != reply.sourceBytes->end(), L"the copy has the sector's new bytes");
+        Assert::IsTrue    (TrackCopy::MakeFromImage (source.image, before->slot)->bits == before->bits, L"the drive's disk is unchanged");
+        Assert::IsFalse   (source.image.IsDirty());
+        Assert::AreEqual  (0, source.saves);
+    }
 };

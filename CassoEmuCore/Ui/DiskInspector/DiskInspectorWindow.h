@@ -189,6 +189,9 @@ private:
     void  UndoApplied        ();
     void  RedoApplied        ();
     void  TakeApplyReply     (const InspectorReply & reply);
+    void  SaveEditedCopy     ();
+    void  TakeSaveCopyReply  (const InspectorReply & reply);
+    static bool  IsSameFile  (const std::filesystem::path & a, const std::filesystem::path & b);
     void  RebuildFindMarks   ();
     void  RepeatFind         ();
     vector<int>  GetShownDiskTabs () const;
@@ -350,6 +353,7 @@ private:
     int                                     m_historyAt          = 0;
     InspectorRequest                        m_lastApply;
     uint64_t                                m_applyRequest       = 0;
+    uint64_t                                m_saveCopyRequest    = 0;
     bool                                    m_isApplyWaiting     = false;
     bool                                    m_isApplyPaused      = false;
     bool                                    m_isFirstApplyDone   = false;
