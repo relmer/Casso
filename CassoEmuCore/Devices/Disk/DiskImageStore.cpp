@@ -2225,7 +2225,15 @@ HRESULT DiskImageStore::DiscardHeldWrites()
         {
             Entry &  entry = GetEntry (slot, drive);
 
-            if (!entry.mounted || entry.image == nullptr || !entry.image->IsDirty() || entry.path.empty())
+            if (!entry.mounted || entry.image == nullptr || entry.path.empty())
+            {
+                continue;
+            }
+
+            //  An open flux write is part of what is discarded.
+            entry.image->CommitPendingWrite();
+
+            if (!entry.image->IsDirty())
             {
                 continue;
             }
@@ -3223,108 +3231,37 @@ void DiskImageStore::DrainChangeInbox()
 //  policy rank "cannot be used" above everything else: whether the new bytes
 //  can be this disk is not knowable without reading them.
 //
-//  A CHANGE THAT TURNS OUT NOT TO BE ONE IS DROPPED. A directory watch reports
-//  a write to any file in the folder and a stated intent is only a hint, so the
-//  recorded identity is what settles whether anything actually happened. This is
-//  also what stops the store's own commit from coming back as somebody else's
-//  change.
+//  The steps are IsReloadDue, ReadChangedImage, PreserveGuestCopyForConflict
+//  and AskAboutChange.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
 {
-    HRESULT                            hr        = S_OK;
     Entry                            & entry     = GetEntry (slot, drive);
-    bool                               settled   = false;
-    bool                               held      = false;
     bool                               usable    = false;
-    bool                               unchanged = false;
     bool                               preserved = false;
     ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
     ChangeAuthor                       author    = ChangeAuthor::AnotherProgram;
     ChangeAction                       action    = ChangeAction::Ignore;
-    ImageIdentity                      current;
     vector<Byte>                       bytes;
-    DiskFormat                         fmt       = DiskFormat::Dsk;
     ExternalChangePolicy::Situation    situation;
     string                             savePath;
 
 
 
-    {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
-
-        settled = entry.mounted
-               && entry.image != nullptr
-               && entry.sharedState.IsSettled (GetNowMs());
-        intent  = entry.sharedState.GetPending().intent;
-    }
-
-    if (!settled)
+    if (!IsReloadDue (entry, intent))
     {
         return;
     }
 
-    //  WHILE A QUESTION STANDS THE USER OWNS THE BAY, and every later change
-    //  waits behind their answer -- a stated intent included. Applying one
-    //  underneath an open dialog swapped the disk out from under it, so
-    //  "keep your current version" came to mean the other program's version.
-    //
-    //  NOTHING IS LOST BY WAITING. `NoteChange` keeps refreshing the pending
-    //  record, and the answer re-reads the file when it arrives, so what
-    //  lands is the newest bytes rather than whatever stood when the question
-    //  went up. One consequence: a restart requested while a question is on
-    //  screen reloads without restarting, because the answer consumes the
-    //  record that carried the request.
-    //
-    //  IT ALSO STOPS THE READING. The rest of this function reads the whole
-    //  image and trial-loads it before it reaches the point where an
-    //  outstanding question is noticed, and the change stays pending by
-    //  design for as long as the user reads -- sixty full reads and
-    //  nibblizations a second until they answer.
-    if (entry.sharedState.IsAskOutstanding())
-    {
-        return;
-    }
+    usable = ReadChangedImage (entry, bytes);
 
-    //  Deferred rather than refused, indefinitely and silently: the pick-up
-    //  simply happens once the hold is released. Both writers in this system
-    //  commit atomically, but a text editor or a copy tool need not, and the
-    //  quiet period alone does not cover one that takes its time.
-    if (m_fileIo != nullptr && m_fileIo->IsHeldByAnotherProcess (entry.path))
-    {
-        return;
-    }
-
-    current   = ReadIdentity (entry.path);
-    unchanged = entry.sharedState.GetIdentity().Matches (current);
-
-    if (unchanged)
-    {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
-
-        entry.sharedState.ClearPending();
-
-        return;
-    }
-
-    //  Read, and decide whether these bytes can be this disk. A trial load into
-    //  a throwaway image is the only honest answer -- the extension and the
-    //  length agree with plenty of files that will not load.
-    hr = ReadImageFile (entry.path, bytes);
-
-    if (SUCCEEDED (hr))
-    {
-        hr = GetSourceFormatByExtension (entry.path, fmt);
-    }
-
-    if (SUCCEEDED (hr))
-    {
-        DiskImage  trial;
-
-        trial.LoadFromBytes (fmt, bytes, entry.path);
-        usable = trial.IsLoaded();
-    }
+    //  An open write on a flux track is a guest write that is not in the image
+    //  yet. It is committed here, as FlushEntry does, so it counts toward the
+    //  conflict and goes into the preserved copy rather than reading as clean
+    //  and being spliced into the reloaded disk.
+    entry.image->CommitPendingWrite();
 
     situation.changeSeen = true;
     situation.usable     = usable;
@@ -3351,53 +3288,10 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     //  side happened to be quicker.
     if (action == ChangeAction::Conflict)
     {
-        savePath = entry.sharedState.GetPreservedPath();
-
-        hr = SaveLoadedImage (entry, savePath);
-
-        entry.sharedState.SetPreservedPath (savePath);
-
-        if (FAILED (hr))
+        if (!PreserveGuestCopyForConflict (slot, drive, entry, savePath))
         {
-            //  Nothing is mounted and nothing is overwritten. The pending
-            //  change is DROPPED RATHER THAN RETRIED: retrying costs a full
-            //  image read and a failed write on every idle tick, sixty times a
-            //  second for as long as the folder stays full. The next change to
-            //  the file, or the next flush, tries again.
-            {
-                std::lock_guard<std::mutex>  guard (m_pendingMutex);
-
-                entry.sharedState.ClearPending();
-            }
-
-            if (m_decisionSink)
-            {
-                m_decisionSink (entry.path, ChangeAction::Conflict, false, savePath);
-            }
-
-            //  ASKED RATHER THAN REPORTED, because "Save as..." is an answer
-            //  and a notice has nowhere to put one. The bay is left with the
-            //  question outstanding so a second failure does not stack a
-            //  second dialog on the first.
-            if (m_askSink && !entry.sharedState.IsAskOutstanding())
-            {
-                entry.sharedState.SetAskedAction (ChangeAction::Conflict);
-
-                entry.sharedState.SetAskOutstanding (
-                    m_askSink (slot, drive,
-                               ChangePrompt::ComposeSaveFailure (entry.path, drive,
-                                                                 savePath, hr,
-                                                                 SaveFailureCause::ExternalChange)));
-            }
-
             return;
         }
-
-        //  It is on disk under its own name now, so the bay carries nothing
-        //  unsaved and the change that follows is no longer a conflict.
-        entry.sharedState.SetPreservedWritten (true);
-
-        entry.image->ClearDirty();
 
         situation.guestDirty = false;
         action               = ExternalChangePolicy::Decide (situation);
@@ -3411,47 +3305,9 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
         action = ChangeAction::Deleted;
     }
 
-    //  A question nothing can answer stays pending rather than resolving itself
-    //  by default. A headless host has no way to ask, and picking one of the
-    //  answers on the user's behalf is what the fallback exists for.
-    //
-    //  ONE QUESTION AT A TIME PER BAY. Asking cannot block -- the answer comes
-    //  from another thread -- so the change is still pending on the next idle
-    //  tick, and without this the user would be asked again sixty times a
-    //  second while reading the first one.
     if (ExternalChangePolicy::NeedsAnAnswer (action))
     {
-        if (m_askSink && !entry.sharedState.IsAskOutstanding())
-        {
-            entry.sharedState.SetAskedAction (action);
-
-            {
-                HRESULT  hrName = S_OK;
-
-                //  RESERVED, NOT JUST CALCULATED. The name shown here is the
-                //  one the copy will take whoever writes it -- this bay's own
-                //  flush may get there first, while this question is still on
-                //  screen. Working it out again at that point produced a
-                //  different name and left the dialog offering a file nobody
-                //  ever created.
-                string  reserved = entry.sharedState.GetPreservedPath();
-
-                if (reserved.empty())
-                {
-                    hrName = FindFreePreservedPath (entry.path, reserved);
-                    IGNORE_RETURN_VALUE (hrName, S_OK);
-
-                    entry.sharedState.SetPreservedPath (reserved);
-                }
-
-                entry.sharedState.SetAskOutstanding (
-                    m_askSink (slot, drive,
-                               ChangePrompt::Compose (entry.path, drive, action,
-                                                      reserved,
-                                                      entry.sharedState.IsPreservedWritten())));
-            }
-        }
-
+        AskAboutChange (slot, drive, entry, action);
         return;
     }
 
@@ -3461,8 +3317,8 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     }
 
     //  THE INTENT THAT DECIDED IS THE INTENT THAT ATTRIBUTES. `intent` was read
-    //  at the top of this function, and the record it came from is refreshed by
-    //  every later write -- a read taken now would credit this reload to
+    //  when the change was found due, and the record it came from is refreshed
+    //  by every later write -- a read taken now would credit this reload to
     //  whoever wrote most recently rather than to whoever asked for it.
     author = (intent == ExternalChangeIntent::Unstated) ? ChangeAuthor::AnotherProgram
                                                         : ChangeAuthor::CassoCli;
@@ -3470,6 +3326,256 @@ void DiskImageStore::ApplyPendingReloadToBay (int slot, int drive)
     CarryOutChangeAction (slot, drive, action, bytes, author);
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::IsReloadDue
+//
+//  Whether the bay's noticed change is settled and real, with the intent
+//  stated for it.
+//
+//  WHILE A QUESTION STANDS THE USER OWNS THE BAY, and every later change
+//  waits behind their answer -- a stated intent included. Applying one
+//  underneath an open dialog swapped the disk out from under it, so
+//  "keep your current version" came to mean the other program's version.
+//
+//  NOTHING IS LOST BY WAITING. `NoteChange` keeps refreshing the pending
+//  record, and the answer re-reads the file when it arrives, so what lands is
+//  the newest bytes rather than whatever stood when the question went up. One
+//  consequence: a restart requested while a question is on screen reloads
+//  without restarting, because the answer consumes the record that carried
+//  the request.
+//
+//  IT ALSO STOPS THE READING. The reload reads the whole image and trial-loads
+//  it before it reaches the point where an outstanding question is noticed,
+//  and the change stays pending by design for as long as the user reads --
+//  sixty full reads and nibblizations a second until they answer.
+//
+//  A file another program has open is deferred rather than refused,
+//  indefinitely and silently: the pick-up happens once it is closed. Both
+//  writers in this system commit atomically, but a text editor or a copy tool
+//  need not, and the quiet period alone does not cover one that takes its
+//  time.
+//
+//  A CHANGE THAT TURNS OUT NOT TO BE ONE IS DROPPED. A directory watch reports
+//  a write to any file in the folder and a stated intent is only a hint, so
+//  the recorded identity is what settles whether anything actually happened.
+//  This is also what stops the store's own commit from coming back as
+//  somebody else's change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsReloadDue (Entry & entry, ExternalChangeIntent & outIntent)
+{
+    bool           settled   = false;
+    bool           unchanged = false;
+    bool           isDue     = false;
+    ImageIdentity  current;
+
+
+
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        settled   = entry.mounted
+                 && entry.image != nullptr
+                 && entry.sharedState.IsSettled (GetNowMs());
+        outIntent = entry.sharedState.GetPending().intent;
+    }
+
+    isDue = settled
+         && !entry.sharedState.IsAskOutstanding()
+         && !(m_fileIo != nullptr && m_fileIo->IsHeldByAnotherProcess (entry.path));
+
+    if (isDue)
+    {
+        current   = ReadIdentity (entry.path);
+        unchanged = entry.sharedState.GetIdentity().Matches (current);
+    }
+
+    if (isDue && unchanged)
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        entry.sharedState.ClearPending();
+        isDue = false;
+    }
+
+    return isDue;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::ReadChangedImage
+//
+//  Reads the bay's file and trial-loads it: true when these bytes can be this disk. A
+//  trial load into a throwaway image is the only honest answer -- the
+//  extension and the length agree with plenty of files that will not load.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::ReadChangedImage (const Entry & entry, vector<Byte> & outBytes) const
+{
+    HRESULT     hr     = S_OK;
+    DiskFormat  fmt    = DiskFormat::Dsk;
+    bool        usable = false;
+
+
+
+    hr = ReadImageFile (entry.path, outBytes);
+
+    if (SUCCEEDED (hr))
+    {
+        hr = GetSourceFormatByExtension (entry.path, fmt);
+    }
+
+    if (SUCCEEDED (hr))
+    {
+        DiskImage  trial;
+
+        trial.LoadFromBytes (fmt, outBytes, entry.path);
+        usable = trial.IsLoaded();
+    }
+
+    return usable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::PreserveGuestCopyForConflict
+//
+//  Writes the guest's version to a separate file, so the change that
+//  follows is no longer a conflict. False when the copy could not be written,
+//  after the failure has been dealt with.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::PreserveGuestCopyForConflict (int slot, int drive, Entry & entry, string & outSavePath)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outSavePath = entry.sharedState.GetPreservedPath();
+
+    hr = SaveLoadedImage (entry, outSavePath);
+
+    entry.sharedState.SetPreservedPath (outSavePath);
+
+    if (FAILED (hr))
+    {
+        //  Nothing is mounted and nothing is overwritten. The pending change
+        //  is DROPPED RATHER THAN RETRIED: retrying costs a full image read
+        //  and a failed write on every idle tick, sixty times a second for as
+        //  long as the folder stays full. The next change to the file, or the
+        //  next flush, tries again.
+        {
+            std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+            entry.sharedState.ClearPending();
+        }
+
+        if (m_decisionSink)
+        {
+            m_decisionSink (entry.path, ChangeAction::Conflict, false, outSavePath);
+        }
+
+        //  ASKED RATHER THAN REPORTED, because "Save as..." is an answer and a
+        //  notice has nowhere to put one. The bay is left with the question
+        //  outstanding so a second failure does not stack a second dialog on
+        //  the first.
+        if (m_askSink && !entry.sharedState.IsAskOutstanding())
+        {
+            entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+
+            entry.sharedState.SetAskOutstanding (
+                m_askSink (slot, drive,
+                           ChangePrompt::ComposeSaveFailure (entry.path, drive,
+                                                             outSavePath, hr,
+                                                             SaveFailureCause::ExternalChange)));
+        }
+
+        return false;
+    }
+
+    //  It is on disk under its own name now, so the bay carries nothing
+    //  unsaved and the change that follows is no longer a conflict.
+    entry.sharedState.SetPreservedWritten (true);
+
+    entry.image->ClearDirty();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::AskAboutChange
+//
+//  Puts the question about a change to the user.
+//
+//  A question nothing can answer stays pending rather than resolving itself
+//  by default. A headless host has no way to ask, and picking one of the
+//  answers on the user's behalf is what the fallback exists for.
+//
+//  ONE QUESTION AT A TIME PER BAY. Asking cannot block -- the answer comes
+//  from another thread -- so the change is still pending on the next idle
+//  tick, and without this the user would be asked again sixty times a second
+//  while reading the first one.
+//
+//  THE PRESERVED NAME IS RESERVED, NOT JUST CALCULATED. The name shown here is
+//  the one the copy will take whoever writes it -- this bay's own flush may
+//  get there first, while this question is still on screen. Working it out
+//  again at that point produced a different name and left the dialog offering
+//  a file nobody ever created.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::AskAboutChange (int slot, int drive, Entry & entry, ChangeAction action)
+{
+    HRESULT  hrName = S_OK;
+    string   reserved;
+
+
+
+    if (!m_askSink || entry.sharedState.IsAskOutstanding())
+    {
+        return;
+    }
+
+    entry.sharedState.SetAskedAction (action);
+
+    reserved = entry.sharedState.GetPreservedPath();
+
+    if (reserved.empty())
+    {
+        hrName = FindFreePreservedPath (entry.path, reserved);
+        IGNORE_RETURN_VALUE (hrName, S_OK);
+
+        entry.sharedState.SetPreservedPath (reserved);
+    }
+
+    entry.sharedState.SetAskOutstanding (
+        m_askSink (slot, drive,
+                   ChangePrompt::Compose (entry.path, drive, action,
+                                          reserved,
+                                          entry.sharedState.IsPreservedWritten())));
 }
 
 
@@ -3950,12 +4056,13 @@ HRESULT DiskImageStore::MountExternallyModifiedDisk (int slot, int drive, const 
     usable = loaded->IsLoaded();
     CBR (usable);
 
-    //  Kept whole: a write still open on a flux track goes into the outgoing
-    //  disk before its contents move to the copy kept for history.
+    //  The drive's open write is a write to the outgoing contents. It is
+    //  committed here, so it goes into the disk that is leaving, or into the
+    //  copy for history, instead of into the one arriving.
+    entry.image->CommitPendingWrite();
+
     if (m_isRetaining)
     {
-        entry.image->CommitPendingWrite();
-
         outgoing.image          = make_unique<DiskImage>();
         *outgoing.image         = std::move (*entry.image);
         outgoing.path           = entry.path;

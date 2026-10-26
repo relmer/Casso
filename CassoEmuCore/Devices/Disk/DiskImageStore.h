@@ -703,6 +703,14 @@ private:
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);
 
+    //  ApplyPendingReloadToBay's steps: whether the noticed change is due,
+    //  reading and trial-loading the file, moving the guest's version to a
+    //  separate file in a conflict, and putting the question.
+    bool           IsReloadDue                  (Entry & entry, ExternalChangeIntent & outIntent);
+    bool           ReadChangedImage             (const Entry & entry, vector<Byte> & outBytes) const;
+    bool           PreserveGuestCopyForConflict (int slot, int drive, Entry & entry, string & outSavePath);
+    void           AskAboutChange               (int slot, int drive, Entry & entry, ChangeAction action);
+
     //  Moves the inbox NoteExternalChange fills into the bays, on the owning
     //  thread.
     void           DrainChangeInbox ();

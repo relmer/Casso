@@ -4,6 +4,9 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "Machines/Apple2/Common/WozLoader.h"
+#include "FluxTestImages.h"
 #include "Shell/DriveStatusPublisher.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -160,6 +163,101 @@ public:
         Assert::AreEqual<size_t> (2, files.writes, L"the eject and the flush wrote");
         Assert::IsTrue (IsTrackEqual (files.last, first, 0), L"and track 0 is as the eject saved it");
     }
+
+
+    //  A WOZ with a bit track at quarter track 0 and a flux track at quarter
+    //  track 4, the flux track's bits all `fill`.
+    static std::vector<Byte> MakeFluxWoz (Byte fill)
+    {
+        static constexpr size_t  kBits = 51200;
+
+        WozSyntheticTrack  bitTrack;
+        WozSyntheticTrack  fluxTrack;
+        std::vector<Byte>  bits ((kBits + 7) / 8, fill);
+        std::vector<Byte>  image;
+        HRESULT            hr = S_OK;
+
+
+
+        bitTrack.data.assign ((kBits + 7) / 8, 0xFF);
+        bitTrack.bitCount      = kBits;
+        bitTrack.quarterTracks = { 0 };
+
+        fluxTrack.data          = FluxTestImages::BitsToNominalFlux (bits, kBits);
+        fluxTrack.isFlux        = true;
+        fluxTrack.quarterTracks = { 4 };
+
+        hr = WozLoader::BuildSyntheticV21 ({ bitTrack, fluxTrack }, image);
+        Assert::IsTrue (SUCCEEDED (hr), L"the flux WOZ builds");
+
+        return image;
+    }
+
+
+
+    //  Puts the engine in write mode with a byte loaded and shifts it out for
+    //  a while, so a flux write is open afterward.
+    static void WriteSome (Disk2NibbleEngine & eng, uint32_t cycles)
+    {
+        eng.SetWriteMode     (true);
+        eng.SetShiftLoadMode (true);
+        eng.WriteLatch       (0xD5);
+        eng.Tick             (8);
+        eng.SetShiftLoadMode (false);
+        eng.Tick             (cycles);
+    }
+
+
+
+    //  The flux track of `bytes`, loaded.
+    static std::vector<Byte> FluxTrackOf (const std::vector<Byte> & bytes)
+    {
+        DiskImage  disk;
+        HRESULT    hr = S_OK;
+
+
+
+        hr = WozLoader::Load (bytes, disk);
+        Assert::IsTrue (SUCCEEDED (hr), L"the WOZ loads");
+
+        return disk.GetFluxTrack (1).GetBytes();
+    }
+
+
+    //  A discard throws away an open flux write too: the
+    //  disk is the file as it is afterwards.
+    TEST_METHOD (DiscardTakesAnOpenFluxWriteWithIt)
+    {
+        DiskImageStore     store;
+        Disk2NibbleEngine  eng;
+        std::vector<Byte>  file   = MakeFluxWoz (0xFF);
+        size_t             writes = 0;
+
+
+
+        store.SetImageReader    ([&file] (const std::string &, std::vector<Byte> & bytes) { bytes = file; return S_OK; });
+        store.SetIdentityReader ([] (const std::string &) { return ImageIdentity(); });
+        store.SetFlushSink      ([&writes] (const std::string &, const std::vector<Byte> &) { writes++; return S_OK; });
+        store.SetBayChangeSink  ([&store, &eng] (int, int, BayChange) { eng.SetDiskImage (store.GetImage (s_kHoldSlot, s_kHoldDrive)); });
+
+        AssertSucceeded (store.Mount (s_kHoldSlot, s_kHoldDrive, "hold.woz"), L"Mount");
+        eng.SetDiskImage    (store.GetImage (s_kHoldSlot, s_kHoldDrive));
+        eng.SetCurrentTrack (4);
+        eng.SetMotorOn      (true);
+
+        WriteSome (eng, 400);
+
+        store.SetFlushHold (true);
+        AssertSucceeded (store.DiscardHeldWrites(), L"DiscardHeldWrites");
+
+        eng.SetWriteMode (false);
+
+        Assert::IsFalse (store.GetImage (s_kHoldSlot, s_kHoldDrive)->IsDirty(), L"the write was discarded");
+        Assert::IsTrue (store.GetImage (s_kHoldSlot, s_kHoldDrive)->GetFluxTrack (1).GetBytes() == FluxTrackOf (file),
+                        L"and the disk is the file as it is");
+        Assert::AreEqual<size_t> (0, writes, L"nothing was saved");
+    }
+
 
 
     //  The owner's answer: held writes are saved by default when the disk

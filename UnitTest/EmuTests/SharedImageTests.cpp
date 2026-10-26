@@ -5,6 +5,8 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "FluxTestImages.h"
 #include "Devices/Disk/CommitPlan.h"
 #include "HResultAssert.h"
 
@@ -2473,6 +2475,150 @@ public:
         }
 
         Assert::IsTrue (done, L"track 0 has an address field");
+    }
+
+
+
+    //  A WOZ with a bit track at quarter track 0 and a flux track at quarter
+    //  track 4, the flux track's bits all `fill`.
+    static vector<Byte> MakeFluxWoz (Byte fill)
+    {
+        static constexpr size_t  kBits = 51200;
+
+        WozSyntheticTrack  bitTrack;
+        WozSyntheticTrack  fluxTrack;
+        vector<Byte>       bits ((kBits + 7) / 8, fill);
+        vector<Byte>       image;
+        HRESULT            hr = S_OK;
+
+
+
+        bitTrack.data.assign ((kBits + 7) / 8, 0xFF);
+        bitTrack.bitCount      = kBits;
+        bitTrack.quarterTracks = { 0 };
+
+        fluxTrack.data          = FluxTestImages::BitsToNominalFlux (bits, kBits);
+        fluxTrack.isFlux        = true;
+        fluxTrack.quarterTracks = { 4 };
+
+        hr = WozLoader::BuildSyntheticV21 ({ bitTrack, fluxTrack }, image);
+        Assert::IsTrue (SUCCEEDED (hr), L"the flux WOZ builds");
+
+        return image;
+    }
+
+
+
+    //  Puts the engine in write mode with a byte loaded and shifts it out for
+    //  a while, so a flux write is open afterward.
+    static void WriteSome (Disk2NibbleEngine & eng, uint32_t cycles)
+    {
+        eng.SetWriteMode     (true);
+        eng.SetShiftLoadMode (true);
+        eng.WriteLatch       (0xD5);
+        eng.Tick             (8);
+        eng.SetShiftLoadMode (false);
+        eng.Tick             (cycles);
+    }
+
+
+
+    //  The flux track of `bytes`, loaded.
+    static vector<Byte> FluxTrackOf (const vector<Byte> & bytes)
+    {
+        DiskImage  disk;
+        HRESULT    hr = S_OK;
+
+
+
+        hr = WozLoader::Load (bytes, disk);
+        Assert::IsTrue (SUCCEEDED (hr), L"the WOZ loads");
+
+        return disk.GetFluxTrack (1).GetBytes();
+    }
+
+
+    //  The drive follows the bay, as DiskManager rebinds the controller on
+    //  every bay change.
+    static void BindEngineToBay (Rig & rig, Disk2NibbleEngine & eng)
+    {
+        rig.store.SetBayChangeSink ([&rig, &eng] (int, int, BayChange change)
+        {
+            rig.bayChanges.push_back (change);
+            eng.SetDiskImage (rig.store.GetImage (kSlot, kDrive));
+        });
+    }
+
+
+
+    //  A guest write open on a flux track when a change settles is a
+    //  write: it goes into the preserved copy, and the reloaded disk is the
+    //  file as it is.
+    TEST_METHOD (AFluxWriteOpenWhenAChangeSettlesIsKeptAndNotSplicedIntoTheNewDisk)
+    {
+        auto               rig  = std::make_unique<Rig>();
+        Disk2NibbleEngine  eng;
+        std::string        path = "C:\\work\\Loader.woz";
+
+
+
+        rig->files[path] = MakeFluxWoz (0xFF);
+        rig->Stamp (path);
+        BindEngineToBay (*rig, eng);
+
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, path));
+        eng.SetDiskImage    (rig->store.GetImage (kSlot, kDrive));
+        eng.SetCurrentTrack (4);
+        eng.SetMotorOn      (true);
+
+        WriteSome (eng, 400);
+        Assert::IsFalse (rig->store.GetImage (kSlot, kDrive)->IsDirty(), L"the write is open");
+
+        rig->files[path] = MakeFluxWoz (0xAA);
+        rig->Stamp (path);
+        rig->FireAndSettle (path, ExternalChangeIntent::ReloadInPlace);
+
+        Assert::AreEqual ((size_t) 1, rig->PreservedPaths().size(), L"the guest's write goes to a copy");
+        Assert::IsTrue (FluxTrackOf (rig->files[rig->PreservedPaths()[0]]) != FluxTrackOf (MakeFluxWoz (0xFF)),
+                        L"and the copy has it");
+        Assert::IsFalse (rig->store.GetImage (kSlot, kDrive)->IsDirty(), L"the reloaded disk is clean");
+        Assert::IsTrue (rig->store.GetImage (kSlot, kDrive)->GetFluxTrack (1).GetBytes() == FluxTrackOf (MakeFluxWoz (0xAA)),
+                        L"and is the file as it is");
+    }
+
+
+
+    //  An answer arriving while a flux write is open reloads the disk as the
+    //  file has it.
+    TEST_METHOD (AnAnswerArrivingMidWriteLeavesTheReloadedDiskAsTheFileHasIt)
+    {
+        auto               rig  = std::make_unique<Rig>();
+        Disk2NibbleEngine  eng;
+        std::string        path = "C:\\work\\Loader.woz";
+
+
+
+        rig->files[path] = MakeFluxWoz (0xFF);
+        rig->Stamp (path);
+        BindEngineToBay (*rig, eng);
+
+        AssertSucceeded (rig->store.Mount (kSlot, kDrive, path));
+        eng.SetDiskImage    (rig->store.GetImage (kSlot, kDrive));
+        eng.SetCurrentTrack (4);
+        eng.SetMotorOn      (true);
+
+        rig->files[path] = MakeFluxWoz (0xAA);
+        rig->Stamp (path);
+        rig->FireAndSettle (path);
+
+        Assert::AreEqual ((size_t) 1, rig->questions.size(), L"a clean disk's change is a question");
+
+        WriteSome (eng, 400);
+        rig->store.ResolvePendingChange (kSlot, kDrive, ChangeAction::ReloadInPlace);
+
+        Assert::IsFalse (rig->store.GetImage (kSlot, kDrive)->IsDirty(), L"the reloaded disk is clean");
+        Assert::IsTrue (rig->store.GetImage (kSlot, kDrive)->GetFluxTrack (1).GetBytes() == FluxTrackOf (MakeFluxWoz (0xAA)),
+                        L"and is the file as it is");
     }
 
 
