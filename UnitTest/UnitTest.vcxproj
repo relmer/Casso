@@ -288,6 +288,7 @@
     <ClCompile Include="DebuggerTests\SourceStepTests.cpp" />
     <ClCompile Include="DebuggerTests\StepFilterTests.cpp" />
     <ClCompile Include="DebuggerTests\CallHistoryShellTests.cpp" />
+    <ClCompile Include="DebuggerTests\HistoryNetworkFenceTests.cpp" />
     <ClCompile Include="DebuggerTests\ShellDebuggerViewStateTests.cpp" />
     <ClCompile Include="DebuggerTests\DialogOkTests.cpp" />
     <ClCompile Include="EmuTests\AutoStateShellTests.cpp" />
@@ -1033,6 +1034,7 @@
     <ClCompile Include="EmuTests\ReverseCommandPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseOptionsPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseSerialTests.cpp" />
     <ClCompile Include="EmuTests\SharedCheckpointTests.cpp" />
     <ClCompile Include="EmuTests\StateWriterReuseTests.cpp" />
     <ClCompile Include="EmuTests\RecordingBufferTests.cpp" />

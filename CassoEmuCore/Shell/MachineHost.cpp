@@ -521,13 +521,16 @@ void MachineHost::SetInputJournalOn (bool isOn)
 //
 //  Hands the journal to every device that records the host input its reads
 //  see, or null when the journal is off. A machine switch builds new
-//  devices, so the builder calls this again once they are wired.
+//  devices, so the builder calls this again once they are wired. The serial
+//  chips also get the host input gate, checked before an attachment's bytes
+//  are taken, so that behind live they wait.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::AttachInputJournal()
 {
     InputJournal  * journal = m_inputJournal.IsOn() ? &m_inputJournal : nullptr;
+    size_t          i       = 0;
 
 
 
@@ -557,6 +560,12 @@ void MachineHost::AttachInputJournal()
     if (m_joyport != nullptr)
     {
         m_joyport->SetInputJournal (journal);
+    }
+
+    for (i = 0; i < m_refs.serialChips.size(); i++)
+    {
+        m_refs.serialChips[i]->SetInputJournal  (journal, (uint16_t) i);
+        m_refs.serialChips[i]->SetHostInputGate (&m_hostInputGate);
     }
 }
 
@@ -605,6 +614,11 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
     if (!isApplied && m_joyport != nullptr)
     {
         isApplied = m_joyport->ApplyInput (record);
+    }
+
+    if (!isApplied && record.kind == InputKind::AciaByte && record.detail < m_refs.serialChips.size())
+    {
+        isApplied = m_refs.serialChips[record.detail]->ApplyInput (record);
     }
 
     return isApplied;

@@ -143,6 +143,7 @@ HRESULT Replayer::RunTo (
     uint64_t            position   = 0;
     uint64_t            cycle      = 0;
     bool                isDone     = false;
+    bool                isGateHeld = true;
 
 
 
@@ -173,6 +174,17 @@ HRESULT Replayer::RunTo (
     m_machine.GetDiskStore().SetReplaying (true);
     m_isReplaying = true;
 
+    // Close the host input gate, so no host input lands in the replay, unless
+    // a reverse command closed it already on the live machine. A scratch
+    // machine's gate is open, and its serial attachment queued its bytes at
+    // the build.
+    isGateHeld = m_machine.GetHostInputGate().IsHeld();
+
+    if (!isGateHeld)
+    {
+        m_machine.GetHostInputGate().Hold();
+    }
+
     if (m_outputGate)
     {
         m_outputGate (true);
@@ -202,6 +214,11 @@ HRESULT Replayer::RunTo (
     }
 
 Error:
+    if (!isGateHeld)
+    {
+        m_machine.GetHostInputGate().Release();
+    }
+
     m_isReplaying = false;
     m_machine.GetDiskStore().SetReplaying (false);
 
