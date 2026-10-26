@@ -699,6 +699,34 @@ public:
                          L"the same file back into the drive that has it");
 
         Assert::IsTrue (rig.store.IsMounted (kSlot, kDrive));
+        Assert::AreEqual ((ptrdiff_t) 1, std::count (rig.watcher.watched.begin(), rig.watcher.watched.end(), std::string (kDirectory)),
+                          L"one watch on the folder");
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive)->IsWatching(), L"and the bay is watched");
+    }
+
+
+
+    //  After a disk is mounted over another, the old disk's folder is watched
+    //  while another drive has a disk from it.
+    TEST_METHOD (MountingOverADiskKeepsAFolderAnotherDriveStillNeeds)
+    {
+        Rig          rig;
+        std::string  sibling = "C:\\work\\Other.dsk";
+        std::string  moved   = "C:\\elsewhere\\New.dsk";
+
+
+
+        rig.WriteImage (kImagePath, 0x11);
+        rig.WriteImage (sibling, 0x22);
+        rig.WriteImage (moved, 0x33);
+
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive,     kImagePath));
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive + 1, sibling));
+        AssertSucceeded (rig.store.Mount (kSlot, kDrive,     moved));
+
+        Assert::IsTrue (std::find (rig.watcher.watched.begin(), rig.watcher.watched.end(), std::string (kDirectory)) != rig.watcher.watched.end(),
+                        L"the folder of the other drive's disk is watched");
+        Assert::IsTrue (rig.store.GetSharedState (kSlot, kDrive + 1)->IsWatching(), L"and that drive is watched");
     }
 
 
