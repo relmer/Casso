@@ -45,6 +45,27 @@ public:
 
     //  A connector set outside the list, such as another TCP port, is listed
     //  in words, not by its device name.
+    //  A port clash the card's connector causes is a warning on this page,
+    //  read again each tick, and gone once the port opens.
+    TEST_METHOD (APortTheConnectorHas_IsAWarningUntilItOpens)
+    {
+        SerialCardPage  page;
+        std::wstring    problem = L"The Uthernet II cannot listen on TCP port 6502.";
+
+
+
+        page.SetListenProblem ([&problem] () { return problem; });
+
+        Assert::IsTrue (page.IsListenShown());
+        Assert::IsTrue (page.GetListenText() == problem);
+
+        problem.clear();
+        page.SyncListenProblem();
+
+        Assert::IsFalse (page.IsListenShown(), L"the port opened");
+    }
+
+
     TEST_METHOD (AConnectorOutsideTheList_IsListedInWords)
     {
         std::vector<std::wstring>  labels;

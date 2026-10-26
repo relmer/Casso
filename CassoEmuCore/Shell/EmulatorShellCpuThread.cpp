@@ -272,6 +272,8 @@ void EmulatorShell::ReportUthernetListenFailures()
     UthernetCard *                                 card     = m_machine.GetRefs().uthernet;
     std::vector<W5100SocketBridge::ListenFailure>  failures;
     std::wstring                                   text;
+    std::wstring                                   serialText;
+    std::wstring                                   sentence;
     int                                            serial   = 0;
 
 
@@ -283,15 +285,20 @@ void EmulatorShell::ReportUthernetListenFailures()
 
     for (const W5100SocketBridge::ListenFailure & failure : failures)
     {
-        serial  = m_machine.GetSerialPortOnTcp (failure.port);
-        text   += (text.empty() ? L"" : L"\n")
-                + TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serial, m_machine.IsSerialPortOnCard (serial)));
+        serial   = m_machine.GetSerialPortOnTcp (failure.port);
+        sentence = TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serial, m_machine.IsSerialPortOnCard (serial)));
+        text    += (text.empty() ? L"" : L"\n") + sentence;
+
+        if (serial != 0)
+        {
+            serialText += (serialText.empty() ? L"" : L"\n") + sentence;
+        }
     }
 
     if (text != m_lastListenProblem)
     {
         m_lastListenProblem = text;
-        m_networkCard->NoteListenProblem (text);
+        m_networkCard->NoteListenProblem (text, serialText);
     }
 }
 

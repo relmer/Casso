@@ -66,6 +66,9 @@ SerialCardPage::SerialCardPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
     Adopt (m_firmwareBanner);
+    Adopt (m_listenBanner);
+    m_listenBanner.SetSeverity (DxuiInfoBanner::Severity::Warning);
+    m_listenBanner.SetVisible  (false);
     Adopt (m_download);
     Adopt (m_switchesHeading);
 
@@ -204,6 +207,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int   noteWidth    = std::max (dropWidth, scaler.ToPx (s_kDropdownWidthDp) + rowGap + buttonWidth);
     int   bannerWidth  = (rect.right - rect.left) - pad * 2;
     int   bannerHeight = static_cast<int> (std::ceil (m_firmwareBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
+    int   listenHeight = 0;
     int   fileChoice   = m_attach.GetSelectedIndex();
     bool  showPath     = fileChoice == kFileOutChoice || fileChoice == kFileInChoice;
 
@@ -216,6 +220,13 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_firmwareBanner.SetRect (MakeRect (x, y, bannerWidth, bannerHeight));
     m_firmwareBanner.SetDpi  (dpi);
     y += bannerHeight + rowGap;
+
+    if (m_listenBanner.IsVisible())
+    {
+        listenHeight = static_cast<int> (std::ceil (m_listenBanner.GetPreferredHeightPx (static_cast<float> (bannerWidth), scaler)));
+        m_listenBanner.Layout (MakeRect (x, y, bannerWidth, listenHeight), scaler);
+        y += listenHeight + rowGap;
+    }
 
     m_download.SetLabel   (L"Download firmware");
     m_download.SetVisible (m_offerDownload);
@@ -849,6 +860,35 @@ void SerialCardPage::StageAttachment (int choice, const std::string & path)
 void SerialCardPage::SyncSwitches (const SscSwitches & switches)
 {
     m_switchesView.SetSwitches (switches);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SerialCardPage::SyncListenProblem
+//
+//  Called each dialog tick; the page is laid out again only when the
+//  sentence changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SerialCardPage::SyncListenProblem()
+{
+    std::wstring  text    = m_listenProblem ? m_listenProblem() : std::wstring();
+    bool          changed = text != m_listenBanner.GetText() || text.empty() == m_listenBanner.IsVisible();
+
+
+
+    if (changed)
+    {
+        m_listenBanner.SetText    (text);
+        m_listenBanner.SetVisible (!text.empty());
+
+        Relayout();
+    }
 }
 
 

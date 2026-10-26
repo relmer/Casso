@@ -68,6 +68,13 @@ public:
     // The PC's COM ports, offered for the connector.
     void  SetComPorts       (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
 
+    //  The sentence for an Uthernet II port the card's connector has, empty
+    //  when there is none; read again by SyncListenProblem each dialog tick.
+    void  SetListenProblem  (std::function<std::wstring ()> fn) { m_listenProblem = std::move (fn); SyncListenProblem(); }
+    void  SyncListenProblem ();
+    const std::wstring & GetListenText () const { return m_listenBanner.GetText(); }
+    bool                 IsListenShown () const { return m_listenBanner.IsVisible(); }
+
     // The attachments offered for a card in `slot`, as devices and as the
     // drop-down's labels. A current device that is none of them is added at
     // the end, so it is not lost.
@@ -117,6 +124,8 @@ private:
     std::function<void (const std::wstring &)>  m_onNotice;
 
     DxuiInfoBanner           m_firmwareBanner;
+    DxuiInfoBanner           m_listenBanner;
+    std::function<std::wstring ()>  m_listenProblem;
     DxuiButton               m_download;
     bool                     m_offerDownload = false;
 

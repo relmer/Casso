@@ -650,6 +650,7 @@ HRESULT SettingsSheet::OpenModeless (
         IGNORE_RETURN_VALUE (downloaded, false);
     });
     m_serialPage->SetOnNotice ([this] (const std::wstring & notice) { ReportCrossTabChange (notice); });
+    m_serialPage->SetListenProblem ([&emuShell] () { return emuShell.GetNetworkCard().GetSerialListenProblem(); });
     m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
     {
         FileDialogSpec  spec;
@@ -1046,6 +1047,7 @@ void SettingsSheet::OnDialogTick()
     if (m_networkPage != nullptr)
     {
         m_networkPage->Sync();
+    m_serialPage->SyncListenProblem();
     }
 
     if (m_printingPage != nullptr)

@@ -30,11 +30,13 @@ public:
     explicit ShellNetworkCard (EmulatorShell & shell);
 
     // CPU thread: the sentence for the guest's failed listens, empty when it
-    // has none.
-    void  NoteListenProblem (const wstring & text);
+    // has none, and the part of it about the machine's serial connector.
+    void  NoteListenProblem (const wstring & text, const wstring & serialText);
 
-    // Any thread: the sentence last noted, for the Network settings page.
-    wstring  GetListenProblem () const;
+    // Any thread: the sentences last noted, for the Network and Serial card
+    // settings pages.
+    wstring  GetListenProblem       () const;
+    wstring  GetSerialListenProblem () const;
 
     // UI thread, once per frame: applies a noted sentence.
     void  Tick ();
@@ -52,6 +54,7 @@ private:
 
     mutable mutex       m_pendingLock;
     wstring             m_pending;
+    wstring             m_pendingSerial;
     atomic<uint32_t>    m_pendingGeneration = 0;
     uint32_t            m_appliedGeneration = 0;
 

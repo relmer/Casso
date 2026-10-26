@@ -36,11 +36,13 @@ ShellNetworkCard::ShellNetworkCard (EmulatorShell & shell)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellNetworkCard::NoteListenProblem (const wstring & text)
+void ShellNetworkCard::NoteListenProblem (const wstring & text, const wstring & serialText)
 {
     lock_guard<mutex>  guard (m_pendingLock);
 
 
+
+    m_pendingSerial = serialText;
 
     if (text != m_pending)
     {
@@ -66,6 +68,25 @@ wstring ShellNetworkCard::GetListenProblem() const
 
 
     return m_pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSerialListenProblem
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring ShellNetworkCard::GetSerialListenProblem() const
+{
+    lock_guard<mutex>  guard (m_pendingLock);
+
+
+
+    return m_pendingSerial;
 }
 
 
