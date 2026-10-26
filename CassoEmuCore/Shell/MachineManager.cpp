@@ -553,16 +553,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // breakpoints named addresses on a machine that no longer exists.
     m_shell.m_debugger->NotifyDebugMachineChanged (machineNameNarrow);
 
+    // UpdateWindowTitle posts WM_APP_DXUI_UPDATE_TITLE, and its handler
+    // (ReflectMachineChange) saves the new machine in GlobalUserPrefs. Only
+    // the UI thread writes the prefs.
     m_shell.m_window->UpdateWindowTitle();
-
-    // Record the new active machine in GlobalUserPrefs so the next
-    // launch boots it by default. SaveGlobalPrefs flushes the change
-    // to UserPrefs.json on disk.
-    if (m_shell.m_settings->GetPrefs().lastSelectedMachine != machineNameNarrow)
-    {
-        m_shell.m_settings->GetPrefs().lastSelectedMachine = machineNameNarrow;
-        m_shell.m_settings->SaveGlobalPrefs();
-    }
 
     // Same cold-power-on sequence as Initialize() -- seed DRAM and
     // run the 6502 /RESET sequence. Without this the newly-built

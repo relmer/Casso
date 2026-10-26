@@ -2183,12 +2183,18 @@ Error:
 //  EmulatorShell::ReflectMachineChange
 //
 //  The UI-thread side of a machine switch: the title, the chrome, the CRT
-//  override keys and the paddle source list.
+//  override keys, the paddle source list and the machine the next launch
+//  boots.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ReflectMachineChange()
 {
+    // GlobalUserPrefs is the UI thread's, so the switch's choice of machine
+    // is saved here rather than in SwitchMachine. The call writes nothing
+    // when the machine is the same.
+    m_settings->RecordActiveMachineSelection();
+
     RefreshMachineChromeFacts();
 
     m_window->UpdateWindowTitle();
