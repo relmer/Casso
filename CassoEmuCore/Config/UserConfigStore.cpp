@@ -1366,17 +1366,21 @@ HRESULT UserConfigStore::LoadAll (
     IFileSystem      & fs,
     LoadReport       & outReport)
 {
-    HRESULT          hr         = S_OK;
-    HRESULT          hrPreserve = S_OK;
-    std::wstring     path       = GetUserPrefsFilePath();
-    std::string      text;
-    JsonValue        root;
-    JsonParseError   err;
-    bool             hasText    = false;
+    std::lock_guard<std::mutex>  guard      (m_lock);
+    HRESULT                      hr         = S_OK;
+    HRESULT                      hrPreserve = S_OK;
+    std::wstring                 path       = GetUserPrefsFilePath();
+    std::string                  text;
+    JsonValue                    root;
+    JsonParseError               err;
+    bool                         hasText    = false;
 
 
 
-    m_prefs = &prefs;
+    //  Only this thread reads the prefs. A save from another thread writes
+    //  the global section on disk back verbatim (GetPrefsForCaller).
+    m_prefs      = &prefs;
+    m_prefsOwner = std::this_thread::get_id();
     m_machinePrefs.clear();
     m_hasReadFile = false;
     outReport = LoadReport {};
@@ -1580,6 +1584,10 @@ HRESULT UserConfigStore::SaveAll (
     const GlobalUserPrefs & prefs,
     IFileSystem           & fs) const
 {
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
     return SaveCombinedJson (&prefs, fs, nullptr);
 }
 
@@ -1627,17 +1635,38 @@ HRESULT UserConfigStore::Load (
     IFileSystem        & fs,
     JsonValue          & outMerged) const
 {
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    return LoadLocked (machineName, defaultJson, fs, outMerged);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::LoadLocked
+//
+//  Load's body, for a caller that has m_lock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::LoadLocked (
+    const std::string  & machineName,
+    const JsonValue    & defaultJson,
+    IFileSystem        & fs,
+    JsonValue          & outMerged) const
+{
     HRESULT              hr            = S_OK;
     std::string          userContent;
-    std::string          migrated;
     JsonValue            userJson;
-    JsonValue            canonicalJson;
     JsonParseError       parseErr;
-    JsonWriter::Options  opts;
     int                  defaultVer    = 0;
     int                  userVer       = 0;
     bool                 fNeedMigrate  = false;
-    bool                 fRewritten    = false;
     bool                 fHasLegacyKey = false;
     bool                 hasUserPrefs  = false;
     auto                 found         = m_machinePrefs.find (machineName);
@@ -1698,51 +1727,88 @@ HRESULT UserConfigStore::Load (
 
     if (fNeedMigrate)
     {
-        opts.fPretty = true;
-        hr = JsonWriter::Write (userJson, opts, userContent);
+        hr = MigrateMachinePrefs (machineName, defaultJson, fs, userJson);
         CHR (hr);
-
-        migrated = userContent;
-
-        // The default's port list is the template the external-drive fold
-        // materializes: a user array replaces the default's wholesale, so a
-        // delta naming one port would leave the machine with one connector.
-        {
-            const JsonValue *  defaultPorts = nullptr;
-
-            if (!defaultJson.HasArray ("ports", defaultPorts))
-            {
-                defaultPorts = nullptr;
-            }
-
-            // Whether anything actually moved does not change what happens
-            // next -- the canonicalize/save below is idempotent either way.
-            hr = MachineConfigUpgrade::MigrateUserConfig (
-                     userContent, defaultPorts, migrated, fRewritten);
-        }
-
-        if (FAILED (hr))
-        {
-            migrated = userContent;
-            hr = S_OK;
-        }
-
-        hr = JsonParser::Parse (migrated, userJson, parseErr);
-        CHR (hr);
-
-        canonicalJson = CanonicalizeVersionStamp (userJson, defaultVer);
-        m_machinePrefs[machineName] = canonicalJson;
-        userJson = canonicalJson;
-
-        // Non-fatal, as the banner above says: the canonicalize-and-save is
-        // idempotent, so a write that could not land settles on the next run.
-        // Failing here instead would turn an unreadable prefs file into a
-        // failed machine load, which EmulatorShell answers with an assert.
-        hr = SaveCombinedJson (m_prefs, fs, nullptr);
-        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     outMerged = MergeJson (defaultJson, userJson);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::MigrateMachinePrefs
+//
+//  Upgrades a machine's out-of-date delta to the shipped schema, caches it
+//  with the default's version stamp and saves, for a caller that has m_lock.
+//  inOutUserJson is the delta, and becomes the migrated one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::MigrateMachinePrefs (
+    const std::string  & machineName,
+    const JsonValue    & defaultJson,
+    IFileSystem        & fs,
+    JsonValue          & inOutUserJson) const
+{
+    HRESULT              hr         = S_OK;
+    std::string          userContent;
+    std::string          migrated;
+    JsonValue            canonicalJson;
+    JsonParseError       parseErr;
+    JsonWriter::Options  opts;
+    bool                 fRewritten = false;
+
+
+
+    opts.fPretty = true;
+    hr = JsonWriter::Write (inOutUserJson, opts, userContent);
+    CHR (hr);
+
+    migrated = userContent;
+
+    // The default's port list is the template the external-drive fold
+    // materializes: a user array replaces the default's wholesale, so a
+    // delta naming one port would leave the machine with one connector.
+    {
+        const JsonValue *  defaultPorts = nullptr;
+
+        if (!defaultJson.HasArray ("ports", defaultPorts))
+        {
+            defaultPorts = nullptr;
+        }
+
+        // Whether anything actually moved does not change what happens
+        // next -- the canonicalize/save below is idempotent either way.
+        hr = MachineConfigUpgrade::MigrateUserConfig (
+                 userContent, defaultPorts, migrated, fRewritten);
+    }
+
+    if (FAILED (hr))
+    {
+        migrated = userContent;
+        hr = S_OK;
+    }
+
+    hr = JsonParser::Parse (migrated, inOutUserJson, parseErr);
+    CHR (hr);
+
+    canonicalJson = CanonicalizeVersionStamp (inOutUserJson, ExtractVersion (defaultJson));
+    m_machinePrefs[machineName] = canonicalJson;
+    inOutUserJson = canonicalJson;
+
+    // Non-fatal, per Load's banner: the canonicalize-and-save is
+    // idempotent, so a write that could not land settles on the next run.
+    // Failing here instead would turn an unreadable prefs file into a
+    // failed machine load, which EmulatorShell answers with an assert.
+    hr = SaveCombinedJson (GetPrefsForCaller(), fs, nullptr);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
 Error:
     return hr;
@@ -1759,6 +1825,31 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::SaveDelta (
+    const std::string  & machineName,
+    const JsonValue    & currentJson,
+    const JsonValue    & defaultJson,
+    IFileSystem        & fs) const
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+
+
+
+    return SaveDeltaLocked (machineName, currentJson, defaultJson, fs);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::SaveDeltaLocked
+//
+//  SaveDelta's body, for a caller that has m_lock.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::SaveDeltaLocked (
     const std::string  & machineName,
     const JsonValue    & currentJson,
     const JsonValue    & defaultJson,
@@ -1782,7 +1873,7 @@ HRESULT UserConfigStore::SaveDelta (
     delta = DiffJson (currentJson, defaultJson);
     m_machinePrefs[machineName] = delta;
 
-    hr = SaveCombinedJson (m_prefs, fs, nullptr);
+    hr = SaveCombinedJson (GetPrefsForCaller(), fs, nullptr);
     CHR (hr);
 
 Error:
@@ -1844,11 +1935,12 @@ HRESULT UserConfigStore::Reset (
     const std::string  & machineName,
     IFileSystem        & fs) const
 {
-    HRESULT      hr       = S_OK;
-    JsonValue    saved;
-    auto         found    = m_machinePrefs.find (machineName);
-    bool         hasEntry = false;
-    bool         hasFile  = false;
+    std::lock_guard<std::mutex>  guard    (m_lock);
+    HRESULT                      hr       = S_OK;
+    JsonValue                    saved;
+    auto                         found    = m_machinePrefs.find (machineName);
+    bool                         hasEntry = false;
+    bool                         hasFile  = false;
 
 
 
@@ -1868,7 +1960,7 @@ HRESULT UserConfigStore::Reset (
     hasFile = fs.Exists (GetUserPrefsFilePath());
     BAIL_OUT_IF (!hasFile, S_OK);
 
-    hr = SaveCombinedJson (m_prefs, fs, &machineName);
+    hr = SaveCombinedJson (GetPrefsForCaller(), fs, &machineName);
     CHR (hr);
 
 Error:
@@ -1882,6 +1974,68 @@ Error:
     }
 
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::UpdateUiPrefs
+//
+//  Loads a machine's config, splices `values` into its uiPrefs and saves the
+//  delta under one lock, so a save from another thread cannot land between
+//  the read and the write and be overwritten by it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT UserConfigStore::UpdateUiPrefs (
+    const std::string                                     & machineName,
+    const JsonValue                                       & defaultJson,
+    const std::vector<std::pair<std::string, JsonValue>>  & values,
+    IFileSystem                                           & fs) const
+{
+    std::lock_guard<std::mutex>  guard (m_lock);
+    HRESULT                      hr    = S_OK;
+    JsonValue                    mergedJson;
+    JsonValue                    updatedJson;
+
+
+
+    hr = LoadLocked (machineName, defaultJson, fs, mergedJson);
+    CHR (hr);
+
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
+
+    updatedJson = SpliceUiPrefs (mergedJson, values);
+
+    hr = SaveDeltaLocked (machineName, updatedJson, defaultJson, fs);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UserConfigStore::GetPrefsForCaller
+//
+//  Returns the prefs LoadAll bound when the caller is the thread that ran
+//  LoadAll, and null otherwise. With null prefs, BuildCombinedJson writes
+//  the global section on disk back verbatim, so a save from another thread
+//  writes its machine delta without reading prefs that the LoadAll thread
+//  may be changing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const GlobalUserPrefs * UserConfigStore::GetPrefsForCaller() const
+{
+    return (std::this_thread::get_id() == m_prefsOwner) ? m_prefs : nullptr;
 }
 
 

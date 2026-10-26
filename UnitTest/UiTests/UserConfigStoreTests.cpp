@@ -82,6 +82,66 @@ public:
     };
 
 
+    // Blocks the next write after Arm() at a gate until Release(), so a test
+    // can start a second save while the first is partway through its write.
+    class GatedFileSystem : public InMemoryFileSystem
+    {
+    public:
+        void  Arm()
+        {
+            std::lock_guard<std::mutex>  guard (m_gateLock);
+
+            m_isArmed    = true;
+            m_isBlocked  = false;
+            m_isReleased = false;
+        }
+
+        // Returns whether a write blocked at the gate within `timeout`.
+        bool  WaitUntilBlocked (std::chrono::milliseconds timeout)
+        {
+            std::unique_lock<std::mutex>  guard (m_gateLock);
+
+            return m_gateChanged.wait_for (guard, timeout, [this] { return m_isBlocked; });
+        }
+
+        void  Release()
+        {
+            {
+                std::lock_guard<std::mutex>  guard (m_gateLock);
+
+                m_isReleased = true;
+            }
+
+            m_gateChanged.notify_all();
+        }
+
+        HRESULT WriteAllText (const std::wstring & path,
+                              const std::string  & content) override
+        {
+            {
+                std::unique_lock<std::mutex>  guard (m_gateLock);
+
+                if (m_isArmed)
+                {
+                    m_isArmed   = false;
+                    m_isBlocked = true;
+                    m_gateChanged.notify_all();
+                    m_gateChanged.wait (guard, [this] { return m_isReleased; });
+                }
+            }
+
+            return InMemoryFileSystem::WriteAllText (path, content);
+        }
+
+    private:
+        std::mutex               m_gateLock;
+        std::condition_variable  m_gateChanged;
+        bool                     m_isArmed    = false;
+        bool                     m_isBlocked  = false;
+        bool                     m_isReleased = false;
+    };
+
+
     // A fixed clock so the preserved copy's filename is deterministic.
     // 1756500000 is 2025-08-29 in local time on the build machine; the tests
     // below assert the shape of the name rather than its digits, so the exact
@@ -1593,6 +1653,205 @@ public:
         savedGlobal = ParseOrFail (GlobalTextOrFail (fs, store).c_str());
         Assert::AreEqual (std::string ("DarkModern"),
                           FindObjectValueForTest (savedGlobal, "activeTheme")->GetString());
+    }
+
+
+    // A machine's save from another thread writes the global section back as
+    // the file has it, not the loading thread's prefs, which that thread may
+    // be changing.
+    TEST_METHOD (SaveDelta_OnAnotherThread_LeavesTheGlobalSectionAsWritten)
+    {
+        InMemoryFileSystem           fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    savedGlobal;
+        JsonValue                    machine;
+        std::string                  speedMode;
+        HRESULT                      hr          = S_OK;
+        HRESULT                      hrThread    = E_FAIL;
+        UserConfigStore::LoadReport  report;
+        UserConfigStore              store (L"C:\\Casso");
+        JsonValue                    defaultJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue                    currentJson = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertSucceeded (hr);
+
+        //  The loading thread's prefs, changed and not saved.
+        prefs.activeTheme = "DarkModern";
+
+        {
+            std::thread  cpu ([&] { hrThread = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs); });
+
+            cpu.join();
+        }
+
+        AssertSucceeded (hrThread);
+
+        machine = ReadMachineOrFail (fs, store, "Apple2e");
+        Assert::IsTrue   (machine.HasString ("speedMode", speedMode), L"the machine's delta is saved");
+        Assert::AreEqual (std::string ("Double"), speedMode);
+
+        savedGlobal = ParseOrFail (GlobalTextOrFail (fs, store).c_str());
+        Assert::AreEqual (std::string ("Retro Terminal"),
+                          FindObjectValueForTest (savedGlobal, "activeTheme")->GetString(),
+                          L"and the global section is as the file had it");
+    }
+
+
+    // A save of the global prefs while another thread's save is partway
+    // through waits for it, and the file has both writes.
+    TEST_METHOD (SaveAll_WhileAnotherThreadIsSaving_WaitsAndKeepsBothWrites)
+    {
+        GatedFileSystem              fs;
+        GlobalUserPrefs              prefs;
+        JsonValue                    savedGlobal;
+        JsonValue                    machine;
+        std::string                  speedMode;
+        HRESULT                      hr               = S_OK;
+        HRESULT                      hrCpu            = E_FAIL;
+        HRESULT                      hrUi             = E_FAIL;
+        bool                         isBlocked        = false;
+        bool                         isDoneEarly      = false;
+        std::atomic<bool>            isUiDone         = false;
+        UserConfigStore::LoadReport  report;
+        UserConfigStore              store (L"C:\\Casso");
+        JsonValue                    defaultJson      = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        JsonValue                    currentJson      = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Double\"}");
+        std::chrono::steady_clock::time_point  deadline;
+
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, report);
+        AssertSucceeded (hr);
+
+        fs.Arm();
+
+        {
+            std::thread  cpu ([&] { hrCpu = store.SaveDelta ("Apple2e", currentJson, defaultJson, fs); });
+            std::thread  ui;
+
+            isBlocked = fs.WaitUntilBlocked (std::chrono::seconds (5));
+
+            if (isBlocked)
+            {
+                prefs.activeTheme = "DarkModern";
+
+                ui = std::thread ([&] { hrUi = store.SaveAll (prefs, fs); isUiDone = true; });
+
+                deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (200);
+
+                while (!isUiDone && std::chrono::steady_clock::now() < deadline)
+                {
+                    std::this_thread::sleep_for (std::chrono::milliseconds (5));
+                }
+
+                isDoneEarly = isUiDone;
+            }
+
+            //  Both threads are joined before any assertion, so a failure
+            //  cannot destroy a joinable thread.
+            fs.Release();
+            cpu.join();
+
+            if (ui.joinable())
+            {
+                ui.join();
+            }
+        }
+
+        Assert::IsTrue  (isBlocked, L"the machine's save blocks at the gate");
+        Assert::IsFalse (isDoneEarly, L"the global save waits for it");
+        AssertSucceeded (hrCpu);
+        AssertSucceeded (hrUi);
+
+        savedGlobal = ParseOrFail (GlobalTextOrFail (fs, store).c_str());
+        Assert::AreEqual (std::string ("DarkModern"),
+                          FindObjectValueForTest (savedGlobal, "activeTheme")->GetString(),
+                          L"the file has the global save");
+
+        machine = ReadMachineOrFail (fs, store, "Apple2e");
+        Assert::IsTrue   (machine.HasString ("speedMode", speedMode), L"and the machine's delta");
+        Assert::AreEqual (std::string ("Double"), speedMode);
+    }
+
+
+    // Two threads writing different keys of one machine's UI prefs both
+    // land: each read-modify-write is whole.
+    TEST_METHOD (UpdateUiPrefs_FromTwoThreads_KeepsBothKeys)
+    {
+        GatedFileSystem              fs;
+        JsonValue                    merged;
+        const JsonValue            * uiPrefs      = nullptr;
+        std::string                  disk2Path;
+        std::string                  colorMode;
+        HRESULT                      hr           = S_OK;
+        HRESULT                      hrFirst      = E_FAIL;
+        HRESULT                      hrSecond     = E_FAIL;
+        bool                         isBlocked    = false;
+        bool                         isDoneEarly  = false;
+        std::atomic<bool>            isSecondDone = false;
+        UserConfigStore              store (L"C:\\Casso");
+        UserConfigStore              reader (L"C:\\Casso");
+        JsonValue                    defaultJson  = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Authentic\"}");
+        std::chrono::steady_clock::time_point  deadline;
+        std::vector<std::pair<std::string, JsonValue>>  first  { { "disk2Path", JsonValue (std::string ("C:\\Disks\\second.dsk")) } };
+        std::vector<std::pair<std::string, JsonValue>>  second { { "colorMode", JsonValue (std::string ("green")) } };
+
+
+
+        hr = fs.WriteAllText (store.GetUserPrefsFilePath(), kpszSeededPrefs);
+        AssertSucceeded (hr);
+
+        fs.Arm();
+
+        {
+            std::thread  one ([&] { hrFirst = store.UpdateUiPrefs ("Apple2e", defaultJson, first, fs); });
+            std::thread  two;
+
+            isBlocked = fs.WaitUntilBlocked (std::chrono::seconds (5));
+
+            if (isBlocked)
+            {
+                two = std::thread ([&] { hrSecond = store.UpdateUiPrefs ("Apple2e", defaultJson, second, fs); isSecondDone = true; });
+
+                deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (200);
+
+                while (!isSecondDone && std::chrono::steady_clock::now() < deadline)
+                {
+                    std::this_thread::sleep_for (std::chrono::milliseconds (5));
+                }
+
+                isDoneEarly = isSecondDone;
+            }
+
+            fs.Release();
+            one.join();
+
+            if (two.joinable())
+            {
+                two.join();
+            }
+        }
+
+        Assert::IsTrue  (isBlocked, L"the first update blocks at the gate");
+        Assert::IsFalse (isDoneEarly, L"the second waits for it");
+        AssertSucceeded (hrFirst);
+        AssertSucceeded (hrSecond);
+
+        hr = reader.Load ("Apple2e", defaultJson, fs, merged);
+        AssertSucceeded (hr);
+
+        uiPrefs = GetUiPrefsOrFail (merged);
+        Assert::IsTrue (uiPrefs->HasString ("disk2Path", disk2Path), L"the first update's key is saved");
+        Assert::IsTrue (uiPrefs->HasString ("colorMode", colorMode), L"and so is the second's");
     }
 
 

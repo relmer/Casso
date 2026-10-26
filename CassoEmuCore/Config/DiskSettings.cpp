@@ -386,8 +386,6 @@ HRESULT DiskSettings::WriteSavedUiPrefs (
 {
     HRESULT      hr            = S_OK;
     JsonValue    defaultJson;
-    JsonValue    mergedJson;
-    JsonValue    updatedJson;
     std::string  machineNarrow;
     bool         hasMachine    = !machineName.empty();
     bool         hasValues     = !values.empty();
@@ -402,14 +400,7 @@ HRESULT DiskSettings::WriteSavedUiPrefs (
 
     machineNarrow = WideToUtf8 (machineName);
 
-    hr = store.Load (machineNarrow, defaultJson, fs, mergedJson);
-    CHR (hr);
-
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
-
-    updatedJson = UserConfigStore::SpliceUiPrefs (mergedJson, values);
-
-    hr = store.SaveDelta (machineNarrow, updatedJson, defaultJson, fs);
+    hr = store.UpdateUiPrefs (machineNarrow, defaultJson, values, fs);
     CHR (hr);
 
 Error:

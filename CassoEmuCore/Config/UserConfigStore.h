@@ -100,6 +100,14 @@ public:
     // re-Load before their next SaveDelta.
     HRESULT      Reset             (const std::string & machineName,
                                     IFileSystem       & fs) const;
+
+    // Writes `values` into the machine's $cassoUiPrefs block and saves the
+    // machine's delta, in one read-modify-write, so two callers writing
+    // different keys of the same machine both land.
+    HRESULT      UpdateUiPrefs     (const std::string                                     & machineName,
+                                    const JsonValue                                       & defaultJson,
+                                    const std::vector<std::pair<std::string, JsonValue>>  & values,
+                                    IFileSystem                                           & fs) const;
     std::wstring GetUserFilePath      (const std::string & machineName) const;
     std::wstring GetUserPrefsFilePath () const;
 
@@ -281,6 +289,32 @@ private:
     HRESULT      LoadCombinedJson    (const JsonValue & root,
                                       GlobalUserPrefs & prefs) const;
 
+    // Load and SaveDelta, for a caller that has m_lock: UpdateUiPrefs runs
+    // both under one lock. MigrateMachinePrefs is Load's migration of an
+    // out-of-date delta, which saves.
+    HRESULT      LoadLocked           (const std::string & machineName,
+                                       const JsonValue   & defaultJson,
+                                       IFileSystem       & fs,
+                                       JsonValue         & outMerged) const;
+    HRESULT      SaveDeltaLocked      (const std::string & machineName,
+                                       const JsonValue   & currentJson,
+                                       const JsonValue   & defaultJson,
+                                       IFileSystem       & fs) const;
+    HRESULT      MigrateMachinePrefs  (const std::string & machineName,
+                                       const JsonValue   & defaultJson,
+                                       IFileSystem       & fs,
+                                       JsonValue         & inOutUserJson) const;
+
+    // The prefs LoadAll was given, on the thread that called it, and null on
+    // any other: a save from another thread writes the global section back as
+    // the file has it, and never reads a struct that thread may be changing.
+    const GlobalUserPrefs *  GetPrefsForCaller () const;
+
+    // One caller at a time, from any thread: each cache change, the read-back
+    // of the file and its write are one unit. Take it before calling the
+    // private helpers above.
+    mutable std::mutex                          m_lock;
+
     std::wstring                                m_userDir;
     mutable std::map<std::string, JsonValue>    m_machinePrefs;
 
@@ -300,6 +334,7 @@ private:
     bool                                        m_loadUnresolved = false;
 
     GlobalUserPrefs                           * m_prefs          = nullptr;
+    std::thread::id                             m_prefsOwner;
 
     std::function<time_t ()>                    m_timestamp;
 };
