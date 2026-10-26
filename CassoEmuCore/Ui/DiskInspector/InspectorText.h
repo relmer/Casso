@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
+#include "Devices/Disk/IDiskImage.h"
 
 
 
@@ -69,6 +70,10 @@ public:
     static std::wstring         FormatCount         (int count, LPCWSTR singular, LPCWSTR plural);
 
     static std::wstring         FormatTrackTitle    (int quarterTrack);
+
+    //  Each reason the drive's disk is write-protected, separated by
+    //  semicolons, or empty when there is none (FR-065).
+    static std::wstring         FormatWriteProtect  (const WriteProtectInfo & info);
     static std::wstring         FormatTrackClass    (TrackClass trackClass);
     static std::wstring         FormatTrackLine     (const TrackAnalysis * track);
     static std::wstring         FormatMeasureLine   (const TrackAnalysis & track);

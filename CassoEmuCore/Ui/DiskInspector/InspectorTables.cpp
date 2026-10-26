@@ -9,6 +9,7 @@
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Shell/InspectorStatusPublisher.h"
 
 
 
@@ -54,7 +55,7 @@ vector<std::wstring> InspectorTables::GetFindingColumns()
 vector<std::wstring> InspectorTables::GetTrackColumns()
 {
     return { L"Track", L"Recorded", L"Shared with", L"Class", L"Sectors good", L"Nibbles", L"Length", L"Longest sync",
-             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Edited", L"Reach" };
+             L"Sector 0", L"RPM", L"Cell timing", L"Findings", L"Hits", L"Edited", L"Reach", L"Written", L"Reads" };
 }
 
 
@@ -258,11 +259,14 @@ static std::wstring FormatEdited (int slot, const EditController * edits, const 
 //  InspectorTables::BuildTracks
 //
 //  All 160 quarter tracks (FR-047). A quarter track that shares its record
-//  with others lists them; the measurements are its record's.
+//  with others lists them; the measurements are its record's. With the
+//  drive's counts, each record the guest wrote since the disk was inserted
+//  and each quarter track's read visits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, const FindMarks * marks, const EditController * edits, const std::set<int> * appliedSlots)
+vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, const FindMarks * marks, const EditController * edits, const std::set<int> * appliedSlots,
+                                               const DriveHeadState * drive)
 {
     static constexpr double  kNominalCells = 51200.0;
 
@@ -279,6 +283,8 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
         const TrackAnalysis *      track = (e.slot >= 0 && e.slot < static_cast<int> (analysis.tracks.size())) ? analysis.tracks[e.slot].get() : nullptr;
         bool                       has   = track != nullptr && track->framed.cellCount > 0;
         bool                       flux  = has && track->framed.isFlux;
+        bool                       wrote = drive != nullptr && e.slot >= 0 && e.slot < static_cast<int> (drive->recordWriteCounts.size()) && drive->recordWriteCounts[e.slot] > 0;
+        uint32_t                   reads = (drive != nullptr) ? drive->visitCounts[qt] : 0;
         TableRow                   row;
 
         row.quarterTrack = qt;
@@ -300,6 +306,8 @@ vector<TableRow> InspectorTables::BuildTracks (const DiskAnalysis & analysis, co
             (marks != nullptr && marks->GetTrackHits (track) > 0) ? std::to_wstring (marks->GetTrackHits (track)) : std::wstring(),
             FormatEdited (e.slot, edits, appliedSlots),
             e.isBeyondHeadReach ? L"Beyond the head's reach" : L"",
+            wrote ? L"Written" : L"",
+            (reads > 0) ? InspectorFormat::FormatCount (reads) : std::wstring(),
         };
 
         rows.push_back (std::move (row));

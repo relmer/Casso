@@ -153,6 +153,7 @@ private:
     void  SelectDifference (const Difference & difference);
     void  PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     bool  IsWindowDiskA    () const;
+    bool  IsWriteProtected () const { return m_context.drive != nullptr && m_context.drive->writeProtect.Any(); }
     void  TakeReplies      ();
     void  TakeResults      ();
     void  UpdateRings      ();
@@ -381,6 +382,7 @@ private:
     DxuiButton                            * m_decodeButton       = nullptr;
     DxuiCheckbox                          * m_alignmentCheck     = nullptr;
     DxuiCheckbox                          * m_filesCheck         = nullptr;
+    DxuiCheckbox                          * m_readsCheck         = nullptr;
     DxuiTabStrip                          * m_modeTabs           = nullptr;
     DxuiButton                            * m_rangeDown          = nullptr;
     DxuiButton                            * m_rangeUp            = nullptr;

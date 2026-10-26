@@ -421,6 +421,7 @@ void DiskInspectorWindow::OnCreate()
     m_diffsCheck   = CreateChild<DxuiCheckbox> (L"Differences");
     m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
     m_filesCheck     = CreateChild<DxuiCheckbox> (L"Files");
+    m_readsCheck     = CreateChild<DxuiCheckbox> (L"Reads");
     m_modeTabs     = CreateChild<DxuiTabStrip>();
     m_rangeDown    = CreateChild<DxuiButton> (s_kpszMinus);
     m_rangeUp      = CreateChild<DxuiButton> (L"+");
@@ -513,6 +514,7 @@ void DiskInspectorWindow::OnCreate()
     m_diffsTab->SetOnSelect       ([this] (const TableRow & row) { if (const Difference * d = m_diffsTab->GetDifference (row)) { m_diffIndex = row.finding; SelectDifference (*d); } });
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
     m_filesCheck->SetOnChange     ([this] (bool isChecked) { m_context.isFilesOverlay = isChecked; });
+    m_readsCheck->SetOnChange     ([this] (bool isChecked) { m_context.isReadsOverlay = isChecked; });
     m_modeTabs->SetOnChange  ([this] (int index) { m_context.isTimingMode = (index == 1); });
     m_rangeDown->SetOnClick  ([this] () { StepRange (-1); });
     m_rangeUp->SetOnClick    ([this] () { StepRange (1); });
@@ -929,7 +931,8 @@ void DiskInspectorWindow::LayoutPlatterControls (const RECT & area, const DxuiDp
     m_zoomLabel->Layout ({ x, area.top, x + scaler.ToPx (s_kZoomLabelDip), area.bottom }, scaler);
     x += scaler.ToPx (s_kZoomLabelDip) + gap;
 
-    for (const auto & [check, label] : { std::pair { m_alignmentCheck, L"Alignment" }, std::pair { m_filesCheck, L"Files" }, std::pair { m_diffsCheck, L"Differences" } })
+    for (const auto & [check, label] : { std::pair { m_alignmentCheck, L"Alignment" }, std::pair { m_filesCheck, L"Files" }, std::pair { m_readsCheck, L"Reads" },
+                                     std::pair { m_diffsCheck, L"Differences" } })
     {
         int  w = GetLabelWidthPx (label, s_kCheckLabelPadDip, scaler);
 
@@ -1131,6 +1134,9 @@ void DiskInspectorWindow::PaintToolbar (IDxuiPainter & painter, IDxuiTextRendere
     std::wstring  name    = m_context.hasDisk ? GetFileName() : std::wstring (m_pendingRequest != 0 ? s_kpszAnalyzing : s_kpszNoDisk);
 
 
+
+    //  A lock before the name of a write-protected disk in the drive (FR-065).
+    name = (m_context.hasDisk && IsWriteProtected()) ? std::wstring (s_kpszLock) + L" " + name : name;
 
     painter.FillRect (static_cast<float> (m_toolbarPx.left), static_cast<float> (m_toolbarPx.top),
                       static_cast<float> (m_toolbarPx.right - m_toolbarPx.left), static_cast<float> (m_toolbarPx.bottom - m_toolbarPx.top),
@@ -1846,6 +1852,7 @@ void DiskInspectorWindow::UpdateControls()
         m_stripHint->SetVisible    (false);
         m_alignmentCheck->SetVisible (m_context.hasDisk);
         m_filesCheck->SetVisible     (m_context.hasDisk);
+        m_readsCheck->SetVisible     (m_context.hasDisk && IsWindowDiskA());
         m_modeTabs->SetVisible   (m_context.hasDisk);
         m_rangeDown->SetVisible  (m_context.hasDisk && m_context.isTimingMode);
         m_rangeUp->SetVisible    (m_context.hasDisk && m_context.isTimingMode);
@@ -1964,9 +1971,11 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
         tip = GetButtonTip (pointPx, anchor);
     }
 
+    //  A write-protected disk's causes follow its name (FR-065).
     if (tip.empty() && m_context.hasDisk && PtInRect (&m_fileNamePx, pointPx))
     {
         tip    = GetFileName();
+        tip   += IsWriteProtected() ? L"\nWrite-protected: " + InspectorText::FormatWriteProtect (m_context.drive->writeProtect) : L"";
         anchor = m_fileNamePx;
     }
 
@@ -2142,7 +2151,7 @@ void DiskInspectorWindow::RefreshTables()
     if (m_isTablesDirty)
     {
         vector<std::wstring>  columns = InspectorTables::GetTrackColumns();
-        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis, m_context.findMarks, &m_edits, &m_appliedSlots) : vector<TableRow>();
+        vector<TableRow>      rows    = m_context.hasDisk ? InspectorTables::BuildTracks (m_analysis, m_context.findMarks, &m_edits, &m_appliedSlots, m_context.drive) : vector<TableRow>();
 
         //  While comparing, each quarter track's verdict (FR-121).
         if (m_comparison.IsComparing())
@@ -2844,21 +2853,13 @@ std::wstring DiskInspectorWindow::GetApplyBlock() const
 
 
 
-    auto  add = [&causes] (bool isCause, LPCWSTR text) { causes += isCause ? (causes.empty() ? L"" : L"; ") + std::wstring (text) : L""; };
-
     if (!IsWindowDiskA() || state == nullptr || !state->hasDisk)
     {
         causes = L"Only the disk in the drive can be changed";
     }
     else
     {
-        add (state->writeProtect.imageFlag,        L"the image's write-protect flag is set");
-        add (state->writeProtect.userSetting,      L"write protection is on for this drive");
-        add (state->writeProtect.readOnlyFile,     L"the file is read-only");
-        add (state->writeProtect.noPermission,     L"Casso cannot write the file");
-        add (state->writeProtect.checksumMismatch, L"the image's checksum does not match its contents");
-        add (state->writeProtect.damagedTracks,    L"the image has damaged track records");
-
+        causes = InspectorText::FormatWriteProtect (state->writeProtect);
         causes = causes.empty() ? causes : L"Write-protected: " + causes;
     }
 
@@ -4022,6 +4023,7 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
         { m_fit,             L"Show the whole disk (0)",                                         L"The whole disk is already shown" },
         { m_alignmentCheck,  L"Mark where sector 0 and the longest sync start on each track",   nullptr },
         { m_filesCheck,      L"Color each sector's data field by its role in the file map",     nullptr },
+        { m_readsCheck,      L"Mark each quarter track the drive has read since the disk was inserted", nullptr },
         { m_mapPrev,         L"Select the previous sector in the selected file",                 nullptr },
         { m_filePicker,      L"Choose the file whose sectors the map marks",                      nullptr },
         { m_mapNext,         L"Select the next sector in the selected file",                     nullptr },
@@ -5375,7 +5377,8 @@ void DiskInspectorWindow::TickHead()
         head.activity     = m_headState->activity;
     }
 
-    m_context.head = head;
+    m_context.head  = head;
+    m_context.drive = isOnDisk ? m_headState.get() : nullptr;
 
     //  While the drive turns, the platter turns under the head at 12
     //  o'clock. Zoomed in, the platter does not turn and the head moves
@@ -5491,6 +5494,7 @@ void DiskInspectorWindow::RequestWrittenTracks()
 
         m_writeCounts      = state->recordWriteCounts;
         m_countsGeneration = state->countsGeneration;
+        m_isTablesDirty    = true;
     }
 
     if (!m_writtenSlots.empty() && m_trackRequest == 0 && now - m_trackRequestMs >= s_kRecopyMs)

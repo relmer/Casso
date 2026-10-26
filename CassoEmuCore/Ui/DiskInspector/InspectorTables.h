@@ -9,6 +9,9 @@
 #include "Ui/DiskInspector/FindMarks.h"
 
 
+struct DriveHeadState;
+
+
 
 
 
@@ -58,7 +61,7 @@ public:
 
     static vector<TableRow>  BuildFindings (const DiskAnalysis & analysis, uint32_t categoryMask, int sortColumn, bool isDescending);
     static vector<TableRow>  BuildTracks   (const DiskAnalysis & analysis, const FindMarks * marks = nullptr, const EditController * edits = nullptr,
-                                             const std::set<int> * appliedSlots = nullptr);
+                                             const std::set<int> * appliedSlots = nullptr, const DriveHeadState * drive = nullptr);
     static vector<TableRow>  BuildFields   (const DiskAnalysis & analysis, int quarterTrack);
     static vector<TableRow>  BuildImage    (const ImageDetails & image);
 

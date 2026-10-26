@@ -48,6 +48,8 @@ static constexpr float    s_kHeadArmDip      = 12.0f;
 static constexpr float    s_kHeadEyeDip      = 6.0f;
 static constexpr uint32_t s_kHeadArmAlpha    = 0x50000000u;
 static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
+static constexpr float    s_kReadsMinDip     = 2.0f;
+static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
@@ -138,6 +140,11 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     {
         OutlineCircle (painter, view.centerXPx, view.centerYPx, static_cast<float> (PlatterGeometry::GetRingOuter (view.headLimitRing)) * view.outerRadiusPx,
                        m_scaler.ToPxf (s_kHoverOutlineDip), theme.ForegroundMuted());
+    }
+
+    if (m_context.isReadsOverlay && m_context.drive != nullptr)
+    {
+        PaintReads (painter, view);
     }
 
     //  The ring under the pointer, unless the pointer is on the selection,
@@ -2178,5 +2185,37 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     {
         painter.DrawLine (ex - cross, ey - cross, ex + cross, ey + cross, line, argb);
         painter.DrawLine (ex - cross, ey + cross, ex + cross, ey - cross, line, argb);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintReads
+//
+//  The "Reads" overlay: each quarter track the head visited with the motor
+//  on since the disk was inserted, as a band in the reading color over its
+//  ring, at least s_kReadsMinDip wide (FR-031).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintReads (IDxuiPainter & painter, const PlatterPlacement & view) const
+{
+    uint32_t  argb  = (m_context.palette.colors.headReading & 0x00FFFFFFu) | s_kReadsAlpha;
+    float     width = static_cast<float> (PlatterGeometry::GetRingWidth()) * view.outerRadiusPx;
+    float     band  = std::max (width, m_scaler.ToPxf (s_kReadsMinDip));
+    int       qt    = 0;
+
+
+
+    for (qt = 0; qt < PlatterRenderer::kRingCount; qt++)
+    {
+        if (m_context.drive->visitCounts[qt] > 0)
+        {
+            OutlineCircle (painter, view.centerXPx, view.centerYPx, static_cast<float> (PlatterGeometry::GetRingMiddle (qt)) * view.outerRadiusPx, band, argb);
+        }
     }
 }

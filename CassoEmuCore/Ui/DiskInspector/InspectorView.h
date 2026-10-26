@@ -62,6 +62,8 @@ struct InspectorViewContext
     RECT                        scenePx           = {};
     bool                        isDiffsOverlay    = false;
     InspectorHead               head;
+    const DriveHeadState      * drive             = nullptr;
+    bool                        isReadsOverlay    = false;
     const DiskComparison      * comparison        = nullptr;
     const DiskAnalysis        * analysisB         = nullptr;
     const TrackAnalysis       * trackB            = nullptr;

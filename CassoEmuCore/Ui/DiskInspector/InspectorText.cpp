@@ -552,3 +552,31 @@ std::wstring InspectorText::FormatSelection (const TrackAnalysis & track, int fi
 
     return text;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorText::FormatWriteProtect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring InspectorText::FormatWriteProtect (const WriteProtectInfo & info)
+{
+    std::wstring  causes;
+
+
+
+    auto  add = [&causes] (bool isCause, LPCWSTR text) { causes += isCause ? (causes.empty() ? L"" : L"; ") + std::wstring (text) : L""; };
+
+    add (info.imageFlag,        L"the image's write-protect flag is set");
+    add (info.userSetting,      L"write protection is on for this drive");
+    add (info.readOnlyFile,     L"the file is read-only");
+    add (info.noPermission,     L"Casso cannot write the file");
+    add (info.checksumMismatch, L"the image's checksum does not match its contents");
+    add (info.damagedTracks,    L"the image has damaged track records");
+
+    return causes;
+}
