@@ -538,20 +538,21 @@ void EditController::Follow (const DiskAnalysis & analysis, vector<PendingEdit> 
         field  = (track != nullptr) ? FindField (*track, edit.sectorNumber, edit.fieldKind, edit.fieldStartCell) : -1;
         sector = -1;
 
-        for (size_t s = 0; field >= 0 && sector < 0 && s < track->sectors.size(); s++)
+        for (size_t s = 0; track != nullptr && field >= 0 && sector < 0 && s < track->sectors.size(); s++)
         {
             sector = (track->sectors[s].dataField == field) ? static_cast<int> (s) : -1;
         }
 
-        if (sector < 0 || !GetUneditableReason (*track, sector).empty())
+        if (track != nullptr && sector >= 0 && GetUneditableReason (*track, sector).empty())
+        {
+            edit.fieldStartCell = track->fields[field].startCell;
+            edit.isOutOfDate    = edit.isOutOfDate || track->fields[field].data.bytes != edit.bytesAtStart;
+            remaining.push_back (edit);
+        }
+        else
         {
             outDiscarded.push_back (edit);
-            continue;
         }
-
-        edit.fieldStartCell = track->fields[field].startCell;
-        edit.isOutOfDate    = edit.isOutOfDate || track->fields[field].data.bytes != edit.bytesAtStart;
-        remaining.push_back (edit);
     }
 
     if (remaining.size() != m_edits.size())

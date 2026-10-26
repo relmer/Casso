@@ -889,8 +889,9 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
     }
     else
     {
-        SectorSource  sourceA (a);
-        SectorSource  sourceB (b);
+        //  On the heap: each source has a table for every track.
+        auto          sourceA = std::make_unique<SectorSource> (a);
+        auto          sourceB = std::make_unique<SectorSource> (b);
         vector<bool>  isUsed  (mapB->files.size(), false);
 
         for (size_t i = 0; i < mapA->files.size(); i++)
@@ -924,8 +925,8 @@ void DiskComparer::CompareFiles (const DiskAnalysis & a, const DiskAnalysis & b,
                 vector<Byte>                      bytesA;
                 vector<Byte>                      bytesB;
                 vector<std::pair<size_t, int>>    startsA;
-                bool                              isReadA = ReadContents (*mapA, sourceA, fa, bytesA, &startsA);
-                bool                              isReadB = ReadContents (*mapB, sourceB, fb, bytesB);
+                bool                              isReadA = ReadContents (*mapA, *sourceA, fa, bytesA, &startsA);
+                bool                              isReadB = ReadContents (*mapB, *sourceB, fb, bytesB);
 
                 isUsed[match] = true;
                 pair.isSame   = true;

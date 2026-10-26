@@ -80,7 +80,7 @@ struct DiskAnalysis
     uint64_t                                                      mediaId   = 0;
     std::shared_ptr<const DiskCopy>                               copy;
     DecodeSettings                                                settings;
-    std::array<QuarterTrackEntry, DiskImage::kQuarterTrackCount>  entries;
+    vector<QuarterTrackEntry>                                     entries   = vector<QuarterTrackEntry> (DiskImage::kQuarterTrackCount);
     vector<std::shared_ptr<const TrackAnalysis>>                  tracks;
     vector<Finding>                                               findings;
     DiskSummary                                                   summary;

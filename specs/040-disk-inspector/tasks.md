@@ -330,9 +330,9 @@ without the others in its merge.
 - [ ] T142 Keyboard walk through every command and view (SC-011), scripted where the view models allow, in `UT/InspectorKeyboardWalkTests.cpp`
 - [ ] T143 On-screen checks in every theme of each host with captures (Casso: three themes; Explorer: Light and Dark), grayscale capture for good and bad states (SC-008); launch per the workspace rules (minimized, `--title`, portrait monitor)
 - [ ] T144 SC-004 scripted zoom and pan measurement; SC-003, SC-015 and SC-021 timings in Release `PerformanceTests`; record in Notes
-- [ ] T145 SC-007: open, use and close the inspector over every test image in both hosts without applying; every file byte-for-byte unchanged and no disk marked changed; SC-010 damaged cases shown as damaged in both hosts
+- [ ] T145 SC-007: open, use and close the inspector over every test image in both hosts without applying; every file byte-for-byte unchanged and no disk marked changed; SC-010 damaged cases shown as damaged in both hosts Casso host done 2026-10-26: 12 images (the tree's 9, the two stock disks, a flux WOZ) unchanged after open, use, close and a clean exit. Explorer host waits for 033
 - [ ] T146 *Bandits* locally (SC-012); real demo disks in `Apple2/Demos/` show no unexpected findings; tune R4 thresholds if needed and record in research.md
-- [ ] T147 `scripts/CheckStyle.ps1 -Mode Tree`, full suite Debug and Release, ARM64 builds, code analysis, scenario suite (quickstart section 7)
+- [ ] T147 `scripts/CheckStyle.ps1 -Mode Tree`, full suite Debug and Release, ARM64 builds, code analysis, scenario suite (quickstart section 7). All passed 2026-10-26 (Debug 6992, Release 6991, scenarios 55, ARM64 Release, analysis clean); run again before the merge
 - [ ] T148 CHANGELOG and README text to the owner after the owner has tested and approved; then merge to master with `--no-ff` once 033 is on master, watch CI to completion
 
 ---

@@ -4160,7 +4160,8 @@ void DiskInspectorWindow::StepKeyTarget (int step)
 
     for (k = 1; k < count; k++)
     {
-        const auto &  next = order[(at + step * k + count * k) % count];
+        size_t        index = static_cast<size_t> (at + step * k + count * k) % order.size();
+        const auto &  next  = (index < order.size()) ? order[index] : order[0];
 
         if (next.second != nullptr && next.second->IsVisible())
         {

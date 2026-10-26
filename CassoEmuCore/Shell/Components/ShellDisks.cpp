@@ -496,8 +496,13 @@ void ShellDisks::BrowseForDisk (int drive, const RECT * anchorClientPx)
 
 
 
+    if (drive < 0 || drive >= (int) m_driveWidgetState.size())
+    {
+        return;
+    }
+
     //  Confirm before the picker opens. When the user cancels, the door does not move.
-    if (drive < 0 || drive >= (int) m_driveWidgetState.size() || !m_shell.ConfirmInspectorDiscard (drive, L"Inserting another disk"))
+    if (!m_shell.ConfirmInspectorDiscard (drive, L"Inserting another disk"))
     {
         return;
     }

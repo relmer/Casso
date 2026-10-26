@@ -1216,7 +1216,7 @@ void TrackStripView::PaintFiles (IDxuiPainter & painter, const IDxuiTheme & them
 
     for (const AnalyzedSector & sector : isOn ? track.sectors : vector<AnalyzedSector>())
     {
-        cell = (sector.dataField >= 0) ? map->GetCellOf (qt / DiskImage::kQuarterTracksPerWholeTrack, sector.sector, half) : -1;
+        cell = (sector.dataField >= 0 && map != nullptr) ? map->GetCellOf (qt / DiskImage::kQuarterTracksPerWholeTrack, sector.sector, half) : -1;
 
         if (cell < 0)
         {

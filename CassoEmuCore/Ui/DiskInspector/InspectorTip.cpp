@@ -443,7 +443,7 @@ void InspectorTip::AddFileRole (const InspectorViewContext & context, int wholeT
 
     for (const AnalyzedSector & sector : isOn ? track.sectors : vector<AnalyzedSector>())
     {
-        if (cell < 0 && sector.dataField >= 0 && nibble >= track.fields[sector.dataField].firstNibble &&
+        if (cell < 0 && map != nullptr && sector.dataField >= 0 && nibble >= track.fields[sector.dataField].firstNibble &&
             nibble < track.fields[sector.dataField].firstNibble + track.fields[sector.dataField].nibbleCount)
         {
             cell = map->GetCellOf (wholeTrack, sector.sector, half);

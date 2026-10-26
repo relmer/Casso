@@ -46,7 +46,7 @@ void SectorRowView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
                              m_scaler.ToPxf (kTextDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
         }
 
-        for (i = 0; i < order.size(); i++)
+        for (i = 0; track != nullptr && i < order.size(); i++)
         {
             const AnalyzedSector &  sector = track->sectors[order[i]];
 
