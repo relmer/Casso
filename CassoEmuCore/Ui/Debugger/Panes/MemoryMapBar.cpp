@@ -213,11 +213,10 @@ void MemoryMapBar::SetMap (const DiagnosticsMemoryMap & map)
 //
 //  MemoryMapBar::PlaceRuns
 //
-//  Each strip's runs share its height by their pages, except that a run
-//  whose share is less than kMinRunDip gets kMinRunDip, and the rest share
-//  what is left; a run that then falls short is raised in turn. When the
-//  strip is too short for every run to have kMinRunDip, every run has its
-//  plain share.
+//  Both strips share one address axis, so an address is at the same height in
+//  each: the axis is cut wherever either strip changes source, and those
+//  pieces share the height as ShareHeight shares it. Each strip's runs then
+//  span the pieces their pages cover.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,72 +225,44 @@ void MemoryMapBar::PlaceRuns()
     float  top     = (float) m_boundsDip.top + m_scaler.ToPxf ((float) kHeadingDip);
     float  height  = std::max (0.0f, (float) m_boundsDip.bottom - top);
     float  minimum = m_scaler.ToPxf ((float) kMinRunDip);
+    int    pages   = (int) DiagnosticsMemoryMap::kPageCount;
 
 
+
+    m_axis.clear();
+
+    for (int first = 0; first < pages; )
+    {
+        int  end = first + 1;
+
+        while (end < pages && GetSourceOf (end, false) == GetSourceOf (first, false) && GetSourceOf (end, true) == GetSourceOf (first, true))
+        {
+            end++;
+        }
+
+        m_axis.push_back ({ first, end });
+        first = end;
+    }
+
+    ShareHeight (m_axis, top, height, minimum);
 
     for (bool isWrite : { false, true })
     {
-        std::vector<Run>   & runs     = m_runs[isWrite ? 1 : 0];
-        std::vector<bool>    isRaised;
-        bool                 isMoved  = true;
-        float                free     = height;
-        int                  pages    = 0;
-        float                y        = top;
+        std::vector<Run>  & runs = m_runs[isWrite ? 1 : 0];
 
         runs.clear();
 
-        for (int first = 0; first < (int) DiagnosticsMemoryMap::kPageCount; )
+        for (int first = 0; first < pages; )
         {
             int  end = first + 1;
 
-            while (end < (int) DiagnosticsMemoryMap::kPageCount && GetSourceOf (end, isWrite) == GetSourceOf (first, isWrite))
+            while (end < pages && GetSourceOf (end, isWrite) == GetSourceOf (first, isWrite))
             {
                 end++;
             }
 
-            runs.push_back ({ first, end });
+            runs.push_back ({ first, end, GetAxisY (first), GetAxisY (end) });
             first = end;
-        }
-
-        isRaised.assign (runs.size(), false);
-
-        //  Raise each run below the minimum until none is left below it.
-        while (isMoved && minimum * (float) runs.size() <= height)
-        {
-            isMoved = false;
-            free    = height;
-            pages   = 0;
-
-            for (size_t i = 0; i < runs.size(); i++)
-            {
-                free  -= isRaised[i] ? minimum : 0.0f;
-                pages += isRaised[i] ? 0 : runs[i].end - runs[i].first;
-            }
-
-            for (size_t i = 0; i < runs.size() && pages > 0; i++)
-            {
-                if (!isRaised[i] && free * (float) (runs[i].end - runs[i].first) / (float) pages < minimum)
-                {
-                    isRaised[i] = true;
-                    isMoved     = true;
-                }
-            }
-        }
-
-        if (minimum * (float) runs.size() > height)
-        {
-            isRaised.assign (runs.size(), false);
-            free  = height;
-            pages = (int) DiagnosticsMemoryMap::kPageCount;
-        }
-
-        for (size_t i = 0; i < runs.size(); i++)
-        {
-            float  share = isRaised[i] ? minimum : (pages > 0 ? free * (float) (runs[i].end - runs[i].first) / (float) pages : 0.0f);
-
-            runs[i].top    = y;
-            runs[i].bottom = y + share;
-            y             += share;
         }
     }
 }
@@ -302,37 +273,121 @@ void MemoryMapBar::PlaceRuns()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MemoryMapBar::GetPageY
+//  MemoryMapBar::ShareHeight
 //
-//  Within its run, pages share the run's height evenly.
+//  The runs share the height by their pages, except that a run whose share is
+//  less than minimum gets minimum, and the rest share what is left; a run that
+//  then falls short is raised in turn. When the height is too short for every
+//  run to have the minimum, every run has its plain share.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float MemoryMapBar::GetPageY (int page, bool isWrite) const
+void MemoryMapBar::ShareHeight (
+    std::vector<Run>  & runs,
+    float               top,
+    float               height,
+    float               minimum)
 {
-    const std::vector<Run>  & runs = m_runs[isWrite ? 1 : 0];
+    std::vector<bool>  isRaised (runs.size(), false);
+    bool               isMoved  = true;
+    float              free     = height;
+    int                pages    = 0;
+    float              y        = top;
 
 
 
-    if (runs.empty())
+    //  Raise each run below the minimum until none is left below it.
+    while (isMoved && minimum * (float) runs.size() <= height)
+    {
+        isMoved = false;
+        free    = height;
+        pages   = 0;
+
+        for (size_t i = 0; i < runs.size(); i++)
+        {
+            free  -= isRaised[i] ? minimum : 0.0f;
+            pages += isRaised[i] ? 0 : runs[i].end - runs[i].first;
+        }
+
+        for (size_t i = 0; i < runs.size() && pages > 0; i++)
+        {
+            if (!isRaised[i] && free * (float) (runs[i].end - runs[i].first) / (float) pages < minimum)
+            {
+                isRaised[i] = true;
+                isMoved     = true;
+            }
+        }
+    }
+
+    if (minimum * (float) runs.size() > height)
+    {
+        isRaised.assign (runs.size(), false);
+        free  = height;
+        pages = (int) DiagnosticsMemoryMap::kPageCount;
+    }
+
+    for (size_t i = 0; i < runs.size(); i++)
+    {
+        float  share = isRaised[i] ? minimum : (pages > 0 ? free * (float) (runs[i].end - runs[i].first) / (float) pages : 0.0f);
+
+        runs[i].top    = y;
+        runs[i].bottom = y + share;
+        y             += share;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetAxisY
+//
+//  Within a piece of the axis, pages share its height evenly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float MemoryMapBar::GetAxisY (int page) const
+{
+    if (m_axis.empty())
     {
         return (float) m_boundsDip.top + m_scaler.ToPxf ((float) kHeadingDip);
     }
 
     if (page >= (int) DiagnosticsMemoryMap::kPageCount)
     {
-        return runs.back().bottom;
+        return m_axis.back().bottom;
     }
 
-    for (const Run & run : runs)
+    for (const Run & piece : m_axis)
     {
-        if (page >= run.first && page < run.end)
+        if (page >= piece.first && page < piece.end)
         {
-            return run.top + (run.bottom - run.top) * (float) (page - run.first) / (float) (run.end - run.first);
+            return piece.top + (piece.bottom - piece.top) * (float) (page - piece.first) / (float) (piece.end - piece.first);
         }
     }
 
-    return runs.front().top;
+    return m_axis.front().top;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetPageY
+//
+//  The shared axis: the strip makes no difference.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float MemoryMapBar::GetPageY (int page, bool isWrite) const
+{
+    UNREFERENCED_PARAMETER (isWrite);
+
+    return GetAxisY (page);
 }
 
 
