@@ -453,6 +453,148 @@ The build of commit `ea371969`, driven with real input.
 
 Not checked: the two §5 steps for when no Casso is running, as two Cassos
 of other sessions were running, and §6 Windows dark mode.
+
+### The owner's checklist, 2026-10-23 to 25, at `ebd1e19b5`
+
+One pass over the checks left from the earlier passes, on two machines:
+
+- **The laptop**, 2026-10-23 to 25. Before 2026-10-24 22:00, three builds of
+  Casso Explorer failed with LNK1168 while it was running and exited 0, so
+  every result from before then is of a stale build of 2026-10-23 21:09, and
+  is marked so below. Later results are of `b20cfcfea`, built at 22:00:19 and
+  22:02:50, and of `3fbe53e9d` and later.
+- **The desktop**, 2026-10-25 from 19:50, x64 Debug built at 19:07 from
+  `ebd1e19b5`. The session was unlocked at the start and locked from 19:56,
+  so the clipboard, real input and drags were not available after that.
+
+Both were driven by Casso Explorer's command message, posted clicks, keys and
+characters, sent messages into the file dialogs, and `PrintWindow` captures,
+per-monitor DPI aware. The emulated Apple was an Enhanced //e with a Super
+Serial Card in slot 2 on a TCP port and an Uthernet II in slot 3, with a copy
+of the DOS 3.3 System Master in drive 2.
+
+#### The link, both ways, over each card
+
+| Check | Result |
+|---|---|
+| A running Casso listed with no setup | Desktop: with Casso's card on TCP port 6502, `Casso on port 6502` appeared under CassoLink after a refresh, and reads `Casso on port 6600 (Apple //e enhanced)` once connected |
+| The link disk | Saved with Save CassoLink disk image from that connection and inserted with Insert into Casso drive 1. Booted: `CASSOLINK`, `WAITING FOR THE PC ON:`, `SLOT 2 AT 115200`, `SLOT 3 AT 10.0.65.15:6502`, so one disk serves both cards |
+| Over the Super Serial Card | Desktop, card on TCP port 6600: `Connected to Apple //e enhanced`; `Slot 6, Drive 1` and `Slot 6, Drive 2 (DOS 3.3 volume 1)`; the whole catalog; the drive's preview is its catalog, every file locked, 283 sectors free of 560. On TCP port 6502 it does not connect: finding 1 |
+| A file from the Apple | HELLO's listing in the preview, 768 bytes, status `COPYING HELLO FROM D2: done`. The laptop, stale build: Copy of HELLO produced `HELLO.Applesoft BASIC.txt`, 609 bytes |
+| A file to the Apple | Desktop: Put file on the linked drive, `SSCTEST.txt`: stored as type T with no dialog; `CassoCli disk list` has ` T 002 SSCTEST` and `disk get --text` returns its text. The laptop, stale build: Paste of `SSCTEST`, the catalog 19 to 20 |
+| Over the Uthernet II | Desktop: with the serial link disconnected, a new `Uthernet II at 127.0.0.1:6502` connection, a link disk saved from it, booted, and connected with no port forward: `Connected to Apple //e enhanced`, both drives, the whole catalog; FID previewed as `B, 5.00 KB, $0803`; `UTHTEST.txt` put, read back by the CLI. The laptop on `b20cfcfea`: the same, with FID copied out as `FID.Binary.$0803.bin`, 4687 bytes, and `UTHTEST` pasted in |
+| Copy and Paste over the link | Desktop, locked: Copy fails with `The files could not be copied: the clipboard could not be opened. Another program may have it open, or Windows may be locked.` Not checked on the current build while unlocked |
+| Two windows on one link | Desktop: one window on drive 2, the other on the link's root; the first went to a host folder; the one socket stayed established, and the other window then opened drive 2 and previewed FID |
+| Disconnect, Connect, Remove | Disconnect from the connection's menu reads `Disconnected`; the connection's page then has `Casso on port 6600 is disconnected.` and a Connect button, which connects again. Remove connection works (the laptop) |
+
+#### Settings and Casso Explorer's dialogs
+
+| Check | Result |
+|---|---|
+| Add connection (FR-083c, FR-083d) | Desktop: Connection first; no name field and no Apple-side port or slot; the COM port list has Any and COM3; `With Any, each port is searched in turn.`; bootstrap speed 9,600 above transfer speed 115,200; the info glyph on Handshake; `Serial (any port) is listed already, with these settings.` with Add disabled; five transports, Serial port, TCP, Wi-Fi modem, Uthernet II and ADTPro-compatible server, and no Emulated. The laptop, stale build: an empty address or folder has no error row, and connections listed as `Wi-Fi modem on port 6400`, `TCP 127.0.0.1:6502` and `Uthernet II at 127.0.0.1:6503` |
+| FR-095b, tabs that do not fit | The Settings tab strip has the arrows |
+| The serial connector's list | None, Loopback plug, Write output to file, Read input from file, TCP port 6502 on this PC, COM3, and no ImageWriter II |
+| FR-095b, a connector changed with no reset | The card's connector from TCP port 6600 to None and OK: Casso's listener on 6600 closed at once, the machine was not reset, and the footer had plain OK throughout |
+| The ImageWriter II on the card | After the list closed: `The ImageWriter II requires printer mode, so the Super Serial Card in slot 2 was switched from communications mode. If you connect the printer somewhere else, the card will be switched back to communications mode.` The card's tab then has Mode Printer and the connector `ImageWriter II` |
+| The card taken out of printer mode | `The ImageWriter II has been disconnected from the Super Serial Card because it requires printer mode. You can reconnect it on the Printing tab.` |
+| The printer moved off the card | `The Super Serial Card in slot 2 was switched back to communications mode, the mode it had before the ImageWriter II was connected to it.` |
+| Info tips | A click on the glyph raises the tip, which stays up; a click elsewhere or Escape closes it, and the dialog is open after Escape. With posted input the tip was up after a second click on the glyph; on `b20cfcfea` with real input a second click closed it, and so did a focus change. Hover alone raised nothing (the laptop); FR-095b specifies how a tip closes, not how it opens |
+| Port forwards (the laptop) | Adding TCP 6600 to 6502 has plain OK, and Casso listens on 127.0.0.1:6600 at once |
+| Hex preview refresh (`d40f410fb`) | Desktop: a host file's preview changed within 4 seconds after the file was written in place, and after a new file was moved over it |
+| A locked folder marked for deletion (`9ca28ec0a`) | Desktop: a ProDOS image with a folder locked through its access byte, since no tool sets a lock: `Delete OUTER from lockvol.po?`, `OUTER/NOTE`, `OUTER   (locked)`, `2 entries, 2 blocks`; Cancel left the image as it was. `CassoCli disk rmdir` lists it the same way |
+| A folder copied into itself (the laptop, `b20cfcfea`) | `OUTER: a folder cannot be copied into itself.` |
+| A move of a locked entry | On DOS 3.3, MUFFIN survived a failed Shift-drag to File Explorer (the owner, the laptop) |
+| A maximized window minimized and restored (the laptop) | Comes back maximized |
+
+#### The ADTPro-compatible server (B2)
+
+On the desktop, `ADTPro server at 127.0.0.1:6600`, sharing a folder, with ADTPro
+2.1.0's client booted in the emulated Apple and set to Serial.
+
+| Check | Result |
+|---|---|
+| The dialog | `This connection allows a standard ADTPro client on the Apple to transfer disk images to and from this PC.`, a Line of TCP address, and `ADTPro's client reads and writes disk images in this folder and its subfolders only.` |
+| Its root | The shared folder and `What's an ADTPro-compatible server.md`, which previews as Markdown. Selecting it wrote a copy to `%TEMP%` |
+| `Documents\ADTPro` | Not there before the connection was added or after the whole session |
+| DIR | `DIRECTORY OF: C:\LinkTest\night\adtshare\`, with the image in it |
+| CD `..` | `UNABLE TO CHANGE DIRECTORY` |
+| Receive `..\OUTSIDE.DSK`, and by its full path | The client's list of the shared folder with `NO FILES`; nothing read, and the Apple's disk and `OUTSIDE.DSK` hash as their copies do |
+| Send to `..\EVIL.DSK` | All 280 blocks read, and no file written anywhere under `C:\LinkTest` or at `C:\` |
+| Send to a plain name | The image written into the shared folder |
+
+#### Firewall, on the laptop at `b20cfcfea`
+
+The laptop's network was public: Casso Explorer had inbound block rules for TCP
+and UDP on the public profile, and Casso allow rules.
+
+| Check | Result |
+|---|---|
+| The tree's tip on a real hover | `Windows Firewall blocks UDP port 6510 for Casso Explorer on this public network (rule "cassoexplorer.exe").` |
+| The amber badge | On `Uthernet II (any address)` alone |
+| The connection's page | The same sentence, then `Allow the port on public networks, or make this network private if it is one you trust, such as your home network.`, the listener's purpose, and Allow in Windows Firewall and Make this network private |
+| Casso's Network page | No banner, as Casso is allowed |
+| T250 | Adding `Uthernet II (any address)` opened UDP 0.0.0.0:6510, and removing it closed it |
+
+#### Quickstart
+
+| Check | Result |
+|---|---|
+| §1, the steps for a person, desktop | Casso Explorer on one copy of the System Master and the CLI on another, `fc /b`: Get by Extract all files, HELLO as Applesoft and FID raw; Put file of a text file and of `PROG.Binary.$6000.bin`; Delete; Read sectors to file and Write sectors from file at tracks 17 and 18; New disk image, DOS 3.3 bootable; Format disk image. No differences in any. Block read and write not run |
+| §1, a host image's menu | Casso's items, Open in new tab and window, Insert into Casso drive 1 and 2, Open in new Casso, Extract all files, Format disk image and Advanced, beside the shell's, and `Show more options` at the foot |
+| §5, a single-drive default machine | With drive 2 of the Enhanced //e detached in the user's prefs and no Casso running, a new window's menu has Insert into Casso drive 2 disabled |
+| §5, no Casso running | Insert into Casso drive 1 started a Casso, the Enhanced //e with its one drive, with the image in drive 1 |
+
+Not run in this pass:
+
+- Copy and Paste and drags over the link and between images on the current
+  build, and with them a locked file's copy keeping its lock and dates: the
+  desktop was locked from 19:56, and with these menus no copy to another
+  image or to a folder is possible without the clipboard or a drag.
+- The help item dragged out to a temporary file: a drag.
+- A hover over an info tip with the real cursor on the current build.
+- §6 with Windows dark mode: a system setting this pass did not change.
+- The firewall's Allow and Make private actions, the package install, and
+  two profiles active at once (T256, the owner's).
+- On the owner's //c on 10-27: T214, quickstart §7b steps 5 to 7, and SC-027,
+  SC-028 and SC-033.
+
+Findings:
+
+1. **A Super Serial Card on TCP port 6502 with an Uthernet II in the same
+   machine never connects over the card.** Casso's bridge has 127.0.0.1:6502,
+   so the port the W5100 listens on is not opened on the PC, and only 6502 and
+   UDP 6511 were listening. The serial log has the PC's prompt, `C1 00 00 C9
+   08`, delivered to the Apple, and no reply; Explorer stays at `Waiting for Casso
+   on port 6502 on 127.0.0.1:6502` through a refresh and two power cycles. With
+   the card on port 6600 both listen, and the same disk connects at once. There
+   is no message about the port clash. The likely cause, not yet confirmed: while the
+   socket is not listening, the stage's wait loop in `Universal.s` sets it to
+   listen again on every pass, and at 115,200 baud the pass is too slow to
+   read the prompt's first byte out of the 6551's one receive register.
+2. The Uthernet II's text before it connects has the address twice:
+   `Connecting to Uthernet II at 127.0.0.1:6502 at 127.0.0.1:6502.`
+3. An Uthernet II connection's menu offers Bootstrap the Apple, Bootstrap from
+   the cassette input and Save cassette bootstrap, which a network card cannot
+   use.
+4. The name clash prompt for a file off a link drive (the laptop, stale
+   build) offers Copy and Replace and Don't copy with no `Keep both`, and its
+   source line reads `HELLO.Applesoft BASIC (C:\WINDOWS)`.
+5. No tool sets a lock, in Casso Explorer or CassoCli, so a locked entry can
+   be had only from an image that has one. If that is intended, the lock
+   checks rest on images such as the System Master.
+6. A serial connector set to a TCP port other than 6502 is listed by its
+   device id, `tcp:6600`, and after the ImageWriter II is moved onto the card
+   and off it again the card's connector is None, not the one chosen before.
+7. With the ADTPro server added, `Casso on port 6600` left the CassoLink tree,
+   and two connections from Casso Explorer to 127.0.0.1:6600 were open at
+   once, the serial link's and the server's.
+8. The preview's view is chosen by content: 256 bytes of $AA in a `.bin` preview
+   as text, and bytes that start with FF FE as UTF-16 text.
+9. Before the desktop locked, a Copy in the CassoLink root put nothing on the
+   clipboard and raised no message. Not reproduced.
+10. The black block beside a host `.dsk`'s drag tip in the owner's picture of
+    18:19 did not reproduce in four captures on the laptop.
+
 ## 8. Headless tests
 
 Run 2026-09-17 on commit `fc7d628e` plus the working tree, after a build of
