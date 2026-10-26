@@ -321,8 +321,12 @@ check the batch summary.
 
 - **Read**: one disk image of the disk, with its source (a file, or a
   CassoLink drive), its order in the set, and its failure list.
-- **Failure list**: the sectors a read failed, by track and sector, saved
-  beside the read's image.
+- **Failure list**: the file 033's Read disk to image saves beside an image
+  written with unreadable sectors, `NAME.unreadable.txt` (for example
+  `game.dsk.unreadable.txt`). Each line that does not start with `#` is one
+  sector, `track sector` in decimal, by DOS 3.3 logical sector number in
+  every image format. A Casso read with no unreadable sectors has no list,
+  since a clean read removes a list of the same name.
 - **Set of reads**: the reads of one disk, in order, and the reads excluded
   from it with the reason for each.
 - **Sector outcome**: for one sector, its votes by value, the reads that
@@ -356,9 +360,9 @@ check the batch summary.
   starts. Its capture stories use 033's CassoLink, sector reads and image
   writing; its inspector story uses 040's comparison pairing, its marks
   and Legend, and its shared sector writer.
-- 033 saves a failure list with each Read disk to image that has
-  unreadable sectors. A request for that went to the 033 session; if 033
-  does not take it, this feature adds it to Read disk to image.
+- 033 saves the failure list (033 FR-086, Session 2026-10-26, commit
+  `876f2f4ec`), and this feature reads and writes the same format for its
+  reads and re-reads.
 - Only 16-sector disks are captured, as with 033's link; 13-sector images
   can be merged as files.
 - Raw nibble, bit stream and flux capture are out of scope. Capturing
