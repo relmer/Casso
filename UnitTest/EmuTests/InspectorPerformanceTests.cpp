@@ -6,6 +6,8 @@
 #include "Devices/Disk/Inspector/FileMap/FileMap.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
+#include "Shell/InspectorStatusPublisher.h"
+#include "TestMachine.h"
 #include "ComparisonTestImages.h"
 #include "FileMapTestImages.h"
 #include "FluxTestImages.h"
@@ -19,12 +21,42 @@ using Images = FileMapTestImages;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StoreDiskSource
+//
+//  The machine's disk store as the inspector's source, read the way
+//  Casso's host reads it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class StoreDiskSource : public IInspectorDiskSource
+{
+public:
+    explicit StoreDiskSource (TestMachine & machine) : m_machine (machine) {}
+
+    const DiskImage * GetImage (int drive, InspectorDiskIdentity & outIdentity) override
+    {
+        outIdentity.mediaId = static_cast<uint64_t> (drive) + 1;
+
+        return m_machine.GetDiskStore().GetImage (6, drive);
+    }
+
+private:
+    TestMachine  & m_machine;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  InspectorPerformanceTests
 //
-//  The inspector's timing targets on this machine (SC-003, SC-015, SC-021):
-//  analyzing a WOZ with 160 distinct flux quarter tracks, building the file
-//  map of a damaged volume, and comparing two 140 KB disks and two such WOZ
-//  images. Measured in Release only; each timing is logged.
+//  The inspector's timing targets on this machine (SC-003, SC-005, SC-015,
+//  SC-021): analyzing a WOZ with 160 distinct flux quarter tracks, the drive
+//  state published each frame, building the file map of a damaged volume,
+//  and comparing two 140 KB disks and two such WOZ images. Measured in
+//  Release only; each timing is logged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,6 +250,58 @@ public:
         Logger::WriteMessage (std::format (L"140 KB comparison took {:.1f} ms; flux WOZ comparison took {:.1f} ms", dskMs, fluxMs).c_str());
         Assert::IsTrue (dskMs < 1000.0);
         Assert::IsTrue (fluxMs < 5000.0);
+#endif
+    }
+
+
+    //  SC-005: while the window is open, the emulation thread publishes both
+    //  drives' state once a frame. That publish costs under 2% of the time
+    //  to emulate a frame at Maximum speed.
+    TEST_METHOD (PublishingTheDriveStateCostsUnder2PercentOfAFrame)
+    {
+#ifdef _DEBUG
+        Logger::WriteMessage (L"SC-005 is measured in Release only");
+#else
+        static constexpr uint32_t  kFrameCycles = 17030;
+        static constexpr int       kFrames      = 600;
+
+        TestMachine               machine   ("Apple2e");
+        StoreDiskSource           source    (machine);
+        InspectorStatusPublisher  publisher;
+        vector<Byte>              sectors   (NibblizationLayer::kImageByteSize, 0);
+        LARGE_INTEGER             start     = {};
+        double                    frameMs   = 0;
+        double                    publishMs = 0;
+        double                    share     = 0;
+
+
+
+        machine.PowerCycle();
+        AssertSucceeded (machine.GetDiskStore().MountFromBytes (6, 0, "boot.dsk", DiskFormat::Dsk, sectors));
+        publisher.SetActive (true);
+        machine.RunCycles (100 * kFrameCycles);
+
+        QueryPerformanceCounter (&start);
+
+        for (int frame = 0; frame < kFrames; frame++)
+        {
+            machine.RunCycles (kFrameCycles);
+        }
+
+        frameMs = GetElapsedMs (start) / kFrames;
+
+        QueryPerformanceCounter (&start);
+
+        for (int frame = 0; frame < kFrames; frame++)
+        {
+            publisher.Publish (machine.GetRefs().diskController, source);
+        }
+
+        publishMs = GetElapsedMs (start) / kFrames;
+        share     = publishMs / frameMs;
+
+        Logger::WriteMessage (std::format (L"frame {:.1f} us, publish {:.2f} us, {:.2f}% of a frame", frameMs * 1000.0, publishMs * 1000.0, share * 100.0).c_str());
+        Assert::IsTrue (share < 0.02);
 #endif
     }
 };

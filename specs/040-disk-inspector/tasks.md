@@ -241,7 +241,7 @@ without the others in its merge.
 - [X] T099 [US6] Re-analysis of written tracks within 500 ms (twice a second during continuous bit writes), written and read marks with visit counts in the Tracks tab, "Reads" overlay, Find results marked out of date, write-protect state and causes in the toolbar (FR-047, FR-056, FR-065, FR-068, FR-069)
 - [X] T100 [US6] Image tab changed-value marks, records added since load, "Checked when the file was read", save note (FR-071)
 - [X] T101 [US6] Casso preferences: `diskInspector` block in `CEC/Config/GlobalUserPrefs.h` / `.cpp` (placement, mode, tabs, timing range, overlays, "Show deleted files", Follow head, last drive, open at exit) saved through `SaveGlobalPrefsDeferred`; reopen at launch on the last drive (FR-080)
-- [ ] T102 [US6] Measure SC-005 (five alternating pinned runs at Maximum speed; five 60 s runs at normal speed) and record results in Notes
+- [ ] T102 [US6] Measure SC-005 (five alternating pinned runs at Maximum speed; five 60 s runs at normal speed) and record results in Notes. Measured 2026-10-26 on RELMER-DESKTOP, pinned to one core of the cache CCD: the drive state published each frame while the window is open costs 0.78 us against 149 us to emulate a frame at Maximum speed, 0.53% (`InspectorPerformanceTests`). Open: the whole-program A/B runs and the 60 s audio and dropped-frame runs
 
 ---
 
