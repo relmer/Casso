@@ -412,7 +412,7 @@ Commit after each phase (constitution, Commit Discipline), with
 
 ## Phase 19: Convergence
 
-- [ ] T162 [US3] Add to the Flux timing tab's note for a .dsk, .do or .po the file's format and that Casso builds its tracks from the sector data, so they have no timing or copy protection, and for a .nib or .nb2 that a nibble image has no timing between bits, in `FluxTimingTab::FormatNoTiming` in `CEC/Ui/DiskInspector/FluxTimingTab.cpp`, with tests, per FR-003 (partial)
-- [ ] T163 [US4] Test the find hit tooltip lines of the sector buttons (with the count), Sector data's hit bytes and the file map's hit cells in `UnitTest/EmuTests/`, per FR-056, Constitution II (partial)
-- [ ] T164 [US4] Test the window's find flow: a search selects the first hit, Enter and F3 step, the Find results tab is present only with hits, and a new disk clears the hits, per FR-056, Constitution II (partial)
-- [ ] T165 [US4] Rebuild the find marks when tracks are analyzed or the file map arrives after a search, while hits exist, in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp`, per FR-056 (partial)
+- [X] T162 [US3] Add to the Flux timing tab's note for a .dsk, .do or .po the file's format and that Casso builds its tracks from the sector data, so they have no timing or copy protection, and for a .nib or .nb2 that a nibble image has no timing between bits, in `FluxTimingTab::FormatNoTiming` in `CEC/Ui/DiskInspector/FluxTimingTab.cpp`, with tests, per FR-003 (partial)
+- [X] T163 [US4] Test the find hit tooltip lines of the sector buttons (with the count), Sector data's hit bytes and the file map's hit cells in `UnitTest/EmuTests/`, per FR-056, Constitution II (partial)
+- [X] T164 [US4] Test the window's find flow: a search selects the first hit, Enter and F3 step, the Find results tab is present only with hits, and a new disk clears the hits, per FR-056, Constitution II (partial)
+- [X] T165 [US4] Rebuild the find marks when tracks are analyzed or the file map arrives after a search, while hits exist, in `CEC/Ui/DiskInspector/DiskInspectorWindow.cpp`, per FR-056 (partial)
