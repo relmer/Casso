@@ -328,6 +328,83 @@ public:
     }
 
 
+    //  Zeroes TRK record `record`'s start block and block count, leaving an
+    //  all-zero record when its count is zero, and zeroes the header CRC, so
+    //  the load skips the file's checksum.
+    void ZeroTrackRecord (vector<Byte> & woz, size_t record)
+    {
+        size_t  recordsOffset = 0;
+        Byte *  rec           = nullptr;
+
+
+
+        Assert::IsTrue (FindChunk (woz, "TRKS", recordsOffset) != 0, L"the image has a TRKS chunk");
+
+        rec = woz.data() + recordsOffset + record * WozLoader::kV2TrkRecordSize;
+        memset (rec, 0, 4);
+        memset (woz.data() + 8, 0, 4);
+    }
+
+
+    //  An unused TRK record, all zeros, is an empty track, not damage, and so
+    //  is the zero-count record BuildSyntheticV2 writes for a 0-bit track, at
+    //  start block 3: the image is undamaged and writable.
+    TEST_METHOD (Load_EmptyBitRecord_IsAnEmptyWritableSlot)
+    {
+        for (bool isAllZero : { true, false })
+        {
+            DiskImage     img;
+            vector<Byte>  woz;
+            size_t        recordsOffset = 0;
+
+
+
+            AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, vector<Byte>(), 0, woz));
+
+            Assert::IsTrue   (FindChunk (woz, "TRKS", recordsOffset) != 0, L"the image has a TRKS chunk");
+            Assert::AreEqual ((Byte) 3, woz[recordsOffset],     L"the record as written starts at block 3");
+            Assert::AreEqual ((Byte) 1, woz[recordsOffset + 2], L"and is one block long");
+
+            if (isAllZero)
+            {
+                ZeroTrackRecord (woz, 0);
+            }
+
+            AssertSucceeded (WozLoader::Load (woz, img), L"the image loads");
+
+            Assert::IsFalse  (img.IsDamaged(), L"the image is not damaged");
+            Assert::IsFalse  (img.IsWriteProtected(), L"and is writable");
+            Assert::IsTrue   (img.GetTrackKind (0) == TrackKind::Bits, L"the record is a bit slot");
+            Assert::AreEqual ((size_t) 0, img.GetTrackBitCount (0), L"with no bits");
+        }
+    }
+
+
+    //  An all-zero record a FLUX entry maps is an empty flux track, not
+    //  damage.
+    TEST_METHOD (Load_AllZeroFluxRecord_IsAnEmptyWritableFluxTrack)
+    {
+        DiskImage                  img;
+        vector<WozSyntheticTrack>  tracks (1);
+        vector<Byte>               woz;
+
+
+
+        tracks[0].isFlux        = true;
+        tracks[0].quarterTracks = { 0 };
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (tracks, woz));
+        ZeroTrackRecord (woz, 0);
+
+        AssertSucceeded (WozLoader::Load (woz, img), L"the image loads");
+
+        Assert::IsFalse (img.IsDamaged(), L"the image is not damaged");
+        Assert::IsFalse (img.IsWriteProtected(), L"and is writable");
+        Assert::IsTrue  (img.GetMappedSlot (0) >= 0, L"quarter track 0 is mapped");
+        Assert::IsTrue  (img.GetTrackKind (img.GetMappedSlot (0)) == TrackKind::Flux, L"to a flux track");
+    }
+
+
     TEST_METHOD (LoadRejectsTruncatedFile)
     {
         DiskImage  img;
