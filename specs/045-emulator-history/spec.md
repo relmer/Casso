@@ -26,6 +26,12 @@ This feature adds history to the emulator window, makes it non-destructive (resu
 - Q: Audio while scrubbing or rewinding? -> A: Silent.
 - Q: Does history persist across launches? -> A: Yes, branches and all.
 - Q: What does a disk image file contain when branches have different versions of a disk? -> A: The active branch's version. When the active branch changes, the new branch's version of each disk is written to its image file.
+- Q: Which key rewinds in the emulator window? -> A: F2, while it is down. It is unused in the emulator window and in the debugger, and the guest never receives a function key.
+- Q: How tall is the band that opens the rewind bar? -> A: 8 DIPs at the bottom of the emulated screen, scaled with the monitor's DPI.
+- Q: What is the cap on branches left behind? -> A: 8. Past that, the oldest is dropped whole.
+- Q: Do saves include history? -> A: Yes, whenever history is on, with no option. This applies to the automatic save at exit and at a machine switch, and to File > Save state. With history off, a save contains no history.
+- Q: What happens when the user turns history off? -> A: A confirmation dialog appears first. Its text specifies that all of the machine's history, in memory and saved, will be deleted. On confirmation the history is discarded, and the next save contains none.
+- Q: Are the performance and timing targets accepted? -> A: Yes, except that rewinding draws every frame, not at least 20 per second.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -44,7 +50,7 @@ A player makes a mistake in a game, holds the rewind key, watches the game run b
 1. **Given** a running machine with history captured and the debugger closed, **When** the user holds the rewind key, **Then** the machine runs backward with each frame drawn on screen and no sound, and stops at the oldest point in history if the key is down that long.
 2. **Given** the user is rewinding, **When** the key is released, **Then** the machine pauses at the frame on screen.
 3. **Given** the machine is paused in the past, **When** the user presses Run or any key the guest reads, **Then** the machine runs on from that frame with no prompt.
-4. **Given** a running machine, **When** the user moves the pointer to the bottom edge of the screen, **Then** the rewind bar appears: a strip of thumbnails covering the history, with the current position marked; **When** the user moves the pointer off the bar, **Then** the bar hides.
+4. **Given** a running machine, **When** the user moves the pointer into the band at the bottom edge of the screen, **Then** the rewind bar appears: a strip of thumbnails covering the history, with the current position marked; **When** the user moves the pointer off the bar, **Then** the bar hides.
 5. **Given** the rewind bar is open, **When** the user drags along it, **Then** the frame under the pointer is drawn on the main screen, silently; **When** the user lets go and presses Run, **Then** the machine runs on from that frame.
 6. **Given** the history includes a reset, a power cycle, a disk swap or a loaded saved state, **When** the rewind bar is open, **Then** each appears as a mark at its moment.
 7. **Given** the emulator window, **When** the user opens its menus, **Then** the history commands are there (go live, step back, rewind, turn history on or off) with their keys.
@@ -97,10 +103,11 @@ A user closes Casso and opens it the next day; the timeline goes back into yeste
 
 **Acceptance Scenarios**:
 
-1. **Given** captured history, **When** Casso exits or switches machines, **Then** the history, every branch and the disks in it are saved in a separate file beside the machine's automatic state.
+1. **Given** captured history, **When** Casso exits or switches machines, **Then** the history, every branch and the disks in it are saved with the machine's automatic state.
 2. **Given** saved history for a machine, **When** Casso launches into that machine, **Then** the timeline spans the saved history, branches included.
 3. **Given** saved history from a build whose machine state format differs, or saved history that does not read, **When** Casso launches, **Then** the saved history is discarded and history starts fresh at the launch, with no error message.
-4. **Given** the user saves a machine state file, **When** the option to include history is on, **Then** the file contains the history too, and loading it restores the timeline; with the option off, a loaded state starts history fresh, as today.
+4. **Given** history is on, **When** the user saves a machine state file with File > Save state, **Then** the file contains the history too, and loading it restores the timeline; a state file saved with history off contains no history, and loading it starts history fresh, as today.
+5. **Given** history is on, **When** the user turns it off, **Then** a confirmation dialog appears, and its text specifies that all of the machine's history, in memory and saved, will be deleted; **When** the user confirms, **Then** the history is discarded and the next save contains none; **When** the user cancels, **Then** recording continues.
 
 ---
 
@@ -133,7 +140,8 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - A disk image file changed outside Casso while history has versions of it: the existing "Disk modified outside Casso" prompt runs as today; inserting the changed disk is a disk change in the active branch at the live end.
 - History saved in an earlier session whose disks no longer match the files at launch: the stretch captured with other disks is drawn past a gap mark, as 035 draws history saved with other disks, and can be viewed.
 - A machine switch: the outgoing machine's history is saved with its automatic state; the incoming machine's saved history is loaded.
-- History turned off: recording stops, the rewind bar and key are disabled, and the saved history file for the machine is deleted at the next save.
+- History turned off: after the confirmation, recording stops, the rewind bar and key are disabled, the machine's history is discarded, and the next save contains none.
+- History turned off while state files saved earlier with File > Save state contain history: those files are not altered; loading one while history is off restores the machine without its history.
 
 ## Requirements *(mandatory)*
 
@@ -142,8 +150,8 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 **History in the emulator window**
 
 - **FR-001**: History MUST record and replay with the debugger window closed, using the same recording the debugger uses, and MUST be on by default.
-- **FR-002**: The emulator window MUST offer a rewind key: while it is down the machine runs backward with each frame drawn, and on release it pauses at the frame on screen. The key MUST be a host key the guest never receives.
-- **FR-003**: The emulator window MUST open a rewind bar along the bottom of the screen when the pointer enters a band at the bottom edge, and close it when the pointer moves off the bar; the bar MUST NOT cover the screen otherwise.
+- **FR-002**: The emulator window MUST offer a rewind key: while it is down the machine runs backward with each frame drawn, and on release it pauses at the frame on screen. The key MUST be F2, which the guest never receives.
+- **FR-003**: The emulator window MUST open a rewind bar along the bottom of the screen when the pointer enters a band 8 DIPs tall at the bottom edge of the emulated screen, scaled with the monitor's DPI, and close it when the pointer moves off the bar; the bar MUST NOT cover the screen otherwise.
 - **FR-004**: The rewind bar MUST display thumbnails across the active path, the current position, and marks for resets, power cycles, disk swaps and loaded saved states.
 - **FR-005**: Dragging along the rewind bar MUST preview the frame under the pointer on the main screen; releasing and pressing Run, or a key the guest reads, MUST continue from that frame.
 - **FR-006**: Audio MUST be silent while rewinding and while scrubbing.
@@ -160,7 +168,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **FR-014**: The forks within a branch MUST appear only while that branch is active.
 - **FR-015**: Branches MUST NOT have names; fork marks and branch rows MUST be labeled by time only.
 - **FR-016**: All branches MUST share the history budget. When it is full, the oldest keyframes of branches the user has left MUST be dropped before any of the active branch's path; a branch with no keyframes left MUST disappear with its mark.
-- **FR-017**: The number of branches left behind MUST be capped (default 8); past the cap, the oldest left branch MUST be dropped whole.
+- **FR-017**: The number of branches left behind MUST be capped at 8; past the cap, the oldest left branch MUST be dropped whole.
 
 **Disk images**
 
@@ -171,11 +179,11 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 
 **Persistence**
 
-- **FR-022**: At exit and at a machine switch, history MUST be saved, with every branch and the disks in it, in a separate file beside the machine's automatic state.
+- **FR-022**: At exit and at a machine switch, history MUST be saved with the machine's automatic state, with every branch and the disks in it.
 - **FR-023**: At launch into a machine, its saved history MUST be loaded, and the timeline MUST span it, branches included.
 - **FR-024**: Saved history from a build whose machine state format differs, or saved history that does not read, MUST be discarded silently, and history MUST start fresh.
-- **FR-025**: Saving a machine state file MUST offer an option to include history, off by default; a state file with history MUST restore the timeline when loaded.
-- **FR-026**: Turning history off MUST stop recording, disable the rewind bar and key, and delete the machine's saved history file at the next save.
+- **FR-025**: While history is on, every save of the machine MUST include its history, with no option: the automatic save at exit and at a machine switch, and File > Save state. A state file with history MUST restore the timeline when loaded. While history is off, a save MUST contain no history.
+- **FR-026**: Turning history off MUST first display a confirmation dialog whose text specifies that all of the machine's history, in memory and saved, will be deleted. On confirmation, recording MUST stop, the rewind bar and key MUST be disabled, the history in memory MUST be discarded, and the next save MUST contain no history. A cancel MUST NOT turn history off.
 
 **One history**
 
@@ -191,7 +199,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **Fork point**: a moment where two or more branches split; drawn as a fork mark on the path through it.
 - **Active branch**: the branch the machine is on; its path is the one displayed, and the image files contain its version of each disk.
 - **Live end**: the newest moment of a branch.
-- **Saved history**: history written to a separate file beside a machine's automatic state, or inside a machine state file when that option is on.
+- **Saved history**: history written with a machine's automatic state, or in a machine state file saved with File > Save state, while history is on.
 
 ## Success Criteria *(mandatory)*
 
@@ -199,7 +207,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 
 - **SC-001a**: With history on, emulating ordinary software at 1x uses no more than 1% of one core beyond what it uses with history off, on the measured workloads. This is the whole cost of history, most of which recording under 035 already spends: 035 measured the //e at 70.5 times real time without history and 46.6 times while recording (R-040, 2026-10-03), about 1.4% and 2.1% of one core at 1x.
 - **SC-001b**: The work in this feature adds no measurable cost per emulated frame beyond 035's recording, within run-to-run noise on the same workloads; branches, rewind bar thumbnails and saved history cost memory or run at exit and at quiet moments, not per frame.
-- **SC-002**: Rewinding starts within 100 ms of pressing the rewind key and draws at least 20 frames per second of machine time going backward on a //e.
+- **SC-002**: Rewinding starts within 100 ms of pressing the rewind key and draws every frame going backward at normal speed on a //e, 60 frames per second.
 - **SC-003**: Releasing the rewind key pauses the machine within one frame; resuming runs with no confirmation.
 - **SC-004**: After resuming in the past, switching back to the branch left behind restores the machine state at that branch's live end exactly (the same state checksum as when the user left it).
 - **SC-005**: After every change of active branch, each disk image file matches the new active branch's version of that disk byte for byte.
@@ -209,11 +217,9 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 
 ## Assumptions
 
-- The rewind key is a host shortcut, chosen in planning, among keys the guest never receives; it can be rebound where the emulator's keys can be.
 - Rewinding runs backward at normal speed by default.
-- The bottom band that opens the rewind bar is a few pixels tall and works in windowed and full screen modes.
-- The branch cap defaults to 8 branches left behind.
-- Saved history uses the history's existing compressed form, so its file is at most about the memory budget (64 MB by default).
+- The bottom band that opens the rewind bar works in windowed and full screen modes.
+- Saved history uses the history's existing compressed form, so it adds at most about the memory budget (64 MB by default) to a save.
 - The disk rule writes only disks whose versions differ between the old and new active branch; a disk the guest never wrote is not rewritten.
 - The debugger's history UI and commands, stops, reverse continue, and heat map and call stack replays work as 035 defines them, on the active branch.
 - The branch is cut from `035-debugger`, since this feature builds on 035's history code, and work may start before 035 merges to master. It takes 035's later commits by merge only, and merges to master after 035 does, in one merge that ships the feature whole.
