@@ -1135,10 +1135,35 @@ Error:
 
 HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
 {
+    HRESULT       hr = S_OK;
+    FlushOutcome  outcome;
+
+
+
+    hr = FlushEntry (entry, moment, outcome);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushEntry, with what a failed save produced
+//
+//  The save and its report. outOutcome indicates the save's error and the
+//  recovery copy written, if any, for a caller that acts on the result.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment, FlushOutcome & outOutcome)
+{
     HRESULT        hr          = S_OK;
-    HRESULT        hrRecovery  = S_OK;
     bool           isPreserved = false;
-    string         recoveryPath;
     vector<Byte>   bytes;
 
 
@@ -1193,11 +1218,12 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
 
     if (FAILED (hr))
     {
-        hrRecovery = TryWriteRecoveryImage (entry, recoveryPath);
-        IGNORE_RETURN_VALUE (hrRecovery, S_OK);
+        outOutcome.saveError        = hr;
+        outOutcome.isUnserializable = true;
+        outOutcome.recoveryError    = TryWriteRecoveryImage (entry, outOutcome.recoveryPath);
     }
 
-    CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
+    CHRF (hr, ReportSaveFailure (entry, moment, outOutcome));
 
     // Never write in place: a flush that fails midway would otherwise have
     // already truncated the user's image, trading a stale file for no file at
@@ -1208,8 +1234,9 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // of the disk is the one sitting beside the original.
     if (m_flushSink || !entry.path.empty())
     {
-        hr = CommitFile (entry.path, bytes, CommitMode::Replace);
-        CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
+        hr                   = CommitFile (entry.path, bytes, CommitMode::Replace);
+        outOutcome.saveError = hr;
+        CHRF (hr, ReportSaveFailure (entry, moment, outOutcome));
     }
 
     RecordCommittedFile (entry);
@@ -1340,13 +1367,16 @@ Error:
 //  ReportSaveFailure
 //
 //  Tells the user a dirty image could not be saved, through the shared EHM
-//  notifier, with the recovery copy's path when one was written.
+//  notifier. The recovery copy's path is in the text when one was written.
+//  Every failure is reported, at every moment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::ReportSaveFailure (const string & path, HRESULT hr, const string & recoveryPath)
+void DiskImageStore::ReportSaveFailure (Entry & entry, FlushMoment moment, const FlushOutcome & outcome)
 {
-    EhmNotifyUser (FormatFlushLossMessage (path, hr, recoveryPath).c_str());
+    UNREFERENCED_PARAMETER (moment);
+
+    EhmNotifyUser (FormatFlushLossMessage (entry.path, outcome.saveError, outcome.recoveryPath).c_str());
 }
 
 
@@ -1916,10 +1946,11 @@ Error:
 //
 //  FlushAll / FlushAllForShutdown
 //
-//  MOST FLUSHES HAPPEN WITH THE MACHINE RUNNING. A drive spinning down, a
-//  machine switch and a soft reset all keep every bay and every pump, so a
-//  failure among them is a question like any other. Only the last flush of the
-//  process is different, which is why it goes through a call of its own.
+//  MOST FLUSHES HAPPEN WITH THE MACHINE RUNNING, AND NOBODY ASKED FOR THEM.
+//  After a spindown, a machine switch or a soft reset, every bay and every
+//  pump is in place, so a failure among them is a question like any other.
+//  Only the last flush of the process is different, which is why it goes
+//  through a separate call.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1927,7 +1958,7 @@ HRESULT DiskImageStore::FlushAll()
 {
     ASSERT_THREAD_OWNERSHIP (m_ownership);
 
-    return FlushEveryBay (FlushMoment::Running);
+    return FlushEveryBay (FlushMoment::Background);
 }
 
 

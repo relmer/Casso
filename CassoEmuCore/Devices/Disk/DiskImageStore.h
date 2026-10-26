@@ -566,11 +566,16 @@ private:
     //  below have different answers to those.
     enum class FlushMoment
     {
-        //  The machine is running and the bay stays: a spindown, an explicit
-        //  flush, a write-protect change, a machine switch, a soft reset. The
+        //  The machine is running, the bay stays, and a person asked for the
+        //  save of one bay: an explicit flush, a write-protect change. The
         //  question goes to the shell and is answered later, and nothing is
         //  lost while it stands.
         Running,
+
+        //  The machine is running, the bay stays, and nobody asked: every bay
+        //  is saved at a spindown, a machine switch or a soft reset. The
+        //  question goes the same way as at Running.
+        Background,
 
         //  The disk is coming out. The question goes the same way, but the
         //  eject waits for it: emptying the bay is what would destroy a disk
@@ -586,16 +591,26 @@ private:
         ShuttingDown,
     };
 
+    //  What a save that failed to write the bay's file produced.
+    struct FlushOutcome
+    {
+        HRESULT  saveError        = S_OK;
+        bool     isUnserializable = false;
+        string   recoveryPath;
+        HRESULT  recoveryError    = S_OK;
+    };
+
     Entry &       GetEntry          (int slot, int drive);
     const Entry & GetEntry          (int slot, int drive) const;
     HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
+    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment, FlushOutcome & outOutcome);
     HRESULT       FlushEveryBay     (FlushMoment moment);
 
-    //  FlushEntry's steps: moving the guest's version to a file of its own
-    //  when another program changed the bay's file, telling the user a save
+    //  FlushEntry's steps: moving the guest's version to a separate file when
+    //  another program changed the bay's file, telling the user a save
     //  failed, and recording the file the save committed.
     HRESULT       PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved);
-    static void   ReportSaveFailure       (const string & path, HRESULT hr, const string & recoveryPath);
+    void          ReportSaveFailure       (Entry & entry, FlushMoment moment, const FlushOutcome & outcome);
     void          RecordCommittedFile     (Entry & entry);
 
     //  Tells the user the guest's version could not be written beside the
