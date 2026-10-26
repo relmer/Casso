@@ -24,6 +24,9 @@ static constexpr float     s_kDiffLineDip    = 2.0f;
 static constexpr float     s_kMinRowDip      = 11.0f;
 static constexpr float     s_kMarkDip        = 5.0f;
 static constexpr float     s_kCursorDip      = 1.5f;
+static constexpr uint32_t  s_kPanelArgb      = 0xFF0E121Au;
+static constexpr float     s_kPanelRadiusDip = 6.0f;
+static constexpr float     s_kPanelPadDip    = 8.0f;
 
 
 
@@ -53,9 +56,12 @@ void SectorByteView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
             y = PaintHeader (text, theme, *sector, *track, y);
         }
 
+        //  The bytes on a near-black panel with a blue tint (FR-150).
         if (sector != nullptr && sector->dataField >= 0)
         {
-            PaintBytes (painter, text, theme, *sector, *track, y);
+            painter.FillRoundedRect (m_boundsDip.left - m_scaler.ToPxf (s_kPanelPadDip), y, GetWidth() + m_scaler.ToPxf (s_kPanelPadDip), m_boundsDip.bottom - y,
+                                     m_scaler.ToPxf (s_kPanelRadiusDip), s_kPanelArgb);
+            PaintBytes (painter, text, GetPanelTheme (theme), *sector, *track, y + m_scaler.ToPxf (s_kPanelRadiusDip));
         }
         else
         {

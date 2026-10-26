@@ -18,6 +18,9 @@ static constexpr int    s_kWheelRows   = 3;
 static constexpr float  s_kSelectDip   = 2.0f;
 static constexpr Byte   s_kSyncValue   = 0xFF;
 static constexpr int    s_kSyncCells   = 8;
+static constexpr uint32_t  s_kPanelArgb      = 0xFF0C140Fu;
+static constexpr float     s_kPanelRadiusDip = 6.0f;
+static constexpr float     s_kPanelPadDip    = 8.0f;
 
 
 
@@ -29,8 +32,11 @@ static constexpr int    s_kSyncCells   = 8;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+//  The nibbles on a near-black panel with a green tint, drawn in the colors
+//  for a dark surface whatever the window's theme (FR-150).
+void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & surface)
 {
+    const IDxuiTheme &     theme   = GetPanelTheme (surface);
     const TrackAnalysis *  track   = m_context.GetTrack();
     int                    perRow  = GetPerRow();
     int                    rows    = GetVisibleRows();
@@ -62,6 +68,10 @@ void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     }
     else
     {
+        painter.FillRoundedRect (m_boundsDip.left - m_scaler.ToPxf (s_kPanelPadDip), m_boundsDip.top - m_scaler.ToPxf (s_kPanelPadDip / 2.0f),
+                                 GetWidth() + m_scaler.ToPxf (s_kPanelPadDip), GetHeight() + m_scaler.ToPxf (s_kPanelPadDip / 2.0f),
+                                 m_scaler.ToPxf (s_kPanelRadiusDip), s_kPanelArgb);
+
         count = static_cast<int> (track->framed.nibbles.size());
 
         for (row = 0; row < rows && (m_firstRow + row) * perRow < count; row++)

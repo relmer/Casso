@@ -123,6 +123,17 @@ public:
     }
 
 protected:
+    //  The theme for content over a near-black panel (FR-150): the
+    //  window's on a dark surface, the dark theme on a light one.
+    const IDxuiTheme &  GetPanelTheme (const IDxuiTheme & surface) const
+    {
+        static const DxuiTheme  s_kDark = DxuiTheme::Dark();
+
+
+
+        return m_context.palette.isDarkSurface ? surface : s_kDark;
+    }
+
     //  The context's selectionSource is this view for the call.
     void  NotifySelection() const
     {
