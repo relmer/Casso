@@ -40,7 +40,7 @@ This feature adds history to the emulator window, makes it non-destructive (a ch
 - Q: What does an eject behind live write? -> A: The eject is a change, so it forks history at the frame on screen, and the disk is written as it is there, the new active branch's version. The live-end rule covers the forced writes that do not fork: a machine switch and exit.
 - Q: How is the disk rule coordinated with 041-disk-integrity? -> A: 041 merges to master before 045. 045 builds its other stories first, merges master in before the disk rule, and builds the rule on 041's disk store.
 - Q: Which marks does the debugger timeline add to the rewind bar's? -> A: None. Both bars draw the same marks: gaps, resets, power cycles, disk mounts, ejects and swaps, write-protect changes, loaded saved states, and forks. Breakpoint stops are not marked, since a debugging session would fill the strip with them.
-- Q: What does loading a state file do to the current history? -> A: A file saved with history replaces the current history with its own, and the current history is discarded, as today. A file without history is a change: the load becomes a marked point in the current history, forking it when the machine is behind live, so the user can rewind to before the load.
+- Q: What does loading a state file do to the current history? -> A: A file saved with history replaces the current history with the file's history, and the current history is discarded. A file without history is a change: the load becomes a marked point in the current history, forking it when the machine is behind live, so the user can rewind to before the load.
 
 ## User Scenarios & Testing *(mandatory)*
 
