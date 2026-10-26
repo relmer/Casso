@@ -6,6 +6,7 @@
 #include "Core/JsonValue.h"
 #include "Core/JsonWriter.h"
 #include "Core/TextEncoding.h"
+#include "Debugger/AppleWinCommandTable.h"
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugSession.h"
 #include "Debugger/Handlers/BreakpointHandlers.h"
@@ -138,20 +139,25 @@ void DebugProject::CaptureEngine (DebugSession & session, const ExecutionHandler
 //  A symbol file already loaded into its table is not loaded again, so a
 //  debug file whose load chose this project stays as it was loaded. The
 //  script's own BPC *, WC *, ZPC *, BMC * and SKIP CLEAR clear the old
-//  state; the data directives are cleared here.
+//  state; the data directives are cleared here. The script's breakpoint
+//  numbers, in its BPD, BPE and BPCHANGE lines and in breakpointNames, are
+//  its definition lines, mapped onto the ids those lines added, so a line
+//  that added none moves no later number onto another breakpoint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string> & failures) const
 {
-    BreakpointListData  list;
+    std::vector<int>    created;
     auto                run   = [&] (const std::string & line)
     {
         Reply  reply = session.ExecuteLine (line, CommandMode::AppleWin);
 
 
 
-        if (reply.status != CommandStatus::Ok)
+        //  A project saved before a duplicate was an error may list the same
+        //  breakpoint twice; the second is dropped quietly.
+        if (reply.status != CommandStatus::Ok && reply.error.label != "breakpoint already set")
         {
             failures.push_back (std::format ("{}: {}", line, reply.error.detail.empty() ? reply.error.label : reply.error.detail));
         }
@@ -179,18 +185,16 @@ void DebugProject::ApplyEngine (DebugSession & session, std::vector<std::string>
 
     for (const std::string & line : engineScript)
     {
-        run (line);
+        RunScriptLine (session, line, created, run);
     }
 
     session.SetCycleMarker (cycleMarker);
 
-    BreakpointHandlers::ListAll (session, list);
-
     for (const auto & [index, name] : breakpointNames)
     {
-        if (index < list.breakpoints.size() && !session.GetBreakpoints().TrySetName (list.breakpoints[index].id, name))
+        if (index < created.size() && created[index] >= 0 && !session.GetBreakpoints().TrySetName (created[index], name))
         {
-            session.GetWatchpoints().TrySetName (list.breakpoints[index].id, name);
+            session.GetWatchpoints().TrySetName (created[index], name);
         }
     }
 
@@ -268,6 +272,73 @@ void DebugProject::IdsFromJson (const JsonValue & object, const char * name, Ids
 
         ids.entries.push_back ((int) entry.GetNumber());
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProject::RunScriptLine
+//
+//  A definition line, found by its command word so one that does not parse
+//  is counted too, takes the next slot in created: the first id it added,
+//  or -1. BPD, BPE and BPCHANGE n go to the id slot n has, and to none when
+//  it has -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebugProject::RunScriptLine (
+    DebugSession                                     & session,
+    const std::string                                & line,
+    std::vector<int>                                 & created,
+    const std::function<void (const std::string &)>  & run)
+{
+    std::istringstream        words    (line);
+    std::string               name;
+    std::string               number;
+    std::string               flags;
+    std::vector<int>          before;
+    const AppleWinCommand   * command  = nullptr;
+    DebugVerb                 verb     = DebugVerb::None;
+    size_t                    index    = created.size();
+    bool                      isNumber = false;
+
+
+
+    words >> name >> number >> flags;
+
+    command  = AppleWinCommandTable::Find (SymbolTable::ToUpper (name));
+    verb     = (command != nullptr) ? command->verb : DebugVerb::None;
+    isNumber = !number.empty() && std::ranges::all_of (number, [] (char ch) { return isdigit ((unsigned char) ch) != 0; });
+
+    if (isNumber)
+    {
+        index = std::stoul (number);
+    }
+
+    if (isNumber && (verb == DebugVerb::DisableBreakpoint || verb == DebugVerb::EnableBreakpoint || verb == DebugVerb::ChangeBreakpoint))
+    {
+        if (index >= created.size() || created[index] < 0)
+        {
+            return;
+        }
+
+        run (verb == DebugVerb::ChangeBreakpoint ? std::format ("BPCHANGE {} {}", created[index], flags)
+                                                 : std::format ("{} {}", (verb == DebugVerb::DisableBreakpoint) ? "BPD" : "BPE", created[index]));
+        return;
+    }
+
+    if (BreakpointHandlers::IsDefinition (verb))
+    {
+        before = BreakpointHandlers::GetIds (session);
+        run (line);
+        created.push_back (BreakpointHandlers::GetFirstAdded (before, BreakpointHandlers::GetIds (session)));
+        return;
+    }
+
+    run (line);
 }
 
 

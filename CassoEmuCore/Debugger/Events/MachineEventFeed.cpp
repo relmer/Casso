@@ -121,14 +121,26 @@ void MachineEventFeed::Detach (MachineHost & machine)
 //
 //  Reseed
 //
+//  After the machine's state is replaced: a state loaded from a keyframe
+//  selects its drive with no OnDriveSelect, so the drive is read again.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineEventFeed::Reseed()
 {
-    if (m_machine != nullptr)
+    Disk2Controller  * controller = nullptr;
+
+
+
+    if (m_machine == nullptr)
     {
-        m_decoder.Seed (*m_machine);
+        return;
     }
+
+    controller = m_machine->GetRefs().diskController;
+    m_drive    = (controller != nullptr) ? controller->GetActiveDrive() : 0;
+
+    m_decoder.Seed (*m_machine);
 }
 
 

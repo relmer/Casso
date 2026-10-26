@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -92,12 +93,9 @@ namespace DebuggerValueEditTests
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::ShowPane;
-        using DebuggerWindow::GetStackList;
-        using DebuggerWindow::GetRegisterList;
-        using DebuggerWindow::GetStackEditor;
-        using DebuggerWindow::GetRegisterEditor;
-        using DebuggerWindow::GetModeText;
-        using DebuggerWindow::SetConsoleBarMenus;
+        using DebuggerWindow::GetStackPane;
+        using DebuggerWindow::GetRegistersPane;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::SetSnapshotForTest;
         using DebuggerWindow::GetFocused;
 
@@ -162,7 +160,7 @@ namespace DebuggerValueEditTests
             window.TakeSnapshot (MakeSnapshot (paused));
 
             //  No paint measures the columns here, so give them widths.
-            for (DxuiListView * list : { window.GetStackList(), window.GetRegisterList() })
+            for (DxuiListView * list : { window.GetStackPane().GetList(), window.GetRegistersPane().GetList() })
             {
                 for (size_t column = 0; column < list->GetColumnCount(); column++)
                 {
@@ -200,17 +198,17 @@ namespace DebuggerValueEditTests
 
 
             ValueEditRig::Build (window, true);
-            window.FocusControl (window.GetStackList());
-            window.GetStackList()->SetSelectedRow (0);
+            window.FocusControl (window.GetStackPane().GetList());
+            window.GetStackPane().GetList()->SetSelectedRow (0);
             window.Press (VK_F2);
 
-            Assert::IsTrue   (window.GetStackEditor()->IsVisible(), L"the box opens over the value");
-            Assert::AreEqual (std::wstring (L"22"), window.GetStackEditor()->GetText(), L"holding the newest byte");
+            Assert::IsTrue   (window.GetStackPane().GetEditor()->IsVisible(), L"the box opens over the value");
+            Assert::AreEqual (std::wstring (L"22"), window.GetStackPane().GetEditor()->GetText(), L"holding the newest byte");
 
             window.Type  (L"42");
             window.Press (VK_RETURN);
 
-            Assert::IsFalse  (window.GetStackEditor()->IsVisible(), L"Enter closes the box");
+            Assert::IsFalse  (window.GetStackPane().GetEditor()->IsVisible(), L"Enter closes the box");
             Assert::AreEqual ((size_t) 1, host.echoes.size(), L"one write runs");
             Assert::IsTrue   (host.echoes.front().find ("01FF") != std::string::npos, L"to the newest byte's address");
             Assert::IsTrue   (host.echoes.front().find ("42") != std::string::npos, L"with the typed value");
@@ -226,15 +224,15 @@ namespace DebuggerValueEditTests
 
 
             ValueEditRig::Build (window, true);
-            window.FocusControl (window.GetStackList());
-            window.GetStackList()->SetSelectedRow (1);
+            window.FocusControl (window.GetStackPane().GetList());
+            window.GetStackPane().GetList()->SetSelectedRow (1);
             window.Press (VK_F2);
-            Assert::IsTrue (window.GetStackEditor()->IsVisible(), L"F2 opens the box");
+            Assert::IsTrue (window.GetStackPane().GetEditor()->IsVisible(), L"F2 opens the box");
 
             window.Type  (L"99");
             window.Press (VK_ESCAPE);
 
-            Assert::IsFalse  (window.GetStackEditor()->IsVisible());
+            Assert::IsFalse  (window.GetStackPane().GetEditor()->IsVisible());
             Assert::AreEqual ((size_t) 0, host.echoes.size(), L"nothing is written");
         }
 
@@ -248,11 +246,11 @@ namespace DebuggerValueEditTests
 
 
             ValueEditRig::Build (window, false);
-            window.FocusControl (window.GetStackList());
-            window.GetStackList()->SetSelectedRow (0);
+            window.FocusControl (window.GetStackPane().GetList());
+            window.GetStackPane().GetList()->SetSelectedRow (0);
             window.Press (VK_F2);
 
-            Assert::IsFalse (window.GetStackEditor()->IsVisible());
+            Assert::IsFalse (window.GetStackPane().GetEditor()->IsVisible());
         }
     };
 
@@ -281,12 +279,12 @@ namespace DebuggerValueEditTests
 
 
             ValueEditRig::Build (window, true);
-            window.FocusControl (window.GetRegisterList());
-            window.GetRegisterList()->SetSelectedRow (1);
+            window.FocusControl (window.GetRegistersPane().GetList());
+            window.GetRegistersPane().GetList()->SetSelectedRow (1);
             window.Press (VK_F2);
 
-            Assert::IsTrue   (window.GetRegisterEditor()->IsVisible(), L"the box opens over X's value");
-            Assert::AreEqual (std::wstring (L"34"), window.GetRegisterEditor()->GetText());
+            Assert::IsTrue   (window.GetRegistersPane().GetEditor()->IsVisible(), L"the box opens over X's value");
+            Assert::AreEqual (std::wstring (L"34"), window.GetRegistersPane().GetEditor()->GetText());
 
             window.Type  (L"7F");
             window.Press (VK_RETURN);
@@ -305,12 +303,12 @@ namespace DebuggerValueEditTests
 
 
             ValueEditRig::Build (window, true);
-            window.FocusControl (window.GetRegisterList());
-            window.GetRegisterList()->SetSelectedRow (4);
+            window.FocusControl (window.GetRegistersPane().GetList());
+            window.GetRegistersPane().GetList()->SetSelectedRow (4);
             window.Press (VK_F2);
 
-            Assert::IsTrue   (window.GetRegisterEditor()->IsVisible(), L"S opens the box, not a prompt");
-            Assert::AreEqual (std::wstring (L"FD"), window.GetRegisterEditor()->GetText());
+            Assert::IsTrue   (window.GetRegistersPane().GetEditor()->IsVisible(), L"S opens the box, not a prompt");
+            Assert::AreEqual (std::wstring (L"FD"), window.GetRegistersPane().GetEditor()->GetText());
         }
 
 
@@ -323,15 +321,15 @@ namespace DebuggerValueEditTests
 
 
             ValueEditRig::Build (window, true);
-            window.FocusControl (window.GetRegisterList());
-            window.GetRegisterList()->SetSelectedRow (0);
+            window.FocusControl (window.GetRegistersPane().GetList());
+            window.GetRegistersPane().GetList()->SetSelectedRow (0);
             window.Press (VK_F2);
-            Assert::IsTrue (window.GetRegisterEditor()->IsVisible(), L"F2 opens the box");
+            Assert::IsTrue (window.GetRegistersPane().GetEditor()->IsVisible(), L"F2 opens the box");
 
             window.Type  (L"1FF");
             window.Press (VK_RETURN);
 
-            Assert::IsFalse  (window.GetRegisterEditor()->IsVisible());
+            Assert::IsFalse  (window.GetRegistersPane().GetEditor()->IsVisible());
             Assert::AreEqual ((size_t) 0, host.echoes.size());
         }
     };
@@ -364,13 +362,13 @@ namespace DebuggerValueEditTests
 
             window.OnCreate();
 
-            Assert::AreEqual (std::wstring (L"AppleWin"), window.GetModeText(), L"AppleWin before any snapshot");
+            Assert::AreEqual (std::wstring (L"AppleWin"), window.GetConsolePane().GetModeBar().GetModeText(), L"AppleWin before any snapshot");
 
             snapshot->mode = CommandMode::Monitor;
             window.SetSnapshotForTest (snapshot);
-            window.SetConsoleBarMenus();
+            window.GetConsolePane().GetModeBar().SetMenus();
 
-            Assert::AreEqual (std::wstring (L"Monitor"),  window.GetModeText());
+            Assert::AreEqual (std::wstring (L"Monitor"),  window.GetConsolePane().GetModeBar().GetModeText());
         }
     };
 
@@ -411,7 +409,7 @@ namespace DebuggerValueEditTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.TakeSnapshot (snapshot);
 
-            list = window.GetRegisterList();
+            list = window.GetRegistersPane().GetList();
 
             Assert::IsFalse  (list->IsHeaderShown(), L"no headings");
             Assert::IsTrue   (list->GetCellsOfRow (list->GetRowCount() - 1)[1].spansRow, L"the count runs across its row");

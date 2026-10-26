@@ -313,6 +313,90 @@ std::vector<std::wstring> DxuiPaneLayout::GetGroup (const std::wstring & pane) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPaneLayout::GetFloatingWindow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiPaneLayout::GetFloatingWindow (const std::wstring & pane) const
+{
+    for (const Floating & floating : m_floating)
+    {
+        if (floating.pane == pane)
+        {
+            return floating.window;
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::GetFloatingPanes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::wstring> DxuiPaneLayout::GetFloatingPanes (const std::wstring & window) const
+{
+    std::vector<std::wstring>  panes;
+
+
+
+    for (const Floating & floating : m_floating)
+    {
+        if (floating.window == window)
+        {
+            panes.push_back (floating.pane);
+        }
+    }
+
+    return panes;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::GetFloatingActive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiPaneLayout::GetFloatingActive (const std::wstring & window) const
+{
+    std::wstring  first;
+
+
+
+    for (const Floating & floating : m_floating)
+    {
+        if (floating.window != window)
+        {
+            continue;
+        }
+
+        if (floating.isActive)
+        {
+            return floating.pane;
+        }
+
+        first = first.empty() ? floating.pane : first;
+    }
+
+    return first;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPaneLayout::RemoveFrom
 //
 //  Takes a pane out of the tree under `slot`. A group left empty goes, and a
@@ -386,6 +470,9 @@ bool DxuiPaneLayout::Detach (const std::wstring & pane)
 
     std::erase_if (m_floating,   [&] (const Floating & f)   { return f.pane == pane; });
     std::erase_if (m_autoHidden, [&] (const AutoHidden & h) { return h.pane == pane; });
+
+    //  A window that lost the tab it showed shows another.
+    FixActiveTabs();
 
     return removed || (m_floating.size() + m_autoHidden.size()) != before;
 }
@@ -477,6 +564,208 @@ std::wstring DxuiPaneLayout::GetNeighbor (const std::wstring & pane) const
     }
 
     return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::GetNeighborOutside
+//
+//  The pane next to a group in the tree, after it or else before it, that is
+//  not one of the group: where every pane of a group floated together goes
+//  back to, since its own neighbors float with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiPaneLayout::GetNeighborOutside (const std::vector<std::wstring> & panes) const
+{
+    std::vector<std::wstring>  order;
+    std::function<void (const Node *)>  walk = [&] (const Node * node)
+    {
+        if (node == nullptr)
+        {
+            return;
+        }
+
+        if (node->kind == Node::Kind::Tabs)
+        {
+            order.insert (order.end(), node->panes.begin(), node->panes.end());
+            return;
+        }
+
+        walk (node->first.get());
+        walk (node->second.get());
+    };
+    auto  isMember = [&panes] (const std::wstring & pane) { return std::ranges::find (panes, pane) != panes.end(); };
+    auto  at       = order.end();
+
+
+
+    walk (m_root.get());
+
+    at = std::ranges::find_if (order, isMember);
+
+    if (at == order.end())
+    {
+        return std::wstring();
+    }
+
+    for (auto after = at; after != order.end(); ++after)
+    {
+        if (!isMember (*after))
+        {
+            return *after;
+        }
+    }
+
+    for (auto before = at; before != order.begin(); )
+    {
+        --before;
+
+        if (!isMember (*before))
+        {
+            return *before;
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::MakeWindowKey
+//
+//  A key no floating window has: the name given, or with a number after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiPaneLayout::MakeWindowKey (const std::wstring & preferred) const
+{
+    std::wstring  key    = preferred;
+    int           number = 2;
+    auto          isUsed = [this] (const std::wstring & candidate)
+    {
+        return std::ranges::any_of (m_floating, [&candidate] (const Floating & f) { return f.window == candidate; });
+    };
+
+
+
+    while (isUsed (key))
+    {
+        key = std::format (L"{}#{}", preferred, number++);
+    }
+
+    return key;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::FixActiveTabs
+//
+//  Every floating window shows exactly one tab: its first when none is
+//  marked, the first marked when several are. An entry with no window is a
+//  window of its own.
+//
+//  A WINDOW KEYED BY A PANE'S NAME HOLDS THAT PANE. A window whose key pane
+//  left it, docked, closed or torn out, takes its first pane's name where no
+//  other window has it, and otherwise a key no pane has; so a pane's name,
+//  where it is a key at all, is always its own window's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPaneLayout::FixActiveTabs()
+{
+    std::vector<std::wstring>  seen;
+    std::vector<std::wstring>  keys;
+
+
+
+    for (Floating & floating : m_floating)
+    {
+        floating.window = floating.window.empty() ? floating.pane : floating.window;
+
+        if (std::ranges::find (keys, floating.window) == keys.end())
+        {
+            keys.push_back (floating.window);
+        }
+    }
+
+    //  Until nothing changes: a window can take its pane's name only once the
+    //  window that had it has given it up, which a later key may do.
+    for (size_t pass = 0, changed = 1; changed > 0 && pass <= keys.size(); pass++)
+    {
+        changed = 0;
+
+        for (std::wstring & key : keys)
+        {
+            std::vector<std::wstring>  panes   = GetFloatingPanes (key);
+            bool                       isOwn   = panes.empty() || std::ranges::find (panes, key) != panes.end();
+            bool                       isTaken = false;
+            std::wstring               rekey;
+
+
+
+            if (isOwn)
+            {
+                continue;
+            }
+
+            isTaken = std::ranges::any_of (m_floating, [&] (const Floating & f) { return f.window == panes.front(); });
+            rekey   = !isTaken ? panes.front() : (Contains (key) ? MakeWindowKey (panes.front()) : key);
+
+            if (rekey == key)
+            {
+                continue;
+            }
+
+            for (Floating & floating : m_floating)
+            {
+                floating.window = (floating.window == key) ? rekey : floating.window;
+            }
+
+            key = rekey;
+            changed++;
+        }
+    }
+
+    for (Floating & floating : m_floating)
+    {
+        bool  isFirst = std::ranges::find (seen, floating.window) == seen.end();
+        bool  hasOne  = false;
+
+
+
+        if (!isFirst)
+        {
+            continue;
+        }
+
+        seen.push_back (floating.window);
+
+        for (Floating & other : m_floating)
+        {
+            if (other.window != floating.window)
+            {
+                continue;
+            }
+
+            other.isActive = other.isActive && !hasOne;
+            hasOne         = hasOne || other.isActive;
+        }
+
+        floating.isActive = floating.isActive || !hasOne;
+    }
 }
 
 
@@ -743,13 +1032,16 @@ bool DxuiPaneLayout::TabWithAt (const std::wstring & pane, const std::wstring & 
 //  DxuiPaneLayout::Float
 //
 //  Into a window of its own. A floating pane moved elsewhere keeps the home
-//  it had when it first left the tree.
+//  it had when it first left the tree; one that shared a window leaves the
+//  others there and takes a window of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & monitorKey, const RECT & rectDip)
 {
-    Floating  entry;
+    Floating      entry;
+    std::wstring  window = GetFloatingWindow (pane);
+    bool          shared = false;
 
 
 
@@ -758,19 +1050,32 @@ bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & moni
         return false;
     }
 
-    for (Floating & existing : m_floating)
+    if (!window.empty())
     {
-        if (existing.pane == pane)
+        shared = GetFloatingPanes (window).size() > 1;
+
+        for (Floating & existing : m_floating)
         {
+            if (existing.pane != pane)
+            {
+                continue;
+            }
+
             existing.monitorKey = monitorKey;
             existing.rectDip    = rectDip;
-            return true;
+            existing.window     = shared ? MakeWindowKey (pane) : existing.window;
+            existing.isActive   = true;
         }
+
+        FixActiveTabs();
+        return true;
     }
 
     entry.pane       = pane;
     entry.monitorKey = monitorKey;
     entry.rectDip    = rectDip;
+    entry.window     = MakeWindowKey (pane);
+    entry.isActive   = true;
     entry.homePane   = IsDocked (pane) ? GetNeighbor (pane) : std::wstring();
 
     for (const AutoHidden & hidden : m_autoHidden)
@@ -781,6 +1086,153 @@ bool DxuiPaneLayout::Float (const std::wstring & pane, const std::wstring & moni
     Detach (pane);
     m_floating.push_back (entry);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::FloatGroup
+//
+//  Every pane of a group into one window, keyed by its first pane, in the
+//  order given. Each docks back beside the pane next to the group, since the
+//  ones beside it in the group float with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPaneLayout::FloatGroup (const std::vector<std::wstring> & panes, const std::wstring & active,
+                                 const std::wstring & monitorKey, const RECT & rectDip)
+{
+    std::wstring  home;
+    std::wstring  window;
+
+
+
+    if (panes.empty() || !std::ranges::all_of (panes, [this] (const std::wstring & pane) { return IsDocked (pane); }))
+    {
+        return false;
+    }
+
+    home   = GetNeighborOutside (panes);
+    window = MakeWindowKey (panes.front());
+
+    //  Out of the tree first, all of them: each Detach settles which tab
+    //  every window shows, which would settle this one before its shown tab
+    //  was in it.
+    for (const std::wstring & pane : panes)
+    {
+        Detach (pane);
+    }
+
+    for (const std::wstring & pane : panes)
+    {
+        Floating  entry;
+
+
+
+        entry.pane       = pane;
+        entry.monitorKey = monitorKey;
+        entry.rectDip    = rectDip;
+        entry.homePane   = home;
+        entry.window     = window;
+        entry.isActive   = pane == active;
+
+        m_floating.push_back (entry);
+    }
+
+    FixActiveTabs();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::SetFloatingRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPaneLayout::SetFloatingRect (const std::wstring & window, const std::wstring & monitorKey, const RECT & rectDip)
+{
+    bool  changed = false;
+
+
+
+    for (Floating & floating : m_floating)
+    {
+        if (floating.window != window)
+        {
+            continue;
+        }
+
+        changed             = changed || floating.monitorKey != monitorKey || EqualRect (&floating.rectDip, &rectDip) == FALSE;
+        floating.monitorKey = monitorKey;
+        floating.rectDip    = rectDip;
+    }
+
+    return changed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPaneLayout::SetFloatingTabs
+//
+//  The window's entries take the order given, in the place its first entry
+//  had among the others. Refused unless `panes` are exactly the window's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPaneLayout::SetFloatingTabs (const std::wstring & window, const std::vector<std::wstring> & panes, const std::wstring & active)
+{
+    std::vector<std::wstring>  had      = GetFloatingPanes (window);
+    std::vector<Floating>      reordered;
+    std::vector<Floating>      entries;
+    bool                       isPlaced = false;
+    bool                       changed  = false;
+
+
+
+    if (had.size() != panes.size() || !std::ranges::is_permutation (had, panes) || std::ranges::find (panes, active) == panes.end())
+    {
+        return false;
+    }
+
+    for (const std::wstring & pane : panes)
+    {
+        Floating  entry = *std::ranges::find_if (m_floating, [&pane] (const Floating & f) { return f.pane == pane; });
+
+
+
+        changed        = changed || entry.isActive != (pane == active);
+        entry.isActive = pane == active;
+        entries.push_back (entry);
+    }
+
+    changed = changed || had != panes;
+
+    for (const Floating & floating : m_floating)
+    {
+        if (floating.window != window)
+        {
+            reordered.push_back (floating);
+        }
+        else if (!isPlaced)
+        {
+            reordered.insert (reordered.end(), entries.begin(), entries.end());
+            isPlaced = true;
+        }
+    }
+
+    m_floating = std::move (reordered);
+    return changed;
 }
 
 
@@ -1406,6 +1858,8 @@ void DxuiPaneLayout::DropUnknown (const std::function<bool (const std::wstring &
     std::erase_if (m_floating,   [&] (const Floating & f)   { return !isKnown (f.pane); });
     std::erase_if (m_autoHidden, [&] (const AutoHidden & h) { return !isKnown (h.pane); });
 
+    FixActiveTabs();
+
     for (Floating & floating : m_floating)
     {
         floating.homePane = isKnown (floating.homePane) ? floating.homePane : std::wstring();
@@ -1571,7 +2025,9 @@ bool DxuiPaneLayout::TryGetSide (const std::wstring & name, DxuiDockSide & side)
 //
 //  `dxui-layout 1`, then `tree` and the tree as nested lists, then a `float`
 //  line per floating pane and a `hide` line per auto-hidden one. Names are
-//  quoted, with `\` before a quote or a backslash in them.
+//  quoted, with `\` before a quote or a backslash in them. A floating pane
+//  that shares its window, or whose window is not keyed by its own name,
+//  ends its line with the window's key, then `active` for the tab shown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1605,13 +2061,37 @@ std::wstring DxuiPaneLayout::ToText() const
 
     for (const Floating & f : m_floating)
     {
-        out += std::format (L"float {} {} {} {} {} {} {}\n", quote (f.pane), quote (f.monitorKey),
+        out += std::format (L"float {} {} {} {} {} {} {}", quote (f.pane), quote (f.monitorKey),
                             f.rectDip.left, f.rectDip.top, f.rectDip.right, f.rectDip.bottom, quote (f.homePane));
+
+        //  A pane alone in a window keyed by its own name is written as
+        //  before windows held groups.
+        if (f.window != f.pane || GetFloatingPanes (f.window).size() > 1)
+        {
+            out += L" " + quote (f.window) + (f.isActive ? L" active" : L"");
+        }
+
+        out += L"\n";
     }
 
+    //  A pane that was alone on its side of a split has that side, the
+    //  split's ratio and the panes on the other side, so DockBack splits
+    //  there again.
     for (const AutoHidden & h : m_autoHidden)
     {
-        out += std::format (L"hide {} {} {}\n", quote (h.pane), GetSideName (h.edge), quote (h.homePane));
+        out += std::format (L"hide {} {} {}", quote (h.pane), GetSideName (h.edge), quote (h.homePane));
+
+        if (h.homeSplit)
+        {
+            out += std::format (L" split {} {:.4f} {}", GetSideName (h.homeSide), h.homeRatio, h.homeSiblings.size());
+
+            for (const std::wstring & sibling : h.homeSiblings)
+            {
+                out += L" " + quote (sibling);
+            }
+        }
+
+        out += L"\n";
     }
 
     return out;
@@ -1886,8 +2366,20 @@ bool DxuiPaneLayout::TryParse (const std::wstring & text, DxuiPaneLayout & out)
             floating.monitorKey = tokens[at + 2].substr (1);
             floating.rectDip    = { values[0], values[1], values[2], values[3] };
             floating.homePane   = tokens[at + 7].substr (1);
-            layout.m_floating.push_back (floating);
+            floating.window     = floating.pane;
+            floating.isActive   = true;
             at += 8;
+
+            //  The window it shares with other panes, and whether it is the
+            //  tab shown there; absent for a pane alone in its window.
+            if (isString (at))
+            {
+                floating.window   = tokens[at].substr (1);
+                floating.isActive = at + 1 < tokens.size() && tokens[at + 1] == L"active";
+                at += floating.isActive ? 2 : 1;
+            }
+
+            layout.m_floating.push_back (floating);
             continue;
         }
 
@@ -1902,14 +2394,44 @@ bool DxuiPaneLayout::TryParse (const std::wstring & text, DxuiPaneLayout & out)
 
             hidden.pane     = tokens[at + 1].substr (1);
             hidden.homePane = tokens[at + 3].substr (1);
-            layout.m_autoHidden.push_back (hidden);
             at += 4;
+
+            if (at + 3 < tokens.size() && tokens[at] == L"split")
+            {
+                wchar_t  * ratioEnd = nullptr;
+                wchar_t  * countEnd = nullptr;
+                long       count    = 0;
+
+                hidden.homeSplit = TryGetSide (tokens[at + 1], hidden.homeSide);
+                hidden.homeRatio = wcstof (tokens[at + 2].c_str(), &ratioEnd);
+                count            = wcstol (tokens[at + 3].c_str(), &countEnd, 10);
+
+                if (!hidden.homeSplit || *ratioEnd != L'\0' || *countEnd != L'\0' || hidden.homeRatio < 0.0f || hidden.homeRatio > 1.0f || count < 0)
+                {
+                    return false;
+                }
+
+                at += 4;
+
+                for (long i = 0; i < count; i++, at++)
+                {
+                    if (!isString (at))
+                    {
+                        return false;
+                    }
+
+                    hidden.homeSiblings.push_back (tokens[at].substr (1));
+                }
+            }
+
+            layout.m_autoHidden.push_back (hidden);
             continue;
         }
 
         return false;
     }
 
+    layout.FixActiveTabs();
     collect (layout.m_root.get());
 
     for (const Floating & floating : layout.m_floating)

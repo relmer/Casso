@@ -42,6 +42,9 @@ public:
     void  Record (Word pc, Byte opcode, Byte cycles, Byte penalties);
     void  Reset  ();
 
+    //  Another table's counts added to these, as one table of both.
+    void  Add    (const ProfileTable & other);
+
     const OpcodeCounts                       & GetOpcode           (Byte opcode) const { return m_byOpcode[opcode]; }
     const PenaltyCycles                      & GetPenalties        () const            { return m_penalties; }
     const std::unordered_map<Word, uint64_t> & GetByAddress        () const            { return m_byAddress; }

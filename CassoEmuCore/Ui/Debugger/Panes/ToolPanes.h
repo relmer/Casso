@@ -1,6 +1,58 @@
 #pragma once
 
 #include "Ui/Debugger/DebuggerViewState.h"
+#include "Ui/Debugger/PaneBarSlot.h"
+#include "Ui/Debugger/Panes/IDebuggerPane.h"
+
+class DebuggerPaneFrame;
+class FlameGraphView;
+class ProfileProgress;
+class ProfileTimeline;
+class ToolbarLabelEntry;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToolListPane
+//
+//  A tool pane that is one list in a frame: the Symbols, Bookmarks and data
+//  ranges panes, and the Profiler, which adds its bar, its timeline and its
+//  flame graph.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ToolListPane : public IDebuggerPane
+{
+public:
+    ToolListPane (IDebuggerPaneHost & host, std::wstring id, std::wstring title);
+    ~ToolListPane() override;
+
+    DxuiListView *               GetList        () const { return m_list; }
+
+    std::wstring                 GetId          () const override { return m_id; }
+    std::wstring                 GetTitle       () const override { return m_title; }
+    void                         CreateControls () override;
+    void                         AddToDock      (DxuiDockSite & dock) override;
+    IDxuiControl               * GetContent     () const override;
+    std::vector<IDxuiControl *>  GetControls    () const override { return { m_list }; }
+    std::vector<DxuiListView *>  GetLists       () const override { return { m_list }; }
+
+protected:
+    //  Copy, for the rows selected in the list.
+    void                         AddCopyItem    (PaneMenuItems & items);
+
+    //  The path the user picks to save to; empty when the user backs out or
+    //  the window has no file pickers.
+    std::wstring                 PickSaveFile   (const wchar_t * filterName, const wchar_t * filter, const wchar_t * extension, const std::wstring & fileName);
+
+    std::wstring                         m_id;
+    std::wstring                         m_title;
+    DxuiListView                       * m_list = nullptr;
+    std::unique_ptr<DebuggerPaneFrame>   m_frame;
+};
 
 
 
@@ -11,21 +63,15 @@
 //  SymbolsPane
 //
 //  The symbol tables, each a heading with its name, its count and a check
-//  that turns it on or off, and its symbols under it, each with its address
-//  (FR-183). The pane's Find searches them. Activating a symbol moves the
-//  disassembly to its address.
-//
-//  The window owns the list; the pane has a pointer to it. The rows are
-//  built again only when the symbols change.
+//  that turns it on or off, and its symbols under it, each with its address.
+//  The pane's Find searches them. Activating a symbol moves the disassembly
+//  to its address. The rows are built again only when the symbols change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class SymbolsPane
+class SymbolsPane : public ToolListPane
 {
 public:
-    using ShowFn   = std::function<void (Word address)>;
-    using EnableFn = std::function<void (const std::string & table, bool enable)>;
-
     //  What a row is: a table's heading, or one of its symbols.
     struct Row
     {
@@ -35,21 +81,19 @@ public:
         bool         isHeading = false;
     };
 
-    SymbolsPane (DxuiListView * list, ShowFn show, EnableFn enable);
+    explicit SymbolsPane (IDebuggerPaneHost & host);
 
-    DxuiListView *  GetList () const { return m_list; }
-
-    void         Configure ();
-    void         Apply     (const std::shared_ptr<const DebuggerViewSnapshot::SymbolsState> & symbols);
-    const Row *  GetRow    (int row) const;
+    void         Configure    () override;
+    void         Apply        (const DebuggerViewSnapshot & snapshot) override;
+    bool         AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
+    const Row *  GetRow       (int row) const;
 
     static std::vector<Row>                              GetRows  (const DebuggerViewSnapshot::SymbolsState & symbols);
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const DebuggerViewSnapshot::SymbolsState & symbols, const std::vector<Row> & rows);
 
 private:
-    DxuiListView                                               * m_list = nullptr;
-    ShowFn                                                       m_show;
-    EnableFn                                                     m_enable;
+    void  SaveTable (const std::string & table);
+
     std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>    m_symbols;
     std::vector<Row>                                             m_rows;
 };
@@ -62,22 +106,19 @@ private:
 //
 //  BookmarksPane
 //
-//  The bookmarks, each its number, its address and the symbol there
-//  (FR-189). Activating one moves the disassembly to its address.
+//  The bookmarks, each its number, its address and the symbol there.
+//  Activating one moves the disassembly to its address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class BookmarksPane
+class BookmarksPane : public ToolListPane
 {
 public:
-    using ShowFn = std::function<void (Word address)>;
+    explicit BookmarksPane (IDebuggerPaneHost & host);
 
-    BookmarksPane (DxuiListView * list, ShowFn show);
-
-    DxuiListView *  GetList () const { return m_list; }
-
-    void  Configure ();
-    void  Apply     (const std::vector<DebuggerViewSnapshot::WatchLine> & bookmarks, const DebuggerViewSnapshot::SymbolsState * symbols);
+    void  Configure    () override;
+    void  Apply        (const DebuggerViewSnapshot & snapshot) override;
+    bool  AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
 
     //  The bookmark a row has, none for no such row.
     std::optional<DebuggerViewSnapshot::WatchLine>  GetBookmark (int row) const;
@@ -90,8 +131,6 @@ public:
     static std::optional<Word>  GetNext (const std::vector<DebuggerViewSnapshot::WatchLine> & bookmarks, Word from, bool isBackward);
 
 private:
-    DxuiListView                                    * m_list = nullptr;
-    ShowFn                                            m_show;
     std::vector<DebuggerViewSnapshot::WatchLine>      m_bookmarks;
 };
 
@@ -103,20 +142,19 @@ private:
 //
 //  ProfilerPane
 //
-//  The profile as PROFILE lists it (FR-193, FR-245): its totals, then each
-//  opcode's count and cycles, the addresses that took the most cycles, the
-//  routines, or the call tree, a routine two spaces in under its caller per
-//  level. In the flame graph view the window's flame graph is drawn in place
-//  of the list. It is read while the machine is paused, so a running
-//  machine's snapshots change only whether profiling is on.
+//  The profile as PROFILE lists it: its totals, then each opcode's count and
+//  cycles, the addresses that took the most cycles, the routines, or the call
+//  tree, a routine two spaces in under its caller per level. Its bar turns
+//  profiling on and off, resets and saves it and chooses the view; a timeline
+//  of frames runs across the top, and in the flame graph view the flame graph
+//  is drawn in place of the list. It is read while the machine is paused, so
+//  a running machine's snapshots change only whether profiling is on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ProfilerPane
+class ProfilerPane : public ToolListPane
 {
 public:
-    using ShowFn = std::function<void (Word address)>;
-
     enum class View
     {
         Opcodes,
@@ -126,37 +164,88 @@ public:
         Flame,
     };
 
-    static constexpr int  kViewCount = 5;
+    static constexpr int  kViewCount        = 5;
+    static constexpr int  kTotalsHeightDip  = 22;
+    static constexpr int  kProgressWidthDip = 280;
 
-    ProfilerPane (DxuiListView * list, ShowFn show);
+    //  The periods in the Show profile drop-down: the words PROFILE HISTORY
+    //  takes, and the drop-down's.
+    struct Period
+    {
+        const char     * words;
+        const wchar_t  * label;
+    };
 
-    DxuiListView *                      GetList    () const { return m_list; }
+    static const std::vector<Period> &  GetPeriods ();
+
+    explicit ProfilerPane (IDebuggerPaneHost & host);
+    ~ProfilerPane() override;
+
     View                                GetView    () const { return m_view; }
     bool                                IsOn       () const { return m_isOn; }
     const std::optional<ProfileData> &  GetProfile () const { return m_byOpcode; }
     void                                SetView    (View view);
 
-    void  Configure ();
-    void  Apply     (const std::optional<ProfileData> & byOpcode, const std::optional<ProfileData> & byAddress, bool isOn);
+    //  A choice in the Show profile drop-down, by its index in GetPeriods,
+    //  which runs PROFILE HISTORY for it; and whether a profile is building,
+    //  with the progress bar up.
+    void                                ShowPeriod (size_t period);
+    bool                                IsBuilding () const { return m_isBuilding; }
+
+    //  The bar's commands, as last built.
+    const std::vector<std::shared_ptr<DxuiCommand>> &  GetCommands () const { return m_commands; }
+
+    void                         CreateControls    () override;
+    void                         Configure         () override;
+    void                         AddToDock         (DxuiDockSite & dock) override;
+    std::vector<IDxuiControl *>  GetControls       () const override;
+    std::vector<DxuiToolbar *>   GetBars           () const override { return { m_bar.GetBar() }; }
+    void                         Apply             (const DebuggerViewSnapshot & snapshot) override;
+    void                         PlaceBar          () override { m_bar.Place(); BuildIfDue(); }
+    bool                         RouteBarMouse     (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
+    bool                         RouteContentMouse (const DxuiMouseEvent & ev) override;
+    const wchar_t              * GetBarTip         (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
+    bool                         TryGetTip         (POINT clientPx, PaneTip & tip) override;
+    bool                         AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
 
     //  The drop-down's words for a view.
     static const wchar_t *  GetViewLabel (View view);
 
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::optional<ProfileData> & profile, View view, bool isOn);
 
+    //  The line above the list: the profile's totals and the time its cycles
+    //  span; empty with no profile.
+    static std::wstring  GetTotalsText (const std::optional<ProfileData> & profile);
+    static std::wstring  FormatSeconds (double seconds);
+
     //  The address a row's activation moves the disassembly to: an address
     //  row's, or a routine's start other than Top level's.
     static std::optional<Word>  GetRowAddress (const std::optional<ProfileData> & profile, View view, int row);
 
 private:
-    void  Refresh ();
+    void  Refresh        ();
+    void  BuildIfDue     ();
+    void  SetBarEntries  ();
+    void  SetViewMenu    ();
+    void  RunProfile     (const char * words);
+    void  Save           ();
 
-    DxuiListView                 * m_list        = nullptr;
-    ShowFn                         m_show;
-    View                           m_view        = View::Opcodes;
-    bool                           m_isOn        = false;
-    std::optional<ProfileData>     m_byOpcode;
-    std::optional<ProfileData>     m_byAddress;
+    PaneBarSlot                                  m_bar;
+    ProfileTimeline                            * m_timeline    = nullptr;
+    ProfileProgress                            * m_progress    = nullptr;
+    DxuiLabel                                  * m_totals      = nullptr;
+    std::unique_ptr<ToolbarLabelEntry>           m_showLabel;
+    size_t                                       m_period      = 1;
+    bool                                         m_isBuilding  = false;
+    bool                                         m_isPaused    = false;
+    std::optional<uint64_t>                      m_stopCycle;            // where the machine is stopped, with history
+    std::optional<uint64_t>                      m_builtCycle;           // the stop the last profile was requested at
+    FlameGraphView                             * m_flameGraph  = nullptr;
+    std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
+    View                                         m_view        = View::Opcodes;
+    bool                                         m_isOn        = false;
+    std::optional<ProfileData>                   m_byOpcode;
+    std::optional<ProfileData>                   m_byAddress;
 };
 
 
@@ -167,22 +256,19 @@ private:
 //
 //  DataBlocksPane
 //
-//  The ranges marked as data, each its name, its range and its kind
-//  (FR-182). Activating one moves the disassembly to its first address.
+//  The ranges marked as data, each its name, its range and its kind.
+//  Activating one moves the disassembly to its first address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DataBlocksPane
+class DataBlocksPane : public ToolListPane
 {
 public:
-    using ShowFn = std::function<void (Word address)>;
+    explicit DataBlocksPane (IDebuggerPaneHost & host);
 
-    DataBlocksPane (DxuiListView * list, ShowFn show);
-
-    DxuiListView *  GetList () const { return m_list; }
-
-    void  Configure ();
-    void  Apply     (const std::vector<DataBlockEntry> & blocks);
+    void  Configure    () override;
+    void  Apply        (const DebuggerViewSnapshot & snapshot) override;
+    bool  AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items) override;
 
     //  The block a row has, none for no such row.
     std::optional<DataBlockEntry>  GetBlock (int row) const;
@@ -190,7 +276,5 @@ public:
     static std::vector<std::vector<DxuiListView::Cell>>  GetCells (const std::vector<DataBlockEntry> & blocks);
 
 private:
-    DxuiListView                 * m_list = nullptr;
-    ShowFn                         m_show;
     std::vector<DataBlockEntry>    m_blocks;
 };

@@ -189,14 +189,14 @@ std::string BreakpointHandlers::MakeDefinition (const BreakpointInfo & info)
     {
     case BreakpointKind::Address:       return "BP " + (info.symbol.empty() ? range : info.symbol) + clause;
     case BreakpointKind::Register:      return "BPR " + info.condition.substr (0, op) + " " + info.condition.substr (op == std::string::npos ? 0 : op);
-    case BreakpointKind::Opcode:        return std::format ("BRKOP {:02X}", info.opcode);
-    case BreakpointKind::Brk:           return "BRK ON";
-    case BreakpointKind::Interrupt:     return "BRKINT ON";
-    case BreakpointKind::MemoryValue:   return std::format ("BPMV {:04X} {:02X}", info.address, info.value.value_or (0)) + clause;
+    case BreakpointKind::Opcode:        return std::format ("BRKOP {:02X}", info.opcode) + clause;
+    case BreakpointKind::Brk:           return "BRK ON" + clause;
+    case BreakpointKind::Interrupt:     return "BRKINT ON" + clause;
+    case BreakpointKind::MemoryValue:   return std::format ("BPMV {} {:02X}", range, info.value.value_or (0)) + clause;
     case BreakpointKind::Disk:          return "BPDISK " + DiskBreakSpecText::FormatArguments (info.disk.value_or (DiskBreakSpec {})) + clause;
-    case BreakpointKind::BasicLine:     return std::format ("BPBASIC {}", info.address);
-    case BreakpointKind::BasicVariable: return "BPBASICVAR " + info.basicName;
-    case BreakpointKind::BasicError:    return "BRKBASIC ON";
+    case BreakpointKind::BasicLine:     return std::format ("BPBASIC {}", info.address) + clause;
+    case BreakpointKind::BasicVariable: return "BPBASICVAR " + info.basicName + clause;
+    case BreakpointKind::BasicError:    return "BRKBASIC ON" + clause;
     default:                            return std::string (kAccessNames[(int) info.access]) + " " + range + (info.mode == WatchMode::Before ? " BEFORE" : "") + clause;
     }
 }
@@ -281,7 +281,7 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
     case BreakpointKind::Opcode:        return std::format ("opcode {:02X}", info.opcode);
     case BreakpointKind::Brk:           return "BRK";
     case BreakpointKind::Interrupt:     return "interrupt";
-    case BreakpointKind::MemoryValue:   return std::format ("write {:04X}={:02X}", info.address, info.value.value_or (0));
+    case BreakpointKind::MemoryValue:   return std::format ("write {}={:02X}", range, info.value.value_or (0));
     case BreakpointKind::Disk:          return "disk " + DiskBreakSpecText::GetDescription (info.disk.value_or (DiskBreakSpec {}));
     case BreakpointKind::BasicLine:     return std::format ("BASIC line {}", info.address);
     case BreakpointKind::BasicVariable: return "BASIC variable " + info.basicName;
@@ -297,6 +297,10 @@ std::string BreakpointHandlers::Describe (const BreakpointInfo & info)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BreakpointHandlers::SetAddress
+//
+//  An execution breakpoint over the same addresses with the same condition
+//  as one already set is an error, which has the first one's number.
+//
 //////////////////////////////////////////////////////////////////////////////////
 
 void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand & command, Reply & reply)
@@ -310,6 +314,17 @@ void BreakpointHandlers::SetAddress (DebugSession & session, const DebugCommand 
     if (!TryValidateCondition (session, command.expression, false, false, reply))
     {
         return;
+    }
+
+    for (const Breakpoint & existing : command.isDuplicateAllowed ? std::vector<Breakpoint>() : session.GetBreakpoints().GetAll())
+    {
+        if (existing.kind == BreakpointKind::Address && existing.first == command.a1 && existing.last == last &&
+            existing.condition.text == command.expression.text)
+        {
+            reply.SetError (CommandStatus::Error, "breakpoint already set",
+                            std::format ("Breakpoint #{} is already set at ${:04X}.", existing.id, command.a1));
+            return;
+        }
     }
 
     id = session.GetBreakpoints().AddAddress (command.a1, last, command.expression);
@@ -505,8 +520,8 @@ void BreakpointHandlers::SetWatchpoint (DebugSession & session, const DebugComma
 //
 //  BreakpointHandlers::SetValue
 //
-//  BPMV addr value: a value breakpoint, which stops after a write that leaves
-//  addr holding value, reported as a watchpoint hit is.
+//  BPMV addr[,len|:last] value: a value breakpoint, which stops after a write
+//  sets a byte of the range to value, reported as a watchpoint hit is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,7 +538,7 @@ void BreakpointHandlers::SetValue (DebugSession & session, const DebugCommand & 
         return;
     }
 
-    id = session.GetBreakpoints().AddMemoryValue (command.a1, value, command.expression);
+    id = session.GetBreakpoints().AddMemoryValue (command.a1, command.hasA2 ? command.a2 : command.a1, value, command.expression);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { MakeInfo (entry) };
@@ -633,6 +648,11 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
         return;
     }
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     if (!isOn.has_value())
     {
         ReportBrk (session, reply);
@@ -654,7 +674,25 @@ void BreakpointHandlers::SetBrk (DebugSession & session, const DebugCommand & co
         if (length == kBrkSelector && *isOn && !session.GetBreakpoints().HasBrk())
         {
             session.GetBreakpoints().TryFind (session.GetBreakpoints().AddBrk(), entry);
+            session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+            entry.condition = command.expression;
             added.breakpoints.push_back (MakeInfo (entry));
+        }
+        else if (length == kBrkSelector && *isOn)
+        {
+            //  BRK ON again, with or without IF, sets the condition, and a
+            //  condition that changed is reported with the entry.
+            for (const Breakpoint & existing : session.GetBreakpoints().GetAll())
+            {
+                entry = (existing.kind == BreakpointKind::Brk) ? existing : entry;
+            }
+
+            if (entry.condition.text != command.expression.text)
+            {
+                session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+                entry.condition = command.expression;
+                added.breakpoints.push_back (MakeInfo (entry));
+            }
         }
         else if (length == kBrkSelector && !*isOn)
         {
@@ -950,6 +988,11 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
 
 
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     while (mnemonics >> mnemonic)
     {
         if (!TryFindOpcodes (session, mnemonic, found))
@@ -966,7 +1009,7 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
 
     for (Byte opcode : opcodes)
     {
-        AddOpcodeEntry (session, opcode, list);
+        AddOpcodeEntry (session, opcode, command.expression, list);
     }
 
     session.OnStopConditionsChanged();
@@ -1004,7 +1047,7 @@ void BreakpointHandlers::SetOpcode (DebugSession & session, const DebugCommand &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, BreakpointListData & list)
+void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, const Expression & condition, BreakpointListData & list)
 {
     BreakpointTable  & table = session.GetBreakpoints();
     Breakpoint         entry;
@@ -1024,6 +1067,8 @@ void BreakpointHandlers::AddOpcodeEntry (DebugSession & session, Byte opcode, Br
     {
         id = (opcode == kBrkOpcode) ? table.AddBrk() : table.AddOpcode (opcode);
     }
+
+    table.TrySetCondition (id, condition);
 
     if (table.TryFind (id, entry))
     {
@@ -1122,6 +1167,11 @@ void BreakpointHandlers::SetInterrupt (DebugSession & session, const DebugComman
 
 
 
+    if (!TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     if (command.text == "ON")
     {
         if (!HasInterrupt (session))
@@ -1137,6 +1187,9 @@ void BreakpointHandlers::SetInterrupt (DebugSession & session, const DebugComman
                 entry = existing;
             }
         }
+
+        session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+        entry.condition = command.expression;
 
         reply.data = BreakpointSetData { MakeInfo (entry) };
     }
@@ -1461,6 +1514,7 @@ bool BreakpointHandlers::TryMakeEntry (
     watchpoint.last      = last;
     watchpoint.mode      = GetMode (definition);
     watchpoint.condition = definition.expression;
+    breakpoint.condition = definition.expression;
     isWatchpoint         = false;
 
     switch (definition.verb)
@@ -1470,12 +1524,13 @@ bool BreakpointHandlers::TryMakeEntry (
         breakpoint.first     = definition.a1;
         breakpoint.last      = last;
         breakpoint.condition = definition.expression;
+        breakpoint.symbol    = definition.symbol;
         return true;
 
     case DebugVerb::SetValueBreakpoint:
         breakpoint.kind      = BreakpointKind::MemoryValue;
         breakpoint.first     = definition.a1;
-        breakpoint.last      = definition.a1;
+        breakpoint.last      = last;
         breakpoint.value     = definition.values.empty() ? (Byte) 0 : definition.values[0];
         breakpoint.condition = definition.expression;
         return true;
@@ -1935,4 +1990,91 @@ void BreakpointHandlers::SetNoSuch (const DebugSession & session, Reply & reply,
 WatchMode BreakpointHandlers::GetMode (const DebugCommand & command)
 {
     return command.text == "BEFORE" ? WatchMode::Before : WatchMode::After;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::IsDefinition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHandlers::IsDefinition (DebugVerb verb)
+{
+    switch (verb)
+    {
+    case DebugVerb::SetBreakpoint:
+    case DebugVerb::SetConditionalBreakpoint:
+    case DebugVerb::SetBreakpointAndWatchpoint:
+    case DebugVerb::SetRegisterBreakpoint:
+    case DebugVerb::SetMemoryWatchpoint:
+    case DebugVerb::SetReadWatchpoint:
+    case DebugVerb::SetWriteWatchpoint:
+    case DebugVerb::SetValueBreakpoint:
+    case DebugVerb::SetSourceBreakpoint:
+    case DebugVerb::BreakOnBrk:
+    case DebugVerb::BreakOnOpcode:
+    case DebugVerb::BreakOnInterrupt:
+    case DebugVerb::SetDiskBreakpoint:
+    case DebugVerb::SetBasicLineBreakpoint:
+    case DebugVerb::SetBasicVariableBreakpoint:
+    case DebugVerb::BreakOnBasicError:
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::GetIds
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> BreakpointHandlers::GetIds (DebugSession & session)
+{
+    BreakpointListData  list;
+    std::vector<int>    ids;
+
+
+
+    BreakpointHandlers::ListAll (session, list);
+
+    for (const BreakpointInfo & info : list.breakpoints)
+    {
+        ids.push_back (info.id);
+    }
+
+    return ids;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHandlers::GetFirstAdded
+//
+//  The first id in after that is not in before, or -1 when there is none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int BreakpointHandlers::GetFirstAdded (
+    const std::vector<int>  & before,
+    const std::vector<int>  & after)
+{
+    auto  added = std::ranges::find_if (after, [&before] (int id) { return std::ranges::find (before, id) == before.end(); });
+
+
+
+    return (added != after.end()) ? *added : -1;
 }

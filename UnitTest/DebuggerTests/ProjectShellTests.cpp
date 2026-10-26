@@ -475,6 +475,64 @@ namespace ProjectShellTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  AProjectOpenedThatLoadsABinaryOffersNothing
+        //
+        //  A project PROJECT OPEN opens, whose startup BLOAD opens the
+        //  binary's existing project, offers nothing: the switch is part of
+        //  opening it, as for a restore.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (AProjectOpenedThatLoadsABinaryOffersNothing)
+        {
+            ProjectRig            saved;
+            ProjectRig            rig;
+            std::string           content;
+            Reply                 reply;
+            const ProjectData   * data  = nullptr;
+
+
+
+            saved.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            saved.Attach();
+            saved.Run ("BP 500");
+            saved.shell->GetDebugger().SetDebuggerStartupCommands ({ { "BLOAD C:\\Work\\prog.bin 300", CommandMode::AppleWin } });
+            saved.shell->GetDebugger().ServiceProject();
+            saved.Run ("PROJECT SAVEAS \"C:\\Work\\game.cassoproj\"");
+
+            content = saved.files.PeekContent (L"C:\\Work\\game.cassoproj");
+
+            rig.files.WriteAllText        (L"C:\\Work\\game.cassoproj", content);
+            rig.channelFiles.WriteAllText (L"C:\\Work\\prog.bin", std::string ("\xA9\x41\x60", 3));
+
+            //  The binary's project exists, so the switch to it could offer
+            //  the open project's items.
+            rig.Attach();
+            rig.Run ("BLOAD C:\\Work\\prog.bin 300");
+            rig.Run ("BP 600");
+            rig.Detach();
+
+            rig.Attach();
+            rig.Run ("BP 300");
+            reply = rig.Run ("PROJECT OPEN \"C:\\Work\\game.cassoproj\"");
+            Assert::IsTrue (reply.status == CommandStatus::Ok, L"PROJECT OPEN succeeds");
+
+            rig.shell->GetDebugger().ServiceProject();
+            reply = rig.Run ("PROJECT");
+            data  = std::get_if<ProjectData> (&reply.data);
+
+            Assert::IsNotNull (data, L"PROJECT replies with the project");
+            Assert::AreEqual  (std::string ("binary"), data->scope, L"the startup BLOAD opens the binary's project");
+            Assert::IsFalse   (rig.shell->GetDebugger().HasMergeOffer(), L"nothing is offered");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  AProjectWithOnlySettingsOffersNothing
         //
         ////////////////////////////////////////////////////////////////////////////////

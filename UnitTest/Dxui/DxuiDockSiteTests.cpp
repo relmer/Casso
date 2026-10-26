@@ -95,6 +95,41 @@ namespace DxuiDockSiteTests
         }
 
 
+        //  A marked tab brought to the front has its mark cleared, as a click on
+        //  it does: the dot is for a change in a pane out of sight.
+        TEST_METHOD (AMarkedTabActivatedHasNoMark)
+        {
+            Rig            rig;
+            DxuiTabGroup * group      = nullptr;
+            std::wstring   background = rig.regs.IsVisible() ? L"stack" : L"regs";
+
+
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
+            }
+
+            if (group == nullptr)
+            {
+                Assert::Fail (L"the rig has a group of two tabs");
+                return;
+            }
+
+            rig.site.SetIndicator (background, true);
+            Assert::IsTrue (group->HasIndicator (0) || group->HasIndicator (1), L"the background tab is marked");
+
+            rig.site.ActivatePane (background);
+
+            for (size_t i = 0; i < rig.site.GetGroupCount(); i++)
+            {
+                group = (rig.site.GetGroup (i)->GetTabCount() == 2) ? rig.site.GetGroup (i) : group;
+            }
+
+            Assert::IsFalse (group->HasIndicator (0) || group->HasIndicator (1), L"the tab in front has no mark");
+        }
+
+
         TEST_METHOD (APressOnATabShowsItAndIsReported)
         {
             Rig            rig;
@@ -178,6 +213,32 @@ namespace DxuiDockSiteTests
             Assert::AreEqual (1, rig.changes, L"reported once, when the drag ends");
             //  A cursor id is an integer resource, so compare the pointers.
             Assert::IsTrue (IDC_SIZEWE == rig.site.GetCursorForPoint (POINT { 700, 300 }));
+        }
+
+
+        //  A sash drag is a pointer drag, so the window sends the site its
+        //  button-up wherever the pointer is; a capture loss ends it at the
+        //  ratio it had, and a later move with the button up moves no sash.
+        TEST_METHOD (ASashDragEndsWhenTheMouseIsLost)
+        {
+            Rig   rig;
+            long  before = rig.stack.GetBounds().left;
+            POINT sash   = { before, 300 };
+            long  moved  = 0;
+
+
+
+            Assert::IsTrue (rig.site.OnMouse (Mouse (DxuiMouseEventKind::Down, sash)));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { 700, 300 }));
+            Assert::IsTrue (rig.site.HasPointerDrag(), L"the window routes the drag's events to the site");
+
+            moved = rig.stack.GetBounds().left;
+            rig.site.OnDragMouseLost (true);
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, POINT { 400, 300 }));
+
+            Assert::IsFalse  (rig.site.HasPointerDrag());
+            Assert::AreEqual (moved, rig.stack.GetBounds().left, L"no sash follows the bare pointer");
+            Assert::AreEqual (1, rig.changes, L"the ratio where the drag ended is reported");
         }
 
 
@@ -549,11 +610,12 @@ namespace DxuiDockSiteTests
             Assert::IsTrue (rig.site.IsDragging());
             Assert::IsTrue (rig.site.GetSlidPane().empty(), L"slid back so the zones show");
 
-            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (rig.regs.GetBounds())));
+            //  Over the registers' group, whose active tab is the stack.
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Move, Center (rig.stack.GetBounds())));
             zone = rig.site.GetHoveredZone();
             Assert::IsNotNull (zone);
 
-            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up, Center (rig.regs.GetBounds())));
+            rig.site.OnMouse (Mouse (DxuiMouseEventKind::Up, Center (rig.stack.GetBounds())));
             Assert::IsTrue (rig.site.GetPaneLayout().IsDocked (L"console"));
         }
 

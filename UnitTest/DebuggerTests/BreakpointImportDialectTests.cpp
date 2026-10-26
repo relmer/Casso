@@ -114,5 +114,26 @@ namespace BreakpointImportDialectTests
             Assert::IsTrue   (lines.back().find ("skipped 0 lines") != std::string::npos, L"the MODE line is read, not skipped");
             Assert::IsTrue   (rig.controller.GetSession().GetMode() == CommandMode::AppleWin, L"the import leaves the console's dialect alone");
         }
+
+
+        //  A script's numbers are its definition lines, so a line that adds
+        //  nothing, as a breakpoint already set does, moves no later number
+        //  onto another breakpoint.
+        TEST_METHOD (ALineThatAddsNothingMovesNoLaterNumber)
+        {
+            ImportRig                    rig;
+            std::vector<BreakpointInfo>  list;
+
+
+
+            rig.Run ("BP 300");
+            rig.Import ("BPC *\nBP 0300\nBP 0400\nBP 0500\nBPD 1\n");
+            list = rig.List();
+
+            Assert::AreEqual ((size_t) 3, list.size());
+            Assert::AreEqual ((Word) 0x0400, list[1].address);
+            Assert::IsFalse  (list[1].enabled, L"BPD 1 is the script's BP 0400");
+            Assert::IsTrue   (list[2].enabled, L"and not BP 0500");
+        }
     };
 }

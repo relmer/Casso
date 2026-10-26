@@ -49,6 +49,32 @@ bool BasicStopMonitor::IsApplesoftVisible (const IDebugExpressionContext & conte
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BasicStopMonitor::ForgetDisabledValues
+//
+//  A disabled variable breakpoint is not polled, so the value taken for it
+//  goes stale; it is dropped, and once enabled again the entry starts from
+//  the value at the next boundary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BasicStopMonitor::ForgetDisabledValues()
+{
+    std::erase_if (m_values, [this] (const auto & value)
+    {
+        Breakpoint  entry;
+
+
+
+        return !m_table.TryFind (value.first, entry) || !entry.enabled;
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BasicStopMonitor::MarkPages
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,10 +292,10 @@ bool BasicStopMonitor::PollBoundary (Word pc, const IDebugExpressionContext & co
 
     if (m_isReplay)
     {
-        return m_table.IsBasicStop (isMatch);
+        return m_table.IsBasicStop (isMatch, context);
     }
 
-    isHit = m_table.TryMatchBasic (isMatch, hitId);
+    isHit = m_table.TryMatchBasic (isMatch, context, hitId);
 
     if (isHit)
     {
@@ -325,10 +351,10 @@ bool BasicStopMonitor::PollError (const IDebugExpressionContext & context)
 
     if (m_isReplay)
     {
-        return m_table.IsBasicStop (isMatch);
+        return m_table.IsBasicStop (isMatch, context);
     }
 
-    if (!m_table.TryMatchBasic (isMatch, hitId))
+    if (!m_table.TryMatchBasic (isMatch, context, hitId))
     {
         return false;
     }

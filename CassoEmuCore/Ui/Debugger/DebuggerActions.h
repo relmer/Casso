@@ -53,6 +53,11 @@ struct DebuggerAction
     //  SetRegister, and as the values for EnterBytes and EnterWords.
     std::string                    operand;
 
+    //  A watch's value edit: the operand is exactly one value, and for
+    //  EnterBytes one that fits a byte, so the edit writes only the watched
+    //  bytes, which are what its undo puts back.
+    bool                           isOneValue = false;
+
     //  A breakpoint definition as BP, BPM or another setting command takes
     //  it in AppleWin's words, parsed once when the action runs, in place of
     //  `command`.
@@ -63,8 +68,17 @@ struct DebuggerAction
     std::optional<BreakpointStep>  breakpointStep;
 
     //  The window putting back what it had open, not a choice the user
-    //  made: the command runs and the console shows neither echo nor reply.
+    //  made: the command runs and the console has neither echo nor reply.
     bool                           quiet = false;
+
+    //  Whether the console lists the echo and the reply. Without it the
+    //  console has only an error, or the reply of an action whose reply is
+    //  its result.
+    bool                           isEchoed = false;
+
+    //  The reply is what the action produces, as a search's matches or a
+    //  timing are, so the console lists it whether or not it is echoed.
+    bool                           isResult = false;
 
     //  For a memory window's undo or redo: the bytes memory must contain from
     //  the command's address, or nothing is written.
@@ -178,6 +192,9 @@ public:
     static DebuggerAction  GetSaveSymbols    (const std::string & table, const std::string & path, CommandMode mode);
     static DebuggerAction  GetRemoveSymbol   (const std::string & table, const std::string & name, CommandMode mode);
     static DebuggerAction  GetProfile        (const std::string & words, CommandMode mode);
+
+    //  VIDEOLOG or SOUNDLOG with its words: CLEAR, or SAVE and a path.
+    static DebuggerAction  GetIoLog          (bool isVideo, const std::string & words, CommandMode mode);
     static DebuggerAction  GetRemoveSkip     (const StepFilterEntry & entry, CommandMode mode);
 
     //  SRC ON or OFF, SYM LOAD, BPSAVE, and PROJECT with a subcommand such as

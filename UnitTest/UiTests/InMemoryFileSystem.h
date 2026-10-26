@@ -47,6 +47,11 @@ public:
             return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
         }
 
+        if (FAILED (it->second.readError))
+        {
+            return it->second.readError;
+        }
+
         outContent = it->second.content;
         return S_OK;
     }
@@ -66,6 +71,24 @@ public:
 
         m_files[key].content  = content;
         m_files[key].original = NormalizeSeparators (path);
+        return S_OK;
+    }
+
+
+    HRESULT AppendAllText        (const std::wstring & path,
+                                  const std::string  & content) override
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        std::wstring                 key  = Normalize (path);
+        auto                         it   = m_files.find (key);
+
+        if (it != m_files.end() && it->second.readOnly)
+        {
+            return E_ACCESSDENIED;
+        }
+
+        m_files[key].content  += content;
+        m_files[key].original  = NormalizeSeparators (path);
         return S_OK;
     }
 
@@ -278,6 +301,19 @@ public:
     }
 
 
+    //  Every read of the file fails with hr, as one another process has
+    //  open without read sharing does; S_OK reads it again.
+    void        SetReadError (const std::wstring & path, HRESULT hr)
+    {
+        std::lock_guard<std::mutex>  lock (m_mutex);
+        auto                         it   = m_files.find (Normalize (path));
+        if (it != m_files.end())
+        {
+            it->second.readError = hr;
+        }
+    }
+
+
     void        Clear       ()
     {
         std::lock_guard<std::mutex>  lock (m_mutex);
@@ -292,6 +328,7 @@ private:
         std::wstring  original;       // case-preserved path, separators unified
         bool          readOnly     = false;
         int64_t       modifiedUnix = 0;
+        HRESULT       readError    = S_OK;
     };
 
 

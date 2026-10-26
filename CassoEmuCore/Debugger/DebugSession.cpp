@@ -61,7 +61,7 @@ DebugSession::DebugSession (IDebugTarget & target, IDebugNotificationSink & sink
     m_watchpoints.SetVectorWriteSink  ([this] { ResolveDiskCalls(); });
     m_callRecorder.SetPeek            ([this] (Word address) { return PeekByte (address); });
     m_callRecorder.SetWriterLocator   ([this] { return FindStoreInProgress(); });
-    m_callRecorder.SetClock           ([this] { return m_target.GetCycleCount(); });
+    m_callRecorder.SetClock           ([this] { return m_target.GetHistoryCycleCount(); });
     CallStackRecorder::MarkOpcodes    (m_callOpcodes.data());
     RefreshHookFilter();
     LoadRomSymbols();
@@ -250,8 +250,8 @@ Reply DebugSession::Execute (const DebugCommand & command)
     }
 
     //  Behind live the change would discard recorded history: the host asks
-    //  the user first, and runs the line again on a yes.
-    if (IsMachineWrite (command.verb) && m_historyGuard && !m_historyGuard (m_guardLine, m_guardMode))
+    //  the user first, and runs the command again on a yes.
+    if (IsMachineWrite (command.verb) && m_historyGuard && !m_historyGuard (command))
     {
         SetError (reply, CommandStatus::Error, "history kept",
                   "This change discards the history recorded after this point. Answer the question in the Casso window to make it.");
@@ -456,21 +456,12 @@ Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
     Reply                       reply;
     std::string                 text          = Trim (line);
     std::optional<CommandMode>  outerLineMode = m_lineMode;
-    bool                        isOuter       = false;
 
 
 
     //  A handler that answers in the line's dialect, as HELP does, reads it
-    //  here; a script line run from inside this one sets its own. The history
-    //  guard hears the outermost line, the one the user typed.
+    //  here; a script line run from inside this one sets its own.
     m_lineMode = mode;
-
-    if (m_guardLine.empty())
-    {
-        m_guardLine = line;
-        m_guardMode = mode;
-        isOuter     = true;
-    }
 
     switch (mode)
     {
@@ -478,11 +469,6 @@ Reply DebugSession::ExecutePaneLine (const std::string & line, CommandMode mode)
     case CommandMode::GSSquared:  reply = ExecuteGSSquaredLine (text, mode); break;
     case CommandMode::WinDbg:     reply = ExecuteWinDbgLine    (text); break;
     default:                      reply = ExecuteAppleWinLine  (text); break;
-    }
-
-    if (isOuter)
-    {
-        m_guardLine.clear();
     }
 
     m_lineMode    = outerLineMode;
@@ -1170,6 +1156,8 @@ void DebugSession::ClearAllBreakpoints()
     m_videoBreakHit = false;
     m_beamBreak.reset();
     m_beamBreakHit  = false;
+    m_frameBreak.reset();
+    m_frameBreakHit = false;
     m_nextId        = 0;
 
     SetUnwrittenBreak (false);
@@ -1241,7 +1229,7 @@ void DebugSession::OnInterrupt (Word pc)
 
     if (isDebuggerRun && m_instructionObserver != nullptr)
     {
-        m_instructionObserver->OnInterrupt (*this);
+        m_instructionObserver->OnInterrupt (*this, pc);
     }
 }
 
@@ -1365,6 +1353,8 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_videoBreakHit = false;
     m_beamBreak.reset();
     m_beamBreakHit  = false;
+    m_frameBreak.reset();
+    m_frameBreakHit = false;
     m_nextId = 0;
     m_isUnwrittenBreak = false;
     m_target.SetUnwrittenBreak (false);
@@ -1386,6 +1376,9 @@ void DebugSession::OnMachineChanged (const std::string & machineName, bool isPau
     m_target.ClearTrace();
     m_target.ClearHeatMap();
     m_isStepOutOnRecord = false;
+
+    //  The new machine's bus has no watch sink.
+    m_target.SetWatchSink (&m_watchpoints);
 
     if (m_isRecordingEndDeferred)
     {
@@ -1515,11 +1508,15 @@ void DebugSession::OnUserResumed()
 //
 //  DebugSession::SetAttached
 //
+//  The bus reports to the watchpoints while the debugger is detached, so a
+//  pending hit is dropped on either change.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::SetAttached (bool isAttached)
 {
     m_isAttached = isAttached;
+    m_watchpoints.ClearPending();
     UpdateHookInstalled();
 }
 
@@ -1584,9 +1581,12 @@ bool DebugSession::ShouldStopBefore (Word pc)
         return true;
     }
 
-    if (HasReachedBeamBreak())
+    //  Both are tested, so each follows the beam on every instruction.
+    m_beamBreakHit  = HasReachedBeamBreak (m_beamBreak);
+    m_frameBreakHit = HasReachedBeamBreak (m_frameBreak);
+
+    if (m_beamBreakHit || m_frameBreakHit)
     {
-        m_beamBreakHit = true;
         return true;
     }
 
@@ -1648,7 +1648,7 @@ bool DebugSession::ShouldStopAfterInterrupt (Word pc)
 
     m_watchpoints.SetAccessPc (pc);
 
-    if (!m_breakpoints.TryMatchInterrupt (hitId))
+    if (!m_breakpoints.TryMatchInterrupt (*this, hitId))
     {
         return false;
     }
@@ -1763,14 +1763,31 @@ bool DebugSession::HasEnteredVideoBreak()
 //
 //  A beam already at the target has not reached it: the break waits for the
 //  beam to come round again, which is what makes FRAME run a whole frame.
+//  FRAME's break, for one run, is in m_frameBreak, separate from a BPBEAM's
+//  in m_beamBreak, so a BPBEAM set before FRAME stops the frame run too.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebugSession::SetBeamBreak (uint32_t cycleInFrame, uint32_t passes, bool isForOneRun)
 {
-    m_beamBreak    = BeamBreak { cycleInFrame, std::max (passes, 1u), GetBeamCycle(), isForOneRun };
-    m_beamBreakHit = false;
+    (isForOneRun ? m_frameBreak : m_beamBreak)       = BeamBreak { cycleInFrame, std::max (passes, 1u), GetBeamCycle(), isForOneRun };
+    (isForOneRun ? m_frameBreakHit : m_beamBreakHit) = false;
     UpdateHookInstalled();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugSession::GetBeamBreak
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<uint32_t> DebugSession::GetBeamBreak() const
+{
+    return (m_beamBreak.has_value() && !m_beamBreak->isOneRun) ? std::optional<uint32_t> (m_beamBreak->target) : std::nullopt;
 }
 
 
@@ -1783,10 +1800,10 @@ void DebugSession::SetBeamBreak (uint32_t cycleInFrame, uint32_t passes, bool is
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DebugSession::ClearBeamBreak()
+void DebugSession::ClearBeamBreak (bool isForOneRun)
 {
-    m_beamBreak.reset();
-    m_beamBreakHit = false;
+    (isForOneRun ? m_frameBreak : m_beamBreak).reset();
+    (isForOneRun ? m_frameBreakHit : m_beamBreakHit) = false;
     UpdateHookInstalled();
 }
 
@@ -1847,7 +1864,7 @@ uint32_t DebugSession::GetBeamCycle() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DebugSession::HasReachedBeamBreak()
+bool DebugSession::HasReachedBeamBreak (std::optional<BeamBreak> & beamBreak)
 {
     uint32_t  now      = 0;
     uint32_t  previous = 0;
@@ -1857,16 +1874,16 @@ bool DebugSession::HasReachedBeamBreak()
 
 
 
-    if (!m_beamBreak.has_value())
+    if (!beamBreak.has_value())
     {
         return false;
     }
 
-    now                    = GetBeamCycle();
-    previous               = m_beamBreak->lastCycle;
-    target                 = m_beamBreak->target;
-    isWrap                 = now < previous;
-    m_beamBreak->lastCycle = now;
+    now                  = GetBeamCycle();
+    previous             = beamBreak->lastCycle;
+    target               = beamBreak->target;
+    isWrap               = now < previous;
+    beamBreak->lastCycle = now;
 
     if (now == previous)
     {
@@ -1881,8 +1898,8 @@ bool DebugSession::HasReachedBeamBreak()
         return false;
     }
 
-    m_beamBreak->passes--;
-    return m_beamBreak->passes == 0;
+    beamBreak->passes--;
+    return beamBreak->passes == 0;
 }
 
 
@@ -1939,6 +1956,9 @@ bool DebugSession::TryMatchBeforeWatchpoint (Word pc)
 //
 //  DebugSession::HasPendingStop
 //
+//  None while the debugger is detached, which a run's stop conditions must
+//  not pause the machine for.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebugSession::HasPendingStop() const
@@ -1947,7 +1967,7 @@ bool DebugSession::HasPendingStop() const
 
 
 
-    return m_watchpoints.HasPendingStop() || (m_isUnwrittenBreak && m_target.TryGetUnwrittenStop (read));
+    return m_isAttached && (m_watchpoints.HasPendingStop() || (m_isUnwrittenBreak && m_target.TryGetUnwrittenStop (read)));
 }
 
 
@@ -2117,11 +2137,14 @@ void DebugSession::OnStopped (const StopEvent & stop)
         m_videoBreakHit = false;
     }
 
-    if (m_beamBreakHit || (m_beamBreak.has_value() && m_beamBreak->isOneRun))
+    if (m_beamBreakHit)
     {
         m_beamBreak.reset();
         m_beamBreakHit = false;
     }
+
+    m_frameBreak.reset();
+    m_frameBreakHit = false;
 
     m_watchpoints.ClearPending();
     m_target.ClearUnwrittenStop();
@@ -2507,8 +2530,9 @@ bool DebugSession::TryPeekIo (Word address, Byte & value) const
 //  DebugSession::TryResolveSymbol
 //
 //  The disk values come first, ahead of any program symbol with the same
-//  name, and are unknown on a machine with no Disk II. @n is the nth search
-//  result, counted from 1; any other name is looked up in the enabled symbol
+//  name, and are unknown on a machine with no Disk II. P.C, P.Z, P.I, P.D,
+//  P.B, P.V and P.N are P's flags, 0 or 1. @n is the nth search result,
+//  counted from 1; any other name is looked up in the enabled symbol
 //  tables.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2517,12 +2541,25 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 {
     size_t         index = 0;
     SymbolTableId  table = SymbolTableId::Main;
+    Byte           mask  = 0;
+    Word           p     = 0;
 
 
 
     if (DiskValueSymbols::IsDiskValue (name))
     {
         return DiskValueSymbols::TryResolve (name, m_target, address);
+    }
+
+    if (TryGetFlagMask (name, mask))
+    {
+        if (!TryGetRegister ("P", p))
+        {
+            return false;
+        }
+
+        address = (p & mask) != 0 ? 1 : 0;
+        return true;
     }
 
     if (name.size() < 2 || name[0] != '@' || name.find_first_not_of ("0123456789", 1) != std::string::npos)
@@ -2547,6 +2584,44 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebugSession::TryGetFlagMask
+//
+//  P's bit for a flag's name, P.C through P.N, in any case.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugSession::TryGetFlagMask (const std::string & name, Byte & mask)
+{
+    static constexpr std::pair<char, Byte>  kFlags[] =
+    {
+        { 'C', 0x01 }, { 'Z', 0x02 }, { 'I', 0x04 }, { 'D', 0x08 }, { 'B', 0x10 }, { 'V', 0x40 }, { 'N', 0x80 },
+    };
+
+
+
+    if (name.size() != 3 || std::toupper ((unsigned char) name[0]) != 'P' || name[1] != '.')
+    {
+        return false;
+    }
+
+    for (const auto & [letter, bit] : kFlags)
+    {
+        if (std::toupper ((unsigned char) name[2]) == letter)
+        {
+            mask = bit;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebugSession::GetSymbolRevision
 //
 //  A disk value or a search result is worked out at each lookup; any other
@@ -2556,7 +2631,11 @@ bool DebugSession::TryResolveSymbol (const std::string & name, Word & address) c
 
 uint64_t DebugSession::GetSymbolRevision (const std::string & name) const
 {
-    if (DiskValueSymbols::IsDiskValue (name) || name.starts_with ('@'))
+    Byte  mask = 0;
+
+
+
+    if (DiskValueSymbols::IsDiskValue (name) || name.starts_with ('@') || TryGetFlagMask (name, mask))
     {
         return 0;
     }
@@ -3536,7 +3615,7 @@ void DebugSession::UpdateHookInstalled()
 
 void DebugSession::RefreshHookFilter()
 {
-    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() ||
+    bool  isEvery = m_state == RunState::DebugRun || m_state == RunState::Stepping || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_frameBreak.has_value() ||
                     m_isUnwrittenBreak || IsProfiling();
 
 
@@ -3593,6 +3672,7 @@ void DebugSession::RefreshHookFilter()
         m_hookFilter.pages[*m_monitorReturn >> 8] = true;
     }
 
+    m_basicMonitor.ForgetDisabledValues();
     m_basicMonitor.MarkPages (m_hookFilter.pages);
 
     //  With only opcode breakpoints armed, the host asks about an instruction
@@ -3639,7 +3719,7 @@ bool DebugSession::IsProfiling() const
 
 bool DebugSession::HasStopConditions() const
 {
-    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_monitorReturn.has_value() ||
+    return m_breakpoints.HasEnabledStopCondition() || m_watchpoints.HasEnabled() || m_videoBreak.has_value() || m_beamBreak.has_value() || m_frameBreak.has_value() || m_monitorReturn.has_value() ||
            m_isUnwrittenBreak;
 }
 

@@ -95,7 +95,7 @@ private:
     void     StartRead          (Connection & connection);
     void     PollRead           (Connection & connection);
     void     Append             (Connection & connection, const char * bytes, DWORD count);
-    void     ReleaseConnection  (Connection & connection);
+    void     ReleaseConnection  (Connection & connection, bool isOrderly = false);
     void     RemoveBroken       ();
 
     INamedPipeApi                               & m_api;

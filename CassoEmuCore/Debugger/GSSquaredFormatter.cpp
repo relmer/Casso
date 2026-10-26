@@ -318,6 +318,7 @@ std::string GSSquaredFormatter::DescribeFlags (const BreakpointInfo & breakpoint
 //  GSSquaredFormatter::FormatWatchList
 //
 //  `Watch id=N set` for each watch just added, or the list: `[id] 00/0006`.
+//  A BASIC variable lists as its name, and a typed watch as its text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,7 +338,8 @@ void GSSquaredFormatter::FormatWatchList (const WatchListData & data, bool isAdd
 
     for (const WatchEntry & entry : data.entries)
     {
-        lines.push_back (std::format ("[{}] {}", entry.id, entry.basicName.empty() ? FormatAddress (entry.address) : entry.basicName));
+        lines.push_back (std::format ("[{}] {}", entry.id, !entry.basicName.empty()  ? entry.basicName  :
+                                                           !entry.expression.empty() ? entry.expression : FormatAddress (entry.address)));
     }
 }
 

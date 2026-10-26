@@ -6,6 +6,8 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -93,9 +95,8 @@ namespace DebuggerPaneBarTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::GetPaneOfControl;
-        using DebuggerWindow::GetMemoryBar;
-        using DebuggerWindow::GetMemoryBox;
-        using DebuggerWindow::GetBreakpointBar;
+        using DebuggerWindow::GetMemoryGroup;
+        using DebuggerWindow::GetBreakpointsPane;
     };
 
 
@@ -128,7 +129,7 @@ namespace DebuggerPaneBarTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.GetPaneOfControl (window.GetBreakpointBar()) == DebuggerLayout::kBreakpoints, L"the bar moves with the breakpoints pane");
+            Assert::IsTrue (window.GetPaneOfControl (window.GetBreakpointsPane().GetBar()) == DebuggerLayout::kBreakpoints, L"the bar moves with the breakpoints pane");
         }
 
 
@@ -146,9 +147,9 @@ namespace DebuggerPaneBarTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.GetMemoryBar()->IsVisible(), L"memory 1 is shown with its bar");
-            Assert::IsTrue (window.GetPaneOfControl (window.GetMemoryBar()) == pane, L"the bar is memory 1's");
-            Assert::IsTrue (window.GetPaneOfControl (window.GetMemoryBox()) == pane, L"and so is its Address box");
+            Assert::IsTrue (window.GetMemoryGroup().GetBar()->IsVisible(), L"memory 1 is shown with its bar");
+            Assert::IsTrue (window.GetPaneOfControl (window.GetMemoryGroup().GetBar()) == pane, L"the bar is memory 1's");
+            Assert::IsTrue (window.GetPaneOfControl (window.GetMemoryGroup().GetBox()) == pane, L"and so is its Address box");
         }
     };
 }

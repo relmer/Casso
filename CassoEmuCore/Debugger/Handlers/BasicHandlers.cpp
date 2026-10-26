@@ -83,7 +83,13 @@ void BasicHandlers::SetLine (DebugSession & session, const DebugCommand & comman
         return;
     }
 
+    if (!BreakpointHandlers::TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     id = session.GetBreakpoints().AddBasicLine (line);
+    session.GetBreakpoints().TrySetCondition (id, command.expression);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { BreakpointHandlers::MakeInfo (entry) };
@@ -117,7 +123,13 @@ void BasicHandlers::SetVariable (DebugSession & session, const DebugCommand & co
         return;
     }
 
+    if (!BreakpointHandlers::TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     id = session.GetBreakpoints().AddBasicVariable (command.text);
+    session.GetBreakpoints().TrySetCondition (id, command.expression);
     session.OnStopConditionsChanged();
     session.GetBreakpoints().TryFind (id, entry);
     reply.data = BreakpointSetData { BreakpointHandlers::MakeInfo (entry) };
@@ -142,6 +154,11 @@ void BasicHandlers::SetErrorBreak (DebugSession & session, const DebugCommand & 
 
 
 
+    if (!BreakpointHandlers::TryValidateCondition (session, command.expression, false, false, reply))
+    {
+        return;
+    }
+
     if (command.text == "ON")
     {
         if (!HasErrorBreak (session))
@@ -150,7 +167,9 @@ void BasicHandlers::SetErrorBreak (DebugSession & session, const DebugCommand & 
             session.OnStopConditionsChanged();
         }
 
-        entry      = *std::ranges::find_if (session.GetBreakpoints().GetAll(), isError);
+        entry = *std::ranges::find_if (session.GetBreakpoints().GetAll(), isError);
+        session.GetBreakpoints().TrySetCondition (entry.id, command.expression);
+        entry.condition = command.expression;
         reply.data = BreakpointSetData { BreakpointHandlers::MakeInfo (entry) };
     }
     else if (command.text == "OFF")

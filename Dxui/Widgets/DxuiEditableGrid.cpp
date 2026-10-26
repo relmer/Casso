@@ -28,7 +28,8 @@ DxuiEditableGrid::DxuiEditableGrid()
 //
 //  DxuiEditableGrid::SetGridColumns
 //
-//  The gripper's column first, then the grid's.
+//  The gripper's column first, hidden when rows cannot be moved, then the
+//  grid's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +41,7 @@ void DxuiEditableGrid::SetGridColumns (std::vector<GridColumn> columns)
 
 
     gripper.widthDip = kGripperDip;
+    gripper.visible  = m_isMovable;
     listColumns.push_back (gripper);
 
     for (const GridColumn & each : columns)
@@ -133,6 +135,14 @@ void DxuiEditableGrid::RebuildRows()
         addRow[c + 1].text = m_pending[c];
     }
 
+    if (!m_noteText.empty() && m_noteColumn >= 0 && m_noteColumn < (int) m_columns.size() &&
+        ((size_t) m_noteColumn >= m_pending.size() || m_pending[(size_t) m_noteColumn].empty()))
+    {
+        addRow[(size_t) m_noteColumn + 1].text = m_noteText;
+        addRow[(size_t) m_noteColumn + 1].argb = m_noteArgb;
+        addRow[(size_t) m_noteColumn + 1].tip  = m_noteText;
+    }
+
     if (!isTyped && first >= 0)
     {
         Cell  & hint = addRow[(size_t) first + 1];
@@ -207,6 +217,45 @@ bool DxuiEditableGrid::IsRowEditable (int row) const
 bool DxuiEditableGrid::IsColumnEditable (int column) const
 {
     return column >= 0 && column < (int) m_columns.size() && m_columns[(size_t) column].isEditable;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::IsCellEditable
+//
+//  Every editable column of the hint row; in a data row that is not
+//  read-only, each editable column but those of its read-only cells.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiEditableGrid::IsCellEditable (int row, int column) const
+{
+    const std::vector<bool>  * readOnly = nullptr;
+
+
+
+    if (!IsColumnEditable (column))
+    {
+        return false;
+    }
+
+    if (IsAddRow (row))
+    {
+        return true;
+    }
+
+    if (!IsRowEditable (row))
+    {
+        return false;
+    }
+
+    readOnly = &m_rows[(size_t) row].readOnlyCells;
+
+    return (size_t) column >= readOnly->size() || !(*readOnly)[(size_t) column];
 }
 
 
@@ -316,7 +365,7 @@ bool DxuiEditableGrid::BeginEdit (int row, int column)
 
 
 
-    if (!IsColumnEditable (column) || !(IsRowEditable (row) || IsAddRow (row)))
+    if (!IsCellEditable (row, column))
     {
         return false;
     }
@@ -337,6 +386,12 @@ bool DxuiEditableGrid::BeginEdit (int row, int column)
     m_editor.Layout     (box, m_gridScaler);
     m_editor.SetFocused (true);
     m_editor.SelectAll();
+
+    if (m_begin)
+    {
+        m_begin (row, column);
+    }
+
     return true;
 }
 
@@ -374,6 +429,7 @@ bool DxuiEditableGrid::EndEdit (bool commit)
         if (IsAddRow (m_editRow))
         {
             m_pending.assign (m_columns.size(), std::wstring());
+            m_missing.clear();
         }
 
         m_editRow    = -1;
@@ -440,24 +496,26 @@ bool DxuiEditableGrid::CommitEdit()
 //
 //  DxuiEditableGrid::CommitAddRow
 //
-//  The text goes into the hint row. With every required column filled, the
-//  row goes to the add callback, and when that returns true the hint row
-//  starts over. Otherwise the edit moves to `next`, or closes for -1, with
-//  the typed text in place. When the add callback returns false, the box
-//  stays open where it is for -1.
+//  The text goes into the hint row. A Tab along the row, isMove, only moves
+//  the edit to `next`, so the row is checked only once the edit moves out.
+//  Otherwise, with every required column filled, the row goes to the add
+//  callback, and when that returns true the hint row starts over. Otherwise
+//  the edit moves to `next`, or closes for -1, with the typed text in place.
+//  When the add callback returns false, the box stays open where it is for
+//  -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
+bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next, bool isMove)
 {
     std::wstring  error;
-    bool          isComplete = true;
+    bool          isComplete = !isMove;
 
 
 
     m_pending[(size_t) m_editColumn] = text;
 
-    for (size_t c = 0; c < m_columns.size(); c++)
+    for (size_t c = 0; c < m_columns.size() && isComplete; c++)
     {
         if (m_columns[c].isRequired && m_pending[c].find_first_not_of (L" \t") == std::wstring::npos)
         {
@@ -468,6 +526,7 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
     if (isComplete && m_add && m_add (m_pending, error))
     {
         m_pending.assign (m_columns.size(), std::wstring());
+        m_missing.clear();
         m_editRow    = -1;
         m_editColumn = -1;
         m_editor.SetFocused (false);
@@ -480,12 +539,17 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
 
     if (isComplete)
     {
+        m_missing.clear();
         ReportError (error);
 
         if (next < 0)
         {
             return false;
         }
+    }
+    else if (next < 0)
+    {
+        ReportError (MarkMissing());
     }
     else
     {
@@ -510,19 +574,55 @@ bool DxuiEditableGrid::CommitAddRow (const std::wstring & text, int next)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiEditableGrid::MarkMissing
+//
+//  With anything typed in the hint row, each required column left empty is
+//  marked, and the error is the first one's: "Start is required." With
+//  nothing typed, an edit left at once marks nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiEditableGrid::MarkMissing()
+{
+    bool          isTyped = std::ranges::any_of (m_pending, [] (const std::wstring & text) { return text.find_first_not_of (L" \t") != std::wstring::npos; });
+    std::wstring  error;
+
+
+
+    m_missing.assign (m_columns.size(), false);
+
+    for (size_t c = 0; c < m_columns.size() && isTyped; c++)
+    {
+        if (m_columns[c].isRequired && m_columns[c].isEditable && m_pending[c].find_first_not_of (L" \t") == std::wstring::npos)
+        {
+            m_missing[c] = true;
+            error        = error.empty() ? m_columns[c].column.title + L" is required." : error;
+        }
+    }
+
+    return error;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiEditableGrid::MoveEdit
 //
-//  Tab: the edit is committed and the next editable column of its row, or
-//  the one before for Shift+Tab, opens. In the hint row, a row that is
-//  complete is added.
+//  Tab: the edit is committed and the next editable cell opens, or the one
+//  before for Shift+Tab: along the row, skipping its read-only cells, then
+//  on into the next row. In the hint row, a row that is complete is added.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiEditableGrid::MoveEdit (int step)
 {
-    int           row    = m_editRow;
-    int           next   = GetNextEditColumn (m_editColumn, step);
-    std::wstring  text   = m_editor.GetText();
+    int           row     = m_editRow;
+    int           next    = GetNextEditColumn (m_editColumn, step);
+    int           nextRow = row;
+    std::wstring  text    = m_editor.GetText();
     std::wstring  error;
 
 
@@ -535,8 +635,10 @@ bool DxuiEditableGrid::MoveEdit (int step)
 
     if (IsAddRow (row))
     {
-        return CommitAddRow (text, next);
+        return CommitAddRow (text, next, next >= 0);
     }
+
+    FindNextCell (row, m_editColumn, step, nextRow, next);
 
     if (!CommitEdit())
     {
@@ -545,10 +647,115 @@ bool DxuiEditableGrid::MoveEdit (int step)
 
     if (next >= 0)
     {
-        BeginEdit (row, next);
+        BeginEdit (nextRow, next);
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::MoveEditRow
+//
+//  Up or Down: the edit is committed and the same column of the row above
+//  or below opens, or the row's first editable cell where that one is
+//  read-only. Down from the last row goes to the hint row; Up from an empty
+//  hint row goes to the last row, and from one with text, nowhere.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiEditableGrid::MoveEditRow (int step)
+{
+    int           row    = m_editRow;
+    int           column = m_editColumn;
+    int           target = row + step;
+    int           found  = target;
+    int           next   = -1;
+    bool          isAdd  = IsAddRow (row);
+    std::wstring  text   = m_editor.GetText();
+    std::wstring  error;
+    auto          typed  = [] (const std::wstring & each) { return each.find_first_not_of (L" \t") != std::wstring::npos; };
+
+
+
+    //  A hint row with text in any column, not only the one being edited,
+    //  goes nowhere: leaving it would drop the row.
+    if (target < 0 || (isAdd && (step > 0 || typed (text) || std::ranges::any_of (m_pending, typed))))
+    {
+        return true;
+    }
+
+    next = IsCellEditable (target, column) ? column : -1;
+
+    if (next < 0 && !IsAddRow (target))
+    {
+        FindNextCell (target, -1, 1, found, next);
+        next = (found == target) ? next : -1;
+    }
+
+    if (next < 0)
+    {
+        return true;
+    }
+
+    if (isAdd)
+    {
+        EndEdit (false);
+    }
+    else if (m_validate && !m_validate (column, text, error))
+    {
+        ReportError (error);
+        return false;
+    }
+    else if (!CommitEdit())
+    {
+        return false;
+    }
+
+    return BeginEdit (target, next);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::FindNextCell
+//
+//  The next editable cell of the data rows after (row, column) in the
+//  direction of step, along the row and then into the rows beyond; -1 for
+//  the column past the last.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::FindNextCell (int row, int column, int step, int & outRow, int & outColumn) const
+{
+    int  rows = GetDataRowCount();
+
+
+
+    outRow    = row;
+    outColumn = -1;
+
+    for (int r = row; r >= 0 && r < rows; r += step)
+    {
+        int  start = (r == row) ? column : (step > 0) ? -1 : (int) m_columns.size();
+
+        for (int c = GetNextEditColumn (start, step); c >= 0; c = GetNextEditColumn (c, step))
+        {
+            if (IsCellEditable (r, c))
+            {
+                outRow    = r;
+                outColumn = c;
+                return;
+            }
+        }
+    }
 }
 
 
@@ -609,6 +816,24 @@ int DxuiEditableGrid::GetNextEmptyColumn (int column) const
     }
 
     return -1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::SetAddRowNote
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::SetAddRowNote (int column, const std::wstring & text, uint32_t argb)
+{
+    m_noteColumn = column;
+    m_noteText   = text;
+    m_noteArgb   = argb;
+    RebuildRows();
 }
 
 
@@ -702,12 +927,18 @@ void DxuiEditableGrid::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     m_editor.SetTheme        (&theme);
 
     DxuiListView::Paint (painter, text, theme);
-    PaintGrippers       (painter, theme);
+
+    if (m_isMovable)
+    {
+        PaintGrippers (painter, theme);
+    }
 
     if (IsDraggingRow())
     {
         PaintDropLine (painter, theme);
     }
+
+    PaintMissing (painter, theme);
 
     if (IsEditing())
     {
@@ -755,6 +986,37 @@ void DxuiEditableGrid::PaintGrippers (IDxuiPainter & painter, const IDxuiTheme &
             painter.FillCircle (cx - step / 2.0f, cy + step * (float) dy, radius, theme.ForegroundMuted());
             painter.FillCircle (cx + step / 2.0f, cy + step * (float) dy, radius, theme.ForegroundMuted());
         }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiEditableGrid::PaintMissing
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiEditableGrid::PaintMissing (IDxuiPainter & painter, const IDxuiTheme & theme) const
+{
+    RECT   bounds = GetBounds();
+    RECT   cell   = {};
+    float  line   = m_gridScaler.ToPxf (1.0f);
+
+
+
+    for (size_t c = 0; c < m_missing.size(); c++)
+    {
+        if (!m_missing[c] || !GetCellTextRectPx (GetDataRowCount(), c + 1, cell))
+        {
+            continue;
+        }
+
+        OffsetRect (&cell, bounds.left, bounds.top);
+        painter.OutlineRect ((float) cell.left - line, (float) cell.top, (float) (cell.right - cell.left) + line * 2.0f, (float) (cell.bottom - cell.top), line,
+                             theme.ErrorForeground());
     }
 }
 
@@ -898,7 +1160,7 @@ bool DxuiEditableGrid::OnMouse (const DxuiMouseEvent & ev)
         column      = GetGridColumnAt (lx);
         m_pressRow  = -1;
 
-        if (row >= 0 && row < GetDataRowCount() && column < 0)
+        if (m_isMovable && row >= 0 && row < GetDataRowCount() && column < 0)
         {
             m_dragRow = row;
             m_dropRow = row;
@@ -955,7 +1217,7 @@ LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
 
 
 
-    if (IsDraggingRow() || (row >= 0 && row < GetDataRowCount() && GetGridColumnAt (localPx.x) < 0))
+    if (IsDraggingRow() || (m_isMovable && row >= 0 && row < GetDataRowCount() && GetGridColumnAt (localPx.x) < 0))
     {
         return IDC_SIZENS;
     }
@@ -972,9 +1234,10 @@ LPCWSTR DxuiEditableGrid::GetCursorForPoint (POINT localPx) const
 //  DxuiEditableGrid::OnKey
 //
 //  While a cell is edited: Enter commits it (in the hint row, going on to
-//  the next empty column), Escape cancels it, Tab and Shift+Tab move
-//  along the row, and every other key edits the text. Otherwise F2 and Enter
-//  edit the selected row, Delete deletes it, and Insert starts a new row.
+//  the next empty column), Escape cancels it, Tab and Shift+Tab move to the
+//  next or previous editable cell, Up and Down to the row above or below,
+//  and every other key edits the text. Otherwise F2 and Enter edit the
+//  selected row, Delete deletes it, and Insert starts a new row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -987,6 +1250,22 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
 
     if (IsEditing())
     {
+        //  A one-field hint row adds on Enter or Tab, and an empty field
+        //  takes neither.
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_TAB) && !ev.shift && m_isAddOnFirst && IsAddRow (m_editRow))
+        {
+            std::wstring  text = m_editor.GetText();
+
+            if (text.find_first_not_of (L" \t") != std::wstring::npos)
+            {
+                m_isTabCommit = ev.vk == VK_TAB;
+                (void) CommitAddRow (text, -1);
+                m_isTabCommit = false;
+            }
+
+            return true;
+        }
+
         if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_RETURN)
         {
             if (IsAddRow (m_editRow))
@@ -1022,12 +1301,23 @@ bool DxuiEditableGrid::OnKey (const DxuiKeyEvent & ev)
             return true;
         }
 
+        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_UP || ev.vk == VK_DOWN))
+        {
+            MoveEditRow (ev.vk == VK_UP ? -1 : 1);
+            return true;
+        }
+
         m_editor.OnKey (ev);
         return true;
     }
 
     if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_F2 || ev.vk == VK_RETURN) && selected >= 0)
     {
+        while (first >= 0 && !IsCellEditable (selected, first))
+        {
+            first = GetNextEditColumn (first, 1);
+        }
+
         return BeginEdit (selected, first);
     }
 

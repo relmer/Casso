@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -84,16 +85,11 @@ namespace DebuggerFindWidgetPerPaneTests
             m_host  = &host;
         }
 
-        using DebuggerWindow::GetCommandBox;
-        using DebuggerWindow::GetConsoleView;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindPane;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::GetFocused;
-        using DebuggerWindow::GetSourceView;
+        using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::IsFindOpen;
-        using DebuggerWindow::IsFindOpenIn;
-        using DebuggerWindow::GetFindBoxOf;
 
         void  Build()
         {
@@ -116,7 +112,7 @@ namespace DebuggerFindWidgetPerPaneTests
                 rows.push_back (std::move (row));
             }
 
-            GetSourceView (0)->SetRows (std::move (rows));
+            GetSourceGroup().GetDocument (0).GetView()->SetRows (std::move (rows));
         }
 
         //  A key as the window's message handling delivers it: to the window
@@ -168,23 +164,23 @@ namespace DebuggerFindWidgetPerPaneTests
 
 
             window.Build();
-            window.FocusControl (window.GetSourceView (0));
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
             window.Press ('F', true);
             window.Type  (L"rts");
 
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
             window.Press ('F', true);
             window.Type  (L"sta");
 
-            Assert::IsTrue   (window.IsFindOpenIn (DebuggerLayout::kConsole), L"the console's widget is open");
-            Assert::IsTrue   (window.IsFindOpenIn (source), L"and the source document's stays open");
-            Assert::IsTrue   (window.GetFindBoxOf (source) != window.GetFindBoxOf (DebuggerLayout::kConsole), L"each has its own box");
-            Assert::AreEqual (std::wstring (L"rts"), window.GetFindBoxOf (source)->GetText(), L"with its own text");
-            Assert::AreEqual (std::wstring (L"sta"), window.GetFindBoxOf (DebuggerLayout::kConsole)->GetText());
+            Assert::IsTrue   (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"the console's widget is open");
+            Assert::IsTrue   (window.GetFindWidgets().IsOpenIn (source), L"and the source document's stays open");
+            Assert::IsTrue   (window.GetFindWidgets().GetBoxOf (source) != window.GetFindWidgets().GetBoxOf (DebuggerLayout::kConsole), L"each has its own box");
+            Assert::AreEqual (std::wstring (L"rts"), window.GetFindWidgets().GetBoxOf (source)->GetText(), L"with its own text");
+            Assert::AreEqual (std::wstring (L"sta"), window.GetFindWidgets().GetBoxOf (DebuggerLayout::kConsole)->GetText());
 
             Assert::IsTrue   (window.Press (VK_ESCAPE), L"Escape in the console's widget");
-            Assert::IsFalse  (window.IsFindOpenIn (DebuggerLayout::kConsole), L"closes the console's");
-            Assert::IsTrue   (window.IsFindOpenIn (source), L"and leaves the source document's open");
+            Assert::IsFalse  (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"closes the console's");
+            Assert::IsTrue   (window.GetFindWidgets().IsOpenIn (source), L"and leaves the source document's open");
         }
 
 
@@ -198,20 +194,70 @@ namespace DebuggerFindWidgetPerPaneTests
 
 
             window.Build();
-            window.FocusControl (window.GetSourceView (0));
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
             window.Press ('F', true);
 
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
             window.Press ('F', true);
 
             //  Back to the source document's box, as a click on it does.
-            window.FocusControl (window.GetFindBoxOf (source));
+            window.FocusControl (window.GetFindWidgets().GetBoxOf (source));
             window.Type  (L"sta");
 
             Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
-            Assert::AreEqual (std::wstring (L"sta"), window.GetFindBoxOf (source)->GetText(), L"the text went to the box with the keys");
-            Assert::AreEqual (0, _wcsicmp (L"sta", window.GetSourceView (0)->GetSelectionText().c_str()), L"and the document is searched");
-            Assert::IsFalse  (window.GetConsoleView()->HasSelection(), L"not the console");
+            Assert::AreEqual (std::wstring (L"sta"), window.GetFindWidgets().GetBoxOf (source)->GetText(), L"the text went to the box with the keys");
+            Assert::AreEqual (0, _wcsicmp (L"sta", window.GetSourceGroup().GetDocument (0).GetView()->GetSelectionText().c_str()), L"and the document is searched");
+            Assert::IsFalse  (window.GetConsolePane().GetOutput().GetView()->HasSelection(), L"not the console");
+        }
+
+
+        //  A project with nothing saved for a pane's find starts that pane's
+        //  widget over: the last project's searches are not this one's.
+        TEST_METHOD (AProjectWithNoSavedFindClearsTheWidgetsHistory)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            PaneFindHost    host;
+            PaneFindWindow  window (theme, host);
+
+
+
+            window.Build();
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
+            window.Press ('F', true);
+            window.Type  (L"sta");
+            Assert::IsTrue (window.Press (VK_RETURN), L"Enter finds");
+            Assert::IsFalse (window.GetFindWidgets().GetHistory (DebuggerLayout::kConsole).empty(), L"the search is in the history");
+
+            window.GetFindWidgets().LoadSaved (L"");
+
+            Assert::IsTrue (window.GetFindWidgets().GetHistory (DebuggerLayout::kConsole).empty(), L"another project's history is gone");
+        }
+
+
+        //  A document closed with its find open is out of sight, and F3 from
+        //  a pane with no find widget finds in the console instead of in the
+        //  hidden document's text.
+        TEST_METHOD (F3SkipsTheFindOfADocumentOutOfSight)
+        {
+            CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
+            PaneFindHost    host;
+            PaneFindWindow  window (theme, host);
+            std::wstring    source = DebuggerLayout::GetSourcePaneId (0);
+
+
+
+            window.Build();
+            window.FocusControl (window.GetSourceGroup().GetDocument (0).GetView());
+            window.Press ('F', true);
+            window.Type  (L"sta");
+            Assert::IsTrue (window.Press (VK_RETURN), L"Enter finds");
+
+            window.GetSourceGroup().GetDocument (0).GetView()->SetVisible (false);
+            window.FocusControl (nullptr);
+
+            (void) window.Press (VK_F3);
+
+            Assert::IsTrue (window.GetFindWidgets().IsOpenIn (DebuggerLayout::kConsole), L"F3 opens the console's find, which has no text yet");
         }
     };
 }

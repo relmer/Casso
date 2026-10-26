@@ -8,6 +8,7 @@
 #include "Ui/Debugger/DisassemblyOptions.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/DisassemblyGutter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -95,8 +96,7 @@ namespace DisassemblyViewingTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
-        using DebuggerWindow::ClickGutter;
-        using DebuggerWindow::DropPcMarker;
+        using DebuggerWindow::GetCodeGutter;
     };
 
 
@@ -235,20 +235,20 @@ namespace DisassemblyViewingTests
 
             list = window.GetCodeList (0);
 
-            Assert::IsTrue (window.ClickGutter  (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Down)));
+            Assert::IsTrue (window.GetCodeGutter().Click (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Down)));
             Assert::IsTrue (host.actions.empty(), L"a press on the PC's arrow waits for the release");
-            Assert::IsTrue (window.DropPcMarker (MakeGutterEvent (*list, 1, DxuiMouseEventKind::Up)));
+            Assert::IsTrue (window.GetCodeGutter().Drop (MakeGutterEvent (*list, 1, DxuiMouseEventKind::Up)));
 
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::IsTrue   (host.actions[0].command.verb == DebugVerb::SetRegister);
             Assert::IsTrue   (host.actions[0].echo.find ("PC 0302") != std::string::npos, L"the PC moves to the RTS");
 
-            Assert::IsTrue  (window.ClickGutter  (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Down)));
-            Assert::IsTrue  (window.DropPcMarker (MakeGutterEvent (*list, 2, DxuiMouseEventKind::Up)));
+            Assert::IsTrue  (window.GetCodeGutter().Click (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Down)));
+            Assert::IsTrue  (window.GetCodeGutter().Drop (MakeGutterEvent (*list, 2, DxuiMouseEventKind::Up)));
             Assert::AreEqual ((size_t) 1, host.actions.size(), L"a data byte cannot be the next statement");
 
-            Assert::IsTrue   (window.ClickGutter  (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Down)));
-            Assert::IsTrue   (window.DropPcMarker (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Up)));
+            Assert::IsTrue   (window.GetCodeGutter().Click (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Down)));
+            Assert::IsTrue   (window.GetCodeGutter().Drop (MakeGutterEvent (*list, 0, DxuiMouseEventKind::Up)));
             Assert::AreEqual ((size_t) 2, host.actions.size(), L"released where pressed, it is a click");
             Assert::IsFalse  (host.actions[1].command.verb == DebugVerb::SetRegister, L"a click sets a breakpoint");
         }

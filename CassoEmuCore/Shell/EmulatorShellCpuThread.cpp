@@ -620,6 +620,11 @@ void EmulatorShell::ExecuteCpuSlices()
             sliceTarget = FrameCycleBudget::kSliceCycles;
         }
 
+        if (hooks.runDriver != nullptr)
+        {
+            sliceTarget = hooks.runDriver->LimitSlice (sliceTarget);
+        }
+
         // Feed the next paste character if available; the slice budget is
         // the guest-time currency the settle pacing is measured in.
         pasted = isBehindLive ? 0 : m_clipboardManager->DrainPasteBuffer (sliceTarget);

@@ -73,11 +73,28 @@ struct DebuggerSettings
     // HeatMapRangeSets' text; empty until the ranges pane first opens.
     std::string  heatMapRanges;
 
-    // The Disk II event log's and the input log's filters and columns, and
-    // whether each pane was open, in the panes' options text; empty is the
-    // defaults, closed.
+    // The Disk II event log's, the input log's, the video log's and the sound
+    // log's filters and columns, and whether each pane was open, in the
+    // panes' options text; empty is the defaults, closed. The logs in
+    // DebugLogKind's order, for code that takes a log by its kind.
     std::string  diskLogOptions;
     std::string  inputLogOptions;
+    std::string  videoLogOptions;
+    std::string  soundLogOptions;
+
+    // A log's options by its kind, or null for a kind past the logs here.
+    std::string * GetLogOptions (int kind)
+    {
+        std::string *  logs[] = { &diskLogOptions, &inputLogOptions, &videoLogOptions, &soundLogOptions };
+
+
+        return (kind >= 0 && kind < (int) std::size (logs)) ? logs[kind] : nullptr;
+    }
+
+    // Whether the console lists each action taken in the window as the
+    // command that does the same, with its reply. Off, the console has only a
+    // failed action's error and the result of an action that produces one.
+    bool         echoActions              = false;
 
     // Which of the debugger's optional views were open, so a restart brings
     // them back where they were: disassembly views 2 to 4 and the one
@@ -102,4 +119,6 @@ struct DebuggerSettings
     // window's text for it. A debug project saves these with the rest.
     std::map<std::string, std::string>                windowState;
     std::map<std::string, std::vector<std::string>>   programSourceFolders;
+
+    bool  operator== (const DebuggerSettings &) const = default;
 };

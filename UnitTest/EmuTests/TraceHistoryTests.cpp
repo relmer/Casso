@@ -162,6 +162,37 @@ namespace TraceHistoryTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
+        //  ARequestOverMoreStretchesThanTheCacheIsRebuiltWhole
+        //
+        //  All of history at once, as in TRACE SAVE, covers more stretches
+        //  than TraceHistory::kRebuiltStretches; every one is rebuilt and
+        //  returned.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ARequestOverMoreStretchesThanTheCacheIsRebuiltWhole)
+        {
+            TraceRig                         rig;
+            std::vector<TraceHistoryEntry>   rebuilt;
+            std::vector<TraceSpan>           spans;
+            uint64_t                         oldest   = rig.controller.GetKeyframes().GetInfo (0).position;
+            uint64_t                         position = rig.machine.GetPosition();
+
+
+
+            Assert::IsTrue (rig.controller.GetKeyframes().GetCount() > TraceHistory::kRebuiltStretches, L"more stretches than the cache");
+
+            Assert::IsTrue   (rig.logs.GetTraceHistory().TryGetEntries (oldest, position, rebuilt), L"all of history is rebuilt");
+            Assert::AreEqual (position - oldest, (uint64_t) rebuilt.size());
+            Assert::IsTrue   (rebuilt.front().isAvailable && rebuilt.back().isAvailable);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
         //  ACycleFindsItsInstruction
         //
         ////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +220,44 @@ namespace TraceHistoryTests
             rig.trace.GetWindow (rig.trace.GetSize() - 1, 1, window);
             Assert::IsTrue   (rig.trace.TryFindCycle (window[0].cycles, index), L"the newest, from the ring");
             Assert::AreEqual (rig.trace.GetSize() - 1, index);
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  ACycleFindsItsInstructionWhileTheMachineRuns
+        //
+        //  The stretch the cycle is in is rebuilt for the search even while
+        //  the machine runs, not taken as the start of the next stretch.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ACycleFindsItsInstructionWhileTheMachineRuns)
+        {
+            auto                       stopped = std::make_unique<TraceRig>();   // heap: two rigs overflow the frame (C6262)
+            std::unique_ptr<TraceRig>  running;
+            std::vector<TraceRecord>   window;
+            uint64_t                   cycle   = 0;
+            size_t                     index   = 0;
+
+
+
+            stopped->trace.SetHistory (&stopped->logs.GetTraceHistory());
+            stopped->trace.GetWindow (1000, 1, window);
+            Assert::AreEqual ((size_t) 1, window.size());
+
+            cycle = window[0].cycles;
+            stopped.reset();
+
+            running = std::make_unique<TraceRig>();
+            running->logs.GetTraceHistory().SetIsStopped ([] { return false; });
+            running->trace.SetHistory (&running->logs.GetTraceHistory());
+
+            Assert::IsTrue   (running->trace.TryFindCycle (cycle, index));
+            Assert::AreEqual ((size_t) 1000, index, L"the same instruction as on the stopped machine");
         }
 
 

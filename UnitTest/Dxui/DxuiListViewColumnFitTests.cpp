@@ -393,6 +393,40 @@ public:
     }
 
 
+    //  A filter set on a column measures the columns again, the noted text
+    //  with them, so a provider's fitted column is as wide as the noted text.
+    TEST_METHOD (AFilterMeasuresTheNotedTextAgain)
+    {
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        MockDxuiTheme         theme;
+        DxuiListView          list;
+        DxuiDpiScaler         scaler;
+        int                   wide   = 0;
+
+
+
+        scaler.SetDpi (96);
+        text.SetCannedMetrics (L"Motor command off label", SIZE { 160, 14 });
+
+        list.SetColumns        ({ DxuiListView::Column { L"", 0 }, DxuiListView::Column { L"Detail", 0, true } });
+        list.SetShowHeader     (true);
+        list.SetPreciseAutoFit (true);
+        list.SetRowProvider    (100, [] (int, std::vector<DxuiListView::Cell> & out) { out.assign (2, DxuiListView::Cell { L"x", false }); });
+        list.Layout            (RECT { 0, 0, 600, 400 }, scaler);
+
+        list.NoteFitText (0, L"Motor command off label");
+        list.Paint (painter, text, theme);
+        wide = list.GetColumnEffectiveWidthPx (0);
+
+        list.SetColumnFiltered (1, true);
+        list.Paint (painter, text, theme);
+
+        Assert::IsTrue   (wide >= 160);
+        Assert::AreEqual (wide, list.GetColumnEffectiveWidthPx (0), L"the noted text measured again");
+    }
+
+
     //  A column fitted by counting characters makes room for an icon ahead
     //  of a cell's text, as the trace's "next" row has the PC's marker, when
     //  that row comes after the column was first fitted.

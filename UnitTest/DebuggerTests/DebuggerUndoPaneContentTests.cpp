@@ -6,6 +6,8 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -85,9 +87,9 @@ namespace DebuggerUndoPaneContentTests
         }
 
         using DebuggerWindow::OnCreate;
-        using DebuggerWindow::GetRegisterList;
-        using DebuggerWindow::GetStackList;
-        using DebuggerWindow::GetWatchList;
+        using DebuggerWindow::GetRegistersPane;
+        using DebuggerWindow::GetStackPane;
+        using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::GetPaneContentForTest;
     };
 
@@ -121,9 +123,9 @@ namespace DebuggerUndoPaneContentTests
 
             const std::array<std::pair<const wchar_t *, DxuiListView *>, 3>  panes =
             { {
-                { DebuggerLayout::kRegisters, window.GetRegisterList() },
-                { DebuggerLayout::kStack,     window.GetStackList()    },
-                { DebuggerLayout::kWatches,   window.GetWatchList()    },
+                { DebuggerLayout::kRegisters, window.GetRegistersPane().GetList() },
+                { DebuggerLayout::kStack,     window.GetStackPane().GetList()    },
+                { DebuggerLayout::kWatches,   window.GetWatchesPane().GetList()    },
             } };
 
             for (const auto & [pane, list] : panes)

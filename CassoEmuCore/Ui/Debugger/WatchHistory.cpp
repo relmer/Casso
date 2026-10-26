@@ -139,11 +139,11 @@ std::wstring WatchHistory::GetEditText (const DebuggerViewSnapshot & snapshot, s
 
     if (watchId.has_value())
     {
-        text = std::format (L"{} watch {}", (column == 0) ? L"moved" : L"changed", *watchId);
+        text = std::format (L"{} watch {}", (column == 0) ? L"move" : L"change", *watchId);
     }
     else if (autoIndex.has_value() && *autoIndex >= 0 && *autoIndex < (int) snapshot.autoWatches.size())
     {
-        text = L"changed " + TextEncoding::NarrowToWide (snapshot.autoWatches[(size_t) *autoIndex].label);
+        text = L"change " + TextEncoding::NarrowToWide (snapshot.autoWatches[(size_t) *autoIndex].label);
     }
 
     return text;

@@ -298,6 +298,35 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("[1] 00/0007"),             reply.text[2]);
         }
 
+        //  A typed watch, a register or an expression, lists as its text, not
+        //  as the address it does not use.
+        TEST_METHOD (WatchList_ATypedWatchListsAsItsText)
+        {
+            Reply          reply;
+            WatchListData  data;
+            WatchEntry     reg;
+            WatchEntry     sum;
+            WatchEntry     address;
+
+
+
+            reg.id          = 0;
+            reg.expression  = "A";
+            sum.id          = 1;
+            sum.expression  = "X+Y";
+            address.id      = 2;
+            address.address = 0x0006;
+
+            data.entries = { reg, sum, address };
+            reply.verb   = DebugVerb::ListWatches;
+            reply.data   = data;
+            GSSquaredFormatter::Format (reply);
+
+            Assert::AreEqual (std::string ("[0] A"),       reply.text.at (1));
+            Assert::AreEqual (std::string ("[1] X+Y"),     reply.text.at (2));
+            Assert::AreEqual (std::string ("[2] 00/0006"), reply.text.at (3));
+        }
+
         //  What decides whether an entry stops is shown after it, so a
         //  disabled or conditional breakpoint does not list as a plain one.
         TEST_METHOD (BreakpointList_ShowsWhatDecidesTheStop)

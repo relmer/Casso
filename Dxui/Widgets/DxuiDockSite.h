@@ -107,8 +107,20 @@ public:
     //  A pane's tab dragged off its strip, or a lone pane's title bar dragged,
     //  floats the pane at once under the pointer instead of starting a drag
     //  here, so the floating window carries the rest of the drag. Without a
-    //  handler, or in a floating window's site, the drag stays in the site.
+    //  handler, or in a floating window's site holding one pane, the drag
+    //  stays in the site.
     void  SetOnTearOff        (FloatFn fn)            { m_onTearOff = std::move (fn); }
+
+    //  The title bar of a group of several panes dragged: the whole group
+    //  floats at once under the pointer, its tabs together in one window,
+    //  `active` the one shown. Without a handler the group is dragged in the
+    //  site, as before.
+    using GroupFloatFn = std::function<void (const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip)>;
+    void  SetOnTearOffGroup   (GroupFloatFn fn)       { m_onTearOffGroup = std::move (fn); }
+
+    //  The area of the group a docked pane is in, as drawn, title bar and
+    //  tabs included: what a floating window must be to show it the same.
+    bool  TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) const;
 
     //  Which panes are documents: a group holding one has its tabs along its
     //  top; any other group is a tool window, with a title bar. With no
@@ -266,14 +278,17 @@ public:
     bool  EndDrag    (POINT pointDip);
     void  CancelDrag ();
 
-    //  A drag the site's own pointer started, from a tab or a title bar. The
-    //  window gives it every mouse event until the button comes up, wherever
-    //  the pointer is, so nothing it crosses takes a move or shows a tip.
-    //  Escape cancels it, as does the window losing the mouse while the
-    //  button is still down, and either leaves every pane where it was. The
-    //  window releases the capture itself as the button comes up, before the
-    //  button-up arrives, so that is not a loss.
-    bool  HasPointerDrag  () const { return IsDragging() && m_pointerDrag; }
+    //  True during a drag that a press in the site started, from a tab or a
+    //  title bar, during a sash drag, and while a title bar press is armed,
+    //  which a move past the drag distance turns into a drag. The window
+    //  sends every mouse event to the site until the button comes up,
+    //  wherever the pointer is, so no control under the pointer receives a
+    //  move or draws a tip. Escape cancels the drag, as does a capture loss
+    //  with the button down: every pane goes back to where it was, and a sash
+    //  stays where the drag put it. The window releases the capture itself as
+    //  the button comes up, before the button-up arrives, so that is not a
+    //  loss.
+    bool  HasPointerDrag  () const;
     bool  OnDragKey       (const DxuiKeyEvent & ev);
     void  OnDragMouseLost (bool isButtonDown);
 
@@ -353,6 +368,7 @@ private:
 
     void          WireGroup     (DxuiTabGroup * group);
     bool          TearOff       (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab);
+    bool          TearOffGroup  (DxuiTabGroup * group, const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip);
     void          UpdateStripTarget (POINT pointDip);
     void          ClearStripTarget  ();
     bool          DropOnStrip   (int group, int index);
@@ -411,6 +427,7 @@ private:
     DxuiTabGroup::NewTabFn                        m_newTab;
     FloatFn                                       m_onFloat;
     FloatFn                                       m_onTearOff;
+    GroupFloatFn                                  m_onTearOffGroup;
 
     std::wstring                   m_dragPane;
     std::vector<std::wstring>      m_dragPanes;

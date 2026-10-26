@@ -100,9 +100,12 @@ bool TrackSectorPredicate::TryParseDecimalInt (std::wstring_view tok, int & outV
     hasToken = !tok.empty();
     CBR (hasToken);
 
+    //  A number past any cap fails before it can overflow and wrap to one
+    //  that passes.
     for (wchar_t ch : tok)
     {
         CBR (ch >= L'0' && ch <= L'9');
+        CBR (v <= kMaxParsedValue);
 
         v = v * 10 + (int) (ch - L'0');
     }
@@ -209,7 +212,8 @@ int TrackSectorPredicate::GetValueCap (TrackSectorPredicate::Mode mode, bool isQ
 
     if (mode == TrackSectorPredicate::Mode::Sector)
     {
-        cap = TrackSectorPredicate::kMaxSectorExclusive;
+        //  A sector has no quarters: a quarter-track value is out of range.
+        cap = isQt ? 0 : TrackSectorPredicate::kMaxSectorExclusive;
     }
     else
     {

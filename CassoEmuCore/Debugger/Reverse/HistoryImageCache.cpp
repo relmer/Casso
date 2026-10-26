@@ -161,6 +161,34 @@ void HistoryImageCache::Clear()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HistoryImageCache::EraseFrom
+//
+//  Every picture whose key is at or past `key` is removed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryImageCache::EraseFrom (uint64_t key)
+{
+    for (auto it = m_entries.begin(); it != m_entries.end(); )
+    {
+        if (it->first >= key)
+        {
+            m_index.erase (it->first);
+            it = m_entries.erase (it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HistoryImageCache::SetCapacity
 //
 ////////////////////////////////////////////////////////////////////////////////

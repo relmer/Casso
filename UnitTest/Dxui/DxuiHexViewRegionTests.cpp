@@ -3,8 +3,38 @@
 #include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
 #include "MockDxuiTheme.h"
+#include "Ui/Chrome/CassoTheme.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScalingTextRenderer
+//
+//  The mock renderer, measuring text in proportion to the font size, as a
+//  real renderer does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ScalingTextRenderer : public MockDxuiTextRenderer
+{
+public:
+    HRESULT  MeasureString (const wchar_t * text, float fontSizeDip, const wchar_t * fontFamily, float & outWidthDip, float & outHeightDip) override
+    {
+        static constexpr float  kAdvance = 0.6f;
+        static constexpr float  kLine    = 1.25f;
+
+        UNREFERENCED_PARAMETER (fontFamily);
+
+        outWidthDip  = kAdvance * fontSizeDip * (float) ((text != nullptr) ? wcslen (text) : 0);
+        outHeightDip = kLine * fontSizeDip;
+        return S_OK;
+    }
+};
 
 
 
@@ -104,6 +134,38 @@ public:
         scaler.SetDpi (96);
         view.SetCellSizeDip (kCellW, kCellH);
         view.Layout (RECT { 0, 0, 800, 320 }, scaler);
+    }
+
+
+    //  A cell size the view measured is measured again when it is laid out
+    //  at another DPI, so its columns and rows fit text drawn at that DPI.
+    TEST_METHOD (TheCellsAreMeasuredAgainAtANewDpi)
+    {
+        RegionHexSource       source (256, {});
+        DxuiHexView           view;
+        MockDxuiPainter       painter;
+        ScalingTextRenderer   text;
+        CassoTheme            theme   = CassoTheme::MakeSkeuomorphic();
+        DxuiDpiScaler         scaler;
+        int                   at96    = 0;
+        int                   at144   = 0;
+
+
+
+        view.SetSource (&source);
+
+        scaler.SetDpi (96);
+        view.Layout (RECT { 0, 0, 800, 320 }, scaler);
+        view.Paint  (painter, text, theme);
+        at96 = view.GetRowTop (1) - view.GetRowTop (0);
+
+        scaler.SetDpi (144);
+        view.Layout (RECT { 0, 0, 1200, 480 }, scaler);
+        view.Paint  (painter, text, theme);
+        at144 = view.GetRowTop (1) - view.GetRowTop (0);
+
+        Assert::IsTrue (at96 > 0, L"a row was measured at 96 DPI");
+        Assert::IsTrue (at144 * 2 >= at96 * 3 - 2, L"the row at 144 DPI is half again as tall");
     }
 
 

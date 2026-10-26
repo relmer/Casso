@@ -85,7 +85,7 @@ void MachineDebugTarget::SetHeatMapOn (bool on)
     if (on)
     {
         m_heat.SetPositionSource (m_host.GetPositionPtr());
-        m_heat.Start (GetInstructionSet(), GetCycleCount());
+        m_heat.Start (GetInstructionSet(), GetHistoryCycleCount());
 
         isConnected = TryConnectHeatMap (m_host, &m_heat);
 
@@ -140,7 +140,7 @@ bool MachineDebugTarget::TryConnectHeatMap (
 
     if (map != nullptr)
     {
-        map->SetCycleSource (cpu->GetCycleCounterPtr());
+        map->SetCycleSource (cpu->GetCycleCounterPtr(), cpu->GetCycleBasePtr());
         ConfigureBankMap (host, map->GetBankMap());
     }
 
@@ -181,7 +181,7 @@ void MachineDebugTarget::ConfigureBankMap (
     bankMap.Clear();
     bankMap.SetBus (&host.GetMemoryBus());
 
-    if (cpu != nullptr)
+    if (cpu != nullptr && mmu == nullptr)
     {
         bankMap.AddRegion (cpu->GetMemory(), kLowRamSize, HeatSpace::Main, 0);
     }
@@ -332,7 +332,7 @@ const AccessHeatMap * MachineDebugTarget::FoldHeatMap()
 
     m_heatHistory.Service();
 
-    m_heat.Fold (GetCycleCount());
+    m_heat.Fold (GetHistoryCycleCount());
     return &m_heat;
 }
 
@@ -971,6 +971,21 @@ uint64_t MachineDebugTarget::GetBusCycle() const
 uint64_t MachineDebugTarget::GetCycleCount() const
 {
     return m_host.GetCpu()->GetTotalCycles();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::GetHistoryCycleCount
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t MachineDebugTarget::GetHistoryCycleCount() const
+{
+    return m_host.GetCpu()->GetHistoryCycles();
 }
 
 

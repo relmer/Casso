@@ -217,15 +217,28 @@ private:
 
     //  The stretches, newest first, each passed to onStretch when done. An
     //  abandoned job passes nothing more; a stretch that fails is passed with
-    //  its hr and ends the job.
+    //  its hr and ends the job. A scratch machine that does not build fails
+    //  the first stretch.
     HRESULT  Run (const DebugEventJob & job, const std::function<void (DebugEventStretchResult<T> &&)> & onStretch)
     {
-        HRESULT                     hr = S_OK;
+        HRESULT                     hr      = S_OK;
+        bool                        isBuilt = false;
         DebugEventStretchResult<T>  result;
 
 
 
-        hr = m_scratch.Build();
+        hr      = m_scratch.Build();
+        isBuilt = SUCCEEDED (hr);
+
+        if (!isBuilt && !job.stretches.empty())
+        {
+            result.generation    = job.generation;
+            result.startPosition = job.stretches.front().startPosition;
+            result.endPosition   = job.stretches.front().endPosition;
+            result.hr            = hr;
+            onStretch (std::move (result));
+        }
+
         CHR (hr);
 
         m_scratch.GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
@@ -300,7 +313,7 @@ private:
             BAIL_OUT_IF (IsAbandoned (job), E_ABORT);
 
             target.position = stretch.endPosition;
-            target.cycle    = cpu->GetTotalCycles() + kChunkCycles;
+            target.cycle    = cpu->GetHistoryCycles() + kChunkCycles;
 
             hr = replayer->RunTo (target, stretch.endPosition, m_probe->GetStopTest(), report);
             CHR (hr);
@@ -308,7 +321,7 @@ private:
 
         //  A replay that ends anywhere but the stretch's end went wrong; one
         //  before a gap has no end cycle to check.
-        isAtEnd = machine->GetPosition() == stretch.endPosition && (stretch.endCycle == 0 || cpu->GetTotalCycles() == stretch.endCycle);
+        isAtEnd = machine->GetPosition() == stretch.endPosition && (stretch.endCycle == 0 || cpu->GetHistoryCycles() == stretch.endCycle);
         CBREx (isAtEnd, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
     Error:

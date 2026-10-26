@@ -139,5 +139,27 @@ namespace DebuggerTests
             Assert::AreEqual (std::wstring (L"bp 100"), result);
             Assert::IsFalse  (completion.TrySearchHistory (result, history, result), L"the oldest stays put");
         }
+
+
+
+        //  A project switch replaces the history with a shorter one while
+        //  the last match is in the box: the next press searches the new history
+        //  from its newest line, with the same prefix.
+        TEST_METHOD (F8_AfterTheHistoryIsReplacedSearchesTheNewOneFromItsEnd)
+        {
+            CommandCompletion          completion;
+            std::vector<std::wstring>  history  = { L"bp 1", L"bp 2", L"bp 3", L"bp 4", L"bp 5" };
+            std::vector<std::wstring>  replaced = { L"bp 9", L"r" };
+            std::wstring               result;
+
+
+
+            Assert::IsTrue   (completion.TrySearchHistory (L"bp", history, result));
+            Assert::IsTrue   (completion.TrySearchHistory (result, history, result));
+            Assert::AreEqual (std::wstring (L"bp 4"), result);
+
+            Assert::IsTrue   (completion.TrySearchHistory (result, replaced, result));
+            Assert::AreEqual (std::wstring (L"bp 9"), result);
+        }
     };
 }

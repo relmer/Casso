@@ -9,6 +9,79 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShadowCpu::ShadowCpu
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ShadowCpu::ShadowCpu (
+    const IDebugExpressionContext  & memory,
+    const Microcode                * instructionSet) :
+    m_memory (&memory)
+{
+    if (instructionSet != nullptr)
+    {
+        AdoptInstructionSet (instructionSet);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShadowCpu::AdoptInstructionSet
+//
+//  Every row of the machine's set, its register pointers moved from the
+//  machine CPU's registers to this one's. Opcodes the 6502 and the 65C02
+//  share indicate which pointer is which: LDA, LDX and LDY immediate load A,
+//  X and Y, TXS stores S, and PHP pushes P.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShadowCpu::AdoptInstructionSet (const Microcode * source)
+{
+    constexpr size_t  kOpcodeCount  = 256;
+    constexpr Byte    kLdaImmediate = 0xA9;
+    constexpr Byte    kLdxImmediate = 0xA2;
+    constexpr Byte    kLdyImmediate = 0xA0;
+    constexpr Byte    kTxs          = 0x9A;
+    constexpr Byte    kPhp          = 0x08;
+    const Byte      * from[]        = { source[kLdaImmediate].pDestinationRegister,
+                                        source[kLdxImmediate].pDestinationRegister,
+                                        source[kLdyImmediate].pDestinationRegister,
+                                        source[kTxs].pDestinationRegister,
+                                        source[kPhp].pSourceRegister };
+    Byte            * to[]          = { &A, &X, &Y, &SP, &status.status };
+    auto              map           = [&from, &to] (const Byte * which) -> Byte *
+    {
+        for (size_t i = 0; i < std::size (from); i++)
+        {
+            if (which != nullptr && which == from[i])
+            {
+                return to[i];
+            }
+        }
+
+        return nullptr;
+    };
+
+
+
+    for (size_t opcode = 0; opcode < kOpcodeCount; opcode++)
+    {
+        instructionSet[opcode]                      = source[opcode];
+        instructionSet[opcode].pSourceRegister      = map (source[opcode].pSourceRegister);
+        instructionSet[opcode].pDestinationRegister = map (source[opcode].pDestinationRegister);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ShadowCpu::GetRegisterName
 //
 //  A pointer into this CPU's own register file, as a letter.

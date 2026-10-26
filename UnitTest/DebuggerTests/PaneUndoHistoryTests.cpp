@@ -158,6 +158,7 @@ namespace PaneUndoHistoryTests
             DebuggerViewSnapshot                        now;
             std::optional<std::vector<DebuggerAction>>  actions;
             DebuggerAction                              action;
+            std::vector<DebuggerAction>                 undone;
 
 
 
@@ -178,7 +179,7 @@ namespace PaneUndoHistoryTests
 
             actions = read.TryRedo();
             Assert::IsTrue   (actions.has_value() && actions->size() == 1);
-            action = (*actions)[0];
+            action = (actions.has_value() && !actions->empty()) ? actions->front() : DebuggerAction();
             Assert::IsTrue   (action.command.verb == DebugVerb::EnterWords);
             Assert::AreEqual ((int) 0x0300, (int) action.command.a1);
             Assert::AreEqual (std::string ("LABEL+1"), action.operand);
@@ -189,9 +190,10 @@ namespace PaneUndoHistoryTests
             now.watches = { { 4, 0x0400, "00", true } };
             actions = read.TryUndo (now, CommandMode::AppleWin);
             Assert::IsTrue   (actions.has_value() && actions->size() == 2, L"the move is undone");
-            Assert::IsTrue   ((*actions)[0].command.verb == DebugVerb::ClearWatch);
-            Assert::AreEqual (4u, (*actions)[0].command.count);
-            Assert::AreEqual (std::string ("0300"), (*actions)[1].operand);
+            undone = actions.value_or (std::vector<DebuggerAction>());
+            Assert::IsTrue   (undone[0].command.verb == DebugVerb::ClearWatch);
+            Assert::AreEqual (4u, undone[0].command.count);
+            Assert::AreEqual (std::string ("0300"), undone[1].operand);
         }
 
 

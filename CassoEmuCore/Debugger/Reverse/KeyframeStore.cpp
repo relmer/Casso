@@ -61,11 +61,12 @@ void KeyframeStore::Configure (const KeyframeSettings & settings)
 //  store when it is first reserved. After it, the oldest groups are dropped
 //  until what is held fits the new table and arena, then the keyframes kept
 //  are copied, oldest first, into memory sized from the new budget: smaller
-//  or larger, the store takes its new size now.
+//  or larger, the store takes its new size now. The group of the keyframe at
+//  or before keepPosition is not dropped, nor any newer one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
+HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes, uint64_t keepPosition)
 {
     HRESULT  hr         = S_OK;
     bool     isReserved = !m_entries.empty();
@@ -86,7 +87,7 @@ HRESULT KeyframeStore::ChangeBudget (size_t budgetBytes)
 
     ComputeLayout (m_wholeBytes, slotCount, arenaBytes);
 
-    hr = Relayout (slotCount, arenaBytes);
+    hr = Relayout (slotCount, arenaBytes, keepPosition);
     CHR (hr);
 
 Error:
@@ -104,13 +105,17 @@ Error:
 //  Moves the store into a new table and arena of the sizes given: the oldest
 //  groups are dropped until what is held fits them and the budget, then the
 //  keyframes kept are copied, oldest first, to the start of the new arena.
+//  The newest group is never dropped, and its side bytes are not bounded by
+//  the least arena, so the table and arena grow to fit what is left when it
+//  is more than the sizes given, and so do the groups left in for keepPosition.
 //  Call it with nothing in flight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT KeyframeStore::Relayout (
-    size_t  slotCount,
-    size_t  arenaBytes)
+    size_t    slotCount,
+    size_t    arenaBytes,
+    uint64_t  keepPosition)
 {
     HRESULT                  hr         = S_OK;
     bool                     isDropped  = true;
@@ -125,8 +130,11 @@ HRESULT KeyframeStore::Relayout (
 
     while (isDropped && (GetByteCount() > m_settings.budgetBytes || m_storedBytes > arenaBytes || m_count > slotCount))
     {
-        isDropped = TryDropOldestGroup();
+        isDropped = TryDropOldestGroup (keepPosition);
     }
+
+    arenaBytes = (std::max) (arenaBytes, m_storedBytes);
+    slotCount  = (std::max) (slotCount, m_count);
 
     buffer = new (std::nothrow) Byte[arenaBytes];
     CPRA (buffer);
@@ -327,6 +335,13 @@ HRESULT KeyframeStore::Add (
     CHR (hr);
 
 Error:
+    //  After a failed add the next keyframe is due an interval later, not at
+    //  the next instruction.
+    if (FAILED (hr))
+    {
+        ScheduleAfter (cycle);
+    }
+
     return hr;
 }
 
@@ -368,6 +383,13 @@ HRESULT KeyframeStore::Add (
     CHR (hr);
 
 Error:
+    //  After a failed add the next keyframe is due an interval later, not at
+    //  the next instruction.
+    if (FAILED (hr))
+    {
+        ScheduleAfter (cycle);
+    }
+
     return hr;
 }
 
@@ -399,7 +421,7 @@ HRESULT KeyframeStore::Capture (
     hr = machine.SaveState (writer);
     CHR (hr);
 
-    hr = Add (position, cpu->GetTotalCycles(), machine.GetInputJournal().GetEndIndex(), writer);
+    hr = Add (position, cpu->GetHistoryCycles(), machine.GetInputJournal().GetEndIndex(), writer);
     CHR (hr);
 
 Error:
@@ -773,6 +795,8 @@ HRESULT KeyframeStore::SubmitJob (
     bool      isGroupFull = IsGroupDone();
     bool      isDropped   = false;
     bool      isGrown     = false;
+    bool      isQueued    = false;
+    HRESULT   hrSubmit    = E_FAIL;
 
 
 
@@ -825,10 +849,19 @@ HRESULT KeyframeStore::SubmitJob (
 
     if (m_queue != nullptr)
     {
-        hr = m_queue->Submit (RunJob, &job);
-        CHR (hr);
+        hrSubmit = m_queue->Submit (RunJob, &job);
     }
-    else
+
+    isQueued = SUCCEEDED (hrSubmit);
+
+    //  With no queue, or when Submit fails, the job runs here once the jobs
+    //  before it are done, so no job stays in flight with nothing to run it.
+    if (!isQueued && m_queue != nullptr)
+    {
+        m_queue->WaitAll();
+    }
+
+    if (!isQueued)
     {
         RunJob (&job);
     }
@@ -981,15 +1014,25 @@ HRESULT KeyframeStore::Collect()
             break;
         }
 
-        CHR (job->hr);
+        hr = job->hr;
 
-        hr = Place (job->packed, job->side, offset);
+        if (SUCCEEDED (hr))
+        {
+            hr = Place (job->packed, job->side, offset);
+        }
 
         if (hr == E_OUTOFMEMORY && !job->side.empty())
         {
             job->side.clear();
 
             hr = Place (job->packed, noSide, offset);
+        }
+
+        //  A failed job is retired with every job after it, so no later wait
+        //  is on it.
+        if (FAILED (hr))
+        {
+            (void) DropPending();
         }
 
         CHR (hr);
@@ -1015,6 +1058,52 @@ HRESULT KeyframeStore::Collect()
             m_groupDiffs += job->packed.size();
         }
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropPending
+//
+//  Drops every keyframe in flight, after a job failed: the failed one, and
+//  every one after it, which may be a difference against it. The newest
+//  group that stays is reloaded, so the next keyframe follows it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::DropPending()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (m_queue != nullptr)
+    {
+        m_queue->WaitAll();
+    }
+
+    while (m_pendingCount > 0)
+    {
+        NotifyDrop (KeyframeDrop::Newest);
+
+        m_count--;
+        m_pendingCount--;
+    }
+
+    if (m_count == 0)
+    {
+        Clear();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = ReloadLatestWhole();
+    CHR (hr);
 
 Error:
     return hr;
@@ -1677,11 +1766,13 @@ size_t KeyframeStore::FindGroupStart (size_t index) const
 //
 //  Drops the oldest group, its whole snapshot and every difference against
 //  it, when a collected whole snapshot follows it; false when none does, so
-//  the newest group and every keyframe in flight stay.
+//  the newest group and every keyframe in flight stay. False too when the
+//  next group starts past keepPosition, so the keyframe at or before it
+//  stays.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool KeyframeStore::TryDropOldestGroup()
+bool KeyframeStore::TryDropOldestGroup (uint64_t keepPosition)
 {
     size_t  collected = m_count - m_pendingCount;
     size_t  nextGroup = 1;
@@ -1694,7 +1785,7 @@ bool KeyframeStore::TryDropOldestGroup()
         nextGroup++;
     }
 
-    isDropped = nextGroup < collected;
+    isDropped = nextGroup < collected && GetEntry (nextGroup).info.position <= keepPosition;
 
     for (; isDropped && nextGroup > 0; nextGroup--)
     {

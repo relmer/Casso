@@ -793,6 +793,7 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
     std::string              options;
     std::optional<Word>      hover;
     HeatAccessRequest        access;
+    DebugLogKind             logKind    = DebugLogKind::Disk;
 
 
 
@@ -840,9 +841,9 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
         return;
     }
 
-    if (view == "disklog" || view == "inputlog")
+    if (TryGetDebugLogKind (view, logKind))
     {
-        target.SetDebugEventLog ((view == "disklog") ? DebugLogKind::Disk : DebugLogKind::Input, where);
+        target.SetDebugEventLog (logKind, where);
         return;
     }
 

@@ -12,7 +12,6 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
-#include "Debugger/DebugCommandPayload.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "resource.h"
 
@@ -93,6 +92,7 @@ void ShellDebugger::StartReverseRecording()
     //  heat map's rebuilds and its look-ups of last accesses, and the call
     //  record's rebuilds.
     m_historyThumbnails.Clear();
+    m_historyThumbnails.Attach (m_reverseHost->IsRecording() ? &m_reverseHost->GetController().GetKeyframes() : nullptr);
     m_historyRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatReplayer.SetMachine    (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_heatFinder.SetMachine      (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
@@ -116,6 +116,7 @@ void ShellDebugger::StartReverseRecording()
 void ShellDebugger::StopReverseRecording()
 {
     m_eventLogs.Stop();
+    m_historyThumbnails.Attach (nullptr);
 
     if (m_reverseHost != nullptr)
     {
@@ -162,6 +163,10 @@ void ShellDebugger::ApplyReverseOptions (
 
         StopReverseRecording();
         m_eventLogs.Start (nullptr);
+
+        //  The caption is otherwise updated only while recording is on, so
+        //  a replay's note would stay in the title.
+        UpdateReplayCaption();
     }
     else if (!wasOn)
     {
@@ -169,7 +174,7 @@ void ShellDebugger::ApplyReverseOptions (
     }
     else
     {
-        hr = m_reverseHost->GetController().GetKeyframes().ChangeBudget (budgetBytes);
+        hr = m_reverseHost->GetController().ChangeBudget (budgetBytes);
         CHR (hr);
     }
 
@@ -395,7 +400,10 @@ bool ShellDebugger::AskToDiverge()
 
 void ShellDebugger::DivergeHistory()
 {
-    HRESULT  hr = S_OK;
+    HRESULT                    hr       = S_OK;
+    std::vector<DebugCommand>  edits;
+    std::vector<std::string>   failures;
+    Reply                      reply;
 
 
 
@@ -405,6 +413,24 @@ void ShellDebugger::DivergeHistory()
     CHR (hr);
 
     UpdateReplayCaption();
+
+    //  The edits deferred for the question run now, live, in the order made.
+    edits = m_deferredEdits.TakeAll();
+
+    for (const DebugCommand & edit : edits)
+    {
+        BAIL_OUT_IF (m_debugController == nullptr, S_OK);
+
+        reply = m_debugController->GetSession().Execute (edit);
+
+        if (reply.status != CommandStatus::Ok)
+        {
+            failures.push_back (reply.error.detail);
+        }
+    }
+
+    AddConsoleLines (failures);
+    m_isDebugViewDirty = true;
 
 Error:
     return;
@@ -419,17 +445,16 @@ Error:
 //  GuardHistoryEdit
 //
 //  CPU thread, the debugger session's history guard. Live, the edit is
-//  made. Behind live it is held back: the command it came from is handed to
-//  the UI thread, which asks, and on a yes queues the cut and the command
-//  again, when it runs live.
+//  made. Behind live the command is deferred with any others deferred
+//  since, and the first one posts the question to the UI thread; on a yes
+//  the cut runs every deferred command, live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShellDebugger::GuardHistoryEdit (
-    const std::string  & line,
-    CommandMode          mode)
+bool ShellDebugger::GuardHistoryEdit (const DebugCommand & command)
 {
     bool  isBehind = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+    bool  isFirst  = false;
 
 
 
@@ -438,13 +463,12 @@ bool ShellDebugger::GuardHistoryEdit (
         return true;
     }
 
+    isFirst = m_deferredEdits.Defer (command);
+
+    if (isFirst)
     {
-        std::lock_guard<std::mutex>  held (m_divergeMutex);
-
-        m_pendingDivergeCommand = DebugCommandPayload::Encode (m_debugCommandClient, line, mode);
+        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_DIVERGE, 0, 0);
     }
-
-    PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_DIVERGE, 0, 0);
 
     return false;
 }
@@ -457,30 +481,25 @@ bool ShellDebugger::GuardHistoryEdit (
 //
 //  OnConfirmDiverge
 //
-//  UI thread: asks about the debugger edit held back, and on a yes queues
-//  the cut and the edit's command again.
+//  UI thread: puts the question for the deferred debugger edits. A yes
+//  queues the cut, which runs them; a no drops them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::OnConfirmDiverge()
 {
-    std::optional<std::string>  command;
-
-
-
-    {
-        std::lock_guard<std::mutex>  held (m_divergeMutex);
-
-        command.swap (m_pendingDivergeCommand);
-    }
-
-    if (!command.has_value() || !AskToDiverge())
+    if (!m_deferredEdits.HasAny())
     {
         return;
     }
 
+    if (!AskToDiverge())
+    {
+        m_deferredEdits.Clear();
+        return;
+    }
+
     m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
-    m_cpuManager.PostCommand (IDM_DEBUG_COMMAND, *command);
 }
 
 
@@ -745,7 +764,7 @@ void ShellDebugger::ApplyHeldMouseTarget (uint32_t target)
 {
     HRESULT                              hr         = S_OK;
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
 
 
@@ -779,7 +798,7 @@ void ShellDebugger::PressGuestMouseHeldBehindLive()
 {
     HRESULT                              hr         = S_OK;
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
     bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
@@ -820,7 +839,7 @@ void ShellDebugger::ReleaseGuestMouseAfterClick()
 {
     HRESULT                              hr         = S_OK;
     std::shared_lock<std::shared_mutex>  lifetime   (m_machine.GetLifetimeLock(), std::try_to_lock);
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
     bool                                 isHostDown = (GetKeyState (VK_LBUTTON) & 0x8000) != 0;
 
@@ -882,7 +901,7 @@ void ShellDebugger::ToggleHeldEightyColumnSwitch()
 void ShellDebugger::ToggleEightyColumnSwitch (Apple2eKeyboard * iieKbd)
 {
     HRESULT                              hr         = S_OK;
-    std::shared_lock<std::shared_mutex>  gate;
+    HostInputGate::Entry                 gate;
     bool                                 isGateOpen = false;
     bool                                 newIn      = false;
 
@@ -933,7 +952,7 @@ void ShellDebugger::UpdateReplayCaption()
 
     if (isBehind)
     {
-        cycle   = cpu->GetTotalCycles();
+        cycle   = cpu->GetHistoryCycles();
         caption = DebuggerStatusText::GetReplayCaption (m_reverseHost->GetController().GetWallTimeAt (cycle), cycle, LOCALE_NAME_USER_DEFAULT);
     }
 
@@ -1187,7 +1206,7 @@ bool ShellDebugger::TryPublishHistoryPlayhead()
         return false;
     }
 
-    cycle     = cpu->GetTotalCycles();
+    cycle     = cpu->GetHistoryCycles();
     isBehind  = m_reverseHost->IsBehindLive();
     keyframes = &m_reverseHost->GetController().GetKeyframes();
 

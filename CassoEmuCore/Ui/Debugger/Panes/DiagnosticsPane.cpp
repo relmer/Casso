@@ -36,9 +36,8 @@ DiagnosticsPane::DiagnosticsPane (
     m_meters  (meters),
     m_frame   (std::make_unique<DebuggerPaneFrame> (m_title))
 {
-    m_frame->AddPart (m_map,
-                      [this] (int width, const DxuiDpiScaler & scaler) { return m_map->GetPreferredHeightPx (width, scaler); },
-                      [this] { return m_visual == Visual::MemoryMap; });
+    //  The memory map's strips run down the pane beside the list.
+    m_frame->AddPart (m_map, nullptr, [this] { return m_visual == Visual::MemoryMap; });
     m_frame->AddPart (m_head,
                       [this] (int width, const DxuiDpiScaler & scaler) { return m_head->GetPreferredHeightPx (width, scaler); },
                       [this] { return m_visual == Visual::DiskHead; });
@@ -46,6 +45,7 @@ DiagnosticsPane::DiagnosticsPane (
                       [this] (int, const DxuiDpiScaler & scaler) { return m_meters->GetPreferredHeightPx (scaler); },
                       [this] { return m_visual == Visual::Meters; });
     m_frame->AddPart (m_list);
+    m_frame->SetPartBeside (m_map, m_list, [] (int, const DxuiDpiScaler & scaler) { return MemoryMapBar::GetPreferredWidthPx (scaler); });
 
     m_frame->SetPartInsetDip (m_map,    kGraphicInsetDip);
     m_frame->SetPartInsetDip (m_head,   kGraphicInsetDip);
@@ -175,7 +175,8 @@ bool DiagnosticsPane::Apply (const DiagnosticsSnapshot & snapshot)
 //
 //  DiagnosticsPane::MakeRows
 //
-//  A group's title stands alone on its row; its rows are indented under it.
+//  A group's title is alone on its row; its rows are indented under it,
+//  each with its tip over its label and its value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,6 +195,9 @@ std::vector<std::vector<DxuiListView::Cell>> DiagnosticsPane::MakeRows (const Di
             rows.push_back ({ { L"  " + TextEncoding::NarrowToWide (row.label) },
                               MakeValueCell (row),
                               MakeBitsCell (row.bits) });
+
+            rows.back()[0].tip = TextEncoding::NarrowToWide (row.tip);
+            rows.back()[1].tip = rows.back()[0].tip;
         }
     }
 

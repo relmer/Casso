@@ -52,7 +52,8 @@ namespace DxuiCaptionDragTrackerTests
             Assert::IsTrue (drag.OnTick (true, s_kSize)  == Event::Moved);
             Assert::IsTrue (drag.OnTick (true, s_kOther) == Event::Canceled, L"the zones the first tick showed come down");
             Assert::IsTrue (drag.OnTick (true, s_kOther) == Event::None);
-            Assert::IsTrue (drag.OnLoopEnd (s_kOther)    == Event::None, L"nothing left to end");
+            Assert::IsTrue (drag.OnLoopEnd (s_kOther)    == Event::Resized, L"the resize ends with the loop, at its final size");
+            Assert::IsTrue (drag.OnPoll (false, s_kOther) == Event::None, L"ended once");
         }
 
 

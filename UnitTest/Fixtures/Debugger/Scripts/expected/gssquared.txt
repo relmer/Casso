@@ -52,7 +52,7 @@ M=8 X=8
 >s
 Step at $0310
 >o
-Watchpoint #1: Read $80 from $C019 by $0310
+Data breakpoint #1: Read $80 from $C019 by $0310
 >r
 Step at $0303
 >mode monitor

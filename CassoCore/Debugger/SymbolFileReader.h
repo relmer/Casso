@@ -69,7 +69,8 @@ private:
     static bool  HasMerlinHeading  (const std::string & line);
     static bool  TryParseHex       (const std::string & text, Word & value);
     static bool  TryParseViceAddress (const std::string & text, uint32_t & value, bool & isComputer);
-    static void  AddUnique         (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant = false, Word size = 0);
+    static void  Add               (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant = false, Word size = 0);
+    static void  DropDuplicates    (std::vector<SymbolFileEntry> & symbols);
     static void  ReadCasso         (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);
     static void  ReadCc65          (const DebugFile & file, std::vector<SymbolFileEntry> & symbols);
     static void  ReadMerlinListing (const std::vector<std::string> & lines, std::vector<SymbolFileEntry> & symbols);

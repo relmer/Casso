@@ -8,6 +8,28 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WatchItem::SplitWidth
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int WatchItem::SplitWidth (const std::string & text, std::string & base)
+{
+    char  last  = text.empty() ? '\0' : (char) std::tolower ((unsigned char) text.back());
+    bool  isCut = text.size() > 2 && text[text.size() - 2] == '.' && (last == 'b' || last == 'w');
+
+
+
+    base = isCut ? text.substr (0, text.size() - 2) : text;
+
+    return !isCut ? 0 : (last == 'b') ? 1 : 2;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  WatchTable::Add
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +91,26 @@ int WatchTable::AddBasic (const std::string & name)
 
     item.id        = m_nextId++;
     item.basicName = name;
+    item.kind      = WatchItem::Kind::Basic;
+    m_items.push_back (item);
+    return item.id;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WatchTable::AddTyped
+//
+//  The item as resolved, given the next id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int WatchTable::AddTyped (WatchItem item)
+{
+    item.id = m_nextId++;
     m_items.push_back (item);
     return item.id;
 }

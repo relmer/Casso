@@ -61,6 +61,7 @@ static constexpr LPCWSTR s_kpszMdl2Up        = L"\xE74A";       // U+E74A Segoe 
 static constexpr LPCWSTR s_kpszMdl2Down      = L"\xE74B";       // U+E74B Segoe MDL2 Down
 static constexpr LPCWSTR s_kpszMdl2AlignLeft = L"\xE8E4";       // U+E8E4 Segoe MDL2 AlignLeft (lines, find in selection)
 static constexpr LPCWSTR s_kpszMdl2Refresh   = L"\xE72C";       // U+E72C Segoe MDL2 Refresh
+static constexpr LPCWSTR s_kpszMdl2Save      = L"\xE74E";       // U+E74E Segoe MDL2 Save (a floppy disk)
 static constexpr LPCWSTR s_kpszMdl2Add       = L"\xE710";       // U+E710 Segoe MDL2 Add
 static constexpr LPCWSTR s_kpszMdl2Preview   = L"\xE8A1";       // U+E8A1 Segoe MDL2 PreviewLink
 static constexpr LPCWSTR s_kpszMdl2ChevronRight = L"\xE76C";  // U+E76C Segoe MDL2 ChevronRight

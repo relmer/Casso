@@ -90,6 +90,14 @@ void DxuiDockSite::SetTitle (const std::wstring & pane, const std::wstring & tit
     {
         group->SetTitle (found->second.content, title);
     }
+
+    m_slidGroup.SetTitle (found->second.content, title);
+
+    //  A hidden pane's edge tab is as long as its title.
+    if (m_layout.IsAutoHidden (pane))
+    {
+        Relayout();
+    }
 }
 
 
@@ -210,11 +218,11 @@ void DxuiDockSite::Arrange()
         bool            carried  = false;
         RECT            rect     = {};
 
-        while (group->GetTabCount() > 0)
-        {
-            group->RemoveTab (group->GetContent (0));
-        }
+        std::vector<std::pair<std::wstring, IDxuiControl *>>  tabs;
 
+        //  Every tab at once, so a press on a tab survives the refill: an
+        //  arrangement runs when a pressed tab is activated, and the press
+        //  may go on to drag it.
         for (const std::wstring & pane : groups[i].panes)
         {
             auto  found = m_panes.find (pane);
@@ -224,16 +232,29 @@ void DxuiDockSite::Arrange()
                 continue;
             }
 
-            active    = (pane == groups[i].active) ? (int) group->GetTabCount() : active;
+            active    = (pane == groups[i].active) ? (int) tabs.size() : active;
             document  = document || m_isDocument (pane);
             focused   = focused || pane == m_focusedPane;
             carried   = carried || (!m_carriedPane.empty() && pane == m_carriedPane);
 
-            group->AddTab         (found->second.title, found->second.content);
-            group->SetLeadingMark (found->second.content, found->second.leadMark);
-            group->SetTabTip      (found->second.content, found->second.tip);
-            group->SetTitleExtra  (found->second.content, found->second.titleExtraDip);
+            tabs.push_back ({ found->second.title, found->second.content });
             placed.insert (found->second.content);
+        }
+
+        group->ReplaceTabs (tabs, active);
+
+        for (size_t t = 0; t < tabs.size(); t++)
+        {
+            Pane  & entry = m_panes.find (GetPaneOf (tabs[t].second))->second;
+
+            //  The tab in front has no mark, which is for a change out of
+            //  sight; a pane moved to another group takes its mark with it.
+            entry.indicator = entry.indicator && (int) t != active;
+
+            group->SetLeadingMark (tabs[t].second, entry.leadMark);
+            group->SetTabTip      (tabs[t].second, entry.tip);
+            group->SetTitleExtra  (tabs[t].second, entry.titleExtraDip);
+            group->SetIndicator   (tabs[t].second, entry.indicator);
         }
 
         //  A floating window's title bar is its pane's, so every group there
@@ -325,6 +346,35 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         }
     });
 
+    //  A tab dragged along its strip moves within the group, among every pane
+    //  in the group, visible or not: ahead of the tab now after it, or after
+    //  the tab now before it.
+    group->SetOnMove ([this, group] (int from, int to)
+    {
+        std::wstring               pane  = GetPaneOf (group->GetContent (to));
+        std::wstring               after = (to + 1 < (int) group->GetTabCount()) ? GetPaneOf (group->GetContent (to + 1)) : std::wstring();
+        std::wstring               ahead = (to > 0) ? GetPaneOf (group->GetContent (to - 1)) : std::wstring();
+        std::vector<std::wstring>  all   = m_layout.GetGroup (pane);
+        std::wstring               other = !after.empty() ? after : ahead;
+        int                        index = 0;
+
+
+
+        (void) from;
+
+        if (other.empty())
+        {
+            return;
+        }
+
+        index = (int) (std::find (all.begin(), all.end(), other) - all.begin()) + (after.empty() ? 1 : 0);
+
+        if (m_layout.TabWithAt (pane, other, index))
+        {
+            NotifyChanged();
+        }
+    });
+
     group->SetOnTitleDragStart ([this, group] (int index, POINT pointDip)
     {
         std::vector<std::wstring>  panes;
@@ -337,6 +387,12 @@ void DxuiDockSite::WireGroup (DxuiTabGroup * group)
         }
 
         if (panes.size() == 1 && TearOff (group, panes.front(), pointDip, false))
+        {
+            return;
+        }
+
+        //  FR-205: a group's title bar tears off the whole group.
+        if (panes.size() > 1 && TearOffGroup (group, panes, GetPaneOf (group->GetContent (index)), pointDip))
         {
             return;
         }
@@ -1153,6 +1209,8 @@ void DxuiDockSite::SetIndicator (const std::wstring & pane, bool on)
     {
         group->SetIndicator (found->second.content, on);
     }
+
+    m_slidGroup.SetIndicator (found->second.content, on);
 }
 
 
@@ -1182,6 +1240,8 @@ void DxuiDockSite::SetLeadingMark (const std::wstring & pane, const DxuiTabGroup
     {
         group->SetLeadingMark (found->second.content, mark);
     }
+
+    m_slidGroup.SetLeadingMark (found->second.content, mark);
 
     Relayout();
 }
@@ -1238,6 +1298,8 @@ void DxuiDockSite::SetTitleExtra (const std::wstring & pane, int widthDip)
     {
         group->SetTitleExtra (found->second.content, widthDip);
     }
+
+    m_slidGroup.SetTitleExtra (found->second.content, widthDip);
 }
 
 
@@ -1790,13 +1852,15 @@ std::vector<RECT> DxuiDockSite::GetOutlineStrips (const DxuiDockDragMark & mark)
 //  DxuiDockSite::TearOff
 //
 //  The group forgets its press, since the floating window the application
-//  makes takes the button's release; a slid-out pane slides back first.
+//  makes takes the button's release; a slid-out pane slides back first. In a
+//  floating window a tab tears off only from a group of several: a lone
+//  pane is the window, and dragging it moves the window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POINT pointDip, bool fromTab)
 {
-    if (!m_onTearOff || IsFloatingSite() || pane.empty())
+    if (!m_onTearOff || pane.empty() || (IsFloatingSite() && m_layout.GetGroup (pane).size() < 2))
     {
         return false;
     }
@@ -1813,6 +1877,72 @@ bool DxuiDockSite::TearOff (DxuiTabGroup * group, const std::wstring & pane, POI
     }
 
     m_onTearOff (pane, pointDip);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TryGetPaneGroupRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TryGetPaneGroupRect (const std::wstring & pane, RECT & rect) const
+{
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        if (!group->IsVisible())
+        {
+            continue;
+        }
+
+        for (int i = 0; i < (int) group->GetTabCount(); i++)
+        {
+            if (GetPaneOf (group->GetContent (i)) == pane)
+            {
+                rect = group->GetBounds();
+                return rect.right > rect.left && rect.bottom > rect.top;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::TearOffGroup
+//
+//  As TearOff, for every pane of a group pulled by its title bar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::TearOffGroup (DxuiTabGroup * group, const std::vector<std::wstring> & panes, const std::wstring & active, POINT pointDip)
+{
+    if (!m_onTearOffGroup || IsFloatingSite() || panes.empty() || active.empty())
+    {
+        return false;
+    }
+
+    m_tearGrab    = group->GetGrabOffset (false);
+    m_tearFromTab = false;
+
+    group->CancelPress();
+
+    if (std::ranges::find (panes, m_slidPane) != panes.end())
+    {
+        m_slidPane.clear();
+        Arrange();
+    }
+
+    m_onTearOffGroup (panes, active, pointDip);
     return true;
 }
 
@@ -1990,7 +2120,10 @@ void DxuiDockSite::ClearStripTarget()
 //  DxuiDockSite::DropOnStrip
 //
 //  The dragged panes go into the group ahead of the tab at `index`, in their
-//  order, and the pane dragged is the one shown.
+//  order, and the pane dragged is made the active tab. `index` counts the
+//  visible tabs, while the layout's group also has the hidden panes, so the
+//  drop goes ahead of that tab's pane, or after the last tab's, wherever it
+//  is in the whole group.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1998,9 +2131,11 @@ bool DxuiDockSite::DropOnStrip (int group, int index)
 {
     DxuiTabGroup               * target  = (group >= 0 && group < (int) m_groups.size()) ? m_groups[(size_t) group].get() : nullptr;
     std::wstring                 anchor;
+    std::wstring                 edge;
     std::vector<std::wstring>    panes;
     bool                         changed = false;
-    int                          at      = index;
+    int                          tabs    = 0;
+    int                          at      = 0;
 
 
 
@@ -2023,6 +2158,11 @@ bool DxuiDockSite::DropOnStrip (int group, int index)
     {
         return false;
     }
+
+    tabs  = (int) target->GetTabCount();
+    edge  = GetPaneOf (target->GetContent (std::clamp (index, 0, tabs - 1)));
+    panes = m_layout.GetGroup (anchor);
+    at    = (int) (std::find (panes.begin(), panes.end(), edge) - panes.begin()) + ((index >= tabs) ? 1 : 0);
 
     for (const std::wstring & pane : m_dragPanes)
     {
@@ -2222,6 +2362,13 @@ void DxuiDockSite::CancelDrag()
     m_hoverZone    = -1;
     m_compassGroup = -1;
     m_pointerDrag  = false;
+
+    //  A sash moved as it was dragged, so it stays where it is.
+    if (m_sashDrag >= 0)
+    {
+        m_sashDrag = -1;
+        NotifyChanged();
+    }
 }
 
 
@@ -2264,6 +2411,30 @@ void DxuiDockSite::OnDragMouseLost (bool isButtonDown)
     {
         CancelDrag();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiDockSite::HasPointerDrag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiDockSite::HasPointerDrag() const
+{
+    bool  isTitlePressed = m_slidGroup.IsTitlePressed();
+
+
+
+    for (const std::unique_ptr<DxuiTabGroup> & group : m_groups)
+    {
+        isTitlePressed = isTitlePressed || group->IsTitlePressed();
+    }
+
+    return (IsDragging() && m_pointerDrag) || m_sashDrag >= 0 || isTitlePressed;
 }
 
 
@@ -2553,8 +2724,10 @@ bool DxuiDockSite::EndDrag (POINT pointDip)
         return false;
     }
 
-    //  A group dropped outside floats only the pane shown: a floating window
-    //  holds one pane.
+    //  A group dropped outside floats only the pane shown. With a group
+    //  tear-off handler a group's title bar floats the whole group before
+    //  any drag starts here (TearOffGroup), so this is the drag of a site
+    //  without one.
     if (zone.has_value())
     {
         changed = DropOnZone (*zone, m_layout);

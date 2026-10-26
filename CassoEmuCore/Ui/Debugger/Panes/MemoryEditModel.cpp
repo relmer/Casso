@@ -48,6 +48,8 @@ void MemoryEditModel::SetContents (Word first, std::vector<std::optional<Byte>> 
     m_first   = first;
     m_bytes   = std::move (bytes);
     m_regions = std::move (regions);
+
+    ConfirmStep();
 }
 
 
@@ -106,6 +108,90 @@ bool MemoryEditModel::TryGetShown (uint64_t address, size_t & outIndex) const
 
     outIndex = shown ? (size_t) (address - m_first) : 0;
     return shown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::IsShownWhole
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryEditModel::IsShownWhole (Word address, size_t count) const
+{
+    size_t  index = 0;
+
+
+
+    for (size_t i = 0; i < count; i++)
+    {
+        if (!TryGetShown ((Word) (address + i), index) || !m_bytes[index].has_value())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryEditModel::ConfirmStep
+//
+//  Once a read has every byte of the unconfirmed step: memory equal to the
+//  bytes the step sent confirms it; memory equal to the bytes from before
+//  the step is a read taken before the patch ran, so the next read is
+//  checked instead; anything else is memory that changed after the read the
+//  step was checked against, which the session does not write over, so the
+//  step goes back to the list it came from.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryEditModel::ConfirmStep()
+{
+    size_t                     index    = 0;
+    bool                       isSent   = true;
+    bool                       isBefore = true;
+    std::vector<Edit>        * from     = nullptr;
+    std::vector<Edit>        * to       = nullptr;
+
+
+
+    if (!m_unconfirmed.has_value() || !IsShownWhole (m_unconfirmed->address, m_unconfirmed->sent.size()))
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < m_unconfirmed->sent.size(); i++)
+    {
+        (void) TryGetShown ((Word) (m_unconfirmed->address + i), index);
+
+        isSent   = isSent   && *m_bytes[index] == m_unconfirmed->sent[i];
+        isBefore = isBefore && *m_bytes[index] == m_unconfirmed->before[i];
+    }
+
+    if (isBefore && !isSent)
+    {
+        return;
+    }
+
+    from = m_unconfirmed->isUndo ? &m_history : &m_redo;
+    to   = m_unconfirmed->isUndo ? &m_redo    : &m_history;
+
+    if (!isSent && !to->empty() && to->back().address == m_unconfirmed->address)
+    {
+        from->push_back (std::move (to->back()));
+        to->pop_back();
+    }
+
+    m_unconfirmed.reset();
 }
 
 
@@ -546,6 +632,9 @@ bool MemoryEditModel::Undo (std::optional<Word> & outChanged)
     edit = std::move (m_history.back());
     m_history.pop_back();
 
+    m_unconfirmed = IsShownWhole (edit.address, edit.written.size()) ? std::nullopt
+                                                                     : std::optional<Unconfirmed> ({ true, edit.address, edit.replaced, edit.written });
+
     ShowWritten (edit.address, edit.replaced);
     SendPatch   (edit.address, edit.replaced, edit.written);
     m_redo.push_back (std::move (edit));
@@ -585,6 +674,9 @@ bool MemoryEditModel::Redo (std::optional<Word> & outChanged)
 
     edit = std::move (m_redo.back());
     m_redo.pop_back();
+
+    m_unconfirmed = IsShownWhole (edit.address, edit.replaced.size()) ? std::nullopt
+                                                                      : std::optional<Unconfirmed> ({ false, edit.address, edit.written, edit.replaced });
 
     ShowWritten (edit.address, edit.written);
     SendPatch   (edit.address, edit.written, edit.replaced);

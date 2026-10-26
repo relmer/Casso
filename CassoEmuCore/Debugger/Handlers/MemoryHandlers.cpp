@@ -194,7 +194,7 @@ void MemoryHandlers::Patch (DebugSession & session, const DebugCommand & command
         {
             reply.SetError (CommandStatus::Error, "memory not writable",
                             target.GetRegion (address) == MemoryRegion::Io
-                                ? std::format ("${:04X} is I/O. Use OUT to write it.", address)
+                                ? std::format ("${:04X} is I/O. Use OUT to write it. {} of {} bytes were written.", address, i, command.values.size())
                                 : std::format ("${:04X} cannot be written. {} of {} bytes were written.", address, i, command.values.size()));
             return;
         }
@@ -242,6 +242,12 @@ void MemoryHandlers::Move (DebugSession & session, const DebugCommand & command,
         }
 
         bytes.push_back (value);
+    }
+
+    if (command.a3 + bytes.size() - 1 > 0xFFFF)
+    {
+        reply.SetError (CommandStatus::Error, "value out of range", std::format ("{} bytes run past $FFFF from ${:04X}.", bytes.size(), command.a3));
+        return;
     }
 
     if (TryPokeRange (target, command.a3, bytes, reply))
@@ -401,6 +407,32 @@ void MemoryHandlers::ShowResults (DebugSession & session, Reply & reply)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryHandlers::GetLoadCount
+//
+//  A length caps a single-segment load; otherwise the whole segment loads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t MemoryHandlers::GetLoadCount (const DebugCommand & command, const BinaryImage & image, const BinarySegment & segment)
+{
+    size_t  count = segment.bytes.size();
+
+
+
+    if (command.hasA2 && image.segments.size() == 1)
+    {
+        count = std::min<size_t> (count, (size_t) (command.a2 - command.a1) + 1);
+    }
+
+    return count;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryHandlers::LoadBinary
 //
 //  BLOAD file[,DOS|RAW|HEX|SREC|AS] [addr[,len]]. Intel HEX, S-records and
@@ -478,10 +510,12 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
     }
 
     //  A load that would stop short is refused before anything is written:
-    //  a file smaller than the length given, or one that runs past $FFFF.
+    //  a file smaller than the length given, bytes that run past $FFFF, or
+    //  any address in any segment that cannot be written.
     for (const BinarySegment & segment : image.segments)
     {
-        size_t  room = (size_t) (kAddressSpace - segment.address) + 1;
+        size_t  room  = (size_t) (kAddressSpace - segment.address) + 1;
+        size_t  count = GetLoadCount (command, image, segment);
 
 
 
@@ -492,24 +526,24 @@ void MemoryHandlers::LoadBinary (DebugSession & session, const DebugCommand & co
             return;
         }
 
-        if (segment.bytes.size() > room)
+        if (count > room)
         {
             reply.SetError (CommandStatus::Error, "file too long",
-                            std::format ("{} holds {} bytes, which run past $FFFF from ${:04X}.", name, segment.bytes.size(), segment.address));
+                            std::format ("{} holds {} bytes, which run past $FFFF from ${:04X}.", name, count, segment.address));
+            return;
+        }
+
+        if (!IsWritable (session.GetTarget(), segment.address, count, reply))
+        {
             return;
         }
     }
 
     for (const BinarySegment & segment : image.segments)
     {
-        size_t  count = segment.bytes.size();
+        size_t  count = GetLoadCount (command, image, segment);
 
 
-
-        if (command.hasA2 && image.segments.size() == 1)
-        {
-            count = std::min<size_t> (count, (size_t) (command.a2 - command.a1) + 1);
-        }
 
         requested += count;
 
@@ -856,12 +890,18 @@ void MemoryHandlers::ShowMap (DebugSession & session, Reply & reply)
 //
 //  MemoryHandlers::TryPokeRange
 //
-//  Nothing is written past an address that cannot be written: ROM or I/O.
+//  Nothing is written when any address in the range cannot be written: ROM
+//  or I/O.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MemoryHandlers::TryPokeRange (IDebugTarget & target, Word first, std::span<const Byte> bytes, Reply & reply)
 {
+    if (!IsWritable (target, first, bytes.size(), reply))
+    {
+        return false;
+    }
+
     for (size_t i = 0; i < bytes.size(); ++i)
     {
         Word  address = (Word) (first + i);
@@ -872,6 +912,39 @@ bool MemoryHandlers::TryPokeRange (IDebugTarget & target, Word first, std::span<
         {
             reply.SetError (CommandStatus::Error, "memory not writable",
                             std::format ("${:04X} cannot be written. {} of {} bytes were written.", address, i, bytes.size()));
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryHandlers::IsWritable
+//
+//  Each address is tested by region before anything is written, so a write
+//  that would stop partway fails before its first byte. RAM and language-card
+//  RAM are writable; ROM, slot ROM and I/O are not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryHandlers::IsWritable (const IDebugTarget & target, Word first, size_t count, Reply & reply)
+{
+    for (size_t i = 0; i < count; ++i)
+    {
+        Word          address = (Word) (first + i);
+        MemoryRegion  region  = target.GetRegion (address);
+
+
+
+        if (region == MemoryRegion::Rom || region == MemoryRegion::SlotRom || region == MemoryRegion::Io)
+        {
+            reply.SetError (CommandStatus::Error, "memory not writable", std::format ("${:04X} cannot be written. Nothing was written.", address));
             return false;
         }
     }

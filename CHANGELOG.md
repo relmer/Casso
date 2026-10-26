@@ -72,6 +72,8 @@ Entries before versioning was introduced use dates only.
   the old one, so a power loss just after the command finishes can no longer
   leave the image empty or partly written. Casso now sets the attributes,
   creation date, and permissions to match the old file.
+- No window is larger than its screen's work area, including a window restored
+  from a larger screen or moved to a more scaled one.
 
 ## [1.32.0] - 2026-10-07: The one where Casso updates itself
 

@@ -70,6 +70,20 @@ public:
 
 
 
+    //  A pattern that backtracks past the matcher's budget, half typed or
+    //  not, fails the search rather than ending the process.
+    TEST_METHOD (Regex_APatternPastTheMatchersBudgetFails)
+    {
+        std::vector<DxuiTextView::FindMatch>  matches;
+
+
+
+        Assert::IsFalse (DxuiTextView::FindAllInRows ({ std::wstring (40, L'a') + L"!" }, L"(a+)+$", false, false, true, matches));
+        Assert::IsTrue  (matches.empty());
+    }
+
+
+
     TEST_METHOD (Regex_DotIsPlainWithTheOptionOff)
     {
         std::vector<DxuiTextView::FindMatch>  matches;

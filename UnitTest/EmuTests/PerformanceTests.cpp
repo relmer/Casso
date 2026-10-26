@@ -21,9 +21,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  device dispatch is unoptimized and the measurements have no relation
 //  to shipping performance. The whole class is conditionally compiled
 //  on NDEBUG (set by Release configurations of UnitTest.vcxproj). In
-//  Debug builds the class still exists with a single sentinel method so
-//  CppUnitTestFramework discovery doesn't complain — it reports
-//  Inconclusive.
+//  Debug builds the class contains a single sentinel method, marked
+//  ignored, so a run reports it as skipped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -407,6 +406,10 @@ public:
     //  the unoptimized build. Skip cleanly and document why.
     //
     ////////////////////////////////////////////////////////////////////////
+
+    BEGIN_TEST_METHOD_ATTRIBUTE (CycleEmulation_SkippedInDebug)
+        TEST_IGNORE()
+    END_TEST_METHOD_ATTRIBUTE()
 
     TEST_METHOD (CycleEmulation_SkippedInDebug)
     {

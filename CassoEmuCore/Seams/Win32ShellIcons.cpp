@@ -87,7 +87,7 @@ HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDire
 
 
     //  An ordinary file shares its type's image, as the cache assumes.
-    if (!isDirectory && path.rfind (L'.') != std::wstring::npos && GetCacheKey (path, isDirectory).front() == L'.')
+    if (IsFoundByType (path, isDirectory))
     {
         flags |= SHGFI_USEFILEATTRIBUTES;
     }
@@ -105,6 +105,21 @@ HICON Win32ShellIcons::LoadLargerForPath (const std::wstring & path, bool isDire
     }
 
     return (icon != nullptr) ? icon : LoadForPath (path, SHGFI_LARGEICON);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32ShellIcons::IsFoundByType
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Win32ShellIcons::IsFoundByType (const std::wstring & path, bool isDirectory)
+{
+    return GetCacheKey (path, isDirectory).starts_with (kExtensionKeyPrefix);
 }
 
 
@@ -209,7 +224,7 @@ std::wstring Win32ShellIcons::GetCacheKey (const std::wstring & path, bool isDir
         }
     }
 
-    return L"*ext:" + extension;
+    return kExtensionKeyPrefix + extension;
 }
 
 

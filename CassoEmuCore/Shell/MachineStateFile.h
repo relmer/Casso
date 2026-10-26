@@ -124,6 +124,10 @@ public:
     static HRESULT  Check (const MachineHost & machine, const MachineStateContents & contents, MachineStateError & outError);
     static HRESULT  Apply (MachineHost & machine, const MachineStateContents & contents, MachineStateError & outError);
 
+    //  The file's disk images, checked with no machine, so a load fails on a
+    //  bad one before it opens the machine that saved the state.
+    static HRESULT  CheckDisks (const MachineStateContents & contents, MachineStateError & outError);
+
     //  An error from its label and detail.
     static MachineStateError  MakeError (const char * label, const char * detail);
 
@@ -142,7 +146,6 @@ private:
     static HRESULT   PackPayload        (const std::vector<Byte> & section, std::vector<Byte> & outPayload);
     static HRESULT   UnpackPayload      (const Byte * data, size_t size, std::vector<Byte> & outSection);
     static HRESULT   ReadPayload        (const Byte * data, size_t size, MachineStateContents & outContents);
-    static HRESULT   CheckDisks         (const MachineStateContents & contents, MachineStateError & outError);
     static HRESULT   RestoreDisks       (MachineHost & machine, const MachineStateContents & contents);
     static HRESULT   RollBack           (MachineHost & machine, const std::vector<Byte> & before);
     static uint64_t  ReadLittleEndian   (const Byte * data, size_t byteCount);

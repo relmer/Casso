@@ -143,7 +143,7 @@ void SourcePane::AddHeatStrips (std::vector<DxuiTextView::Row> & rows, int fileI
 
         for (const auto & [start, end, argb] : strip.colors)
         {
-            row.spans.push_back ({ kNumberCell, start, end - start, argb });
+            row.spans.push_back ({ kNumberCell, start, end - start, 0, argb });
         }
 
         row.cells[kNumberCell] = prefix + row.cells[kNumberCell];

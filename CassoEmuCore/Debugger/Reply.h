@@ -55,6 +55,9 @@ enum class BreakpointKind
     BasicLine,
     BasicVariable,
     BasicError,
+    UnwrittenRead,      // the session's own stops, listed in the Breakpoints
+    VideoLine,          // pane but no entries of the breakpoint table
+    Beam,
 };
 
 enum class WatchAccess
@@ -170,6 +173,10 @@ struct BreakpointInfo
     // Kind BasicVariable: the variable or array element, as BPBASICVAR was
     // given it. Kind BasicLine has its line number in address.
     std::string                   basicName;
+
+    // Kind UnwrittenRead: true once the heat map tracks which RAM has been
+    // written, which starts at a power cycle.
+    bool                          isTracking = false;
 };
 
 struct BreakpointSetData
@@ -196,6 +203,14 @@ struct WatchEntry
     std::optional<Word>         value;
     std::string                 basicName;
     std::optional<std::string>  basicValue;
+
+    //  A typed watch's text, and its value as text for a register or an
+    //  expression; a symbol's value is `value`, read at its address.
+    std::string                 expression;
+    std::optional<std::string>  valueText;
+    bool                        isValueEditable = true;
+    bool                        isRegister      = false;   // a register watch, whose value is the register's
+    std::string                 error;      // why a typed watch has no value
 };
 
 struct WatchListData
@@ -374,6 +389,7 @@ struct ProfileFrameEntry
     uint64_t                                  index = 0;
     std::vector<std::pair<size_t, uint64_t>>  shares;
     uint64_t                                  other = 0;
+    uint64_t                                  count = 1;     // the frames the bar covers
 };
 
 // The table PROFILE LIST prints: by opcode, by address (ADDR), by routine

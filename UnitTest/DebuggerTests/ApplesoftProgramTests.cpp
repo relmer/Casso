@@ -212,5 +212,57 @@ namespace DebuggerTests
             Assert::AreEqual (std::string (".333333333"), ApplesoftProgram::FormatReal ({ 0x7F, 0x2A, 0xAA, 0xAA, 0xAB }));
             Assert::AreEqual (std::string ("1E+10"),      ApplesoftProgram::FormatReal ({ 0xA2, 0x15, 0x02, 0xF9, 0x00 }));
         }
+
+
+
+        //  An integer array's header at at: the name A% or B%, the offset to
+        //  the next array, one subscript of the given size.
+        static void PokeArray (std::vector<Byte> & memory, Word at, Byte letter, Word next, Word size)
+        {
+            constexpr Byte  kTypeBit = 0x80;
+            constexpr int   kByte    = 8;
+
+
+
+            memory[at]     = (Byte) (letter | kTypeBit);
+            memory[at + 1] = kTypeBit;
+            memory[at + 2] = (Byte) next;
+            memory[at + 3] = (Byte) (next >> kByte);
+            memory[at + 4] = 1;
+            memory[at + 5] = (Byte) (size >> kByte);
+            memory[at + 6] = (Byte) size;
+        }
+
+
+
+        //  The array table is the program's, so whatever a machine-language
+        //  program left there: an offset past STREND, wrapping past $FFFF,
+        //  ends the walk, and so does a chain that leads back on itself.
+        TEST_METHOD (AnArrayTableThatPassesItsEndIsNotWalkedPastIt)
+        {
+            constexpr Word     kAryTab = 0x1000;
+            constexpr Word     kStrEnd = 0x2000;
+            std::vector<Byte>  memory (0x10000);
+            ApplesoftProgram   program ([&memory] (Word address) { return memory[address]; });
+            std::vector<BasicArray>  arrays;
+            BasicReference     reference { "B", BasicType::Integer, { 0 } };
+
+
+
+            memory[ApplesoftProgram::kAryTab]     = (Byte) kAryTab;
+            memory[ApplesoftProgram::kAryTab + 1] = (Byte) (kAryTab >> 8);
+            memory[ApplesoftProgram::kStrEnd]     = (Byte) kStrEnd;
+            memory[ApplesoftProgram::kStrEnd + 1] = (Byte) (kStrEnd >> 8);
+
+            PokeArray (memory, kAryTab, 'A', 0xF100, 200);
+            program.GetArrays (arrays);
+            Assert::IsTrue (arrays.empty(), std::format (L"{} arrays; the first ends past STREND", arrays.size()).c_str());
+
+            PokeArray (memory, kAryTab, 'A', 0xF800, 1);
+            PokeArray (memory, 0x0800,  'A', 0x0800, 1);
+            program.GetArrays (arrays);
+            Assert::IsTrue  (arrays.empty(), L"the offset wraps past $FFFF");
+            Assert::IsFalse (program.HasValue (reference), L"B%(0) is in no array");
+        }
     };
 }

@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Theme/DxuiMenuMetrics.h"
+#include "Core/DxuiEvents.h"
 #include "Core/IDxuiControl.h"
 
 
@@ -452,6 +453,7 @@ private:
     int                  m_maxHeightPx      = 0;
     int                  m_viewportPx       = 0;
     int                  m_scrollRow        = 0;
+    DxuiWheelNotches     m_wheel;
     bool                 m_reopenGuard      = true;
 
     bool                 m_colorsSet   = false;

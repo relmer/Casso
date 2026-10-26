@@ -49,6 +49,32 @@ int  DxuiMessageBox (HWND               owner,
 
 
 
+//  A button of a box with buttons of its own: its label, an & before the
+//  accelerator's letter, and the id the box returns when it is pressed.
+struct DxuiMessageBoxButton
+{
+    std::wstring  label;
+    int           id = 0;
+};
+
+//  The box with its own buttons, defaultId the default one's; only uType's
+//  icon bits are used. Escape and the close box return IDCANCEL.
+int  DxuiMessageBox (HWND                                      owner,
+                     const IDxuiTheme                        * theme,
+                     const wchar_t                           * text,
+                     const wchar_t                           * caption,
+                     UINT                                      uType,
+                     const std::vector<DxuiMessageBoxButton>  & buttons,
+                     int                                       defaultId);
+
+
+
+
+
 //  How the box's window is created for owner: centered on the owner, on the
 //  owner's monitor and at that monitor's DPI, as every other dialog is.
 DxuiWindow::CreateParams  DxuiMakeMessageBoxParams (HWND owner, const wchar_t * caption, int heightDip);
+
+//  The system box type with exactly these buttons, MB_YESNO for Yes and No
+//  and so on, or UINT_MAX for buttons that are no system set.
+UINT  DxuiGetSystemMessageBoxType (const std::vector<DxuiMessageBoxButton> & buttons);

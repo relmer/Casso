@@ -57,13 +57,8 @@ std::wstring DebugProjectStore::GetAutomaticPath (const ProjectScope & scope) co
 HRESULT DebugProjectStore::Open (const ProjectScope & scope, DebugProject & project, std::vector<std::string> & notices)
 {
     HRESULT         hr         = S_OK;
-    HRESULT         hrRead     = E_FAIL;
-    HRESULT         hrParse    = E_FAIL;
     std::wstring    automatic  = GetAutomaticPath (scope);
-    std::string     text;
     std::string     redirect;
-    JsonValue       root;
-    JsonParseError  error;
     bool            isFound    = false;
     bool            isRedirect = false;
 
@@ -71,17 +66,7 @@ HRESULT DebugProjectStore::Open (const ProjectScope & scope, DebugProject & proj
 
     project = DebugProject();
 
-    if (m_files.Exists (automatic))
-    {
-        hrRead = m_files.ReadAllText (automatic, text);
-    }
-
-    if (SUCCEEDED (hrRead))
-    {
-        hrParse = JsonParser::Parse (text, root, error);
-    }
-
-    isRedirect = SUCCEEDED (hrParse) && root.HasString (kpszRedirect, redirect);
+    isRedirect = TryReadRedirect (automatic, redirect);
 
     hr = Read (isRedirect ? TextEncoding::NarrowToWide (redirect) : automatic, project, notices, isFound);
     CHR (hr);
@@ -111,16 +96,25 @@ Error:
 
 HRESULT DebugProjectStore::OpenFile (const std::wstring & path, DebugProject & project, std::vector<std::string> & notices)
 {
-    HRESULT  hr      = S_OK;
-    bool     isFound = false;
+    HRESULT       hr       = S_OK;
+    bool          isFound  = false;
+    std::string   redirect;
+    std::wstring  target   = path;
 
 
 
-    hr = Read (path, project, notices, isFound);
+    //  An automatic file that points at a chosen one opens that file, as the
+    //  scope does; read as a project it is an empty one.
+    if (TryReadRedirect (path, redirect))
+    {
+        target = TextEncoding::NarrowToWide (redirect);
+    }
+
+    hr = Read (target, project, notices, isFound);
     CHR (hr);
     CBREx (isFound, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-    project.filePath    = path;
+    project.filePath    = target;
     project.isAutomatic = false;
 
 Error:
@@ -139,8 +133,9 @@ Error:
 
 HRESULT DebugProjectStore::Save (const DebugProject & project)
 {
-    HRESULT    hr       = S_OK;
-    bool       hasPath  = !project.filePath.empty();
+    HRESULT    hr         = S_OK;
+    bool       hasPath    = !project.filePath.empty();
+    bool       isReadable = !project.isUnreadable;
     JsonValue  redirect = JsonValue (std::vector<std::pair<std::string, JsonValue>>
     {
         { "format",     JsonValue (std::string (DebugProject::kpszFormat)) },
@@ -150,12 +145,15 @@ HRESULT DebugProjectStore::Save (const DebugProject & project)
 
 
 
-    CBRAEx (hasPath, E_INVALIDARG);
+    CBRAEx (hasPath,    E_INVALIDARG);
+    CBREx  (isReadable, E_ACCESSDENIED);
 
     hr = m_files.WriteAllText (project.filePath, project.ToJson (GetFolder (project.filePath)));
     CHR (hr);
 
-    if (!project.isAutomatic)
+    //  A project saved under the automatic file's path is that file; a
+    //  redirect written over it would point at itself.
+    if (!project.isAutomatic && _wcsicmp (project.filePath.c_str(), GetAutomaticPath (project.scope).c_str()) != 0)
     {
         hr = m_files.WriteAllText (GetAutomaticPath (project.scope), JsonWriter::Write (redirect));
         CHR (hr);
@@ -182,8 +180,9 @@ HRESULT DebugProjectStore::SaveAs (DebugProject & project, const std::wstring & 
 
 
 
-    copy.filePath    = path;
-    copy.isAutomatic = false;
+    copy.filePath     = path;
+    copy.isAutomatic  = false;
+    copy.isUnreadable = false;
 
     hr = Save (copy);
     CHR (hr);
@@ -204,7 +203,8 @@ Error:
 //
 //  A missing file is no project and no notice. A file that is not a
 //  project is copied aside under a dated name before anything replaces
-//  it.
+//  it. A file that cannot be read, as one another program has open, is
+//  marked unreadable, so Save never writes the empty project over it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,7 +222,17 @@ HRESULT DebugProjectStore::Read (const std::wstring & path, DebugProject & proje
     BAIL_OUT_IF (!isFound, S_OK);
 
     hr = m_files.ReadAllText (path, text);
-    BAIL_OUT_IF (SUCCEEDED (hr) && DebugProject::TryParse (text, GetFolder (path), project, error), S_OK);
+
+    if (FAILED (hr))
+    {
+        isFound              = false;
+        project.isUnreadable = true;
+        notices.push_back (std::format ("The debug project {} could not be read (error {:08X}). An empty project is open, and it is not saved over that file.",
+                                        TextEncoding::WideToNarrow (path), (uint32_t) hr));
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    BAIL_OUT_IF (DebugProject::TryParse (text, GetFolder (path), project, error), S_OK);
 
     isFound = false;
     hr      = m_files.WriteAllText (aside, text);
@@ -236,6 +246,42 @@ HRESULT DebugProjectStore::Read (const std::wstring & path, DebugProject & proje
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugProjectStore::TryReadRedirect
+//
+//  Whether the file at path is an automatic file that points at a chosen
+//  one, and which. A missing or unreadable file is not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebugProjectStore::TryReadRedirect (const std::wstring & path, std::string & redirect)
+{
+    HRESULT         hrRead  = E_FAIL;
+    HRESULT         hrParse = E_FAIL;
+    std::string     text;
+    JsonValue       root;
+    JsonParseError  error;
+
+
+
+    if (m_files.Exists (path))
+    {
+        hrRead = m_files.ReadAllText (path, text);
+    }
+
+    if (SUCCEEDED (hrRead))
+    {
+        hrParse = JsonParser::Parse (text, root, error);
+    }
+
+    return SUCCEEDED (hrParse) && root.HasString (kpszRedirect, redirect);
 }
 
 

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/HistoryBand.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -224,31 +225,14 @@ std::wstring HistoryBand::GetDistanceText (uint64_t instructions, uint64_t cycle
 //
 //  HistoryBand::GroupDigits
 //
-//  Commas every three digits, whatever the locale, as the rest of the
-//  debugger writes counts.
+//  The locale's thousands separators, as the rest of the debugger writes
+//  counts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring HistoryBand::GroupDigits (uint64_t value)
 {
-    constexpr size_t  kGroup = 3;
-    std::wstring      digits = std::to_wstring (value);
-    std::wstring      grouped;
-    size_t            i      = 0;
-
-
-
-    for (i = 0; i < digits.size(); i++)
-    {
-        if (i > 0 && (digits.size() - i) % kGroup == 0)
-        {
-            grouped += L',';
-        }
-
-        grouped += digits[i];
-    }
-
-    return grouped;
+    return DebuggerStatusText::FormatCount (value);
 }
 
 

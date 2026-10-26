@@ -371,7 +371,7 @@ public:
     // Behind live, an edit of registers or memory discards recorded history,
     // so the guard is asked first with the line the edit came from, and the
     // edit is made only when it returns true. Empty where nothing is recorded.
-    using HistoryGuard = std::function<bool (const std::string &, CommandMode)>;
+    using HistoryGuard = std::function<bool (const DebugCommand &)>;
 
     void                       SetHistoryGuard     (HistoryGuard guard)            { m_historyGuard = std::move (guard); }
     // BPV: stop when the video scanline enters the range, once.
@@ -386,8 +386,12 @@ public:
     // given as the cycle within it, after passing it `passes - 1` times.
     // A break for one run goes at the run's stop, whatever stopped it.
     void   SetBeamBreak          (uint32_t cycleInFrame, uint32_t passes = 1, bool isForOneRun = false);
-    void   ClearBeamBreak        ();
-    bool   HasBeamBreak          () const { return m_beamBreak.has_value(); }
+    void   ClearBeamBreak        (bool isForOneRun = false);
+    bool   HasBeamBreak          () const { return m_beamBreak.has_value() || m_frameBreak.has_value(); }
+
+    //  BPBEAM's place in the frame, as the cycle within it; none for no
+    //  break, or for FRAME's, which goes with its run.
+    std::optional<uint32_t>  GetBeamBreak () const;
 
     // BRKUNINIT: stop after a read of RAM nothing has written since power-on,
     // reported as a watchpoint hit is, with the address and the instruction.
@@ -471,7 +475,7 @@ private:
     bool   TryMatchBeforeWatchpoint (Word pc);
     void   NoteCpuOwnReads       (Word pc);
     bool   HasEnteredVideoBreak  ();
-    bool   HasReachedBeamBreak   ();
+    bool   HasReachedBeamBreak   (std::optional<BeamBreak> & beamBreak);
     uint32_t  GetBeamCycle       () const;
     void   AttachDiskReport      (StopEvent & event);
     void   AttachDiskCallReport  (StopEvent & event);
@@ -481,6 +485,7 @@ private:
     void   AttachCondition       (StopEvent & event) const;
 
     static bool         TryGetRunKind  (DebugVerb verb, RunKind & kind);
+    static bool         TryGetFlagMask (const std::string & name, Byte & mask);
     static void         SetError       (Reply & reply, CommandStatus status, const std::string & label, const std::string & detail);
     static std::string  Trim           (const std::string & text);
 
@@ -543,6 +548,8 @@ private:
     bool                                  m_videoBreakHit = false;
     std::optional<BeamBreak>              m_beamBreak;
     bool                                  m_beamBreakHit  = false;
+    std::optional<BeamBreak>              m_frameBreak;                 // FRAME's, for one run beside BPBEAM's
+    bool                                  m_frameBreakHit = false;
 
     //  BRKUNINIT is on.
     bool                                  m_isUnwrittenBreak = false;
@@ -554,8 +561,6 @@ private:
     StateFileRequester            m_stateFileRequester;
     ProjectRequester              m_projectRequester;
     HistoryGuard                  m_historyGuard;
-    std::string                   m_guardLine;   // the outermost line being run, for the guard
-    CommandMode                   m_guardMode          = CommandMode::AppleWin;
 
     MonitorState                          m_monitorState;
     std::optional<Word>                   m_monitorReturn;

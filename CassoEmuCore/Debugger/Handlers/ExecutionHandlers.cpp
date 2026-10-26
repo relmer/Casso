@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 
 #include "Config/IFileSystem.h"
 #include "Debugger/AppleWinFormatter.h"
@@ -53,12 +54,25 @@ bool ExecutionHandlers::TryExecute (DebugSession & session, const DebugCommand &
 //
 //  ExecutionHandlers::OnInstruction
 //
+//  Profiling is fed every instruction, a free run's too; the keys, the
+//  stopwatch and the trace only a run the debugger started.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 {
-    FeedKeys      (session);
+    bool  isDebuggerRun = session.GetRunState() == RunState::DebugRun || session.GetRunState() == RunState::Stepping;
+
+
+
     RecordProfile (session, pc);
+
+    if (!isDebuggerRun)
+    {
+        return;
+    }
+
+    FeedKeys (session);
 
     if (m_stopwatch.IsArmed())
     {
@@ -88,14 +102,14 @@ void ExecutionHandlers::OnInstruction (DebugSession & session, Word pc)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExecutionHandlers::OnInterrupt (DebugSession & session)
+void ExecutionHandlers::OnInterrupt (DebugSession & session, Word pc)
 {
     FeedKeys    (session);
     BillProfile (session);
 
     if (m_profile.IsOn())
     {
-        m_routines.OnInterrupt();
+        m_routines.OnInterrupt (pc);
     }
 }
 
@@ -354,7 +368,8 @@ void ExecutionHandlers::FeedKeys (DebugSession & session)
 //
 //  BPV vpos[,len] stops when the scanline enters the range, once. A range
 //  that starts past the frame's last scanline could never stop. The
-//  scanline is hex, like every number BPV and VIDEOINFO show.
+//  scanline is hex, like every number BPV and VIDEOINFO print. BPV OFF
+//  clears it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -363,6 +378,13 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
     Word  last = command.hasA2 ? command.a2 : command.a1;
 
 
+
+    if (command.text == "OFF")
+    {
+        session.ClearVideoBreak();
+        reply.data = MessageData { { "Video scanline breakpoint cleared." } };
+        return;
+    }
 
     if (command.a1 >= VideoTiming::kScanlinesPerFrame)
     {
@@ -385,7 +407,7 @@ void ExecutionHandlers::BreakOnVideoLine (DebugSession & session, const DebugCom
 //
 //  BPBEAM line cycle stops when the beam reaches that scanline and cycle;
 //  BPBEAM VBL stops where vertical blank starts. Like BPV it fires once, and
-//  the numbers are hex.
+//  the numbers are hex. BPBEAM OFF clears it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,6 +418,13 @@ void ExecutionHandlers::BreakOnBeam (DebugSession & session, const DebugCommand 
     uint32_t  cycle    = isVbl ? 0 : command.a2;
 
 
+
+    if (command.text == "OFF")
+    {
+        session.ClearBeamBreak();
+        reply.data = MessageData { { "Beam position breakpoint cleared." } };
+        return;
+    }
 
     if (scanline >= VideoTiming::kScanlinesPerFrame)
     {
@@ -447,7 +476,7 @@ void ExecutionHandlers::RunFrame (DebugSession & session, const DebugCommand & c
 
     if (reply.status != CommandStatus::Ok)
     {
-        session.ClearBeamBreak();
+        session.ClearBeamBreak (true);
     }
 }
 
@@ -764,6 +793,7 @@ void ExecutionHandlers::BuildRoutines (DebugSession & session, ProfileData & dat
 
         entry.index = frame.index;
         entry.other = frame.other;
+        entry.count = frame.count;
 
         for (const RoutineProfile::Share & share : frame.shares)
         {
@@ -862,8 +892,9 @@ void ExecutionHandlers::SaveProfile (DebugSession & session, const std::string &
 //
 //  ExecutionHandlers::Profile
 //
-//  PROFILE ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]. A bare PROFILE
-//  lists.
+//  PROFILE ON|OFF|RESET|LIST [ADDR|ROUTINES|TREE]|SAVE [file]|HISTORY
+//  [seconds|ALL]. A bare PROFILE lists. HISTORY builds the profile of the
+//  last seconds of history, or of all of it, in the background.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -916,6 +947,10 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
         m_profilePending.reset();
         reply.data = MessageData { { "Profile reset." } };
     }
+    else if (verb == "HISTORY" && extra.empty())
+    {
+        BuildProfileFromHistory (session, argument, reply);
+    }
     else if ((verb.empty() || verb == "LIST") && extra.empty() && TryGetProfileList (argument, list))
     {
         BuildProfile (session, list, data);
@@ -923,8 +958,82 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     }
     else
     {
-        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR|ROUTINES|TREE] or SAVE [file].");
+        reply.SetError (CommandStatus::Error, "invalid arguments", "PROFILE takes ON, OFF, RESET, LIST [ADDR|ROUTINES|TREE], SAVE [file] or HISTORY [seconds|ALL].");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::BuildProfileFromHistory
+//
+//  The seconds are decimal, counted back from the machine's position at the
+//  machine's own clock; ALL or none is all of history.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::BuildProfileFromHistory (DebugSession & session, const std::string & argument, Reply & reply)
+{
+    uint64_t     now       = session.GetTarget().GetHistoryCycleCount();
+    uint64_t     from      = 0;
+    uint64_t     seconds   = 0;
+    std::string  error;
+    HRESULT      hr        = S_OK;
+    bool         isAll     = argument.empty() || SymbolTable::ToUpper (argument) == "ALL";
+
+
+
+    if (!m_historyProfiler)
+    {
+        reply.SetError (CommandStatus::NotAvailable, "no history", "This session has no history to profile.");
+        return;
+    }
+
+    if (!isAll && (argument.find_first_not_of ("0123456789") != std::string::npos ||
+                   std::from_chars (argument.data(), argument.data() + argument.size(), seconds).ec != std::errc()))
+    {
+        reply.SetError (CommandStatus::Error, "invalid arguments", std::format ("{} is not a number of seconds.", argument));
+        return;
+    }
+
+    from = isAll ? 0 : now - std::min (now, (uint64_t) ((double) seconds * HistoryStatus::kCyclesPerSecond));
+    hr   = m_historyProfiler (from, error);
+
+    if (FAILED (hr))
+    {
+        reply.SetError (CommandStatus::Error, "no profile", error);
+        return;
+    }
+
+    reply.data = MessageData { { isAll ? std::string ("Profiling all of history.") : std::format ("Profiling the last {} seconds of history.", seconds) } };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExecutionHandlers::InstallProfile
+//
+//  The counts as they came from history; whether profiling is on is the
+//  profile's own.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExecutionHandlers::InstallProfile (const ProfileCounts & counts)
+{
+    bool  isOn = m_profile.IsOn();
+
+
+
+    m_profile  = counts.table;
+    m_routines = counts.routines;
+    m_profile.SetOn (isOn);
+    m_profilePending.reset();
 }
 
 
@@ -1255,8 +1364,11 @@ void ExecutionHandlers::RecordTrace (DebugSession & session, Word pc)
 //
 //  ExecutionHandlers::FlushTrace
 //
-//  A failed write is remembered, so turning the trace off reports it even
-//  when the write that failed was made at a stop, where no reply is sent.
+//  The first flush of a trace writes the file, and each after it adds the
+//  lines since the last; the lines written are dropped either way, so the
+//  trace takes no more memory than one run's lines. A failed write sets
+//  m_trace.hasFailed, so turning the trace off reports it even when the write
+//  that failed was made at a stop, where no reply is sent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1268,12 +1380,16 @@ HRESULT ExecutionHandlers::FlushTrace (DebugSession & session)
 
     if (m_trace.isOn && !m_trace.lines.empty() && session.GetFileSystem() != nullptr)
     {
-        hr = session.GetFileSystem()->WriteAllText (m_trace.path, m_trace.lines);
+        hr = m_trace.isStarted ? session.GetFileSystem()->AppendAllText (m_trace.path, m_trace.lines)
+                               : session.GetFileSystem()->WriteAllText  (m_trace.path, m_trace.lines);
 
         if (FAILED (hr))
         {
             m_trace.hasFailed = true;
         }
+
+        m_trace.isStarted = m_trace.isStarted || SUCCEEDED (hr);
+        m_trace.lines.clear();
     }
 
     return hr;

@@ -367,8 +367,8 @@ void Apple2eMmu::OnPowerCycle (Prng & prng)
 //
 //  RebindPageTable
 //
-//  Re-resolves every region that the MMU controls. Called once on
-//  Initialize and on full resets.
+//  Re-resolves every region that the MMU controls. Called on Initialize, on
+//  full resets, on a load, and once the CPU's default mapping is in place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -644,9 +644,10 @@ void Apple2eMmu::ResolveHires20_3F()
 //
 //  Apple2eMmu::GetDiagnostics
 //
-//  Each MMU switch as a row of its own, the language card's state where
-//  there is one, and the page map. The switches are not one register, so
-//  they are not packed into a byte.
+//  Each MMU switch as a row of its own, with a tip on what it does and the
+//  addresses that set and clear it, the language card's state where there is
+//  one, and the page map. The switches are not one register, so they are not
+//  packed into a byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -657,18 +658,18 @@ void Apple2eMmu::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 
 
 
-    switches.rows.push_back (MakeFlagRow ("RAMRD",     m_ramRd));
-    switches.rows.push_back (MakeFlagRow ("RAMWRT",    m_ramWrt));
-    switches.rows.push_back (MakeFlagRow ("ALTZP",     m_altZp));
-    switches.rows.push_back (MakeFlagRow ("80STORE",   m_store80));
-    switches.rows.push_back (MakeFlagRow ("INTCXROM",  m_intCxRom));
-    switches.rows.push_back (MakeFlagRow ("SLOTC3ROM", m_slotC3Rom));
-    switches.rows.push_back (MakeFlagRow ("INTC8ROM",  m_intC8Rom));
+    switches.rows.push_back (MakeFlagRow ("RAMRD",     m_ramRd,     "On, reads of $0200-$BFFF come from aux RAM; off, from main RAM. $C003 sets it, $C002 clears it."));
+    switches.rows.push_back (MakeFlagRow ("RAMWRT",    m_ramWrt,    "On, writes to $0200-$BFFF go to aux RAM; off, to main RAM. $C005 sets it, $C004 clears it."));
+    switches.rows.push_back (MakeFlagRow ("ALTZP",     m_altZp,     "On, the zero page, the stack and $D000-$FFFF are aux memory; off, main. $C009 sets it, $C008 clears it."));
+    switches.rows.push_back (MakeFlagRow ("80STORE",   m_store80,   "On, PAGE2 chooses main or aux for the text page, and with HIRES for hi-res page 1, in place of RAMRD and RAMWRT. $C001 sets it, $C000 clears it."));
+    switches.rows.push_back (MakeFlagRow ("INTCXROM",  m_intCxRom,  "On, the internal ROM is at $C100-$CFFF in place of the slots' ROMs. $C007 sets it, $C006 clears it."));
+    switches.rows.push_back (MakeFlagRow ("SLOTC3ROM", m_slotC3Rom, "On, slot 3's ROM is at $C300-$C3FF; off, the internal 80-column firmware. $C00B sets it, $C00A clears it."));
+    switches.rows.push_back (MakeFlagRow ("INTC8ROM",  m_intC8Rom,  "On, the internal ROM is at $C800-$CFFF. An access to $C3xx with SLOTC3ROM off sets it, and an access to $CFFF clears it."));
 
     if (m_ssBank != nullptr)
     {
-        switches.rows.push_back (MakeFlagRow ("PAGE2", m_ssBank->IsPage2()));
-        switches.rows.push_back (MakeFlagRow ("HIRES", m_ssBank->IsHiresMode()));
+        switches.rows.push_back (MakeFlagRow ("PAGE2", m_ssBank->IsPage2(),     "With 80STORE on, aux memory for the text page, and with HIRES for hi-res page 1; otherwise, display page 2. $C055 sets it, $C054 clears it."));
+        switches.rows.push_back (MakeFlagRow ("HIRES", m_ssBank->IsHiresMode(), "Hi-res graphics, and with 80STORE and PAGE2 on, hi-res page 1 in aux memory. $C057 sets it, $C056 clears it."));
     }
 
     snapshot.groups.push_back (std::move (switches));

@@ -1216,11 +1216,13 @@ bool ProDosVolume::TryFindEntry (
 //  The first record in the volume directory chain whose storage-type nibble is
 //  zero. That nibble is ProDOS's own statement of occupancy, so unlike the
 //  DOS 3.3 catalog -- where an entry claiming no sectors is still an entry --
-//  there is nothing here to infer from what the record points at.
+//  there is nothing here to infer from what the record points at. A chain
+//  that breaks, at a block out of range or one already visited, sets
+//  outIsBroken: the directory is damaged, not full.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProDosVolume::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset) const
+bool ProDosVolume::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, size_t & outOffset, bool & outIsBroken) const
 {
     ChainWalkGuard  guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
     int             dirBlock = dirKeyBlock;
@@ -1233,6 +1235,8 @@ bool ProDosVolume::TryFindFreeDirectorySlot (int dirKeyBlock, int & outBlock, si
         bool  inRange = dirBlock > 0 && dirBlock < ProDosSkeleton::kTotalBlocks;
         bool  stepOk  = inRange && guard.TryVisit ((uint32_t) dirBlock);
         int   first   = (dirBlock == dirKeyBlock) ? 1 : 0;
+
+        outIsBroken = !stepOk;
 
         if (!stepOk)
         {
@@ -1557,8 +1561,8 @@ void ProDosVolume::AdjustFileCount (vector<Byte> & buffer, int dirKeyBlock, int 
 //
 //  The new block goes on the end of the chain, back-linked to the one before
 //  it. A subdirectory also has a record in its parent whose blocks-used and
-//  length describe the directory rather than any file, so both move with it;
-//  the volume directory has no such record and needs neither.
+//  length are the directory's rather than a file's, so both change with it.
+//  The volume directory is fixed in size, and its callers never grow it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1702,6 +1706,8 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
     bool                   nameOk      = false;
     bool                   exists      = false;
     bool                   slotOk      = false;
+    bool                   isGrowable  = false;
+    bool                   isBroken    = false;
     bool                   allocated   = false;
     bool                   fullyParsed = true;
     int                    dirKeyBlock = ProDosSkeleton::kDirKeyBlock;
@@ -1733,7 +1739,13 @@ HRESULT ProDosVolume::CreateDirectory (const FilePath & path, vector<Byte> & out
     exists = TryFindEntry (entries, name, holder);
     CBREx (!exists, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
 
-    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset, isBroken);
+    CBREx (!isBroken, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    //  The volume directory is fixed at blocks 2 through 5; only a
+    //  subdirectory takes another block for a record.
+    isGrowable = slotOk || dirKeyBlock != ProDosSkeleton::kDirKeyBlock;
+    CBREx (isGrowable, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
     hr = BuildIntegrityReport (report);
     CHRA (hr);
@@ -1915,6 +1927,8 @@ HRESULT ProDosVolume::AddFileWithCase (
     HRESULT                hr           = S_OK;
     size_t                 payloadSize  = bytes.size();
     bool                   slotOk       = false;
+    bool                   isGrowable   = false;
+    bool                   isBroken     = false;
     bool                   allocated    = false;
     bool                   haveKeyBlock = false;
     int                    slotBlock    = 0;
@@ -1928,7 +1942,13 @@ HRESULT ProDosVolume::AddFileWithCase (
 
 
 
-    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset);
+    slotOk = TryFindFreeDirectorySlot (dirKeyBlock, slotBlock, slotOffset, isBroken);
+    CBREx (!isBroken, HRESULT_FROM_WIN32 (ERROR_FILE_CORRUPT));
+
+    //  The volume directory is fixed at blocks 2 through 5; only a
+    //  subdirectory takes another block for a record.
+    isGrowable = slotOk || dirKeyBlock != ProDosSkeleton::kDirKeyBlock;
+    CBREx (isGrowable, HRESULT_FROM_WIN32 (ERROR_DISK_FULL));
 
     hr = BuildIntegrityReport (report);
     CHRA (hr);
@@ -2432,7 +2452,12 @@ HRESULT ProDosVolume::BuildRemovalPlan (const FilePath & path, DirectoryRemovalP
     bool                   named       = !path.IsEmpty();
     ChainWalkGuard         guard ((uint32_t) ProDosSkeleton::kTotalBlocks);
     ChainWalkGuard         blockGuard ((uint32_t) ProDosSkeleton::kTotalBlocks);
+    int                    parentKey   = ProDosSkeleton::kDirKeyBlock;
+    uint16_t               record      = 0;
+    bool                   fullyParsed = true;
     vector<uint32_t>       blocks;
+    vector<RawEntry>       siblings;
+    vector<std::string>    damage;
     DirectoryRemovalEntry  itself;
 
 
@@ -2454,7 +2479,20 @@ HRESULT ProDosVolume::BuildRemovalPlan (const FilePath & path, DirectoryRemovalP
     itself.isDirectory = true;
     itself.blocks      = (uint32_t) blocks.size();
 
-    outPlan.blocksFreed += itself.blocks;
+    //  The directory's record in its parent is gated on destroy-enable, as
+    //  every record below it is.
+    hr = ResolveDirectory (GetParentPath (path), parentKey);
+    CHR (hr);
+
+    CollectEntries (parentKey, siblings, damage, fullyParsed);
+
+    if (TryFindEntry (siblings, path.GetLeaf(), record))
+    {
+        itself.isLocked = (siblings[record].access & kAccessDestroyEnable) == 0;
+    }
+
+    outPlan.blocksFreed     += itself.blocks;
+    outPlan.hasLockedEntries = outPlan.hasLockedEntries || itself.isLocked;
 
     outPlan.entries.push_back (itself);
 

@@ -27,6 +27,7 @@ struct DiagnosticsRow
     std::string                  value;
     std::vector<DiagnosticsBit>  bits;
     bool                         isSwitch = false;     // value is on or off
+    std::string                  tip;                  // what the row's setting does; empty for none
 };
 
 struct DiagnosticsGroup

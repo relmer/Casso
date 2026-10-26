@@ -91,6 +91,34 @@ namespace DebuggerPaneMinimumTests
         }
 
 
+        //  A part beside another is at its left, as tall as it, and the other
+        //  starts a gap past it; the part beside takes no height of its own.
+        TEST_METHOD (APartBesideAnotherIsAtItsLeftAsTallAsIt)
+        {
+            DebuggerPaneFrame  frame (L"Pane");
+            MockDxuiControl    bar;
+            MockDxuiControl    map;
+            MockDxuiControl    rows;
+            DxuiDpiScaler      scaler;
+
+
+
+            scaler.SetDpi (USER_DEFAULT_SCREEN_DPI);
+            frame.AddPart       (&bar, [] (int, const DxuiDpiScaler & s) { return s.ToPx (30); });
+            frame.AddPart       (&map);
+            frame.AddPart       (&rows);
+            frame.SetPartBeside (&map, &rows, [] (int, const DxuiDpiScaler & s) { return s.ToPx (100); });
+            frame.Layout        (RECT { 0, 0, 400, 300 }, scaler);
+
+            Assert::AreEqual ((LONG) 0,   map.GetBounds().left);
+            Assert::AreEqual ((LONG) 100, map.GetBounds().right);
+            Assert::AreEqual (rows.GetBounds().top,    map.GetBounds().top,    L"the map starts where the rows do");
+            Assert::AreEqual (rows.GetBounds().bottom, map.GetBounds().bottom, L"and ends where they do");
+            Assert::AreEqual ((LONG) (100 + DebuggerPaneFrame::kGapDip), rows.GetBounds().left);
+            Assert::AreEqual ((LONG) (30 + DebuggerPaneFrame::kGapDip), rows.GetBounds().top, L"the map took height of its own");
+        }
+
+
         //  Every split of the starting layout dragged to each end: no framed
         //  pane is laid out shorter than the least height its parts fit in.
         TEST_METHOD (NoSashDragLeavesAFramedPaneShorterThanItsParts)

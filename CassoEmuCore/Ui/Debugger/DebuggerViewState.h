@@ -148,14 +148,20 @@ struct DebuggerViewSnapshot
         std::string     label;
     };
 
-    //  basicName is a BASIC watch's variable, empty for an address.
+    //  basicName is a BASIC watch's variable, empty for an address;
+    //  expression is a typed watch's text. A register's or an expression's
+    //  value is not edited in the watch pane.
     struct WatchLine
     {
-        int          id      = 0;
-        Word         address = 0;
+        int          id              = 0;
+        Word         address         = 0;
         std::string  value;
-        bool         enabled = true;
+        bool         enabled         = true;
         std::string  basicName;
+        std::string  expression;
+        bool         isValueEditable = true;
+        std::string  error;
+        bool         isRegister      = false;
     };
 
     //  One thing the instruction at the PC, or the one just executed, reads or
@@ -234,6 +240,7 @@ struct DebuggerViewSnapshot
     };
 
     Word                         pc     = 0;
+    uint64_t                     cycles = 0;     // the CPU's cycles since power-on
     //  Where the branch, jump or call that brought the machine to the PC is,
     //  by a step or a run that stopped there; none where the machine came to
     //  the PC otherwise, or while running.
@@ -252,8 +259,10 @@ struct DebuggerViewSnapshot
     std::string                  machine;
 
     //  The CPU's instruction set, which the code pane assembles an edited
-    //  instruction with.
-    const Microcode            * instructionSet = nullptr;
+    //  instruction with, and the copy that owns it when the snapshot was
+    //  built from a capture.
+    const Microcode                                * instructionSet   = nullptr;
+    std::shared_ptr<const std::vector<Microcode>>    instructionTable;
 
     //  Where the machine stands in its recorded history; the host fills it in.
     HistoryStatus                history;
@@ -283,6 +292,8 @@ struct DebuggerViewSnapshot
 
     //  Whether the breakpoints pane has a step to undo or redo (FR-120).
     bool                                  canUndoBreakpoints = false;
+    std::wstring                          undoBreakpointsText;        // the step Undo would act on, as "delete breakpoint #3"
+    std::wstring                          redoBreakpointsText;
     bool                                  canRedoBreakpoints = false;
     std::vector<WatchLine>                watches;
 
@@ -317,6 +328,10 @@ struct DebuggerViewSnapshot
     //  step filter's entries.
     std::optional<ProfileData>            profile;
     std::optional<ProfileData>            profileByAddress;
+
+    //  How much of a profile built from history is done, 0 to 1, while one
+    //  builds.
+    std::optional<double>                 profileProgress;
     bool                                  isProfiling = false;
     std::vector<DataBlockEntry>           dataBlocks;
     std::vector<StepFilterEntry>          stepFilters;
@@ -562,7 +577,7 @@ public:
 
     //  The trace pane reads kTraceRows entries from the entry the user
     //  scrolled to, or the newest when it follows the end (no entry).
-    static constexpr int     kTraceRows     = 128;
+    static constexpr int     kTraceRows     = 512;
     //  How many instructions from the PC the stopped trace shows below it.
     static constexpr size_t  kTraceNextRows = 8;
 
@@ -658,6 +673,11 @@ public:
                                                              std::optional<int> watchId, std::optional<int> autoIndex,
                                                              int column, const std::string & typed, CommandMode mode);
 
+    //  Why text typed as a watch cannot be one, or empty when it can. The
+    //  session checks it again when the watch is added; with this check, a
+    //  typing mistake stays in the edit box.
+    static std::string  GetWatchError (const DebuggerViewSnapshot & snapshot, const std::string & typed);
+
     //  What puts a watch edit back (FR-097), from the snapshot as it stood
     //  BEFORE the edit. Moving a manual watch cannot be undone by an action
     //  alone: the watch the edit made gets its id from the engine only once
@@ -687,6 +707,13 @@ public:
     //  shows the moved watch, and empty once it has been removed.
     static void                                        NoteMovedWatch      (const DebuggerViewSnapshot & now, WatchUndo & undo);
     static std::optional<std::vector<DebuggerAction>>  GetWatchUndoActions (const DebuggerViewSnapshot & now, WatchUndo & undo, CommandMode mode);
+
+    //  A manual watch of a register, A, X, Y, S, P or PC, in any case.
+    static bool         IsRegisterWatch (const DebuggerViewSnapshot::WatchLine & watch);
+
+    //  A manual watch of a byte, its text ending in `.b`.
+    static bool         IsByteWatch     (const DebuggerViewSnapshot::WatchLine & watch);
+    static std::string  GetUpper        (const std::string & text);
 
     //  Which optional views are open, as the text the preferences keep, so a
     //  restart brings them back: `code2=E000 follow=2 memory3=0300 panel=mmu`.
@@ -792,7 +819,7 @@ public:
     //  each action's echo behind the prompt, then that action's reply.
     //  An import ends with how many of the file's lines were skipped.
     //  CPU thread only.
-    std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step);
+    std::vector<std::string>  ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step, bool isEchoed = true);
 
     //  The Breakpoints pane's undo history as a debug project saves it, and
     //  that history replaced from such text. CPU thread only.
@@ -855,7 +882,7 @@ private:
 
     //  Every opcode's form for the instruction set, made again only when the
     //  machine brings another.
-    std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>  GetOpcodeForms (const Microcode * instructionSet) const;
+    std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>  GetOpcodeForms (const IDebugTarget & target) const;
 
     //  The heat map ranges' copy of the symbols, taken again only when they
     //  have changed since the last.
@@ -865,6 +892,7 @@ private:
     Reply  ExecuteSessionLine (DebugSession & session, const std::string & line, CommandMode mode);
     void   RunPanelCommand  (DebugSession & session, const DebugCommand & command, Reply & reply);
     Reply  ExecuteActionCommand (DebugSession & session, const DebuggerAction & action);
+    void   AddActionLines       (DebugSession & session, const DebuggerAction & action, const Reply & reply, std::vector<std::string> & lines);
 
     //  The action's command with its definition parsed and what the user
     //  typed evaluated, or false with why not.
@@ -893,6 +921,8 @@ private:
     Word         ChooseCodeStart (DebugSession & session, Word pc, int view) const;
     std::vector<DebuggerViewSnapshot::CodeLine>  BuildCode (DebugSession & session, const DebuggerViewSnapshot & snapshot, int view) const;
     void         UpdateLastStop   (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
+
+    static void  AddSessionStops  (DebugSession & session, DebuggerViewSnapshot & snapshot);
     void         BuildAutoWatches (DebugSession & session, DebuggerViewSnapshot & snapshot) const;
     static bool  IsSameRegisters  (const Cpu6502Registers & left, const Cpu6502Registers & right);
     static Byte  GetRegisterByte  (const std::string & name, const Cpu6502Registers & registers);
@@ -943,9 +973,12 @@ private:
     mutable uint64_t                               m_heatMapSymbolsRevision = 0;
     std::optional<Word>                            m_heatMapHover;
 
-    //  Every opcode's form, and the instruction set they were made for.
+    //  Every opcode's form, and the instruction set they were made for. The
+    //  set's owner is stored with them, so its address is never reused while
+    //  the forms are.
     mutable std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms>    m_opcodeForms;
     mutable const Microcode                                           * m_opcodeFormsSet = nullptr;
+    mutable std::shared_ptr<const std::vector<Microcode>>               m_opcodeFormsTable;
 
     //  The symbols as last read, and the symbol revision they were read at.
     mutable std::shared_ptr<const DebuggerViewSnapshot::SymbolsState>   m_symbols;

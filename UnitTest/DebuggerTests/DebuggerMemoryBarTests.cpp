@@ -7,6 +7,7 @@
 
 #include "CppUnitTest.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -91,21 +92,11 @@ namespace DebuggerTests
         using DebuggerWindow::RouteMappedKey;
         using DebuggerWindow::ApplyKeyScheme;
         using DebuggerWindow::TakeSnapshot;
-        using DebuggerWindow::SubmitMemoryBox;
-        using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::GetMemoryGroup;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::GetTooltip;
         using DebuggerWindow::OnMouse;
-        using DebuggerWindow::GetMemoryBar;
-        using DebuggerWindow::GetMemoryHistory;
-        using DebuggerWindow::RunMemoryBarEntry;
-        using DebuggerWindow::ChooseMemoryColumns;
-        using DebuggerWindow::ChooseMemoryGrouping;
-        using DebuggerWindow::GetFindBarTip;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindControls;
-        using DebuggerWindow::IsFindOpen;
-        using DebuggerWindow::IsMemoryBarEnabled;
+        using DebuggerWindow::GetFindWidgets;
 
         void  Build()
         {
@@ -216,9 +207,9 @@ namespace DebuggerTests
 
             window.Build();
 
-            for (int i = 0; i < window.GetMemoryBar()->GetEntryCount(); i++)
+            for (int i = 0; i < window.GetMemoryGroup().GetBar()->GetEntryCount(); i++)
             {
-                ids.push_back (window.GetMemoryBar()->GetEntryCommandId (i));
+                ids.push_back (window.GetMemoryGroup().GetBar()->GetEntryCommandId (i));
             }
 
             for (int id : { MemoryBarCommands::kAddress, MemoryBarCommands::kRefresh, MemoryBarCommands::kColumns,
@@ -255,14 +246,14 @@ namespace DebuggerTests
 
 
             window.Build();
-            Assert::IsTrue  (window.IsMemoryBarEnabled (MemoryBarCommands::kUndo), L"the restored edit is there to undo");
+            Assert::IsTrue  (window.GetMemoryGroup().IsBarEnabled (MemoryBarCommands::kUndo), L"the restored edit is there to undo");
 
             other->machine  = "Apple2c";
             other->isPaused = true;
             memory.id       = 1;
             other->memoryWindows.push_back (memory);
             window.TakeSnapshot (other);
-            Assert::IsFalse (window.IsMemoryBarEnabled (MemoryBarCommands::kUndo), L"another machine's snapshot clears it");
+            Assert::IsFalse (window.GetMemoryGroup().IsBarEnabled (MemoryBarCommands::kUndo), L"another machine's snapshot clears it");
         }
 
 
@@ -278,13 +269,13 @@ namespace DebuggerTests
 
             for (const wchar_t * text : { L"0300", L"PC", L"0300" })
             {
-                window.GetMemoryBox()->SetText (text);
-                window.SubmitMemoryBox();
+                window.GetMemoryGroup().GetBox()->SetText (text);
+                window.GetMemoryGroup().SubmitBox();
             }
 
-            Assert::AreEqual ((size_t) 2,           window.GetMemoryHistory().size());
-            Assert::AreEqual (std::wstring (L"0300"), window.GetMemoryHistory()[0], L"the newest first");
-            Assert::AreEqual (std::wstring (L"PC"),   window.GetMemoryHistory()[1]);
+            Assert::AreEqual ((size_t) 2,           window.GetMemoryGroup().GetHistory().size());
+            Assert::AreEqual (std::wstring (L"0300"), window.GetMemoryGroup().GetHistory()[0], L"the newest first");
+            Assert::AreEqual (std::wstring (L"PC"),   window.GetMemoryGroup().GetHistory()[1]);
             Assert::AreEqual ((size_t) 1,           host.goTos.size(), L"PC still goes through the host, as the Go to box did");
         }
 
@@ -306,11 +297,11 @@ namespace DebuggerTests
 
             window.Build();
             window.ApplyKeyScheme (DebuggerKeyScheme::AppleWin);
-            window.FocusControl   (window.GetMemoryBox());
+            window.FocusControl   (window.GetMemoryGroup().GetBox());
 
             for (const DxuiKeyEvent & key : { overDown, space, enter })
             {
-                window.GetMemoryBox()->SetText (L"");
+                window.GetMemoryGroup().GetBox()->SetText (L"");
                 (void) (window.OnKey (key) || window.RouteMappedKey (key));
             }
 
@@ -419,13 +410,13 @@ namespace DebuggerTests
 
             window.Build();
 
-            window.ChooseMemoryColumns (4);
+            window.GetMemoryGroup().ChooseColumns (4);
             Assert::AreEqual (4, window.GetFirstHexView()->GetBytesPerRow(), L"four bytes a row");
 
-            window.ChooseMemoryGrouping (2);
+            window.GetMemoryGroup().ChooseGrouping (2);
             Assert::AreEqual (8, window.GetFirstHexView()->GetBytesPerRow(), L"four words a row");
 
-            window.ChooseMemoryColumns (0);
+            window.GetMemoryGroup().ChooseColumns (0);
             Assert::AreEqual (0, window.GetFirstHexView()->GetColumns(), L"Auto fits the width");
         }
 
@@ -440,7 +431,7 @@ namespace DebuggerTests
 
 
             window.Build();
-            strip = window.GetMemoryBar();
+            strip = window.GetMemoryGroup().GetBar();
 
             Assert::IsTrue (strip->IsVisible(), L"the bar shows over the open memory window");
 
@@ -485,16 +476,16 @@ namespace DebuggerTests
             (void) (window.OnKey (find) || window.RouteMappedKey (find));
             window.Relayout();
 
-            Assert::IsTrue (window.IsFindOpen(), L"Ctrl+F opens the find bar");
+            Assert::IsTrue (window.GetFindWidgets().IsOpen(), L"Ctrl+F opens the find bar");
 
-            for (IDxuiControl * control : window.GetFindControls())
+            for (IDxuiControl * control : window.GetFindWidgets().GetActiveControls())
             {
                 RECT             anchor = {};
                 const wchar_t  * tip    = nullptr;
 
                 Assert::IsNotNull (control);
 
-                tip = window.GetFindBarTip (GetCenter (control->GetBounds()), anchor);
+                tip = window.GetFindWidgets().GetTip (GetCenter (control->GetBounds()), anchor);
 
                 Assert::IsTrue (tip != nullptr && *tip != L'\0', (L"a tip for " + control->GetAccessibleName()).c_str());
             }

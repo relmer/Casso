@@ -85,7 +85,7 @@ namespace DebuggerCompletionWindowTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnMouse;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfFocus;
         using DebuggerWindow::OnKey;
 
@@ -124,7 +124,7 @@ namespace DebuggerCompletionWindowTests
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
         }
 
 
@@ -138,17 +138,17 @@ namespace DebuggerCompletionWindowTests
 
 
             Open (window);
-            window.GetCommandBox()->SetText (L"bpc");
-            window.GetCommandBox()->SetSelection (3, 3);
+            window.GetConsolePane().GetCommandLine().GetBox()->SetText (L"bpc");
+            window.GetConsolePane().GetCommandLine().GetBox()->SetSelection (3, 3);
 
             window.Press (VK_TAB);
-            Assert::AreEqual (std::wstring (L"bpc"), window.GetCommandBox()->GetText());
+            Assert::AreEqual (std::wstring (L"bpc"), window.GetConsolePane().GetCommandLine().GetBox()->GetText());
 
             window.Press (VK_TAB);
-            Assert::AreEqual (std::wstring (L"bpchange"), window.GetCommandBox()->GetText());
+            Assert::AreEqual (std::wstring (L"bpchange"), window.GetConsolePane().GetCommandLine().GetBox()->GetText());
 
             window.Press (VK_TAB, true);
-            Assert::AreEqual (std::wstring (L"bpc"), window.GetCommandBox()->GetText());
+            Assert::AreEqual (std::wstring (L"bpc"), window.GetConsolePane().GetCommandLine().GetBox()->GetText());
         }
 
 
@@ -162,18 +162,18 @@ namespace DebuggerCompletionWindowTests
 
 
             Open (window);
-            window.GetCommandBox()->SetText (L"bpm 400");
+            window.GetConsolePane().GetCommandLine().GetBox()->SetText (L"bpm 400");
             window.Press (VK_RETURN);
 
-            window.GetCommandBox()->SetText (L"bp");
-            window.GetCommandBox()->SetSelection (2, 2);
+            window.GetConsolePane().GetCommandLine().GetBox()->SetText (L"bp");
+            window.GetConsolePane().GetCommandLine().GetBox()->SetSelection (2, 2);
             window.Press (VK_F8);
-            Assert::AreEqual (std::wstring (L"bpm 400"), window.GetCommandBox()->GetText(), L"F8 finds the earlier line");
+            Assert::AreEqual (std::wstring (L"bpm 400"), window.GetConsolePane().GetCommandLine().GetBox()->GetText(), L"F8 finds the earlier line");
 
-            window.GetCommandBox()->SetText (L"bp");
-            window.GetCommandBox()->SetSelection (2, 2);
+            window.GetConsolePane().GetCommandLine().GetBox()->SetText (L"bp");
+            window.GetConsolePane().GetCommandLine().GetBox()->SetSelection (2, 2);
             window.Press (VK_RIGHT);
-            Assert::AreEqual (std::wstring (L"bpm 400"), window.GetCommandBox()->GetText(), L"Right takes the gray line");
+            Assert::AreEqual (std::wstring (L"bpm 400"), window.GetConsolePane().GetCommandLine().GetBox()->GetText(), L"Right takes the gray line");
         }
     };
 }

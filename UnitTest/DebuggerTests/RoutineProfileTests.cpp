@@ -165,6 +165,75 @@ namespace DebuggerTests
 
 
 
+        //  A routine that pushes more than half the stack runs on until it
+        //  returns: its pushes, its pulls and its RTS are billed to it.
+        TEST_METHOD (ARoutineThatPushesMostOfTheStackRunsUntilItReturns)
+        {
+            static constexpr Byte  kPha    = 0x48;
+            static constexpr int   kPushes = 200;
+
+            Feed  feed;
+            Byte  sp   = 0xFD;
+            int   node = 0;
+
+
+
+            feed.Run (0x0300, RoutineProfile::kJsr, 6, sp);
+
+            for (int i = 0; i < kPushes; i++)
+            {
+                feed.Run (0x0500, kPha, 3, --sp);
+            }
+
+            for (int i = 0; i < kPushes; i++)
+            {
+                feed.Run (0x0501, kPla, 4, ++sp);
+            }
+
+            feed.Run (0x0502, kRts, 6, 0xFF);
+            feed.Run (0x0303, kLda, 2, 0xFF);
+
+            node = FindNode (feed.profile, 0x0500);
+
+            Assert::AreEqual ((uint64_t) (kPushes * 3 + kPushes * 4 + 6), feed.profile.GetNodes()[(size_t) node].self, L"every push, pull and the RTS");
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[0].self, L"the JSR and the LDA after the return");
+        }
+
+
+
+        //  With the tree full, a call to a routine not yet in it runs in its
+        //  caller's node, and the caller is not counted as called again; a
+        //  merge into a full tree is the same.
+        TEST_METHOD (ACallPastAFullTreeIsNotTheCallersCall)
+        {
+            Feed            feed;
+            RoutineProfile  later;
+            uint64_t        calls = 0;
+
+
+
+            for (size_t i = 0; feed.profile.GetNodes().size() < RoutineProfile::kMaxNodes; i++)
+            {
+                feed.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+                feed.Run ((Word) (0x1000 + i), kRts, 6, 0xFF);
+            }
+
+            calls = feed.profile.GetNodes()[0].calls;
+
+            feed.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            feed.Run (0xF000, kRts, 6, 0xFF);
+
+            Assert::AreEqual (calls, feed.profile.GetNodes()[0].calls, L"Top level is not called again");
+
+            later.Record (0x0300, RoutineProfile::kJsr, 6, 0xFD, 0, kFrame);
+            later.Record (0xF100, kRts, 6, 0xFF, 6, kFrame);
+            feed.profile.Merge (later);
+
+            Assert::AreEqual (calls, feed.profile.GetNodes()[0].calls, L"nor by a merge");
+        }
+
+
+
         TEST_METHOD (AnInterruptAndABrkAreRoutinesOfTheirOwn)
         {
             Feed  feed;
@@ -174,7 +243,7 @@ namespace DebuggerTests
 
 
             feed.Run (0x0300, kLda, 2, 0xFF);
-            feed.profile.OnInterrupt();
+            feed.profile.OnInterrupt (0x0302);
             feed.Run (0xFA62, kLda, 2, 0xFC);
             feed.Run (0xFA64, kRti, 6, 0xFF);
             feed.Run (0x0302, RoutineProfile::kBrk, 7, 0xFC);
@@ -189,6 +258,35 @@ namespace DebuggerTests
             Assert::AreEqual ((uint64_t) 8,  feed.profile.GetNodes()[(size_t) irq].self);
             Assert::AreEqual ((uint64_t) 6,  feed.profile.GetNodes()[(size_t) brk].self);
             Assert::AreEqual ((uint64_t) 11, feed.profile.GetNodes()[0].self, L"the LDA, the BRK and the LDA after");
+        }
+
+
+
+        //  An interrupt taken before the first instruction of a routine a JSR
+        //  just entered: the routine starts there, and the handler runs under
+        //  it.
+        TEST_METHOD (AnInterruptRightAfterAJsrRunsUnderTheRoutineItEntered)
+        {
+            Feed  feed;
+            int   routine = 0;
+
+
+
+            feed.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            feed.profile.OnInterrupt (0x0400);
+            feed.Run (0xFA62, kLda, 2, 0xFA);
+            feed.Run (0xFA64, kRti, 6, 0xFD);
+            feed.Run (0x0400, kLda, 2, 0xFD);
+            feed.Run (0x0402, kRts, 6, 0xFF);
+            feed.Run (0x0303, kLda, 2, 0xFF);
+
+            routine = FindNode (feed.profile, 0x0400, 0);
+
+            Assert::IsTrue   (routine > 0, L"a node for the routine the JSR entered");
+            Assert::AreEqual ((uint64_t) 1, feed.profile.GetNodes()[(size_t) routine].calls);
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[(size_t) routine].self, L"its LDA and its RTS");
+            Assert::IsTrue   (FindNode (feed.profile, 0xFA62, routine) > 0, L"the handler under it");
+            Assert::AreEqual ((uint64_t) 8, feed.profile.GetNodes()[0].self, L"the JSR and the LDA after the return");
         }
 
 
@@ -216,6 +314,76 @@ namespace DebuggerTests
             feed.profile.Reset();
             Assert::AreEqual ((size_t) 0, feed.profile.GetFrames().size());
             Assert::AreEqual ((size_t) 1, feed.profile.GetNodes().size(), L"Top level alone");
+        }
+
+
+
+        //  Covering every frame, the profile has the first frame too, in no
+        //  more than kFrameCount bars, each of the same number of frames.
+        TEST_METHOD (FramesCoveringAllJoinIntoWiderBars)
+        {
+            constexpr size_t  kFrames = RoutineProfile::kFrameCount * 3;
+            Feed              feed;
+            uint64_t          cycles  = 0;
+
+
+
+            feed.profile.SetFramesCoverAll (true);
+
+            for (size_t i = 0; i < kFrames; i++)
+            {
+                feed.profile.Record (0x0300, kLda, 2, 0xFF, (uint64_t) i * kFrame, kFrame);
+            }
+
+            Assert::IsTrue   (feed.profile.GetFrames().size() <= RoutineProfile::kFrameCount);
+            Assert::AreEqual ((uint64_t) 0, feed.profile.GetFrames().front().index, L"the first frame is in the first bar");
+            Assert::AreEqual ((uint64_t) 4, feed.profile.GetFrames().front().count, L"two halvings of 1,800 frames");
+
+            for (const RoutineProfile::Frame & frame : feed.profile.GetFrames())
+            {
+                cycles += frame.other;
+
+                for (const RoutineProfile::Share & share : frame.shares)
+                {
+                    cycles += share.cycles;
+                }
+            }
+
+            Assert::AreEqual ((uint64_t) kFrames * 2, cycles, L"every instruction's cycles are in a bar");
+        }
+
+
+
+        //  A later profile's routines, nodes and frames merge into the
+        //  earlier's: a routine in both is one routine, its node's cycles and
+        //  calls are added, and the frames run on in order.
+        TEST_METHOD (MergeAddsALaterProfile)
+        {
+            Feed  first;
+            Feed  later;
+            int   node = 0;
+
+
+
+            first.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            first.Run (0x0400, kRts, 6, 0xFF);
+
+            later.clock = kFrame * 10;
+            later.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            later.Run (0x0400, kLda, 2, 0xFD);
+            later.Run (0x0402, kRts, 6, 0xFF);
+            later.Run (0x0300, RoutineProfile::kJsr, 6, 0xFD);
+            later.Run (0x0500, kRts, 6, 0xFF);
+
+            first.profile.Merge (later.profile);
+
+            node = FindNode (first.profile, 0x0400);
+            Assert::AreEqual ((size_t) 3, first.profile.GetRoutines().size(), L"Top level, $0400 and $0500");
+            Assert::AreEqual ((uint64_t) 14, first.profile.GetNodes()[(size_t) node].self, L"6 here and 8 later");
+            Assert::AreEqual ((uint64_t) 2,  first.profile.GetNodes()[(size_t) node].calls);
+            Assert::IsTrue   (FindNode (first.profile, 0x0500) > 0);
+            Assert::AreEqual ((size_t) 2,  first.profile.GetFrames().size(), L"frame 0 and frame 10");
+            Assert::AreEqual ((uint64_t) 10, first.profile.GetFrames().back().index);
         }
     };
 }

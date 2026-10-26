@@ -45,6 +45,7 @@ public:
     using  CommandFn      = std::function<bool (int commandId)>;
     using  FilesFn        = std::function<bool (const std::vector<std::wstring> & paths)>;
     using  FocusChangedFn = std::function<void (bool focused)>;
+    using  PointerFn      = std::function<bool (POINT & cursorPx)>;
 
     DxuiDockedWindow  () = default;
     ~DxuiDockedWindow () override = default;
@@ -58,6 +59,7 @@ public:
     void  SetOnCaptionDrag     (PointFn fn)  { m_onDrag      = std::move (fn); }
     void  SetOnCaptionDragEnd  (PointFn fn)  { m_onDragEnd   = std::move (fn); }
     void  SetOnCaptionDragCancel (ClosedFn fn) { m_onDragCancel = std::move (fn); }
+    void  SetOnResized           (ClosedFn fn) { m_onResized    = std::move (fn); }
     void  SetOnClosed            (ClosedFn fn) { m_onClosed     = std::move (fn); }
 
     //  A key the window's key map translates, for an owner that keeps one
@@ -79,6 +81,10 @@ public:
     //  Once a frame: reports the end of a caption drag the end of the move
     //  loop did not.
     void  PollCaptionDrag ();
+
+    //  What a caption drag reads: whether the left button is down, and the
+    //  cursor in screen pixels. The system's unless a test sets one.
+    void  SetPointerReader (PointerFn fn) { m_readPointer = std::move (fn); }
 
     //  Moves and sizes the window, in screen pixels.
     void  SetScreenRect (const RECT & rectPx);
@@ -135,11 +141,13 @@ private:
     PointFn                   m_onDrag;
     PointFn                   m_onDragEnd;
     ClosedFn                  m_onDragCancel;
+    ClosedFn                  m_onResized;
     ClosedFn                  m_onClosed;
     CommandFn                 m_onCommand;
     FilesFn                   m_onFiles;
     FocusChangedFn            m_onFocusChanged;
     DxuiCaptionDragTracker    m_drag;
+    PointerFn                 m_readPointer  = [] (POINT & cursorPx) { GetCursorPos (&cursorPx); return (GetKeyState (VK_LBUTTON) & 0x8000) != 0; };
     bool                      m_headerFade   = false;
 
     //  The look and border color last applied, so DWM is called only when

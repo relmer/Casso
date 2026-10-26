@@ -140,6 +140,10 @@ public:
     virtual VideoPosition       GetVideoPosition  () const = 0;
     virtual uint64_t            GetCycleCount     () const = 0;
 
+    // The cycle count on history's clock, which a power cycle does not set
+    // back; the CPU's count for a target with no history.
+    virtual uint64_t            GetHistoryCycleCount () const { return GetCycleCount(); }
+
     // The Cpu::kPenalty bits the last instruction paid.
     virtual Byte                GetLastPenalties  () const = 0;
 
@@ -153,6 +157,10 @@ public:
     virtual DebugCpuKind        GetCpuKind        () const = 0;
     virtual const Microcode   * GetInstructionSet () const = 0;
     virtual DebugMachineInfo    GetMachineInfo    () const = 0;
+
+    // What owns the instruction set, when the target has a copy of its own
+    // rather than the live CPU's; null for the live CPU's.
+    virtual std::shared_ptr<const std::vector<Microcode>>  GetInstructionTable () const { return nullptr; }
 
     // The Disk II controller for disk breakpoints: its Breakpoints listener
     // slot, its state, its recent nibbles, a look-ahead of a drive's next

@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/Panes/TracePane.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 #include "Debugger/AppleWinFormatter.h"
 #include "Core/TextEncoding.h"
@@ -33,7 +34,6 @@ void TracePane::Configure()
 
     m_list->SetRowProvider   (0, [this] (int row, std::vector<DxuiListView::Cell> & out) { ProvideRow (row, out); });
     m_list->EnableStickyTail (true);
-    m_list->SetPreciseAutoFit (false);
 
     //  Home, End, the arrows and the page keys move through the entries; Home
     //  goes to the oldest.
@@ -128,6 +128,13 @@ std::optional<uint64_t> TracePane::GetReadStartFor (uint64_t first, uint64_t hel
         return std::nullopt;
     }
 
+    //  More rows than fit in one read are left with the read they have,
+    //  which is not requested again.
+    if (((top > kLeadRows) ? top - kLeadRows : 0) == first)
+    {
+        return std::nullopt;
+    }
+
     return (top > kLeadRows) ? top - kLeadRows : 0;
 }
 
@@ -205,7 +212,7 @@ void TracePane::ProvideRow (int row, std::vector<DxuiListView::Cell> & out) cons
 
     bytes = AppleWinFormatter::FormatTraceBytes (*record);
 
-    out[0].text = std::format (L"{}", record->cycles);
+    out[0].text = DebuggerStatusText::FormatCount (record->cycles);
     out[1].text = std::format (L"{:04X}", record->pc);
     out[2].text = TextEncoding::NarrowToWide (bytes);
     out[3].text = TextEncoding::NarrowToWide (record->symbol);

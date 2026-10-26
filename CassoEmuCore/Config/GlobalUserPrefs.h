@@ -242,6 +242,7 @@ struct GlobalUserPrefs
 
     // What the debugger keeps between sessions, under the same keys as before.
     DebuggerSettings  debugger;
+    DebuggerSettings  debuggerAsRead;     // `debugger` as FromJson read it; while the two are equal a save writes the file's
 
     // Master output volume (the chrome toolbar's slider + mute): one gain over
     // the completed audio mix, so speaker, drives, printer, and Mockingboard
@@ -291,12 +292,13 @@ struct GlobalUserPrefs
     HRESULT     Save     (const std::wstring & baseDir,
                           IFileSystem        & fs) const;
 
-    //  Takes the placements `onDisk` holds for keys this object was not told
-    //  about, so a writer never drops another instance's arrangement. EVERY
+    //  Takes the placements `onDisk` has for keys this object never set, and
+    //  the debugger settings when this object's are as it read them, so a
+    //  writer never drops another instance's arrangement. EVERY
     //  writer of the prefs document owes the file this call: the document has
     //  two of them, and the one that skipped it wiped the debugger placements
     //  of every instance but its own.
-    void        MergeUntouchedPlacements (const GlobalUserPrefs & onDisk);
+    void        MergeUntouched (const GlobalUserPrefs & onDisk);
 
     JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);

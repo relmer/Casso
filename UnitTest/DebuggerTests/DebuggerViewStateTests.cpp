@@ -712,6 +712,38 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (4u, touches.cycles);
         }
 
+        //  On a 65C02 the instruction runs as the 65C02 runs it: STZ stores a
+        //  zero where the 6502 reads past a NOP, and BRK clears D.
+        TEST_METHOD (A65C02InstructionRunsAsThe65C02RunsIt)
+        {
+            TestMachine                  machine   ("Apple2eEnhanced", TestMachine::Slots::Empty);
+            MockExpressionContext        memory;
+            Cpu6502Registers             registers = {};
+            InstructionTouches::Result   touches;
+            const Microcode            * set       = machine.GetCpu()->GetCpu6502()->GetInstructionSet();
+
+
+
+            memory.memory[0x0300] = 0x64;     // STZ $10
+            memory.memory[0x0301] = 0x10;
+            memory.memory[0x0010] = 0x55;
+
+            registers.pc = 0x0300;
+            registers.sp = 0xFF;
+
+            touches = InstructionTouches::Find (memory, set, registers, 0x0300, 2);
+
+            Assert::AreEqual ((size_t) 1, touches.writes.size(), L"one write");
+            Assert::AreEqual ((Word) 0x0010, touches.writes[0].address);
+            Assert::AreEqual ((Byte) 0x00,   touches.writes[0].value);
+
+            memory.memory[0x0300] = 0x00;     // BRK
+            registers.p           = 0x08;
+
+            touches = InstructionTouches::Find (memory, set, registers, 0x0300, 1);
+            Assert::AreEqual (0, touches.after.p & 0x08, L"BRK clears D");
+        }
+
         //  The PC's line ends with the cycles its instruction will take with
         //  the registers as they are: a branch's count is for the way it goes.
         TEST_METHOD (ThePcLineEndsWithItsCycles)
@@ -776,8 +808,8 @@ namespace DebuggerViewStateTests
                 //  on a //e, double hi-res -- not a read and a write. Neither
                 //  description claims a direction, so the first stands
                 //  whichever way the instruction touches it.
-                { L"LDA $C05E",                          { 0xAD, 0x5E, 0xC0 }, "SETAN3"     },
-                { L"STA $C05E",                          { 0x8D, 0x5E, 0xC0 }, "SETAN3"     },
+                { L"LDA $C05E",                          { 0xAD, 0x5E, 0xC0 }, "CLRAN3"     },
+                { L"STA $C05E",                          { 0x8D, 0x5E, 0xC0 }, "CLRAN3"     },
             };
 
 
@@ -894,7 +926,7 @@ namespace DebuggerViewStateTests
 
             //  A manual watch: the expression moves it, the value writes the
             //  word it watches.
-            Assert::AreEqual (std::string ("WC 3 | W 0500"),  lines (3, std::nullopt, 0, "0500"));
+            Assert::AreEqual (std::string ("WC 3 | W EXPR 0500"), lines (3, std::nullopt, 0, "0500"));
             Assert::AreEqual (std::string ("MEW 0400 BEEF"),  lines (3, std::nullopt, 1, " BEEF "), L"typed space is not part of it");
 
             //  An automatic watch writes what it stands for.
@@ -907,6 +939,53 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string(), lines (std::nullopt, 1, 1, "7"),  L"a flag is 0 or 1");
             Assert::AreEqual (std::string(), lines (3, std::nullopt, 1, "  "), L"nothing typed");
             Assert::AreEqual (std::string(), lines (9, std::nullopt, 1, "12"), L"a watch that is gone");
+        }
+
+
+        //  Text after BASIC is checked before the edit runs, since the edit
+        //  clears the watch it replaces first.
+        TEST_METHOD (AWatchOfTextAfterBasicMustBeAVariable)
+        {
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            Assert::IsFalse (DebuggerViewState::GetWatchError (snapshot, "BASIC 9X").empty(), L"not a variable");
+            Assert::IsTrue  (DebuggerViewState::GetWatchError (snapshot, "BASIC A%").empty());
+            Assert::IsTrue  (DebuggerViewState::GetWatchError (snapshot, "BASIC D(3, 4)").empty(), L"spaces as a program may have them");
+        }
+
+
+        //  A byte watch's edit writes one byte, which is all its undo puts
+        //  back; a value too wide for it, or a second value, writes nothing.
+        TEST_METHOD (AByteWatchsEditWritesOnlyItsByte)
+        {
+            MachineRig                   rig;
+            DebuggerViewSnapshot         snapshot;
+            std::vector<DebuggerAction>  actions;
+            Byte                         first = rig.machine.GetMemoryBus().ReadByte (0x0400);
+            Byte                         next  = rig.machine.GetMemoryBus().ReadByte (0x0401);
+
+
+
+            snapshot.autoWatches = { { "M:0400", "$0400", "00" } };
+
+            for (const char * typed : { "1234", "12 34" })
+            {
+                actions = DebuggerViewState::GetWatchEditActions (snapshot, std::nullopt, 0, 1, typed, CommandMode::AppleWin);
+                Assert::AreEqual ((size_t) 1, actions.size());
+
+                rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+
+                Assert::AreEqual ((int) first, (int) rig.machine.GetMemoryBus().ReadByte (0x0400), TextEncoding::NarrowToWide (typed).c_str());
+                Assert::AreEqual ((int) next, (int) rig.machine.GetMemoryBus().ReadByte (0x0401), TextEncoding::NarrowToWide (typed).c_str());
+            }
+
+            actions = DebuggerViewState::GetWatchEditActions (snapshot, std::nullopt, 0, 1, "5A", CommandMode::AppleWin);
+            rig.view.ExecuteAction (rig.controller.GetSession(), actions[0]);
+
+            Assert::AreEqual ((int) 0x5A, (int) rig.machine.GetMemoryBus().ReadByte (0x0400));
+            Assert::AreEqual ((int) next, (int) rig.machine.GetMemoryBus().ReadByte (0x0401));
         }
 
 
@@ -977,7 +1056,7 @@ namespace DebuggerViewStateTests
             Assert::IsTrue   (lines.has_value());
             Assert::AreEqual ((size_t) 2, lines->size());
             Assert::AreEqual (std::string ("WC 6"),   lines->at (0).echo);
-            Assert::AreEqual (std::string ("W 0400"), lines->at (1).echo);
+            Assert::AreEqual (std::string ("W EXPR 0400"), lines->at (1).echo);
 
             //  Watch 6 removed and watch 7 added since: 7 is not the moved
             //  watch, and nothing is removed.
@@ -1483,7 +1562,7 @@ namespace DebuggerViewStateTests
                 { Type::Write,     "0400",      "",     "",    "BPMW 0400"           },
                 { Type::ReadWrite, "0400",      "",     "",    "BPM 0400"            },
                 { Type::Value,     "0400",      "41",   "",    "BPMV 0400 41"        },
-                { Type::Register,  "",          "A=41", "",    "BPR A=41"            },
+                { Type::Condition, "",          "",     "A == 41 && X > 3", "BPR IF A == 41 && X > 3" },
                 { Type::Opcode,    "",          "EA",   "",    "BRKOP EA"            },
             };
 
@@ -1825,7 +1904,7 @@ namespace DebuggerViewStateTests
     public:
 
         static constexpr int       kRows      = DebuggerViewState::kTraceRows;
-        static constexpr uint64_t  kTotal     = 300;
+        static constexpr uint64_t  kTotal     = 2 * kRows + 44;
         static constexpr uint64_t  kJmpCycles = 3;
 
         //  JMP $0300 at $0300, run with the trace on until it holds kTotal.
@@ -1843,11 +1922,13 @@ namespace DebuggerViewStateTests
 
         TEST_METHOD (TheWindowEndsAtTheNewestOrStartsWhereThePaneIs)
         {
-            Assert::AreEqual ((uint64_t) 0,   DebuggerViewState::GetTraceWindowFirst (0,    std::nullopt, kRows));
-            Assert::AreEqual ((uint64_t) 0,   DebuggerViewState::GetTraceWindowFirst (100,  std::nullopt, kRows), L"fewer than a window");
-            Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, std::nullopt, kRows));
-            Assert::AreEqual ((uint64_t) 500, DebuggerViewState::GetTraceWindowFirst (1000, 500,          kRows));
-            Assert::AreEqual ((uint64_t) 872, DebuggerViewState::GetTraceWindowFirst (1000, 990,          kRows), L"never past the newest");
+            static constexpr uint64_t  kHeld = 4 * kRows;
+
+            Assert::AreEqual ((uint64_t) 0,     DebuggerViewState::GetTraceWindowFirst (0,     std::nullopt, kRows));
+            Assert::AreEqual ((uint64_t) 0,     DebuggerViewState::GetTraceWindowFirst (100,   std::nullopt, kRows), L"fewer than a window");
+            Assert::AreEqual (kHeld - kRows,    DebuggerViewState::GetTraceWindowFirst (kHeld, std::nullopt, kRows));
+            Assert::AreEqual ((uint64_t) 500,   DebuggerViewState::GetTraceWindowFirst (kHeld, 500,          kRows));
+            Assert::AreEqual (kHeld - kRows,    DebuggerViewState::GetTraceWindowFirst (kHeld, kHeld - 10,   kRows), L"never past the newest");
         }
 
 
@@ -1890,6 +1971,25 @@ namespace DebuggerViewStateTests
             Assert::AreEqual ((uint64_t) 384, TracePane::GetReadStartFor (500, 128, 400, kVisible, false).value(),      L"above it, with a lead");
             Assert::AreEqual ((uint64_t) 604, TracePane::GetReadStartFor (500, 128, 620, kVisible, false).value(),      L"below it");
             Assert::AreEqual ((uint64_t) 0,   TracePane::GetReadStartFor (500, 128, 4,   kVisible, false).value(),      L"never before the first entry");
+        }
+
+
+
+        //  Every row of a tall pane, as at 50% text zoom on a tall monitor,
+        //  fits in one read; and the read a pane has is never requested
+        //  again.
+        TEST_METHOD (ATallTracePaneIsHeldByOneRead)
+        {
+            static constexpr int       kTall = 300;
+            static constexpr uint64_t  kTop  = 1000;
+            std::optional<uint64_t>    start = TracePane::GetReadStartFor (0, DebuggerViewState::kTraceRows, kTop, kTall, false);
+
+
+
+            Assert::IsTrue  (start.has_value(), L"rows outside the read");
+            Assert::IsFalse (TracePane::GetReadStartFor (*start, DebuggerViewState::kTraceRows, kTop, kTall, false).has_value(), L"the read that came holds them");
+            Assert::IsFalse (TracePane::GetReadStartFor (*start, DebuggerViewState::kTraceRows, kTop, 10 * DebuggerViewState::kTraceRows, false).has_value(),
+                             L"more rows than a read holds ask for the same read no more");
         }
     };
 
@@ -2772,6 +2872,9 @@ namespace DebuggerViewStateTests
 
             Assert::IsTrue   (RunInWindow (rig, "MA1 PC").status == CommandStatus::Ok);
             Assert::AreEqual ((Word) 0x0300, rig.view.GetMemoryAddress(), L"a register");
+
+            Assert::IsTrue   (RunInWindow (rig, "MD1 300 + 10").status == CommandStatus::Ok);
+            Assert::AreEqual ((Word) 0x0310, rig.view.GetMemoryAddress(), L"an expression with spaces, read whole");
         }
 
 
@@ -3694,8 +3797,8 @@ namespace DebuggerViewStateTests
         //  A panel nobody opened is listed and never asked for its rows.
         TEST_METHOD (AClosedPanelIsListedButNotBuilt)
         {
-            PanelRig              rig;
-            DebuggerViewSnapshot  snapshot = rig.view.Build (rig.session);
+            auto                  rig      = std::make_unique<PanelRig>();   // heap: the rig and a snapshot overflow the frame (C6262)
+            DebuggerViewSnapshot  snapshot = rig->view.Build (rig->session);
 
 
 
@@ -3704,7 +3807,7 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (std::string ("Disk widget"), snapshot.panels[0].title);
             Assert::IsFalse  (snapshot.panels[0].open);
             Assert::IsTrue   (snapshot.diagnostics.empty());
-            Assert::AreEqual (0, rig.provider.calls, L"a closed panel costs the device nothing");
+            Assert::AreEqual (0, rig->provider.calls, L"a closed panel costs the device nothing");
         }
 
 
@@ -3713,9 +3816,11 @@ namespace DebuggerViewStateTests
         //  stop (SC-015).
         TEST_METHOD (AnOpenPanelIsInEverySnapshot)
         {
-            PanelRig              rig;
-            DebuggerViewSnapshot  first;
-            DebuggerViewSnapshot  second;
+            PanelRig                               rig;
+            std::unique_ptr<DebuggerViewSnapshot>  firstOwner  = std::make_unique<DebuggerViewSnapshot>();
+            std::unique_ptr<DebuggerViewSnapshot>  secondOwner = std::make_unique<DebuggerViewSnapshot>();
+            DebuggerViewSnapshot                 & first       = *firstOwner;
+            DebuggerViewSnapshot                 & second      = *secondOwner;
 
 
 
@@ -3876,21 +3981,21 @@ namespace DebuggerViewStateTests
         //  closes and stays closed when a device of that id returns.
         TEST_METHOD (APanelClosesWhenItsDeviceLeaves)
         {
-            PanelRig              rig;
+            auto                  rig      = std::make_unique<PanelRig>();   // heap: the rig and a snapshot overflow the frame (C6262)
             DebuggerViewSnapshot  snapshot;
 
 
 
-            rig.view.OpenPanel ("fake");
-            rig.target.diagnosticsProviders.clear();
-            snapshot = rig.view.Build (rig.session);
+            rig->view.OpenPanel ("fake");
+            rig->target.diagnosticsProviders.clear();
+            snapshot = rig->view.Build (rig->session);
 
             Assert::IsTrue  (snapshot.panels.empty());
             Assert::IsTrue  (snapshot.diagnostics.empty());
-            Assert::IsFalse (rig.view.IsPanelOpen ("fake"));
+            Assert::IsFalse (rig->view.IsPanelOpen ("fake"));
 
-            rig.target.diagnosticsProviders = { &rig.provider };
-            snapshot = rig.view.Build (rig.session);
+            rig->target.diagnosticsProviders = { &rig->provider };
+            snapshot = rig->view.Build (rig->session);
             Assert::IsTrue (snapshot.diagnostics.empty());
         }
 
@@ -4068,6 +4173,23 @@ namespace DebuggerViewStateTests
             Assert::AreEqual (3, rows[1][2].dimRanges[0].first);
             Assert::AreEqual (5, rows[1][2].dimRanges[0].second);
             Assert::AreEqual (std::wstring (L""),            rows[2][2].text, L"a row with no decode");
+        }
+
+
+        //  A row's tip is over its label and its value.
+        TEST_METHOD (APanelRowsTipIsOverItsLabelAndValue)
+        {
+            DiagnosticsSnapshot                           snapshot;
+            std::vector<std::vector<DxuiListView::Cell>>  rows;
+
+
+
+            snapshot.groups.push_back ({ "Switches", { IDiagnosticsProvider::MakeFlagRow ("RAMRD", true, "Reads of aux RAM.") } });
+            rows = DiagnosticsPane::MakeRows (snapshot);
+
+            Assert::AreEqual (std::wstring (L"Reads of aux RAM."), rows[1][0].tip);
+            Assert::AreEqual (std::wstring (L"Reads of aux RAM."), rows[1][1].tip);
+            Assert::AreEqual (std::wstring (L"ON"),                rows[1][1].text);
         }
 
 

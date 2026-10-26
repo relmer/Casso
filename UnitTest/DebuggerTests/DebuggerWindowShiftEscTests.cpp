@@ -85,7 +85,7 @@ namespace DebuggerShiftEscTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::IsPaneShown;
     };
 
@@ -119,7 +119,7 @@ namespace DebuggerShiftEscTests
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
             Assert::IsTrue (window.IsPaneShown (DebuggerLayout::kConsole), L"the console starts shown");
 
             ev.kind  = DxuiKeyEventKind::Down;

@@ -148,6 +148,10 @@ void ShellDebugger::ServiceProject()
         SaveProject();
         opened.scope = m_project.scope;
         ApplyProject (opened);
+
+        //  A debug file the project loads changes the scope; as for a
+        //  restore, that is no switch the user made, so no merge is offered.
+        m_restoredScope = GetProjectScope();
     }
 
     if (m_isMergeOwed)
@@ -789,6 +793,8 @@ std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() cons
     strings["heatMapOptions"]  = m_settings.heatMapOptions;
     strings["diskLogOptions"]  = m_settings.diskLogOptions;
     strings["inputLogOptions"] = m_settings.inputLogOptions;
+    strings["videoLogOptions"] = m_settings.videoLogOptions;
+    strings["soundLogOptions"] = m_settings.soundLogOptions;
     return strings;
 }
 
@@ -816,6 +822,8 @@ void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::st
         { "heatMapOptions",  &m_settings.heatMapOptions  },
         { "diskLogOptions",  &m_settings.diskLogOptions  },
         { "inputLogOptions", &m_settings.inputLogOptions },
+        { "videoLogOptions", &m_settings.videoLogOptions },
+        { "soundLogOptions", &m_settings.soundLogOptions },
     };
 
 

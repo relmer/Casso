@@ -1,12 +1,15 @@
 #include "Pch.h"
 
 #include "CaptureTests/FakeHostDialogs.h"
+#include "EhmTestHelper.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -40,7 +43,7 @@ namespace DebuggerTests
         void  ScrollDebuggerCode      (int, int)                                 override {}
         void  OnDebuggerWindowClosed  ()                                         override {}
         void  SetDebuggerKeyScheme    (const std::string &)                      override {}
-        void  SetDebuggerLayout       (const std::string &)                      override {}
+        void  SetDebuggerLayout       (const std::string & text)                 override { layouts.push_back (text); }
         void  SetDebuggerOpenViews    (const std::string &)                      override {}
         void  SetDebuggerPlacement    (const RECT &)                             override {}
 
@@ -60,6 +63,7 @@ namespace DebuggerTests
 
         std::vector<std::string>  goTos;
         std::vector<std::string>  commands;
+        std::vector<std::string>  layouts;
 
     private:
         FakeHostDialogs  m_dialogs;
@@ -89,14 +93,18 @@ namespace DebuggerTests
         }
 
         using DebuggerWindow::OnCreate;
+        using DebuggerWindow::OnWindowClose;
+        using DebuggerWindow::OnAppMessage;
+        using DebuggerWindow::GetFloatingPanes;
+        using DebuggerWindow::GetDockSite;
+        using DebuggerWindow::s_kFrameMessage;
         using DebuggerWindow::Layout;
         using DebuggerWindow::OnKey;
         using DebuggerWindow::ApplyTextZoom;
         using DebuggerWindow::StepTextZoom;
         using DebuggerWindow::GetTextZoom;
-        using DebuggerWindow::SubmitMemoryBox;
-        using DebuggerWindow::GetMemoryBox;
-        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetMemoryGroup;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::FocusControl;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
@@ -104,27 +112,13 @@ namespace DebuggerTests
         using DebuggerWindow::RouteMappedKey;
         using DebuggerWindow::ApplyKeyScheme;
         using DebuggerWindow::AppendConsole;
-        using DebuggerWindow::IsFindOpen;
-        using DebuggerWindow::GetConsoleView;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindWordButton;
-        using DebuggerWindow::SetFindOptions;
-        using DebuggerWindow::GetFindStatus;
-        using DebuggerWindow::BeginWatchEdit;
-        using DebuggerWindow::EndWatchEdit;
+        using DebuggerWindow::GetFindWidgets;
+        using DebuggerWindow::GetWatchesPane;
         using DebuggerWindow::GetFocused;
-        using DebuggerWindow::GetWatchList;
         using DebuggerWindow::GetMenuCommands;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetPaneOfFocus;
-        using DebuggerWindow::GetMemoryBar;
-        using DebuggerWindow::GetMemoryHistory;
-        using DebuggerWindow::RunMemoryBarEntry;
-        using DebuggerWindow::ChooseMemoryColumns;
-        using DebuggerWindow::ChooseMemoryGrouping;
-        using DebuggerWindow::GetFindBarTip;
-        using DebuggerWindow::GetWatchEditor;
         using DebuggerWindow::IsPaneShown;
 
         //  A key as the window's message handling delivers it: to the window
@@ -350,13 +344,13 @@ namespace DebuggerTests
 
             window.OnCreate();
 
-            window.GetMemoryBox()->SetText (L"  ");
-            window.SubmitMemoryBox();
+            window.GetMemoryGroup().GetBox()->SetText (L"  ");
+            window.GetMemoryGroup().SubmitBox();
 
             Assert::AreEqual ((size_t) 0, host.goTos.size(), L"a blank box goes nowhere");
 
-            window.GetMemoryBox()->SetText (L"a");
-            window.SubmitMemoryBox();
+            window.GetMemoryGroup().GetBox()->SetText (L"a");
+            window.GetMemoryGroup().SubmitBox();
 
             Assert::AreEqual ((size_t) 1, host.goTos.size(), L"A is the register, resolved against the machine");
             Assert::AreEqual (std::string ("a"), host.goTos[0]);
@@ -448,17 +442,17 @@ namespace DebuggerTests
 
             Build (window, DebuggerKeyScheme::AppleWin);
 
-            Assert::IsFalse  (window.IsFindOpen());
+            Assert::IsFalse  (window.GetFindWidgets().IsOpen());
             Assert::IsTrue   (window.Press ('F', true), L"Ctrl+F");
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::IsTrue   (window.GetFindBox()->IsFocused(), L"the keys go to the find box");
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen());
+            Assert::IsTrue   (window.GetFindWidgets().GetBox()->IsFocused(), L"the keys go to the find box");
 
             window.Type (L"sta ");
 
-            Assert::AreEqual (std::wstring (L"sta "), window.GetFindBox()->GetText());
+            Assert::AreEqual (std::wstring (L"sta "), window.GetFindWidgets().GetBox()->GetText());
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"AppleWin steps on Space, but not from the find box");
 
-            Assert::AreEqual (std::wstring (L"STA "), window.GetConsoleView()->GetSelectionText(), L"found as typed; case does not matter by default");
+            Assert::AreEqual (std::wstring (L"STA "), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"found as typed; case does not matter by default");
             Assert::IsTrue   (window.Press (VK_RETURN), L"Enter finds");
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"and Enter runs nothing");
         }
@@ -477,19 +471,19 @@ namespace DebuggerTests
             window.Press ('F', true);
             window.Type  (L"sta");
 
-            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText(), L"typing finds the first");
+            Assert::AreEqual (std::wstring (L"STA"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"typing finds the first");
 
             Assert::IsTrue   (window.Press (VK_F3), L"F3 from the find box");
-            Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"the next one, on the last line");
-            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"sta"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"the next one, on the last line");
+            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindWidgets().GetStatus());
 
             Assert::IsTrue   (window.Press (VK_F3));
-            Assert::AreEqual (std::wstring (L"STA"), window.GetConsoleView()->GetSelectionText(), L"round to the first again");
-            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"STA"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"round to the first again");
+            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindWidgets().GetStatus());
 
             Assert::IsTrue   (window.Press (VK_F3, false, true), L"Shift+F3");
-            Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"back round to the last");
-            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindStatus());
+            Assert::AreEqual (std::wstring (L"sta"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"back round to the last");
+            Assert::AreEqual (std::wstring (L"2 of 2"), window.GetFindWidgets().GetStatus());
         }
 
 
@@ -505,20 +499,20 @@ namespace DebuggerTests
 
             window.Press ('F', true);
             window.Type  (L"sta");
-            window.SetFindOptions (true, false, false);
+            window.GetFindWidgets().SetOptions (true, false, false);
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"sta"), window.GetConsoleView()->GetSelectionText(), L"only the lowercase line");
+            Assert::AreEqual (std::wstring (L"sta"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"only the lowercase line");
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindStatus(), L"the only match, found again by going round");
+            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindWidgets().GetStatus(), L"the only match, found again by going round");
 
-            window.GetFindBox()->SetText (L"");
+            window.GetFindWidgets().GetBox()->SetText (L"");
             window.Type  (L"ora");
 
-            Assert::AreEqual (std::wstring (L"ora"), window.GetFindBox()->GetText());
+            Assert::AreEqual (std::wstring (L"ora"), window.GetFindWidgets().GetBox()->GetText());
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus(), L"only ORA, in capitals");
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindWidgets().GetStatus(), L"only ORA, in capitals");
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"GSSquared steps on O and R, but not from the find box");
         }
 
@@ -537,18 +531,18 @@ namespace DebuggerTests
             window.Type  (L"c03");
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"C03"), window.GetConsoleView()->GetSelectionText(), L"part of C030, while whole words are off");
+            Assert::AreEqual (std::wstring (L"C03"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"part of C030, while whole words are off");
 
-            Assert::IsTrue   (window.GetFindWordButton()->IsVisible(), L"the whole-word toggle shows with the bar");
-            window.SetFindOptions (false, true, false);
+            Assert::IsTrue   (window.GetFindWidgets().GetWordButton()->IsVisible(), L"the whole-word toggle shows with the bar");
+            window.GetFindWidgets().SetOptions (false, true, false);
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus(), L"C030 goes on past C03");
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindWidgets().GetStatus(), L"C030 goes on past C03");
 
             window.Type  (L"0");
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"C030"), window.GetConsoleView()->GetSelectionText(), L"the whole word, between $ and the line's end");
+            Assert::AreEqual (std::wstring (L"C030"), window.GetConsolePane().GetOutput().GetView()->GetSelectionText(), L"the whole word, between $ and the line's end");
         }
 
 
@@ -563,18 +557,18 @@ namespace DebuggerTests
             Build (window, DebuggerKeyScheme::VisualStudio);
 
             window.OnMappedCommand (DebuggerCommands::kFind);
-            Assert::IsTrue   (window.IsFindOpen(), L"the command bar's Find opens the bar as Ctrl+F does");
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen(), L"the command bar's Find opens the bar as Ctrl+F does");
 
             window.Type  (L"jmp");
 
             Assert::IsTrue   (window.Press (VK_RETURN));
-            Assert::AreEqual (std::wstring (L"No results"), window.GetFindStatus());
-            Assert::IsFalse  (window.GetConsoleView()->HasSelection());
+            Assert::AreEqual (std::wstring (L"No results"), window.GetFindWidgets().GetStatus());
+            Assert::IsFalse  (window.GetConsolePane().GetOutput().GetView()->HasSelection());
 
             Assert::IsTrue   (window.Press (VK_ESCAPE));
-            Assert::IsFalse  (window.IsFindOpen());
-            Assert::IsFalse  (window.GetFindBox()->IsVisible(), L"the bar is hidden");
-            Assert::IsFalse  (window.GetFindBox()->IsFocused(), L"and the keys go back to the command line");
+            Assert::IsFalse  (window.GetFindWidgets().IsOpen());
+            Assert::IsFalse  (window.GetFindWidgets().GetBox()->IsVisible(), L"the bar is hidden");
+            Assert::IsFalse  (window.GetFindWidgets().GetBox()->IsFocused(), L"and the keys go back to the command line");
         }
 
 
@@ -589,8 +583,8 @@ namespace DebuggerTests
             Build (window, DebuggerKeyScheme::AppleWin);
 
             Assert::IsTrue   (window.Press (VK_F3));
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::IsTrue   (window.GetFindBox()->IsFocused());
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen());
+            Assert::IsTrue   (window.GetFindWidgets().GetBox()->IsFocused());
         }
     };
 
@@ -620,11 +614,11 @@ namespace DebuggerTests
 
 
             DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::AppleWin);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
             window.Type (L"a b");
 
-            Assert::AreEqual (std::wstring (L"a b"), window.GetCommandBox()->GetText());
+            Assert::AreEqual (std::wstring (L"a b"), window.GetConsolePane().GetCommandLine().GetBox()->GetText());
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"AppleWin steps on Space only from an empty line");
         }
 
@@ -638,11 +632,11 @@ namespace DebuggerTests
 
 
             DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::GSSquared);
-            window.FocusControl (window.GetMemoryBox());
+            window.FocusControl (window.GetMemoryGroup().GetBox());
 
             window.Type (L"or");
 
-            Assert::AreEqual (std::wstring (L"or"), window.GetMemoryBox()->GetText());
+            Assert::AreEqual (std::wstring (L"or"), window.GetMemoryGroup().GetBox()->GetText());
             Assert::AreEqual ((size_t) 0, host.commands.size(), L"o and r step only outside a box");
         }
     };
@@ -673,7 +667,7 @@ namespace DebuggerTests
 
 
             DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::VisualStudio);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
             Assert::IsTrue   (window.PressCtrlAlt ('B'), L"Ctrl+Alt+B");
             Assert::AreEqual (std::wstring (DebuggerLayout::kBreakpoints), window.GetPaneOfFocus());
@@ -694,14 +688,14 @@ namespace DebuggerTests
 
 
             DebuggerWindowFindTests::Build (window, DebuggerKeyScheme::AppleWin);
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
 
             Assert::IsTrue   (window.PressCtrlAlt ('L'), L"Ctrl+Alt+L");
             Assert::IsTrue   (window.Press ('D'), L"then D");
             (void) window.OnKey (typed);
 
             Assert::IsTrue   (window.IsPaneShown (DebuggerLayout::kDiskLog), L"the Disk II log");
-            Assert::IsTrue   (window.GetCommandBox()->GetText().empty(), L"and the D typed nothing");
+            Assert::IsTrue   (window.GetConsolePane().GetCommandLine().GetBox()->GetText().empty(), L"and the D typed nothing");
         }
     };
 
@@ -843,11 +837,11 @@ namespace DebuggerTests
             Build (window);
             window.TakeSnapshot (before);
 
-            //  Row 0 is the heading; row 1 is register A.
-            window.BeginWatchEdit (1, 1);
+            //  Row 0 is register A.
+            window.GetWatchesPane().BeginEdit (0, 1);
             window.TakeSnapshot (after);
             window.Type (L"42");
-            window.EndWatchEdit (true);
+            window.GetWatchesPane().EndEdit (true);
 
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"one line runs");
             Assert::AreEqual (std::string ("R A 42"), host.commands.front(), L"the value goes to A, where the edit began");
@@ -903,8 +897,8 @@ namespace DebuggerTests
 
         static void  EditWatch (TextSizeWindow & window)
         {
-            window.FocusControl (window.GetWatchList());
-            window.GetWatchList()->ClickRow (0, false, false);
+            window.FocusControl (window.GetWatchesPane().GetList());
+            window.GetWatchesPane().GetList()->ClickRow (0, false, false);
             window.Press (VK_F2);
             window.Type  (L"34");
             window.Press (VK_RETURN);
@@ -927,7 +921,7 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, host.commands.size(), L"the edit writes the watch");
 
             window.TakeSnapshot (MakeSnapshot ("Apple2e", true));
-            window.FocusControl (window.GetWatchList());
+            window.FocusControl (window.GetWatchesPane().GetList());
             Assert::IsTrue   (window.Press ('Z', true));
             Assert::AreEqual ((size_t) 2, host.commands.size(), L"on the same machine Ctrl+Z puts it back");
 
@@ -935,7 +929,7 @@ namespace DebuggerTests
             sent = host.commands.size();
 
             window.TakeSnapshot (MakeSnapshot ("Apple2Plus", true));
-            window.FocusControl (window.GetWatchList());
+            window.FocusControl (window.GetWatchesPane().GetList());
             window.Press ('Z', true);
             Assert::AreEqual (sent, host.commands.size(), L"another machine's value is not written into this one");
         }
@@ -951,10 +945,10 @@ namespace DebuggerTests
 
             Build (window);
             window.AppendConsole ({ "LDA #$00", "STA $C030" });
-            window.FocusControl  (window.GetConsoleView());
+            window.FocusControl  (window.GetConsolePane().GetOutput().GetView());
 
             Assert::IsTrue   (window.OnKey (DxuiKeyEvent { DxuiKeyEventKind::Down, 'A', false, false, true, false }), L"Ctrl+A");
-            Assert::IsTrue   (window.GetConsoleView()->HasSelection(), L"the whole text is selected, as its Edit menu does");
+            Assert::IsTrue   (window.GetConsolePane().GetOutput().GetView()->HasSelection(), L"the whole text is selected, as its Edit menu does");
         }
 
 
@@ -971,12 +965,12 @@ namespace DebuggerTests
 
             //  The Go to box is focused in a floating window, as SetFocusedControl
             //  leaves it, and a click then focuses a list in the main window.
-            window.FocusControl (window.GetWatchList());
-            window.GetMemoryBox()->OnFocusChanged (true);
+            window.FocusControl (window.GetWatchesPane().GetList());
+            window.GetMemoryGroup().GetBox()->OnFocusChanged (true);
 
             window.Type (L"12");
 
-            Assert::AreEqual (std::wstring(), window.GetMemoryBox()->GetText(), L"the keys go to the focused list, not the box");
+            Assert::AreEqual (std::wstring(), window.GetMemoryGroup().GetBox()->GetText(), L"the keys go to the focused list, not the box");
         }
 
 
@@ -994,17 +988,17 @@ namespace DebuggerTests
             scaler.SetDpi (96);
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
 
-            window.FocusControl (window.GetMemoryBox());
-            Assert::IsTrue   (window.GetMemoryBox()->IsVisible(), L"the Address box shows in the memory window's bar");
+            window.FocusControl (window.GetMemoryGroup().GetBox());
+            Assert::IsTrue   (window.GetMemoryGroup().GetBox()->IsVisible(), L"the Address box shows in the memory window's bar");
 
             window.TakeSnapshot (MakeSnapshot ("Apple2e", false));
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
 
-            Assert::IsFalse  (window.GetMemoryBox()->IsVisible(), L"no memory window, no bar");
-            Assert::IsTrue   (window.GetFocused() == window.GetCommandBox(), L"the keys go back to the command line");
+            Assert::IsFalse  (window.GetMemoryGroup().GetBox()->IsVisible(), L"no memory window, no bar");
+            Assert::IsTrue   (window.GetFocused() == window.GetConsolePane().GetCommandLine().GetBox(), L"the keys go back to the command line");
 
             window.Type (L"12");
-            Assert::AreEqual (std::wstring(), window.GetMemoryBox()->GetText(), L"and nothing is typed into the hidden box");
+            Assert::AreEqual (std::wstring(), window.GetMemoryGroup().GetBox()->GetText(), L"and nothing is typed into the hidden box");
         }
 
 
@@ -1136,9 +1130,65 @@ namespace DebuggerTests
 
             window.OnCreate();
 
-            //  A floated pane takes its controls with it; the editor opens
-            //  over the watch list, so it has to be one of them.
-            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfControl (window.GetWatchEditor()));
+            //  A floated pane takes its controls with it; the editor is the
+            //  watch grid's own, so it goes with the grid.
+            Assert::AreEqual (std::wstring (DebuggerLayout::kWatches), window.GetPaneOfControl (window.GetWatchesPane().GetList()));
+        }
+
+
+        //  Closing the window saves the layout, the floating windows' places
+        //  in it, before the floating windows are hidden.
+        TEST_METHOD (ClosingTheWindowSavesTheLayout)
+        {
+            CassoTheme         theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            TextSizeWindow     window (theme, host);
+            DxuiDpiScaler      scaler;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+            host.layouts.clear();
+
+            window.OnWindowClose();
+
+            Assert::IsFalse (host.layouts.empty(), L"the layout is saved as the window closes");
+        }
+
+
+        //  The message the window posts itself runs the floating panes'
+        //  Sync, from whatever message loop is running. Here the floating
+        //  window cannot be created, since the test's window has no
+        //  instance, so the pane docks back: proof that Sync ran.
+        TEST_METHOD (TheFrameMessageRunsTheFloatingPanesSync)
+        {
+            CassoTheme          theme  = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            TextSizeWindow      window (theme, host);
+            DxuiDpiScaler       scaler;
+            DxuiMessageResult   result = DxuiMessageResult::NotHandled;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
+
+            (void) window.GetDockSite()->EditPaneLayout().Float (DebuggerLayout::kWatches, L"", RECT { 0, 0, 300, 200 });
+            window.GetFloatingPanes().MarkSyncNeeded();
+
+            {
+                UnitTestHelpers::ExpectedEhmAssert  expect;
+
+
+
+                result = window.OnAppMessage (TextSizeWindow::s_kFrameMessage, 0, 0);
+            }
+
+            Assert::IsTrue  (result == DxuiMessageResult::Handled, L"the window handles its message");
+            Assert::IsFalse (window.GetDockSite()->GetPaneLayout().IsFloating (DebuggerLayout::kWatches), L"Sync ran");
         }
     };
 
@@ -1178,7 +1228,7 @@ namespace DebuggerTests
 
             for (LONG width : kWidths)
             {
-                DxuiToolbar  * strip  = window.GetMemoryBar();
+                DxuiToolbar  * strip  = window.GetMemoryGroup().GetBar();
                 RECT           bar    = {};
                 RECT           entry  = {};
                 bool           hidden = false;
@@ -1186,7 +1236,7 @@ namespace DebuggerTests
 
                 window.Layout (RECT { 0, 0, width, 840 }, scaler);
 
-                Assert::IsTrue (window.TryGetChildClip (window.GetMemoryBox(), bar), L"the memory bar's controls are clipped to the bar");
+                Assert::IsTrue (window.TryGetChildClip (window.GetMemoryGroup().GetBox(), bar), L"the memory bar's controls are clipped to the bar");
 
                 for (int i = 0; i < strip->GetEntryCount(); i++)
                 {
@@ -1283,7 +1333,7 @@ namespace DebuggerTests
             scaler.SetDpi (96);
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1100, 840 }, scaler);
-            view = window.GetConsoleView();
+            view = window.GetConsolePane().GetOutput().GetView();
             view->SetCellSize (8, 16);
             view->Layout (RECT { 0, 0, 400, 300 }, scaler);
             window.AppendConsole (MakeLines (200));

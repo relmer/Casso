@@ -165,6 +165,35 @@ namespace DebuggerTests
 
 
 
+        //  FRAME's break is separate from a BPBEAM's: a BPBEAM set before
+        //  FRAME stops the frame run at its place, rather than being replaced.
+        TEST_METHOD (FRAME_StopsAtABeamBreakSetBeforeIt)
+        {
+            MachineRig      rig;
+            VideoPosition   start;
+            uint64_t        before    = 0;
+            uint64_t        ran       = 0;
+            uint32_t        scanline  = 0;
+
+
+
+            rig.Load (0x0300, { 0xE8, 0x4C, 0x00, 0x03 }, 0x0300);
+
+            rig.RunOk ("BUDGET 100000");
+            start    = rig.target.GetVideoPosition();
+            scanline = (start.scanline + 10) % VideoTiming::kScanlinesPerFrame;
+            rig.RunOk (std::format ("BPBEAM 0{:X} 0", scanline));     // a leading zero, so $A is not the A register
+
+            before = rig.target.GetCycleCount();
+            rig.RunOk ("FRAME");
+            ran = rig.target.GetCycleCount() - before;
+
+            Assert::IsTrue  (ran < VideoTiming::kCyclesPerFrame, std::format (L"{} cycles, a whole frame", ran).c_str());
+            Assert::IsFalse (rig.session.HasBeamBreak(), L"the beam break fired and the frame break went with the stop");
+        }
+
+
+
         TEST_METHOD (FRAME_CountRunsThatManyFrames)
         {
             static constexpr uint64_t  kLongestInstruction = 7;

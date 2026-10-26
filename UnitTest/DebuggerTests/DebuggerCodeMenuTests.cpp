@@ -7,6 +7,8 @@
 #include "TestHelpers.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/CodeEditCommands.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -92,8 +94,8 @@ namespace DebuggerCodeMenuTests
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
-        using DebuggerWindow::GetCodeSelection;
-        using DebuggerWindow::AddCodeEditItems;
+        using DebuggerWindow::GetCodeEdits;
+        using DebuggerWindow::GetCodeGroup;
 
         std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring & placeholder, TextDialog::CheckFn check) override
         {
@@ -202,7 +204,7 @@ namespace DebuggerCodeMenuTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.TakeSnapshot (snapshot);
 
-            window.AddCodeEditItems (0, snapshot->code[1], 1, items);
+            window.GetCodeEdits().AddItems (0, snapshot->code[1], 1, items);
 
             Run (items, L"Mark as words");
             Run (items, L"Clear data marking");
@@ -215,7 +217,7 @@ namespace DebuggerCodeMenuTests
                             L"the JSR's three bytes, the routine it calls by its symbol");
 
             items.clear();
-            window.AddCodeEditItems (0, snapshot->code[2], 2, items);
+            window.GetCodeEdits().AddItems (0, snapshot->code[2], 2, items);
 
             Assert::IsTrue (Has (items, L"Remove bookmark"), L"the RTS has a bookmark");
             Run (items, L"Stop stopwatch here");
@@ -249,7 +251,7 @@ namespace DebuggerCodeMenuTests
             window.TakeSnapshot (snapshot);
 
             window.typed = L"INX";
-            window.AddCodeEditItems (0, snapshot->code[0], 0, items);
+            window.GetCodeEdits().AddItems (0, snapshot->code[0], 0, items);
             Run (items, L"Edit instruction...");
 
             Assert::AreEqual (std::wstring (L"LDA #$41"), window.shownPlaceholder, L"the line's instruction is shown");
@@ -258,7 +260,7 @@ namespace DebuggerCodeMenuTests
 
             window.typed = L"JMP $1234";
             items.clear();
-            window.AddCodeEditItems (0, snapshot->code[0], 0, items);
+            window.GetCodeEdits().AddItems (0, snapshot->code[0], 0, items);
             Run (items, L"Edit instruction...");
 
             Assert::AreEqual ((size_t) 1, window.messages.size(), L"the JSR it covers is named first");
@@ -266,10 +268,44 @@ namespace DebuggerCodeMenuTests
             Assert::AreEqual (std::string ("PATCH 0300 4C 34 12 EA EA"), host.commands.back(), L"padded to the JSR's end");
 
             items.clear();
-            window.AddCodeEditItems (0, snapshot->code[0], 0, items);
+            window.GetCodeEdits().AddItems (0, snapshot->code[0], 0, items);
             Run (items, L"Undo edit at $0300");
 
             Assert::AreEqual (std::string ("PATCH 0300 A9 41 20 ED FD"), host.commands.back(), L"the bytes that were there");
+        }
+
+
+
+        //  The breakpoint entry is labeled from the line right-clicked in that
+        //  view, not from the first view's line at the same row.
+        TEST_METHOD (TheBreakpointEntryIsLabeledFromTheViewsOwnLine)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            MenuWindow         window   (theme, host);
+            DxuiDpiScaler          scaler;
+            auto                   snapshot = MakeSnapshot();
+            Items                  items;
+            DisassemblyViewPane  * second   = nullptr;
+
+
+
+            snapshot->codeViews[1]                  = snapshot->codeViews[0];
+            snapshot->codeViews[1][2].hasBreakpoint = true;
+            snapshot->codeViews[0].resize (1);
+            snapshot->code                          = snapshot->codeViews[0];
+            snapshot->codeOpen[1]                   = true;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            second = &window.GetCodeGroup().GetView (1);
+            Assert::IsTrue (second->AddMenuItems (second->GetList(), 2, items));
+
+            Assert::IsTrue  (Has (items, L"Remove breakpoint"), L"the RTS in the second view has a breakpoint");
+            Assert::IsFalse (Has (items, L"Insert breakpoint"));
         }
 
 
@@ -293,14 +329,14 @@ namespace DebuggerCodeMenuTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.TakeSnapshot (snapshot);
 
-            window.AddCodeEditItems (0, snapshot->code[2], 2, items);
+            window.GetCodeEdits().AddItems (0, snapshot->code[2], 2, items);
             Run (items, L"Edit instruction...");
 
             Assert::IsTrue (host.commands.empty(), L"ROM is not written");
             Assert::AreEqual ((size_t) 1, window.messages.size());
 
             items.clear();
-            window.AddCodeEditItems (0, snapshot->code[1], 1, items);
+            window.GetCodeEdits().AddItems (0, snapshot->code[1], 1, items);
             Run (items, L"Replace with NOPs");
 
             Assert::AreEqual (std::string ("PATCH 0302 EA EA EA"), host.commands.back());
@@ -324,7 +360,7 @@ namespace DebuggerCodeMenuTests
 
             window.ApplyCodeSnapshot (MakeSnapshot(), 0);
 
-            Assert::IsTrue (window.GetCodeSelection (0, 0) == std::pair<Word, Word> (0x0300, 0x0301), L"the clicked row alone");
+            Assert::IsTrue (window.GetCodeEdits().GetSelection (0, 0) == std::pair<Word, Word> (0x0300, 0x0301), L"the clicked row alone");
         }
     };
 }

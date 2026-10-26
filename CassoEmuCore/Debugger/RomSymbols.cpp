@@ -62,9 +62,9 @@ static constexpr const char * s_kpszMonitorSymbols =
     "KBD=$C000\n"     "KBDSTRB=$C010\n" "TAPEOUT=$C020\n" "SPKR=$C030\n"
     "STROBE=$C040\n"  "TXTCLR=$C050\n"  "TXTSET=$C051\n"  "MIXCLR=$C052\n"
     "MIXSET=$C053\n"  "TXTPAGE1=$C054\n" "TXTPAGE2=$C055\n" "LORES=$C056\n"
-    "HIRES=$C057\n"   "SETAN0=$C058\n"  "CLRAN0=$C059\n"  "SETAN1=$C05A\n"
-    "CLRAN1=$C05B\n"  "SETAN2=$C05C\n"  "CLRAN2=$C05D\n"  "SETAN3=$C05E\n"
-    "CLRAN3=$C05F\n"  "TAPEIN=$C060\n"  "BUTN0=$C061\n"   "BUTN1=$C062\n"
+    "HIRES=$C057\n"   "CLRAN0=$C058\n"  "SETAN0=$C059\n"  "CLRAN1=$C05A\n"
+    "SETAN1=$C05B\n"  "CLRAN2=$C05C\n"  "SETAN2=$C05D\n"  "CLRAN3=$C05E\n"
+    "SETAN3=$C05F\n"  "TAPEIN=$C060\n"  "BUTN0=$C061\n"   "BUTN1=$C062\n"
     "BUTN2=$C063\n"   "PADDL0=$C064\n"  "PADDL1=$C065\n"  "PADDL2=$C066\n"
     "PADDL3=$C067\n"  "PTRIG=$C070\n"
     //  The Disk II controller in slot 6, where every Apple II boots from.
@@ -144,7 +144,7 @@ static constexpr const char * s_kpszApplesoftSymbols =
     "FRMNUM=$DD67\n"  "FRMEVL=$DD7B\n"  "CHKCOM=$DEBE\n"  "SYNCHR=$DEC0\n"
     "PTRGET=$DFE3\n"  "GETBYT=$E6F8\n"  "GTBYTC=$E6F5\n"  "COMBYTE=$E74C\n"
     "GETADR=$E752\n"  "GIVAYF=$E2F2\n"  "GETNUM=$E746\n"  "SNGFLT=$E301\n"
-    "FADD=$E7C1\n"    "FSUB=$E7AA\n"    "FMULT=$E97F\n"   "FDIV=$EA66\n"
+    "FADD=$E7BE\n"    "FSUB=$E7A7\n"    "FMULT=$E97F\n"   "FDIV=$EA66\n"
     "MOVFM=$EAF9\n"   "MOVMF=$EB2B\n"   "FLOAT=$EB93\n"   "QINT=$EBF2\n"
     "STROUT=$DB3A\n"  "LINPRT=$ED24\n"  "FOUT=$ED34\n"
     "HPOSN=$F411\n"   "HPLOT=$F457\n"   "HLIN=$F53A\n"    "HFIND=$F5CB\n"
@@ -191,8 +191,8 @@ static constexpr const char * s_kpszProDosSymbols =
     "DATELO=$BF90\n"  "DATEHI=$BF91\n"  "TIMELO=$BF92\n"  "TIMEHI=$BF93\n"
     "LEVEL=$BF94\n"   "BUBIT=$BF95\n"   "SPARE1=$BF96\n"  "MACHID=$BF98\n"
     "SLTBYT=$BF99\n"  "PFIXPTR=$BF9A\n" "MLIACTV=$BF9B\n" "CMDADR=$BF9C\n"
-    "SAVEX=$BF9E\n"   "SAVEY=$BF9F\n"   "IBAKVER=$BFFD\n" "IVERSION=$BFFE\n"
-    "KVERSION=$BFFF\n";
+    "SAVEX=$BF9E\n"   "SAVEY=$BF9F\n"   "IBAKVER=$BFFC\n" "IVERSION=$BFFD\n"
+    "KBAKVER=$BFFE\n" "KVERSION=$BFFF\n";
 
 
 

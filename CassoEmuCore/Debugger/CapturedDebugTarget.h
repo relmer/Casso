@@ -55,6 +55,8 @@ public:
     bool                TryGetLastBranchTarget (Word & to) const override;
     DebugCpuKind        GetCpuKind        () const override { return m_capture->cpuKind; }
     const Microcode   * GetInstructionSet () const override { return m_capture->instructionSet; }
+
+    std::shared_ptr<const std::vector<Microcode>>  GetInstructionTable () const override { return m_capture->instructionTable; }
     DebugMachineInfo    GetMachineInfo    () const override { return m_capture->machineInfo; }
 
     void                InjectKey         (Byte) override {}

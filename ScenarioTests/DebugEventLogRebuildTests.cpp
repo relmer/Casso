@@ -56,7 +56,8 @@ namespace DebugEventLogRebuildTests
         {
             TestMachine                                       machine    ("Apple2eEnhanced");
             ReverseController                                 controller (machine);
-            DebugEventLogs                                    logs       (machine);
+            std::unique_ptr<DebugEventLogs>                   logsOwner  = std::make_unique<DebugEventLogs> (machine);
+            DebugEventLogs                                  & logs       = *logsOwner;
             const DebugEventCache<Disk2Event>               & cache      = logs.GetDiskCache();
             DebugEventHistory                                 history    (machine);
             ScratchEventReplayer<Disk2Event>                  replayer   (std::make_unique<DiskEventProbe>());

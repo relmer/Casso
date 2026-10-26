@@ -324,7 +324,6 @@ public:
 
 
 
-        machine.SetVideoTiming (std::make_unique<VideoTiming>());
         machine.PowerCycle();
 
         for (Word address = 0x0400; address < 0x0800; address++)

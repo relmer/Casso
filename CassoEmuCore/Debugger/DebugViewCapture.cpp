@@ -2,6 +2,8 @@
 
 #include "Debugger/DebugViewCapture.h"
 
+#include "Microcode.h"
+
 
 
 
@@ -32,7 +34,8 @@ void DebugViewCapture::Take (
     out.lastBranch     = target.TryGetLastBranch (branchFrom) ? std::optional<Word> (branchFrom) : std::nullopt;
     out.lastBranchTo   = target.TryGetLastBranchTarget (branchTo) ? std::optional<Word> (branchTo) : std::nullopt;
     out.cpuKind        = target.GetCpuKind();
-    out.instructionSet = target.GetInstructionSet();
+    out.instructionTable = ShareInstructionSet (target.GetInstructionSet());
+    out.instructionSet   = (out.instructionTable != nullptr) ? out.instructionTable->data() : nullptr;
     out.machineInfo    = target.GetMachineInfo();
     out.isKeyPending   = target.IsKeyPending();
     out.diskState      = target.TryGetDiskState (disk) ? std::optional<DebugDiskState> (disk) : std::nullopt;
@@ -49,4 +52,40 @@ void DebugViewCapture::Take (
     target.GetTraceWindow (out.traceFirst, traceCount, out.trace);
 
     out.callRecord = callRecord;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugViewCapture::ShareInstructionSet
+//
+//  The captures share one copy until the live set differs from it, as after
+//  a machine switch, so the copy costs a compare, and a cache keyed by the
+//  copy's address hits for every capture of the same set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::shared_ptr<const std::vector<Microcode>> DebugViewCapture::ShareInstructionSet (const Microcode * live)
+{
+    static constexpr size_t                                kOpcodeCount = 256;
+    static std::mutex                                      tableLock;
+    static std::shared_ptr<const std::vector<Microcode>>   last;
+    std::lock_guard<std::mutex>                            held (tableLock);
+
+
+
+    if (live == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (last == nullptr || memcmp (last->data(), live, kOpcodeCount * sizeof (Microcode)) != 0)
+    {
+        last = std::make_shared<const std::vector<Microcode>> (live, live + kOpcodeCount);
+    }
+
+    return last;
 }

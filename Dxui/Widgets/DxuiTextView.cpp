@@ -23,11 +23,55 @@
 
 void DxuiTextView::SetRows (std::vector<Row> rows)
 {
-    m_rows     = std::move (rows);
-    m_anchor   = Position();
-    m_caret    = Position();
-    m_topLine  = m_followEnd ? m_topLine : 0;
-    m_dragging = false;
+    m_rows       = std::move (rows);
+    m_anchor     = Position();
+    m_caret      = Position();
+    m_topLine    = m_followEnd ? m_topLine : 0;
+    m_dragging   = false;
+    m_scoped     = false;
+    m_userAnchor = Position();
+    m_userCaret  = Position();
+    m_highlights.clear();
+
+    Rebuild();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTextView::SetRowsDroppingFront
+//
+//  A position in a row that went is dropped: a highlight there goes, and a
+//  selection or a scope with an end there is cleared.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextView::SetRowsDroppingFront (std::vector<Row> rows, int dropped)
+{
+    auto  moveUp = [dropped] (Position & at) { at.row -= dropped; return at.row >= 0; };
+
+
+
+    m_rows = std::move (rows);
+
+    if (!moveUp (m_anchor) || !moveUp (m_caret))
+    {
+        m_anchor = Position();
+        m_caret  = Position();
+    }
+
+    if (!moveUp (m_userAnchor) || !moveUp (m_userCaret))
+    {
+        m_userAnchor = Position();
+        m_userCaret  = Position();
+    }
+
+    m_scoped = m_scoped && moveUp (m_scopeStart) && moveUp (m_scopeEnd);
+
+    std::erase_if (m_highlights, [&moveUp] (FindMatch & match) { return !moveUp (match.start); });
 
     Rebuild();
 }
@@ -1170,15 +1214,25 @@ bool DxuiTextView::FindAllInRows (
 
         if (isRegex)
         {
-            for (std::wsregex_iterator it (text.begin(), text.end(), pattern), end; it != end; ++it)
+            //  The matcher throws once a pattern backtracks past its budget,
+            //  which a pattern typed, or half typed, into find can do.
+            try
             {
-                size_t  at     = (size_t) it->position (0);
-                size_t  length = (size_t) it->length (0);
-
-                if (length > 0 && (!wholeWord || IsWholeWordAt (text, at, length)))
+                for (std::wsregex_iterator it (text.begin(), text.end(), pattern), end; it != end; ++it)
                 {
-                    outMatches.push_back (FindMatch { Position { (int) r, (int) at }, (int) length });
+                    size_t  at     = (size_t) it->position (0);
+                    size_t  length = (size_t) it->length (0);
+
+                    if (length > 0 && (!wholeWord || IsWholeWordAt (text, at, length)))
+                    {
+                        outMatches.push_back (FindMatch { Position { (int) r, (int) at }, (int) length });
+                    }
                 }
+            }
+            catch (const std::regex_error &)
+            {
+                outMatches.clear();
+                return false;
             }
 
             continue;
@@ -1737,6 +1791,16 @@ void DxuiTextView::PaintLine (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         }
     }
 
+    //  A span's fill, under the selection's.
+    for (const Span & span : row.spans)
+    {
+        if (line.first && span.background != 0 && span.cell < (int) row.cells.size())
+        {
+            painter.FillRect ((float) (left + (GetCellStart (row, span.cell) + span.start) * m_cellAdvance), (float) y,
+                              (float) (span.length * m_cellAdvance), (float) m_cellHeightPx, span.background);
+        }
+    }
+
     for (int c = 0; line.first && c < last; c++)
     {
         const std::wstring &  cell   = row.cells[(size_t) c];
@@ -1909,7 +1973,7 @@ std::vector<uint32_t> DxuiTextView::GetRowColors (const Row & row) const
         int  base   = GetCellBase (row, span.cell);
         int  length = (span.cell < (int) row.cells.size()) ? (int) row.cells[(size_t) span.cell].size() : 0;
 
-        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length; i++)
+        for (int i = (std::max) (0, span.start); i < span.start + span.length && i < length && span.argb != 0; i++)
         {
             colors[(size_t) (base + i)] = span.argb;
         }

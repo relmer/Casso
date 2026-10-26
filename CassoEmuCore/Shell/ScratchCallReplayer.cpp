@@ -835,7 +835,7 @@ HRESULT ScratchCallReplayer::ReplayPart (
         BAIL_OUT_IF (isAbandoned, E_ABORT);
 
         target.position = part.endPosition;
-        target.cycle    = cpu->GetTotalCycles() + kChunkCycles;
+        target.cycle    = cpu->GetHistoryCycles() + kChunkCycles;
 
         if (m_copyNext < job.copyAt.size() && job.copyAt[m_copyNext].position > position)
         {
@@ -944,7 +944,7 @@ void ScratchCallReplayer::Finish (
     SettleRecorder();
 
     outResult.position      = machine->GetPosition();
-    outResult.cycle         = machine->GetCpu()->GetTotalCycles();
+    outResult.cycle         = machine->GetCpu()->GetHistoryCycles();
     outResult.registers     = registers;
     outResult.journalCursor = m_scratch.GetReplayer()->GetJournalCursor();
     outResult.record        = m_recorder.GetRecord();
@@ -979,7 +979,7 @@ void ScratchCallReplayer::AttachRecorder()
 
 
     m_recorder.SetPeek  ([this] (Word address) { return PeekByte (address); });
-    m_recorder.SetClock ([machine] { return machine->GetCpu()->GetTotalCycles(); });
+    m_recorder.SetClock ([machine] { return machine->GetCpu()->GetHistoryCycles(); });
 
     m_recorder.SetWriterLocator ([this, machine]
     {

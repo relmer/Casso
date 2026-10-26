@@ -81,7 +81,7 @@ namespace EmulatorDebugWiringTests
 
             while (executed < target)
             {
-                slice     = std::min (target - executed, FrameCycleBudget::kSliceCycles);
+                slice     = driver.LimitSlice (std::min (target - executed, FrameCycleBudget::kSliceCycles));
                 actual    = (uint32_t) machine.RunCycles (slice);
                 executed += actual;
 
@@ -321,6 +321,35 @@ namespace EmulatorDebugWiringTests
             Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Budget);
             Assert::AreEqual ((uint64_t) 3000, rig.observer.stops[0].cycles,
                               L"the stop reports what actually ran");
+        }
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////
+        //
+        //  ABudgetShortensTheSliceItEndsIn
+        //
+        //  A budget smaller than a slice ends the run at the first instruction
+        //  boundary at or past it, not a slice later, as the batch driver stops.
+        //
+        ////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (ABudgetShortensTheSliceItEndsIn)
+        {
+            Rig  rig;
+
+
+
+            rig.StartOk (Rig::Go (50));
+
+            PassRunner::RunPass (rig.machine, rig.driver);
+
+            Assert::AreEqual ((size_t) 1, rig.observer.stops.size());
+            Assert::IsTrue   (rig.observer.stops[0].reason == StopReason::Budget);
+            Assert::IsTrue   (rig.observer.stops[0].cycles >= 50 && rig.observer.stops[0].cycles < 50 + 7,
+                              std::format (L"{} cycles: no more than an instruction past the budget", rig.observer.stops[0].cycles).c_str());
         }
 
 
@@ -1053,6 +1082,39 @@ namespace EmulatorDebugWiringTests
             Assert::AreEqual ((Word) 0x0301,   rig.target.GetRegisters().pc);
             Assert::AreEqual ((Byte) (x + 1),  rig.target.GetRegisters().x, L"the loop ran once more");
             Assert::AreEqual ((size_t) 2,      rig.sink.stops.size());
+        }
+
+
+
+        //  The instruction a stop left the PC on is skipped once, when the
+        //  machine resumes from it. Once the machine has run on, with the
+        //  breakpoints cleared, a breakpoint set again there stops it.
+        TEST_METHOD (ABreakpointSetAgainAfterRunningOnStops)
+        {
+            Rig   rig;
+            Byte  x = 0;
+
+
+
+            (void) rig.session.ExecuteLine ("BP 301");
+            rig.RunFrames (50);
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"stopped at the breakpoint");
+
+            (void) rig.session.ExecuteLine ("BPC *");
+            rig.cpuManager.SetPaused (false);
+
+            //  A slice of whole loops, five cycles each, ends where it began.
+            rig.RunFrames (1);
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc, L"back at $0301 after running on");
+
+            x = rig.target.GetRegisters().x;
+
+            (void) rig.session.ExecuteLine ("BP 301");
+            rig.RunFrames (1);
+
+            Assert::IsTrue   (rig.cpuManager.IsPaused(), L"the breakpoint stops the machine");
+            Assert::AreEqual ((Word) 0x0301, rig.target.GetRegisters().pc);
+            Assert::AreEqual (x, rig.target.GetRegisters().x, L"before the loop ran again");
         }
 
 

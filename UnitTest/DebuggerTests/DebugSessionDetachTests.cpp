@@ -63,5 +63,27 @@ namespace DebugSessionDetachTests
             Assert::IsTrue   (target.hookInstalled);
             Assert::AreEqual ((size_t) 2, session.GetBreakpoints().GetAll().size());
         }
+
+
+        //  A watchpoint the bus reports to while the debugger is detached
+        //  stops nothing, then or once the debugger attaches again.
+        TEST_METHOD (AWatchpointHitWhileDetachedStopsNothing)
+        {
+            MockDebugTarget  target;
+            NullSink         sink;
+            DebugSession     session (target, sink, RunState::FreeRunning);
+
+
+
+            session.GetWatchpoints().Add (WatchAccess::Write, 0x0400, 0x0400);
+            session.OnStopConditionsChanged();
+            session.SetAttached (false);
+
+            session.GetWatchpoints().OnWatchedAccess (0x0400, 0x41, BusAccess::Write, std::nullopt);
+            Assert::IsFalse (session.HasPendingStop(), L"detached");
+
+            session.SetAttached (true);
+            Assert::IsFalse (session.HasPendingStop(), L"nor once attached again");
+        }
     };
 }

@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Ui/Debugger/UndoText.h"
 
 #include "ControllerRig.h"
 #include "Core/TextEncoding.h"
@@ -100,6 +101,35 @@ namespace BreakpointHistoryTests
             rig.Do (BreakpointStep::Kind::Redo);
             Assert::AreEqual ((size_t) 0, rig.List().size(), L"redo deletes it again");
         }
+
+
+        //  The snapshot has the step Undo and Redo would act on, as their tips
+        //  read it.
+        TEST_METHOD (UndoAndRedoTextsNameTheStep)
+        {
+            HistoryRig            rig;
+            CommandMode           aw = CommandMode::AppleWin;
+            DebuggerViewSnapshot  snapshot;
+
+
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 300", aw) });
+            Assert::AreEqual (std::wstring (L"add breakpoint #0"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 301", aw) });
+            rig.Step ({ DebuggerActions::GetEnableAllBreakpoints (false, aw) });
+            Assert::AreEqual (std::wstring (L"disable 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).undoBreakpointsText);
+
+            rig.Step ({ DebuggerActions::GetClearAllBreakpoints (aw) });
+            snapshot = rig.view.Build (rig.controller.GetSession());
+            Assert::AreEqual (std::wstring (L"delete 2 breakpoints"), snapshot.undoBreakpointsText);
+            Assert::AreEqual (std::wstring(), snapshot.redoBreakpointsText);
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            Assert::AreEqual (std::wstring (L"delete 2 breakpoints"), rig.view.Build (rig.controller.GetSession()).redoBreakpointsText);
+            Assert::AreEqual (std::wstring (L"Undo delete 2 breakpoints"), UndoText::GetLabel (false, L"delete 2 breakpoints"));
+        }
+
 
 
         TEST_METHOD (DisableAllIsOneStep)
@@ -215,6 +245,56 @@ namespace BreakpointHistoryTests
 
             Assert::AreEqual ((size_t) 1,      rig.List().size());
             Assert::AreEqual ((Word) 0x0302,   rig.List().at (0).address);
+        }
+
+
+        //  A breakpoint added back takes its old id only while no breakpoint
+        //  or watchpoint has it: the two tables share one run of ids.
+        TEST_METHOD (ABreakpointAddedBackTakesNoIdAWatchpointHas)
+        {
+            HistoryRig        rig;
+            int               id = 0;
+            std::set<int>     ids;
+
+
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            id = rig.List().at (0).id;
+            rig.Step ({ DebuggerActions::GetClearBreakpoint (id, CommandMode::AppleWin) });
+
+            rig.Run ("BPC *");
+            rig.Run ("BPM 0400");
+            Assert::AreEqual (id, rig.List().at (0).id, L"the watchpoint has the breakpoint's old id");
+
+            rig.Do (BreakpointStep::Kind::Undo);
+
+            for (const BreakpointInfo & each : rig.List())
+            {
+                ids.insert (each.id);
+            }
+
+            Assert::AreEqual ((size_t) 2, rig.List().size());
+            Assert::AreEqual ((size_t) 2, ids.size(), L"no two share an id");
+        }
+
+
+        //  A redo whose breakpoint the console set again adds no second one.
+        TEST_METHOD (ARedoOfABreakpointSetAgainAddsNoDuplicate)
+        {
+            HistoryRig  rig;
+            int         id = 0;
+
+
+
+            rig.Step ({ DebuggerActions::GetDefineBreakpoint ("BP 0300", CommandMode::AppleWin) });
+            id = rig.List().at (0).id;
+            rig.Run (std::format ("BPC {}", id));
+            rig.Run ("BP 0300");
+
+            rig.Do (BreakpointStep::Kind::Undo);
+            rig.Do (BreakpointStep::Kind::Redo);
+
+            Assert::AreEqual ((size_t) 1, rig.List().size(), L"one BP 0300");
         }
 
 
@@ -358,6 +438,30 @@ namespace BreakpointHistoryTests
 
             second.Do (BreakpointStep::Kind::Redo);
             Assert::AreEqual ((size_t) 1, second.List().size(), L"redo deletes it again");
+        }
+
+
+        //  A BRK, BRKINT, BRKBASIC or BRKOP definition adds to the entry of
+        //  its kind already set; reading the history rebuilds its steps
+        //  without touching that entry or losing the history.
+        TEST_METHOD (ReadingTheHistoryLeavesTheBreakpointsAsTheyAre)
+        {
+            HistoryRig   first;
+            HistoryRig   second;
+            std::string  text;
+
+
+
+            first.Run ("BRK ON");
+            first.Step ({ DebuggerActions::GetEnableBreakpoint (0, false, CommandMode::AppleWin) });
+            text = first.view.GetBreakpointUndoText();
+
+            second.Run ("BRK ON IF X == 2");
+            second.view.SetBreakpointUndoText (second.controller.GetSession(), text);
+
+            Assert::AreEqual ((size_t) 1, second.List().size());
+            Assert::AreEqual (std::string ("BRK ON IF X == 2"), BreakpointHandlers::MakeDefinition (second.List().at (0)), L"the condition set");
+            Assert::IsTrue   (second.CanUndo(), L"and the history read");
         }
 
 

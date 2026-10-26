@@ -199,7 +199,6 @@ HRESULT SettingsSheet::OpenModeless (
     // it is refitted to their content, growing as well as shrinking.
     params.minSizeDip               = { s_kSheetWidthDip, s_kSheetMinHeightDip };
     params.initialSizeDip           = SettingsSheetSize::GetInitialSizeDip (prefs, { s_kSheetWidthDip, s_kSheetHeightDip }, params.minSizeDip);
-    params.fitToWorkArea            = true;
     params.resizable                = true;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;

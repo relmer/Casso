@@ -546,26 +546,89 @@ public:
 
     TEST_METHOD (AHeldGateTurnsAWriterAway)
     {
-        HostInputGate                        gate;
-        std::shared_lock<std::shared_mutex>  lock;
-        bool                                 isOpen = false;
+        HostInputGate         gate;
+        HostInputGate::Entry  entry;
+        bool                  isOpen = false;
 
 
 
-        isOpen = gate.TryEnter (lock);
+        isOpen = gate.TryEnter (entry);
         Assert::IsTrue (isOpen, L"open at first");
-        lock.unlock();
+        entry.Leave();
 
         gate.Hold();
 
-        isOpen = gate.TryEnter (lock);
+        isOpen = gate.TryEnter (entry);
         Assert::IsFalse (isOpen, L"held");
-        lock.unlock();
+        entry.Leave();
 
         gate.Release();
 
-        isOpen = gate.TryEnter (lock);
+        isOpen = gate.TryEnter (entry);
         Assert::IsTrue (isOpen, L"open again");
+    }
+
+
+    //  A writer that enters again on the same thread, as a key does when the
+    //  mixer applies it on the UI thread, while a Hold waits for the first
+    //  Entry: the second enters at once, so neither thread waits on the
+    //  other. On failure the threads are left blocked, so the gate is never
+    //  freed.
+    TEST_METHOD (AWriterEnteringAgainDoesNotWaitBehindAHold)
+    {
+        constexpr DWORD  kHoldQueuedMs = 200;
+        constexpr DWORD  kPatienceMs   = 5000;
+
+        HostInputGate      * gate      = new HostInputGate();
+        HANDLE               entered   = CreateEventW (nullptr, TRUE, FALSE, nullptr);
+        HANDLE               nested    = CreateEventW (nullptr, TRUE, FALSE, nullptr);
+        std::atomic<bool>    isHeld    = false;
+        bool                 isNested  = false;
+        std::thread          writer;
+        std::thread          holder;
+
+
+
+        Assert::IsNotNull (entered, L"the entered event");
+        Assert::IsNotNull (nested,  L"the nested event");
+
+        writer = std::thread ([=]
+        {
+            HostInputGate::Entry  outer;
+            HostInputGate::Entry  inner;
+
+
+
+            (void) gate->TryEnter (outer);
+            SetEvent (entered);
+            Sleep (kHoldQueuedMs);
+
+            (void) gate->TryEnter (inner);
+            SetEvent (nested);
+        });
+
+        WaitForSingleObject (entered, kPatienceMs);
+
+        holder = std::thread ([gate, &isHeld] { gate->Hold(); isHeld = true; });
+
+        isNested = WaitForSingleObject (nested, kPatienceMs) == WAIT_OBJECT_0;
+
+        if (!isNested)
+        {
+            writer.detach();
+            holder.detach();
+        }
+
+        Assert::IsTrue (isNested, L"the second Entry did not wait behind the Hold");
+
+        writer.join();
+        holder.join();
+
+        Assert::IsTrue (isHeld.load(), L"the Hold went through once the writer left");
+
+        CloseHandle (entered);
+        CloseHandle (nested);
+        delete gate;
     }
 
 

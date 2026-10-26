@@ -400,9 +400,9 @@ namespace DebuggerTests
             Assert::IsTrue (view.GetOutlineColors (0x0402).empty());
 
             Assert::IsTrue (Contains (view.GetTipText (0x0300), L"\nBreakpoint #1"));
-            Assert::IsTrue (Contains (view.GetTipText (0x0400), L"\nWrite watchpoint #2"));
-            Assert::IsTrue (Contains (view.GetTipText (0x0500), L"\nRead and write watchpoint #3"));
-            Assert::IsTrue (Contains (view.GetTipText (0x0600), L"\nRead watchpoint #4"));
+            Assert::IsTrue (Contains (view.GetTipText (0x0400), L"\nWrite data breakpoint #2"));
+            Assert::IsTrue (Contains (view.GetTipText (0x0500), L"\nRead and write data breakpoint #3"));
+            Assert::IsTrue (Contains (view.GetTipText (0x0600), L"\nRead data breakpoint #4"));
 
             //  In main RAM's view, a breakpoint at $D100 marks both language
             //  card banks the CPU reaches there.

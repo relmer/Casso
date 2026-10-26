@@ -118,6 +118,7 @@ public:
     static constexpr size_t    kEditedWords     = 3 * kAddressWords;                 // the CPU's space, then main RAM's, then aux RAM's
     static constexpr size_t    kOpcodeWords     = kSpaceCount * kAddressWords;
     static constexpr size_t    kKeptWords       = kWrittenWords + kEditedWords + kOpcodeWords;
+    static constexpr uint64_t  kNoneForgotten   = UINT64_MAX;                         // a cut position past every entry
     static constexpr uint64_t  kCyclesPerFrame  = 17030;
     static constexpr double    kCyclesPerSecond = 1020484.0;
     static constexpr double    kFramesPerSecond = kCyclesPerSecond / (double) kCyclesPerFrame;
@@ -137,7 +138,7 @@ public:
     //  position counts every access. Start counts from where it points then,
     //  or SetCountFrom from a position given.
     void       SetPositionSource (const uint64_t * position) { m_position = position; }
-    void       SetCycleSource    (const uint64_t * cycles)   { m_cycles   = cycles;   }
+    void       SetCycleSource    (const uint64_t * cycles, const uint64_t * base = nullptr) { m_cycles = cycles; m_cycleBase = base; }
     void       SetCountFrom      (uint64_t position)         { m_countFrom = position; m_lastFrom = position; }
 
     //  Where each access lands, beside the address the CPU used; cleared,
@@ -317,16 +318,18 @@ private:
     void           Bump             (size_t entry);
     void           ClearListed      ();
 
-    const Microcode                    * m_instructionSet = nullptr;
-    const uint64_t                     * m_position       = nullptr;
-    const uint64_t                     * m_cycles         = nullptr;
-    uint64_t                             m_countFrom      = 0;
-    uint64_t                             m_lastFrom       = 0;
-    std::vector<uint32_t>                m_counts;
-    std::vector<float>                   m_heat;
-    std::vector<int64_t>                 m_totals;
-    std::vector<HeatLastAccess>          m_last;
-    std::vector<Byte>                    m_opcodes;
+    const Microcode              * m_instructionSet = nullptr;
+    const uint64_t               * m_position       = nullptr;
+    const uint64_t               * m_cycles         = nullptr;
+    const uint64_t               * m_cycleBase      = nullptr;   // added to m_cycles, for history's clock
+    uint64_t                       m_countFrom      = 0;
+    uint64_t                       m_lastFrom       = 0;
+    std::vector<uint32_t>          m_counts;
+    std::vector<float>             m_heat;
+    std::vector<int64_t>           m_totals;
+    std::vector<HeatLastAccess>    m_last;
+    uint64_t                       m_forgottenFrom  = kNoneForgotten;   // no last-access entry is at or past this position
+    std::vector<Byte>              m_opcodes;
 
     //  The entries with heat or counts not yet folded, the only ones a fold
     //  has anything to do for, and a flag per entry for whether it is listed.

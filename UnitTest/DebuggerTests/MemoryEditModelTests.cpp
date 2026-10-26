@@ -157,6 +157,23 @@ namespace DebuggerTests
         }
 
 
+        //  A row wider than 16 bytes takes a phase of 16 or more, as Go to
+        //  $0315 with 24 bytes a row does: 21.
+        TEST_METHOD (APhaseCanPassSixteenBytes)
+        {
+            Rig  rig;
+
+
+
+            rig.Show (0x0310, MemoryRegion::MainRam);
+            rig.model.SetPhase (21);
+
+            Assert::AreEqual ((Word) 0x0315, rig.model.GetAddressOf (0x0300));
+            Assert::IsTrue   (rig.Write (0x0300, { 0x77 }));
+            Assert::AreEqual (std::string ("PATCH 0315 77"), rig.lines.back(), L"the edit lands where the row is labeled");
+        }
+
+
         TEST_METHOD (TheWholeAddressSpaceIsTheSource)
         {
             Rig  rig;
@@ -297,6 +314,47 @@ namespace DebuggerTests
             Assert::IsTrue   (changed == std::optional<Word> (0x0300));
             Assert::IsTrue   (rig.lines.empty());
             Assert::IsTrue   (rig.model.CanRedo(), L"the step stays to redo");
+        }
+
+
+        //  An undo checked against a byte from an earlier read, out of the
+        //  window now, is confirmed by the next read of it: memory equal to
+        //  what the undo sent confirms the step; memory equal to neither that
+        //  nor the edit, a patch the session would not write, puts the step
+        //  back.
+        TEST_METHOD (AnUndoCheckedAgainstAnOldReadIsConfirmedByTheNextRead)
+        {
+            Rig                               rig;
+            std::vector<std::optional<Byte>>  bytes (16);
+            std::vector<MemoryRegion>         regions (16, MemoryRegion::MainRam);
+
+
+
+            rig.Write (0x0300, { 0xA9 });
+
+            bytes[0] = 0xA9;                                // the read after the edit
+            rig.model.SetContents (0x0300, bytes, regions);
+            rig.Show  (0x2000, MemoryRegion::MainRam);      // the window moved off $0300
+
+            Assert::IsTrue (rig.model.Undo(), L"the old read of $0300 has the edit");
+
+            bytes[0] = 0x55;                                // a POKE: the session wrote nothing
+            rig.model.SetContents (0x0300, bytes, regions);
+
+            Assert::IsTrue  (rig.model.CanUndo(), L"the edit is back to undo");
+            Assert::IsFalse (rig.model.CanRedo());
+
+            bytes[0] = 0xA9;
+            rig.model.SetContents (0x0300, bytes, regions);
+            rig.Show (0x2000, MemoryRegion::MainRam);
+
+            Assert::IsTrue (rig.model.Undo());
+
+            bytes[0] = 0x00;                                // written as the undo sent it
+            rig.model.SetContents (0x0300, bytes, regions);
+
+            Assert::IsFalse (rig.model.CanUndo());
+            Assert::IsTrue  (rig.model.CanRedo(), L"the undo stands");
         }
 
 

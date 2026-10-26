@@ -81,11 +81,13 @@ public:
     }
 
     //  Takes the stretches the runner finished into the LRU. True when any
-    //  came in.
+    //  came in. A failed stretch ends its job, so the stretches after it are
+    //  no longer on their way and a later request sends them again.
     bool  Pump()
     {
         DebugEventStretchResult<T>  result;
-        bool                        isAny = false;
+        bool                        isAny    = false;
+        bool                        isFailed = false;
 
 
 
@@ -96,8 +98,15 @@ public:
                 continue;
             }
 
+            isFailed = FAILED (result.hr);
             Remember (std::move (result));
             isAny = true;
+
+            if (isFailed)
+            {
+                m_pending.clear();
+                m_generation = 0;
+            }
         }
 
         return isAny;
@@ -157,6 +166,13 @@ public:
     {
         std::erase_if (m_rebuilt, [position] (const Rebuilt & rebuilt) { return rebuilt.result.endPosition > position; });
 
+        Cancel();
+    }
+
+    //  The job under way is dropped, and its stretches can be requested
+    //  again.
+    void  Cancel()
+    {
         m_pending.clear();
         m_generation = 0;
         m_runner.Cancel();

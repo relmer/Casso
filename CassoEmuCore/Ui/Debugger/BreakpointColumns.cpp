@@ -3,6 +3,8 @@
 #include "Ui/Debugger/BreakpointColumns.h"
 
 #include "Debugger/DiskBreakSpecText.h"
+#include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -57,7 +59,7 @@ BreakpointColumns::Cells BreakpointColumns::GetCells (const DebuggerViewSnapshot
 
     cells[(size_t) Column::Name]      = info.name.empty() ? GetName (bp, sourceLine) : info.name;
     cells[(size_t) Column::Condition] = (info.kind == BreakpointKind::Register) ? std::string() : info.condition;
-    cells[(size_t) Column::HitCount]  = info.stops ? std::to_string (info.hits) : std::format ("{} (count only)", info.hits);
+    cells[(size_t) Column::HitCount]  = TextEncoding::WideToNarrow (DebuggerStatusText::FormatCount (info.hits)) + (info.stops ? "" : " (count only)");
     cells[(size_t) Column::Kind]      = GetKindText    (GetRowKind (info));
     cells[(size_t) Column::Trigger]   = GetTriggerText (GetRowKind (info));
     cells[(size_t) Column::Symbol]    = HasRoutine (info) ? bp.label : !HasAddress (info) ? std::string() : (info.symbol.empty() ? bp.label : info.symbol);
@@ -109,6 +111,9 @@ BreakpointColumns::RowKind BreakpointColumns::GetRowKind (const BreakpointInfo &
     case BreakpointKind::BasicLine:     return RowKind::BasicLine;
     case BreakpointKind::BasicVariable: return RowKind::BasicVariable;
     case BreakpointKind::BasicError:    return RowKind::BasicError;
+    case BreakpointKind::UnwrittenRead: return RowKind::UnwrittenRead;
+    case BreakpointKind::VideoLine:     return RowKind::VideoLine;
+    case BreakpointKind::Beam:          return RowKind::Beam;
     case BreakpointKind::Address:       break;
     }
 
@@ -134,7 +139,7 @@ std::string BreakpointColumns::GetKindText (RowKind kind)
                                                 "Register", "Opcode", "BRK", "Interrupt",
                                                 "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
                                                 "Disk", "Disk", "Disk", "Disk", "Disk", "Disk",
-                                                "BASIC", "BASIC", "BASIC" };
+                                                "BASIC", "BASIC", "BASIC", "Memory", "Video", "Video" };
 
 
 
@@ -163,7 +168,7 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
                                                 "Condition", "Execute", "Execute", "IRQ or NMI",
                                                 "Sector read", "Address field", "Head", "Write", "DOS sector", "ProDOS block",
                                                 "RWTS call", "Driver call", "Motor", "Drive select", "Insert", "Eject",
-                                                "Line", "Variable change", "Error" };
+                                                "Line", "Variable change", "Error", "Uninitialized", "Scanline", "Beam position" };
 
 
 
@@ -181,7 +186,8 @@ std::string BreakpointColumns::GetTriggerText (RowKind kind)
 //  BreakpointColumns::GetOrder
 //
 //  Hit count and Address sort by number, Kind by the order RowKind lists
-//  the kinds in; the rest by their text, ignoring case.
+//  the kinds in; the rest by their text, ignoring case. Address puts the
+//  rows with no address after the rest, by their text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,9 +229,17 @@ std::vector<size_t> BreakpointColumns::GetOrder (const DebuggerViewSnapshot & sn
             return descending ? kinds[b] < kinds[a] : kinds[a] < kinds[b];
         }
 
-        if (column == Column::Address && HasAddress (left) && HasAddress (right))
+        //  Rows with an address go first, by start and then end; the rest
+        //  by their text. Comparing number with text between two rows was
+        //  no strict weak ordering.
+        if (column == Column::Address && HasAddress (left) != HasAddress (right))
         {
-            return left.address < right.address;
+            return HasAddress (left);
+        }
+
+        if (column == Column::Address && HasAddress (left))
+        {
+            return std::tie (left.address, left.last) < std::tie (right.address, right.last);
         }
 
         return descending ? keys[b] < keys[a] : keys[a] < keys[b];
@@ -560,7 +574,10 @@ std::string BreakpointColumns::GetName (const DebuggerViewSnapshot::BreakpointLi
     case BreakpointKind::Disk:          return GetDiskName (info);
     case BreakpointKind::BasicLine:     return std::format ("Line {}", info.address);
     case BreakpointKind::BasicVariable: return info.basicName;
-    case BreakpointKind::BasicError:    return "Any error";
+    case BreakpointKind::BasicError:    return "BASIC errors";
+    case BreakpointKind::UnwrittenRead: return info.isTracking ? "Reading uninitialized memory" : "Reading uninitialized memory, from the next power cycle";
+    case BreakpointKind::VideoLine:     return (info.last > info.address) ? std::format ("Scanlines ${:X}-${:X}", info.address, info.last) : std::format ("Scanline ${:X}", info.address);
+    case BreakpointKind::Beam:          return std::format ("Scanline ${:X}, cycle ${:X}", info.address, info.last);
     }
 
     return named;

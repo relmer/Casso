@@ -10,6 +10,7 @@
 
 class IHistoryFrameRenderer;
 class KeyframeStore;
+enum class KeyframeDrop;
 
 
 
@@ -164,6 +165,11 @@ public:
     void               NoteSeekLanded  (uint64_t cycle);
     HRESULT            Service      (KeyframeStore & keyframes);
     void               Clear        ();
+
+    //  The store whose drops the pictures follow: a keyframe dropped from
+    //  the new end removes the pictures at its position, so a new keyframe
+    //  taken at the same position is drawn again. Null detaches.
+    void               Attach       (KeyframeStore * keyframes);
     void               WaitForWork  ();
 
     //  The time one picture took to unpack and draw, and how many have been
@@ -221,6 +227,7 @@ private:
         uint64_t                 position  = 0;
         SIZE                     thumbPx   = {};
         uint64_t                 layoutId  = 0;
+        uint64_t                 cutCount  = 0;       // m_cutCount when it went; a picture of a dropped keyframe is discarded
         bool                     isPreview = false;   // asked for at full size, not only as a thumbnail
     };
 
@@ -237,6 +244,8 @@ private:
     bool               IsHoldingDrop ();
     void               PrunePoints   ();
     void               ForgetPoint   (uint64_t position);
+    void               OnKeyframeDrop (KeyframeDrop drop);
+    void               ForgetPictures (uint64_t from);
     double             GetNowMs      () const;
     void               Bump          ()              { m_version.fetch_add (1, std::memory_order_acq_rel); }
 
@@ -276,6 +285,7 @@ private:
     int                               m_count        = 0;
     SIZE                              m_cellPx       = {};
     uint64_t                          m_layoutId     = 0;     // changes with the cell size, which outdates the thumbnails
+    uint64_t                          m_cutCount     = 0;     // changes with each drop at the new end, which outdates the picture in flight
     std::vector<HistoryThumbnailCell> m_cells;
     HistoryImageCache                 m_thumbs       { kMinThumbCount };
     HistoryImageCache                 m_bases        { kMinThumbCount };
@@ -287,6 +297,7 @@ private:
     bool                              m_useStandIns  = false; // set once a layout changes over pictures drawn
 
     //  Machine thread's own.
+    KeyframeStore                   * m_keyframes    = nullptr;
     Job                               m_job;
     KeyframeUnpacker                  m_unpacker;            // the worker's while a picture is in flight
     double                            m_lastSubmitMs = 0.0;

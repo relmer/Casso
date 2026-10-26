@@ -23,6 +23,9 @@ class IDebugExpressionContext;
 //  `m_readPages` is left null, so no read takes the base class's inline fast
 //  path to real memory: every one arrives at ReadByteSlow.
 //
+//  Given the machine's instruction set, it runs that set rather than its own
+//  NMOS one, so a 65C02's opcodes run as the 65C02 runs them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShadowCpu : public Cpu6502
@@ -38,7 +41,7 @@ public:
         bool  isUnknown = false;
     };
 
-    explicit ShadowCpu (const IDebugExpressionContext & memory) : m_memory (&memory) {}
+    explicit ShadowCpu (const IDebugExpressionContext & memory, const Microcode * instructionSet = nullptr);
 
     //  The byte a read with no peek returns, and whether any read was one.
     void                       SetUnknownReadValue (Byte value) { m_unknownValue = value; }
@@ -61,7 +64,8 @@ public:
     Word  ReadWord     (Word address)             override;
 
 private:
-    const char *  GetRegisterName (const Byte * which) const;
+    const char *  GetRegisterName     (const Byte * which) const;
+    void          AdoptInstructionSet (const Microcode * source);
 
     const IDebugExpressionContext  * m_memory         = nullptr;
     std::vector<Write>               m_writes;

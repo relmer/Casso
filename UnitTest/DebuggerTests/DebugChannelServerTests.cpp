@@ -225,6 +225,37 @@ namespace DebuggerTests
 
 
 
+        //  However fast a client writes, one pump runs kMaxLinesPerPump lines,
+        //  so the pump returns to the machine; the rest run on later pumps, in
+        //  order.
+        TEST_METHOD (APumpRunsABoundedNumberOfLines)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client = 0;
+            size_t                 i      = 0;
+
+
+
+            Assert::AreEqual (S_OK, server.Open());
+
+            client = transport.Connect();
+
+            for (i = 0; i < DebugChannelServer::kMaxLinesPerPump + 10; i++)
+            {
+                transport.Send (client, Command ("r", (int) i + 1));
+            }
+
+            server.Pump();
+            Assert::AreEqual (DebugChannelServer::kMaxLinesPerPump, runner.ran.size(), L"one pump's worth");
+
+            server.Pump();
+            Assert::AreEqual (DebugChannelServer::kMaxLinesPerPump + 10, runner.ran.size(), L"the rest on the next");
+        }
+
+
+
         //  A reply goes only to the client that asked, which is what makes the
         //  id worth echoing.
         TEST_METHOD (AReplyGoesOnlyToTheClientThatAsked)
@@ -387,6 +418,43 @@ namespace DebuggerTests
 
             Assert::IsFalse  (Parsed (transport.Written (client)[0]).HasBool ("running", running),
                               L"and its reply does not say a run is going");
+        }
+
+
+
+        //  A run a client started before the channel closed ends with no
+        //  cause once the channel is open again: the request id is from a
+        //  client that is gone, and a new client numbering its requests the
+        //  same way could mistake the stop for one it caused.
+        TEST_METHOD (ACauseDoesNotOutliveAClose)
+        {
+            InMemoryPipeTransport  transport;
+            RecordingRunner        runner;
+            DebugChannelServer     server (transport, runner);
+            ChannelConnectionId    client  = 0;
+            StopEvent              stop;
+            int                    ignored = 0;
+
+
+
+            server.Open();
+            client = transport.Connect();
+
+            runner.startsRun = true;
+            transport.Send (client, Command ("g", 5));
+            server.Pump();
+
+            server.Close();
+            server.Open();
+            client = transport.Connect();
+            server.Pump();
+
+            stop.reason = StopReason::Breakpoint;
+            server.OnStopped (stop);
+            server.Pump();
+
+            Assert::AreEqual ((size_t) 1, transport.Written (client).size());
+            Assert::IsFalse  (Parsed (transport.Written (client)[0]).HasInt ("causeId", ignored), L"no cause from before the close");
         }
 
 

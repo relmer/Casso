@@ -121,6 +121,93 @@ bool DxuiTabGroup::RemoveTab (IDxuiControl * content)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiTabGroup::SetOnMove
+//
+//  Set once, as the group is made, never while the strip is running it. The
+//  strip has moved its own tab already; the group's tabs follow it, the
+//  active one staying active. With no handler the strip reorders nothing,
+//  and any drag is the drag start handler's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabGroup::SetOnMove (MoveFn fn)
+{
+    m_onMove = std::move (fn);
+
+    if (!m_onMove)
+    {
+        m_strip.SetOnMove (nullptr);
+        return;
+    }
+
+    m_strip.SetOnMove ([this] (int from, int to)
+    {
+        IDxuiControl  * active = GetActiveContent();
+        Tab             moved;
+
+
+
+        if (from < 0 || to < 0 || from >= (int) m_tabs.size() || to >= (int) m_tabs.size())
+        {
+            return;
+        }
+
+        moved = m_tabs[(size_t) from];
+        m_tabs.erase  (m_tabs.begin() + from);
+        m_tabs.insert (m_tabs.begin() + to, moved);
+        m_active = IndexOf (active);
+
+        m_onMove (from, to);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiTabGroup::ReplaceTabs
+//
+//  A tab already in the group has the same mark, tip and room in the title
+//  bar afterward.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTabGroup::ReplaceTabs (const std::vector<std::pair<std::wstring, IDxuiControl *>> & tabs, int active)
+{
+    std::vector<Tab>  replaced;
+
+
+
+    for (const auto & [title, content] : tabs)
+    {
+        int  was = IndexOf (content);
+        Tab  tab = (was >= 0) ? m_tabs[(size_t) was] : Tab {};
+
+        if (content == nullptr)
+        {
+            continue;
+        }
+
+        tab.title   = title;
+        tab.content = content;
+        replaced.push_back (tab);
+    }
+
+    m_tabs   = std::move (replaced);
+    m_active = m_tabs.empty() ? -1 : std::clamp (active, 0, (int) m_tabs.size() - 1);
+
+    LayoutStrip();
+    LayoutContent();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiTabGroup::SetTitle
 //
 ////////////////////////////////////////////////////////////////////////////////

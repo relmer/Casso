@@ -2,6 +2,7 @@
 
 #include "Debugger/Handlers/BreakpointHandlers.h"
 #include "Debugger/Handlers/ExecutionHandlers.h"
+#include "Debugger/Reverse/HistoryStatus.h"
 #include "HandlerTestRig.h"
 #include "Core/TextEncoding.h"
 
@@ -42,6 +43,33 @@ namespace DebuggerTests
             }
 
             return lines;
+        }
+
+
+
+        //  PROFILE HISTORY calls the shell's build from the cycle that many
+        //  seconds back, at the machine's clock, or from the start for ALL;
+        //  with no shell history it is not available.
+        TEST_METHOD (ProfileHistory_AsksForABuildFromTheCycleTheSecondsGoBack)
+        {
+            Rig                       rig;
+            std::optional<uint64_t>   from;
+
+
+
+            Assert::IsTrue   (rig.Run ("PROFILE HISTORY 10").status == CommandStatus::NotAvailable, L"a build with no shell history");
+
+            rig.target.cycleCount = 20'000'000;
+            rig.handlers.SetHistoryProfiler ([&from] (uint64_t fromCycle, std::string &) { from = fromCycle; return S_OK; });
+
+            rig.RunOk ("PROFILE HISTORY 10");
+            Assert::IsTrue   (from.has_value());
+            Assert::AreEqual ((uint64_t) (20'000'000 - 10 * HistoryStatus::kCyclesPerSecond), *from);
+
+            rig.RunOk ("PROFILE HISTORY ALL");
+            Assert::AreEqual ((uint64_t) 0, *from, L"ALL is from the start");
+
+            rig.RunFails ("PROFILE HISTORY TEN", "invalid arguments");
         }
 
 
@@ -821,6 +849,57 @@ namespace DebuggerTests
             lines = SplitLines (rig.files.PeekContent (L"C:\\Work\\Trace.txt"));
             Assert::AreEqual ((size_t) 2, lines.size());
             Assert::IsTrue   (lines[0].starts_with ("V"), L"the video position leads with v");
+        }
+
+
+
+        //  Each stop adds the lines since the last one to the file and drops
+        //  them from memory, so the trace neither grows without bound nor
+        //  writes the whole file again at every stop.
+        TEST_METHOD (TF_AppendsEachStopsLinesAndDropsThem)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("G");
+            Assert::AreEqual ((size_t) 0, rig.handlers.GetPendingTraceBytes(), L"the stop's lines are written and dropped");
+
+            rig.RunOk ("= 300");
+            rig.RunOk ("G");
+            Assert::AreEqual ((size_t) 0, rig.handlers.GetPendingTraceBytes());
+            Assert::AreEqual ((size_t) 4, SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt")).size(), L"both runs' lines, in order");
+        }
+
+
+
+        //  Profiling is fed every instruction of a free run, but trace lines
+        //  are written only for a run the debugger starts.
+        TEST_METHOD (TF_WithProfilingOn_RecordsNoFreeRun)
+        {
+            MachineRig  rig;
+
+
+
+            rig.session.SetInstructionObserver (&rig.handlers);
+            rig.Load (0x0300, { 0xE8, 0xA9, 0x41, 0x4C, 0x00, 0x03 }, 0x0300);
+            rig.session.GetBreakpoints().AddAddress (0x0303, 0x0303);
+            rig.session.OnStopConditionsChanged();
+
+            rig.RunOk ("TF trace.txt");
+            rig.RunOk ("PROFILE ON");
+            rig.machine.RunCycles (200);
+            Assert::AreNotEqual (std::string ("Instructions: 0, cycles: 0"), rig.RunOk ("PROFILE").text.at (0), L"the free run is profiled");
+
+            rig.RunOk ("= 300");
+            rig.RunOk ("G");
+            Assert::AreEqual ((size_t) 2, SplitLines (rig.files.PeekContent (L"C:\\Work\\trace.txt")).size(), L"the G's two instructions alone");
         }
 
 

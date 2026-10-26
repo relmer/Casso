@@ -41,6 +41,8 @@ void RoutineProfile::Reset()
     m_frames.clear();
     m_pending.reset();
     m_lastSp = 0xFF;
+    m_depth  = 0;
+    m_bucket = 1;
 
     (void) FindRoutine (0, RoutineKind::Top);
     m_nodes.push_back (Node());
@@ -76,7 +78,8 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
     m_nodes[(size_t) node].self += cycles;
     AddToFrame (m_nodes[(size_t) node].routine, cycles, startCycle, cyclesPerFrame);
 
-    EndReturned (spAfter);
+    m_depth += GetSpDrop (m_lastSp, spAfter);
+    EndReturned();
 
     if (opcode == kJsr)
     {
@@ -99,11 +102,19 @@ void RoutineProfile::Record (Word pc, Byte opcode, uint64_t cycles, Byte spAfter
 //  RoutineProfile::OnInterrupt
 //
 //  The interrupt returns to the stack pointer after the last instruction.
+//  A call the last instruction made, a JSR or a BRK, enters the routine at
+//  pc, which the interrupt was taken in place of: that routine begins first,
+//  so the handler runs under it and the routine runs on after the return.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RoutineProfile::OnInterrupt()
+void RoutineProfile::OnInterrupt (Word pc)
 {
+    if (m_pending.has_value())
+    {
+        Begin (pc);
+    }
+
     m_pending = Pending { RoutineKind::Interrupt, m_lastSp };
 }
 
@@ -133,8 +144,14 @@ void RoutineProfile::Begin (Word pc)
         m_stack.erase (m_stack.begin());
     }
 
-    m_nodes[(size_t) node].calls++;
-    m_stack.push_back (Active { node, m_pending->returnSp });
+    //  With the tree full, the call runs in its caller's node, which it does
+    //  not call again.
+    if (node != parent)
+    {
+        m_nodes[(size_t) node].calls++;
+    }
+
+    m_stack.push_back (Active { node, m_depth + GetSpDrop (m_lastSp, m_pending->returnSp) });
     m_pending.reset();
 }
 
@@ -146,11 +163,13 @@ void RoutineProfile::Begin (Word pc)
 //
 //  RoutineProfile::EndReturned
 //
+//  The frames whose return point the stack has risen to or past.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void RoutineProfile::EndReturned (Byte sp)
+void RoutineProfile::EndReturned()
 {
-    while (!m_stack.empty() && HasReturned (m_stack.back().returnSp, sp))
+    while (!m_stack.empty() && m_depth <= m_stack.back().returnDepth)
     {
         m_stack.pop_back();
     }
@@ -162,17 +181,165 @@ void RoutineProfile::EndReturned (Byte sp)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RoutineProfile::HasReturned
+//  RoutineProfile::GetSpDrop
+//
+//  How far the stack pointer went down from `from` to `to`, negative when it
+//  went up. One instruction moves it a few bytes at most, so the change is
+//  read as a signed byte; only a TXS can move it further.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool RoutineProfile::HasReturned (Byte returnSp, Byte sp)
+int64_t RoutineProfile::GetSpDrop (Byte from, Byte to)
 {
-    Byte  depth = (Byte) (returnSp - sp);
+    return (int8_t) (Byte) (from - to);
+}
 
 
 
-    return depth == 0 || depth > 0x80;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RoutineProfile::Merge
+//
+//  Each of the later profile's routines is found or added here, then each of
+//  its nodes, parents before children, under the node its parent became;
+//  then the frames are added, in bars as wide as the wider profile's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::Merge (const RoutineProfile & later)
+{
+    std::vector<size_t>  routines (later.m_routines.size(), 0);
+    std::vector<int>     nodes    (later.m_nodes.size(), 0);
+    std::deque<Frame>    frames   = later.m_frames;
+
+
+
+    for (size_t i = 0; i < later.m_routines.size(); i++)
+    {
+        routines[i] = FindRoutine (later.m_routines[i].address, later.m_routines[i].kind);
+    }
+
+    for (size_t i = 0; i < later.m_nodes.size(); i++)
+    {
+        const Node  & node   = later.m_nodes[i];
+        int           parent = (node.parent < 0) ? -1 : nodes[(size_t) node.parent];
+        int           index  = (node.parent < 0) ? 0 : FindChild (parent, routines[node.routine]);
+
+        nodes[i]                     = index;
+        m_nodes[(size_t) index].self += node.self;
+
+        //  A node the full tree folded into its parent adds its cycles, not
+        //  its calls, to the parent.
+        if (index != parent)
+        {
+            m_nodes[(size_t) index].calls += node.calls;
+        }
+    }
+
+    m_bucket = std::max (m_bucket, later.m_bucket);
+    Rebucket (m_frames, m_bucket);
+    Rebucket (frames,   m_bucket);
+
+    for (Frame & frame : frames)
+    {
+        Frame  mapped { frame.index, {}, 0, frame.count };
+
+        AddShares (mapped, frame, routines);
+
+        if (!m_frames.empty() && m_frames.back().index == mapped.index)
+        {
+            AddShares (m_frames.back(), mapped, {});
+        }
+        else
+        {
+            m_frames.push_back (std::move (mapped));
+        }
+    }
+
+    while (m_frames.size() > kFrameCount && m_isAllFrames)
+    {
+        m_bucket *= 2;
+        Rebucket (m_frames, m_bucket);
+    }
+
+    while (m_frames.size() > kFrameCount)
+    {
+        m_frames.pop_front();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RoutineProfile::Rebucket
+//
+//  Each frame moves into the bar its first frame falls in, bucket frames
+//  wide; frames already in that bar are joined.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::Rebucket (std::deque<Frame> & frames, uint64_t bucket)
+{
+    std::deque<Frame>  joined;
+
+
+
+    for (const Frame & frame : frames)
+    {
+        uint64_t  index = frame.index - frame.index % bucket;
+
+        if (joined.empty() || joined.back().index != index)
+        {
+            joined.push_back (Frame { index, {}, 0, bucket });
+        }
+
+        AddShares (joined.back(), frame, {});
+    }
+
+    frames = std::move (joined);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RoutineProfile::AddShares
+//
+//  from's cycles by routine added to into's, each routine mapped through
+//  routines when it is given; past kSharesPerFrame a routine's cycles are
+//  into's other cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RoutineProfile::AddShares (Frame & into, const Frame & from, const std::vector<size_t> & routines)
+{
+    into.other += from.other;
+
+    for (const Share & share : from.shares)
+    {
+        size_t  routine = routines.empty() ? share.routine : routines[share.routine];
+        auto    found   = std::ranges::find_if (into.shares, [routine] (const Share & each) { return each.routine == routine; });
+
+        if (found != into.shares.end())
+        {
+            found->cycles += share.cycles;
+        }
+        else if (into.shares.size() < kSharesPerFrame)
+        {
+            into.shares.push_back (Share { routine, share.cycles });
+        }
+        else
+        {
+            into.other += share.cycles;
+        }
+    }
 }
 
 
@@ -264,13 +431,21 @@ void RoutineProfile::AddToFrame (size_t routine, uint64_t cycles, uint64_t start
 
 
 
+    index -= index % m_bucket;
+
     if (m_frames.empty() || m_frames.back().index != index)
     {
-        m_frames.push_back (Frame { index, {}, 0 });
+        m_frames.push_back (Frame { index, {}, 0, m_bucket });
 
-        if (m_frames.size() > kFrameCount)
+        if (m_frames.size() > kFrameCount && !m_isAllFrames)
         {
             m_frames.pop_front();
+        }
+
+        while (m_frames.size() > kFrameCount)
+        {
+            m_bucket *= 2;
+            Rebucket (m_frames, m_bucket);
         }
     }
 

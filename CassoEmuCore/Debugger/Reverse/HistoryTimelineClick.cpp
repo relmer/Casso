@@ -14,7 +14,7 @@
 //  History moves only under a stopped machine, so a click while it runs
 //  stops it first, and the plan is made again once it has. Once stopped,
 //  the machine moves to the exact cycle clicked -- the live end goes live,
-//  which a machine already live has no need of -- and runs on from there. A
+//  unless the machine is live already -- and stays stopped there. A
 //  click on the live end of a machine running live has nothing to do.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,8 +49,6 @@ HistoryTimelineClickPlan HistoryTimelineClick::Plan (
         plan.seek  = true;
         plan.cycle = cell.cycle;
     }
-
-    plan.run = true;
 
     return plan;
 }

@@ -20,6 +20,39 @@
 
 void DxuiInPlaceTip::Show (const RECT & clientRect, uint32_t backgroundArgb, RenderFn render)
 {
+    ShowPopup (clientRect, backgroundArgb | 0xFF000000u, std::move (render));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInPlaceTip::ShowShaped
+//
+//  Cleared to transparent, so whatever the render leaves unfilled shows the
+//  window beneath.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInPlaceTip::ShowShaped (const RECT & clientRect, RenderFn render)
+{
+    ShowPopup (clientRect, 0u, std::move (render));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInPlaceTip::ShowPopup
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInPlaceTip::ShowPopup (const RECT & clientRect, uint32_t clearArgb, RenderFn render)
+{
     DxuiPopupHost::ShowParams  params;
     POINT                      topLeft  = { clientRect.left,  clientRect.top    };
     POINT                      botRight = { clientRect.right, clientRect.bottom };
@@ -68,7 +101,7 @@ void DxuiInPlaceTip::Show (const RECT & clientRect, uint32_t backgroundArgb, Ren
     params.grabsCapture     = false;
     params.sizeDip.cx       = (int) std::ceil ((float) (botRight.x - topLeft.x) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
     params.sizeDip.cy       = (int) std::ceil ((float) (botRight.y - topLeft.y) * (float) DxuiDpiScaler::kBaseDpi / (float) dpi);
-    params.backgroundArgb   = backgroundArgb | 0xFF000000u;
+    params.backgroundArgb   = clearArgb;
     params.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { if (m_render) { m_render (p, t); } };
     params.onClosed         = [this] () { m_activePopup = nullptr; };
 

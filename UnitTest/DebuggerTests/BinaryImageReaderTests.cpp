@@ -90,6 +90,24 @@ namespace DebuggerTests
 
 
 
+        //  Nothing after the end-of-file record is read: a DOS Ctrl-Z, or any
+        //  padding a tool writes after it.
+        TEST_METHOD (IntelHex_StopsAtTheEndOfFileRecord)
+        {
+            for (const char * file : { ":01030000EA12\n:00000001FF\n\x1A",
+                                       ":01030000EA12\n:00000001FF\nnot a record\n" })
+            {
+                BinaryImage  image = ReadOk (Bytes (file), BinaryFormat::IntelHex, std::nullopt);
+
+
+
+                Assert::AreEqual ((size_t) 1, image.segments.size());
+                Assert::AreEqual ((Byte) 0xEA, image.segments[0].bytes[0]);
+            }
+        }
+
+
+
         TEST_METHOD (SRecord_Checksums_Segments_Entry)
         {
             static constexpr const char * kFile =
@@ -111,6 +129,22 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x0300, image.entry.value_or (0));
 
             ReadFails (Bytes ("S1060300A9416011\n"), BinaryFormat::SRecord, std::nullopt, "checksum");
+        }
+
+
+
+        //  A line with a valid count and checksum can be too short for
+        //  what its type reads: an S-record for its address, an Intel HEX
+        //  segment, linear or start record for its two or four bytes.
+        TEST_METHOD (ARecordTooShortForItsTypeFails)
+        {
+            ReadFails (Bytes ("S2030000FC\n"),  BinaryFormat::SRecord,  std::nullopt, "too short");
+            ReadFails (Bytes ("S3030000FC\n"),  BinaryFormat::SRecord,  std::nullopt, "too short");
+            ReadFails (Bytes ("S7030000FC\n"),  BinaryFormat::SRecord,  std::nullopt, "too short");
+            ReadFails (Bytes (":00000002FE\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
+            ReadFails (Bytes (":00000004FC\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
+            ReadFails (Bytes (":00000003FD\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
+            ReadFails (Bytes (":00000005FB\n"), BinaryFormat::IntelHex, std::nullopt, "data bytes");
         }
 
 

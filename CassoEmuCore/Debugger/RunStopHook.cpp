@@ -123,7 +123,8 @@ void RunStopHook::End()
     }
     else
     {
-        m_resumePc = pc;
+        m_resumePc     = pc;
+        m_resumeCycles = m_host.GetCpu()->GetTotalCycles();
     }
 
     UseIdleFilter();
@@ -164,10 +165,12 @@ bool RunStopHook::ShouldStopBefore (Word pc)
 
     //  The instruction a stop left the PC on runs when the machine resumes,
     //  though no run begins: a resume from the main window would otherwise
-    //  stop on the same breakpoint again before anything ran.
+    //  stop on the same breakpoint again before anything ran. Only while
+    //  nothing has run since: with the hook uninstalled the machine can run
+    //  on and come back to that instruction, which is then not the first.
     if (!m_active && m_resumePc.has_value())
     {
-        isFirst = *m_resumePc == pc;
+        isFirst = *m_resumePc == pc && m_host.GetCpu()->GetTotalCycles() == m_resumeCycles;
         m_resumePc.reset();
     }
 

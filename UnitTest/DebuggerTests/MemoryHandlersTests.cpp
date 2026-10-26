@@ -154,6 +154,9 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 0, rig.target.ioWrites.size(), L"and nothing reached the device");
 
             rig.RunFails ("PATCH 300", "invalid arguments");
+
+            reply = rig.RunFails ("PATCH BFFE 01 02 03", "memory not writable");
+            Assert::IsTrue (reply.error.detail.find ("2 of 3 bytes were written") != std::string::npos, TextEncoding::NarrowToWide (reply.error.detail).c_str());
         }
 
 
@@ -305,6 +308,43 @@ namespace DebuggerTests
 
             rig.RunFails ("BLOAD prog.bin FFFE", "file too long");
             Assert::AreEqual ((Byte) 0x00, rig.target.memory[0xFFFE], L"nothing is written");
+        }
+
+
+
+        //  The room to $FFFF is measured against the length given, not the
+        //  whole file, so a capped load that fits is loaded.
+        TEST_METHOD (BLOAD_ALengthThatFitsLoadsFromALongerFile)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\big.bin", std::string (0x5000, '\x5A'));
+
+            rig.RunOk ("BLOAD big.bin BF00,10");
+            Assert::AreEqual ((Byte) 0x5A, rig.target.memory[0xBF0F]);
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0xBF10], L"the length caps the load");
+        }
+
+
+
+        //  A load with ROM or I/O partway through it writes nothing at all,
+        //  in any of its segments.
+        TEST_METHOD (BLOAD_ALoadThatReachesROMWritesNothing)
+        {
+            Rig  rig;
+
+
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.bin", std::string (0x10, '\x5A'));
+            rig.files.WriteAllText (L"C:\\Work\\prog.hex", ":01030000EA12\n:01D0000060CF\n:00000001FF\n");
+
+            rig.RunFails ("BLOAD prog.bin BFF8", "memory not writable");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0xBFF8], L"nothing below $C000 is written");
+
+            rig.RunFails ("BLOAD prog.hex", "memory not writable");
+            Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0300], L"the first record is not written");
         }
 
 
@@ -467,7 +507,7 @@ namespace DebuggerTests
 
 
 
-        TEST_METHOD (EnterAndPatch_PastFFFF_FailWithoutWrapping)
+        TEST_METHOD (EnterPatchAndMove_PastFFFF_FailWithoutWrapping)
         {
             Rig  rig;
 
@@ -475,6 +515,7 @@ namespace DebuggerTests
 
             rig.RunFails ("ME FFFF 11 22",    "value out of range");
             rig.RunFails ("PATCH FFFF 11 22", "value out of range");
+            rig.RunFails ("M FFF0 1000:101F", "value out of range");
             Assert::AreEqual ((Byte) 0x00, rig.target.memory[0x0000], L"nothing wraps to $0000");
         }
 

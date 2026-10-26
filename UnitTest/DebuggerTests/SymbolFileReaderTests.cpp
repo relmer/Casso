@@ -192,6 +192,44 @@ namespace DebuggerTests
 
 
 
+        //  A large file reads in far less than quadratic time:
+        //  duplicates in any case are found with one sort, not a scan per
+        //  symbol, and the first of a name is the one taken.
+        TEST_METHOD (ALargeFileReadsQuicklyAndTakesTheFirstOfEachName)
+        {
+            constexpr int  kNames = 40000;
+
+            std::string                   file;
+            std::vector<SymbolFileEntry>  symbols;
+            ULONGLONG                     start   = 0;
+            ULONGLONG                     elapsed = 0;
+
+
+
+            file.reserve (kNames * 2 * 16);
+
+            for (int i = 0; i < kNames; i++)
+            {
+                file += std::format ("{:04X} name{}\n", i & 0xFFFF, i);
+            }
+
+            for (int i = 0; i < kNames; i++)
+            {
+                file += std::format ("{:04X} NAME{}\n", (i + 1) & 0xFFFF, i);
+            }
+
+            start   = GetTickCount64();
+            symbols = ReadOk (file, SymbolFileFormat::AppleWinSym);
+            elapsed = GetTickCount64() - start;
+
+            Assert::AreEqual ((size_t) kNames,  symbols.size(), L"a name in another case is the same name");
+            Assert::AreEqual (std::string ("name0"), symbols.front().name, L"in the file's order");
+            Assert::AreEqual ((Word) 0x0005, Find (symbols, "name5"), L"the first of a name is taken");
+            Assert::IsTrue   (elapsed < 5000, std::format (L"{} ms", elapsed).c_str());
+        }
+
+
+
         TEST_METHOD (ViceLabels_AlAddressDotName)
         {
             static constexpr const char * kFile =

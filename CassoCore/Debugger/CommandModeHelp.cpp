@@ -484,7 +484,8 @@ std::vector<std::string> CommandModeHelp::BuildSection (CommandMode mode, HelpCa
 //
 //  Text between slashes is a regular expression as typed; any other text is
 //  matched anywhere in a line, * standing for any run of characters and ?
-//  for any one. Case never matters.
+//  for any one. Case never matters. A pattern that backtracks past the
+//  matcher's budget is reported as an error, as one that does not parse is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -534,10 +535,19 @@ bool CommandModeHelp::TrySearch (CommandMode mode, const std::string & text, std
         return false;
     }
 
-    lines = BuildListing (mode, [&expression] (const Row & row)
+    try
     {
-        return std::regex_search (row.syntax, expression) || std::regex_search (row.description, expression);
-    });
+        lines = BuildListing (mode, [&expression] (const Row & row)
+        {
+            return std::regex_search (row.syntax, expression) || std::regex_search (row.description, expression);
+        });
+    }
+    catch (const std::regex_error &)
+    {
+        lines.clear();
+        error = std::format ("{} takes too long to match.", text);
+        return false;
+    }
 
     if (lines.empty())
     {

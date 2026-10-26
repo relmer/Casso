@@ -587,6 +587,47 @@ void ShellDebugger::SetDebuggerFocusedPane (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsDebuggerEchoingActions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellDebugger::IsDebuggerEchoingActions()
+{
+    return m_settings.echoActions;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDebuggerEchoingActions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::SetDebuggerEchoingActions (bool isEchoing)
+{
+    if (m_settings.echoActions == isEchoing)
+    {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex>  lock (m_projectMutex);
+
+        m_settings.echoActions = isEchoing;
+    }
+
+    m_host.SaveSettings();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetDebuggerTextZoomPercent
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1039,6 +1080,7 @@ void ShellDebugger::RunDebuggerAction (const DebuggerAction & action)
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
         m_debugActionsPending.push_back (action);
+        m_debugActionsPending.back().isEchoed = m_settings.echoActions;
     }
 
     m_cpuManager.PostCommand (IDM_DEBUG_ACTION);
@@ -1232,7 +1274,7 @@ void ShellDebugger::SendDebuggerEventLogRequest (
     DebugLogKind          kind,
     const std::string   & request)
 {
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("{} {}", (kind == DebugLogKind::Disk) ? "disklog" : "inputlog", request));
+    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, std::format ("{} {}", GetDebugLogName (kind), request));
 }
 
 
@@ -1253,9 +1295,13 @@ void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
 
     deltas.disk.clear();
     deltas.input.clear();
+    deltas.video.clear();
+    deltas.sound.clear();
 
     deltas.disk.swap  (m_eventLogsPending.disk);
     deltas.input.swap (m_eventLogsPending.input);
+    deltas.video.swap (m_eventLogsPending.video);
+    deltas.sound.swap (m_eventLogsPending.sound);
 }
 
 
@@ -1694,13 +1740,18 @@ void ShellDebugger::SetDebugTraceView (std::optional<uint64_t> first)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetDebugHeatMapShown
+//  SetDebugHeatColumnsShown
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatColumnsShown (shown);
+    m_isDebugViewDirty = true;
 }
 
 
@@ -1715,6 +1766,10 @@ void ShellDebugger::SetDebugHeatColumnsShown (bool shown)
 
 void ShellDebugger::SetDebugHeatMapShown (bool shown)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatMapShown (shown);
     m_isDebugViewDirty = true;
 }
@@ -1731,6 +1786,10 @@ void ShellDebugger::SetDebugHeatMapShown (bool shown)
 
 void ShellDebugger::SetDebugBasicShown (bool isVisible)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetBasicShown (isVisible);
     m_isDebugViewDirty = true;
 }
@@ -1747,6 +1806,10 @@ void ShellDebugger::SetDebugBasicShown (bool isVisible)
 
 void ShellDebugger::SetDebugHeatMapOptions (const std::string & text)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatMapOptions (HeatMapOptions::FromText (text));
     m_isDebugViewDirty = true;
 }
@@ -1810,6 +1873,10 @@ void ShellDebugger::SetDebugHeatMapIgnore (const std::vector<std::pair<Word, Wor
 
 void ShellDebugger::SetDebugHeatMapHover (std::optional<Word> address)
 {
+    std::lock_guard<std::mutex>  viewHeld (m_debugViewStateLock);
+
+
+
     m_debugViewState.SetHeatMapHover (address);
     m_isDebugViewDirty = true;
 }
@@ -2042,7 +2109,8 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
     live.history     = GetHistoryStatus();
     live.dataBlocks  = session.GetDataBlocks().GetAll();
     live.stepFilters = session.GetStepFilter().GetEntries();
-    live.isProfiling = m_debugController->GetHandlers().GetExecution().IsProfiling();
+    live.isProfiling     = m_debugController->GetHandlers().GetExecution().IsProfiling();
+    live.profileProgress = m_eventLogs.GetProfileHistory().GetProgress();
 
     //  The profile is the execution handlers', and a real in it is written by
     //  the ROM's own routine, so it is read only while the machine is paused.
@@ -2189,6 +2257,10 @@ void ShellDebugger::NotifyDebugMachineChanged (const std::string & machineName)
         m_debugSession->OnMachineChanged (machineName, m_cpuManager.IsPaused());
     }
 
+    //  The view is the old machine's, and a paused machine builds a new one
+    //  only when the view is dirty.
+    m_isDebugViewDirty = true;
+
     NoteBootDisk();
 }
 
@@ -2292,8 +2364,10 @@ void ShellDebugger::CloseDebugger()
     }
 
     //  The panes went with the window; the logs record on.
-    m_eventLogs.SetOpen (DebugLogKind::Disk,  false);
-    m_eventLogs.SetOpen (DebugLogKind::Input, false);
+    for (const auto & [kind, name] : s_kDebugLogNames)
+    {
+        m_eventLogs.SetOpen (kind, false);
+    }
 
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
@@ -2365,6 +2439,11 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     //  The trace's older instructions are history's, rebuilt at once while
     //  the machine is stopped and in the background while it runs.
     m_eventLogs.GetTraceHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
+    m_eventLogs.GetProfileHistory().SetIsStopped ([this] { return m_cpuManager.IsPaused(); });
+    m_debugController->GetHandlers().GetExecution().SetHistoryProfiler ([this] (uint64_t fromCycle, std::string & error)
+    {
+        return m_eventLogs.GetProfileHistory().Build (fromCycle, error);
+    });
     m_debugController->GetTarget().GetTrace().SetHistory (&m_eventLogs.GetTraceHistory());
     m_debugController->GetSession().SetTapeControl   (&m_host.GetTapeControl());
 
@@ -2384,9 +2463,9 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
     //  Loading replaces the machine, so both go to the CPU thread as the
     //  File menu's commands do, and run there between instructions.
-    m_debugController->GetSession().SetHistoryGuard ([this] (const std::string & line, CommandMode mode)
+    m_debugController->GetSession().SetHistoryGuard ([this] (const DebugCommand & command)
     {
-        return GuardHistoryEdit (line, mode);
+        return GuardHistoryEdit (command);
     });
 
     m_debugController->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)
@@ -2544,8 +2623,12 @@ void ShellDebugger::ServiceEventLogs()
 {
     DiskLogDelta   disk;
     InputLogDelta  input;
+    IoLogDelta     video;
+    IoLogDelta     sound;
     bool           isDisk  = false;
     bool           isInput = false;
+    bool           isVideo = false;
+    bool           isSound = false;
 
 
 
@@ -2555,10 +2638,26 @@ void ShellDebugger::ServiceEventLogs()
         m_isDebugViewDirty = true;
     }
 
+    //  A profile built from history takes the place of the profile; while one
+    //  builds, each snapshot has how far it is.
+    {
+        ProfileCountsPtr  counts;
+
+        if (m_eventLogs.GetProfileHistory().Pump (counts) && m_debugController != nullptr)
+        {
+            m_debugController->GetHandlers().GetExecution().InstallProfile (*counts);
+            m_isDebugViewDirty = true;
+        }
+
+        m_isDebugViewDirty = m_isDebugViewDirty || m_eventLogs.GetProfileHistory().GetProgress().has_value();
+    }
+
     isDisk  = m_eventLogs.TakeDelta (disk);
     isInput = m_eventLogs.TakeDelta (input);
+    isVideo = m_eventLogs.TakeDelta (DebugLogKind::Video, video);
+    isSound = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
 
-    if (isDisk || isInput)
+    if (isDisk || isInput || isVideo || isSound)
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
@@ -2570,6 +2669,16 @@ void ShellDebugger::ServiceEventLogs()
         if (isInput)
         {
             m_eventLogsPending.input.push_back (std::move (input));
+        }
+
+        if (isVideo)
+        {
+            m_eventLogsPending.video.push_back (std::move (video));
+        }
+
+        if (isSound)
+        {
+            m_eventLogsPending.sound.push_back (std::move (sound));
         }
     }
 }
@@ -2586,7 +2695,11 @@ void ShellDebugger::ServiceEventLogs()
 
 std::string ShellDebugger::GetDebuggerEventLogOptions (DebugLogKind kind)
 {
-    return (kind == DebugLogKind::Disk) ? m_settings.diskLogOptions : m_settings.inputLogOptions;
+    const std::string  * options = m_settings.GetLogOptions ((int) kind);
+
+
+
+    return (options != nullptr) ? *options : std::string();
 }
 
 
@@ -2605,11 +2718,11 @@ void ShellDebugger::SetDebuggerEventLogOptions (
     DebugLogKind          kind,
     const std::string   & text)
 {
-    std::string  & options = (kind == DebugLogKind::Disk) ? m_settings.diskLogOptions : m_settings.inputLogOptions;
+    std::string  * options = m_settings.GetLogOptions ((int) kind);
 
 
 
-    if (options == text)
+    if (options == nullptr || *options == text)
     {
         return;
     }
@@ -2619,7 +2732,7 @@ void ShellDebugger::SetDebuggerEventLogOptions (
 
 
 
-        options = text;
+        *options = text;
     }
 
     m_host.SaveSettings();

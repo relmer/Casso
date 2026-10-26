@@ -7,6 +7,8 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/UndoBarCommands.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -94,9 +96,8 @@ namespace DebuggerUndoBarTests
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
         using DebuggerWindow::GetPaneOfControl;
-        using DebuggerWindow::GetMemoryBar;
-        using DebuggerWindow::GetMemoryBox;
-        using DebuggerWindow::GetBreakpointBar;
+        using DebuggerWindow::GetMemoryGroup;
+        using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::GetUndoBar;
     };
 

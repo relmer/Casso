@@ -754,6 +754,7 @@ DebuggerAction DebuggerActions::GetSearchMemory (const std::string & items, Comm
 
 
     action.definition = line;
+    action.isResult   = true;
     return action;
 }
 
@@ -1111,6 +1112,7 @@ DebuggerAction DebuggerActions::GetStopwatch (Word start, Word stop, CommandMode
 
 
     action.command.text = std::format ("{:04X} {:04X}", start, stop);
+    action.isResult     = true;
     return action;
 }
 
@@ -1153,6 +1155,27 @@ DebuggerAction DebuggerActions::GetEnableSymbols (const std::string & table, boo
 
     action.command.count       = enable ? 1 : 0;
     action.command.symbolTable = table;
+    return action;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerActions::GetIoLog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebuggerAction DebuggerActions::GetIoLog (bool isVideo, const std::string & words, CommandMode mode)
+{
+    DebuggerAction  action = Make (isVideo ? DebugVerb::VideoLog : DebugVerb::SoundLog,
+                                   std::format ("{} {}", isVideo ? "VIDEOLOG" : "SOUNDLOG", words), mode);
+
+
+
+    action.command.text = words;
     return action;
 }
 
@@ -1282,6 +1305,7 @@ DebuggerAction DebuggerActions::GetCompareMemory (Word other, Word first, Word l
 
 
     SetRangeFrom (action.command, other, first, last);
+    action.isResult = true;
     return action;
 }
 
@@ -1343,12 +1367,13 @@ DebuggerAction DebuggerActions::GetAddWatch (Word address, CommandMode mode)
 
 DebuggerAction DebuggerActions::GetAddWatch (const std::string & expression, CommandMode mode)
 {
-    DebuggerAction  action = Make (DebugVerb::AddWatch, "W " + expression, mode);
+    DebuggerAction  action = Make (DebugVerb::AddWatch, "W EXPR " + expression, mode);
 
 
 
-    action.command.hasA1 = true;
-    action.operand       = expression;
+    action.command.hasA1        = true;
+    action.command.isTypedWatch = true;
+    action.operand              = expression;
     return action;
 }
 

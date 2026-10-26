@@ -26,6 +26,7 @@ namespace EmuTests
         static constexpr int       kWidth  = 560;
         static constexpr int       kHeight = 384;
         static constexpr uint32_t  kBlack  = 0xFF000000;
+        static constexpr uint32_t  kWhite  = 0xFFFFFFFF;
         static constexpr uint32_t  kMark   = 0xFFFF0000;
 
         static uint32_t At (const std::vector<uint32_t> & pixels, int x, int y)
@@ -52,10 +53,26 @@ namespace EmuTests
             Assert::AreEqual (kBlack, At (pixels, 28, 13), L"the bar ends three scanlines up");
             Assert::AreEqual (kBlack, At (pixels, 28, 28), L"and three down");
             Assert::AreEqual (kBlack, At (pixels, 42, 14), L"the bar is one cycle wide");
-            Assert::AreEqual (BeamOverlay::Blend (kBlack, kMark), At (pixels, 27,  20), L"the rest of the line is at half strength");
+            Assert::AreEqual (BeamOverlay::Blend (kBlack, kMark), At (pixels, 27,  20), L"the rest of the line is at three quarters strength");
             Assert::AreEqual (BeamOverlay::Blend (kBlack, kMark), At (pixels, 559, 21));
-            Assert::AreEqual (kBlack, At (pixels, 100, 19), L"the line above is untouched");
-            Assert::AreEqual (kBlack, At (pixels, 100, 22), L"the line below is untouched");
+            Assert::AreEqual (kBlack, At (pixels, 100, 18), L"the line above the edge is untouched");
+            Assert::AreEqual (kBlack, At (pixels, 100, 23), L"the line below the edge is untouched");
+        }
+
+
+
+        TEST_METHOD (TheLineIsEdgedWithADarkenedRowOnEachSide)
+        {
+            std::vector<uint32_t>  pixels (kWidth * kHeight, kWhite);
+
+
+
+            BeamOverlay::Draw (pixels.data(), kWidth, kHeight, 10, 27, kMark);
+
+            Assert::AreEqual (BeamOverlay::Darken (kWhite), At (pixels, 100, 19), L"the row above the line is darkened");
+            Assert::AreEqual (BeamOverlay::Darken (kWhite), At (pixels, 100, 22), L"the row below the line is darkened");
+            Assert::AreEqual (kWhite, At (pixels, 100, 18));
+            Assert::AreEqual (kWhite, At (pixels, 100, 23));
         }
 
 
@@ -85,16 +102,17 @@ namespace EmuTests
 
             Assert::AreEqual (BeamOverlay::Blend (kBlack, kMark), At (pixels, 100, kHeight - 1));
             Assert::AreEqual (BeamOverlay::Blend (kBlack, kMark), At (pixels, 100, kHeight - 2));
-            Assert::AreEqual (kBlack, At (pixels, 100, kHeight - 3));
+            Assert::AreEqual (kBlack, At (pixels, 100, kHeight - 4));
             Assert::AreEqual (kBlack, At (pixels, 100, 0));
         }
 
 
 
-        TEST_METHOD (BlendIsHalfOfEachAndOpaque)
+        TEST_METHOD (BlendIsAQuarterOfThePixelAndThreeQuartersOfTheColorAndOpaque)
         {
-            Assert::AreEqual (0xFF7F7F7Fu, BeamOverlay::Blend (0xFFFFFFFF, 0xFF000000));
-            Assert::AreEqual (0xFF7F4020u, BeamOverlay::Blend (0x00FF0000, 0x00008040));
+            Assert::AreEqual (0xFF3F3F3Fu, BeamOverlay::Blend (0xFFFFFFFF, 0xFF000000));
+            Assert::AreEqual (0xFF3F6030u, BeamOverlay::Blend (0x00FF0000, 0x00008040));
+            Assert::AreEqual (0xFF3F3F3Fu, BeamOverlay::Darken (0x00FFFFFF));
         }
     };
 }

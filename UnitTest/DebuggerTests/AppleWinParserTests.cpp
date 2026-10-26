@@ -225,6 +225,34 @@ namespace DebuggerTests
 
 
 
+        //  A register condition reads the register even with a symbol of its
+        //  name, and compares with the whole value: A = 40|2 is A == $42,
+        //  never (A == $40) | 2. The text stays as typed.
+        TEST_METHOD (Breakpoints_ARegisterConditionComparesTheRegisterWithTheWholeValue)
+        {
+            MockExpressionContext  context;
+            AppleWinParseResult    bpr     = ParseOk ("BPR A = 40|2");
+            AppleWinParseResult    shadow  = ParseOk ("BPR X = 1");
+            int32_t                value   = 0;
+            std::string            error;
+            HRESULT                hr      = S_OK;
+
+
+
+            context.symbols["X"] = 0x0300;
+
+            hr = DebugExpressionEvaluator::Evaluate (bpr.command.expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (0, value, L"A is $41, not 40|2");
+            Assert::AreEqual (std::string ("A=40|2"), bpr.command.expression.text);
+
+            hr = DebugExpressionEvaluator::Evaluate (shadow.command.expression, context, value, error);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (1, value, L"X is the register, not the symbol");
+        }
+
+
+
         TEST_METHOD (Memory_EnterFillSearchMoveAndFiles)
         {
             AppleWinParseResult  me   = ParseOk ("ME 300 A9 41 60");
@@ -428,6 +456,19 @@ namespace DebuggerTests
             Assert::AreEqual ((Word) 0x3FFF,                move.command.a2);
             ParseFails ("FROG",  ParseStatus::Unknown);
             ParseFails ("FROGL", ParseStatus::Unknown);
+        }
+
+
+
+        //  A move whose source range ends before its start fails to parse, as M
+        //  does, and is not run as a one-byte move.
+        TEST_METHOD (Shorthand_MoveWithAReversedRangeIsRefused)
+        {
+            AppleWinParseResult  move = ParseFails ("300<2000.1000M", ParseStatus::Invalid);
+
+
+
+            Assert::AreEqual (std::string ("The range ends at $1000, before its start at $2000."), move.error);
         }
 
 

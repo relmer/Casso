@@ -33,7 +33,7 @@ void DisassemblyCells::Configure (DxuiListView & list)
 
 
     columns.back().tip         = L"The values each instruction reads, then on the PC's line the registers, memory and flags it changes";
-    columns[kHeatColumn].tip   = L"How hot each byte of the line is in the heat map's colors: a block for a byte run as code, r or w for one read or written as data";
+    columns[kHeatColumn].tip   = L"How hot the line's bytes are, in the heat map's colors: the code color for bytes run, the read or write color for bytes read or written as data";
 
     list.SetColumns         (std::move (columns));
     list.SetGlyphCenterDip  (kGlyphCenterDip);
@@ -66,32 +66,93 @@ void DisassemblyCells::ShowColumns (DxuiListView & list, const DisassemblyOption
 //
 //  DisassemblyCells::FillSourceRow
 //
+//  A line that starts with a space has no label; a comment line, which starts
+//  with ; or *, is all in the label column, as a label is.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisassemblyCells::FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
                                       const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb)
 {
-    std::wstring  prefix = withNumber ? std::format (L"{:>5}  ", sourceLine) : std::wstring();
-    size_t        column = kAddressColumn;
+    std::wstring                    prefix   = withNumber ? std::format (L"{:>5}  ", sourceLine) : std::wstring();
+    std::wstring                    number   = withNumber ? std::format (L"{}", sourceLine) : std::wstring();
+    std::vector<SourceSyntax::Run>  runs     = SourceSyntax::GetSourceRuns (text);
+    bool                            isAll    = !text.empty() && (text[0] == L';' || text[0] == L'*');
+    size_t                          labelEnd = (text.empty() || iswspace (text[0])) ? 0 : (isAll ? text.size() : text.find_first_of (L" \t"));
+    size_t                          restAt   = 0;
+    size_t                          column   = kAddressColumn;
 
 
 
-    while (column < kColumnCount - 1 && !list.IsColumnVisible (column))
+    labelEnd = (labelEnd == std::wstring::npos) ? text.size() : labelEnd;
+    restAt   = std::min (text.size(), text.find_first_not_of (L" \t", labelEnd));
+
+    if (!list.IsColumnVisible (kLabelColumn))
     {
-        column++;
+        while (column < kColumnCount - 1 && !list.IsColumnVisible (column))
+        {
+            column++;
+        }
+
+        cells[column].text     = prefix + text;
+        cells[column].spansRow = true;
+
+        if (withNumber)
+        {
+            cells[column].colorRanges.push_back ({ 0, (int) prefix.size(), numberArgb });
+        }
+
+        AddSourceRuns (cells[column], runs, 0, (int) text.size(), (int) prefix.size(), colors);
+        return;
     }
 
-    cells[column].text     = prefix + text;
-    cells[column].spansRow = true;
+    //  The number in the address column, or the bytes column while the
+    //  address is hidden, and else before the label.
+    column = list.IsColumnVisible (kAddressColumn) ? kAddressColumn : list.IsColumnVisible (kBytesColumn) ? kBytesColumn : kLabelColumn;
 
-    if (withNumber)
+    if (withNumber && column != kLabelColumn)
     {
-        cells[column].colorRanges.push_back ({ 0, (int) prefix.size(), numberArgb });
+        cells[column].text = number;
+        cells[column].colorRanges.push_back ({ 0, (int) number.size(), numberArgb });
+        prefix.clear();
     }
 
-    for (const SourceSyntax::Run & run : SourceSyntax::GetSourceRuns (text))
+    cells[kLabelColumn].text = prefix + text.substr (0, labelEnd);
+
+    if (!prefix.empty())
     {
-        cells[column].colorRanges.push_back ({ (int) prefix.size() + run.start, (int) prefix.size() + run.start + run.length, colors.syntax.Get (run.token) });
+        cells[kLabelColumn].colorRanges.push_back ({ 0, (int) prefix.size(), numberArgb });
+    }
+
+    AddSourceRuns (cells[kLabelColumn], runs, 0, (int) labelEnd, (int) prefix.size(), colors);
+
+    cells[kInstructionColumn].text     = text.substr (restAt);
+    cells[kInstructionColumn].spansRow = true;
+    AddSourceRuns (cells[kInstructionColumn], runs, (int) restAt, (int) text.size(), 0, colors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyCells::AddSourceRuns
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DisassemblyCells::AddSourceRuns (DxuiListView::Cell & cell, const std::vector<SourceSyntax::Run> & runs, int start, int end, int offset,
+                                      const DebuggerTextColors::Set & colors)
+{
+    for (const SourceSyntax::Run & run : runs)
+    {
+        int  first = std::max (run.start, start);
+        int  last  = std::min (run.start + run.length, end);
+
+        if (first < last)
+        {
+            cell.colorRanges.push_back ({ offset + first - start, offset + last - start, colors.syntax.Get (run.token) });
+        }
     }
 }
 

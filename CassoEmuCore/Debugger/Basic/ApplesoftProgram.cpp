@@ -174,14 +174,16 @@ void ApplesoftProgram::GetVariables (std::vector<BasicVariable> & variables) con
 //
 //  Each array is its name, the offset to the next, the count of subscripts,
 //  each subscript's size big-endian with the last subscript first, then the
-//  elements with the first subscript varying fastest.
+//  elements with the first subscript varying fastest. The walk ends at an
+//  array whose offset does not lead forward to a place within STREND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ApplesoftProgram::GetArrays (std::vector<BasicArray> & arrays) const
 {
-    Word  end = PeekWord (kStrEnd);
-    Word  at  = PeekWord (kAryTab);
+    Word  end    = PeekWord (kStrEnd);
+    Word  at     = PeekWord (kAryTab);
+    Word  nextAt = 0;
 
 
 
@@ -200,7 +202,7 @@ void ApplesoftProgram::GetArrays (std::vector<BasicArray> & arrays) const
 
 
 
-        if (next == 0 || count == 0)
+        if (count == 0 || !TryGetNextArray (at, next, end, nextAt))
         {
             break;
         }
@@ -220,14 +222,42 @@ void ApplesoftProgram::GetArrays (std::vector<BasicArray> & arrays) const
             total *= size;
         }
 
-        for (size_t i = 0; i < total && element + width <= at + next; i++, element = (Word) (element + width))
+        for (size_t i = 0; i < total && element + width <= nextAt; i++, element = (Word) (element + width))
         {
             array.values.push_back (FormatValue (element, array.type));
         }
 
         arrays.push_back (array);
-        at = (Word) (at + next);
+        at = nextAt;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplesoftProgram::TryGetNextArray
+//
+//  The array after the one at at, when its offset leads forward to a place
+//  no farther than end; a zero offset, or one that passes end or wraps past
+//  $FFFF, has none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ApplesoftProgram::TryGetNextArray (
+    Word    at,
+    Word    next,
+    Word    end,
+    Word  & nextAt)
+{
+    int  sum = at + next;
+
+
+
+    nextAt = (Word) sum;
+    return sum > at && sum <= end;
 }
 
 
@@ -473,6 +503,7 @@ std::optional<Word> ApplesoftProgram::FindValue (const BasicReference & referenc
     Word    end    = reference.subscripts.empty() ? PeekWord (kAryTab) : PeekWord (kStrEnd);
     Word    at     = reference.subscripts.empty() ? PeekWord (kVarTab) : PeekWord (kAryTab);
     int     width  = (reference.type == BasicType::Real) ? 5 : (reference.type == BasicType::Integer) ? 2 : 3;
+    Word    nextAt = 0;
 
 
 
@@ -496,14 +527,14 @@ std::optional<Word> ApplesoftProgram::FindValue (const BasicReference & referenc
 
 
 
-        if (next == 0)
+        if (!TryGetNextArray (at, next, end, nextAt))
         {
             break;
         }
 
         if (PeekByte (at) != first || PeekByte ((Word) (at + 1)) != second)
         {
-            at = (Word) (at + next);
+            at = nextAt;
             continue;
         }
 

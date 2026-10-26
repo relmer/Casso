@@ -675,6 +675,111 @@ public:
     }
 
 
+    //  A write made before a reset partway through a stretch is no write
+    //  since the map started counting. The stretch's counts include it, so
+    //  the search replays the stretch, from the reset, and finds nothing:
+    //  that is none, not unknown.
+    TEST_METHOD (AWriteBeforeAResetInsideItsStretchIsNone)
+    {
+        static constexpr Byte  kProgram[] =
+        {
+            0x8D, 0x00, 0x20,       // 6000  STA $2000
+            0xA2, 0x00,             // 6003  LDX #$00
+            0xA0, 0x00,             // 6005  LDY #$00
+            0x88,                   // 6007  DEY
+            0xD0, 0xFD,             // 6008  BNE $6007
+            0xCA,                   // 600A  DEX
+            0xD0, 0xFA,             // 600B  BNE $6007
+            0x8D, 0x00, 0x20,       // 600D  STA $2000
+            0x4C, 0x10, 0x60,       // 6010  JMP $6010
+        };
+
+        struct ProgramRig
+        {
+            TestMachine          machine    { "Apple2e" };
+            MachineDebugTarget   target     { machine };
+            ReverseController    controller { machine };
+            ScratchHeatReplayer  finder;
+
+            ProgramRig()
+            {
+                HRESULT  hr = S_OK;
+
+
+
+                machine.PowerCycle();
+
+                for (size_t i = 0; i < sizeof (kProgram); i++)
+                {
+                    machine.GetMemoryBus().WriteByte (static_cast<Word> (0x6000 + i), kProgram[i]);
+                }
+
+                machine.GetCpu()->SetPC (0x6000);
+
+                hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+                AssertSucceeded (hr, L"Start");
+
+                target.AttachHistory (&controller.GetKeyframes(), nullptr);
+                controller.SetHistoryObserver (target.GetHistoryObserver());
+                target.SetHeatMapOn (true);
+
+                finder.SetMachine (machine.GetConfig(), machine.GetCurrentMachineName());
+                target.SetHeatAccessFinder (&finder);
+            }
+
+            ~ProgramRig()
+            {
+                target.SetHeatAccessFinder (nullptr);
+                controller.SetHistoryObserver (nullptr);
+                target.AttachHistory (nullptr, nullptr);
+            }
+
+            void Seek (uint64_t position)
+            {
+                ReverseResult  result;
+                HRESULT        hr     = controller.SeekToPosition (position, result);
+
+
+
+                AssertSucceeded (hr, L"SeekToPosition");
+                target.NoteHistoryMoved (false);
+            }
+        };
+
+        ProgramRig       rig;
+        HeatLastAccess   access;
+        HeatAccessState  state  = HeatAccessState::Found;
+        uint64_t         start  = rig.machine.GetPosition();
+        uint64_t         middle = 0;
+
+
+
+        for (size_t i = 0; i < 1000000 && rig.machine.GetCpu()->GetPC() != 0x6010; i++)
+        {
+            rig.machine.StepOne();
+        }
+
+        for (size_t i = 0; i < 100; i++)
+        {
+            rig.machine.StepOne();
+        }
+
+        Assert::IsTrue (rig.controller.GetKeyframes().GetCount() > 6, L"several stretches, or the test proves nothing");
+
+        middle = rig.controller.GetKeyframes().GetInfo (4).position + 10;
+
+        //  The reset comes after the first write, inside the first stretch.
+        rig.Seek (start + 10);
+        rig.target.ResetHeatMap();
+
+        rig.Seek (middle);
+
+        state = rig.target.LookUpHeatMapAccess (HeatSpace::Main, true, 0x2000, access);
+
+        Assert::AreEqual ((int) HeatAccessState::None, (int) state, L"no write since the reset");
+    }
+
+
     TEST_METHOD (ResetCountsFromWhereTheMachineStands)
     {
         Rig                                        rig      (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
@@ -1433,6 +1538,16 @@ private:
     }
 
 
+    static bool IsSanitizedBuild()
+    {
+#ifdef __SANITIZE_ADDRESS__
+        return true;
+#else
+        return false;
+#endif
+    }
+
+
     static bool IsCold (const AccessHeatMap & map)
     {
         for (float heat : map.GetHeatTable())
@@ -1847,6 +1962,9 @@ private:
             oldBytes += packed.size();
         }
 
+        //  The heat map's sides are a small share of the history's bytes.
+        Assert::IsTrue ((countBytes + bitBytes) * 20 < keyframes.GetByteCount() - keyframes.GetSideByteCount(), L"the heat sides take under 5% of the snapshots' bytes");
+
         return std::format ("{}: {} keyframes, {} bytes of snapshots; counts {} bytes ({} without the two new kinds), kept bits {} bytes, kept whole at {} keyframes\n",
                             name, keyframes.GetCount(), keyframes.GetByteCount() - keyframes.GetSideByteCount(), countBytes, oldBytes, bitBytes, whole);
     }
@@ -1870,18 +1988,23 @@ private:
     }
 
 
-    //  Not a pass or fail: what reads before written and changed values cost
-    //  history and memory, written to the test log, over the reverse rig's
-    //  busy loop and the fill guest, and what a fold of the larger map takes.
+    //  What reads before written and changed values cost history and memory,
+    //  written to the test log, over the reverse rig's busy loop and the fill
+    //  guest, and what a fold of the larger map takes with every entry hot.
+    //  The sides are gated at 5% of the snapshots and, in a Release build
+    //  without AddressSanitizer, a fold at a frame's time (1.8 ms measured
+    //  2026-10-23, 31 ms with the sanitizer).
     TEST_METHOD (TheNewChannelsCostIsLogged)
     {
         constexpr int      kFolds      = 20;
         constexpr double   kMs         = 1000.0;
+        constexpr double   kFrameMs    = 1000.0 / 60.0;
         constexpr size_t   kMapBytes   = sizeof (uint32_t) + sizeof (float) + sizeof (int64_t);
         constexpr size_t   kWalkBytes  = 3 * sizeof (int64_t);
         constexpr size_t   kOldEntries = AccessHeatMap::kEntryCount * 3 / AccessHeatMap::kKindCount;
         std::string        log;
         AccessHeatMap      map;
+        std::vector<float> hot         (AccessHeatMap::kEntryCount, 1.0e6f);
         double             ms          = 0.0;
 
         {
@@ -1906,6 +2029,8 @@ private:
 
         for (int i = 0; i < kFolds; i++)
         {
+            map.MergeHeat (hot, (uint64_t) i * AccessHeatMap::kCyclesPerFrame);
+
             auto  start = std::chrono::steady_clock::now();
 
 
@@ -1923,5 +2048,7 @@ private:
                             IsDebugBuild() ? "Debug" : "Release");
 
         Logger::WriteMessage (log.c_str());
+
+        Assert::IsTrue (IsDebugBuild() || IsSanitizedBuild() || ms / kFolds < kFrameMs, L"a fold of the whole map hot takes under a frame");
     }
 };

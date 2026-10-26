@@ -319,6 +319,17 @@ namespace DebuggerTests
             ParseFails ("!frob",   ParseStatus::Unknown);
         }
 
+        //  !bpr reads its value in WinDbg's syntax, as !bp does: 0x10 is hex.
+        TEST_METHOD (Bang_RegisterBreakpointValueIsInWinDbgSyntax)
+        {
+            WinDbgParseResult  bpr = ParseOk ("!bpr a = 0x10");
+
+
+
+            Assert::AreEqual ((int) DebugVerb::SetRegisterBreakpoint, (int) bpr.command.verb);
+            Assert::AreEqual (std::string ("A=0x10"), bpr.command.expression.text);
+        }
+
         //  Every excluded example replies with its family, never unknown.
         TEST_METHOD (Exclusions_NameTheirFamily)
         {

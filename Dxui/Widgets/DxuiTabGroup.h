@@ -59,6 +59,7 @@ class DxuiTabGroup : public IDxuiControl
 public:
     using ActivatedFn = std::function<void (int index)>;
     using DragFn      = std::function<void (int index, POINT pointDip)>;
+    using MoveFn      = std::function<void (int from, int to)>;
 
     enum class Kind
     {
@@ -82,6 +83,11 @@ public:
 
     void  AddTab       (const std::wstring & title, IDxuiControl * content);
     bool  RemoveTab    (IDxuiControl * content);
+
+    //  Every tab at once, each a title and its control, the one at `active`
+    //  visible. A press on a tab in progress is not canceled, so a drag goes
+    //  on while a host fills the group again on every change.
+    void  ReplaceTabs  (const std::vector<std::pair<std::wstring, IDxuiControl *>> & tabs, int active);
     void  SetTitle     (IDxuiControl * content, const std::wstring & title);
     void  SetIndicator (IDxuiControl * content, bool on);
     void  SetTabTip    (IDxuiControl * content, const std::wstring & tip);
@@ -127,6 +133,10 @@ public:
 
     void  SetOnActivated   (ActivatedFn fn)   { m_onActivated   = std::move (fn); }
     void  SetOnDragStart   (DragFn fn)        { m_onDragStart   = std::move (fn); }
+
+    //  A tab dragged along the strip to another place in the group; set, the
+    //  drag start handler is called only once the pointer is off the strip.
+    void  SetOnMove        (MoveFn fn);
     void  SetOnTitleButton (TitleButtonFn fn) { m_onTitleButton = std::move (fn); }
 
     //  A drag of the title bar, which moves the whole group; with no handler
@@ -136,6 +146,7 @@ public:
     //  Forgets a press on the title bar or its buttons, for a drag another
     //  window took over: that window gets the button's release, not this one.
     void  CancelPress () { m_titlePressed = false; m_titleDragged = false; m_pressButton = -1; }
+    bool  IsTitlePressed () const { return m_titlePressed; }
 
     //  Where the last press of a tab (`tab`) or of the title bar fell, from
     //  the top left of the tab or title bar it pressed.
@@ -248,6 +259,7 @@ private:
     DxuiTabStrip         m_strip;
     ActivatedFn          m_onActivated;
     DragFn               m_onDragStart;
+    MoveFn               m_onMove;
     DragFn               m_onTitleDrag;
     TitleButtonFn        m_onTitleButton;
     CloseTabFn           m_onCloseTab;

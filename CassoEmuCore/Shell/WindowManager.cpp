@@ -79,13 +79,11 @@ bool WindowManager::TryLoadSavedWindowPlacement (
 
 
 
-    topologyKey = WindowPlacementProfile::BuildTopologyKey();
-
     // Two ways to decline: no saved placement for this monitor topology, or
     // one that no longer lands on any monitor (DEFAULTTONULL, not
     // DEFAULTTONEAREST -- a window saved on a since-removed screen must NOT be
     // dragged onto a surviving one, it should fall back to the default place).
-    if (m_profile.TryLoad (topologyKey, bounds))
+    if (m_profile.TryLoadForMonitors (WindowPlacementProfile::GetMonitors(), bounds, topologyKey))
     {
         wr.left   = bounds.x;
         wr.top    = bounds.y;

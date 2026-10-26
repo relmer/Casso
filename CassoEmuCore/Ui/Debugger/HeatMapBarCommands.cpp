@@ -24,14 +24,14 @@ const std::vector<HeatMapBarCommands::Row> & HeatMapBarCommands::GetRows()
     static const std::vector<Row>  rows =
     {
         { kMode,        L"Fading",                nullptr, L"Fade each address as its accesses age, or keep a total since the counts were reset", DxuiToolbar::Kind::DropDown, 0, false, false, false },
-        { kResetCounts, L"Reset counts",          nullptr, L"Start the totals over",                                                             DxuiToolbar::Kind::Command,  0, false, false, false },
+        { kResetCounts, L"Reset counts",          s_kpszMdl2Refresh, L"Reset counts: start the totals over",                                     DxuiToolbar::Kind::Command,  0, true,  false, false },
 
         { kIgnoreSame,  L"Skip unchanged writes", nullptr, L"Ignore writes that don't change the value: show only the writes that stored a different value", DxuiToolbar::Kind::Toggle, 5, false, false, false },
-        { kIgnoreSet,   L"Leave out: None",       nullptr, L"Leave a set's ranges out of the reads before written",                              DxuiToolbar::Kind::DropDown, 5, false, false, false },
+        { kIgnoreSet,   L"Uninitialized reads: all", nullptr, L"Which reads of uninitialized memory count: all of them, or none inside a set's ranges, for areas a program reads before writing on purpose", DxuiToolbar::Kind::DropDown, 5, false, false, false },
         { kView,        L"All",                   nullptr, L"Show every access, only code run, only data read and written, or only values changed", DxuiToolbar::Kind::DropDown, 0, false, false, true  },
         { kBlend,       L"Blend",                 nullptr, L"Mix the colors of an address touched more than one way",                            DxuiToolbar::Kind::Toggle,   0, false, false, true  },
         { kRangeSet,    L"All memory",            nullptr, L"Show all of memory, or only the ranges of a set",                                   DxuiToolbar::Kind::DropDown, 0, false, true,  true  },
-        { kBank,        L"Bank",                  nullptr, L"Show what the CPU addresses, or one bank as it is stored",                          DxuiToolbar::Kind::DropDown, 0, false, true,  true  },
+        { kBank,        L"Bank",                  nullptr, L"Every address from $0000 to $FFFF as the soft switches map it now, or one bank of RAM or ROM by itself", DxuiToolbar::Kind::DropDown, 0, false, true,  true  },
     };
 
 
@@ -245,7 +245,7 @@ std::wstring HeatMapBarCommands::GetBankEntryLabel (HeatMapOptions::Bank bank)
 
 std::wstring HeatMapBarCommands::GetIgnoreSetLabel (const std::wstring & set)
 {
-    return L"Leave out: " + (set.empty() ? std::wstring (L"None") : set);
+    return set.empty() ? std::wstring (L"Uninitialized reads: all") : L"Uninitialized reads: not in " + set;
 }
 
 

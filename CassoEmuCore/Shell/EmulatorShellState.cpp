@@ -158,28 +158,68 @@ Error:
 //
 //  LoadMachineState
 //
-//  CPU thread. Reads and checks the whole file before anything changes; a
-//  state another machine kind saved opens that machine first, as opening a
-//  machine does. History is dropped and starts again at the loaded point,
-//  and the debugger hears of it as a machine replaced.
+//  CPU thread. The file's bytes are loaded as LoadMachineStateBytes loads
+//  them, and the outcome is posted as a notice.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
 {
-    HRESULT                hr             = S_OK;
-    std::vector<Byte>      bytes;
-    MachineStateContents   contents;
-    MachineStateError      error;
-    AppleSpeaker         * speaker        = nullptr;
-    bool                   isOtherMachine = false;
+    HRESULT              hr    = S_OK;
+    std::vector<Byte>    bytes;
+    MachineStateError    error;
 
 
 
     hr = ReadStateFile (path, bytes);
     CHRF (hr, error = MachineStateFile::MakeError ("file not read", "The state file could not be read."));
 
-    hr = MachineStateFile::Parse (bytes, contents, error);
+    hr = LoadMachineStateBytes (bytes, error);
+    CHR (hr);
+
+    m_chrome->PostNotice (L"Machine state loaded from " + path.wstring() + L".");
+
+Error:
+    if (FAILED (hr))
+    {
+        m_chrome->PostNotice (FormatStateError (L"loaded", error));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadMachineStateBytes
+//
+//  CPU thread. Parses the state and checks its disk images before anything
+//  changes; a state another machine kind saved opens that machine first, as
+//  opening a machine does, and the rest is checked on it. History is dropped
+//  and starts again at the loaded point, and the debugger is notified of a
+//  machine replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::LoadMachineStateBytes (
+    const std::vector<Byte>  & bytes,
+    MachineStateError        & outError)
+{
+    HRESULT                hr             = S_OK;
+    MachineStateContents   contents;
+    AppleSpeaker         * speaker        = nullptr;
+    bool                   isOtherMachine = false;
+    bool                   isSwitched     = false;
+
+
+
+    hr = MachineStateFile::Parse (bytes, contents, outError);
+    CHR (hr);
+
+    //  The disk images are checked here, with no machine, before another
+    //  machine is opened.
+    hr = MachineStateFile::CheckDisks (contents, outError);
     CHR (hr);
 
     isOtherMachine = contents.machineName != m_machine.GetCurrentMachineName();
@@ -192,15 +232,17 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
         m_isLoadingStateSwitch = true;
         hr = SwitchMachine (contents.machineName);
         m_isLoadingStateSwitch = false;
-        CHRF (hr, error = MachineStateFile::MakeError ("machine not opened", "The machine that saved the state could not be opened."));
+        CHRF (hr, outError = MachineStateFile::MakeError ("machine not opened", "The machine that saved the state could not be opened."));
+
+        isSwitched = true;
     }
 
-    hr = MachineStateFile::Check (m_machine, contents, error);
+    hr = MachineStateFile::Check (m_machine, contents, outError);
     CHR (hr);
 
     m_debugger->StopReverseRecording();
 
-    hr = MachineStateFile::Apply (m_machine, contents, error);
+    hr = MachineStateFile::Apply (m_machine, contents, outError);
 
     m_debugger->StartReverseRecording();
 
@@ -221,13 +263,13 @@ void EmulatorShell::LoadMachineState (const std::filesystem::path & path)
     m_renderer->RenderFramebuffer();
     m_renderer->PublishFramebuffer();
 
-    m_chrome->PostNotice (L"Machine state loaded from " + path.wstring() + L".");
-
 Error:
-    if (FAILED (hr))
+    if (FAILED (hr) && isSwitched)
     {
-        m_chrome->PostNotice (FormatStateError (L"loaded", error));
+        outError.detail += " The machine that saved the state is open now, and nothing was loaded into it.";
     }
+
+    return hr;
 }
 
 
@@ -310,7 +352,7 @@ std::wstring EmulatorShell::FormatStateError (
 
 std::filesystem::path EmulatorShell::GetAutoStatePath() const
 {
-    return AutoStatePolicy::GetAutoStatePath (AssetBootstrap::GetStateDirectory(), m_machine.GetCurrentMachineName());
+    return AutoStatePolicy::GetAutoStatePath (m_stateFolder.empty() ? AssetBootstrap::GetStateDirectory() : m_stateFolder, m_machine.GetCurrentMachineName());
 }
 
 
@@ -326,11 +368,13 @@ std::filesystem::path EmulatorShell::GetAutoStatePath() const
 //  command-line launch started with its own media, an earlier automatic
 //  state is replaced only if the user chose to in the prompt. The file is
 //  written whole and renamed over the old one, so after a failure the
-//  earlier state is intact.
+//  earlier state is intact. At exit the window is being destroyed and a
+//  notice posted to it never appears, so a failure is reported in a system
+//  box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SaveAutoState()
+void EmulatorShell::SaveAutoState (bool isExiting)
 {
     HRESULT                hr         = S_OK;
     std::filesystem::path  path       = GetAutoStatePath();
@@ -365,7 +409,15 @@ void EmulatorShell::SaveAutoState()
     CHRF (hr, error = MachineStateFile::MakeError ("file not written", "The automatic state file could not be written in full."));
 
 Error:
-    if (FAILED (hr))
+    if (FAILED (hr) && isExiting && m_exitReport != nullptr)
+    {
+        m_exitReport (FormatStateError (L"saved", error));
+    }
+    else if (FAILED (hr) && isExiting)
+    {
+        MessageBoxW (nullptr, FormatStateError (L"saved", error).c_str(), L"Casso", MB_OK | MB_ICONWARNING | MB_TASKMODAL);
+    }
+    else if (FAILED (hr))
     {
         m_chrome->PostNotice (FormatStateError (L"saved", error));
     }

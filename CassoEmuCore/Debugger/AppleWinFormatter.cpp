@@ -49,7 +49,7 @@ void AppleWinFormatter::Format (Reply & reply)
 
 std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 {
-    static constexpr const char * kReasons[] = { "Breakpoint", "Watchpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint",
+    static constexpr const char * kReasons[] = { "Breakpoint", "Data breakpoint", "Step", "Stopped", "Budget", "Pause", "BRK", "Invalid opcode", "Reset", "Disk breakpoint",
                                                  "BASIC step", "BASIC error" };
     std::string                   text;
 
@@ -68,12 +68,12 @@ std::string AppleWinFormatter::FormatStop (const StopEvent & stop)
 
         if (hit.mode == WatchMode::Before)
         {
-            text = std::format ("Watchpoint #{}: {} of ${:04X} by ${:04X}, before the access",
+            text = std::format ("Data breakpoint #{}: {} of ${:04X} by ${:04X}, before the access",
                                 hit.id, hit.access == WatchAccess::Read ? "read" : "write", hit.address, hit.accessPc);
         }
         else
         {
-            text = std::format ("Watchpoint #{}: {} ${:02X} {} ${:04X} by ${:04X}",
+            text = std::format ("Data breakpoint #{}: {} ${:02X} {} ${:04X} by ${:04X}",
                                 hit.id,
                                 hit.access == WatchAccess::Read ? "Read" : "Write",
                                 hit.value,
@@ -590,14 +590,23 @@ void AppleWinFormatter::FormatWatchList (const WatchListData & data, Lines & lin
 
     for (const WatchEntry & entry : data.entries)
     {
-        std::string  text = entry.basicName.empty() ? std::format ("#{} ${:04X}", entry.id, entry.address)
-                                                    : std::format ("#{} {}", entry.id, entry.basicName);
+        std::string  text = !entry.basicName.empty()  ? std::format ("#{} {}", entry.id, entry.basicName)
+                          : !entry.expression.empty() ? std::format ("#{} {}", entry.id, entry.expression)
+                          :                             std::format ("#{} ${:04X}", entry.id, entry.address);
 
 
 
         if (!entry.basicName.empty())
         {
             text += " = " + entry.basicValue.value_or ("--");
+        }
+        else if (entry.valueText.has_value())
+        {
+            text += " = $" + *entry.valueText;
+        }
+        else if (!entry.expression.empty() && !entry.value.has_value())
+        {
+            text += entry.error.empty() ? std::string (" = --") : " = -- (" + entry.error + ")";
         }
         else if (entry.value.has_value() && data.kind == WatchListKind::ZeroPage)
         {
@@ -1296,7 +1305,8 @@ std::string AppleWinFormatter::DescribeBreakpoint (const BreakpointInfo & breakp
     case BreakpointKind::Brk:       text = "on BRK";                                                                              break;
     case BreakpointKind::Interrupt: text = "on interrupt";                                                                        break;
     case BreakpointKind::MemoryValue:
-        text = std::format ("when ${:04X} becomes ${:02X}", breakpoint.address, breakpoint.value.value_or (0));
+        text = std::format ("when {}{} becomes ${:02X}", (breakpoint.last > breakpoint.address) ? "a byte of " : "", FormatAddress (breakpoint),
+                            breakpoint.value.value_or (0));
         break;
     case BreakpointKind::Disk:
         text = "on disk " + DescribeDisk (breakpoint);

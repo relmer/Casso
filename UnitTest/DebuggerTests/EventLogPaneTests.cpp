@@ -2,6 +2,9 @@
 
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
+#include "Ui/Debugger/Panes/IoLogPane.h"
+#include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -539,6 +542,44 @@ namespace EventLogPaneTests
         }
 
 
+        //  Newer rows come into a sorted view in their places, with no full
+        //  build, and the selected row stays selected.
+        TEST_METHOD (NewerRowsGoInTheirPlacesInASortedView)
+        {
+            DxuiListView   list;
+            DiskLogPane    pane (&list, [] (const std::string &) {});
+            DiskLogDelta   delta;
+            size_t         builds = 0;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeDiskRow (100, Disk2EventType::MotorEngaged), MakeDiskRow (110, Disk2EventType::DriveSelect) };
+
+            pane.Apply   (delta);
+            pane.SortBy  (DiskLogPane::kEvent);
+            pane.Refresh();
+
+            list.SetSelectedRows ({ 1 }, 1);
+            builds = pane.GetBuildCount();
+
+            delta           = DiskLogDelta();
+            delta.isAtStart = true;
+            delta.newer     = { MakeDiskRow (120, Disk2EventType::MotorCommandOn), MakeDiskRow (130, Disk2EventType::DriveSelect) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (builds, pane.GetBuildCount(), L"no full build");
+            Assert::IsTrue   (GetColumn (pane, DiskLogPane::kEvent) == std::vector<std::wstring> { L"Drive select", L"Drive select", L"Motor command on", L"Motor engaged" },
+                              L"in their places");
+            Assert::AreEqual (std::wstring (EventLogText::FormatCycle (1000)), GetColumn (pane, DiskLogPane::kCycle)[(size_t) list.GetSelectedRows().at (0)], L"the same row selected");
+        }
+
+
         TEST_METHOD (CopyGivesTheShownColumnsOfEachRow)
         {
             DxuiListView   list;
@@ -770,6 +811,7 @@ namespace EventLogPaneTests
 
 
             pane.Configure();
+            list.SetRect (RECT { 0, 0, 600, 400 });
 
             delta.isReset = true;
 
@@ -781,6 +823,7 @@ namespace EventLogPaneTests
             pane.Apply   (delta);
             pane.Refresh();
 
+            list.SetTopRow       ((int) past);
             list.SetSelectedRows ({ (int) past - 1 }, (int) past - 1);
 
             delta       = DiskLogDelta();
@@ -794,6 +837,152 @@ namespace EventLogPaneTests
             Assert::IsTrue   (std::ranges::find (requests, std::format ("from {}", oldest)) != requests.end(), L"the machine's thread is sent the new oldest row");
             Assert::AreEqual ((size_t) 1, list.GetSelectedRows().size());
             Assert::AreEqual (std::wstring (EventLogText::FormatCycle ((past - 1) * 100)), GetColumn (pane, DiskLogPane::kCycle)[(size_t) list.GetSelectedRows()[0]], L"the same row selected");
+        }
+
+
+        //  Rows brought in by scrolling up are not dropped as they arrive,
+        //  though they take the pane past kMaxRows, while the list is on
+        //  older rows.
+        TEST_METHOD (RowsScrollingUpBroughtInAreNotDropped)
+        {
+            constexpr size_t           kOlder   = 5000;
+            DxuiListView               list;
+            std::vector<std::string>   requests;
+            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogDelta               delta;
+            size_t                     i        = 0;
+            uint64_t                   first    = kOlder * 10;
+
+
+
+            pane.Configure();
+            pane.SetShown (true);
+            list.SetVisible (true);
+            list.SetRect    (RECT { 0, 0, 600, 400 });
+
+            delta.isReset  = true;
+            delta.heldFrom = first;
+
+            for (i = 0; i < DiskLogPane::kMaxRows - 1; i++)
+            {
+                delta.newer.push_back (MakeDiskRow (first + i * 10, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            list.SetTopRow (0);
+            pane.FollowScroll();
+            Assert::AreEqual (std::string ("earlier"), requests.back(), L"the start row is in view");
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = 0;
+
+            for (i = 0; i < kOlder; i++)
+            {
+                delta.older.push_back (MakeDiskRow (i * 10, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (DiskLogPane::kMaxRows - 1 + kOlder, pane.GetRows().GetRows().size(), L"nothing dropped");
+            Assert::AreEqual ((uint64_t) 0, pane.GetRows().GetRows().front().position, L"the rows brought in are first");
+        }
+
+
+        //  While a request for older rows is outstanding nothing is dropped,
+        //  even past kHardMaxRows, since the machine's thread sends the rows
+        //  before where the rows started then.
+        TEST_METHOD (NothingIsDroppedWhileEarlierRowsAreRequested)
+        {
+            DxuiListView               list;
+            std::vector<std::string>   requests;
+            DiskLogPane                pane (&list, [&requests] (const std::string & request) { requests.push_back (request); });
+            DiskLogDelta               delta;
+            size_t                     i        = 0;
+            uint64_t                   first    = 1000;
+
+
+
+            pane.Configure();
+            pane.SetShown (true);
+            list.SetVisible (true);
+            list.SetRect    (RECT { 0, 0, 600, 400 });
+
+            delta.isReset  = true;
+            delta.heldFrom = first;
+            delta.newer    = { MakeDiskRow (first, Disk2EventType::DriveSelect) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            pane.FollowScroll();
+            Assert::AreEqual (std::string ("earlier"), requests.back());
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = first;
+
+            for (i = 1; i <= DiskLogPane::kHardMaxRows; i++)
+            {
+                delta.newer.push_back (MakeDiskRow (first + i, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply (delta);
+
+            Assert::AreEqual (DiskLogPane::kHardMaxRows + 1, pane.GetRows().GetRows().size(), L"nothing dropped");
+            Assert::AreEqual (first, pane.GetRows().GetHeldFrom(), L"and no new start sent");
+        }
+
+
+        //  A frame can apply a delta of older rows and then one of newer rows
+        //  before one refresh; the row at the top stays the one the user was
+        //  reading.
+        TEST_METHOD (TheTopRowStaysThroughTwoDeltasInAFrame)
+        {
+            constexpr size_t           kRows   = 100;
+            constexpr size_t           kOlder  = 10;
+            DxuiListView               list;
+            DiskLogPane                pane (&list, [] (const std::string &) {});
+            DiskLogDelta               delta;
+            size_t                     i       = 0;
+            uint64_t                   first   = 1000;
+
+
+
+            pane.Configure();
+            pane.SetShown (true);
+            list.SetVisible (true);
+            list.SetRect    (RECT { 0, 0, 600, 400 });
+
+            delta.isReset  = true;
+            delta.heldFrom = first;
+
+            for (i = 0; i < kRows; i++)
+            {
+                delta.newer.push_back (MakeDiskRow (first + i, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply   (delta);
+            pane.Refresh();
+            list.SetTopRow (1);
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = first - kOlder;
+
+            for (i = 0; i < kOlder; i++)
+            {
+                delta.older.push_back (MakeDiskRow (first - kOlder + i, Disk2EventType::DriveSelect));
+            }
+
+            pane.Apply (delta);
+
+            delta          = DiskLogDelta();
+            delta.heldFrom = first - kOlder;
+            delta.newer    = { MakeDiskRow (first + kRows, Disk2EventType::MotorCommandOn) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (std::wstring (EventLogText::FormatCycle (first * 10)), GetColumn (pane, DiskLogPane::kCycle)[(size_t) list.GetTopRow()], L"the row at the top before");
         }
 
 
@@ -824,6 +1013,201 @@ namespace EventLogPaneTests
             Assert::AreEqual (std::wstring (L"HH:mm:s',007'"),   EventLogText::AddMilliseconds (L"HH:mm:s",        L",", 7));
             Assert::AreEqual (std::wstring (L"H'h's'.500' 'sec'"),    EventLogText::AddMilliseconds (L"H'h's 'sec'",    L".", 500));
             Assert::AreEqual (std::wstring (L"HH:mm"),                EventLogText::AddMilliseconds (L"HH:mm",          L".", 1), L"no seconds, nothing added");
+        }
+    };
+
+
+
+
+    //  A video or sound row at a position; its cycle is given.
+    static IoLogRow  MakeIoRow (uint64_t position, uint64_t cycle, IoEventKind kind, Word address = 0, Byte chip = 0)
+    {
+        IoLogRow  row;
+
+
+        row.position      = position;
+        row.cycle         = cycle;
+        row.event.cycle   = cycle;
+        row.event.kind    = kind;
+        row.event.address = address;
+        row.event.chip    = chip;
+
+        return row;
+    }
+
+
+    static IoLogRow  MakeGapRow (uint64_t position)
+    {
+        IoLogRow  row;
+
+
+        row.kind     = DebugLogRowKind::Gap;
+        row.position = position;
+
+        return row;
+    }
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  IoLogPaneTests
+    //
+    //  The video and sound log panes (FR-198): a video switch's frame, beam
+    //  and modes, a sound row's cycles since the last of the same as SOUNDLOG
+    //  gives them, the sound log's filter by source, and its options text.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (IoLogPaneTests)
+    {
+    public:
+
+        TEST_METHOD (AVideoRowHasItsFrameBeamAndModes)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, true);
+            IoLogDelta    delta;
+            IoLogRow      row = MakeIoRow (10, 1000, IoEventKind::VideoMode, 0xC057);
+
+
+
+            row.event.cycleInFrame = 400;
+            row.event.scanline     = 100;
+            row.event.cycleInLine  = 30;
+            row.event.turnedOn     = IoEventLog::kHires;
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { row };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            Assert::AreEqual (std::wstring (L"600"),   GetColumn (pane, IoLogPane::kFrame)[1],      L"the frame's first cycle");
+            Assert::AreEqual (std::wstring (L"100"),   GetColumn (pane, IoLogPane::kLine)[1]);
+            Assert::AreEqual (std::wstring (L"30"),    GetColumn (pane, IoLogPane::kHorizontal)[1]);
+            Assert::AreEqual (std::wstring (L"$C057"), GetColumn (pane, IoLogPane::kAddress)[1]);
+            Assert::AreEqual (TextEncoding::NarrowToWide (IoEventLog::FormatEvent (row.event)), GetColumn (pane, IoLogPane::kEvent)[1], L"as VIDEOLOG writes it");
+            Assert::IsTrue   (list.IsColumnVisible (IoLogPane::kLine) && !list.IsColumnVisible (IoLogPane::kSince), L"the beam shown, the gap between writes not");
+        }
+
+
+        //  As SOUNDLOG: the speaker's since its last toggle, a board's since
+        //  the last write to any board, and a gap starts both again.
+        TEST_METHOD (ASoundRowsSinceIsFromTheLastOfTheSame)
+        {
+            DxuiListView                list;
+            IoLogPane                   pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta                  delta;
+            std::vector<std::wstring>   since;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100, IoEventKind::Speaker,  0xC030),
+                                MakeIoRow (2, 150, IoEventKind::ViaWrite, 0xC401),
+                                MakeIoRow (3, 400, IoEventKind::Speaker,  0xC030),
+                                MakeIoRow (4, 450, IoEventKind::AyWrite),
+                                MakeGapRow (5),
+                                MakeIoRow (6, 900, IoEventKind::Speaker,  0xC030) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            since = GetColumn (pane, IoLogPane::kSince);
+
+            Assert::AreEqual (std::wstring (L""),     since[1], L"the first toggle");
+            Assert::AreEqual (std::wstring (L""),     since[2], L"the first board write");
+            Assert::AreEqual (std::wstring (L"+300"), since[3], L"from the speaker's last toggle, not the board's write");
+            Assert::AreEqual (std::wstring (L"+300"), since[4], L"from the board's last write");
+            Assert::AreEqual (std::wstring (L""),     since[6], L"a gap starts it again");
+            Assert::AreEqual (std::wstring (L"Speaker"),        GetColumn (pane, IoLogPane::kSource)[1]);
+            Assert::AreEqual (std::wstring (L"Mockingboard 1"), GetColumn (pane, IoLogPane::kSource)[2]);
+            Assert::AreEqual (std::wstring (L""),               GetColumn (pane, IoLogPane::kAddress)[4], L"an AY write has no address of its own");
+        }
+
+
+        //  A sort on Since orders by number, not by text, where +1000 would
+        //  come before +300; the frame and the gap have thousands separators.
+        TEST_METHOD (SinceSortsByNumberAndCountsAreGrouped)
+        {
+            DxuiListView                list;
+            IoLogPane                   pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta                  delta;
+            std::vector<std::wstring>   since;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100,  IoEventKind::Speaker, 0xC030),
+                                MakeIoRow (2, 1400, IoEventKind::Speaker, 0xC030),
+                                MakeIoRow (3, 1700, IoEventKind::Speaker, 0xC030) };
+
+            pane.Apply   (delta);
+            pane.Refresh();
+
+            since = GetColumn (pane, IoLogPane::kSince);
+            Assert::AreEqual (L"+" + DebuggerStatusText::FormatCount (1300), since[2], L"grouped as other counts are");
+
+            pane.SortBy  (IoLogPane::kSince);
+            pane.Refresh();
+            since = GetColumn (pane, IoLogPane::kSince);
+
+            Assert::IsTrue (std::ranges::find (since, std::wstring (L"+300")) < std::ranges::find (since, L"+" + DebuggerStatusText::FormatCount (1300)), L"300 before 1,300");
+        }
+
+
+        TEST_METHOD (TheSoundLogsFilterLeavesOutASource)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogDelta    delta;
+
+
+
+            pane.Configure();
+
+            delta.isReset   = true;
+            delta.isAtStart = true;
+            delta.newer     = { MakeIoRow (1, 100, IoEventKind::Speaker,  0xC030),
+                                MakeIoRow (2, 150, IoEventKind::ViaWrite, 0xC401),
+                                MakeIoRow (3, 200, IoEventKind::AyWrite) };
+
+            pane.SetLaneShown (IoLogPane::kSpeaker, false);
+            pane.Apply        (delta);
+            pane.Refresh();
+
+            Assert::AreEqual ((size_t) 3, pane.GetView().size(), L"the start row and the two board rows");
+            Assert::AreEqual (std::wstring (L"Mockingboard 1"), GetColumn (pane, IoLogPane::kSource)[1]);
+        }
+
+
+        TEST_METHOD (TheSoundLogsOptionsRoundTrip)
+        {
+            DxuiListView  list;
+            IoLogPane     pane (&list, [] (const std::string &) {}, false);
+            IoLogPane     read (&list, [] (const std::string &) {}, false);
+
+
+
+            pane.Configure();
+            pane.SetLaneShown (IoLogPane::kAy, false);
+
+            read.SetOptionsText (pane.GetOptionsText());
+
+            Assert::IsTrue  (read.IsLaneShown (IoLogPane::kSpeaker));
+            Assert::IsTrue  (read.IsLaneShown (IoLogPane::kVia));
+            Assert::IsFalse (read.IsLaneShown (IoLogPane::kAy));
         }
     };
 }

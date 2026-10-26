@@ -2414,25 +2414,63 @@ Error:
 //
 //  ParseDecimal
 //
+//  Digits only, and no larger than the value takes: a number past its range
+//  fails rather than being clamped.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CommandLineParser::ParseDecimal (const char * text, uint32_t & value)
 {
-    HRESULT  hr      = S_OK;
-    char *   end     = nullptr;
-    long     val     = 0;
-    bool     isValid = false;
+    HRESULT   hr      = S_OK;
+    uint64_t  wide    = 0;
+    bool      isValid = false;
+
+
+
+    hr = ParseDecimal (text, wide);
+    CHR (hr);
+
+    isValid = wide <= std::numeric_limits<uint32_t>::max();
+    CBREx (isValid, E_INVALIDARG);
+
+    value = (uint32_t) wide;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ParseDecimal
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CommandLineParser::ParseDecimal (const char * text, uint64_t & value)
+{
+    constexpr int        kDecimal = 10;
+    HRESULT              hr       = S_OK;
+    char               * end      = nullptr;
+    unsigned long long   val      = 0;
+    bool                 isDigit  = false;
+    bool                 isValid  = false;
 
 
 
     CBREx (text != nullptr, E_INVALIDARG);
-    CBREx (text[0] != '\0', E_INVALIDARG);
 
-    val     = strtol (text, &end, 10);
-    isValid = end != text && *end == '\0' && val >= 0;
+    isDigit = isdigit ((unsigned char) text[0]) != 0;
+    CBREx (isDigit, E_INVALIDARG);
+
+    errno   = 0;
+    val     = strtoull (text, &end, kDecimal);
+    isValid = errno != ERANGE && *end == '\0';
     CBREx (isValid, E_INVALIDARG);
 
-    value = (uint32_t) val;
+    value = val;
 
 Error:
     return hr;
@@ -4097,7 +4135,7 @@ void CommandLineParser::ParseDebugOptions (int argc, char * argv[], int argIndex
     CommandLineOptions::DebugOptions & debug     = options.debug;
     HRESULT                            hr        = S_OK;
     bool                               wantsHelp = false;
-    uint32_t                           cycles    = 0;
+    uint64_t                           cycles    = 0;
     CommandMode                        mode      = CommandMode::AppleWin;
     OutputFormat                       output    = OutputFormat::AppleWin;
 

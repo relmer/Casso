@@ -76,7 +76,7 @@ public:
     explicit BreakpointTable (int & nextId);
 
     int   AddAddress       (Word first, Word last, const Expression & condition = {});
-    int   AddMemoryValue   (Word address, Byte value, const Expression & condition = {});
+    int   AddMemoryValue   (Word first, Word last, Byte value, const Expression & condition = {});
     int   AddOpcode        (Byte opcode);
     int   AddCondition     (const Expression & condition);
     int   AddBrk           ();
@@ -97,6 +97,7 @@ public:
     bool  TrySetFlags      (int id, bool temporary, bool stops);
     bool  TrySetSymbol     (int id, const std::string & symbol);
     bool  TrySetName       (int id, const std::string & name);
+    bool  TrySetCondition  (int id, const Expression & condition);
     bool  TryMove          (int id, Word first);
     bool  TrySetResolved   (int id, std::optional<Word> routine);
     bool  HasBrk           () const;
@@ -137,9 +138,10 @@ public:
                             int                           & hitId,
                             std::optional<int32_t>        & conditionValue);
 
-    //  True when an enabled Interrupt entry stops, the CPU having just taken
-    //  an interrupt. Counts hits as TryMatchBeforeInstruction does.
-    bool  TryMatchInterrupt (int & hitId);
+    //  True when an enabled Interrupt entry whose IF expression is true
+    //  stops, the CPU having just taken an interrupt. Counts hits as
+    //  TryMatchBeforeInstruction does.
+    bool  TryMatchInterrupt (const IDebugExpressionContext & context, int & hitId);
 
     //  True when an enabled Disk entry that isMatch accepts, its IF
     //  expression, if any, being true, stops. Every such entry counts the
@@ -161,11 +163,12 @@ public:
     bool  IsStopOnWrite    (Word address, Byte value, const IDebugExpressionContext & context) const;
     bool  IsDiskStop       (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const;
 
-    //  True when an enabled Applesoft entry that isMatch accepts stops. Every
-    //  such entry counts the hit; hitId receives the lowest id of the ones
-    //  that stop. IsBasicStop is the same for a replay, counting nothing.
-    bool  TryMatchBasic    (const std::function<bool (const Breakpoint &)> & isMatch, int & hitId);
-    bool  IsBasicStop      (const std::function<bool (const Breakpoint &)> & isMatch) const;
+    //  True when an enabled Applesoft entry that isMatch accepts, its IF
+    //  expression true, stops. Every such entry counts the hit; hitId
+    //  receives the lowest id of the ones that stop. IsBasicStop is the same
+    //  for a replay, counting nothing.
+    bool  TryMatchBasic    (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context, int & hitId);
+    bool  IsBasicStop      (const std::function<bool (const Breakpoint &)> & isMatch, const IDebugExpressionContext & context) const;
 
     //  The IF expression's value from the last stop TryMatchBeforeInstruction
     //  reported, when the entry had one.

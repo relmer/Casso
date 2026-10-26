@@ -52,6 +52,28 @@ bool AutoStatePolicy::ShouldResumeOnSwitch (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AutoStatePolicy::IsRebuild
+//
+//  A switch to the machine already running, in any case, rebuilds it, as a
+//  settings change that requires a reboot does. Its automatic state is neither
+//  written nor resumed, since the state is the old hardware's and the
+//  rebuild is a cold boot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AutoStatePolicy::IsRebuild (
+    const std::wstring  & currentMachine,
+    const std::wstring  & targetMachine)
+{
+    return !currentMachine.empty() && _wcsicmp (currentMachine.c_str(), targetMachine.c_str()) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AutoStatePolicy::GetSaveAction
 //
 //  With the setting on, the machine's state is written at exit and on a

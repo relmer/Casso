@@ -1173,8 +1173,9 @@ void DxuiHexView::SetCellSizeDip (int widthDip, int heightDip)
 {
     assert (widthDip > 0 && heightDip > 0);
 
-    m_cellWidthDip  = (std::max) (widthDip,  0);
-    m_cellHeightDip = (std::max) (heightDip, 0);
+    m_cellWidthDip   = (std::max) (widthDip,  0);
+    m_cellHeightDip  = (std::max) (heightDip, 0);
+    m_isCellMeasured = false;
 
     RecomputeRowWidth();
     ClampTopRow();
@@ -2763,6 +2764,15 @@ void DxuiHexView::OnFocusEntered (bool forward)
 
 void DxuiHexView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    //  A cell measured at another DPI is measured again on the next paint,
+    //  so the rows and columns fit text drawn at this one.
+    if (m_isCellMeasured && scaler.GetDpi() != m_scaler.GetDpi())
+    {
+        m_cellWidthDip   = 0;
+        m_cellHeightDip  = 0;
+        m_isCellMeasured = false;
+    }
+
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 
@@ -2949,6 +2959,7 @@ void DxuiHexView::EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & t
     }
 
     SetCellSizeDip ((int) ((width / 8.0f) + 0.5f), (int) (height + 0.5f));
+    m_isCellMeasured = true;
 }
 
 

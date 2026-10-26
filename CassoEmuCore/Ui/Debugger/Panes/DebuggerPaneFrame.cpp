@@ -23,6 +23,44 @@ void DebuggerPaneFrame::AddPart (IDxuiControl * control, HeightFn height, ShownF
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerPaneFrame::SetPartBeside
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerPaneFrame::SetPartBeside (IDxuiControl * control, IDxuiControl * beside, WidthFn width)
+{
+    for (Part & part : m_parts)
+    {
+        if (part.control == control)
+        {
+            part.beside = beside;
+            part.width  = width;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerPaneFrame::AddOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerPaneFrame::AddOverlay (IDxuiControl * control, int widthDip, HeightFn height, ShownFn shown)
+{
+    AddPart (control, std::move (height), std::move (shown));
+    m_parts.back().overlayDip = widthDip;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerPaneFrame::SetPartInsetDip
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,6 +189,7 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
     int                side    = 0;
     bool               hasFill = false;
     std::vector<int>   heights;
+    RECT               filled  = boundsDip;
 
 
 
@@ -162,11 +201,12 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
 
     for (size_t i = 0; i < m_parts.size(); i++)
     {
-        bool  on = IsPartShown (m_parts[i]);
+        bool  on   = IsPartShown (m_parts[i]);
+        long  left = 0;
 
         m_parts[i].control->SetVisible (on);
 
-        if (!on)
+        if (!on || m_parts[i].beside != nullptr || m_parts[i].overlayDip > 0)
         {
             continue;
         }
@@ -174,8 +214,73 @@ void DebuggerPaneFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & sc
         inset      = scaler.ToPx (m_parts[i].insetDip);
         side       = GetSideInsetPx (m_parts[i], scaler);
         heights[i] = (m_parts[i].height != nullptr) ? heights[i] : fill;
-        m_parts[i].control->Layout (RECT { boundsDip.left + side, y + inset, boundsDip.right - side, y + heights[i] }, scaler);
+        left       = boundsDip.left + side;
+
+        //  A part beside this one takes the left of its place.
+        for (const Part & besidePart : m_parts)
+        {
+            int  besideSide  = 0;
+            int  besideInset = 0;
+            int  besideWidth = 0;
+
+            if (besidePart.beside != m_parts[i].control || !IsPartShown (besidePart))
+            {
+                continue;
+            }
+
+            besideSide  = GetSideInsetPx (besidePart, scaler);
+            besideInset = scaler.ToPx (besidePart.insetDip);
+            besideWidth = std::max (0, besidePart.width (heights[i] - besideInset, scaler));
+
+            besidePart.control->Layout (RECT { boundsDip.left + besideSide, y + besideInset, boundsDip.left + besideSide + besideWidth, y + heights[i] }, scaler);
+            left = std::max (left, (long) (boundsDip.left + besideSide + besideWidth + gap));
+        }
+
+        m_parts[i].control->Layout (RECT { left, y + inset, boundsDip.right - side, y + heights[i] }, scaler);
+        filled = (m_parts[i].height == nullptr) ? RECT { left, y + inset, boundsDip.right - side, y + heights[i] } : filled;
         y += heights[i] + gap;
+    }
+
+    LayOutOverlays (filled, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerPaneFrame::LayOutOverlays
+//
+//  Each visible overlay centered over the part that fills, a gap in from its
+//  sides.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerPaneFrame::LayOutOverlays (const RECT & filled, const DxuiDpiScaler & scaler)
+{
+    int  gap = scaler.ToPx (kGapDip);
+
+
+
+    for (const Part & part : m_parts)
+    {
+        int  width  = 0;
+        int  height = 0;
+        int  left   = 0;
+        int  top    = 0;
+
+        if (part.overlayDip <= 0 || !IsPartShown (part))
+        {
+            continue;
+        }
+
+        width  = std::max (0, std::min<int> (scaler.ToPx (part.overlayDip), (filled.right - filled.left) - 2 * gap));
+        height = (part.height != nullptr) ? part.height (width, scaler) : 0;
+        left   = (filled.left + filled.right - width) / 2;
+        top    = (filled.top + filled.bottom - height) / 2;
+
+        part.control->Layout (RECT { left, top, left + width, top + height }, scaler);
     }
 }
 
@@ -211,7 +316,7 @@ int DebuggerPaneFrame::MeasureFixedParts (
 
     for (size_t i = 0; i < m_parts.size(); i++)
     {
-        if (!IsPartShown (m_parts[i]))
+        if (!IsPartShown (m_parts[i]) || m_parts[i].beside != nullptr || m_parts[i].overlayDip > 0)
         {
             continue;
         }

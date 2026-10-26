@@ -151,6 +151,90 @@ public:
 
 
 
+    //  A Tab from the hint row's Start to its End adds nothing, though Start
+    //  is the only required column; the row goes to the add callback once
+    //  the edit moves out of the row.
+    TEST_METHOD (TheHintRowIsCheckedOnlyOnLeavingIt)
+    {
+        Host  host;
+        int   hint = (int) host.rows.size();
+
+
+
+        Assert::IsTrue (host.grid.BeginEdit (hint, 1));
+
+        for (wchar_t ch : std::wstring (L"$300"))
+        {
+            host.grid.OnChar (ch);
+        }
+
+        host.Key (VK_TAB);
+        Assert::IsTrue   (host.adds.empty(), L"checked before the edit left the row");
+        Assert::AreEqual (2, host.grid.GetEditColumn());
+
+        host.Key (VK_TAB);
+        Assert::AreEqual ((size_t) 1, host.adds.size(), L"leaving the row adds it");
+    }
+
+
+
+    //  Up and Down move an edit to the same column of the row above or
+    //  below, committing it; a read-only row is skipped by neither, so the
+    //  edit does not move onto it.
+    TEST_METHOD (UpAndDownMoveTheEditBetweenRows)
+    {
+        Host  host;
+
+
+
+        Assert::IsTrue (host.grid.BeginEdit (0, 1));
+
+        host.Key (VK_DOWN);
+        Assert::AreEqual (1, host.grid.GetEditRow());
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+
+        host.Key (VK_DOWN);
+        Assert::AreEqual (1, host.grid.GetEditRow(), L"the read-only row takes no edit");
+
+        host.Key (VK_UP);
+        Assert::AreEqual (0, host.grid.GetEditRow());
+
+        host.Key (VK_UP);
+        Assert::AreEqual (0, host.grid.GetEditRow(), L"nothing above the first row");
+    }
+
+
+
+    //  Tab skips a row's read-only cell and goes on into the next row.
+    TEST_METHOD (TabSkipsReadOnlyCellsAndWraps)
+    {
+        Host                                     host;
+        std::vector<DxuiEditableGrid::GridRow>   rows;
+        DxuiEditableGrid::GridRow                row;
+
+
+
+        for (int r = 0; r < 2; r++)
+        {
+            row.cells         = { { L"A" }, { L"$0" }, { L"$1" } };
+            row.readOnlyCells = { false, false, true };
+            rows.push_back (row);
+        }
+
+        host.grid.SetGridRows (std::move (rows));
+        Assert::IsTrue (host.grid.BeginEdit (0, 1));
+
+        host.Key (VK_TAB);
+        Assert::AreEqual (1, host.grid.GetEditRow(), L"the read-only End was skipped into the next row");
+        Assert::AreEqual (0, host.grid.GetEditColumn());
+
+        host.Key (VK_TAB, true);
+        Assert::AreEqual (0, host.grid.GetEditRow());
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+    }
+
+
+
     TEST_METHOD (TheLastRowIsAHintToAddARow)
     {
         Host  host;
@@ -278,6 +362,30 @@ public:
 
 
 
+    //  Up from the hint row goes nowhere once any of its columns has text,
+    //  not only the one being edited: the row's text is not dropped.
+    TEST_METHOD (UpFromAHintRowWithTextInAnotherColumnStays)
+    {
+        Host  host;
+
+
+
+        //  The row above the hint row takes an edit, so Up has somewhere to go.
+        host.readOnly[2] = false;
+        host.Refresh();
+
+        host.grid.BeginEdit (3, 0);
+        host.grid.GetEditor().SetText (L"Game");
+        host.Key (VK_TAB);
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+
+        host.Key (VK_UP);
+
+        Assert::AreEqual (3, host.grid.GetEditRow(), L"the edit stays on the hint row");
+        Assert::AreEqual (std::wstring (L"Game"), host.grid.GetPendingTexts()[0], L"and the text typed in its first column");
+    }
+
+
     TEST_METHOD (EscapeDropsANewRow)
     {
         Host  host;
@@ -293,6 +401,49 @@ public:
         Assert::IsFalse  (host.grid.IsEditing());
         Assert::IsTrue   (host.grid.GetPendingTexts()[0].empty());
         Assert::AreEqual (std::wstring (L"Add new range"), host.grid.GetCellsOfRow (3)[1].text);
+    }
+
+
+
+    //  An edit of the hint row left with a required column empty marks that
+    //  column and reports it; Escape on the row discards it and the mark.
+    TEST_METHOD (ANewRowLeftWithoutItsRequiredColumnMarksIt)
+    {
+        Host  host;
+
+
+
+        host.grid.BeginEdit (3, 0);
+        host.grid.GetEditor().SetText (L"Game");
+        (void) host.grid.EndEdit (true);
+
+        Assert::IsFalse  (host.grid.IsEditing(), L"the edit ends");
+        Assert::IsTrue   (host.adds.empty(), L"a row with no start was added");
+        Assert::IsTrue   (host.grid.GetMissingColumns().size() > 1 && host.grid.GetMissingColumns()[1], L"the start is not marked");
+        Assert::IsFalse  (host.grid.GetMissingColumns()[0], L"the name is marked");
+        Assert::AreEqual (std::wstring (L"Start is required."), host.error);
+
+        host.grid.BeginEdit (3, 1);
+        host.Key (VK_ESCAPE);
+
+        Assert::IsTrue (host.grid.GetMissingColumns().empty(), L"the mark outlived the row");
+        Assert::IsTrue (host.grid.GetPendingTexts()[0].empty(), L"the row was not discarded");
+    }
+
+
+
+    //  An edit of the hint row left with nothing typed marks nothing.
+    TEST_METHOD (AnEmptyNewRowLeftAtOnceMarksNothing)
+    {
+        Host  host;
+
+
+
+        host.grid.BeginEdit (3, 0);
+        (void) host.grid.EndEdit (true);
+
+        Assert::IsFalse (std::ranges::any_of (host.grid.GetMissingColumns(), [] (bool isMissing) { return isMissing; }));
+        Assert::IsTrue  (host.error.empty());
     }
 
 
@@ -372,6 +523,48 @@ public:
         Assert::AreEqual (2, host.moves[0].second);
     }
 
+
+
+    TEST_METHOD (AReadOnlyCellIsNotEditedButTheRestOfItsRowIs)
+    {
+        Host                                    host;
+        std::vector<DxuiEditableGrid::GridRow>  rows (1);
+
+
+
+        rows[0].cells         = { { L"A" }, { L"$0" }, { L"$FF" } };
+        rows[0].readOnlyCells = { true };
+        host.grid.SetGridRows (std::move (rows));
+
+        host.Click (0, 0);
+        Assert::IsFalse  (host.grid.IsEditing(), L"the read-only cell opened");
+
+        host.Click (0, 1);
+        Assert::IsTrue   (host.grid.IsEditing(), L"the row's other cells edit");
+        Assert::AreEqual (1, host.grid.GetEditColumn());
+    }
+
+
+
+    TEST_METHOD (RowsThatCannotMoveHaveNoGripper)
+    {
+        DxuiEditableGrid  grid;
+        DxuiDpiScaler     scaler;
+        POINT             at = {};
+
+
+
+        scaler.SetDpi (96);
+        grid.SetRowsMovable (false);
+        grid.SetGridColumns ({ { { L"Name", 120 } } });
+        grid.SetGridRows    ({ { { { L"A" } } }, { { { L"B" } } } });
+        grid.Layout         (RECT { 0, 0, 400, 300 }, scaler);
+
+        at.x = grid.GetPaneLeadPx() + 2;
+
+        Assert::IsFalse (grid.IsColumnVisible (0), L"the gripper's column is shown");
+        Assert::AreEqual (0, grid.GetGridColumnAt (at.x), L"the first column starts at the lead");
+    }
 
 
     TEST_METHOD (AColumnsValidationKeepsTheBoxOpen)

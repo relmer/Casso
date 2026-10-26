@@ -104,7 +104,7 @@ namespace DebuggerBeamMenuTests
         using DebuggerWindow::SetWindowMenus;
         using DebuggerWindow::GetMenuBarItems;
         using DebuggerWindow::GetCommandBar;
-        using DebuggerWindow::GetConsoleBar;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::GetViewMenuPanes;
         using DebuggerWindow::GetPaneLayout;

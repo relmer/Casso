@@ -19,7 +19,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  The registers, stack, memory and watch panes' Undo and Redo say what they
 //  act on, in the context menu and in the toolbar's tips, quoting it: Undo
-//  "changed 2 bytes at $0300". A memory window's bar carries Undo and Redo buttons.
+//  "change 2 bytes at $0300". A memory window's bar has Undo and Redo buttons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,10 +43,10 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::wstring(), model.GetUndoText());
             Assert::IsTrue   (model.WriteBytes (0x0300, data));
-            Assert::AreEqual (std::wstring (L"Undo \"changed 2 bytes at $0300\""), DebuggerWindow::GetUndoLabel (false, model.GetUndoText()));
+            Assert::AreEqual (std::wstring (L"Undo change 2 bytes at $0300"), DebuggerWindow::GetUndoLabel (false, model.GetUndoText()));
 
             Assert::IsTrue   (model.Undo());
-            Assert::AreEqual (std::wstring (L"Redo \"changed 2 bytes at $0300\""), DebuggerWindow::GetUndoLabel (true, model.GetRedoText()));
+            Assert::AreEqual (std::wstring (L"Redo change 2 bytes at $0300"), DebuggerWindow::GetUndoLabel (true, model.GetRedoText()));
         }
 
 
@@ -57,10 +57,10 @@ namespace DebuggerTests
 
 
             history.Record (0x01FD, 0x12, 0x34, 0x0300);
-            Assert::AreEqual (std::wstring (L"changed 1 byte at $01FD"), history.GetUndoText());
+            Assert::AreEqual (std::wstring (L"change 1 byte at $01FD"), history.GetUndoText());
 
             (void) history.TryUndo (CommandMode::AppleWin);
-            Assert::AreEqual (std::wstring (L"changed 1 byte at $01FD"), history.GetRedoText());
+            Assert::AreEqual (std::wstring (L"change 1 byte at $01FD"), history.GetRedoText());
             Assert::AreEqual (std::wstring(),                            history.GetUndoText());
         }
 
@@ -72,7 +72,7 @@ namespace DebuggerTests
 
 
             history.Record ("S", 0xF0, 0x80, 0x0300);
-            Assert::AreEqual (std::wstring (L"Undo \"changed register S\""), DebuggerWindow::GetUndoLabel (false, history.GetUndoText()));
+            Assert::AreEqual (std::wstring (L"Undo change register S"), DebuggerWindow::GetUndoLabel (false, history.GetUndoText()));
         }
 
 
@@ -86,9 +86,9 @@ namespace DebuggerTests
             line.label = "A";
             snapshot.autoWatches.push_back (line);
 
-            Assert::AreEqual (std::wstring (L"moved watch 3"),   WatchHistory::GetEditText (snapshot, 3, std::nullopt, 0));
-            Assert::AreEqual (std::wstring (L"changed watch 3"), WatchHistory::GetEditText (snapshot, 3, std::nullopt, 1));
-            Assert::AreEqual (std::wstring (L"changed A"),       WatchHistory::GetEditText (snapshot, std::nullopt, 0, 1));
+            Assert::AreEqual (std::wstring (L"move watch 3"),   WatchHistory::GetEditText (snapshot, 3, std::nullopt, 0));
+            Assert::AreEqual (std::wstring (L"change watch 3"), WatchHistory::GetEditText (snapshot, 3, std::nullopt, 1));
+            Assert::AreEqual (std::wstring (L"change A"),       WatchHistory::GetEditText (snapshot, std::nullopt, 0, 1));
         }
 
 

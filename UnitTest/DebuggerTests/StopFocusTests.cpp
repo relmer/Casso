@@ -94,7 +94,7 @@ namespace StopFocusTests
         }
 
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetCommandBox;
+        using DebuggerWindow::GetConsolePane;
         using DebuggerWindow::GetPaneOfFocus;
         using DebuggerWindow::OnWindowFocusChanged;
 
@@ -210,7 +210,7 @@ namespace StopFocusTests
 
 
 
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
             window.ClickRun();
             window.RunAndStop();
 
@@ -226,7 +226,7 @@ namespace StopFocusTests
 
 
 
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
             window.TypeInFocus (L'g');
             window.RunAndStop();
 
@@ -242,7 +242,7 @@ namespace StopFocusTests
 
 
 
-            window.FocusControl (window.GetCommandBox());
+            window.FocusControl (window.GetConsolePane().GetCommandLine().GetBox());
             window.TypeInFocus (L'g');
             window.OnWindowFocusChanged (false);
             window.RunAndStop();

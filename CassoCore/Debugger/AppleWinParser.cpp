@@ -279,6 +279,13 @@ bool AppleWinParser::TryParseMoveShorthand (const std::string & upper, const Arg
                            TryEvaluate (upper.substr (less + 1, period - less - 1), *args.context, result.command.a1, result.error) &&
                            TryEvaluate (upper.substr (period + 1, upper.size() - period - 2), *args.context, result.command.a2, result.error)
                          ? ParseStatus::Ok : ParseStatus::Invalid;
+
+    if (result.status == ParseStatus::Ok && result.command.a2 < result.command.a1)
+    {
+        result.status = ParseStatus::Invalid;
+        result.error  = std::format ("The range ends at ${:04X}, before its start at ${:04X}.", result.command.a2, result.command.a1);
+    }
+
     return true;
 }
 
@@ -508,11 +515,17 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
     static constexpr std::string_view  kOperators = "<>=!";
     Arguments                          args          = source;
     bool                               isConditional = !args.tokens.empty() && kOperators.find (args.tokens[0][0]) != std::string_view::npos;
-    bool                               takesIf       = command.verb == DebugVerb::SetMemoryWatchpoint ||
-                                                       command.verb == DebugVerb::SetReadWatchpoint   ||
-                                                       command.verb == DebugVerb::SetWriteWatchpoint  ||
-                                                       command.verb == DebugVerb::SetValueBreakpoint  ||
-                                                       command.verb == DebugVerb::SetDiskBreakpoint   ||
+    bool                               takesIf       = command.verb == DebugVerb::SetMemoryWatchpoint        ||
+                                                       command.verb == DebugVerb::SetReadWatchpoint          ||
+                                                       command.verb == DebugVerb::SetWriteWatchpoint         ||
+                                                       command.verb == DebugVerb::SetValueBreakpoint         ||
+                                                       command.verb == DebugVerb::SetDiskBreakpoint          ||
+                                                       command.verb == DebugVerb::BreakOnOpcode              ||
+                                                       command.verb == DebugVerb::BreakOnBrk                 ||
+                                                       command.verb == DebugVerb::BreakOnInterrupt           ||
+                                                       command.verb == DebugVerb::SetBasicLineBreakpoint     ||
+                                                       command.verb == DebugVerb::SetBasicVariableBreakpoint ||
+                                                       command.verb == DebugVerb::BreakOnBasicError          ||
                                                        (command.verb == DebugVerb::SetBreakpoint && !isConditional);
     bool                               takesOne      = command.verb == DebugVerb::SetBreakpointAndWatchpoint ||
                                                        command.verb == DebugVerb::ClearBreakpoint            ||
@@ -539,7 +552,9 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
     }
 
     // A comparison is the whole condition; IF would be read as part of its value.
+    // BPR IF, with IF first, is a condition of any form.
     if (!takesIf && (isConditional || command.verb == DebugVerb::SetRegisterBreakpoint) &&
+        !(command.verb == DebugVerb::SetRegisterBreakpoint && !args.tokens.empty() && isIf (args.tokens[0])) &&
         std::find_if (args.tokens.begin(), args.tokens.end(), isIf) != args.tokens.end())
     {
         error = std::format ("{} with a comparison does not take IF.", ToUpper (command.sourceName));
@@ -565,6 +580,12 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
 
     case DebugVerb::SetBreakpointAndWatchpoint:
     case DebugVerb::BreakOnVideoLine:
+        if (command.verb == DebugVerb::BreakOnVideoLine && args.tokens.size() == 1 && ToUpper (args.tokens[0]) == "OFF")
+        {
+            command.text = "OFF";
+            return true;
+        }
+
         if (args.tokens.empty())
         {
             error = std::format ("{} needs an address.", ToUpper (command.sourceName));
@@ -606,7 +627,12 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         return TryParseValueBreakpoint (args, command, error);
 
     case DebugVerb::SetRegisterBreakpoint:
-        return TryParseRegisterCondition (args.tokens, command, error);
+        if (!args.tokens.empty() && isIf (args.tokens[0]))
+        {
+            return TryParseFreeCondition (Join (args.tokens, 1), command, error, args.context->GetNumberSyntax());
+        }
+
+        return TryParseRegisterCondition (args.tokens, command, error, args.context->GetNumberSyntax());
 
     case DebugVerb::BreakOnOpcode:
         return TryParseOpcodes (args, command, error);
@@ -651,8 +677,9 @@ bool AppleWinParser::TryParseBreakpointArguments (const Arguments & source, Debu
         command.text = args.rest;
         return true;
 
+    //  An IF clause is parsed above; the text is what comes before it.
     default:
-        command.text = ToUpper (args.rest);
+        command.text = ToUpper (takesIf ? CutIfClause (args.rest) : args.rest);
         return true;
     }
 }
@@ -745,6 +772,49 @@ bool AppleWinParser::TryParseIfClause (Tokens & tokens, DebugCommand & command, 
 
     hr = DebugExpressionEvaluator::Parse (expression, command.expression, error, syntax);
     return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppleWinParser::CutIfClause
+//
+//  The text before a word IF, its trailing spaces taken off; all of it when
+//  there is no IF.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AppleWinParser::CutIfClause (const std::string & text)
+{
+    std::string  upper = ToUpper (text);
+    size_t       at    = 0;
+
+
+
+    while ((at = upper.find ("IF", at)) != std::string::npos)
+    {
+        bool  isStart = at == 0 || isspace ((unsigned char) upper[at - 1]);
+        bool  isEnd   = at + 2 == upper.size() || isspace ((unsigned char) upper[at + 2]);
+
+
+
+        if (isStart && isEnd)
+        {
+            std::string  head = text.substr (0, at);
+            size_t       end  = head.find_last_not_of (" \t");
+
+
+
+            return (end == std::string::npos) ? std::string() : head.substr (0, end + 1);
+        }
+
+        at += 2;
+    }
+
+    return text;
 }
 
 
@@ -847,7 +917,8 @@ bool AppleWinParser::IsMnemonicToken (const std::string & token)
 //
 //  AppleWinParser::TryParseValueBreakpoint
 //
-//  BPMV addr value: stop when a write leaves addr holding value.
+//  BPMV addr[,len|:last] value: stop after a write sets a byte of the range to
+//  value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -860,12 +931,18 @@ bool AppleWinParser::TryParseValueBreakpoint (const Arguments & args, DebugComma
 
     if (args.tokens.size() != 2)
     {
-        error = "BPMV needs an address and a byte value.";
+        error = "BPMV needs an address or a range, and a byte value.";
         return false;
     }
 
-    if (!TryEvaluate (args.tokens[0], *args.context, command.a1, error) || !TryEvaluate (args.tokens[1], *args.context, value, error))
+    if (!TryParseRange (args.tokens[0], *args.context, command, error) || !TryEvaluate (args.tokens[1], *args.context, value, error))
     {
+        return false;
+    }
+
+    if (command.hasA2 && command.a2 < command.a1)
+    {
+        error = "The range ends before it starts or runs past $FFFF, so nothing could ever match it.";
         return false;
     }
 
@@ -894,7 +971,7 @@ bool AppleWinParser::TryParseValueBreakpoint (const Arguments & args, DebugComma
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error)
+bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax)
 {
     static constexpr const char * kRegisters[] = { "A", "X", "Y", "P", "S", "PC" };
     std::string  joined = Join (tokens, 0);
@@ -920,10 +997,10 @@ bool AppleWinParser::TryParseRegisterCondition (const Tokens & tokens, DebugComm
 
     if (op == std::string::npos)
     {
-        return TryParseCondition (command.text, tokens, 1, command, error);
+        return TryParseCondition (command.text, tokens, 1, command, error, syntax);
     }
 
-    return TryParseCondition (command.text, Split (joined.substr (op)), 0, command, error);
+    return TryParseCondition (command.text, Split (joined.substr (op)), 0, command, error, syntax);
 }
 
 
@@ -954,7 +1031,7 @@ bool AppleWinParser::TryParseWatchpointArguments (const Arguments & args, DebugC
 
         if (command.text != "BEFORE" && command.text != "AFTER")
         {
-            error = "A watchpoint's mode is BEFORE or AFTER.";
+            error = "A data breakpoint's mode is BEFORE or AFTER.";
             return false;
         }
     }
@@ -970,20 +1047,20 @@ bool AppleWinParser::TryParseWatchpointArguments (const Arguments & args, DebugC
 //
 //  AppleWinParser::TryParseBeamArguments
 //
-//  `BPBEAM line cycle` or `BPBEAM VBL`. VBL is held in text; the handler
-//  turns it into the frame's first blanked scanline.
+//  `BPBEAM line cycle`, `BPBEAM VBL` or `BPBEAM OFF`. VBL and OFF are put in
+//  the text; the handler turns VBL into the frame's first blanked scanline.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AppleWinParser::TryParseBeamArguments (const Arguments & args, DebugCommand & command, std::string & error)
 {
-    bool  isVbl = args.tokens.size() == 1 && ToUpper (args.tokens[0]) == "VBL";
+    std::string  word = (args.tokens.size() == 1) ? ToUpper (args.tokens[0]) : std::string();
 
 
 
-    if (isVbl)
+    if (word == "VBL" || word == "OFF")
     {
-        command.text = "VBL";
+        command.text = word;
         return true;
     }
 
@@ -1354,6 +1431,15 @@ bool AppleWinParser::TryParseListArguments (const Arguments & args, DebugCommand
         }
 
         command.hasA1 = !args.tokens.empty();
+
+        //  With EXPR, the text after it is the watch, resolved once to what
+        //  it is: a register, a symbol or an expression, read at each stop.
+        if (command.verb == DebugVerb::AddWatch && args.tokens.size() > 1 && ToUpper (args.tokens[0]) == "EXPR")
+        {
+            command.text         = args.rest.substr (args.rest.find_first_not_of (" \t", args.tokens[0].size()));
+            command.isTypedWatch = true;
+            return true;
+        }
 
         //  A watch's text also goes to the session, which reads it as a BASIC
         //  variable where it is one; text that is not an address may be one.
@@ -2454,6 +2540,34 @@ bool AppleWinParser::TryParseIdOrAll (const Tokens & tokens, DebugCommand & comm
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AppleWinParser::TryParseFreeCondition
+//
+//  The whole text as one expression, as an IF clause is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleWinParser::TryParseFreeCondition (const std::string & text, DebugCommand & command, std::string & error, NumberSyntax syntax)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    if (text.find_first_not_of (" \t") == std::string::npos)
+    {
+        error = "BPR IF needs a condition.";
+        return false;
+    }
+
+    hr = DebugExpressionEvaluator::Parse (text, command.expression, error, syntax);
+    return SUCCEEDED (hr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppleWinParser::TryParseCondition
 //
 //  `[op] value` against subject, where op is = ! < > <= >= and defaults to
@@ -2495,6 +2609,16 @@ bool AppleWinParser::TryParseCondition (
         return false;
     }
 
-    hr = DebugExpressionEvaluator::Parse (subject + op + rest, command.expression, error, syntax);
+    //  Parsed as @subject, so a symbol of the register's name is never read
+    //  for it, and with the value in parentheses, so an operator in it that
+    //  binds looser than the comparison stays in the value. The text stays
+    //  as typed, which listings and saved definitions are built from.
+    hr = DebugExpressionEvaluator::Parse ("@" + subject + op + "(" + rest + ")", command.expression, error, syntax);
+
+    if (SUCCEEDED (hr))
+    {
+        command.expression.text = subject + op + rest;
+    }
+
     return SUCCEEDED (hr);
 }

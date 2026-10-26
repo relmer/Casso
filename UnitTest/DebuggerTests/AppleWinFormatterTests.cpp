@@ -246,9 +246,9 @@ namespace DebuggerTests
             budget.reason = StopReason::Budget;
             budget.pc     = 0xFCA8;
 
-            Assert::AreEqual (std::string ("Watchpoint #1: Write $41 to $0400 by $0803 (was $A0)"),     AppleWinFormatter::FormatStop (write));
-            Assert::AreEqual (std::string ("Watchpoint #2: Read $80 from $C019 by $0303"),             AppleWinFormatter::FormatStop (read));
-            Assert::AreEqual (std::string ("Watchpoint #3: write of $C030 by $0810, before the access"), AppleWinFormatter::FormatStop (before));
+            Assert::AreEqual (std::string ("Data breakpoint #1: Write $41 to $0400 by $0803 (was $A0)"),     AppleWinFormatter::FormatStop (write));
+            Assert::AreEqual (std::string ("Data breakpoint #2: Read $80 from $C019 by $0303"),             AppleWinFormatter::FormatStop (read));
+            Assert::AreEqual (std::string ("Data breakpoint #3: write of $C030 by $0810, before the access"), AppleWinFormatter::FormatStop (before));
             Assert::AreEqual (std::string ("Breakpoint #0 at $0300"),                                    AppleWinFormatter::FormatStop (breakpoint));
             Assert::AreEqual (std::string ("Budget at $FCA8"),                                           AppleWinFormatter::FormatStop (budget));
         }

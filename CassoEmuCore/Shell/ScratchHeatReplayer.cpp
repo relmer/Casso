@@ -481,7 +481,7 @@ HRESULT ScratchHeatReplayer::Replay (
     m_map.Stop();
     m_map.SetPositionSource (machine->GetPositionPtr());
     m_map.SetFadeSeconds    (job.fadeSeconds);
-    m_map.Start             (cpu->GetCpu6502()->GetInstructionSet(), cpu->GetTotalCycles());
+    m_map.Start             (cpu->GetCpu6502()->GetInstructionSet(), cpu->GetHistoryCycles());
     m_map.SetCountFrom      (job.countFrom);
     m_map.SetKeptBits    (part.kept);
 
@@ -489,7 +489,7 @@ HRESULT ScratchHeatReplayer::Replay (
     CBRA (isConnected);
 
     before = replayer->GetReplayedCount();
-    cycle  = cpu->GetTotalCycles();
+    cycle  = cpu->GetHistoryCycles();
 
     while (machine->GetPosition() < part.endPosition)
     {
@@ -502,7 +502,7 @@ HRESULT ScratchHeatReplayer::Replay (
         hr = replayer->RunTo (target, part.endPosition, nullptr, report);
         CHR (hr);
 
-        cycle = cpu->GetTotalCycles();
+        cycle = cpu->GetHistoryCycles();
 
         if (cycle >= frameEnd)
         {

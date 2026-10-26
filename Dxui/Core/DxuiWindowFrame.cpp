@@ -25,6 +25,14 @@ RECT DxuiWindowFrame::GetVisibleRect (HWND hwnd)
         return rect;
     }
 
+    //  A hidden window has no composited frame. DWM can report the frame of
+    //  the window as it was created, which after a move or resize differs
+    //  from the window by any amount, and would read as a border that wide.
+    if (!IsWindowVisible (hwnd))
+    {
+        return rect;
+    }
+
     hr = DwmGetWindowAttribute (hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &visible, sizeof (visible));
 
     //  An empty answer is no answer: DWM reports zeros for a window that has

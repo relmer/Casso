@@ -39,6 +39,8 @@ public:
     static constexpr const wchar_t * kHeatRanges  = L"heatranges";
     static constexpr const wchar_t * kDiskLog     = L"disklog";
     static constexpr const wchar_t * kInputLog    = L"inputlog";
+    static constexpr const wchar_t * kVideoLog    = L"videolog";
+    static constexpr const wchar_t * kSoundLog    = L"soundlog";
     static constexpr const wchar_t * kBasicProgram   = L"basicprogram";
     static constexpr const wchar_t * kSymbols        = L"symbols";
     static constexpr const wchar_t * kBookmarks      = L"bookmarks";
@@ -47,6 +49,15 @@ public:
 
     //  The Symbols, Bookmarks, Profiler and data ranges panes.
     static std::vector<std::wstring>  GetToolPaneIds ();
+
+    //  Where a pane's row is on the View menu, lower first, none for a pane
+    //  the menu has no row for: the Disassembly views and the source
+    //  documents, then the tool windows, then the device panels. And the
+    //  cascade a row goes in, the views, the memory windows and the device
+    //  panels each one of their own; empty for a row of View itself.
+    static std::optional<int>         GetViewMenuRank  (const std::wstring & pane);
+    static std::wstring               GetViewMenuGroup (const std::wstring & pane);
+    static constexpr int              kDevicePanelRank = 200;
 
     //  The BASIC program pane and the tool panes stay closed until each is
     //  first opened; the open-views text has " open=" and the pane once it

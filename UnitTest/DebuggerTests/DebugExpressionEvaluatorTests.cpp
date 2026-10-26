@@ -327,6 +327,36 @@ namespace DebuggerTests
 
 
 
+        //  A result past 32 bits is an error, never a wrapped value or a
+        //  hardware fault; checking a condition passes it, as it passes a
+        //  zero divisor, since the values at a hit can differ.
+        TEST_METHOD (OverflowIsAnError)
+        {
+            MockExpressionContext  context;
+            Expression             expression;
+            std::string            error;
+            int32_t                value = 0;
+            HRESULT                hr    = S_OK;
+
+
+
+            ExpectError (context, "10000*10000",       "overflows");
+            ExpectError (context, "7FFFFFFF+1",        "overflows");
+            ExpectError (context, "0-7FFFFFFF-2",      "overflows");
+            ExpectError (context, "-80000000",         "overflows");
+            ExpectError (context, "80000000/FFFFFFFF", "overflows");
+            Expect      (context, "80000000%FFFFFFFF", 0);
+            Expect      (context, "FFFFFFFF+1",        0);
+
+            hr = DebugExpressionEvaluator::Parse ("10000*10000", expression, error);
+            Assert::AreEqual (S_OK, hr);
+
+            hr = DebugExpressionEvaluator::Evaluate (expression, context, value, error, EvaluationMode::Check);
+            Assert::AreEqual (S_OK, hr, L"a check passes an overflow");
+        }
+
+
+
         TEST_METHOD (ParsedOnce_EvaluatedAgainstCurrentState)
         {
             MockExpressionContext context;

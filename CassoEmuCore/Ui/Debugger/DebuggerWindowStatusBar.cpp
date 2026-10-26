@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "resource.h"
 
@@ -31,6 +32,7 @@ void DebuggerWindow::CreateStatusBar()
     fields[kStatusBeam].widthDip    = kStatusBeamDip;
     fields[kStatusBeam].onClick     = [this] (const RECT &) { ToggleBeamMark(); };
     fields[kStatusHistory].widthDip = kStatusHistoryDip;
+    fields[kStatusHistory].onClick  = [this] (const RECT &) { m_isHistoryPressed = true; };
     fields[kStatusSpeed].widthDip   = kStatusSpeedDip;
     fields[kStatusSpeed].onClick    = [this] (const RECT &) { m_isSpeedPressed = true; };
     fields[kStatusZoom].widthDip    = kStatusZoomDip;
@@ -199,7 +201,7 @@ void DebuggerWindow::OpenSpeedMenu (const RECT & field)
 
     for (const auto & [mode, id] : speeds)
     {
-        m_menuCommands.push_back (MakeMenuCommand (DebuggerStatusText::GetSpeedText (mode), mode == speed, [this, id] { m_host->RunEmulatorCommand (id); }));
+        m_menuCommands.push_back (DebuggerMenuCommand::Make (DebuggerStatusText::GetSpeedText (mode), mode == speed, [this, id] { m_host->RunEmulatorCommand (id); }));
         menu.push_back (DxuiPopupMenuItem::ForCommand (m_menuCommands.back()));
     }
 
@@ -305,6 +307,19 @@ bool DebuggerWindow::RouteStatusBarMouse (const DxuiMouseEvent & ev)
             {
                 return true;
             }
+        }
+    }
+
+    //  Options opens at its History page as a click on the history field
+    //  ends, so the release does not land in the dialog.
+    if (ev.kind == DxuiMouseEventKind::Up && m_isHistoryPressed)
+    {
+        m_isHistoryPressed = false;
+
+        if (m_statusBar->FindFieldAt (point) == (int) kStatusHistory)
+        {
+            OpenOptions();
+            return true;
         }
     }
 

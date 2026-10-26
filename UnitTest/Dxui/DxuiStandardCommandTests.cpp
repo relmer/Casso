@@ -169,6 +169,41 @@ public:
     }
 
 
+    //  A list whose rows come from a provider has them as a count, not
+    //  stored, and select all is offered over that count.
+    TEST_METHOD (ListView_OffersSelectAllOverProvidedRows)
+    {
+        DxuiListView  list;
+        bool          enabled = false;
+
+
+        list.SetRowProvider     (1, [] (int, std::vector<DxuiListView::Cell> & out) { out = { DxuiListView::Cell { L"a", false } }; });
+        list.SetVirtualRowCount (5);
+        list.SetMultiSelect     (true);
+
+        Assert::IsTrue (list.QueryCommand (DxuiStandardCommand::SelectAll, enabled));
+        Assert::IsTrue (enabled, L"five provided rows to select");
+        Assert::IsTrue (list.InvokeCommand (DxuiStandardCommand::SelectAll));
+        Assert::AreEqual ((size_t) 5, list.GetSelectedRows().size());
+    }
+
+
+    //  Wheel deltas under a notch, as a precision touchpad sends, add up to
+    //  whole notches, the rest added to the next delta.
+    TEST_METHOD (WheelNotchesAddUpDeltasUnderANotch)
+    {
+        DxuiWheelNotches  wheel;
+
+
+        Assert::AreEqual (0, wheel.Take (40));
+        Assert::AreEqual (0, wheel.Take (40));
+        Assert::AreEqual (1, wheel.Take (60), L"a notch, with 20 over");
+        Assert::AreEqual (0, wheel.Take (-100));
+        Assert::AreEqual (-1, wheel.Take (-60), L"back down past a notch");
+        Assert::AreEqual (2, wheel.Take (2 * WHEEL_DELTA + 40));
+    }
+
+
     TEST_METHOD (HexView_ClaimsCopyAndSelectAllButNotPaste)
     {
         DxuiHexView  view;

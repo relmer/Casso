@@ -652,7 +652,7 @@ HRESULT CallStackHistory::Continue (
 
     job->generation = result.generation;
 
-    cycle   = cpu->GetTotalCycles();
+    cycle   = cpu->GetHistoryCycles();
     limit   = (m_continuations > 0) ? kLateCatchUpCycles : kCatchUpCycles;
     isClose = cycle >= result.cycle && cycle - result.cycle <= limit;
 
@@ -712,7 +712,7 @@ bool CallStackHistory::TryInstall (const CallStackRebuildResult & result)
     }
 
     registers = cpu->GetCpu6502()->GetRegisters();
-    isSame    = result.position == m_machine.GetPosition() && result.cycle == cpu->GetTotalCycles() &&
+    isSame    = result.position == m_machine.GetPosition() && result.cycle == cpu->GetHistoryCycles() &&
                 AreSameRegisters (result.registers, registers);
 
     if (isSame)
@@ -1141,7 +1141,7 @@ bool CallStackHistory::TryMarkMove (MoveMark & outMark) const
     if (isMarked)
     {
         outMark.position = m_machine.GetPosition();
-        outMark.cycle    = cpu->GetTotalCycles();
+        outMark.cycle    = cpu->GetHistoryCycles();
         outMark.replayed = m_history->GetReplayer().GetReplayedCount();
         outMark.restores = m_history->GetReplayer().GetRestoreCount();
     }

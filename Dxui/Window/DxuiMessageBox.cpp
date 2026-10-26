@@ -137,8 +137,8 @@ class DxuiMessageBoxWindow : public DxuiDialogWindow
 public:
     struct ButtonSpec
     {
-        const wchar_t *  label = nullptr;
-        int              id    = 0;
+        std::wstring  label;
+        int           id    = 0;
     };
 
     // Rough (renderer-free) wrapped-line estimate so the dialog can be sized
@@ -282,24 +282,10 @@ DxuiWindow::CreateParams DxuiMakeMessageBoxParams (
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType)
 {
-    using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
-    wchar_t                   glyph      = 0;
-    uint32_t                  glyphArgb  = 0;
-    int                       defIndex   = 0;
-    int                       defaultCmd = 0;
-    int                       heightDip  = 0;
-    HRESULT                   hr         = S_OK;
-    int                       choice     = 0;
-    DxuiMessageBoxWindow      dlg;
-    DxuiWindow::CreateParams  params;
-    HINSTANCE                 hInst      = nullptr;
+    std::vector<DxuiMessageBoxButton>  buttons;
+    int                                defIndex = 0;
 
 
-
-    std::vector<ButtonSpec>   buttons;
-    std::wstring              body       = (text != nullptr) ? text : L"";
-    defaultCmd = IDOK;
-    choice = IDOK;
 
     switch (uType & MB_TYPEMASK)
     {
@@ -312,12 +298,57 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     }
 
     defIndex = (int) ((uType & MB_DEFMASK) >> 8);
+
     if (defIndex < 0 || defIndex >= (int) buttons.size())
     {
         defIndex = 0;
     }
 
-    defaultCmd = buttons[(size_t) defIndex].id;
+    return DxuiMessageBox (owner, theme, text, caption, uType, buttons, buttons[(size_t) defIndex].id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBox (buttons)
+//
+//  The icon mask picks a glyph and its color; the rest of uType is unused.
+//  Without a Dxui backend the system box is used instead, its OK as the
+//  first button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiMessageBox (HWND                                      owner,
+                    const IDxuiTheme                        * theme,
+                    const wchar_t                           * text,
+                    const wchar_t                           * caption,
+                    UINT                                      uType,
+                    const std::vector<DxuiMessageBoxButton>  & buttons,
+                    int                                       defaultId)
+{
+    using                     ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
+    wchar_t                   glyph      = 0;
+    uint32_t                  glyphArgb  = 0;
+    int                       heightDip  = 0;
+    HRESULT                   hr         = S_OK;
+    int                       choice     = IDCANCEL;
+    DxuiMessageBoxWindow      dlg;
+    DxuiWindow::CreateParams  params;
+    HINSTANCE                 hInst      = nullptr;
+    std::vector<ButtonSpec>   specs;
+    std::wstring              body       = (text != nullptr) ? text : L"";
+    UINT                      systemType = UINT_MAX;
+    bool                      isSystem   = false;
+
+
+
+    for (const DxuiMessageBoxButton & button : buttons)
+    {
+        specs.push_back ({ button.label, button.id });
+    }
 
     switch (uType & MB_ICONMASK)
     {
@@ -338,7 +369,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
                 ? reinterpret_cast<HINSTANCE> (GetWindowLongPtrW (owner, GWLP_HINSTANCE))
                 : GetModuleHandleW (nullptr);
 
-    dlg.Configure (body, glyph, glyphArgb, buttons);
+    dlg.Configure (body, glyph, glyphArgb, specs);
 
     params           = DxuiMakeMessageBoxParams (owner, caption, heightDip);
     params.hInstance = hInst;
@@ -348,15 +379,64 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     if (FAILED (hr))
     {
         // The Dxui backend could not be created -- fall back to the system box
-        // so the caller still gets a decision rather than a silent default.
-        choice = MessageBoxW (owner, text, caption, uType);
+        // so the caller gets a decision rather than a silent default. A set
+        // of buttons the system box has uses that system type, and its choice
+        // is returned; any other set is OK, for the first button, and Cancel.
+        systemType = DxuiGetSystemMessageBoxType (buttons);
+        isSystem   = systemType != UINT_MAX;
+        choice     = MessageBoxW (owner, text, caption, (uType & ~MB_TYPEMASK) | (isSystem ? systemType : ((buttons.size() > 1) ? MB_OKCANCEL : MB_OK)));
+
+        if (!isSystem)
+        {
+            choice = (choice == IDOK && !buttons.empty()) ? buttons.front().id : IDCANCEL;
+        }
     }
     else
     {
         dlg.SetTheme (theme);
 
-        choice = dlg.ShowModalDialog (defaultCmd);
+        choice = dlg.ShowModalDialog (defaultId);
     }
 
     return choice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiGetSystemMessageBoxType
+//
+////////////////////////////////////////////////////////////////////////////////
+
+UINT DxuiGetSystemMessageBoxType (const std::vector<DxuiMessageBoxButton> & buttons)
+{
+    static const std::pair<UINT, std::vector<int>>  kTypes[] =
+    {
+        { MB_OK,          { IDOK } },
+        { MB_OKCANCEL,    { IDOK, IDCANCEL } },
+        { MB_YESNO,       { IDYES, IDNO } },
+        { MB_YESNOCANCEL, { IDYES, IDNO, IDCANCEL } },
+        { MB_RETRYCANCEL, { IDRETRY, IDCANCEL } },
+    };
+    std::vector<int>  ids;
+
+
+
+    for (const DxuiMessageBoxButton & button : buttons)
+    {
+        ids.push_back (button.id);
+    }
+
+    for (const auto & [type, set] : kTypes)
+    {
+        if (set == ids)
+        {
+            return type;
+        }
+    }
+
+    return UINT_MAX;
 }

@@ -91,6 +91,24 @@ namespace DxuiDockSiteAutoHideTests
     {
     public:
 
+        //  A new title for a hidden pane sizes its edge tab again, so a
+        //  longer title is not clipped to the old tab.
+        TEST_METHOD (ANewTitleSizesTheEdgeTabAgain)
+        {
+            Rig   rig;
+            RECT  before = rig.site.GetEdgeTabRect (L"console");
+            RECT  after  = {};
+
+
+
+            rig.site.SetTitle (L"console", L"Console with a much longer title");
+            after = rig.site.GetEdgeTabRect (L"console");
+
+            Assert::IsTrue ((after.right - after.left) + (after.bottom - after.top) > (before.right - before.left) + (before.bottom - before.top),
+                            L"the tab grows with its title");
+        }
+
+
         //  The pointer resting on the tab, or moving about over it, lights
         //  the tab and nothing more.
         TEST_METHOD (AHoverNeverSlidesThePaneOut)

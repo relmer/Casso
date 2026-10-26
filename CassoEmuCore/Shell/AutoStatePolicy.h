@@ -44,6 +44,7 @@ public:
 
     static bool                   ShouldResumeAtStartup (bool isEnabled, bool hasCommandLineMedia, bool hasAutoState);
     static bool                   ShouldResumeOnSwitch  (bool isEnabled, bool isLoadingState, bool hasAutoState);
+    static bool                   IsRebuild             (const std::wstring & currentMachine, const std::wstring & targetMachine);
     static AutoStateSave          GetSaveAction         (bool isEnabled, bool isCommandLineMediaMachine, bool hasAutoState);
     static std::filesystem::path  GetAutoStatePath      (const std::filesystem::path & stateDirectory, const std::wstring & machineName);
     static std::wstring           FormatResumeFailure   (const std::wstring & machineDisplayName, const std::string & errorLabel);

@@ -556,12 +556,25 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
 
 
 
+        Members                 members;
+
+
+
         for (const BreakpointInfo & breakpoint : v->breakpoints)
         {
             list.push_back (MakeBreakpoint (breakpoint));
         }
 
-        return JsonValue (Members { { "kind", MakeString ("breakpointList") }, { "breakpoints", JsonValue (std::move (list)) } });
+        members = { { "kind", MakeString ("breakpointList") }, { "breakpoints", JsonValue (std::move (list)) } };
+
+        //  The BPV break has no id, so it is beside the list, not in it.
+        if (v->videoBreak.has_value())
+        {
+            members.emplace_back ("videoBreak", JsonValue (Members { { "first", MakeNumber ((int64_t) v->videoBreak->first) },
+                                                                     { "last",  MakeNumber ((int64_t) v->videoBreak->second) } }));
+        }
+
+        return JsonValue (std::move (members));
     }
 
     if (auto * v = std::get_if<SearchHitsData> (&data))
@@ -594,6 +607,8 @@ JsonValue ReplyJson::MakeData (const ReplyData & data)
                              { "path",        MakeString (v->path) },
                              { "requested",   MakeNumber (v->requested) },
                              { "transferred", MakeNumber (v->transferred) },
+                             { "address",     MakeNumber (v->address) },
+                             { "isLoad",      JsonValue (v->isLoad) },
                              { "mismatch",    JsonValue (v->mismatch) } };
 
 
@@ -873,6 +888,7 @@ JsonValue ReplyJson::MakeProfile (const ProfileData & data)
         }
 
         frames.push_back (JsonValue (Members { { "frame",  MakeNumber ((int64_t) entry.index) },
+                                               { "count",  MakeNumber ((int64_t) entry.count) },
                                                { "shares", JsonValue (std::move (shares)) },
                                                { "other",  MakeNumber ((int64_t) entry.other) } }));
     }
@@ -1157,6 +1173,15 @@ JsonValue ReplyJson::MakeWatchList (const WatchListData & data)
             members.emplace_back ("basicValue", entry.basicValue.has_value() ? MakeString (*entry.basicValue) : JsonValue (nullptr));
         }
 
+        //  A typed watch has its text, and a register's or an expression's
+        //  value as hex text.
+        if (!entry.expression.empty())
+        {
+            members.emplace_back ("expression", MakeString (entry.expression));
+            members.emplace_back ("valueText",  entry.valueText.has_value() ? MakeString (*entry.valueText) : JsonValue (nullptr));
+            members.emplace_back ("error",      entry.error.empty() ? JsonValue (nullptr) : MakeString (entry.error));
+        }
+
         entries.push_back (JsonValue (std::move (members)));
     }
 
@@ -1232,7 +1257,8 @@ JsonValue ReplyJson::MakeSymbols (const SymbolData & data)
         symbols.push_back (JsonValue (Members { { "name",     MakeString (symbol.name) },
                                                 { "address",  MakeNumber (symbol.address) },
                                                 { "table",    MakeString (GetSymbolTableName (symbol.table)) },
-                                                { "constant", JsonValue (symbol.isConstant) } }));
+                                                { "constant", JsonValue (symbol.isConstant) },
+                                                { "size",     MakeNumber (symbol.size) } }));
     }
 
     return JsonValue (Members { { "kind", MakeString ("symbols") }, { "symbols", JsonValue (std::move (symbols)) } });

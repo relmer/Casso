@@ -3,6 +3,7 @@
 #include "Core/TextEncoding.h"
 #include "Core/UnicodeSymbols.h"
 #include "Ui/Debugger/DebuggerThemes.h"
+#include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "resource.h"
@@ -10,7 +11,12 @@
 #include "Ui/Debugger/ToolbarLabelEntry.h"
 #include "Ui/Debugger/ToolbarCheckEntry.h"
 #include "Ui/Debugger/DebuggerCommands.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 #include "Ui/Debugger/Panes/MemoryPane.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
+#include "Ui/Debugger/Panes/TracePaneController.h"
+#include "Ui/Debugger/ViewMenuRows.h"
 
 
 
@@ -145,50 +151,6 @@ std::shared_ptr<DxuiCommand> DebuggerWindow::MakeEditMenuCommand (DxuiStandardCo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::GetViewMenuGroup
-//
-//  The cascade of the View menu a window's row goes in: the Disassembly
-//  views, the memory windows and the device panels each share one. Empty
-//  for a window that is a row of View itself.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetViewMenuGroup (const std::wstring & pane)
-{
-    std::string  diagnosticsId;
-
-
-
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        if (pane == DebuggerLayout::GetCodePaneId (view))
-        {
-            return L"Disassembly";
-        }
-    }
-
-    for (int window = 1; window <= DebuggerViewState::kMaxMemoryWindows; window++)
-    {
-        if (pane == DebuggerLayout::GetMemoryPaneId (window))
-        {
-            return L"Memory";
-        }
-    }
-
-    if (DebuggerLayout::TryGetDiagnosticsId (pane, diagnosticsId))
-    {
-        return L"Device panels";
-    }
-
-    return {};
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::SetWindowMenus
 //
 //  File, Edit, Machine, View, Debug and Tools. View has a row for every
@@ -211,9 +173,6 @@ void DebuggerWindow::SetWindowMenus()
     std::vector<DxuiPopupMenuItem>               schemes;
     std::vector<DxuiPopupMenuItem>               themes;
     std::shared_ptr<DxuiCommand>                 row;
-    std::vector<std::wstring>                    cascades;
-    std::vector<std::vector<DxuiPopupMenuItem>>  cascadeRows;
-    std::vector<size_t>                          cascadeAt;
     auto  add = [this] (std::vector<DxuiPopupMenuItem> & menu, std::shared_ptr<DxuiCommand> command)
     {
         m_menuCommands.push_back (command);
@@ -221,7 +180,7 @@ void DebuggerWindow::SetWindowMenus()
     };
     auto  emulator = [this] (const std::wstring & label, int commandId)
     {
-        return MakeMenuCommand (label, false, [this, commandId]
+        return DebuggerMenuCommand::Make (label, false, [this, commandId]
         {
             if (m_host != nullptr)
             {
@@ -235,25 +194,25 @@ void DebuggerWindow::SetWindowMenus()
     m_menuCommands.clear();
 
     //  File: what the window reads and writes.
-    add (file, MakeMenuCommand (L"Open source file...", false, [this] { OpenSourceFile(); }));
-    add (file, MakeMenuCommand (L"Open symbol or debug file...", false, [this] { OpenSymbolFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Open source file...", false, [this] { OpenSourceFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Open symbol or debug file...", false, [this] { OpenSymbolFile(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (file, MakeMenuCommand (L"Load breakpoints...", false, [this] { ImportBreakpoints(); }));
-    row            = MakeMenuCommand (L"Save breakpoints...", false, [this] { ExportBreakpoints(); });
-    row->isEnabled = [this] { return IsBreakpointBarEnabled (BreakpointBarCommands::kExport); };
+    add (file, DebuggerMenuCommand::Make (L"Load breakpoints...", false, [this] { m_breakpointsPane->Import(); }));
+    row            = DebuggerMenuCommand::Make (L"Save breakpoints...", false, [this] { m_breakpointsPane->Export(); });
+    row->isEnabled = [this] { return m_breakpointsPane->IsBarEntryEnabled (BreakpointBarCommands::kExport); };
     add (file, row);
-    add (file, MakeMenuCommand (L"Save trace...", false, [this] { SaveTrace(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save trace...", false, [this] { m_tracePane->Save(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    row            = MakeMenuCommand (L"Load file into memory...", false, [this] { LoadFileIntoMemory(); });
+    row            = DebuggerMenuCommand::Make (L"Load file into memory...", false, [this] { LoadFileIntoMemory(); });
     row->isEnabled = [this] { return IsCommandBarEntryEnabled (DebuggerCommands::kLoadFile); };
     add (file, row);
-    add (file, MakeMenuCommand (L"Save memory to file...", false, [this] { SaveMemoryToFile(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save memory to file...", false, [this] { SaveMemoryToFile(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (file, MakeMenuCommand (L"Open project...", false, [this] { OpenProject(); }));
-    add (file, MakeMenuCommand (L"Save project as...", false, [this] { SaveProjectAs(); }));
-    add (file, MakeMenuCommand (L"Project settings...", false, [this] { EditProjectSettings(); }));
+    add (file, DebuggerMenuCommand::Make (L"Open project...", false, [this] { OpenProject(); }));
+    add (file, DebuggerMenuCommand::Make (L"Save project as...", false, [this] { SaveProjectAs(); }));
+    add (file, DebuggerMenuCommand::Make (L"Project settings...", false, [this] { EditProjectSettings(); }));
     file.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (file, MakeMenuCommand (L"Close", false, [this] { PostMessageW (GetHwnd(), WM_CLOSE, 0, 0); }));
+    add (file, DebuggerMenuCommand::Make (L"Close", false, [this] { PostMessageW (GetHwnd(), WM_CLOSE, 0, 0); }));
 
     //  Edit: the focused control's own commands, then find in the console.
     add (edit, MakeEditMenuCommand (DxuiStandardCommand::Copy,      L"Copy",       L"Ctrl+C"));
@@ -263,66 +222,27 @@ void DebuggerWindow::SetWindowMenus()
     add (edit, MakeKeyedMenuCommand ((int) DebuggerKeySchemes::Action::FindNext,     L"Find next"));
     add (edit, MakeKeyedMenuCommand ((int) DebuggerKeySchemes::Action::FindPrevious, L"Find previous"));
 
-    //  View: every debug window, the shown ones checked. The windows that
-    //  come in several instances, and the device panels, fold into a cascade
-    //  each, placed where the first of them would have been.
-    for (const std::wstring & pane : GetViewMenuPanes())
-    {
-        std::wstring  group = GetViewMenuGroup (pane);
-        std::wstring  title = GetPaneTitle (pane);
-        size_t        index = 0;
+    //  View: every debug window, the shown ones checked.
+    view = ViewMenuRows::Build (m_panes, m_snapshot.get(),
+                                [this] (const std::wstring & pane)
+                                {
+                                    std::optional<DebuggerKeySchemes::Action>  action = DebuggerKeySchemes::GetActionOfPane (pane);
 
-        //  Among its siblings the first view carries its number too.
-        if (pane == DebuggerLayout::kCode)
-        {
-            title += L" 1";
-        }
-
-        row            = MakeMenuCommand (title, false, [this, pane] { ShowPane (pane); });
-        row->isChecked = [this, pane] { return IsPaneShown (pane); };
-
-        //  The pane's key in the scheme in force, as the Debug menu's rows
-        //  have theirs.
-        if (DebuggerKeySchemes::GetActionOfPane (pane).has_value())
-        {
-            row->accelerator = DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) *DebuggerKeySchemes::GetActionOfPane (pane));
-        }
-
-        if (group.empty())
-        {
-            add (view, row);
-            continue;
-        }
-
-        index = (size_t) (std::find (cascades.begin(), cascades.end(), group) - cascades.begin());
-
-        if (index == cascades.size())
-        {
-            cascades.push_back    (group);
-            cascadeRows.push_back ({});
-            cascadeAt.push_back   (view.size());
-            view.push_back        (DxuiPopupMenuItem::ForSeparator());
-        }
-
-        add (cascadeRows[index], row);
-    }
-
-    for (size_t i = 0; i < cascades.size(); i++)
-    {
-        row = MakeMenuCommand (cascades[i], false, [] {});
-        m_menuCommands.push_back (row);
-        view[cascadeAt[i]] = DxuiPopupMenuItem::ForSubmenu (row, std::move (cascadeRows[i]));
-    }
+                                    return action.has_value() ? DebuggerKeySchemes::GetMap (m_keyScheme).GetChordText ((int) *action) : std::wstring();
+                                },
+                                [this] (const std::wstring & pane) { ShowPane (pane); },
+                                [this] (const std::wstring & pane) { return IsPaneShown (pane); },
+                                m_menuCommands);
 
     //  View ends with the arrangement put back as it first was.
     view.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (view, MakeMenuCommand (L"Reset window layout", false, [this] { ResetPaneLayout(); }));
+    add (view, DebuggerMenuCommand::Make (L"Reset window layout", false, [this] { ResetPaneLayout(); }));
 
     //  Debug: running and stopping, the steps and how they step. The
     //  machine's own restarts are in Machine.
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRun,   L"Run"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kPause, L"Break"));
-    add (debug, MakeMenuCommand (L"Detach", false, [this] { Detach(); }));
+    add (debug, DebuggerMenuCommand::Make (L"Detach", false, [this] { Detach(); }));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepInto,    L"Step into"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kStepOver,    L"Step over"));
@@ -330,7 +250,7 @@ void DebuggerWindow::SetWindowMenus()
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunToCursor, L"Run to cursor"));
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kRunFrame,    L"Run one frame"));
 
-    row = MakeMenuCommand (L"Show beam on screen", false, [this]
+    row = DebuggerMenuCommand::Make (L"Show beam on screen", false, [this]
     {
         if (m_host != nullptr)
         {
@@ -349,7 +269,7 @@ void DebuggerWindow::SetWindowMenus()
     add (debug, MakeKeyedMenuCommand (DebuggerCommands::kGoLive,          L"Go live"));
     debug.push_back (DxuiPopupMenuItem::ForSeparator());
 
-    row = MakeMenuCommand (L"Step by source line", false, [this]
+    row = DebuggerMenuCommand::Make (L"Step by source line", false, [this]
     {
         if (m_host != nullptr && m_snapshot != nullptr && m_snapshot->source.has_value())
         {
@@ -363,7 +283,7 @@ void DebuggerWindow::SetWindowMenus()
     row            = MakeKeyedMenuCommand (DebuggerCommands::kTrace, L"Trace");
     row->isChecked = [this] { return m_snapshot != nullptr && m_snapshot->trace.isOn; };
     add (debug, row);
-    add (debug, MakeMenuCommand (L"Step filters...", false, [this] { EditStepFilters(); }));
+    add (debug, DebuggerMenuCommand::Make (L"Step filters...", false, [this] { EditStepFilters(); }));
 
     //  Machine: the machine's own restarts. The main window's Restart under
     //  debugger is not here: with the debugger open, it is Power cycle.
@@ -375,7 +295,7 @@ void DebuggerWindow::SetWindowMenus()
     {
         //  Applying the scheme rebuilds these rows, this one among them, so
         //  it is the last thing the row does.
-        add (schemes, MakeMenuCommand (DebuggerKeySchemes::GetMap (scheme).GetName(), scheme == m_keyScheme, [this, scheme]
+        add (schemes, DebuggerMenuCommand::Make (DebuggerKeySchemes::GetMap (scheme).GetName(), scheme == m_keyScheme, [this, scheme]
         {
             if (m_host != nullptr)
             {
@@ -386,7 +306,7 @@ void DebuggerWindow::SetWindowMenus()
         }));
     }
 
-    row = MakeMenuCommand (L"Keyboard scheme", false, [] {});
+    row = DebuggerMenuCommand::Make (L"Keyboard scheme", false, [] {});
     m_menuCommands.push_back (row);
     tools.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (schemes)));
 
@@ -398,7 +318,7 @@ void DebuggerWindow::SetWindowMenus()
 
         //  Applying the theme rebuilds these rows, so it is the last thing
         //  the row does. A choice ends the preview without undoing it.
-        row = MakeMenuCommand (choice.label, current, [this, name]
+        row = DebuggerMenuCommand::Make (choice.label, current, [this, name]
         {
             m_themeBeforePreview.reset();
 
@@ -414,13 +334,13 @@ void DebuggerWindow::SetWindowMenus()
         add (themes, row);
     }
 
-    row = MakeMenuCommand (L"Theme", false, [] {});
+    row = DebuggerMenuCommand::Make (L"Theme", false, [] {});
     m_menuCommands.push_back (row);
     tools.push_back (DxuiPopupMenuItem::ForSubmenu (row, std::move (themes)));
 
     //  Tools: the settings that have no place in a menu of their own.
     tools.push_back (DxuiPopupMenuItem::ForSeparator());
-    add (tools, MakeMenuCommand (L"Options...", false, [this] { OpenOptions(); }));
+    add (tools, DebuggerMenuCommand::Make (L"Options...", false, [this] { OpenOptions(); }));
 
     m_menuBarItems =
     {
@@ -466,7 +386,7 @@ void DebuggerWindow::OpenOptions()
     }
 
     current.reverse     = m_host->GetReverseOptions();
-    current.disassembly = m_codeOptions;
+    current.disassembly = m_code->GetOptions();
 
     chosen = DebuggerOptionsSheet::Ask (GetHwnd(), m_theme, current, (m_snapshot != nullptr) ? m_snapshot->history : HistoryStatus());
 
@@ -477,8 +397,8 @@ void DebuggerWindow::OpenOptions()
 
     m_host->SetReverseOptions (chosen->reverse);
 
-    m_codeOptions = chosen->disassembly;
-    m_host->SetDebuggerDisassemblyOptions (m_codeOptions.ToText());
+    m_code->SetOptions (chosen->disassembly);
+    m_host->SetDebuggerDisassemblyOptions (m_code->GetOptions().ToText());
 
     for (view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
     {
@@ -689,7 +609,7 @@ void DebuggerWindow::ResetPaneLayout()
     layout.PlaceOnMonitors (GetMonitors());
     m_closedPanes.clear();
     m_dockSite->SetPaneLayout (layout);
-    m_syncFloats = true;
+    m_floating->MarkSyncNeeded();
     m_dockSite->Relayout();
     SaveLayout();
 
@@ -734,7 +654,7 @@ void DebuggerWindow::OpenSourceFile()
 
     BAIL_OUT_IF (!picked, S_OK);
 
-    OpenSourcePath (chosen.wstring());
+    m_sources->OpenSourcePath (chosen.wstring());
 
 Error:
     return;
@@ -773,7 +693,7 @@ void DebuggerWindow::OpenSymbolFile (const std::wstring & thenShow)
     BAIL_OUT_IF (!picked, S_OK);
 
     RunAction (DebuggerActions::GetLoadSymbols (TextEncoding::WideToNarrow (chosen.wstring()), GetMode()));
-    m_pendingLooseSource = thenShow;
+    m_sources->SetPendingLoose (thenShow);
 
 Error:
     return;
@@ -883,307 +803,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::PushStackByte
-//
-//  PUSH of a byte typed in a dialog, run directly.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PushStackByte()
-{
-    std::optional<Byte>  value = RunByteDialog (L"Push byte", L"Byte");
-
-
-
-    if (value.has_value())
-    {
-        RunAction (DebuggerActions::GetPushByte (*value, GetMode()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetSearchLength
-//
-//  How many bytes a match of S's items covers: each character of a quoted
-//  text, a byte or a wildcard for each other item, and two for a value of
-//  more than two hex digits, which S matches as a word.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t DebuggerWindow::GetSearchLength (const std::wstring & items)
-{
-    size_t  length = 0;
-    size_t  at     = 0;
-
-
-
-    while (at < items.size())
-    {
-        size_t  end = 0;
-
-        if (iswspace (items[at]) || items[at] == L',')
-        {
-            at++;
-            continue;
-        }
-
-        if (items[at] == L'"' || items[at] == L'\'')
-        {
-            end     = items.find (items[at], at + 1);
-            end     = (end == std::wstring::npos) ? items.size() : end;
-            length += end - at - 1;
-            at      = end + 1;
-            continue;
-        }
-
-        end     = items.find_first_of (L" \t,", at);
-        end     = (end == std::wstring::npos) ? items.size() : end;
-        length += (end - at > 2 && items[at] != L'$') || (end - at > 3) ? 2 : 1;
-        at      = end;
-    }
-
-    return std::max<size_t> (length, 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::FindInMemory
-//
-//  S over all memory with the items typed: hex bytes, a word, text in
-//  quotes, ?? for any byte and ?n or n? for half of one. The pane goes to
-//  the first match when the hits arrive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::FindInMemory (MemoryPane * pane)
-{
-    std::optional<std::wstring>  items;
-
-
-
-    if (pane == nullptr || m_snapshot == nullptr)
-    {
-        return;
-    }
-
-    items = RunTextDialog (L"Find in memory", L"Find", L"A9 00 ?? \"HELLO\"", [] (const std::wstring & text, std::wstring & error)
-    {
-        error = L"Type hex bytes, text in quotes, or ?? for any byte.";
-        return text.find_first_not_of (L" \t") != std::wstring::npos;
-    });
-
-    //  F3 and Shift+F3 walk the matches from the pane, which the dialog took
-    //  the focus from.
-    SetFocusedControl (pane->GetView());
-
-    if (!items.has_value())
-    {
-        return;
-    }
-
-    m_memoryFind = MemoryFind { pane->GetId(), GetSearchLength (*items), -1, m_snapshot->searchSerial, true };
-    RunAction (DebuggerActions::GetSearchMemory (TextEncoding::WideToNarrow (*items), GetMode()));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::StepMemoryFind
-//
-//  The next match, or the one before, round to the other end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::StepMemoryFind (bool forward)
-{
-    int  count = (m_snapshot != nullptr) ? (int) m_snapshot->searchHits.size() : 0;
-
-
-
-    if (count == 0 || m_memoryFind.pane < 1 || m_memoryFind.pane > DebuggerViewState::kMaxMemoryWindows)
-    {
-        AppendConsole ({ "No matches in memory." });
-        return;
-    }
-
-    if (m_memoryFind.at < 0)
-    {
-        m_memoryFind.at = forward ? 0 : count - 1;
-    }
-    else
-    {
-        m_memoryFind.at = (m_memoryFind.at + (forward ? 1 : count - 1)) % count;
-    }
-
-    m_memoryPanes[(size_t) (m_memoryFind.pane - 1)]->SelectRange (m_snapshot->searchHits[(size_t) m_memoryFind.at], m_memoryFind.length);
-    Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ApplyMemoryResults
-//
-//  A Find's hits or a comparison's differences, once the snapshot has the
-//  ones its command made.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplyMemoryResults()
-{
-    if (m_memoryFind.isAwaiting && m_snapshot->searchSerial != m_memoryFind.awaited)
-    {
-        m_memoryFind.isAwaiting = false;
-        StepMemoryFind (true);
-    }
-
-    if (m_memoryCompare.isAwaiting && m_snapshot->compareSerial != m_memoryCompare.awaited &&
-        m_memoryCompare.pane >= 1 && m_memoryCompare.pane <= DebuggerViewState::kMaxMemoryWindows)
-    {
-        m_memoryCompare.isAwaiting = false;
-        m_memoryPanes[(size_t) (m_memoryCompare.pane - 1)]->SetComparison (m_snapshot->comparison);
-        Invalidate();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::FillMemorySelection
-//
-//  F of the selection with the bytes typed, repeated over it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::FillMemorySelection (MemoryPane * pane)
-{
-    std::optional<std::pair<Word, Word>>  range = (pane != nullptr) ? pane->GetSelectedRange() : std::nullopt;
-    std::optional<std::wstring>           typed;
-    std::vector<Byte>                     bytes;
-
-
-
-    if (!range.has_value())
-    {
-        return;
-    }
-
-    typed = RunTextDialog (L"Fill selection", L"Bytes", L"00 or A9 20", [] (const std::wstring & text, std::wstring & error)
-    {
-        std::vector<Byte>  parsed;
-
-        error = L"Type one or more hex bytes, as 00 or A9 20.";
-        return TextDialog::TryParseBytes (text, parsed);
-    });
-
-    if (typed.has_value() && TextDialog::TryParseBytes (*typed, bytes))
-    {
-        RunAction (DebuggerActions::GetFillMemory (range->first, range->second, bytes, GetMode()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::CopyMemorySelection
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::CopyMemorySelection (MemoryPane * pane)
-{
-    std::optional<std::pair<Word, Word>>  range = (pane != nullptr) ? pane->GetSelectedRange() : std::nullopt;
-    std::optional<std::wstring>           typed;
-    Word                                  to    = 0;
-
-
-
-    if (!range.has_value())
-    {
-        return;
-    }
-
-    typed = RunTextDialog (L"Copy selection to", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
-    {
-        Word  address = 0;
-
-        error = L"Type an address, one to four hex digits, as $6000.";
-        return TextDialog::TryParseAddress (text, address);
-    });
-
-    if (typed.has_value() && TextDialog::TryParseAddress (*typed, to))
-    {
-        RunAction (DebuggerActions::GetMoveMemory (to, range->first, range->second, GetMode()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::CompareMemorySelection
-//
-//  MC of the selection with the range at the address typed; the pane marks
-//  the bytes that differ once the snapshot has them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::CompareMemorySelection (MemoryPane * pane)
-{
-    std::optional<std::pair<Word, Word>>  range = (pane != nullptr) ? pane->GetSelectedRange() : std::nullopt;
-    std::optional<std::wstring>           typed;
-    Word                                  other = 0;
-
-
-
-    if (!range.has_value() || m_snapshot == nullptr)
-    {
-        return;
-    }
-
-    typed = RunTextDialog (L"Compare with", L"Address", L"$6000", [] (const std::wstring & text, std::wstring & error)
-    {
-        Word  address = 0;
-
-        error = L"Type an address, one to four hex digits, as $6000.";
-        return TextDialog::TryParseAddress (text, address);
-    });
-
-    if (typed.has_value() && TextDialog::TryParseAddress (*typed, other))
-    {
-        m_memoryCompare = MemoryCompare { pane->GetId(), m_snapshot->compareSerial, true };
-        RunAction (DebuggerActions::GetCompareMemory (other, range->first, range->second, GetMode()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::RunTextDialog
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1230,253 +849,6 @@ std::optional<MemoryFileDialog::Fields> DebuggerWindow::RunMemoryFileDialog (con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DebuggerWindow::ConfigureConsoleBar
-//
-//  The console pane's toolbar, in the breakpoints pane's style: a static
-//  "Mode:" label, then the mode the console reads, which the memory Address
-//  box follows too, as a drop-down drawn as the breakpoints pane's "Show
-//  columns" is, reading the mode in force.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ConfigureConsoleBar()
-{
-    DxuiToolbar::Entry  label;
-    DxuiToolbar::Entry  dialect;
-
-
-
-    m_modeLabel = std::make_unique<ToolbarLabelEntry> (L"Mode:");
-
-    label.command       = m_modeLabel->GetCommand();
-    label.custom        = m_modeLabel.get();
-    label.neverOverflow = true;
-
-    m_dialectCommand        = std::make_shared<DxuiCommand>();
-    m_dialectCommand->id    = kDialectEntry;
-    m_dialectCommand->label = GetModeLabel (L"AppleWin");
-    m_dialectCommand->tip   = L"Choose the command mode for the console and the memory Address box";
-
-    dialect.command       = m_dialectCommand;
-    dialect.kind          = DxuiToolbar::Kind::DropDown;
-    dialect.neverOverflow = true;
-
-    m_consoleBar->SetTextRenderer  (GetTextRenderer());
-    m_consoleBar->SetPopupHost     (GetPopupHost());
-    m_consoleBar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
-    m_consoleBar->SetCompact       (true);
-    m_consoleBar->SetPaneTextInset (true);
-    m_consoleBar->EnableSeeMore    (s_kpszMdl2More, L"See more");
-    m_consoleBar->SetEntries       ({ label, dialect, MakeFindEntry (DebuggerLayout::kConsole) });
-    m_consoleBar->SetVisible       (false);
-
-    SetConsoleBarMenus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetModeChoices
-//
-//  Only the order is the drop-down's; the mode a choice sets, and so the
-//  name saved for it, is unchanged.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-const std::vector<DebuggerWindow::ModeChoice> & DebuggerWindow::GetModeChoices()
-{
-    static const std::vector<ModeChoice>  kChoices =
-    {
-        { CommandMode::AppleWin,  L"AppleWin"  },
-        { CommandMode::Casso,     L"Casso"     },
-        { CommandMode::GSSquared, L"GSSquared" },
-        { CommandMode::Monitor,   L"Monitor"   },
-        { CommandMode::WinDbg,    L"WinDbg"    },
-    };
-
-
-
-    return kChoices;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SetConsoleBarMenus
-//
-//  The dialects, the one in force checked. Rebuilt before the drop-down
-//  opens and when the mode changes, since the rows carry the check they
-//  were built with.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SetConsoleBarMenus()
-{
-    std::vector<DxuiPopupMenuItem>  modes;
-    std::wstring                    before = m_dialectCommand->label;
-
-
-
-    for (const auto & [mode, label] : GetModeChoices())
-    {
-        CommandMode  target  = mode;
-        bool         current = (m_snapshot != nullptr) && m_snapshot->mode == mode;
-
-        if (current || (m_snapshot == nullptr && mode == CommandMode::AppleWin))
-        {
-            m_dialectCommand->label = GetModeLabel (label);
-        }
-
-        //  A pick changes the mode and nothing more: the prompt shows the new
-        //  one, and the console gains no MODE line the user never typed.
-        modes.push_back (DxuiPopupMenuItem::ForCommand (MakeMenuCommand (label, current, [this, target]
-        {
-            DebuggerAction  action = DebuggerActions::GetSetMode (target, GetMode());
-
-
-
-            action.quiet = true;
-            RunAction (action);
-        })));
-    }
-
-    m_consoleBar->SetDropDownItems (kDialectEntry, std::move (modes));
-
-    //  The entry is as wide as its text, so a new mode lays the strip out
-    //  again.
-    if (m_dialectCommand->label != before)
-    {
-        PlaceConsoleBar();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::GetModeLabel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::wstring DebuggerWindow::GetModeLabel (const wchar_t * mode)
-{
-    return std::wstring (mode);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::PlaceConsoleBar
-//
-//  The bar sits in the place held at the top of the console pane and is one
-//  of the pane's controls, so it goes with the pane into a floating window
-//  and draws, measures and opens its menu there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PlaceConsoleBar()
-{
-    bool          shown = m_consoleBarSlot != nullptr && m_consoleBarSlot->IsVisible();
-    DxuiWindow  * host  = GetPaneHost (DebuggerLayout::kConsole);
-    RECT          slot  = {};
-
-
-
-    m_consoleBar->SetVisible (shown);
-
-    if (!shown)
-    {
-        return;
-    }
-
-    slot = m_consoleBarSlot->GetBounds();
-
-    m_consoleBar->SetTextRenderer   (host->GetTextRenderer());
-    m_consoleBar->SetPopupHost      (host->GetPopupHost());
-    m_consoleBar->SetHostClientRect (host->GetBounds());
-    m_consoleBar->Layout            (slot, m_scaler);
-
-    host->SetChildClip (m_consoleBar, slot);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::RouteConsoleBarMouse
-//
-//  As the breakpoints pane's: the strip and whatever menu it has open take
-//  the left button; the right button over the strip opens the pane's own
-//  menu.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DebuggerWindow::RouteConsoleBarMouse (const DxuiMouseEvent & ev)
-{
-    int   x     = ev.positionDip.x;
-    int   y     = ev.positionDip.y;
-    RECT  strip = m_consoleBar->GetBounds();
-    bool  open  = m_consoleBar->IsMenuOpen();
-    bool  over  = m_consoleBar->IsVisible() && DxuiDockSite::Contains (strip, POINT { x, y });
-
-
-
-    if (!over && !open)
-    {
-        m_consoleBar->OnToolbarMouseLeave();
-        return false;
-    }
-
-    if ((ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Up) && ev.button != DxuiMouseButton::Left && !open)
-    {
-        return false;
-    }
-
-    switch (ev.kind)
-    {
-    case DxuiMouseEventKind::Move:
-        if (m_routingPane.empty())
-        {
-            UpdateTooltip (ev.positionDip);
-        }
-
-        return m_consoleBar->OnToolbarMouseMove (x, y);
-
-    case DxuiMouseEventKind::Down:
-        if (!open)
-        {
-            SetConsoleBarMenus();
-        }
-
-        return m_consoleBar->OnToolbarLButtonDown (x, y);
-
-    case DxuiMouseEventKind::Up:
-        return m_consoleBar->OnToolbarLButtonUp (x, y);
-
-    default:
-        return open;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DebuggerWindow::MakeFindEntry
 //
 //  The search button on a pane's toolbar, which opens that pane's find bar
@@ -1495,202 +867,12 @@ DxuiToolbar::Entry DebuggerWindow::MakeFindEntry (const std::wstring & pane)
     command->label    = L"Find";
     command->glyph    = s_kpszMdl2Search;
     command->tip      = L"Find (Ctrl+F)\nFind text in this pane";
-    command->dispatch = [this, pane] { OpenFindIn (pane); };
+    command->dispatch = [this, pane] { m_finds->Open (pane); };
 
     entry.command = command;
     entry.kind    = DxuiToolbar::Kind::Command;
 
     return entry;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ConfigureCodeBars
-//
-//  Each disassembly view's toolbar: its viewing options as check boxes, as
-//  Visual Studio's are. The options hold for every view.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ConfigureCodeBars()
-{
-    constexpr DisassemblyOptions::Option  kOrder[] = { DisassemblyOptions::Option::Addresses,
-                                                       DisassemblyOptions::Option::CodeBytes,
-                                                       DisassemblyOptions::Option::Source,
-                                                       DisassemblyOptions::Option::Symbols,
-                                                       DisassemblyOptions::Option::LineNumbers,
-                                                       DisassemblyOptions::Option::Heat };
-
-
-
-    m_codeOptionEntries.clear();
-
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        DxuiToolbar                      * bar = m_codeBars[(size_t) view];
-        std::vector<DxuiToolbar::Entry>    entries;
-
-        for (DisassemblyOptions::Option option : kOrder)
-        {
-            auto                command = std::make_shared<DxuiCommand>();
-            DxuiToolbar::Entry  entry;
-
-            command->id        = kCodeOptionEntry + (int) option;
-            command->label     = DisassemblyOptions::GetLabel (option);
-            command->dispatch  = [this, option] { ToggleCodeOption (option); };
-            command->isChecked = [this, option] { return m_codeOptions.IsOn (option); };
-            command->isEnabled = [this, option] { return IsCodeOptionEnabled (option); };
-
-            m_codeOptionEntries.push_back (std::make_unique<ToolbarCheckEntry> (command));
-
-            if (option == DisassemblyOptions::Option::Source)
-            {
-                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSourceTip (IsCodeOptionEnabled (DisassemblyOptions::Option::Source)); });
-            }
-            else if (option == DisassemblyOptions::Option::LineNumbers)
-            {
-                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetLineNumbersTip (m_snapshot != nullptr && m_snapshot->source.has_value(), m_codeOptions.IsOn (DisassemblyOptions::Option::Source)); });
-            }
-            else if (option == DisassemblyOptions::Option::Symbols)
-            {
-                m_codeOptionEntries.back()->SetTipSource ([this] { return DisassemblyOptions::GetSymbolsTip ((m_snapshot != nullptr) ? m_snapshot->symbolSources : std::vector<std::string>()); });
-            }
-
-            //  A command, not a toggle: the check box shows the state, so the
-            //  entry draws no pressed box around a checked one.
-            entry.command = command;
-            entry.kind    = DxuiToolbar::Kind::Command;
-            entry.custom  = m_codeOptionEntries.back().get();
-            entries.push_back (std::move (entry));
-        }
-
-        bar->SetTextRenderer  (GetTextRenderer());
-        bar->SetPopupHost     (GetPopupHost());
-        bar->SetCompact       (true);
-        bar->SetPaneTextInset (true);
-        bar->SetEntries       (std::move (entries));
-        bar->SetVisible       (false);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::PlaceCodeBars
-//
-//  As the source documents' bars: each sits in the place held at the top of
-//  its view and goes with the view into a floating window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PlaceCodeBars()
-{
-    for (int view = 0; view < DebuggerViewState::kMaxCodeViews; view++)
-    {
-        DxuiToolbar        * bar   = m_codeBars[(size_t) view];
-        DebuggerPaneFrame  * slot  = m_codeBarSlots[(size_t) view].get();
-        bool                 shown = bar != nullptr && slot != nullptr && slot->IsVisible();
-        DxuiWindow         * host  = nullptr;
-        RECT                 place = {};
-
-        if (bar == nullptr)
-        {
-            continue;
-        }
-
-        bar->SetVisible (shown);
-
-        if (!shown)
-        {
-            continue;
-        }
-
-        host  = GetPaneHost (DebuggerLayout::GetCodePaneId (view));
-        place = slot->GetBounds();
-
-        bar->SetTextRenderer   (host->GetTextRenderer());
-        bar->SetPopupHost      (host->GetPopupHost());
-        bar->SetHostClientRect (host->GetBounds());
-        bar->Layout            (GetBarStrip (DebuggerLayout::GetCodePaneId (view), place), m_scaler);
-
-        host->SetChildClip (bar, place);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ConfigureSourceBars
-//
-//  Each source document's toolbar: its search button.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ConfigureSourceBars()
-{
-    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
-    {
-        DxuiToolbar  * bar = m_sourceDocs[(size_t) slot].bar;
-
-        bar->SetTextRenderer  (GetTextRenderer());
-        bar->SetPopupHost     (GetPopupHost());
-        bar->SetIconFace      (DxuiToolbar::kMdl2IconFace);
-        bar->SetCompact       (true);
-        bar->SetPaneTextInset (true);
-        bar->SetEntries       ({ MakeFindEntry (DebuggerLayout::GetSourcePaneId (slot)) });
-        bar->SetVisible       (false);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::PlaceSourceBars
-//
-//  As the console's: each bar sits in the place held at the top of its
-//  document and goes with the document into a floating window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::PlaceSourceBars()
-{
-    for (int slot = 0; slot < (int) m_sourceDocs.size(); slot++)
-    {
-        SourceDocument  & document = m_sourceDocs[(size_t) slot];
-        bool              shown    = document.barSlot != nullptr && document.barSlot->IsVisible();
-        DxuiWindow      * host     = nullptr;
-        RECT              place    = {};
-
-        document.bar->SetVisible (shown);
-
-        if (!shown)
-        {
-            continue;
-        }
-
-        host  = GetPaneHost (DebuggerLayout::GetSourcePaneId (slot));
-        place = document.barSlot->GetBounds();
-
-        document.bar->SetTextRenderer   (host->GetTextRenderer());
-        document.bar->SetPopupHost      (host->GetPopupHost());
-        document.bar->SetHostClientRect (host->GetBounds());
-        document.bar->Layout            (GetBarStrip (DebuggerLayout::GetSourcePaneId (slot), place), m_scaler);
-
-        host->SetChildClip (document.bar, place);
-    }
 }
 
 
@@ -1730,7 +912,7 @@ bool DebuggerWindow::RouteSourceBarMouse (DxuiToolbar * bar, const DxuiMouseEven
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        if (m_routingPane.empty())
+        if (m_floating->GetRoutingPane().empty())
         {
             UpdateTooltip (ev.positionDip);
         }

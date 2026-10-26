@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/BreakpointsPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -86,10 +87,7 @@ namespace BreakpointVsLayoutTests
 
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::ApplyBreakpoints;
-        using DebuggerWindow::GetBreakpointList;
-        using DebuggerWindow::GetBreakpointBar;
-        using DebuggerWindow::IsBreakpointBarEnabled;
-        using DebuggerWindow::RunBreakpointBarEntry;
+        using DebuggerWindow::GetBreakpointsPane;
         using DebuggerWindow::SetSnapshotForTest;
 
         //  Three breakpoints at $0300 to $0302, the last disabled, or all of them.
@@ -241,7 +239,7 @@ namespace BreakpointVsLayoutTests
 
             for (size_t i = 0; i < BreakpointColumns::kCount; i++)
             {
-                Assert::AreEqual (BreakpointColumns::GetDefaultShown()[i], window.GetBreakpointList()->IsColumnVisible (i),
+                Assert::AreEqual (BreakpointColumns::GetDefaultShown()[i], window.GetBreakpointsPane().GetList()->IsColumnVisible (i),
                                   BreakpointColumns::GetHeading ((Column) i).c_str());
             }
         }
@@ -257,9 +255,9 @@ namespace BreakpointVsLayoutTests
 
             window.Build (false, false);
 
-            Assert::IsTrue   (window.IsBreakpointBarEnabled (BreakpointBarCommands::kDisableAll), L"every one is disabled");
+            Assert::IsTrue   (window.GetBreakpointsPane().IsBarEntryEnabled (BreakpointBarCommands::kDisableAll), L"every one is disabled");
 
-            window.RunBreakpointBarEntry (BreakpointBarCommands::kDisableAll);
+            window.GetBreakpointsPane().RunBarEntry (BreakpointBarCommands::kDisableAll);
 
             Assert::AreEqual ((size_t) 1, host.actions.size());
             Assert::AreEqual (std::string ("BPE *"), host.actions[0].breakpointStep->actions.at (0).echo);

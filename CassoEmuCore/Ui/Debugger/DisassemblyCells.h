@@ -34,7 +34,7 @@ public:
     static constexpr size_t  kInstructionColumn = 5;
     static constexpr size_t  kOperandColumn     = 6;
     static constexpr size_t  kColumnCount       = 7;
-    static constexpr float   kDimMix            = 0.75f;
+    static constexpr float   kDimMix            = 0.85f;
 
     //  The columns, the glyph margin and the text view's background.
     static void  Configure (DxuiListView & list);
@@ -43,8 +43,11 @@ public:
     static void  ShowColumns (DxuiListView & list, const DisassemblyOptions & options);
 
     //  A source line's row: its number when withNumber is set, then its text
-    //  in the syntax colors, starting in the first visible column after the
-    //  glyph margin.
+    //  in the syntax colors. While the label column is visible, the line's label
+    //  is in it and the rest starts in the instruction column, aligned with
+    //  the disassembly's, and the number is in the first visible column before
+    //  the label; otherwise the whole line starts in the first visible column
+    //  after the glyph margin.
     static void  FillSourceRow (std::vector<DxuiListView::Cell> & cells, const DxuiListView & list, int sourceLine,
                                 const std::wstring & text, bool withNumber, const DebuggerTextColors::Set & colors, uint32_t numberArgb);
 
@@ -86,5 +89,11 @@ public:
                                    bool isDotted = false);
 
 private:
+    //  The syntax runs of a source line that fall in [start, end), moved to
+    //  begin at `offset` in a cell's text.
+    static void  AddSourceRuns (DxuiListView::Cell & cell, const std::vector<SourceSyntax::Run> & runs, int start, int end, int offset,
+                                const DebuggerTextColors::Set & colors);
+
+
     static void  PaintDots (IDxuiPainter & painter, const BranchArrow::Segment & segment, float width, uint32_t argb, float & along);
 };

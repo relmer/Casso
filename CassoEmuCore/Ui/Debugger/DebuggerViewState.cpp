@@ -28,6 +28,7 @@
 #include "Config/IFileSystem.h"
 #include "Debugger/HeatAccessJump.h"
 #include "Core/IParallelRunner.h"
+#include "Machines/Apple2/Common/VideoTiming.h"
 
 
 
@@ -133,13 +134,16 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.showPaneSerial = m_showPaneSerial;
     snapshot.suggestion       = m_suggestion;
     snapshot.suggestionSerial = m_suggestionSerial;
-    snapshot.canUndoBreakpoints = m_breakpointHistory.CanUndo();
-    snapshot.canRedoBreakpoints = m_breakpointHistory.CanRedo();
+    snapshot.canUndoBreakpoints  = m_breakpointHistory.CanUndo();
+    snapshot.canRedoBreakpoints  = m_breakpointHistory.CanRedo();
+    snapshot.undoBreakpointsText = m_breakpointHistory.GetUndoText();
+    snapshot.redoBreakpointsText = m_breakpointHistory.GetRedoText();
     snapshot.machine        = session.GetTarget().GetMachineInfo().name;
     snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
     snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());
 
     snapshot.pc        = r.pc;
+    snapshot.cycles    = session.GetTarget().GetCycleCount();
     snapshot.registers = { { "A",  std::format ("{:02X}", r.a) },
                            { "X",  std::format ("{:02X}", r.x) },
                            { "Y",  std::format ("{:02X}", r.y) },
@@ -185,6 +189,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
         session.GetSymbols().TryFindName (address, snapshot.breakpoints.back().label, table);
     }
 
+    AddSessionStops (session, snapshot);
+
     if (session.GetTarget().TryGetDiskState (diskState))
     {
         snapshot.diskSlot = diskState.slot;
@@ -210,7 +216,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     }
 
     snapshot.callStack      = session.GetCallStack();
-    snapshot.instructionSet = session.GetTarget().GetInstructionSet();
+    snapshot.instructionSet   = session.GetTarget().GetInstructionSet();
+    snapshot.instructionTable = session.GetTarget().GetInstructionTable();
 
     snapshot.searchHits    = session.GetSearchResults();
     snapshot.searchSerial  = session.GetSearchSerial();
@@ -219,9 +226,12 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
 
     for (const WatchEntry & entry : watches.entries)
     {
-        snapshot.watches.push_back ({ entry.id, entry.address,
-                                      entry.value.has_value() ? std::format ("{:04X}", *entry.value) : std::string ("--"),
-                                      entry.enabled, entry.basicName });
+        std::string  value = entry.valueText.has_value() ? *entry.valueText
+                           : entry.value.has_value()     ? std::format ("{:04X}", *entry.value)
+                           :                               std::string ("--");
+
+        snapshot.watches.push_back ({ entry.id, entry.address, value, entry.enabled, entry.basicName, entry.expression,
+                                      entry.isValueEditable, entry.error, entry.isRegister });
     }
 
     for (const WatchEntry & entry : pointers.entries)
@@ -667,7 +677,7 @@ void DebuggerViewState::ReadHeatMap (
     ReadHeatValues (target, map, state.bank, state.values);
     FindHeatMarks  (target, map, state);
 
-    state.opcodeForms = GetOpcodeForms (target.GetInstructionSet());
+    state.opcodeForms = GetOpcodeForms (target);
 }
 
 
@@ -845,9 +855,10 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms> DebuggerViewState::GetOpcodeForms (const Microcode * instructionSet) const
+std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms> DebuggerViewState::GetOpcodeForms (const IDebugTarget & target) const
 {
-    constexpr size_t                                    kOpcodeCount = 256;
+    constexpr size_t                                    kOpcodeCount   = 256;
+    const Microcode                                   * instructionSet = target.GetInstructionSet();
     std::shared_ptr<DebuggerViewSnapshot::OpcodeForms>  forms;
 
 
@@ -864,8 +875,9 @@ std::shared_ptr<const DebuggerViewSnapshot::OpcodeForms> DebuggerViewState::GetO
         (*forms)[opcode] = GetOpcodeForm (instructionSet, (Byte) opcode);
     }
 
-    m_opcodeForms    = forms;
-    m_opcodeFormsSet = instructionSet;
+    m_opcodeForms      = forms;
+    m_opcodeFormsSet   = instructionSet;
+    m_opcodeFormsTable = target.GetInstructionTable();
     return m_opcodeForms;
 }
 
@@ -1176,7 +1188,7 @@ void DebuggerViewState::BuildTrace (DebugSession & session, DebuggerViewSnapshot
     snapshot.trace.first   = first;
     snapshot.trace.entries = std::move (data.entries);
 
-    if (snapshot.isPaused && data.isOn)
+    if (snapshot.isPaused && (data.isOn || data.total > 0))
     {
         BuildTraceNext (session, snapshot);
     }
@@ -1867,13 +1879,75 @@ std::string DebuggerViewState::GetPokeLine (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::GetWatchError
+//
+//  Text after BASIC must be a variable or an array element as a program
+//  writes it. A BASIC variable, and anything once the machine is stopped in
+//  a program, is left to the session; otherwise the text, less any `.b` or
+//  `.w` suffix, must parse. A name no symbol has yet is a watch all the same,
+//  which reads as the symbol once symbols define it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetWatchError (const DebuggerViewSnapshot & snapshot, const std::string & typed)
+{
+    static constexpr std::string_view  kBasic  = "BASIC ";
+    std::string                        text    = typed;
+    std::string                        name;
+    std::string                        error;
+    BasicReference                     reference;
+    Expression                         parsed;
+    HRESULT                            hr      = S_OK;
+
+
+
+    text.erase (0, std::min (text.size(), text.find_first_not_of (" \t")));
+    text.erase (text.find_last_not_of (" \t") + 1);
+
+    if (text.empty())
+    {
+        return "There is nothing to watch.";
+    }
+
+    if (text.size() > kBasic.size() && _strnicmp (text.c_str(), kBasic.data(), kBasic.size()) == 0)
+    {
+        name = text.substr (kBasic.size());
+        std::erase (name, ' ');
+
+        return ApplesoftProgram::TryParseReference (name, reference) ? std::string()
+                                                                     : std::string ("BASIC takes a variable or an array element as a program writes it: A, B%, C$ or D(3,4).");
+    }
+
+    if (WatchItem::SplitWidth (text, text) != 0)
+    {
+        hr = DebugExpressionEvaluator::Parse (text, parsed, error);
+        return FAILED (hr) ? error : std::string();
+    }
+
+    if (ApplesoftProgram::TryParseReference (text, reference) &&
+        (text.find_first_of ("$%(") != std::string::npos || (snapshot.basic.has_value() && snapshot.basic->hasValues)))
+    {
+        return {};
+    }
+
+    hr = DebugExpressionEvaluator::Parse (text, parsed, error);
+    return FAILED (hr) ? error : std::string();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::GetWatchEditActions
 //
 //  Each edit runs as the command anyone could have typed, and is echoed as
 //  that command in the console:
 //
 //    manual watch, expression   the watch moved to the new address
-//    manual watch, value        the word written to the watched address
+//    manual watch, value        the word written to the watched address,
+//                               or R <register> <value> for a register
 //    automatic register         R <register> <value>
 //    automatic flag             R P with that one bit set or cleared
 //    automatic address          the byte written there
@@ -1888,9 +1962,10 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
     {
         { 'C', 0x01 }, { 'Z', 0x02 }, { 'I', 0x04 }, { 'D', 0x08 }, { 'V', 0x40 }, { 'N', 0x80 },
     };
-    std::string  text    = typed;
+    std::string  text     = typed;
     std::string  key;
-    Word         address = 0;
+    Word         address  = 0;
+    auto         oneValue = [] (DebuggerAction action) { action.isOneValue = true; return action; };
 
 
 
@@ -1910,8 +1985,10 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
             {
                 //  A BASIC watch's value is the program's to change.
                 return (column == 0)               ? std::vector<DebuggerAction> { DebuggerActions::GetClearWatch (watch.id, mode), DebuggerActions::GetAddWatch (text, mode) }
-                     : !watch.basicName.empty()    ? std::vector<DebuggerAction> {}
-                     :                               std::vector<DebuggerAction> { DebuggerActions::GetEnterWord (watch.address, text, mode) };
+                     : !watch.basicName.empty() || !watch.isValueEditable ? std::vector<DebuggerAction> {}
+                     : IsRegisterWatch (watch)      ? std::vector<DebuggerAction> { DebuggerActions::GetSetRegister (GetUpper (watch.expression), text, mode) }
+                     : IsByteWatch (watch)          ? std::vector<DebuggerAction> { oneValue (DebuggerActions::GetEnterByte (watch.address, text, mode)) }
+                     :                               std::vector<DebuggerAction> { oneValue (DebuggerActions::GetEnterWord (watch.address, text, mode)) };
             }
         }
 
@@ -1932,7 +2009,7 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
 
     if (key.starts_with ("M:") && TryParseHexWord (key.substr (2), address))
     {
-        return { DebuggerActions::GetEnterByte (address, text, mode) };
+        return { oneValue (DebuggerActions::GetEnterByte (address, text, mode)) };
     }
 
     //  A flag is 0 or 1 and nothing else; it is written as the whole status
@@ -1959,6 +2036,61 @@ std::vector<DebuggerAction> DebuggerViewState::GetWatchEditActions (const Debugg
     }
 
     return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::IsRegisterWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsRegisterWatch (const DebuggerViewSnapshot::WatchLine & watch)
+{
+    //  By the watch's kind, not its text: a symbol called X or PC is memory.
+    return watch.isRegister;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::IsByteWatch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DebuggerViewState::IsByteWatch (const DebuggerViewSnapshot::WatchLine & watch)
+{
+    std::string  base;
+
+
+
+    return watch.basicName.empty() && WatchItem::SplitWidth (watch.expression, base) == 1;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::GetUpper
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string DebuggerViewState::GetUpper (const std::string & text)
+{
+    std::string  upper = text;
+
+
+
+    std::ranges::transform (upper, upper.begin(), [] (char ch) { return (char) std::toupper ((unsigned char) ch); });
+    return upper;
 }
 
 
@@ -1997,7 +2129,9 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
 
             if (column == 0)
             {
-                undo.restoreText = watch.basicName.empty() ? std::format ("{:04X}", watch.address) : "BASIC " + watch.basicName;
+                undo.restoreText = !watch.expression.empty() ? watch.expression
+                                 : watch.basicName.empty()   ? std::format ("{:04X}", watch.address)
+                                 :                             "BASIC " + watch.basicName;
 
                 for (const DebuggerViewSnapshot::WatchLine & other : before.watches)
                 {
@@ -2012,7 +2146,9 @@ std::optional<DebuggerViewState::WatchUndo> DebuggerViewState::GetWatchUndo (con
                 return std::nullopt;
             }
 
-            undo.actions = { DebuggerActions::GetEnterWord (watch.address, value, mode) };
+            undo.actions = { IsRegisterWatch (watch) ? DebuggerActions::GetSetRegister (GetUpper (watch.expression), value, mode)
+                           : IsByteWatch (watch)     ? DebuggerActions::GetEnterByte (watch.address, (Byte) value, mode)
+                           :                           DebuggerActions::GetEnterWord (watch.address, value, mode) };
             return undo;
         }
 
@@ -2450,7 +2586,7 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
 
     if (action.breakpointStep.has_value())
     {
-        return ExecuteBreakpointStep (session, *action.breakpointStep);
+        return ExecuteBreakpointStep (session, *action.breakpointStep, action.isEchoed);
     }
 
     reply = ExecuteActionCommand (session, action);
@@ -2462,11 +2598,39 @@ std::vector<std::string> DebuggerViewState::ExecuteAction (DebugSession & sessio
 
     reply.mode = mode;
     session.FormatReply (reply, mode);
-
-    lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
-    lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+    AddActionLines (session, action, reply, lines);
 
     return lines;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebuggerViewState::AddActionLines
+//
+//  An echoed action's prompt, echo and reply. Otherwise only the reply, and
+//  only when it is an error or the action's result.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::AddActionLines (DebugSession & session, const DebuggerAction & action, const Reply & reply, std::vector<std::string> & lines)
+{
+    CommandMode  mode = action.echoMode.value_or (session.GetMode());
+
+
+
+    if (action.isEchoed)
+    {
+        lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
+    }
+
+    if (action.isEchoed || action.isResult || reply.status != CommandStatus::Ok)
+    {
+        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+    }
 }
 
 
@@ -2537,7 +2701,8 @@ Reply DebuggerViewState::ExecuteActionCommand (DebugSession & session, const Deb
 //  evaluated in the session's mode: one address or register value, or the
 //  values to write, each split at spaces as a typed deposit's are, a byte
 //  where it fits and a word, low byte first, where it does not or where the
-//  command writes words.
+//  command writes words. A watch's value edit takes one value, and a byte
+//  watch's one that fits a byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2596,6 +2761,18 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
             return false;
         }
 
+        if (action.isOneValue && !command.values.empty())
+        {
+            error = "Type one value.";
+            return false;
+        }
+
+        if (action.isOneValue && command.verb == DebugVerb::EnterBytes && value > kMaxByte)
+        {
+            error = std::format ("${:X} does not fit in a byte.", value);
+            return false;
+        }
+
         isWord = command.verb == DebugVerb::EnterWords || value > kMaxByte;
 
         command.values.push_back ((Byte) value);
@@ -2617,6 +2794,55 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DebuggerViewState::AddSessionStops
+//
+//  The session's own stops after the table's breakpoints: a read before
+//  written, which counts only once the heat map is tracking writes, a video
+//  scanline range, and a beam position, each with no id.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DebuggerViewState::AddSessionStops (DebugSession & session, DebuggerViewSnapshot & snapshot)
+{
+    std::optional<std::pair<uint32_t, uint32_t>>  video = session.GetVideoBreak();
+    std::optional<uint32_t>                       beam  = session.GetBeamBreak();
+    BreakpointInfo                                info;
+
+
+
+    info.id      = -1;
+    info.enabled = true;
+
+    if (session.HasUnwrittenBreak())
+    {
+        info.kind       = BreakpointKind::UnwrittenRead;
+        info.isTracking = session.GetTarget().GetUnwrittenStatus().isTracking;
+        snapshot.breakpoints.push_back ({ -1, 0, std::string(), true, info });
+    }
+
+    if (video.has_value())
+    {
+        info.kind    = BreakpointKind::VideoLine;
+        info.address = (Word) video->first;
+        info.last    = (Word) video->second;
+        snapshot.breakpoints.push_back ({ -1, 0, std::string(), true, info });
+    }
+
+    if (beam.has_value())
+    {
+        info.kind    = BreakpointKind::Beam;
+        info.address = (Word) (*beam / VideoTiming::kCyclesPerScanline);
+        info.last    = (Word) (*beam % VideoTiming::kCyclesPerScanline);
+        snapshot.breakpoints.push_back ({ -1, 0, std::string(), true, info });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DebuggerViewState::ExecuteBreakpointStep
 //
 //  Each action runs directly and is echoed in its mode. An undo or redo runs
@@ -2625,7 +2851,7 @@ bool DebuggerViewState::TryResolveCommand (DebugSession & session, const Debugge
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step)
+std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession & session, const BreakpointStep & step, bool isEchoed)
 {
     std::vector<std::string>         lines;
     BreakpointHistory::ActionRunner  act;
@@ -2634,32 +2860,40 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
 
 
 
-    act = [this, &session, &lines] (const DebuggerAction & action)
+    act = [this, &session, &lines, isEchoed] (const DebuggerAction & action)
     {
-        CommandMode  mode  = action.echoMode.value_or (session.GetMode());
-        Reply        reply = ExecuteActionCommand (session, action);
+        DebuggerAction  echoed = action;
+        CommandMode     mode   = action.echoMode.value_or (session.GetMode());
+        Reply           reply  = ExecuteActionCommand (session, action);
 
-        reply.mode = mode;
+        echoed.isEchoed = isEchoed;
+        reply.mode      = mode;
         session.FormatReply (reply, mode);
-
-        lines.push_back (DebugSession::GetPrompt (mode) + action.echo);
-        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        AddActionLines (session, echoed, reply, lines);
         return reply;
     };
 
-    run = [this, &session, &lines] (const std::string & line, CommandMode mode)
+    run = [this, &session, &lines, isEchoed] (const std::string & line, CommandMode mode)
     {
         Reply  reply = ExecuteSessionLine (session, line, mode);
 
-        lines.push_back (DebugSession::GetPrompt (mode) + line);
-        lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        if (isEchoed)
+        {
+            lines.push_back (DebugSession::GetPrompt (mode) + line);
+        }
+
+        if (isEchoed || reply.status != CommandStatus::Ok)
+        {
+            lines.insert (lines.end(), reply.text.begin(), reply.text.end());
+        }
+
         return reply;
     };
 
     switch (step.kind)
     {
     case BreakpointStep::Kind::Undo:
-        if (m_breakpointHistory.TryUndo (session, summary))
+        if (m_breakpointHistory.TryUndo (session, summary) && isEchoed)
         {
             lines.insert (lines.end(), summary.begin(), summary.end());
         }
@@ -2667,7 +2901,7 @@ std::vector<std::string> DebuggerViewState::ExecuteBreakpointStep (DebugSession 
         break;
 
     case BreakpointStep::Kind::Redo:
-        if (m_breakpointHistory.TryRedo (session, summary))
+        if (m_breakpointHistory.TryRedo (session, summary) && isEchoed)
         {
             lines.insert (lines.end(), summary.begin(), summary.end());
         }
@@ -2814,7 +3048,13 @@ Reply DebuggerViewState::ExecuteWindowLine (DebugSession & session, const std::s
     }
 
     stream.str (text);
-    stream >> name >> argument;
+    stream >> name;
+
+    //  The argument is the rest of the line, so an expression with spaces is
+    //  read whole.
+    std::getline (stream, argument);
+    argument.erase (0, std::min (argument.size(), argument.find_first_not_of (" \t")));
+    argument.erase (argument.find_last_not_of (" \t") + 1);
 
     if (!name.empty() && !session.IsAssembling())
     {

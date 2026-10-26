@@ -358,6 +358,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         SetWindowPos (m_host->GetHwnd(), nullptr, placed.left, placed.top,
                       placed.right - placed.left, placed.bottom - placed.top,
                       SWP_NOZORDER | SWP_NOACTIVATE);
+
+        //  A rect saved on a larger or less scaled screen can exceed this one.
+        DxuiHwndSource::FitWindowToWorkArea (m_host->GetHwnd());
     }
 
     WindowTrace::LogWindow ("create.actual", "main", m_host->GetHwnd(), "after Create");
@@ -1206,9 +1209,9 @@ void EmulatorShell::OnDestroy()
 
     m_cpuManager.Stop();
 
-    // The machine is quiet once the CPU thread has stopped, and the window is
-    // up for a notice if the write fails.
-    SaveAutoState();
+    // The machine is quiet once the CPU thread has stopped. The window is
+    // being destroyed, so a failed write is reported in a system box.
+    SaveAutoState (true);
 
     // IDxuiHostClient::OnDestroy is notification-only — the host
     // does NOT call PostQuitMessage. EmulatorShell is the
@@ -1891,7 +1894,8 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         }
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     if (msg == WM_APP_SHOW_NOTICE)
     {
         wstring *  carried = reinterpret_cast<wstring *> (lParam);
@@ -1903,7 +1907,8 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         }
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // An answer for a tool that asked, known on another thread or inside the
     // tool's own send.
     if (msg == WM_APP_INTENT_REPLY)
@@ -1917,7 +1922,8 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         }
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // A piece of update work finished on the update service's thread.
     if (msg == WM_APP_UPDATE_RESULT)
     {
@@ -1930,7 +1936,8 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         }
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     if (msg == WM_APP_DXUI_UPDATE_TITLE)
     {
         ReflectMachineChange();
@@ -1970,7 +1977,8 @@ DxuiMessageResult EmulatorShell::OnDiskAppMessage (UINT msg, WPARAM wParam, LPAR
         }
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     if (msg == WM_APP_CHANGE_ASK)
     {
         ShellDisks::ChangeNotice *  carried = reinterpret_cast<ShellDisks::ChangeNotice *> (lParam);
@@ -1982,7 +1990,8 @@ DxuiMessageResult EmulatorShell::OnDiskAppMessage (UINT msg, WPARAM wParam, LPAR
         }
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // A mount that ran on the CPU thread wants its damage report raised here,
     // where a modal can be built.
     if (msg == WM_APP_REPORT_DAMAGE)
@@ -1990,7 +1999,8 @@ DxuiMessageResult EmulatorShell::OnDiskAppMessage (UINT msg, WPARAM wParam, LPAR
         m_disks->ReportDamagedMount ((int) wParam);
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // One mount's outcome, from whichever thread ran it. Startup mounts land
     // here too, which is what keeps a bad --disk1 from raising a dialog before
     // there was a pump to run it.
@@ -2005,7 +2015,8 @@ DxuiMessageResult EmulatorShell::OnDiskAppMessage (UINT msg, WPARAM wParam, LPAR
         }
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // Salvage: the CPU thread assessed the disk, or wrote the copy, and the
     // dialogs for each open here.
     if (msg == WM_APP_SALVAGE_OFFER)
@@ -2070,35 +2081,40 @@ DxuiMessageResult EmulatorShell::OnInputAppMessage (UINT msg)
         m_debugger->OnConfirmInputDiverge();
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // The replay stopped where the guest reads input held behind live.
     if (msg == WM_APP_HELD_INPUT_READ)
     {
         m_debugger->OnHeldInputRead();
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // A debugger edit behind live waits on this question.
     if (msg == WM_APP_CONFIRM_DIVERGE)
     {
         m_debugger->OnConfirmDiverge();
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // A more specific debug project opened, with the last one's items on offer.
     if (msg == WM_APP_CONFIRM_PROJECT_MERGE)
     {
         m_debugger->OnConfirmProjectMerge();
 
         return DxuiMessageResult::Handled;
-    }
+    }
+
     // The players' slots changed, or a controller came or went. Saying so and
     // writing it to the prefs both belong here, not on the controller thread.
     if (msg == WM_APP_CONTROLLER_PICK)
     {
         m_input->ApplyPendingControllerPick();
         return DxuiMessageResult::Handled;
-    }
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 

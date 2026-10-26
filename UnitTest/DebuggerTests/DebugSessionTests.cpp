@@ -89,6 +89,24 @@ namespace DebuggerTests
 
 
 
+        //  A machine switch builds a new bus with no watch sink, so the
+        //  session installs the table again on the new machine.
+        TEST_METHOD (MachineSwitch_MakesTheWatchpointTableTheNewMachinesWatchSink)
+        {
+            MockDebugTarget  target;
+            RecordingSink    sink;
+            DebugSession     session (target, sink, RunState::Paused);
+
+
+
+            target.watchSink = nullptr;
+            session.OnMachineChanged ("Apple2c");
+
+            Assert::IsTrue (target.watchSink == &session.GetWatchpoints());
+        }
+
+
+
         //  A hit during the first instruction of a run reports that
         //  instruction's address. Only OnInstruction sees the first one:
         //  ShouldStopBefore is skipped for it, so a stop at $0300 followed by

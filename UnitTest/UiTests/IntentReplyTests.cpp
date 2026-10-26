@@ -230,6 +230,28 @@ public:
 
 
 
+    //  A broadcast is sent to every emulator, and one without the image notes
+    //  a reload that no decision consumes. The note lapses, so a change to
+    //  that path much later sends no reply.
+    TEST_METHOD (Tracker_AReloadNoteLapses)
+    {
+        IntentReplyTracker  tracker;
+        HWND                replyTo = nullptr;
+        ULONGLONG           now     = 1000;
+
+
+
+        tracker.SetClock ([&now] { return now; });
+        tracker.NoteReload (kImagePath, kToolA);
+
+        now += IntentReplyTracker::kReloadLifetimeMs + 1;
+
+        Assert::IsFalse (tracker.TryTakeReload (kImagePath, replyTo), L"a note from long ago answers nobody");
+        Assert::IsTrue  (replyTo == nullptr);
+    }
+
+
+
     TEST_METHOD (Answers_ForAMountAndForEveryReloadDecision)
     {
         Reply  reply;

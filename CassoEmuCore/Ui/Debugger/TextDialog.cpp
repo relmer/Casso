@@ -74,6 +74,57 @@ bool TextDialog::TryParseAddress (const std::wstring & text, Word & address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TextDialog::TryParseHexWord
+//
+//  Hex with or without a `$` or `0x` in front. The debugger's small boxes
+//  take an address the way a person types one, and a stray prefix is not an
+//  error.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TextDialog::TryParseHexWord (std::wstring text, Word & value)
+{
+    uint32_t  parsed = 0;
+
+
+
+    while (!text.empty() && iswspace (text.front())) { text.erase (0, 1); }
+    while (!text.empty() && iswspace (text.back()))  { text.pop_back(); }
+
+    if (!text.empty() && text[0] == L'$')
+    {
+        text.erase (0, 1);
+    }
+    else if (text.size() > 2 && text[0] == L'0' && (text[1] == L'x' || text[1] == L'X'))
+    {
+        text.erase (0, 2);
+    }
+
+    if (text.empty() || text.size() > 4)
+    {
+        return false;
+    }
+
+    for (wchar_t c : text)
+    {
+        if (!iswxdigit (c))
+        {
+            return false;
+        }
+
+        parsed = parsed * 16 + (uint32_t) (iswdigit (c) ? c - L'0' : (towupper (c) - L'A' + 10));
+    }
+
+    value = (Word) parsed;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TextDialog::OnCreate
 //
 ////////////////////////////////////////////////////////////////////////////////

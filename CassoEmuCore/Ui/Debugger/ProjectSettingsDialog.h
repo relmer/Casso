@@ -75,6 +75,9 @@ public:
 protected:
     void  OnCreate() override;
 
+    //  The commands OK took, none until OK closes the dialog.
+    const std::optional<StartupCommands> &  GetResult() const { return m_result; }
+
 private:
     void  ConfigureGrid  ();
     void  ApplyRows      ();

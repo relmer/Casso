@@ -78,12 +78,18 @@ class DxuiPaneLayout
 public:
     static constexpr int  kVersion = 1;
 
+    //  A floating pane. Panes that share a `window` float as tabs in one
+    //  window, in the order of their entries, with one of them `isActive`;
+    //  every entry of a window has the window's monitor and rect. A pane
+    //  floating alone is a window of its own, keyed by its name.
     struct Floating
     {
         std::wstring  pane;
         std::wstring  monitorKey;
-        RECT          rectDip = {};
+        RECT          rectDip  = {};
         std::wstring  homePane;
+        std::wstring  window;
+        bool          isActive = true;
     };
 
     //  A pane that was alone in its group also keeps the panes on the other
@@ -149,6 +155,12 @@ public:
     //  The panes tabbed together with `pane`, itself included, in tab order.
     std::vector<std::wstring>  GetGroup (const std::wstring & pane) const;
 
+    //  The floating window a pane is in, empty when it is not floating; the
+    //  panes of a floating window in tab order; and the one shown.
+    std::wstring               GetFloatingWindow (const std::wstring & pane) const;
+    std::vector<std::wstring>  GetFloatingPanes  (const std::wstring & window) const;
+    std::wstring               GetFloatingActive (const std::wstring & window) const;
+
     //  Operations. Each returns false and changes nothing when it would not
     //  change the layout (a drop onto a pane's own place) or names a pane
     //  that is not there.
@@ -164,7 +176,19 @@ public:
 
     bool  TabWith    (const std::wstring & pane, const std::wstring & target);
     bool  TabWithAt   (const std::wstring & pane, const std::wstring & target, int index);
+    //  Into a window of its own; a pane floating with others leaves their
+    //  window for one of its own, and a pane floating alone moves.
     bool  Float       (const std::wstring & pane, const std::wstring & monitorKey, const RECT & rectDip);
+
+    //  A whole tab group into one window, `active` the tab shown, each pane
+    //  remembering the pane beside the group to dock back to.
+    bool  FloatGroup  (const std::vector<std::wstring> & panes, const std::wstring & active,
+                       const std::wstring & monitorKey, const RECT & rectDip);
+
+    //  A floating window moved or resized, and its tabs reordered or another
+    //  shown, as the window reports them; false when nothing changed.
+    bool  SetFloatingRect (const std::wstring & window, const std::wstring & monitorKey, const RECT & rectDip);
+    bool  SetFloatingTabs (const std::wstring & window, const std::vector<std::wstring> & panes, const std::wstring & active);
     bool  AutoHide    (const std::wstring & pane, DxuiDockSide edge);
     bool  DockBack    (const std::wstring & pane);
     bool  Activate    (const std::wstring & pane);
@@ -234,6 +258,9 @@ private:
     bool   Detach       (const std::wstring & pane);
     void   Split        (Node & group, std::unique_ptr<Node> added, DxuiDockSide side);
     std::wstring  GetNeighbor (const std::wstring & pane) const;
+    std::wstring  GetNeighborOutside (const std::vector<std::wstring> & panes) const;
+    std::wstring  MakeWindowKey (const std::wstring & preferred) const;
+    void   FixActiveTabs ();
 
     std::unique_ptr<Node>    m_root;
     std::vector<Floating>    m_floating;

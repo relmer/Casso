@@ -89,8 +89,10 @@ public:
     //  emulated time without a host time.
     static std::wstring  GetReplayCaption (uint64_t wallTime, uint64_t cycle, LPCWSTR locale);
 
-    //  A count with the locale's digit grouping and no decimals.
+    //  A count with the locale's digit grouping and no decimals; with no
+    //  locale, the user's.
     static std::wstring  FormatCount     (uint64_t count, LPCWSTR locale);
+    static std::wstring  FormatCount     (uint64_t count) { return FormatCount (count, LOCALE_NAME_USER_DEFAULT); }
 
 private:
     static constexpr size_t  kMaxFormattedChars = 80;

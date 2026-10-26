@@ -91,6 +91,8 @@ HRESULT SymbolFileReader::Read (const std::string & content, std::vector<SymbolF
         break;
     }
 
+    DropDuplicates (symbols);
+
     hasSymbols = !symbols.empty();
 
     if (!hasSymbols && error.empty())
@@ -313,21 +315,63 @@ bool SymbolFileReader::TryParseViceAddress (const std::string & text, uint32_t &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SymbolFileReader::AddUnique
+//  SymbolFileReader::Add
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SymbolFileReader::AddUnique (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant, Word size)
+void SymbolFileReader::Add (std::vector<SymbolFileEntry> & symbols, const std::string & name, Word address, bool isConstant, Word size)
 {
-    for (const SymbolFileEntry & existing : symbols)
+    symbols.push_back ({ name, address, isConstant, size });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SymbolFileReader::DropDuplicates
+//
+//  Removes every symbol whose name, in any case, matches an earlier one's;
+//  the rest stay in order. The upper-cased keys are sorted once, so a
+//  file of many symbols is not compared symbol by symbol against every other.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SymbolFileReader::DropDuplicates (std::vector<SymbolFileEntry> & symbols)
+{
+    std::vector<std::string>  keys        (symbols.size());
+    std::vector<size_t>       order       (symbols.size());
+    std::vector<bool>         isDuplicate (symbols.size(), false);
+    size_t                    kept        = 0;
+
+
+
+    for (size_t i = 0; i < symbols.size(); i++)
     {
-        if (_stricmp (existing.name.c_str(), name.c_str()) == 0)
+        keys[i]  = symbols[i].name;
+        order[i] = i;
+
+        std::transform (keys[i].begin(), keys[i].end(), keys[i].begin(), [] (char c) { return (char) toupper ((unsigned char) c); });
+    }
+
+    //  Stable, so of the symbols with one name the earliest sorts first.
+    std::stable_sort (order.begin(), order.end(), [&keys] (size_t a, size_t b) { return keys[a] < keys[b]; });
+
+    for (size_t i = 1; i < order.size(); i++)
+    {
+        isDuplicate[order[i]] = keys[order[i]] == keys[order[i - 1]];
+    }
+
+    for (size_t i = 0; i < symbols.size(); i++)
+    {
+        if (!isDuplicate[i])
         {
-            return;
+            symbols[kept++] = std::move (symbols[i]);
         }
     }
 
-    symbols.push_back ({ name, address, isConstant, size });
+    symbols.resize (kept);
 }
 
 
@@ -364,7 +408,7 @@ void SymbolFileReader::ReadCasso (const std::vector<std::string> & lines, std::v
 
         if (IsCassoLine (line) && TryParseHex (Trim (line.substr (equals + 1)), value))
         {
-            AddUnique (symbols, Trim (line.substr (0, equals)), value, isInConstants);
+            Add (symbols, Trim (line.substr (0, equals)), value, isInConstants);
         }
     }
 }
@@ -404,7 +448,7 @@ void SymbolFileReader::ReadCc65 (const DebugFile & file, std::vector<SymbolFileE
     {
         if (symbol.type != "imp" && (symbol.scope < 0 || topLevel.contains (symbol.scope)))
         {
-            AddUnique (symbols, symbol.name, (Word) symbol.value, symbol.type == kEquate || symbol.segment < 0, (Word) symbol.size);
+            Add (symbols, symbol.name, (Word) symbol.value, symbol.type == kEquate || symbol.segment < 0, (Word) symbol.size);
         }
     }
 }
@@ -461,7 +505,7 @@ void SymbolFileReader::ReadMerlinListing (const std::vector<std::string> & lines
             }
             else if (equals == 0 && !pending.empty() && TryParseHex (token.substr (1), value))
             {
-                AddUnique (symbols, pending, value);
+                Add (symbols, pending, value);
                 pending.clear();
             }
             else if (equals == token.size() - 1)
@@ -470,7 +514,7 @@ void SymbolFileReader::ReadMerlinListing (const std::vector<std::string> & lines
             }
             else if (equals > 0 && TryParseHex (token.substr (equals + 1), value))
             {
-                AddUnique (symbols, token.substr (0, equals), value);
+                Add (symbols, token.substr (0, equals), value);
                 pending.clear();
             }
             else if (!pending.empty() && equals == 0 && token.size() == 1)
@@ -479,7 +523,7 @@ void SymbolFileReader::ReadMerlinListing (const std::vector<std::string> & lines
             }
             else if (!pending.empty() && TryParseHex (token, value))
             {
-                AddUnique (symbols, pending, value);
+                Add (symbols, pending, value);
                 pending.clear();
             }
         }
@@ -511,7 +555,7 @@ void SymbolFileReader::ReadAppleWin (const std::vector<std::string> & lines, std
 
         if (IsAppleWinLine (line) && TryParseHex (address, value))
         {
-            AddUnique (symbols, name, value);
+            Add (symbols, name, value);
         }
     }
 }
@@ -545,7 +589,7 @@ void SymbolFileReader::ReadVice (const std::vector<std::string> & lines, std::ve
 
         if (IsViceLine (line) && TryParseViceAddress (address, value, isComputer) && isComputer && value <= 0xFFFF)
         {
-            AddUnique (symbols, name.substr (1), (Word) value);
+            Add (symbols, name.substr (1), (Word) value);
         }
     }
 }

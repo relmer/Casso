@@ -82,12 +82,18 @@ bool Win32FolderWatcher::Watch (const std::wstring & directory, Callback callbac
 //
 //  Win32FolderWatcher::Unwatch
 //
+//  The service thread may be about to wait on the folder's handle, so with
+//  the thread running the handle goes to m_retired for the thread to close
+//  before it builds its next wait. A callback of the folder already running
+//  is waited for, unless Unwatch is called from that callback.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Win32FolderWatcher::Unwatch (const std::wstring & directory)
 {
-    std::lock_guard<std::mutex>  held  = std::lock_guard<std::mutex> (m_lock);
-    auto                         found = m_folders.find (directory);
+    std::unique_lock<std::mutex>  held      (m_lock);
+    auto                          found     = m_folders.find (directory);
+    bool                          isService = std::this_thread::get_id() == m_service.get_id();
 
 
 
@@ -96,12 +102,25 @@ void Win32FolderWatcher::Unwatch (const std::wstring & directory)
         return;
     }
 
-    FindCloseChangeNotification (found->second.notification);
+    if (m_service.joinable())
+    {
+        m_retired.push_back (found->second.notification);
+    }
+    else
+    {
+        FindCloseChangeNotification (found->second.notification);
+    }
+
     m_folders.erase (found);
 
     if (m_wake != nullptr)
     {
         SetEvent (m_wake);
+    }
+
+    if (!isService)
+    {
+        m_callbackDone.wait (held, [this, &directory] { return m_running != directory; });
     }
 }
 
@@ -142,7 +161,9 @@ void Win32FolderWatcher::EnsureService()
 //  Win32FolderWatcher::RunService
 //
 //  One wait over every folder. A handle that fires is reported and re-armed;
-//  the wake handle means the set changed and the wait is rebuilt.
+//  a signaled m_wake indicates the set changed, and the wait is rebuilt. Handles
+//  Unwatch retired are closed here, before the wait set is built, so no
+//  handle is closed while a wait is on it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,6 +184,13 @@ void Win32FolderWatcher::RunService()
 
         {
             std::lock_guard<std::mutex>  held (m_lock);
+
+            for (HANDLE retired : m_retired)
+            {
+                FindCloseChangeNotification (retired);
+            }
+
+            m_retired.clear();
 
             waits.push_back (m_stop);
             waits.push_back (m_wake);
@@ -207,7 +235,8 @@ void Win32FolderWatcher::RunService()
 
                 if (found != m_folders.end())
                 {
-                    callback = found->second.callback;
+                    callback  = found->second.callback;
+                    m_running = directory;
 
                     //  Re-armed before the callback, so a change made while it
                     //  runs is still reported.
@@ -218,6 +247,14 @@ void Win32FolderWatcher::RunService()
             if (callback)
             {
                 callback (directory);
+
+                {
+                    std::lock_guard<std::mutex>  held (m_lock);
+
+                    m_running.reset();
+                }
+
+                m_callbackDone.notify_all();
             }
         }
     }
@@ -253,7 +290,13 @@ void Win32FolderWatcher::Stop()
             FindCloseChangeNotification (folder.second.notification);
         }
 
+        for (HANDLE retired : m_retired)
+        {
+            FindCloseChangeNotification (retired);
+        }
+
         m_folders.clear();
+        m_retired.clear();
     }
 
     if (m_stop != nullptr)

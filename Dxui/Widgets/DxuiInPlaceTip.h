@@ -36,12 +36,18 @@ public:
     //  Over `clientRect` of the host window, filled with `backgroundArgb`
     //  (opaque). A second call for the same rect keeps the tip already up.
     void  Show (const RECT & clientRect, uint32_t backgroundArgb, RenderFn render);
+
+    //  As Show, on a transparent popup the render draws its own fill into,
+    //  for a tip that is not a rectangle.
+    void  ShowShaped (const RECT & clientRect, RenderFn render);
     void  Hide ();
 
     bool          IsVisible () const { return m_activePopup != nullptr; }
     const RECT &  GetRect   () const { return m_rect; }
 
 private:
+    void  ShowPopup (const RECT & clientRect, uint32_t clearArgb, RenderFn render);
+
     DxuiHwndSource  * m_popupHost   = nullptr;
     DxuiPopupHost   * m_activePopup = nullptr;
     RECT              m_rect        = {};

@@ -144,6 +144,7 @@ public:
     bool      IsRecording         () const { return m_isRecording; }
     bool      IsRecordingLive     () const;
     HRESULT   SetUserMaximumSpeed (bool isMaximum);
+    HRESULT   ChangeBudget        (size_t budgetBytes);
     bool      IsPaused            () const { return m_isPaused; }
 
     void      OnMediaChanged      (MachineHost & machine) override;

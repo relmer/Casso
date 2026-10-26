@@ -166,13 +166,28 @@ WindowPlacementProfile::WindowPlacementProfile (GlobalUserPrefs & prefs)
 
 std::string WindowPlacementProfile::BuildTopologyKey()
 {
+    return BuildTopologyKeyFrom (GetMonitors());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::GetMonitors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<WindowPlacementProfile::MonitorSnapshot> WindowPlacementProfile::GetMonitors()
+{
     std::vector<MonitorSnapshot>  monitors;
 
 
 
     EnumDisplayMonitors (nullptr, nullptr, CollectMonitorsProc, reinterpret_cast<LPARAM> (&monitors));
 
-    return BuildTopologyKeyFrom (monitors);
+    return monitors;
 }
 
 
@@ -197,15 +212,7 @@ std::string WindowPlacementProfile::BuildTopologyKeyFrom (const std::vector<Moni
 
 
 
-    std::sort (sorted.begin(), sorted.end(),
-               [] (const MonitorSnapshot & a, const MonitorSnapshot & b)
-               {
-                   if (a.device != b.device) { return a.device < b.device; }
-                   if (a.rcMonitor.left != b.rcMonitor.left) { return a.rcMonitor.left < b.rcMonitor.left; }
-                   if (a.rcMonitor.top != b.rcMonitor.top) { return a.rcMonitor.top < b.rcMonitor.top; }
-                   if (a.rcMonitor.right != b.rcMonitor.right) { return a.rcMonitor.right < b.rcMonitor.right; }
-                   return a.rcMonitor.bottom < b.rcMonitor.bottom;
-               });
+    SortMonitors (sorted);
 
     for (const MonitorSnapshot & m : sorted)
     {
@@ -225,6 +232,32 @@ std::string WindowPlacementProfile::BuildTopologyKeyFrom (const std::vector<Moni
     sprintf_s (hashHex, _countof (hashHex), "%016llX", hash);
 
     return std::string (hashHex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::SortMonitors
+//
+//  By device, then bounds, so the order the OS happens to enumerate the
+//  monitors in cannot change a key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowPlacementProfile::SortMonitors (std::vector<MonitorSnapshot> & monitors)
+{
+    std::sort (monitors.begin(), monitors.end(),
+               [] (const MonitorSnapshot & a, const MonitorSnapshot & b)
+               {
+                   if (a.device != b.device) { return a.device < b.device; }
+                   if (a.rcMonitor.left != b.rcMonitor.left) { return a.rcMonitor.left < b.rcMonitor.left; }
+                   if (a.rcMonitor.top != b.rcMonitor.top) { return a.rcMonitor.top < b.rcMonitor.top; }
+                   if (a.rcMonitor.right != b.rcMonitor.right) { return a.rcMonitor.right < b.rcMonitor.right; }
+                   return a.rcMonitor.bottom < b.rcMonitor.bottom;
+               });
 }
 
 
@@ -296,6 +329,94 @@ bool WindowPlacementProfile::TryLoad (
     }
 
     return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::TryLoadForMonitors
+//
+//  The current key first. On a miss, each key an earlier build computed is
+//  looked up, so the placement saved by that build is found after an
+//  upgrade; the next save writes it under the current key.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool WindowPlacementProfile::TryLoadForMonitors (
+    const std::vector<MonitorSnapshot> & monitors,
+    Bounds                             & outBounds,
+    std::string                        & outKey,
+    Target                               target) const
+{
+    bool  found = false;
+
+
+
+    outKey = BuildTopologyKeyFrom (monitors);
+    found  = TryLoad (outKey, outBounds, target);
+
+    for (const std::string & earlier : BuildEarlierTopologyKeysFrom (monitors))
+    {
+        if (!found && TryLoad (earlier, outBounds, target))
+        {
+            outKey = earlier;
+            found  = true;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::BuildEarlierTopologyKeysFrom
+//
+//  The keys earlier builds computed for `monitors`: each monitor's
+//  work area and flags were folded in after its bounds, and the device of
+//  the window's monitor after them all. That monitor is not known here, so
+//  there is one key for each, and one for none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> WindowPlacementProfile::BuildEarlierTopologyKeysFrom (const std::vector<MonitorSnapshot> & monitors)
+{
+    std::vector<MonitorSnapshot>  sorted                     = monitors;
+    std::vector<std::string>      keys;
+    std::wstring                  canonical;
+    std::wstring                  active;
+    char                          hashHex[kHashHexChars + 1] = {};
+
+
+
+    SortMonitors (sorted);
+
+    for (const MonitorSnapshot & m : sorted)
+    {
+        canonical += std::format (L"{}|{},{},{},{}|{},{},{},{}|{};",
+                                  m.device,
+                                  m.rcMonitor.left, m.rcMonitor.top, m.rcMonitor.right, m.rcMonitor.bottom,
+                                  m.rcWork.left,    m.rcWork.top,    m.rcWork.right,    m.rcWork.bottom,
+                                  m.flags);
+    }
+
+    canonical += L"active=";
+
+    for (size_t i = 0; i <= sorted.size(); i++)
+    {
+        active = (i < sorted.size()) ? sorted[i].device : std::wstring();
+
+        sprintf_s (hashHex, _countof (hashHex), "%016llX", HashFNV1a64 (canonical + active));
+        keys.push_back (hashHex);
+    }
+
+    return keys;
 }
 
 

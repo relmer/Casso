@@ -4,6 +4,7 @@
 #include "Debugger/HeatMapSymbols.h"
 #include "Debugger/Reply.h"
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -1776,7 +1777,6 @@ std::wstring HeatMapView::FormatAmount (Byte level) const
     double            value     = std::expm1 ((double) level / kTopLevel * std::log1p (m_top));
     double            scale     = 1.0;
     uint64_t          rounded   = 0;
-    std::wstring      digits;
     std::wstring      grouped;
 
 
@@ -1798,17 +1798,7 @@ std::wstring HeatMapView::FormatAmount (Byte level) const
 
     scale   = std::pow (kOneTenth, std::max (0.0, std::floor (std::log10 (std::max (value, 1.0))) + 1.0 - kFigures));
     rounded = (uint64_t) std::max (1.0, std::round (value / scale) * scale);
-    digits  = std::to_wstring (rounded);
-
-    for (size_t i = 0; i < digits.size(); i++)
-    {
-        if (i > 0 && (digits.size() - i) % 3 == 0)
-        {
-            grouped += L',';
-        }
-
-        grouped += digits[i];
-    }
+    grouped = DebuggerStatusText::FormatCount (rounded);
 
     if (m_options.cumulative)
     {
@@ -1943,9 +1933,9 @@ std::wstring HeatMapView::DescribeMarks (Word address) const
         switch (breakpoint.kind)
         {
         case BreakKind::Execute: text += std::format (L"\nBreakpoint #{}",                breakpoint.id); break;
-        case BreakKind::Read:    text += std::format (L"\nRead watchpoint #{}",           breakpoint.id); break;
-        case BreakKind::Write:   text += std::format (L"\nWrite watchpoint #{}",          breakpoint.id); break;
-        default:                 text += std::format (L"\nRead and write watchpoint #{}", breakpoint.id); break;
+        case BreakKind::Read:    text += std::format (L"\nRead data breakpoint #{}",           breakpoint.id); break;
+        case BreakKind::Write:   text += std::format (L"\nWrite data breakpoint #{}",          breakpoint.id); break;
+        default:                 text += std::format (L"\nRead and write data breakpoint #{}", breakpoint.id); break;
         }
     }
 

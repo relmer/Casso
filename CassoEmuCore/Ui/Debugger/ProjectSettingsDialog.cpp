@@ -243,9 +243,15 @@ void ProjectSettingsDialog::OnCreate()
     ok = AddDialogButton (L"OK", IDOK);
     AddDialogButton (L"Cancel", IDCANCEL);
 
+    //  An edit open when OK is pressed is committed first. When that fails
+    //  the dialog stays open with the edit's error.
     ok->SetOnClick ([this]()
     {
-        m_grid.EndEdit (true);
+        if (!m_grid.EndEdit (true))
+        {
+            return;
+        }
+
         m_result = m_commands;
         EndDialog (IDOK);
     });

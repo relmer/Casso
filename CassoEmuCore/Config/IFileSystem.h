@@ -57,6 +57,10 @@ public:
     virtual HRESULT WriteAllText         (const std::wstring & path,
                                           const std::string  & content) = 0;
 
+    // Adds `content` to the end of `path`, creating it when it is not there.
+    virtual HRESULT AppendAllText        (const std::wstring & path,
+                                          const std::string  & content) = 0;
+
     // True iff `path` exists and is a regular file.
     virtual bool    Exists               (const std::wstring & path) = 0;
 

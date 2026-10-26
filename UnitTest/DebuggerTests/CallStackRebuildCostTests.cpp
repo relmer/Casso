@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  CallStackRebuildCostTests
 //
-//  Not a pass or fail: what rebuilding the call record from history costs,
+//  What rebuilding the call record from history costs,
 //  written to the test log as milliseconds per million cycles of machine
 //  time replayed, so the cost of a rebuild is the figure times the length of
 //  history. Each workload records history for kHistoryCycles on a //e, then
@@ -33,8 +33,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //    calls     a tight JSR/RTS loop, the recorder's worst case
 //    session   the reverse rig: keys, paddles, a disk and the Mockingboard
 //
-//  Each figure is the median of kRounds. Release only: a Debug build
-//  measures the checks, not the replay.
+//  Each figure is the median of kRounds. The gate is a rebuild at under
+//  kRebuildCeiling times the bare replay on every workload; measured
+//  2026-10-08, the JSR/RTS loop, the worst, took 2.3 times. Release only: a
+//  Debug build measures the checks, not the replay.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,10 +48,11 @@ namespace CallStackRebuildCostTests
 
 
 
-    static constexpr int       kRounds        = 5;
-    static constexpr uint64_t  kHistoryCycles = 30'000'000ULL;
-    static constexpr uint64_t  kSliceCycles   = KeyframeSettings::kFrameCycles;
-    static constexpr double    kMillion       = 1'000'000.0;
+    static constexpr int       kRounds         = 5;
+    static constexpr uint64_t  kHistoryCycles  = 30'000'000ULL;
+    static constexpr uint64_t  kSliceCycles    = KeyframeSettings::kFrameCycles;
+    static constexpr double    kMillion        = 1'000'000.0;
+    static constexpr double    kRebuildCeiling = 4.0;
 
 
 
@@ -244,7 +247,8 @@ namespace CallStackRebuildCostTests
                 { Workload::Calls,   "calls  " },
                 { Workload::Session, "session" },
             };
-            std::string  log;
+            std::string          log;
+            std::vector<double>  ratios;
 
 
 
@@ -290,9 +294,16 @@ namespace CallStackRebuildCostTests
                 log += std::format ("  {}: bare replay {:6.2f}, rebuilding the record {:6.2f} ({:+.1f}%), {} frames at the end\n",
                                     label, bare[bare.size() / 2], rebuilt[rebuilt.size() / 2],
                                     (rebuilt[rebuilt.size() / 2] / bare[bare.size() / 2] - 1.0) * 100.0, frames);
+
+                ratios.push_back (rebuilt[rebuilt.size() / 2] / bare[bare.size() / 2]);
             }
 
             Logger::WriteMessage (log.c_str());
+
+            for (double ratio : ratios)
+            {
+                Assert::IsTrue (ratio < kRebuildCeiling, L"a rebuild costs under four times the bare replay");
+            }
         }
     };
 }

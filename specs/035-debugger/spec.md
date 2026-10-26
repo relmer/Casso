@@ -213,6 +213,90 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Where do heat columns appear? -> A: In the disassembly views, as Show heat on their bar, off by default: a strip with a block per byte of the line in the heat map's color for that byte, and r or w in place of the block for a byte read or written as data more than it is run, since code loaded from a disk was written once before it ran. While Show heat is on, the source view has the strip over the bytes its line assembled to, up to four blocks, and the BASIC program pane over the bytes of the line's tokens, where the interpreter's reads of them count as the line running. A memory window has Heat on its bar, which tints each byte by its heat. They follow the heat map's fade or cumulative mode and the CPU's address space, and the heat map counts accesses while any of them is shown (FR-246 to FR-248).
 - Q: Is the refactor of the debugger window its own spec, built after 035 merges? -> A: No. It is done in 035, on this branch, before 035 merges. `DebuggerWindow.cpp` passed the compiler's section limit and builds only with `/bigobj`; the window is one class across its partial files, every pane's state in `DebuggerWindow` itself, and central dispatchers that handle every pane by its id, so adding the Profiler pane's bar took edits in seven places. Each debug pane becomes its own class behind one pane interface, the window becomes the panes' host, and `/bigobj` is removed. The debugger's behavior, look and saved settings stay as they are (FR-249 to FR-254, SC-060 to SC-062).
 
+### Session 2026-10-18 (owner review: the refactored build)
+
+- Q: How wide are the trace pane's columns? -> A: As wide as their content, as in the other lists (FR-255).
+- Q: Can a tab that is not the active one in its group be dragged off? -> A: Yes, at once: a press and drag on it detaches it with no click to activate it first (FR-256).
+- Q: Which fields does the breakpoint dialog have? -> A: Only the ones the chosen type uses; they change as the type changes (FR-257).
+- Q: What does a drag of a tab along its own strip do? -> A: It moves the tab within its group, as in Visual Studio. The group stays a tab group during the drag, and the tab detaches only once the pointer leaves the strip (FR-258).
+- Q: How does the watch pane's add row work? -> A: As the heat map ranges pane's: it reads "Add new watch", one click on it starts the edit in place, and both panes use the same editable list control (FR-259).
+- Q: Is the beam line over the video easy to see? -> A: Not on a busy screen, such as Lode Runner's blue bricks. It is brighter, with a dark edge (FR-260).
+- Q: What does a click on the status bar's history section do? -> A: It opens Options at the History page (FR-261).
+- Q: How is the preview in Options > Disassembly laid out? -> A: Its source lines are aligned to the disassembly's columns, so the branch arrow is never drawn over source text; and its dimmed lines are darker, as are the views' dimmed lines, at least in the skeuomorphic theme (FR-262).
+- Q: What is wrong with the heat map ranges pane? -> A: The new set's name editor is drawn over the set drop-down, reported before; the columns are not as wide as their content; the buttons read New set, Rename set and Delete set where New, Rename and Delete are enough; and a built-in range's context menu is the pane's tab menu, where it is one disabled Delete item. By default the heat map and the heat map ranges are in one tab group (FR-263, FR-264).
+- Q: How does the MMU panel draw its maps? -> A: The read and write bars are vertical and wide, with the list of mapped areas to their right. An area tall enough has its source or destination's name inside the bar (Main memory, Slot ROM); its bounds are labels beside the bars where they do not overlap a neighbor's; and a tip gives any area's name and bounds (FR-265).
+- Q: How are the input log's filters chosen? -> A: The paddle drop-downs have only their chosen value in them, with no label. The emulator input and host input drop-downs are removed: a context menu on each column has a Filter cascade for that column, and a column with a filter in force has a filter glyph right of its heading, before any sort glyph (FR-266).
+- Q: Why is the profiler not always on? -> A: Profiling runs every instruction through the per-instruction callback that trace uses, in place of the free-run path. Its cost at 1x and at full speed is measured and recorded in research; if it is small, the profiler is always on and its Profile button is removed (FR-267).
+
+### Session 2026-10-18 (second review)
+
+- Q: Does the profiler have an on/off switch? -> A: No. Its bar reads "Show profile:" with a drop-down of periods (Last 10 s, Last 60 s, Last 5 min, Since history start). Choosing one builds the profile by replaying history over that period on a scratch machine, in the background, with a progress bar in the pane; neither the window nor the machine waits on it. Measured in R-048: live profiling costs 18% to 34% of full-speed throughput, depending on the code run (FR-268, replacing FR-267's always-on profiler).
+- Q: Does the instruction trace have a switch? -> A: Not while history recording is on: the trace is rebuilt from history. The live trace ring, about 19% of full-speed throughput, runs only while the trace pane is visible and the machine runs at 1x (FR-269).
+- Q: Why do UI actions appear in the console as commands? -> A: Since FR-135 they call the handlers directly, but each printed an equivalent command and its reply as well. They print nothing now; a console option, "Show UI actions as commands", off by default, brings the echo back. The error of a failed UI action appears where the action was taken (FR-270).
+- Q: How is the watch grid laid out? -> A: Columns ID, Watch and Value. Automatic rows read "Auto" in the ID column and zero-page pointer rows ZPn; the Automatic and Watches headings are removed; the BASIC variables group has its heading (FR-271, amending FR-095's separator).
+- Q: What happens to an invalid watch entry, such as asdf? -> A: It is never dropped silently: the entry stays in edit with the error shown, and an edit of an existing watch to something invalid is rejected, so the old watch remains (FR-272).
+- Q: What does a name typed as a watch mean, such as X or RNDH? -> A: What it is, resolved once when typed: a register, its value; a symbol, the memory at its address, following the symbol by name if it is rebuilt; `*expr`, the byte there; any other expression, its value. Each stop rereads the value, never the meaning. The console's `W` stays AppleWin's address watch, where a register's value is used as an address (FR-273).
+- Q: What does the heat map ranges bar have? -> A: A plain set name picker with no "Set:" label, whose last item is "New set..."; Rename and Delete as glyph buttons; no Edit or Delete row buttons. A range's checkbox is its own column, headed "Include" (FR-274, amending FR-263).
+- Q: What happens when an edit in an editable grid ends with a required cell empty? -> A: The cell is outlined in red and the error is shown; Escape discards the row (FR-275).
+- Q: Why does the breakpoints bar's New drop-down repeat the dialog's Type list? -> A: It no longer does: one "New breakpoint..." button opens the dialog, whose Type drop-down is grouped: Code (Execute, Opcode, BRK, BRK on interrupt), Memory (Read, Write, Read or write, Memory value, Reading uninitialized memory), Condition, BASIC (line, variable change, error), and Hardware (Disk event, Video line, Beam position). "Function breakpoint" set the same breakpoint as an address, "I/O range" was Read or write over $C000:$C0FF, and "Execute, with a watch" was an execution breakpoint plus a data breakpoint; all three are removed (FR-276, amending FR-119, FR-163 and FR-187).
+- Q: What does the Address field take? -> A: An address, a symbol or function name, or a range, as first:last or start,length; its placeholder lists those forms (FR-277).
+- Q: Why does the register breakpoint use a syntax of its own? -> A: It used AppleWin's `BPR` form; both forms go through one evaluator. The Register type is replaced by Condition: it stops whenever an expression in the condition grammar is true, with no address (FR-278).
+- Q: Can conditions name flags? -> A: Yes: `P.C`, `P.Z`, `P.I`, `P.D`, `P.B`, `P.V` and `P.N`, each 0 or 1; bare letters would collide with the hex digits B, C and D. The condition field has an infotip with examples (FR-279).
+- Q: How are a disk event breakpoint's arguments given? -> A: In fields for the chosen event (track, sector, include sectors passed over, motor state, head track range and bump), with prologue bytes and 13-sector reads in an Advanced area, in place of the free Arguments box (FR-280, amending FR-163).
+- Q: What are the dialog's defaults and labels? -> A: "Read of memory never written" reads "Reading uninitialized memory". A new breakpoint's fields start empty, except Execute's address, which starts at PC; each placeholder is its field's format, such as 64:6B or VBL for scanlines (FR-281).
+- Q: What does "watch" refer to? -> A: Only the watch window. UI text and docs use "data breakpoint" for a breakpoint on a memory access (FR-282).
+- Q: Can a drop-down's tooltip stay up over its open menu? -> A: No: it hides when the menu opens and is not shown while the menu is open (FR-283).
+- Q: How are small regions in the MMU panel made visible? -> A: Every run of pages is at least one text line tall, taken from the larger runs, so each region is visible and its label readable. A tip has only the source and the range, such as "Aux RAM  $0000-$01FF" (FR-284, amending FR-265).
+
+### Session 2026-10-19 (owner review of the Phase 45 build)
+
+- Q: Is a watch of a name no symbol has yet an error? -> A: No. It is added with an ID, and its Value cell has why it has no value, in the error color and not editable, until symbols that define it are loaded, when it reads as the symbol. Only text that does not parse stays in the edit box, with the reason in the add row's Value cell rather than a line above the list (FR-285, amending FR-272).
+- Q: What do Enter and Tab do in the add row? -> A: An empty name takes neither. Enter on a name adds the watch, ends the edit, and a new add row follows; Tab adds it and moves the edit to the new watch's value, which starts as the value now (FR-286).
+- Q: What case is a watch that matched a symbol written in? -> A: The symbol's own, as a register is written in capitals (FR-287).
+- Q: How is the breakpoint dialog's type chosen? -> A: From the breakpoints bar's New drop-down, which is back, with the types under headings: Execution (Address, Condition, Opcode, BRK, BRK on interrupt), Memory (Address, with Read and Write checks; Value; Reading uninitialized memory), BASIC, and Hardware. The dialog makes only the type chosen and has no Type field (FR-288, replacing FR-276's New breakpoint button and grouped Type list).
+- Q: Where is the condition's info tip? -> A: After the Condition label, and hovering or clicking it opens its tip (FR-289).
+- Q: Can a toolbar button's tip stay up over a dialog the button opened? -> A: No: a press hides it (FR-290).
+- Q: Can two identical execution breakpoints be set? -> A: No: a second at the same address with the same condition is an error whose message has the first one's number (FR-291).
+- Q: Why does the debugger window not come back where it was left? -> A: Its placements were inside the prefs' "window" object, which a build without the debugger rewrites from its own fields. They are a top-level key now, which such a build passes through; the old place is read too (FR-292).
+
+### Session 2026-10-19 (second review of the day)
+
+- Q: How is the breakpoint dialog sized and checked? -> A: To the rows its type has, growing and shrinking as a disk event's fields change. Every check runs in the dialog before it closes, a duplicate and a condition that does not parse among them, with the reason in the dialog; none goes to the console (FR-293).
+- Q: How is the New drop-down arranged? -> A: Execution's types at the top level with no heading; Memory, BASIC and Hardware as cascading submenus. BRK, BRK on interrupt and Reading uninitialized memory have no fields, so they are set at once from the menu, with a check while on, and no dialog opens (FR-294).
+- Q: Where is the condition's info tip and how long does it stay? -> A: Just after the end of the label's text, its focus ring clear of the field. Opened by the pointer it stays while the pointer is over the icon or the tip; opened by the keys it stays while the icon has the focus. Its text states that the condition must be true for the breakpoint to stop, what it can use, and two or three interesting examples (FR-295).
+- Q: Which breakpoints take a condition? -> A: Every type that is a row of the table (FR-296).
+- Q: How do Memory > Address and Value lay out and work? -> A: Read and Write on one line; Value takes a range and stops when any byte in it becomes the value (FR-297).
+- Q: How do placeholders read? -> A: In italics everywhere, without "such as": "A hex track number. Optional." The Address field's placeholder fits (FR-298).
+- Q: What else changes in the disk event fields? -> A: Volume is decimal, as DOS displays it; the prologue marks are labeled fields for the address and data prologues and a 13-sector check, present only for the events that use them, in place of the Advanced box (FR-299).
+- Q: Are the session's own stops listed? -> A: Yes: reading uninitialized memory, a video line and a beam position are rows of the Breakpoints pane, and each stops the machine (FR-300).
+- Q: Which window is active after the breakpoint dialog closes? -> A: The debugger window, whatever was active while the dialog was open (FR-301).
+- Q: What is the BASIC error breakpoint called? -> A: "BASIC errors" (FR-302).
+- Q: What changes in the watch grid? -> A: Selected text in an edit stays inside the box; Up and Down move between rows, and Tab moves to the next editable cell, a register's value among them (FR-303).
+- Q: What changes in the heat map ranges? -> A: The delete question reads "Delete the range set X?" with Delete and Cancel buttons that have accelerators; Reset counts is a glyph; the tips of the view and Leave out drop-downs state plainly what each does; and a new row is checked only when its edit moves off the row, with a plain message when it has no end (FR-304).
+- Q: How is heat drawn in the disassembly and elsewhere? -> A: As color, not blocks (FR-305).
+- Q: What changes in the Profiler pane? -> A: An opcode with no operand has a blank mode; the progress bar is drawn over the pane, centered, moving nothing; Reset and Save are glyphs; the totals are a line above the list, not a row of it, with the span the profile covers; the cycles column is as wide as its numbers; and the label reads "Show:" (FR-306).
+- Q: What does Escape do while a menu is open? -> A: It closes the menu, in every pane (FR-307).
+- Q: What does a click on the history timeline do? -> A: It moves the machine there, stopped (FR-308).
+- Q: What changes in the MMU panel? -> A: Every run is labeled, I/O and Not written included; the strips are wider and the list sits further right; and each soft switch has a tip with what it does (FR-309).
+
+### Session 2026-10-20 (owner review of the Phase 47 build)
+
+- Q: What is a disabled watch for? -> A: Nothing worth a control: updating a watch costs nothing perceptible, so the watch grid has no check box (FR-310).
+- Q: How is a watch's width chosen? -> A: A `.b` or `.w` suffix reads a byte or a word at the address, symbol or expression before it; `$` only marks hex and has no bearing on width, and with no suffix an address or symbol reads a word (FR-311).
+- Q: When does the Profiler pane build its profile? -> A: As soon as the pane is open with the machine stopped and no profile of the chosen period, without the period being chosen again (FR-312).
+- Q: How does the profile's progress read? -> A: "Loading profile... (xx%)" (FR-313).
+- Q: What does the frame timeline cover? -> A: The period the profile covers, its frames grouped into as many bars as fit, not the last 600 frames whatever the period (FR-314).
+- Q: How is a profile of a long period built faster? -> A: The history's stretches between keyframes are replayed in parallel and their counts added up; each stretch's counts are saved, so a period built again replays only what it has not counted (FR-315).
+- Q: How are large numbers written? -> A: Every decimal number of 1,000 or more the debugger window draws has the user's locale's thousands separators (FR-316).
+- Q: What does the Breakpoints pane's New button's tip read? -> A: "New breakpoint" (FR-317).
+- Q: Is Delete all confirmed first? -> A: Yes, by a question with Delete and Cancel buttons that have accelerators; Cancel is the default (FR-318).
+- Q: What do Undo and Redo tips read? -> A: Exactly what they would undo or redo, in every pane that has them: "Undo delete all breakpoints" (FR-319).
+- Q: When does the breakpoint dialog check a field? -> A: As soon as the focus moves off it, with the reason under the fields; OK checks the whole breakpoint again (FR-320).
+
+### Session 2026-10-23 (owner decision during the branch code review)
+
+- Q: A power cycle sets the CPU's cycle count back to zero; what becomes of history across it? -> A: The count is reset as before, and history spans the power cycle: the user can rewind to before it, run in reverse across it, and seek by cycle on either side. History's cycles are the CPU's count plus a base that each power cycle grows by the count at that moment, so history's cycles never go back (FR-321).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -2096,11 +2180,9 @@ run something, switch back to the //e: it is where it was left.
   before Trigger was added MUST come back with Trigger shown when Kind was.
   Amended 2026-10-08.
 - **FR-119**: The breakpoints pane MUST carry a toolbar of icon buttons, each
-  with a tip, as Visual Studio's Breakpoints window does: New, a drop-down
-  offering a breakpoint at an address, a function breakpoint by symbol name, a
-  data breakpoint on a read, a write or either over an address range, a
-  register condition, an opcode, an I/O range and a disk event (FR-163), each
-  asking only for what that kind needs; Delete, for the selected rows; Delete
+  with a tip, as Visual Studio's Breakpoints window does: New breakpoint,
+  which opens the breakpoint dialog (FR-276; amended 2026-10-18 from a New
+  drop-down of kinds); Delete, for the selected rows; Delete
   all; Enable all;
   Disable all; Undo; Redo; Go to source code and Go to disassembly, for the
   selected row; Export; and Import. A button that cannot act --
@@ -2182,8 +2264,8 @@ run something, switch back to the //e: it is where it was left.
 
 **Watch pane**
 
-- **FR-095**: The watch pane MUST list automatic watches above manual watches,
-  divided by a separator. Automatic watches MUST be every register, memory
+- **FR-095**: The watch pane MUST list automatic watches above manual watches;
+  FR-271 replaces the separator with "Auto" in the ID column. Automatic watches MUST be every register, memory
   address and individual flag read or written by the instruction at the
   current PC and by the instruction at the previous PC. An automatic watch's
   expression MUST NOT be editable; its value MUST be. What an instruction
@@ -2669,8 +2751,8 @@ run something, switch back to the //e: it is where it was left.
   own decision. The disk breakpoint kinds this feature ships MUST NOT depend
   on anything else of 040's, and neither feature MAY take the Disk ][ debug
   window's listener.
-- **FR-163**: The Breakpoints pane's New drop-down (FR-119) MUST offer "Disk
-  event...", which opens the breakpoint dialog on a Disk type: an event list
+- **FR-163**: The breakpoint dialog MUST have a Disk event type (amended
+  2026-10-18 from the New drop-down's "Disk event...", FR-276) with an event list
   (Sector read, Address field, Head position, Write, DOS 3.3 sector, ProDOS
   block, RWTS call, ProDOS driver call, Motor, Drive select, Disk inserted,
   Disk ejected), a drive list (Either drive, Drive 1, Drive 2), the fields and
@@ -2836,9 +2918,10 @@ run something, switch back to the //e: it is where it was left.
   bytes with NOP, undoably. A drag MUST select text across columns as now,
   and a Ctrl+drag MUST select only within the column the drag began in
   (address, bytes or instruction).
-- **FR-187**: The Breakpoints pane's New drop-down MUST also set a break on
-  reading memory never written, on a video line, on a beam position, and an
-  execution breakpoint with a watch over a range.
+- **FR-187**: The breakpoint dialog MUST also set a break on reading memory
+  never written, on a video line and on a beam position. Amended 2026-10-18
+  by FR-276: these are types in the dialog, and the execution breakpoint with
+  a data breakpoint is removed.
 - **FR-188**: Each watch row MUST have a checkbox that enables or disables it;
   a watch MUST be able to be a zero-page pointer, showing the address its two
   bytes form and the bytes there; a Memory pane's context menu on zero page
@@ -2871,7 +2954,10 @@ run something, switch back to the //e: it is where it was left.
   recording MUST cost no measurable emulation speed (SC-008). *(Amended
   2026-10-10)*: they MUST follow FR-210 and FR-211, their recorded entries a
   cache over history and their depth that of history, as MUST the trace
-  buffer.
+  buffer. *(Amended 2026-10-22, owner)*: each log MUST be shown in a pane of
+  its own, Video log and Sound log, as the Disk II and input logs are, opened
+  from the View menu and from the Video and Mockingboard panels; Clear and
+  Save MUST do what VIDEOLOG and SOUNDLOG CLEAR and SAVE do.
 - **FR-199**: Copy text from the emulator window MUST render inverse and
   flashing characters as the characters they show, not as other characters.
 - **FR-200**: DISASM MUST be reported as not available, as other AppleWin
@@ -3183,6 +3269,195 @@ run something, switch back to the //e: it is where it was left.
   screen, docked, floating and slid out, after each step.
 - **FR-254**: `/bigobj` MUST be removed from `DebuggerWindow.cpp` once the
   last pane has moved.
+- **FR-255**: The trace pane's columns MUST be as wide as their content,
+  as the other lists' are.
+- **FR-256**: A press and drag on a tab that is not the active one in its
+  group MUST detach it at once, with no click to activate it first.
+- **FR-257**: The breakpoint dialog MUST have only the fields the chosen
+  breakpoint type uses, and MUST change them as the type changes.
+- **FR-258**: A tab dragged along its own strip MUST move within its group;
+  the group MUST stay a tab group during the drag, and the tab MUST detach
+  only once the pointer leaves the strip.
+- **FR-259**: The watch pane's add row MUST read "Add new watch" and start
+  the edit in place on one click, with the same editable list control the
+  heat map ranges pane uses.
+- **FR-260**: The beam line over the video MUST be drawn brighter, with a
+  dark edge, so it is visible over a busy screen.
+- **FR-261**: A click on the status bar's history section MUST open
+  Options at the History page.
+- **FR-262**: The preview in Options > Disassembly MUST align its source
+  lines to the disassembly's columns, with the branch arrow never over
+  source text; dimmed lines there and in the views MUST be darker, at least
+  in the skeuomorphic theme.
+- **FR-263**: In the heat map ranges pane, the new set's name editor MUST
+  NOT cover the set drop-down; the columns MUST be as wide as their
+  content; the buttons MUST read New, Rename and Delete; and a built-in
+  range's context menu MUST be one disabled Delete item. The buttons are
+  amended by FR-274.
+- **FR-264**: The default layout MUST put the heat map and the heat map
+  ranges in one tab group.
+- **FR-265**: The MMU panel MUST draw its read and write bars vertically
+  and wide, with the list of mapped areas to their right; an area tall
+  enough MUST have its source or destination's name inside the bar, its
+  bounds MUST be labels beside the bars where they do not overlap a
+  neighbor's, and a tip MUST have any area's name and bounds. Amended by
+  FR-284.
+- **FR-266**: The input log's paddle drop-downs MUST have only their chosen
+  value; its emulator input and host input drop-downs MUST be removed in
+  favor of a Filter cascade on each column's context menu, and a column
+  with a filter in force MUST have a filter glyph right of its heading,
+  before any sort glyph.
+- **FR-267**: The cost of profiling at 1x and at full speed MUST be measured
+  and recorded (R-048). Superseded 2026-10-18 by FR-268: the profiler is
+  built from history, not left on.
+- **FR-268**: The profiler MUST have no on/off switch. Its bar MUST have
+  "Show profile:" with a drop-down of periods: Last 10 s, Last 60 s, Last
+  5 min and Since history start. Choosing one MUST build the profile by
+  replaying history over that period on a scratch machine, in the
+  background, with a progress bar in the pane while it builds; neither the
+  window nor the machine waits on it. A period longer than history covers
+  what history has.
+- **FR-269**: While history recording is on, the instruction trace MUST have
+  no switch: it is rebuilt from history. The live trace ring MUST run only while
+  the trace pane is visible and the machine runs at 1x.
+- **FR-270**: A UI action MUST NOT print an equivalent command or its reply
+  in the console. A console option, "Show UI actions as commands", off by
+  default, on the console's own bar or context menu, MUST bring that echo
+  back. The error of a failed UI action MUST appear where it was taken.
+- **FR-271**: The watch grid's columns MUST be ID, Watch and Value. An
+  automatic row MUST read "Auto" in the ID column and a zero-page pointer
+  row ZPn; there MUST be no Automatic or Watches heading. The BASIC variables
+  group has its heading. This replaces FR-095's separator.
+- **FR-272**: An invalid watch entry MUST NOT be dropped silently: it MUST
+  stay in edit with the error shown, and editing an existing watch to
+  something invalid MUST be rejected, and the old watch MUST remain.
+- **FR-273**: A watch typed in the grid MUST be resolved once, when typed, to
+  what it is: a register, its value; a symbol, the memory at its
+  address, following the symbol by name if it is rebuilt; `*expr`, the byte
+  there; any other expression, its value. Each stop MUST reread the value,
+  never the meaning. The console's `W` MUST stay AppleWin's address watch.
+- **FR-274**: The heat map ranges bar MUST have a set name picker with no
+  label, whose last item is "New set...", and glyph buttons for Rename and
+  Delete, with no Edit or Delete row buttons. A range's checkbox MUST be its
+  own column, headed "Include".
+- **FR-275**: In an editable grid, an edit that ends with a required cell
+  empty MUST outline that cell in red, with the error below the grid; Escape MUST
+  discard the row.
+- **FR-276**: The breakpoints bar MUST have one "New breakpoint..." button in
+  place of the New drop-down. The dialog's Type drop-down MUST be grouped:
+  Code (Execute, Opcode, BRK, BRK on interrupt); Memory (Read, Write, Read or
+  write, Memory value, Reading uninitialized memory); Condition; BASIC
+  (line, variable change, error); and Hardware (Disk event, Video line, Beam
+  position). There MUST be no function breakpoint, I/O range, or execution
+  breakpoint with a data breakpoint as a type of its own.
+- **FR-277**: The Address field MUST take an address, a symbol or function
+  name, or a range, as first:last or start,length, and its placeholder MUST
+  list those forms.
+- **FR-278**: The Register type MUST be replaced by Condition, which stops
+  whenever an expression in the condition grammar (FR-061) is true, with no
+  address.
+- **FR-279**: Conditions MUST accept the flags `P.C`, `P.Z`, `P.I`,
+  `P.D`, `P.B`, `P.V` and `P.N`, each 0 or 1. The condition field MUST have
+  an infotip with examples, flags among them.
+- **FR-280**: The disk event breakpoint MUST take its arguments in fields for
+  the chosen event (track, sector, include sectors passed over, motor state,
+  head track range and bump), with prologue bytes and 13-sector reads in an
+  Advanced area, in place of the free Arguments box.
+- **FR-281**: The type that breaks on a read of memory never written MUST
+  read "Reading uninitialized memory". A new breakpoint's fields MUST start
+  empty, except Execute's address, which starts at PC, and each field's
+  placeholder MUST be its format, such as 64:6B or VBL for scanlines.
+- **FR-282**: "Watch" MUST refer only to the watch window: UI text and docs
+  MUST use "data breakpoint" for a breakpoint on a memory access.
+- **FR-283**: A drop-down's tooltip MUST hide when its menu opens and MUST
+  NOT be shown while the menu is open.
+- **FR-284**: In the MMU panel, every run of pages MUST be at least one text
+  line tall, the height taken from the larger runs, so every region is
+  visible and its label readable. A tip MUST have only the source and the
+  range, such as "Aux RAM  $0000-$01FF".
+- **FR-285**: A watch of a name no symbol has yet MUST be added, with an ID;
+  its Value cell MUST have why it has no value, in the error color and not
+  editable, and once symbols that define the name are loaded it MUST read
+  as the symbol. Only text that does not parse MUST stay in the edit box,
+  with the reason in the add row's Value cell.
+- **FR-286**: In the watch grid's add row, an empty name MUST take neither
+  Enter nor Tab. Enter on a name MUST add the watch, end the edit and add
+  a new add row; Tab MUST add it and move the edit to the new watch's
+  value, which starts as the value now.
+- **FR-287**: A watch that matched a symbol MUST be in the symbol's case.
+- **FR-288**: The breakpoints bar MUST have a New drop-down with the types
+  under headings: Execution (Address, Condition, Opcode, BRK, BRK on
+  interrupt); Memory (Address, with Read and Write checks; Value; Reading
+  uninitialized memory); BASIC (Line, Variable change, Error); and Hardware
+  (Disk event, Video line, Beam position). The dialog MUST make only the
+  type chosen, with no Type field; an edit of a breakpoint does not change its type.
+- **FR-289**: The condition's info tip MUST be after the Condition label,
+  and hovering or clicking it MUST open its tip.
+- **FR-290**: A press on a toolbar button MUST hide the button's tip.
+- **FR-291**: An execution breakpoint at the same address with the same
+  condition as one already set MUST be an error whose message has the first one's number.
+- **FR-292**: The debugger window's placements MUST be stored under a
+  top-level key of the preferences, and placements stored inside "window"
+  by earlier builds MUST be read.
+- **FR-293**: The breakpoint dialog MUST be sized to the rows its type has,
+  and every check MUST run in the dialog before it closes, with the reason
+  there and nothing in the console.
+- **FR-294**: The New drop-down MUST list Execution's types at its top level
+  and Memory, BASIC and Hardware as cascading submenus. BRK, BRK on
+  interrupt and Reading uninitialized memory MUST be set from the menu at
+  once, with a check while on.
+- **FR-295**: The condition's info tip MUST follow the label's text, and MUST
+  stay open while the pointer is over the icon or the tip, or while the icon
+  has the focus when the keys opened it.
+- **FR-296**: Every breakpoint type that is a row of the table MUST take a
+  condition.
+- **FR-297**: Memory > Address MUST have Read and Write on one line, and a
+  value breakpoint MUST take a range.
+- **FR-298**: Placeholders MUST be in italics and MUST fit their fields.
+- **FR-299**: A disk event's volume MUST be decimal, and its prologue marks
+  MUST be labeled fields present only for the events that use them.
+- **FR-300**: Reading uninitialized memory, a video line and a beam position
+  MUST be rows of the Breakpoints pane, and each MUST stop the machine.
+- **FR-301**: Closing the breakpoint dialog MUST activate the debugger window.
+- **FR-302**: The BASIC error breakpoint MUST be called "BASIC errors".
+- **FR-303**: In the watch grid, selected text MUST stay inside the edit box,
+  Up and Down MUST move between rows, and Tab MUST move to the next editable
+  cell.
+- **FR-304**: The heat map range set's delete question MUST have Delete and
+  Cancel buttons with accelerators; Reset counts MUST be a glyph; and a new
+  range row MUST be checked only when its edit moves off the row.
+- **FR-305**: Heat MUST be drawn as color, not blocks.
+- **FR-306**: In the Profiler pane, an opcode with no operand MUST have a
+  blank mode; the progress bar MUST be drawn over the pane without moving
+  its content; Reset and Save MUST be glyphs; the totals and the span the
+  profile covers MUST be a line above the list; and the label MUST read
+  "Show:".
+- **FR-307**: Escape MUST close an open menu in any pane.
+- **FR-308**: After a click on the history timeline, the machine MUST be
+  stopped where it moved.
+- **FR-309**: The MMU panel MUST label every run, and each soft switch MUST
+  have a tip with what it does.
+- **FR-310**: The watch grid MUST have no enable check box.
+- **FR-311**: A watch MUST read a byte for a `.b` suffix and a word for a
+  `.w` suffix, and `$` MUST mark only hex.
+- **FR-312**: The Profiler pane MUST build the chosen period's profile when it
+  is open, the machine is stopped and that profile has not been built.
+- **FR-313**: The profile's progress MUST read "Loading profile... (xx%)".
+- **FR-314**: The frame timeline MUST cover the profile's period.
+- **FR-315**: A profile of history MUST replay its stretches in parallel and
+  MUST reuse the counts of stretches already replayed.
+- **FR-316**: Every decimal number of 1,000 or more in the debugger window MUST
+  have the locale's thousands separators.
+- **FR-317**: The New button's tip MUST read "New breakpoint".
+- **FR-318**: Delete all breakpoints MUST be confirmed first, with Delete and
+  Cancel.
+- **FR-319**: Every Undo and Redo tip MUST state the operation it would undo
+  or redo.
+- **FR-320**: The breakpoint dialog MUST check a field when the focus moves off
+  it.
+- **FR-321**: History MUST span a power cycle: keyframes MUST be taken after it
+  as before it, and rewinding, reverse execution and seeks by cycle MUST work
+  across it, while the CPU's own cycle count is reset by the power cycle.
 
 ### Key Entities
 

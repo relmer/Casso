@@ -327,6 +327,36 @@ namespace DebuggerTests
 
 
 
+        //  Any other stop prints why and where after the registers, as the
+        //  AppleWin output does: a step's reply has its instruction line, and
+        //  a breakpoint's stop has nothing else.
+        TEST_METHOD (Stop_ABreakpointSaysWhyAndWhere)
+        {
+            StopEvent  stop;
+            WatchHit   hit;
+
+
+
+            stop.reason       = StopReason::Breakpoint;
+            stop.pc           = 0x0812;
+            stop.breakpointId = 1;
+
+            Assert::AreEqual (std::string ("A=00 X=00 Y=00 P=00 S=00\nBreakpoint #1 at $0812"), MonitorFormatter::FormatStop (stop));
+
+            hit.id       = 2;
+            hit.access   = WatchAccess::Write;
+            hit.value    = 0x41;
+            hit.address  = 0x0300;
+            hit.accessPc = 0x0812;
+
+            stop.reason = StopReason::Watchpoint;
+            stop.watch  = hit;
+
+            Assert::AreEqual (std::string ("A=00 X=00 Y=00 P=00 S=00\nData breakpoint #2: Write $41 to $0300 by $0812"), MonitorFormatter::FormatStop (stop));
+        }
+
+
+
         //  Eight-bit, as the Monitor's arithmetic is: the handler truncates
         //  FF+FF to FE and this prints the two digits.
         TEST_METHOD (Arithmetic_PrintsEqualsAndTwoDigits)

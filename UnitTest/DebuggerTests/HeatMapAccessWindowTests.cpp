@@ -8,6 +8,7 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/HeatMapBarCommands.h"
+#include "Ui/Debugger/Panes/HeatMapPane.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -94,12 +95,7 @@ namespace HeatMapAccessWindowTests
         using DebuggerWindow::Layout;
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::SyncHeatMapRecording;
-        using DebuggerWindow::GetHeatMapView;
-        using DebuggerWindow::GetHeatMapBankCommands;
-        using DebuggerWindow::GetHeatMapBarLabel;
-        using DebuggerWindow::IsHeatMapBarEnabled;
-        using DebuggerWindow::SetHeatMapBarMenus;
-        using DebuggerWindow::AddHeatMapAccessItems;
+        using DebuggerWindow::GetHeatMapPane;
         using DebuggerWindow::TakeSnapshot;
         using DebuggerWindow::OnMouse;
     };
@@ -187,7 +183,7 @@ namespace HeatMapAccessWindowTests
 
 
             BuildShown (window);
-            view   = window.GetHeatMapView();
+            view   = window.GetHeatMapPane().GetView();
             target = (Word) (view->GetColumns() * 2 + 0x13);
             cell   = view->GetCellRect (target);
             at     = { cell.left + 1, cell.top + 1 };
@@ -213,7 +209,7 @@ namespace HeatMapAccessWindowTests
 
 
             BuildShown (window);
-            view   = window.GetHeatMapView();
+            view   = window.GetHeatMapPane().GetView();
             target = (Word) (view->GetColumns() * 3 + 5);
             cell   = view->GetCellRect (target);
 
@@ -239,29 +235,29 @@ namespace HeatMapAccessWindowTests
             BuildShown (window);
 
             window.TakeSnapshot (MakeSnapshot ({ Bank::Cpu, Bank::Main, Bank::Rom }));
-            window.SetHeatMapBarMenus();
-            Assert::IsFalse  (window.IsHeatMapBarEnabled (HeatMapBarCommands::kBank), L"nothing banked, nothing to choose");
+            window.GetHeatMapPane().SetBarMenus();
+            Assert::IsFalse  (window.GetHeatMapPane().IsBarEnabled (HeatMapBarCommands::kBank), L"nothing banked, nothing to choose");
 
             window.TakeSnapshot (MakeSnapshot ({ Bank::Cpu, Bank::Main, Bank::Aux, Bank::LanguageCard, Bank::AuxLanguageCard, Bank::Rom }));
-            window.SetHeatMapBarMenus();
-            Assert::IsTrue   (window.IsHeatMapBarEnabled (HeatMapBarCommands::kBank));
-            Assert::AreEqual (std::wstring (L"CPU"), window.GetHeatMapBarLabel (HeatMapBarCommands::kBank));
+            window.GetHeatMapPane().SetBarMenus();
+            Assert::IsTrue   (window.GetHeatMapPane().IsBarEnabled (HeatMapBarCommands::kBank));
+            Assert::AreEqual (std::wstring (L"CPU"), window.GetHeatMapPane().GetBarLabel (HeatMapBarCommands::kBank));
 
-            for (const std::shared_ptr<DxuiCommand> & row : window.GetHeatMapBankCommands())
+            for (const std::shared_ptr<DxuiCommand> & row : window.GetHeatMapPane().GetBankCommands())
             {
                 labels.push_back (row->label);
             }
 
             Assert::IsTrue ((std::vector<std::wstring> { L"CPU", L"Main RAM", L"Aux RAM", L"Language card", L"Aux language card", L"ROM" }) == labels);
 
-            window.GetHeatMapBankCommands()[2]->dispatch();
+            window.GetHeatMapPane().GetBankCommands()[2]->dispatch();
 
-            Assert::AreEqual ((int) Bank::Aux, (int) window.GetHeatMapView()->GetOptions().bank);
+            Assert::AreEqual ((int) Bank::Aux, (int) window.GetHeatMapPane().GetView()->GetOptions().bank);
             Assert::AreEqual (std::string ("fade=10 view=all bank=aux"), host.heatMapOptions, L"kept");
-            Assert::AreEqual (std::wstring (L"Aux RAM"), window.GetHeatMapBarLabel (HeatMapBarCommands::kBank));
+            Assert::AreEqual (std::wstring (L"Aux RAM"), window.GetHeatMapPane().GetBarLabel (HeatMapBarCommands::kBank));
 
             window.TakeSnapshot (MakeSnapshot ({ Bank::Cpu, Bank::Main, Bank::Rom }));
-            Assert::AreEqual (std::wstring (L"CPU"), window.GetHeatMapBarLabel (HeatMapBarCommands::kBank), L"a machine without aux shows the CPU's");
+            Assert::AreEqual (std::wstring (L"CPU"), window.GetHeatMapPane().GetBarLabel (HeatMapBarCommands::kBank), L"a machine without aux shows the CPU's");
         }
 
 
@@ -278,7 +274,7 @@ namespace HeatMapAccessWindowTests
 
             BuildShown (window);
             host.requests.clear();
-            window.AddHeatMapAccessItems (0xC123, Bank::Main, items);
+            window.GetHeatMapPane().AddAccessItems (0xC123, Bank::Main, items);
 
             for (const auto & [label, action] : items)
             {
@@ -331,7 +327,7 @@ namespace HeatMapAccessWindowTests
             snapshot->heatMapSymbols = symbols;
 
             window.TakeSnapshot (snapshot);
-            view = window.GetHeatMapView();
+            view = window.GetHeatMapPane().GetView();
 
             Assert::AreEqual ((size_t) 2, view->GetOutlineColors (0x0300).size(), L"the PC and its breakpoint");
             Assert::AreEqual ((size_t) 1, view->GetOutlineColors (0x01FF).size(), L"the stack pointer");

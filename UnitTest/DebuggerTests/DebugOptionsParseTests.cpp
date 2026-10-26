@@ -294,6 +294,23 @@ namespace DebugOptionsParseTests
             Assert::IsTrue (bad.refusalMessage.find ("max-cycles") != std::string::npos, Widen (bad.refusalMessage).c_str());
         }
 
+
+        //  The budget is 64 bits, and a timeout or a process id past 32 bits
+        //  is an error rather than a clamped value.
+        TEST_METHOD (NumbersPastTheirRangeAreErrorsNotClamped)
+        {
+            CommandLineOptions  large   = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--max-cycles", "5000000000" });
+            CommandLineOptions  timeout = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--timeout", "5000000000" });
+            CommandLineOptions  minus   = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--max-cycles", "-5" });
+
+
+
+            Assert::AreEqual ((uint64_t) 5000000000, large.debug.maxCycles);
+            Assert::IsFalse  (IsRefused (large));
+            Assert::IsTrue   (IsRefused (timeout), L"a timeout past 32 bits");
+            Assert::IsTrue   (IsRefused (minus),   L"a negative budget");
+        }
+
         TEST_METHOD (Seed_TakesDecimal_0xHex_AndDollarHex)
         {
             CommandLineOptions  decimal = Parse ({ "CassoCli", "debug", "--machine", "Apple2e", "--command", "r", "--seed", "12345" });

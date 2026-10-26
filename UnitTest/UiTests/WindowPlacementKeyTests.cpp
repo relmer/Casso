@@ -100,6 +100,39 @@ namespace WindowPlacementKeyTests
         }
 
 
+        //  A placement saved by a build whose key also folded the work areas,
+        //  the flags and the active monitor is found under that key when the
+        //  current one has none, so the window opens where it was before an
+        //  upgrade.
+        TEST_METHOD (APlacementUnderAnEarlierBuildsKeyIsFound)
+        {
+            std::vector<Snapshot>           monitors = { Monitor (L"\\\\.\\DISPLAY1",    0, 0, 1920, 1080),
+                                                         Monitor (L"\\\\.\\DISPLAY2", 1920, 0, 3840, 1080) };
+            GlobalUserPrefs                 prefs;
+            WindowPlacementProfile          profile  (prefs);
+            WindowPlacementProfile::Bounds  bounds;
+            std::string                     key;
+
+
+
+            monitors[0].rcWork.bottom = 1040;
+            monitors[0].flags         = MONITORINFOF_PRIMARY;
+
+            Assert::AreEqual (std::string ("75F01907119681E7"), WindowPlacementProfile::BuildTopologyKeyFrom (monitors), L"the current key");
+
+            prefs.window.placements["970245F619F926D6"] = { 2000, 100, 800, 600, false };
+
+            Assert::IsTrue   (profile.TryLoadForMonitors (monitors, bounds, key), L"found under the earlier key");
+            Assert::AreEqual (2000, bounds.x);
+            Assert::AreEqual (std::string ("970245F619F926D6"), key);
+
+            prefs.window.placements["75F01907119681E7"] = { 300, 200, 800, 600, false };
+
+            Assert::IsTrue   (profile.TryLoadForMonitors (monitors, bounds, key));
+            Assert::AreEqual (300, bounds.x, L"the current key comes first");
+        }
+
+
         TEST_METHOD (MovingAScreenIsADifferentArrangement)
         {
             std::vector<Snapshot>  before = { Monitor (L"\\\\.\\DISPLAY1",     0, 0, 3840, 2160),

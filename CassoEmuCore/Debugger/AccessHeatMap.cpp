@@ -35,11 +35,12 @@ void AccessHeatMap::Start (const Microcode * instructionSet, uint64_t cycle)
     m_isListed.assign (kEntryCount, 0);
     m_listed.clear();
 
-    m_mostTotal    = {};
-    m_foldedAt     = cycle;
-    m_countFrom    = (m_position != nullptr) ? *m_position : 0;
-    m_lastFrom     = m_countFrom;
-    m_operandsLeft = 0;
+    m_mostTotal     = {};
+    m_forgottenFrom = kNoneForgotten;
+    m_foldedAt      = cycle;
+    m_countFrom     = (m_position != nullptr) ? *m_position : 0;
+    m_lastFrom      = m_countFrom;
+    m_operandsLeft  = 0;
 
     m_isStartedClear      = cycle == 0;
     m_isTracking          = m_isStartedClear;
@@ -91,6 +92,7 @@ void AccessHeatMap::Stop()
     m_isListed.swap (noIsListed);
 
     m_mostTotal      = {};
+    m_forgottenFrom  = kNoneForgotten;
     m_instructionSet = nullptr;
     m_operandsLeft   = 0;
     m_isTracking     = false;
@@ -368,6 +370,14 @@ HeatAccessState AccessHeatMap::GetLastAccess (
 
 void AccessHeatMap::ForgetAccessesFrom (uint64_t position)
 {
+    //  History cut one keyframe at a time cuts the map once per keyframe, at
+    //  or after the last cut, with no access stored between. No entry is at
+    //  or past the cut then, so the walk of every entry is skipped.
+    if (position >= m_forgottenFrom)
+    {
+        return;
+    }
+
     for (HeatLastAccess & access : m_last)
     {
         if (!access.IsNone() && !access.IsForgotten() && access.GetPosition() >= position)
@@ -375,6 +385,8 @@ void AccessHeatMap::ForgetAccessesFrom (uint64_t position)
             access.stamp = HeatLastAccess::kForgotten;
         }
     }
+
+    m_forgottenFrom = position;
 }
 
 
@@ -747,6 +759,8 @@ void AccessHeatMap::RecordLast (
     {
         return;
     }
+
+    m_forgottenFrom = kNoneForgotten;
 
     cpu = &m_last[GetLastIndex (HeatSpace::Cpu, isWrite, address)];
 
@@ -1541,7 +1555,7 @@ void AccessHeatMap::OnFetch (Word pc, Byte opcode)
     }
 
     position = (m_position != nullptr) ? *m_position : 0;
-    cycle    = (m_cycles   != nullptr) ? *m_cycles   : 0;
+    cycle    = ((m_cycles != nullptr) ? *m_cycles : 0) + ((m_cycleBase != nullptr) ? *m_cycleBase : 0);
 
     m_instruction  = HeatLastAccess::Make (pc, position, cycle);
     m_nextOperand  = (Word) (pc + 1);
@@ -1570,6 +1584,7 @@ void AccessHeatMap::TakeBackLastRead (Word address)
     {
         m_counts[m_lastReadLanding.cpu]--;
         m_last[GetLastIndex (HeatSpace::Cpu, false, address)] = m_lastReadWasCpu;
+        m_forgottenFrom = kNoneForgotten;
 
         if (m_lastReadLanding.hasBank && m_counts[m_lastReadLanding.bank] > 0)
         {

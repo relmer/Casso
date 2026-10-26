@@ -231,6 +231,53 @@ namespace DebugEventLogsTests
         }
 
 
+        //  A machine made live at a point in history goes on with that point's
+        //  active drive: a keyframe's state is loaded with no drive select,
+        //  so the feed reads the drive again from the controller.
+        TEST_METHOD (GoingLiveInThePastTakesThatPointsDrive)
+        {
+            Session                                     session;
+            ReverseResult                               result;
+            std::vector<DebugEventEntry<Disk2Event>>    entries;
+            HRESULT                                     hr      = S_OK;
+            uint64_t                                    past    = 0;
+            uint64_t                                    live    = 0;
+            Disk2Controller                           * disk    = session.machine.GetRefs().diskController;
+
+
+
+            Assert::IsNotNull (disk, L"a Disk II");
+
+            session.logs.Start (&session.controller);
+            Run (session.machine, 0, 30);
+            session.WaitForKeyframes();
+
+            Assert::AreEqual (0, disk->GetActiveDrive(), L"drive 1 while the loop runs");
+
+            past = session.machine.GetPosition();
+            Run (session.machine, 30, 30);
+
+            (void) session.machine.GetMemoryBus().ReadByte (0xC0EB);
+            Assert::AreEqual (1, disk->GetActiveDrive(), L"drive 2 selected live");
+
+            hr = session.controller.SeekToPosition (past, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            Assert::AreEqual (0, disk->GetActiveDrive(), L"drive 1 again in the past");
+
+            hr = session.controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            live = session.machine.GetPosition();
+            (void) session.machine.GetMemoryBus().ReadByte (0xC0E9);
+
+            session.logs.GetDiskCache().CopySpan (live, UINT64_MAX, entries);
+
+            Assert::IsFalse  (entries.empty(), L"the motor command is logged");
+            Assert::AreEqual (0, (int) entries.back().event.drive, L"on drive 1");
+        }
+
+
         //  A listing of the sound log includes entries from before the cache,
         //  rebuilt from history on the spot; a clear hides the entries before it.
         TEST_METHOD (ASoundLogListingIsRebuiltFromHistoryBeforeTheCache)
@@ -274,6 +321,78 @@ namespace DebugEventLogsTests
 
             Assert::IsTrue (listing.isComplete && listing.wasCleared, L"every entry since the clear");
             Assert::IsTrue (!listing.entries.empty() && listing.entries.size() < older, L"only the newest two slices'");
+        }
+
+
+        //  A stretch of history that fails to replay, here because the scratch
+        //  machine does not build, is an Unavailable entry in the listing,
+        //  and the listing succeeds with the cache's entries.
+        TEST_METHOD (AStretchThatFailsToReplayIsListedAsUnavailable)
+        {
+            Session       session;
+            IoLogEntries  listing;
+            HRESULT       hr      = S_OK;
+
+
+
+            Run (session.machine, 0, 200);
+
+            //  Start copies the running machine's configuration to the
+            //  scratch machine; a system ROM that is not there makes it fail
+            //  to build.
+            session.machine.GetConfig().systemRom.resolvedPath = "C:\\No such folder\\No such ROM.rom";
+            session.logs.Start (&session.controller);
+
+            Run (session.machine, 200, 30);
+            session.WaitForKeyframes();
+
+            hr = session.logs.GetIoEntries (IoLogKind::Sound, SIZE_MAX, listing);
+            AssertSucceeded (hr, L"GetIoEntries");
+
+            Assert::IsTrue (std::ranges::any_of (listing.entries, [] (const DebugEventEntry<IoEvent> & entry) { return entry.kind == DebugEventEntryKind::Unavailable; }),
+                            L"the stretch that failed is an Unavailable entry");
+            Assert::IsTrue (std::ranges::any_of (listing.entries, [] (const DebugEventEntry<IoEvent> & entry) { return entry.kind == DebugEventEntryKind::Event; }),
+                            L"with the cache's entries after it");
+        }
+
+
+        //  A rewind behind a clear lowers the clear to where the machine went
+        //  back to, so the entries made from there are listed.
+        TEST_METHOD (ARewindBehindAClearListsWhatRunsFromThere)
+        {
+            Session        session;
+            IoLogEntries   listing;
+            ReverseResult  result;
+            uint64_t       rewound  = 0;
+            uint64_t       cleared  = 0;
+            HRESULT        hr       = S_OK;
+            bool           isListed = false;
+
+
+
+            session.logs.Start (&session.controller);
+            Run (session.machine, 0, 10);
+
+            rewound = session.machine.GetPosition();
+            Run (session.machine, 10, 20);
+
+            cleared = session.machine.GetPosition();
+            session.logs.ClearIoLog (IoLogKind::Sound);
+            Run (session.machine, 30, 2);
+            session.WaitForKeyframes();
+
+            hr = session.controller.SeekToPosition (rewound, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            hr = session.logs.GetIoEntries (IoLogKind::Sound, SIZE_MAX, listing);
+            AssertSucceeded (hr, L"GetIoEntries");
+
+            isListed = std::ranges::any_of (listing.entries, [rewound, cleared] (const DebugEventEntry<IoEvent> & entry)
+            {
+                return entry.kind == DebugEventEntryKind::Event && entry.position >= rewound && entry.position < cleared;
+            });
+
+            Assert::IsTrue (isListed, L"entries from the rewound position on, before the old clear");
         }
 
 
@@ -427,6 +546,62 @@ namespace DebugEventLogsTests
         }
 
 
+        //  The sound log's pane (FR-198) gets its rows as the other logs' panes
+        //  do. SOUNDLOG CLEAR starts it again from the machine's position: it
+        //  drops its rows, gets only what comes after, is at the log's start,
+        //  and a request for older rows rebuilds nothing from before the clear.
+        TEST_METHOD (AClearedSoundPaneStartsAgainFromTheClear)
+        {
+            Session     session;
+            IoLogDelta  first;
+            IoLogDelta  second;
+            IoLogDelta  third;
+            uint64_t    cleared = 0;
+
+
+
+            session.logs.Start (&session.controller);
+            Run (session.machine, 0, 30);
+
+            session.logs.SetOpen (DebugLogKind::Sound, true);
+            Assert::IsTrue  (session.logs.TakeDelta (DebugLogKind::Sound, first));
+            Assert::IsTrue  (first.isReset);
+            Assert::IsFalse (first.newer.empty(), L"the sound the machine made");
+
+            cleared = session.machine.GetPosition();
+            session.logs.ClearIoLog (IoLogKind::Sound);
+            Run (session.machine, 30, 2);
+
+            Assert::IsTrue  (session.logs.TakeDelta (DebugLogKind::Sound, second));
+            Assert::IsTrue  (second.isReset, L"the pane drops what it had");
+            Assert::IsFalse (second.newer.empty(), L"and gets the sound since");
+            Assert::IsTrue  (std::ranges::all_of (second.newer, [cleared] (const IoLogRow & row) { return row.position >= cleared; }), L"nothing from before the clear");
+            Assert::IsTrue  (second.isAtStart, L"the log starts at the clear");
+
+            session.logs.RequestEarlier (DebugLogKind::Sound);
+            (void) session.logs.TakeDelta (DebugLogKind::Sound, third);
+
+            Assert::IsTrue  (third.older.empty(), L"no rows rebuilt from before the clear");
+            Assert::IsFalse (third.isRebuilding);
+        }
+
+
+        //  The video and sound logs are only TakeDelta's I/O kinds.
+        TEST_METHOD (TheIoDeltaIsOnlyForTheVideoAndSoundLogs)
+        {
+            Session     session;
+            IoLogDelta  delta;
+
+
+
+            session.logs.Start (&session.controller);
+            session.logs.SetOpen (DebugLogKind::Disk, true);
+
+            Assert::IsFalse (session.logs.TakeDelta (DebugLogKind::Disk, delta));
+            Assert::IsTrue  (delta.IsEmpty());
+        }
+
+
         //  After a request for the rows before its oldest, the pane gets the
         //  rows of history rebuilt back from there, the events the machine
         //  reported then.
@@ -490,6 +665,44 @@ namespace DebugEventLogsTests
                 Assert::AreEqual (reported[i].position, older[i].position);
                 Assert::AreEqual (reported[i].cycle,    older[i].cycle);
             }
+        }
+
+
+        //  The sound log's pane gets rows rebuilt from history as the disk
+        //  log's does, and the rebuild finishes.
+        TEST_METHOD (EarlierSoundRowsAreRebuiltFromHistory)
+        {
+            Session     session;
+            IoLogDelta  delta;
+            size_t      tries    = 0;
+            size_t      older    = 0;
+
+
+
+            Run (session.machine, 0, 200);
+
+            session.logs.Start (&session.controller);
+            session.logs.SetOpen (DebugLogKind::Sound, true);
+
+            Run (session.machine, 200, 30);
+            session.WaitForKeyframes();
+
+            session.logs.TakeDelta (DebugLogKind::Sound, delta);
+            Assert::IsFalse (delta.isAtStart, L"history starts earlier");
+
+            session.logs.RequestEarlier (DebugLogKind::Sound);
+
+            for (tries = 0; tries < 10 && (older == 0 || delta.isRebuilding); tries++)
+            {
+                session.logs.TakeDelta (DebugLogKind::Sound, delta);
+                session.queue.WaitAll();
+                session.logs.Pump();
+
+                older += delta.older.size();
+            }
+
+            Assert::IsTrue  (older > 0, L"rows were rebuilt");
+            Assert::IsFalse (delta.isRebuilding, L"and the rebuild finished");
         }
     };
 }

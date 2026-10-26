@@ -404,6 +404,28 @@ namespace CallHistoryShellTests
         }
 
 
+        //  Turning history off behind live takes the replay's note out of
+        //  the window's caption, though recording, which updates it, has
+        //  stopped.
+        TEST_METHOD (TurningHistoryOffBehindLiveClearsTheReplayCaption)
+        {
+            uint64_t  landing = ShellRig::kOpenAt + ShellRig::kOpenAt / 2;
+            ShellRig  rig;
+
+
+
+            rig.RunTo (ShellRig::kOpenAt * 2);
+            rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
+            rig.shell->GetDebugger().UpdateReplayCaption();
+
+            Assert::IsFalse (rig.shell->GetDebugger().GetReplayCaption().empty(), L"behind live, the caption notes the replay");
+
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
+
+            Assert::IsTrue (rig.shell->GetDebugger().GetReplayCaption().empty(), L"with history off, the note is gone");
+        }
+
+
         //  Closing the debugger drops the rebuild under way: it never runs,
         //  and no result is left behind for a debugger opened later.
         TEST_METHOD (ClosingTheDebuggerDropsTheRebuild)

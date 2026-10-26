@@ -235,6 +235,13 @@ std::string MonitorFormatter::FormatStop (const StopEvent & stop)
 
 
 
+    //  A step's reply has the instruction line, so its stop is the registers.
+    //  Any other stop states why and where after them, as AppleWin's does.
+    if (stop.reason != StopReason::Step)
+    {
+        return text + "\n" + AppleWinFormatter::FormatStop (stop);
+    }
+
     if (stop.basic.has_value() && stop.basic->isBasicStop)
     {
         lines.push_back (AppleWinFormatter::DescribeBasicStop (stop));

@@ -200,12 +200,66 @@ std::vector<std::string> BreakpointHistory::Describe (const std::vector<Outcome>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BreakpointHistory::DescribeStep
+//
+//  What the step did, for Undo's and Redo's tips: the breakpoints it
+//  deleted, added, enabled, disabled, renamed or changed, one by its number
+//  or several by their count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring BreakpointHistory::DescribeStep (const Step & step)
+{
+    size_t        removed  = 0;
+    size_t        added    = 0;
+    size_t        enabled  = 0;
+    size_t        disabled = 0;
+    size_t        renamed  = 0;
+    size_t        changed  = 0;
+    int           id       = -1;
+    auto          what     = [&id] (const wchar_t * verb, size_t count)
+    {
+        return (count == 1) ? std::format (L"{} breakpoint #{}", verb, id) : std::format (L"{} {} breakpoints", verb, count);
+    };
+
+
+
+    for (const Entry & entry : step)
+    {
+        bool  isFlags = entry.before.has_value() && entry.after.has_value() && entry.before->enabled != entry.after->enabled;
+        bool  isName  = entry.before.has_value() && entry.after.has_value() && entry.before->name != entry.after->name;
+
+        id = entry.after.has_value() ? entry.after->id : entry.before.has_value() ? entry.before->id : id;
+
+        if      (entry.before.has_value() && !entry.after.has_value()) { removed++; }
+        else if (!entry.before.has_value() && entry.after.has_value()) { added++; }
+        else if (isFlags && entry.after->enabled)                      { enabled++; }
+        else if (isFlags)                                              { disabled++; }
+        else if (isName)                                               { renamed++; }
+        else                                                           { changed++; }
+    }
+
+    if (removed == step.size()) { return what (L"delete", removed); }
+    if (added == step.size())   { return what (L"add", added); }
+    if (enabled == step.size()) { return what (L"enable", enabled); }
+    if (disabled == step.size()) { return what (L"disable", disabled); }
+    if (renamed == step.size()) { return what (L"rename", renamed); }
+
+    return (step.size() == 1) ? what (L"edit", 1) : what (L"change", step.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  BreakpointHistory::Apply
 //
 //  Takes one breakpoint from `from` to `to` straight from the table entry
 //  saved with the step, with no command built or run. A breakpoint that
 //  should exist and no longer does, or is no longer the one recorded, is
-//  left alone.
+//  left alone, and so is one to add back that is already defined.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,7 +276,7 @@ BreakpointHistory::Outcome BreakpointHistory::Apply (
 
     if (!from.has_value())
     {
-        if (!saved.has_value() || !to.has_value())
+        if (!saved.has_value() || !to.has_value() || IsDefined (session, *to))
         {
             return {};
         }
@@ -273,13 +327,15 @@ void BreakpointHistory::Add (DebugSession & session, int handle, const Saved & s
 {
     auto  previous = m_ids.find (handle);
     int   id       = BreakpointHandlers::Add (session, saved);
+    bool  isFree   = previous != m_ids.end() && !ListById (session).contains (previous->second);
 
 
 
-    //  The breakpoint comes back under the id it had, unless another took it.
-    //  The next id stays past it, since BPC * starts the ids over at 0 and
-    //  the next add would otherwise take it too.
-    if (previous != m_ids.end() && previous->second != id &&
+    //  The breakpoint comes back under the id it had, unless another took it:
+    //  a breakpoint or a watchpoint, since the two tables share one run of
+    //  ids. The next id stays past it, since BPC * starts the ids over at 0
+    //  and the next add would otherwise take it too.
+    if (isFree && previous->second != id &&
         (session.GetBreakpoints().TryChangeId (id, previous->second) || session.GetWatchpoints().TryChangeId (id, previous->second)))
     {
         id = previous->second;
@@ -352,6 +408,35 @@ std::optional<int> BreakpointHistory::GetLiveId (DebugSession & session, int han
     }
 
     return id->second;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakpointHistory::IsDefined
+//
+//  Whether a breakpoint with the definition of `info` is set now.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool BreakpointHistory::IsDefined (DebugSession & session, const BreakpointInfo & info) const
+{
+    std::string  definition = BreakpointHandlers::MakeDefinition (info);
+
+
+
+    for (const auto & [id, each] : ListById (session))
+    {
+        if (BreakpointHandlers::MakeDefinition (each) == definition)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -696,15 +781,17 @@ bool BreakpointHistory::TryParseSide (DebugSession & session, const std::string 
 //  BreakpointHistory::TryRebuild
 //
 //  The table entry a definition makes, from adding it to the session and
-//  removing it again. A definition that makes other than one entry fails.
+//  removing it again. The tables are emptied first, since a BRK, BRKINT,
+//  BRKBASIC or BRKOP definition adds to the entry of its kind already set
+//  rather than making one; every entry is put back afterward under its own
+//  id. A definition that makes other than one entry fails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool BreakpointHistory::TryRebuild (DebugSession & session, const std::string & definition, BreakpointInfo & info, Saved & saved)
 {
-    std::map<int, BreakpointInfo>  before = ListById (session);
+    std::map<int, Saved>           before = SaveAll (session);
     std::map<int, BreakpointInfo>  after;
-    std::vector<int>               added;
     int                            nextId = session.GetNextId();
     AppleWinParseResult            parsed = AppleWinParser::Parse (definition, session);
     bool                           isOk   = false;
@@ -716,29 +803,34 @@ bool BreakpointHistory::TryRebuild (DebugSession & session, const std::string & 
         return false;
     }
 
+    for (const auto & [id, each] : before)
+    {
+        session.GetBreakpoints().TryClear (id);
+        session.GetWatchpoints().TryClear (id);
+    }
+
     (void) session.Execute (parsed.command);
     after = ListById (session);
 
-    for (const auto & [id, each] : after)
-    {
-        if (!before.contains (id))
-        {
-            added.push_back (id);
-        }
-    }
-
-    isOk = added.size() == 1 && BreakpointHandlers::TrySave (session, added[0], saved);
+    isOk = after.size() == 1 && BreakpointHandlers::TrySave (session, after.begin()->first, saved);
 
     if (isOk)
     {
-        info = after[added[0]];
+        info = after.begin()->second;
     }
 
-    for (int id : added)
+    for (const auto & [id, each] : after)
     {
-        BreakpointHandlers::Remove (session, id);
+        session.GetBreakpoints().TryClear (id);
+        session.GetWatchpoints().TryClear (id);
     }
 
+    for (const auto & [id, each] : before)
+    {
+        BreakpointHandlers::Replace (session, id, each);
+    }
+
+    session.OnStopConditionsChanged();
     session.SetNextId (nextId);
     return isOk;
 }

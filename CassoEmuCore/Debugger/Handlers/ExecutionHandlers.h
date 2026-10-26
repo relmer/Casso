@@ -2,6 +2,7 @@
 
 #include "Debugger/IDebugCommandHandler.h"
 #include "Debugger/CycleStopwatch.h"
+#include "Debugger/Events/ProfileEventProbe.h"
 #include "Debugger/IInstructionObserver.h"
 #include "Debugger/ProfileTable.h"
 #include "Debugger/Reverse/ReverseCommand.h"
@@ -42,12 +43,23 @@ public:
     //  The profile as PROFILE LIST has it, with the list given.
     void  BuildProfile (DebugSession & session, ProfileList list, ProfileData & data) const;
 
+    //  PROFILE HISTORY's build, from a cycle to the machine's position, which
+    //  the shell's history replays; and its finished counts, which take the
+    //  place of the profile's, whether profiling is on or not.
+    using HistoryProfiler = std::function<HRESULT (uint64_t fromCycle, std::string & error)>;
+
+    void  SetHistoryProfiler (HistoryProfiler profiler) { m_historyProfiler = std::move (profiler); }
+    void  InstallProfile     (const ProfileCounts & counts);
+
     //  Whether PROFILE ON is in force.
     bool  IsProfiling () const override { return m_profile.IsOn(); }
 
+    //  The trace lines not yet written to the file; for a test.
+    size_t  GetPendingTraceBytes () const { return m_trace.lines.size(); }
+
     bool  TryExecute       (DebugSession & session, const DebugCommand & command, Reply & reply) override;
     void  OnInstruction    (DebugSession & session, Word pc) override;
-    void  OnInterrupt      (DebugSession & session) override;
+    void  OnInterrupt      (DebugSession & session, Word pc) override;
     void  OnFreeRunSlice   (DebugSession & session) override;
     void  OnRunStopped     (DebugSession & session, const StopEvent & stop) override;
     void  OnMachineChanged (DebugSession & session) override;
@@ -66,6 +78,7 @@ private:
         bool          isOn      = false;
         bool          withVideo = false;
         bool          hasFailed = false;
+        bool          isStarted = false;     // the file was written this trace, so a flush appends
         std::wstring  path;
         std::string   name;
         std::string   lines;
@@ -91,6 +104,7 @@ private:
     static void  ShowBranchRecord  (DebugSession & session, Reply & reply);
     void         ToggleTrace       (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         Profile           (DebugSession & session, const DebugCommand & command, Reply & reply);
+    void         BuildProfileFromHistory (DebugSession & session, const std::string & argument, Reply & reply);
     void         Stopwatch         (DebugSession & session, const DebugCommand & command, Reply & reply);
     void         ShowStopwatch     (Reply & reply) const;
     void         ShowCycles        (DebugSession & session, const DebugCommand & command, Reply & reply);
@@ -117,6 +131,7 @@ private:
     TraceState                         m_trace;
     ProfileTable                       m_profile;
     RoutineProfile                     m_routines;
+    HistoryProfiler                    m_historyProfiler;
     CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
     std::deque<Byte>                   m_keys;

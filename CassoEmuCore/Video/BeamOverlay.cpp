@@ -31,15 +31,11 @@ void BeamOverlay::Draw (uint32_t * pixels, int width, int height, uint32_t scanl
 
     if (scanline >= kVisibleScanlines)
     {
-        BlendRow (pixels, width, height - 1, color);
-        BlendRow (pixels, width, height - 2, color);
+        DrawLine (pixels, width, height, height - 2, height, color);
         return;
     }
 
-    for (int row = top; row < top + rowsPerLine; row++)
-    {
-        BlendRow (pixels, width, row, color);
-    }
+    DrawLine (pixels, width, height, top, top + rowsPerLine, color);
 
     if (cycle >= kBlankCycles)
     {
@@ -63,12 +59,12 @@ void BeamOverlay::Draw (uint32_t * pixels, int width, int height, uint32_t scanl
 
 uint32_t BeamOverlay::Blend (uint32_t pixel, uint32_t color)
 {
-    static constexpr uint32_t  kHalfMask = 0x007F7F7F;
-    static constexpr uint32_t  kOpaque   = 0xFF000000;
+    static constexpr uint32_t  kQuarterMask = 0x003F3F3F;
+    static constexpr uint32_t  kOpaque      = 0xFF000000;
 
 
 
-    return (((pixel >> 1) & kHalfMask) + ((color >> 1) & kHalfMask)) | kOpaque;
+    return (((pixel >> 2) & kQuarterMask) + 3 * ((color >> 2) & kQuarterMask)) | kOpaque;
 }
 
 
@@ -77,11 +73,60 @@ uint32_t BeamOverlay::Blend (uint32_t pixel, uint32_t color)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  BeamOverlay::BlendRow
+//  BeamOverlay::Darken
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void BeamOverlay::BlendRow (uint32_t * pixels, int width, int row, uint32_t color)
+uint32_t BeamOverlay::Darken (uint32_t pixel)
+{
+    static constexpr uint32_t  kQuarterMask = 0x003F3F3F;
+    static constexpr uint32_t  kOpaque      = 0xFF000000;
+
+
+
+    return ((pixel >> 2) & kQuarterMask) | kOpaque;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeamOverlay::DrawLine
+//
+//  The rows from top up to bottom in the color, and the row on each side of
+//  them darkened, so the line is visible over any picture under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BeamOverlay::DrawLine (uint32_t * pixels, int width, int height, int top, int bottom, uint32_t color)
+{
+    for (int row = top; row < bottom; row++)
+    {
+        ApplyRow (pixels, width, row, [color] (uint32_t pixel) { return Blend (pixel, color); });
+    }
+
+    for (int row : { top - 1, bottom })
+    {
+        if (row >= 0 && row < height)
+        {
+            ApplyRow (pixels, width, row, [] (uint32_t pixel) { return Darken (pixel); });
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeamOverlay::ApplyRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void BeamOverlay::ApplyRow (uint32_t * pixels, int width, int row, const std::function<uint32_t (uint32_t)> & change)
 {
     uint32_t  * line = pixels + (size_t) row * (size_t) width;
 
@@ -89,7 +134,7 @@ void BeamOverlay::BlendRow (uint32_t * pixels, int width, int row, uint32_t colo
 
     for (int x = 0; x < width; x++)
     {
-        line[x] = Blend (line[x], color);
+        line[x] = change (line[x]);
     }
 }
 

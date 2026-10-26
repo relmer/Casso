@@ -223,7 +223,7 @@ void DxuiComboBox::Open()
     showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopupMenu (p, t); };
     showParams.onMoveInside     = [this] (POINT localPx) { OnPopupMove  (localPx); };
     showParams.onClickInside    = [this] (POINT localPx) { OnPopupClick (localPx); };
-    showParams.onWheel          = [this] (int delta)     { ScrollBy (-(delta / WHEEL_DELTA) * 3); };
+    showParams.onWheel          = [this] (int delta)     { ScrollBy (-m_wheel.Take (delta) * 3); };
     showParams.onClosed         = [this] () { Close(); };
 
     hr = m_activePopup->Show (std::move (showParams));

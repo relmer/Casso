@@ -156,6 +156,40 @@ namespace DebuggerTests
 
 
 
+        //  An opcode, BRK or interrupt entry with an IF expression stops only
+        //  while the expression is true.
+        TEST_METHOD (OpcodeBrkAndInterrupt_TakeACondition)
+        {
+            int                    nextId   = 0;
+            BreakpointTable        table (nextId);
+            MockExpressionContext  context;
+            int                    opcodeId = table.AddOpcode (kLda);
+            int                    brkId    = table.AddBrk();
+            int                    irqId    = table.AddInterrupt();
+            int                    hitId    = -1;
+
+
+
+            table.TrySetCondition (opcodeId, Parse ("A=1"));
+            table.TrySetCondition (brkId,    Parse ("A=1"));
+            table.TrySetCondition (irqId,    Parse ("A=1"));
+
+            context.registers["A"] = 0;
+            Assert::IsFalse (table.TryMatchBeforeInstruction (0x1234, kLda, context, hitId));
+            Assert::IsFalse (table.TryMatchBeforeInstruction (0x1234, kBrk, context, hitId));
+            Assert::IsFalse (table.TryMatchInterrupt (context, hitId));
+
+            context.registers["A"] = 1;
+            Assert::IsTrue   (table.TryMatchBeforeInstruction (0x1234, kLda, context, hitId));
+            Assert::AreEqual (opcodeId, hitId);
+            Assert::IsTrue   (table.TryMatchBeforeInstruction (0x1234, kBrk, context, hitId));
+            Assert::AreEqual (brkId, hitId);
+            Assert::IsTrue   (table.TryMatchInterrupt (context, hitId));
+            Assert::AreEqual (irqId, hitId);
+        }
+
+
+
         TEST_METHOD (AddressChecked_BeforeOpcode)
         {
             int                    nextId = 0;

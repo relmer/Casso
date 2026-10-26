@@ -266,6 +266,20 @@ public:
     }
 
 
+    //  A log kind past the logs gets no log's options, not another log's.
+    TEST_METHOD (ALogKindPastTheLogsHasNoOptions)
+    {
+        DebuggerSettings  settings;
+
+
+
+        Assert::IsTrue (settings.GetLogOptions (0) == &settings.diskLogOptions);
+        Assert::IsTrue (settings.GetLogOptions (3) == &settings.soundLogOptions);
+        Assert::IsNull (settings.GetLogOptions (4),  L"not the Disk II log's again");
+        Assert::IsNull (settings.GetLogOptions (-1));
+    }
+
+
     TEST_METHOD (Load_MissingFields_Tolerated)
     {
         InMemoryFileSystem  fs;
@@ -337,6 +351,40 @@ public:
         text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("futureKey")  != std::string::npos);
         Assert::IsTrue (text.find ("\"keep me\"") != std::string::npos);
+    }
+
+
+    //  The debugger window's placements are a top-level key, which a build
+    //  without the debugger passes through as it does any unknown key, so
+    //  they survive its rewrite of "window"; one written inside
+    //  "window" by an earlier build is read too.
+    TEST_METHOD (DebuggerPlacements_AreATopLevelKeyAndTheOldPlaceIsRead)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     prefs;
+        GlobalUserPrefs     older;
+        HRESULT             hr;
+        std::string         text;
+
+
+
+        prefs.window.debuggerPlacements["topology-A"] = { 300, 120, 1100, 840 };
+
+        hr = prefs.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        text = fs.PeekContent (GlobalUserPrefs::GetFilePath (L"C:\\Casso"));
+        Assert::IsTrue (text.find ("\"debuggerPlacements\"") != std::string::npos);
+        Assert::IsTrue (text.find ("\"debuggerPlacements\"") > text.find ("\"fullscreen\""), L"the placements are inside window");
+
+        hr = fs.WriteAllText (GlobalUserPrefs::GetFilePath (L"C:\\Casso"),
+                              "{\"$cassoGlobalPrefsVersion\":1,\"window\":{\"debuggerPlacements\":{\"topology-B\":{\"x\":10,\"y\":20,\"w\":900,\"h\":700}}}}");
+        AssertSucceeded (hr);
+
+        hr = older.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+        Assert::AreEqual (size_t (1), older.window.debuggerPlacements.size(), L"the placement an earlier build wrote is lost");
+        Assert::AreEqual (10, older.window.debuggerPlacements["topology-B"].x);
     }
 
 
@@ -412,11 +460,48 @@ public:
         //  A writer that only ever set its own window, saving the whole
         //  document: the debugger map it never touched must come back.
         WindowPlacementProfile (writer).Save ("T", { 1, 2, 300, 200 });
-        writer.MergeUntouchedPlacements (onDisk);
+        writer.MergeUntouched (onDisk);
 
         Assert::AreEqual ((size_t) 1, writer.window.debuggerPlacements.size(), L"kept, not wiped");
         Assert::AreEqual (30, writer.window.debuggerPlacements["T"].x);
         Assert::AreEqual (1,  writer.window.placements["T"].x, L"its own window still wins");
+    }
+
+
+    //  The debugger's settings are another instance's too: a save from an
+    //  instance that never changed them writes what is on disk, and one that
+    //  did writes the change.
+    TEST_METHOD (DebuggerSettingsSurviveAWriterThatNeverChangedThem)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     bystander;
+        GlobalUserPrefs     arranger;
+        GlobalUserPrefs     loaded;
+        HRESULT             hr;
+
+
+
+        hr = bystander.Load (L"C:\\Casso", fs);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        arranger.debugger.layout = "arranged";
+        hr = arranger.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = bystander.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+        Assert::AreEqual (string ("arranged"), loaded.debugger.layout, L"the bystander wrote what was on disk");
+
+        bystander.debugger.layout = "mine";
+        hr = bystander.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+        Assert::AreEqual (string ("mine"), loaded.debugger.layout, L"a change of its own is written");
     }
 
 

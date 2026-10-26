@@ -61,12 +61,14 @@ namespace DebuggerTests
         //  set in one session are all there in the next, through the JSON.
         TEST_METHOD (WhatOneSessionSetsComesBackInAnother)
         {
-            SessionRig                first;
-            SessionRig                second;
-            DebugProject              project;
-            DebugProject              read;
-            std::string               error;
-            std::vector<std::string>  failures;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
 
 
 
@@ -105,17 +107,63 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, second.rig.session.GetSymbolLoads().size());
         }
 
+        //  A project saved with the same breakpoint twice restores it once,
+        //  and the second is no failure.
+        TEST_METHOD (ASavedDuplicateBreakpointRestoresOnce)
+        {
+            std::unique_ptr<SessionRig>    rigHeap  = std::make_unique<SessionRig>();
+            SessionRig                   & session  = *rigHeap;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+
+
+
+            project.engineScript = { "BPC *", "BP C283", "BP C283" };
+            project.ApplyEngine (session.rig.session, failures);
+
+            Assert::IsTrue   (failures.empty(), failures.empty() ? L"" : TextEncoding::NarrowToWide (failures.front()).c_str());
+            Assert::AreEqual ((size_t) 1, session.rig.session.GetBreakpoints().GetAll().size());
+        }
+
+        //  The script's numbers are its definition lines, so one that adds
+        //  nothing, as a breakpoint on a symbol no longer defined does, moves
+        //  no later disable or name onto another breakpoint.
+        TEST_METHOD (ADefinitionThatAddsNothingMovesNoLaterNumber)
+        {
+            std::unique_ptr<SessionRig>    rigHeap  = std::make_unique<SessionRig>();
+            SessionRig                   & session  = *rigHeap;
+            DebugProject                   project;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+
+
+
+            project.engineScript       = { "BPC *", "BP NOSUCHLABEL", "BP 0400", "BP 0500", "BPD 2" };
+            project.breakpointNames[2] = "five";
+            project.ApplyEngine (session.rig.session, failures);
+
+            BreakpointHandlers::ListAll (session.rig.session, list);
+
+            Assert::AreEqual ((size_t) 1, failures.size(), L"the line that adds nothing");
+            Assert::AreEqual ((size_t) 2, list.breakpoints.size());
+            Assert::IsTrue   (list.breakpoints[0].enabled, L"BP 0400 is the script's 1");
+            Assert::IsFalse  (list.breakpoints[1].enabled, L"BP 0500 is its 2");
+            Assert::AreEqual (std::string ("five"), list.breakpoints[1].name);
+        }
+
         //  The session's other state comes back too: a symbol table turned
         //  off, the CD directory, the stopwatch, the profiler, the command
         //  mode and the trip count's mark; and the window's states by name.
         TEST_METHOD (TheSessionsSettingsAndTheWindowsStatesComeBack)
         {
-            SessionRig                first;
-            SessionRig                second;
-            DebugProject              project;
-            DebugProject              read;
-            std::string               error;
-            std::vector<std::string>  failures;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
 
 
 
@@ -148,14 +196,16 @@ namespace DebuggerTests
         //  would have taken in the first session.
         TEST_METHOD (EachItemKeepsItsIdAndTheNextIdIsKept)
         {
-            SessionRig                first;
-            SessionRig                second;
-            DebugProject              project;
-            DebugProject              read;
-            std::string               error;
-            std::vector<std::string>  failures;
-            BreakpointListData        list;
-            std::vector<int>          ids;
+            std::unique_ptr<SessionRig>    firstRig  = std::make_unique<SessionRig>();
+            std::unique_ptr<SessionRig>    secondRig = std::make_unique<SessionRig>();
+            SessionRig                   & first     = *firstRig;
+            SessionRig                   & second    = *secondRig;
+            DebugProject                   project;
+            DebugProject                   read;
+            std::string                    error;
+            std::vector<std::string>       failures;
+            BreakpointListData             list;
+            std::vector<int>               ids;
 
 
 
@@ -278,6 +328,33 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, notices.size(), L"the chosen file has gone");
         }
 
+        //  A save under the automatic file's path writes the project
+        //  there and no redirect over it, and opening a redirect file opens
+        //  the project it points at, not an empty one.
+        TEST_METHOD (TheAutomaticPathIsNeverARedirectToItself)
+        {
+            InMemoryFileSystem         files;
+            DebugProjectStore          store (files, L"C:\\Data\\DebugProjects");
+            ProjectScope               scope   = ProjectScope::Choose ("", "", "", "", "Apple //e", L"C:\\Disks\\Game.dsk");
+            DebugProject               project;
+            DebugProject               again;
+            std::vector<std::string>   notices;
+
+
+
+            AssertSucceeded (store.Open (scope, project, notices), L"store.Open");
+
+            project.engineScript = { "BPC *", "BP 0300" };
+            AssertSucceeded (store.SaveAs (project, store.GetAutomaticPath (scope)), L"store.SaveAs");
+            AssertSucceeded (store.Open (scope, again, notices), L"store.Open");
+            Assert::IsTrue (again.engineScript == project.engineScript, L"the project, not a redirect to itself");
+
+            AssertSucceeded (store.SaveAs (project, L"C:\\Work\\game.cassoproj"), L"store.SaveAs");
+            AssertSucceeded (store.OpenFile (store.GetAutomaticPath (scope), again, notices), L"store.OpenFile");
+            Assert::IsTrue   (again.engineScript == project.engineScript, L"the redirect's project");
+            Assert::AreEqual (std::wstring (L"C:\\Work\\game.cassoproj"), again.filePath);
+        }
+
         //  A file that is not a project is copied aside under a dated name,
         //  never deleted, and an empty project opens with a notice.
         TEST_METHOD (AnUnreadableFileIsCopiedAside)
@@ -297,6 +374,34 @@ namespace DebuggerTests
             Assert::AreEqual ((size_t) 1, notices.size());
             Assert::IsTrue   (files.Exists (store.GetAutomaticPath (scope) + L".unreadable-20261015-013000"));
             Assert::AreEqual (std::string ("{ this is not"), files.PeekContent (store.GetAutomaticPath (scope) + L".unreadable-20261015-013000"));
+        }
+
+
+
+        //  A project file another program has open cannot be read for now,
+        //  which is not the same as not being a project: no copy is made,
+        //  and the empty project that opens is never saved over it.
+        TEST_METHOD (AFileThatCannotBeReadIsNotSavedOver)
+        {
+            InMemoryFileSystem         files;
+            DebugProjectStore          store (files, L"C:\\Data\\DebugProjects", [] { return std::string ("20261015-013000"); });
+            ProjectScope               scope = ProjectScope::Choose ("", "", "", "", "Apple //e", L"");
+            DebugProject               project;
+            std::vector<std::string>   notices;
+            std::wstring               path  = store.GetAutomaticPath (scope);
+            HRESULT                    hr    = S_OK;
+
+
+
+            files.WriteAllText (path, "the user's project");
+            files.SetReadError (path, HRESULT_FROM_WIN32 (ERROR_SHARING_VIOLATION));
+
+            AssertSucceeded (store.Open (scope, project, notices), L"store.Open");
+            Assert::AreEqual ((size_t) 1, notices.size());
+            Assert::IsFalse  (files.Exists (path + L".unreadable-20261015-013000"), L"nothing was read to copy");
+            hr = store.Save (project);
+            Assert::IsTrue   (FAILED (hr), L"the save is refused");
+            Assert::AreEqual (std::string ("the user's project"), files.PeekContent (path));
         }
 
         TEST_METHOD (ASaveWaitsTwoSecondsPastTheLastChange)

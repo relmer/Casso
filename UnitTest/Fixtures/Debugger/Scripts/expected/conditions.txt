@@ -21,7 +21,7 @@ A:41 X:00 Y:00 P:24 S:FD PC:0310  ..R..I..
 >BPMV 6 7
 Breakpoint #0 set when $0006 becomes $07
 >G
-Watchpoint #0: Write $07 to $0006 by $0310 (was $06)
+Data breakpoint #0: Write $07 to $0006 by $0310 (was $06)
 >BPL
 #0 enabled  when $0006 becomes $07, hits 1
 >BPC *

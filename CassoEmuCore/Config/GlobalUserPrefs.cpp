@@ -105,11 +105,15 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerCommandBarDock",
     "debuggerTimelineDock",
     "debuggerFocusedPane",
+    "debuggerPlacements",
     "debuggerDisassemblyOptions",
     "debuggerHeatMapOptions",
     "debuggerHeatMapRanges",
     "debuggerDiskLogOptions",
     "debuggerInputLogOptions",
+    "debuggerVideoLogOptions",
+    "debuggerSoundLogOptions",
+    "debuggerEchoActions",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
     "debuggerSourceFolders",
@@ -1064,7 +1068,7 @@ HRESULT GlobalUserPrefs::Save (
 
     if (SUCCEEDED (hrDisk))
     {
-        merged.MergeUntouchedPlacements (onDisk);
+        merged.MergeUntouched (onDisk);
         WindowTrace::Log ("prefs.merge", "prefs",
                           "disk had " + std::to_string (onDisk.window.debuggerPlacements.size()) +
                           " debugger placement(s); writing " +
@@ -1125,16 +1129,23 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::MergeUntouchedPlacements
+//  GlobalUserPrefs::MergeUntouched
 //
 //  Placements this object never set come back from the file. A key is this
-//  object's own only once a window of THIS instance was put somewhere, which
-//  is what Touch records; everything else belongs to whoever wrote it.
+//  object's only once a window of THIS instance was put somewhere, which
+//  Touch marks; every other key takes the file's value. The debugger
+//  settings come back from the file too while they are as this object read
+//  them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GlobalUserPrefs::MergeUntouchedPlacements (const GlobalUserPrefs & onDisk)
+void GlobalUserPrefs::MergeUntouched (const GlobalUserPrefs & onDisk)
 {
+    if (debugger == debuggerAsRead)
+    {
+        debugger = onDisk.debugger;
+    }
+
     for (const auto & each : onDisk.window.placements)
     {
         if (std::find (window.touched.begin(), window.touched.end(), each.first) == window.touched.end())
@@ -1229,11 +1240,15 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("crtOverrides", JsonValue (std::move (crtObj)));
 
     // window
-    windowObj.emplace_back ("placements",         PlacementsToJson (window.placements));
-    windowObj.emplace_back ("debuggerPlacements", PlacementsToJson (window.debuggerPlacements));
+    windowObj.emplace_back ("placements", PlacementsToJson (window.placements));
     windowObj.emplace_back ("fullscreen", JsonValue (window.fullscreen));
 
     root.emplace_back ("window", JsonValue (std::move (windowObj)));
+
+    //  The debugger window's placements are a key of their own, outside
+    //  "window": a build without the debugger writes "window" from its own
+    //  fields only, and writes an unknown top-level key back as it read it.
+    root.emplace_back ("debuggerPlacements", PlacementsToJson (window.debuggerPlacements));
 
     // monitorTilt: radians by monitor name. Written only for monitors the
     // user has actually moved, so an untouched install carries none.
@@ -1290,6 +1305,9 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerHeatMapRanges",      JsonValue (debugger.heatMapRanges));
     root.emplace_back ("debuggerDiskLogOptions",     JsonValue (debugger.diskLogOptions));
     root.emplace_back ("debuggerInputLogOptions",    JsonValue (debugger.inputLogOptions));
+    root.emplace_back ("debuggerVideoLogOptions",    JsonValue (debugger.videoLogOptions));
+    root.emplace_back ("debuggerSoundLogOptions",    JsonValue (debugger.soundLogOptions));
+    root.emplace_back ("debuggerEchoActions",        JsonValue (debugger.echoActions));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debugger.openViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debugger.textZoomPercent));
     root.emplace_back ("debuggerSourceFolders",        RecentDisksToJson (debugger.sourceFolders));
@@ -1514,12 +1532,18 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             PlacementsFromJson (*placementsObj, window.placements);
         }
 
+        //  Where earlier builds wrote the debugger window's placements.
         if (windowSub->HasObject ("debuggerPlacements", placementsObj))
         {
             PlacementsFromJson (*placementsObj, window.debuggerPlacements);
         }
 
         window.fullscreen = TryGetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
+    }
+
+    if (v.HasObject ("debuggerPlacements", placementsObj))
+    {
+        PlacementsFromJson (*placementsObj, window.debuggerPlacements);
     }
 
     // recentDisks: drop non-string and empty entries silently per
@@ -1562,6 +1586,10 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     debugger.heatMapRanges      = GetStringOpt (v, "debuggerHeatMapRanges",      debugger.heatMapRanges);
     debugger.diskLogOptions     = GetStringOpt (v, "debuggerDiskLogOptions",     debugger.diskLogOptions);
     debugger.inputLogOptions    = GetStringOpt (v, "debuggerInputLogOptions",    debugger.inputLogOptions);
+    debugger.videoLogOptions    = GetStringOpt (v, "debuggerVideoLogOptions",    debugger.videoLogOptions);
+    debugger.soundLogOptions    = GetStringOpt (v, "debuggerSoundLogOptions",    debugger.soundLogOptions);
+
+    debugger.echoActions = TryGetBoolOpt (v, "debuggerEchoActions", debugger.echoActions);
 
     debugger.textZoomPercent = std::clamp (GetIntOpt (v, "debuggerTextZoomPercent", debugger.textZoomPercent),
                                           DebuggerSettings::kMinTextZoomPercent, DebuggerSettings::kMaxTextZoomPercent);
@@ -1637,6 +1665,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
             unknownPassthrough.emplace_back (entry.first, entry.second);
         }
     }
+
+    debuggerAsRead = debugger;
 
 Error:
     return hr;

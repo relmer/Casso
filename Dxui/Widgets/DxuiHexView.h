@@ -555,6 +555,7 @@ private:
     float                          m_textStrength   = 1.0f;
     int                            m_cellWidthDip   = 0;
     int                            m_cellHeightDip  = 0;
+    bool                           m_isCellMeasured = false;   // the cell size was measured, not set by the host
     uint64_t                       m_topRow         = 0;
     bool                           m_hasSelection   = false;
     uint64_t                       m_anchor         = 0;

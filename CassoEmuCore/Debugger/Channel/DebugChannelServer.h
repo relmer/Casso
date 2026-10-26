@@ -35,6 +35,9 @@
 class DebugChannelServer : public IDebugNotificationSink
 {
 public:
+    //  The most lines one pump runs.
+    static constexpr size_t  kMaxLinesPerPump = 64;
+
     DebugChannelServer (IPipeTransport & transport, IDebugCommandRunner & runner);
 
     DebugChannelServer             (const DebugChannelServer &) = delete;

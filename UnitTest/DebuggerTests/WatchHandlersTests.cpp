@@ -53,6 +53,94 @@ namespace DebuggerTests
 
 
 
+        //  A watch typed with EXPR is resolved once to what it is: a register
+        //  reads as its value, never a word at the address its value makes; a
+        //  symbol, the word at wherever it is now; *expr, the byte there. A
+        //  name that is nothing known is an error. A plain W is AppleWin's
+        //  address watch.
+        //  A .b or .w suffix reads the byte or the word at the address, symbol
+        //  or expression before it, and saves with the watch; a register
+        //  takes none.
+        TEST_METHOD (W_ExprWidthSuffixReadsAByteOrAWord)
+        {
+            Rig  rig;
+
+
+
+            rig.target.memory[0x0300] = 0x34;
+            rig.target.memory[0x0301] = 0x12;
+            rig.target.memory[0x00FB] = 0x00;
+            rig.target.memory[0x00FC] = 0x03;
+            rig.session.GetSymbols().Add (SymbolTableId::User, "COUNT", 0x0300);
+
+            Assert::AreEqual (std::string ("#0 300.b = $34"),   rig.RunOk ("W EXPR 300.b").text.at (0), L"an address's byte");
+            Assert::AreEqual (std::string ("#1 $300.w = $1234"), rig.RunOk ("W EXPR $300.W").text.at (0), L"$ marks hex only, and .W a word, written .w");
+            Assert::AreEqual (std::string ("#2 COUNT.b = $34"), rig.RunOk ("W EXPR count.b").text.at (0), L"a symbol's byte, in the symbol's case");
+            Assert::AreEqual (std::string ("#3 FB+205.w = $1234"), rig.RunOk ("W EXPR FB+205.w").text.at (0), L"an expression's value as the address");
+            rig.RunFails ("W EXPR A.b", "invalid arguments");
+
+            Assert::IsTrue (WatchHandlers::MakeScript (rig.session, WatchListKind::Watch).find ("WA EXPR 300.b") != std::string::npos, L"the suffix saves with the watch");
+        }
+
+
+
+        TEST_METHOD (W_ExprIsResolvedOnceToWhatItIs)
+        {
+            Rig  rig;
+
+
+
+            rig.target.registers.x    = 0x4C;
+            rig.target.memory[0x004C] = 0x11;
+            rig.target.memory[0x00FB] = 0xA5;
+            rig.target.memory[0x0300] = 0x34;
+            rig.target.memory[0x0301] = 0x12;
+            rig.target.memory[0x0400] = 0x78;
+            rig.target.memory[0x0401] = 0x56;
+            rig.session.GetSymbols().Add (SymbolTableId::User, "COUNT", 0x0300);
+
+            Assert::AreEqual (std::string ("#0 X = $4C"),     rig.RunOk ("W EXPR X").text.at (0), L"a register is its value");
+            Assert::AreEqual (std::string ("#1 COUNT = $1234"), rig.RunOk ("W EXPR COUNT").text.at (0), L"a symbol is the word at it");
+            Assert::AreEqual (std::string ("#2 *FB = $A5"),   rig.RunOk ("W EXPR *FB").text.at (0), L"a dereference is the byte there");
+
+            rig.target.registers.x = 0x20;
+            rig.session.GetSymbols().Add (SymbolTableId::User, "COUNT", 0x0400);
+
+            Assert::AreEqual (std::string ("#0 X = $20"),     rig.RunOk ("WL").text.at (0), L"the register is read again");
+            Assert::AreEqual (std::string ("#1 COUNT = $5678"), rig.RunOk ("WL").text.at (1), L"the symbol is followed to where it is now");
+
+            Assert::AreEqual (std::string ("#3 ASDF = -- (ASDF is not a symbol.)"), rig.RunOk ("W EXPR ASDF").text.at (0), L"a name no symbol has is watched");
+            rig.session.GetSymbols().Add (SymbolTableId::User, "ASDF", 0x0300);
+            Assert::AreEqual (std::string ("#3 ASDF = $1234"), rig.RunOk ("WL").text.at (3), L"the name reads as the symbol once it is loaded");
+            rig.RunFails ("W EXPR 1+", "invalid arguments");
+            Assert::AreEqual (std::string ("#4 COUNT = $5678"), rig.RunOk ("W EXPR count").text.at (0), L"a symbol typed in another case is in its own");
+            Assert::AreEqual (std::string ("#5 $0020 = $0000"), rig.RunOk ("W X").text.at (0), L"W alone is an address watch");
+            Assert::IsTrue   (WatchHandlers::MakeScript (rig.session, WatchListKind::Watch).find ("WA EXPR *FB") != std::string::npos, L"a typed watch saves as typed");
+        }
+
+
+
+        //  P.C through P.N are P's flags in an expression, each 0 or 1.
+        TEST_METHOD (TheFlagsAreNamesInAnExpression)
+        {
+            Rig   rig;
+            Word  value = 0xFFFF;
+
+
+
+            rig.target.registers.p = 0x81;
+
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("P.C", value));
+            Assert::AreEqual ((Word) 1, value, L"the carry is set");
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("p.n", value));
+            Assert::AreEqual ((Word) 1, value, L"N is set, in either case");
+            Assert::IsTrue   (rig.session.TryResolveSymbol ("P.Z", value));
+            Assert::AreEqual ((Word) 0, value, L"Z is clear");
+            Assert::IsFalse  (rig.session.TryResolveSymbol ("P.Q", value), L"there is no Q flag");
+        }
+
+
+
         TEST_METHOD (ZP_SlotsAndPointers)
         {
             Rig                       rig;

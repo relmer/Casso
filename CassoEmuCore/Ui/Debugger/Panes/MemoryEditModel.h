@@ -100,9 +100,10 @@ public:
     void      ReadRegions   (uint64_t offset, std::span<uint16_t> out) const override;
     bool      TryGetRegionStyle (uint16_t region, uint32_t & outArgb, std::wstring & outLabel) const override;
 
-    //  Where the view's rows start relative to a 16-byte boundary. Offset 0 is
-    //  address `phase`, so Go to can put any address at a row's start.
-    void  SetPhase     (Word phase) { m_phase = (Word) (phase & 0x000F); }
+    //  Where the view's rows start relative to a row boundary, less than a
+    //  row's bytes, which can be more than 16. Offset 0 is address `phase`, so
+    //  Go to can put any address at a row's start.
+    void  SetPhase     (Word phase) { m_phase = phase; }
     Word  GetPhase     () const     { return m_phase; }
     Word  GetAddressOf (uint64_t offset) const { return (Word) ((offset + m_phase) & 0xFFFF); }
 
@@ -135,7 +136,7 @@ public:
     std::string   GetHistoryText () const;
     void          SetHistoryText (const std::string & text);
 
-    //  The newest edit Undo or Redo would act on, as "changed 2 bytes at $0300".
+    //  The newest edit Undo or Redo would act on, as "change 2 bytes at $0300".
     std::wstring  GetUndoText () const;
     std::wstring  GetRedoText () const;
 
@@ -164,6 +165,19 @@ private:
     //  the last read that reached it. False for an address none has.
     bool  TryGetKnown   (Word address, std::optional<Byte> & outByte, MemoryRegion & outRegion) const;
 
+    //  An undo or redo checked against bytes only an earlier read had, out
+    //  of the window: the next read of them confirms it or puts it back.
+    struct Unconfirmed
+    {
+        bool               isUndo  = true;
+        Word               address = 0;
+        std::vector<Byte>  sent;
+        std::vector<Byte>  before;
+    };
+
+    bool  IsShownWhole  (Word address, size_t count) const;
+    void  ConfirmStep   ();
+
     Word                                      m_first    = 0;
     ByteChanges                               m_changes;
     Word                                      m_phase    = 0;
@@ -183,6 +197,7 @@ private:
     std::vector<uint8_t>                      m_keptRegions;
     mutable std::vector<Edit>                 m_history;
     mutable std::vector<Edit>                 m_redo;
+    std::optional<Unconfirmed>                m_unconfirmed;
     PatchFn                                   m_onPatch;
     RegionColors                              m_regionColors;
 };

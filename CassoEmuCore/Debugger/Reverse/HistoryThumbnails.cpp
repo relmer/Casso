@@ -36,6 +36,7 @@ HistoryThumbnails::HistoryThumbnails (IHistoryFrameRenderer & renderer) :
 HistoryThumbnails::~HistoryThumbnails()
 {
     WaitForWork();
+    Attach (nullptr);
 }
 
 
@@ -471,6 +472,7 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 
         m_job.thumbPx  = m_cellPx;
         m_job.layoutId = m_layoutId;
+        m_job.cutCount = m_cutCount;
     }
 
     m_job.position  = position;
@@ -570,6 +572,103 @@ void HistoryThumbnails::Clear()
     m_wallTimes.Clear();
 
     m_step = 0;
+
+    Bump();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::Attach
+//
+//  Machine thread, as the store's drops are.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::Attach (KeyframeStore * keyframes)
+{
+    if (m_keyframes != nullptr)
+    {
+        m_keyframes->SetDropListener (this, nullptr);
+    }
+
+    m_keyframes = keyframes;
+
+    if (m_keyframes != nullptr)
+    {
+        m_keyframes->SetDropListener (this, [this] (KeyframeDrop drop) { OnKeyframeDrop (drop); });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::OnKeyframeDrop
+//
+//  After a keyframe is dropped from the new end, as when history is cut at
+//  an edit in the past, a keyframe of another state can be taken at the same
+//  position, so the pictures at that position are removed. A drop of the
+//  oldest removes nothing: positions only grow, so no later keyframe takes
+//  the same position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::OnKeyframeDrop (KeyframeDrop drop)
+{
+    if (drop == KeyframeDrop::All)
+    {
+        ForgetPictures (0);
+    }
+    else if (drop == KeyframeDrop::Newest && m_keyframes != nullptr && m_keyframes->GetCount() > 0)
+    {
+        ForgetPictures (m_keyframes->GetInfo (m_keyframes->GetCount() - 1).position);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::ForgetPictures
+//
+//  Every picture at or past `from` is removed, as is each cell's last
+//  picture from there. The picture in flight is discarded when it lands.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::ForgetPictures (uint64_t from)
+{
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        m_thumbs.EraseFrom (from);
+        m_bases.EraseFrom (from);
+        m_previews.EraseFrom (from);
+        PrunePoints();
+
+        for (ShownPicture & shown : m_shown)
+        {
+            if (shown.image != nullptr && shown.point.position >= from)
+            {
+                shown = ShownPicture();
+            }
+        }
+
+        if (m_wantedPreview.has_value() && *m_wantedPreview >= from)
+        {
+            m_wantedPreview.reset();
+        }
+
+        m_cutCount++;
+    }
 
     Bump();
 }
@@ -871,27 +970,30 @@ void HistoryThumbnails::Draw (Job & job)
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
-        if (job.layoutId == m_layoutId)
+        if (job.cutCount == m_cutCount)
         {
-            m_thumbs.Put (job.position, thumb);
-        }
+            if (job.layoutId == m_layoutId)
+            {
+                m_thumbs.Put (job.position, thumb);
+            }
 
-        m_bases.Put (job.position, base);
-        m_points[job.position] = job.point;
-        PrunePoints();
+            m_bases.Put (job.position, base);
+            m_points[job.position] = job.point;
+            PrunePoints();
 
-        if (job.isPreview)
-        {
-            m_previews.Put (job.position, full);
-        }
-        else
-        {
-            m_previews.PutSpare (job.position, full);
-        }
+            if (job.isPreview)
+            {
+                m_previews.Put (job.position, full);
+            }
+            else
+            {
+                m_previews.PutSpare (job.position, full);
+            }
 
-        if (m_wantedPreview == job.position)
-        {
-            m_wantedPreview.reset();
+            if (m_wantedPreview == job.position)
+            {
+                m_wantedPreview.reset();
+            }
         }
     }
 

@@ -108,6 +108,10 @@ public:
     //  the frame it fell in.
     static void      FormatEntries    (const std::vector<DebugEventEntry<IoEvent>> & entries, std::vector<std::string> & lines);
 
+    //  What one entry did, as its line in a listing ends: the modes a video
+    //  switch turned on and off, "speaker", or a Mockingboard register write.
+    static std::string  FormatEvent   (const IoEvent & entry);
+
 private:
     static constexpr Byte  kRegisterMask = 0x0F;
 

@@ -29,6 +29,8 @@ public:
                                   std::string        & outContent) override;
     HRESULT WriteAllText         (const std::wstring & path,
                                   const std::string  & content) override;
+    HRESULT AppendAllText        (const std::wstring & path,
+                                  const std::string  & content) override;
     bool    Exists               (const std::wstring & path) override;
     HRESULT Delete               (const std::wstring & path) override;
     HRESULT EnumerateFiles       (const std::wstring        & directory,

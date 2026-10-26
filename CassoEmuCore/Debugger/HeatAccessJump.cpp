@@ -62,7 +62,9 @@ HeatAccessPlan HeatAccessJump::Plan (
         return plan;
     }
 
-    if (access.GetPosition() < oldestPosition)
+    //  The seek goes to the position after the access, which is in history
+    //  when it is the oldest keyframe's.
+    if (access.GetPosition() + 1 < oldestPosition)
     {
         plan.message = std::format ("The last {} of {}, at cycle {}, is older than the history kept.", kind, location, GroupDigits (access.cycle));
         return plan;

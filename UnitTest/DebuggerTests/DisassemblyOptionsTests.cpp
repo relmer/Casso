@@ -13,6 +13,8 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/DisassemblyGutter.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -71,14 +73,15 @@ namespace DisassemblyOptionsTests
         {
             SourceLookup  lookup;
 
-            lookup.match = SourceMatch::Exact;
-            lookup.text  = "; main\n        lda #$41\n        rts\n";
+            lookup.match = sourceText.empty() ? SourceMatch::NotFound : SourceMatch::Exact;
+            lookup.text  = sourceText;
             return lookup;
         }
 
         SourceLookup  MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> &, const std::wstring &, const std::string &, int &) override { return {}; }
 
         std::string  options;
+        std::string  sourceText  = "; main\n        lda #$41\n        rts\n";
         bool         isHeatShown = false;
 
     private:
@@ -111,13 +114,9 @@ namespace DisassemblyOptionsTests
         using DebuggerWindow::ApplyCodeSnapshot;
         using DebuggerWindow::GetCodeList;
         using DebuggerWindow::HasTopLayer;
-        using DebuggerWindow::GetCodeBar;
-        using DebuggerWindow::ToggleCodeOption;
-        using DebuggerWindow::IsCodeOptionEnabled;
-        using DebuggerWindow::GetCodeOptions;
+        using DebuggerWindow::GetCodeGroup;
         using DebuggerWindow::GetCodeLineOfRow;
-        using DebuggerWindow::HoverGutter;
-        using DebuggerWindow::GetBranchArrow;
+        using DebuggerWindow::GetCodeGutter;
     };
 
 
@@ -328,11 +327,11 @@ namespace DisassemblyOptionsTests
             Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kAddressColumn), L"the saved options are read");
             Assert::IsTrue  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kBytesColumn));
 
-            window.ToggleCodeOption (Option::Addresses);
+            window.GetCodeGroup().ToggleOption (Option::Addresses);
 
             Assert::IsFalse  (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kAddressColumn), L"no address column");
             Assert::AreEqual (std::string ("-address bytes -source symbols -lines values pointers arrow -colon -heat dim=code"), host.options, L"the choice is saved");
-            Assert::IsNotNull (window.GetCodeBar (0), L"each view has its options bar");
+            Assert::IsNotNull (window.GetCodeGroup().GetView (0).GetBar(), L"each view has its options bar");
         }
 
 
@@ -365,14 +364,16 @@ namespace DisassemblyOptionsTests
 
             Assert::IsFalse (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kHeatColumn), L"off by default");
 
-            window.ToggleCodeOption (Option::Heat);
+            window.GetCodeGroup().ToggleOption (Option::Heat);
 
             Assert::IsTrue   (host.isHeatShown, L"the heat map is on");
             Assert::IsTrue   (window.GetCodeList (0)->IsColumnVisible (DisassemblyCells::kHeatColumn));
-            Assert::AreEqual (std::wstring (s_kpszHeatBlock) + L"r", window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].text, L"LDA #$41: run, and its operand read");
-            Assert::AreEqual (std::wstring (L"w"),                    window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kHeatColumn].text, L"RTS: written");
+            Assert::AreEqual (std::wstring (L"  "), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].text, L"LDA #$41: a fill a byte");
+            Assert::AreNotEqual (0u, window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].background, L"run");
+            Assert::AreNotEqual (window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kHeatColumn].background,
+                                 window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kHeatColumn].background, L"RTS: written, in another color");
 
-            window.ToggleCodeOption (Option::Heat);
+            window.GetCodeGroup().ToggleOption (Option::Heat);
             Assert::IsFalse  (host.isHeatShown);
         }
 
@@ -393,12 +394,12 @@ namespace DisassemblyOptionsTests
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
             window.ApplyCodeSnapshot (MakeSnapshot (false), 0);
 
-            Assert::IsFalse  (window.IsCodeOptionEnabled (Option::Source));
-            Assert::IsFalse  (window.IsCodeOptionEnabled (Option::LineNumbers));
+            Assert::IsFalse  (window.GetCodeGroup().IsOptionEnabled (Option::Source));
+            Assert::IsFalse  (window.GetCodeGroup().IsOptionEnabled (Option::LineNumbers));
             Assert::AreEqual (3, window.GetCodeList (0)->GetRowCount(), L"no debug file, no source rows");
 
-            window.ToggleCodeOption (Option::Source);
-            Assert::IsTrue   (window.GetCodeOptions().IsOn (Option::Source), L"a disabled option does not switch");
+            window.GetCodeGroup().ToggleOption (Option::Source);
+            Assert::IsTrue   (window.GetCodeGroup().GetOptions().IsOn (Option::Source), L"a disabled option does not switch");
         }
 
 
@@ -424,24 +425,80 @@ namespace DisassemblyOptionsTests
             Assert::AreEqual (-1, window.GetCodeLineOfRow (0, 0), L"the first row is source");
             Assert::AreEqual (0,  window.GetCodeLineOfRow (0, 1));
 
+            //  The line has no label, so its opcode starts in the instruction
+            //  column, aligned with the disassembly's.
             for (const DxuiListView::Cell & cell : window.GetCodeList (0)->GetCellsOfRow (0))
             {
                 text += cell.text;
             }
 
-            Assert::AreEqual (std::wstring (L"        lda #$41"), text);
+            Assert::AreEqual (std::wstring (L"lda #$41"), text);
+            Assert::AreEqual (std::wstring (L"lda #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
 
-            window.ToggleCodeOption (Option::LineNumbers);
-            text.clear();
+            window.GetCodeGroup().ToggleOption (Option::LineNumbers);
 
-            for (const DxuiListView::Cell & cell : window.GetCodeList (0)->GetCellsOfRow (0))
-            {
-                text += cell.text;
-            }
-
-            Assert::AreEqual (std::wstring (L"    2          lda #$41"), text, L"the line number leads");
+            Assert::AreEqual (std::wstring (L"2"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].text, L"the line number is in the address column");
+            Assert::AreEqual (std::wstring (L"lda #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
         }
 
+
+
+        //  A source not found is looked up again at the next snapshot, and a
+        //  debug file loaded again at the same path with another program key
+        //  has its source read again.
+        TEST_METHOD (TheSourceRowsFollowASourceFoundLaterAndANewProgram)
+        {
+            CassoTheme     theme = CassoTheme::MakeSkeuomorphic();
+            OptionsHost    host;
+            DxuiDpiScaler  scaler;
+            OptionsWindow  window (theme, host);
+            auto           first = MakeSnapshot (true);
+            auto           again = std::make_shared<DebuggerViewSnapshot> (*first);
+            auto           other = std::make_shared<DebuggerViewSnapshot> (*first);
+
+
+
+            scaler.SetDpi (96);
+            host.options    = "address bytes source symbols";
+            host.sourceText = std::string();
+
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ApplyCodeSnapshot (first, 0);
+            Assert::AreEqual (0, window.GetCodeLineOfRow (0, 0), L"no source found, no source row");
+
+            host.sourceText = "; main\n        lda #$41\n        rts\n";
+            window.ApplyCodeSnapshot (again, 0);
+            Assert::AreEqual (-1, window.GetCodeLineOfRow (0, 0), L"found at the next snapshot");
+            Assert::AreEqual (std::wstring (L"lda #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text);
+
+            host.sourceText          = "; main\n        ldx #$41\n        rts\n";
+            other->source->programKey = "reassembled";
+            window.ApplyCodeSnapshot (other, 0);
+            Assert::AreEqual (std::wstring (L"ldx #$41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kInstructionColumn].text, L"the new program's source");
+        }
+
+
+
+        //  A source line's label is in the label column and its opcode and
+        //  operand start in the instruction column, so the branch arrow, which
+        //  is drawn left of that column, is never over the source's text.
+        TEST_METHOD (ASourceLinesLabelAndOpcodeAreInTheirColumns)
+        {
+            DxuiListView                     list;
+            std::vector<DxuiListView::Cell>  cells (DisassemblyCells::kColumnCount);
+            DebuggerTextColors::Set          colors = DebuggerTextColors::Make (0xFF000000, 0xFFFFFFFF, 0xFFC0C0C0, 0u);
+
+
+
+            DisassemblyCells::Configure     (list);
+            DisassemblyCells::FillSourceRow (cells, list, 11, L"LOOP    LDA (PTR),Y", true, colors, 0xFF808080);
+
+            Assert::AreEqual (std::wstring (L"11"),          cells[DisassemblyCells::kAddressColumn].text);
+            Assert::AreEqual (std::wstring (L"LOOP"),        cells[DisassemblyCells::kLabelColumn].text);
+            Assert::AreEqual (std::wstring (L"LDA (PTR),Y"), cells[DisassemblyCells::kInstructionColumn].text);
+            Assert::IsTrue   (cells[DisassemblyCells::kInstructionColumn].spansRow, L"the rest of the line runs to the row's end");
+        }
 
 
         TEST_METHOD (TheGutterShowsAGrayBreakpointOnlyOnAnInstructionUnderThePointer)
@@ -469,15 +526,15 @@ namespace DisassemblyOptionsTests
             Assert::IsNull    (list->GetCellsOfRow (1).front().icon.get(), L"nothing before the pointer comes");
             Assert::IsNotNull (arrow.get(), L"but the PC's arrow, in the same margin");
 
-            window.HoverGutter (POINT { box.left + 2, GetRowMiddle (*list, 1) });
+            window.GetCodeGutter().Hover (POINT { box.left + 2, GetRowMiddle (*list, 1) });
             Assert::IsNotNull (list->GetCellsOfRow (1).front().icon.get(), L"the RTS row shows the gray dot");
             Assert::IsTrue    (list->GetCellsOfRow (0).front().icon == arrow, L"the PC's line keeps its arrow alone");
 
-            window.HoverGutter (POINT { box.left + 2, GetRowMiddle (*list, 2) });
+            window.GetCodeGutter().Hover (POINT { box.left + 2, GetRowMiddle (*list, 2) });
             Assert::IsNull (list->GetCellsOfRow (2).front().icon.get(), L"a data byte cannot take a breakpoint");
             Assert::IsNull (list->GetCellsOfRow (1).front().icon.get(), L"the dot left the row the pointer left");
 
-            window.HoverGutter (POINT { box.left + 200, GetRowMiddle (*list, 2) });
+            window.GetCodeGutter().Hover (POINT { box.left + 200, GetRowMiddle (*list, 2) });
             Assert::IsNull (list->GetCellsOfRow (2).front().icon.get(), L"none away from the gutter");
         }
 
@@ -550,10 +607,10 @@ namespace DisassemblyOptionsTests
 
             Assert::AreEqual (std::wstring (L"Y=05 ($003E)=$1230 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text, L"the default: both");
 
-            window.ToggleCodeOption (Option::Pointers);
+            window.GetCodeGroup().ToggleOption (Option::Pointers);
             Assert::AreEqual (std::wstring (L"Y=05 $1235=41"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text);
 
-            window.ToggleCodeOption (Option::OperandValues);
+            window.GetCodeGroup().ToggleOption (Option::OperandValues);
             Assert::AreEqual (std::wstring (L"Y=05"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kOperandColumn].text);
         }
 
@@ -576,7 +633,7 @@ namespace DisassemblyOptionsTests
 
             Assert::AreEqual (std::wstring (L"0300"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].text, L"the default: no colon");
 
-            window.ToggleCodeOption (Option::AddressColon);
+            window.GetCodeGroup().ToggleOption (Option::AddressColon);
             Assert::AreEqual (std::wstring (L"0300:"), window.GetCodeList (0)->GetCellsOfRow (0)[DisassemblyCells::kAddressColumn].text);
             Assert::AreEqual (std::wstring (L"0302:"), window.GetCodeList (0)->GetCellsOfRow (1)[DisassemblyCells::kAddressColumn].text);
         }
@@ -625,11 +682,11 @@ namespace DisassemblyOptionsTests
 
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue  (window.GetBranchArrow (0, input, goesTo, isTaken), L"the default: the arrow is drawn");
+            Assert::IsTrue  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"the default: the arrow is drawn");
             Assert::AreEqual ((int) 0x0303, (int) goesTo);
 
-            window.ToggleCodeOption (Option::BranchArrow);
-            Assert::IsFalse (window.GetBranchArrow (0, input, goesTo, isTaken));
+            window.GetCodeGroup().ToggleOption (Option::BranchArrow);
+            Assert::IsFalse (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken));
         }
 
 
@@ -678,10 +735,10 @@ namespace DisassemblyOptionsTests
 
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetBranchArrow (0, input, goesTo, isTaken, true), L"the stepped branch's arrow");
+            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"the stepped branch's arrow");
             Assert::AreEqual ((int) 0x0303, (int) goesTo);
             Assert::IsTrue   (input.sourceY.has_value() && input.targetY.has_value() && *input.sourceY < *input.targetY);
-            Assert::IsFalse  (window.GetBranchArrow (0, input, goesTo, isTaken), L"the PC's RTS has none");
+            Assert::IsFalse  (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken), L"the PC's RTS has none");
         }
 
 
@@ -727,7 +784,7 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetBranchArrow (0, input, goesTo, isTaken, true), L"drawn though $0300 is not in view");
+            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"drawn though $0300 is not in view");
             Assert::AreEqual ((int) 0x0401, (int) goesTo);
             Assert::IsFalse  (input.sourceY.has_value(), L"no source row: it runs in from the edge");
             Assert::IsTrue   (input.isTargetBelow,        L"from above, $0300 being before the lines");
@@ -775,7 +832,7 @@ namespace DisassemblyOptionsTests
             window.ApplyCodeSnapshot (snapshot, 0);
             window.GetCodeList (0)->Paint (painter, text, theme);
 
-            Assert::IsTrue   (window.GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
+            Assert::IsTrue   (window.GetCodeGroup().GetBranchArrow (0, input, goesTo, isTaken, true), L"the BPL's arrow, after the step took it");
             Assert::AreEqual ((int) 0x0300, (int) goesTo);
             Assert::IsTrue   (window.HasTopLayer(), L"and the layer it is drawn on is painted, though the PC's NOP has no arrow");
         }

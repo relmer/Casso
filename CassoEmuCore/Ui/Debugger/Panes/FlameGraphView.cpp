@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 
 
@@ -13,26 +14,116 @@
 //  FlameGraphView::SetData
 //
 //  A snapshot of a running machine has no profile; the last one read stays.
-//  A zoomed node past the new tree's end goes back to Top level.
+//  A new tree has another node order, so the zoom and a click waiting for
+//  its second move to the node with the same routines from Top level down;
+//  with none, the zoom goes back to Top level and the click is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void FlameGraphView::SetData (const std::optional<ProfileData> & profile)
 {
+    std::vector<uint64_t>  zoomPath;
+    std::vector<uint64_t>  clickPath;
+    std::optional<size_t>  clicked;
+
+
+
     if (!profile.has_value())
     {
         return;
     }
 
+    zoomPath = GetPath (m_tree, m_routines, m_zoom);
+
+    if (m_click.has_value())
+    {
+        clickPath = GetPath (m_tree, m_routines, m_click->node);
+    }
+
     m_tree     = profile->tree;
     m_routines = profile->routines;
+    m_zoom     = FindPath (m_tree, m_routines, zoomPath).value_or (0);
+    clicked    = FindPath (m_tree, m_routines, clickPath);
 
-    if (m_zoom >= m_tree.size())
+    if (m_click.has_value() && clicked.has_value())
     {
-        m_zoom = 0;
+        m_click->node = *clicked;
+    }
+    else
+    {
+        m_click.reset();
     }
 
     Relayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlameGraphView::GetPath
+//
+//  The routines from Top level down to node, each its address and kind;
+//  empty for a node past the tree's end. A node's caller is the nearest
+//  node before it one level up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<uint64_t> FlameGraphView::GetPath (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, size_t node)
+{
+    std::vector<uint64_t>  path;
+    int                    depth = 0;
+
+
+
+    if (node >= tree.size())
+    {
+        return path;
+    }
+
+    depth = tree[node].depth;
+
+    for (size_t i = node + 1; i > 0 && depth >= 0; i--)
+    {
+        const ProfileTreeEntry  & entry = tree[i - 1];
+
+        if (entry.depth == depth && entry.routine < routines.size())
+        {
+            path.push_back (((uint64_t) routines[entry.routine].kind << 16) | routines[entry.routine].address);
+            depth--;
+        }
+    }
+
+    std::ranges::reverse (path);
+    return path;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlameGraphView::FindPath
+//
+//  The node whose routines from Top level down are path; none for an empty
+//  path or one the tree no longer has.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<size_t> FlameGraphView::FindPath (const std::vector<ProfileTreeEntry> & tree, const std::vector<ProfileRoutineEntry> & routines, const std::vector<uint64_t> & path)
+{
+    for (size_t i = 0; i < tree.size() && !path.empty(); i++)
+    {
+        if (tree[i].depth + 1 == (int) path.size() && GetPath (tree, routines, i) == path)
+        {
+            return i;
+        }
+    }
+
+    return std::nullopt;
 }
 
 
@@ -220,7 +311,8 @@ bool FlameGraphView::TryGetTipAt (POINT point, std::wstring & text) const
 
     text = std::format (L"{}\nSelf: {} cycles ({:.1f}%)\nTotal: {} cycles ({:.1f}%)\nCalls: {}",
                         TextEncoding::NarrowToWide (m_routines[node->routine].GetName()),
-                        node->self, 100.0 * (double) node->self / all, node->total, 100.0 * (double) node->total / all, node->calls);
+                        DebuggerStatusText::FormatCount (node->self), 100.0 * (double) node->self / all,
+                        DebuggerStatusText::FormatCount (node->total), 100.0 * (double) node->total / all, DebuggerStatusText::FormatCount (node->calls));
     return true;
 }
 

@@ -41,7 +41,7 @@ public:
 
     __forceinline void  OnInstructionStart (const Cpu6502 & cpu)
     {
-        uint64_t  cycle = cpu.Cpu6502::GetCycleCount();      // qualified: no virtual call
+        uint64_t  cycle = cpu.GetHistoryCycleCount();        // inline: no virtual call
 
 
 

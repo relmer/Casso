@@ -43,6 +43,10 @@ public:
         //  Tip text for the heading, put up by the host. The list never
         //  draws it.
         std::wstring    tip;
+
+        //  A filter of the host's is in force on the column: a funnel is
+        //  drawn at the right end of its heading.
+        bool            isFiltered = false;
     };
 
     struct Cell
@@ -196,6 +200,11 @@ public:
     // view, not on every SetRows: widths belong to the view, and a divider
     // double-click re-fits one column on demand. Default off.
     void  SetPreciseAutoFit         (bool enabled)       { m_preciseAutoFit = enabled; }
+
+    //  Whether a column's heading has the filter funnel; the heading is
+    //  measured again with room for it.
+    void  SetColumnFiltered         (size_t idx, bool isFiltered);
+    bool  IsColumnFiltered          (size_t idx) const   { return idx < m_columns.size() && m_columns[idx].isFiltered; }
 
     // Text a fitted column must have room for, for a list whose rows come
     // from a provider and are never measured: each string not noted before
@@ -591,6 +600,9 @@ private:
     // that values never clip.
     static constexpr float  s_kAutoCharWidthEm   = 0.62f;
 
+    //  The width a heading's filter funnel takes, with room on its left.
+    static constexpr float  s_kFilterGlyphDip    = 12.0f;
+
     // Per-element ARGB colors derived once per paint from the theme.
     struct Palette
     {
@@ -890,6 +902,7 @@ private:
     //  click; a release with no press here, as when a menu over the list
     //  closes on its press, selects nothing.
     bool                         m_rowPressed    = false;
+    bool                         m_pressModified = false;   // the row press had Ctrl or Shift in a multi-select list
 
     //  A rubber band in an item view: where the press was, in content pixels
     //  so it stays put as the view scrolls, where the pointer is now, and the

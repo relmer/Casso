@@ -51,6 +51,7 @@ public:
     // Emphasizes a Default button (e.g. a dialog's default action) with a
     // themed accent outline, without promoting it to Primary.
     void  SetEmphasis (bool on) { m_emphasis = on; }
+    bool  IsEmphasized () const { return m_emphasis; }
 
     //  The label's face and size in DIPs, for a label that is an icon font's
     //  glyph. Null and 0 keep the body face at 13.

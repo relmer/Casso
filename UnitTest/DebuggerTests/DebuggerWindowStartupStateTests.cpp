@@ -9,6 +9,8 @@
 #include "resource.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -103,12 +105,12 @@ namespace DebuggerStartupStateTests
         using DebuggerWindow::ShowPane;
         using DebuggerWindow::ClosePane;
         using DebuggerWindow::GetFocused;
-        using DebuggerWindow::GetCommandBox;
-        using DebuggerWindow::GetMemoryBox;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetMemoryGroup;
         using DebuggerWindow::GetPaneOfControl;
         using DebuggerWindow::OnWindowClose;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::GetRegisterList;
+        using DebuggerWindow::GetRegistersPane;
     };
 
 
@@ -128,6 +130,54 @@ namespace DebuggerStartupStateTests
     TEST_CLASS (DebuggerWindowStartupStateTests)
     {
     public:
+
+        //  While history recording is on, the live trace runs only while the trace
+        //  pane is on screen: none is requested while the pane is behind
+        //  another tab, one quiet trace-on action once it is on screen, and a
+        //  trace-off once the trace pane is closed.
+        TEST_METHOD (TheLiveTraceRunsOnlyWhileTheTracePaneIsOnScreen)
+        {
+            CassoTheme     theme    = CassoTheme::MakeSkeuomorphic();
+            StartupHost    host;
+            StartupWindow  window   (theme, host);
+            DxuiDpiScaler  scaler;
+            auto           snapshot = std::make_shared<DebuggerViewSnapshot>();
+            auto           on       = std::make_shared<DebuggerViewSnapshot>();
+            size_t         count    = 0;
+
+
+
+            snapshot->history.isRecording = true;
+            *on                           = *snapshot;
+            on->trace.isOn                = true;
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ClosePane (DebuggerLayout::kTrace);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            count = std::ranges::count_if (host.actions, [] (const DebuggerAction & action) { return action.command.verb == DebugVerb::SetHistory; });
+            Assert::AreEqual ((size_t) 0, count, L"the live trace started with the trace pane closed");
+
+            window.ShowPane (DebuggerLayout::kTrace);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (snapshot);
+
+            Assert::IsFalse (host.actions.empty(), L"no action");
+            Assert::IsTrue  (host.actions.back().command.verb == DebugVerb::SetHistory, L"the live trace was not started");
+            Assert::IsTrue  (host.actions.back().quiet, L"the change is echoed as if someone asked for it");
+
+            window.TakeSnapshot (on);
+            window.ClosePane (DebuggerLayout::kTrace);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.TakeSnapshot (std::make_shared<DebuggerViewSnapshot> (*on));
+
+            count = std::ranges::count_if (host.actions, [] (const DebuggerAction & action) { return action.command.verb == DebugVerb::SetHistory; });
+            Assert::AreEqual ((size_t) 2, count, L"the live trace was not stopped with the pane closed");
+        }
+
 
         static std::wstring  GetActive (const DxuiPaneLayoutNode * node, const std::wstring & pane)
         {
@@ -310,7 +360,7 @@ namespace DebuggerStartupStateTests
             window.OnCreate();
             window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
 
-            Assert::IsTrue (window.GetFocused() == window.GetCommandBox(), L"the console's command line has the focus");
+            Assert::IsTrue (window.GetFocused() == window.GetConsolePane().GetCommandLine().GetBox(), L"the console's command line has the focus");
         }
 
 
@@ -358,8 +408,8 @@ namespace DebuggerStartupStateTests
         static void  AssertConsoleHasTheFocus (StartupWindow & window)
         {
             Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), GetActive (window.GetPaneLayout().GetRoot(), DebuggerLayout::kConsole), L"the console tab is in front");
-            Assert::IsTrue   (window.GetFocused() == window.GetCommandBox(), L"the console's command line has the focus");
-            Assert::IsTrue   (window.GetCommandBox()->IsVisible(),          L"the command line shows");
+            Assert::IsTrue   (window.GetFocused() == window.GetConsolePane().GetCommandLine().GetBox(), L"the console's command line has the focus");
+            Assert::IsTrue   (window.GetConsolePane().GetCommandLine().GetBox()->IsVisible(),          L"the command line shows");
         }
 
 
@@ -479,7 +529,7 @@ namespace DebuggerStartupStateTests
 
             OpenWindow (window);
 
-            window.FocusControl (window.GetRegisterList());
+            window.FocusControl (window.GetRegistersPane().GetList());
             window.OnWindowClose();
 
             Assert::AreEqual (std::string ("registers"), host.focusedPane);

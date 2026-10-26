@@ -280,7 +280,7 @@ namespace DebuggerTests
 
             rig.target.Stop (MakeStop (StopReason::Watchpoint, 0x0313));
             Assert::AreEqual (std::string ("VALUE = 7"), rig.sink.stops.at (0).condition);
-            Assert::AreEqual (std::string ("Watchpoint #0: Write $07 to $0400 by $0310 (was $06), IF VALUE = 7 is $1"),
+            Assert::AreEqual (std::string ("Data breakpoint #0: Write $07 to $0400 by $0310 (was $06), IF VALUE = 7 is $1"),
                               AppleWinFormatter::FormatStop (rig.sink.stops[0]));
         }
 
@@ -346,6 +346,31 @@ namespace DebuggerTests
             rig.target.Stop (MakeStop (StopReason::Watchpoint, 0x0302));
             Assert::AreEqual (0, rig.sink.stops.at (0).watch->id);
             Assert::AreEqual ((Byte) 0x07, rig.sink.stops[0].watch->value);
+        }
+
+
+
+        //  A range stops when any byte of it becomes the value, and every
+        //  page of the range is watched.
+        TEST_METHOD (BPMV_TakesARange)
+        {
+            Rig  rig;
+
+
+
+            Assert::AreEqual (std::string ("Breakpoint #0 set when a byte of $00F0-$0110 becomes $07"), rig.RunOk ("BPMV F0:110 7").text.at (0));
+            Assert::IsTrue   (rig.target.watchedPages[0x00]);
+            Assert::IsTrue   (rig.target.watchedPages[0x01]);
+            Assert::AreEqual (std::string ("BPMV 00F0:0110 07"), BreakpointHandlers::MakeDefinition (BreakpointHandlers::MakeInfo (rig.session.GetBreakpoints().GetAll().at (0))));
+
+            rig.session.OnInstruction (0x0300);
+            rig.session.GetWatchpoints().OnWatchedAccess (0x0111, 0x07, BusAccess::Write, (Byte) 0x00);
+            Assert::IsFalse (rig.session.HasPendingStop(), L"past the range");
+
+            rig.session.GetWatchpoints().OnWatchedAccess (0x0105, 0x07, BusAccess::Write, (Byte) 0x00);
+            Assert::IsTrue  (rig.session.HasPendingStop());
+
+            rig.RunFails ("BPMV 110:F0 7", "invalid arguments");
         }
 
 

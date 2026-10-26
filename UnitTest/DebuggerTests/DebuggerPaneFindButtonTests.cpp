@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -83,11 +84,10 @@ namespace DebuggerPaneFindButtonTests
 
         using DebuggerWindow::OnCreate;
         using DebuggerWindow::Layout;
-        using DebuggerWindow::GetConsoleBar;
-        using DebuggerWindow::GetSourceBar;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::GetPaneOfControl;
-        using DebuggerWindow::IsFindOpen;
-        using DebuggerWindow::GetFindPane;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::kFindEntry;
 
 
@@ -140,12 +140,12 @@ namespace DebuggerPaneFindButtonTests
 
             window.OnCreate();
 
-            Assert::IsFalse (window.IsFindOpen());
+            Assert::IsFalse (window.GetFindWidgets().IsOpen());
 
-            FindButtonWindow::PressFind (window.GetConsoleBar());
+            FindButtonWindow::PressFind (window.GetConsolePane().GetModeBar().GetSlot().GetBar());
 
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetFindPane());
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen());
+            Assert::AreEqual (std::wstring (DebuggerLayout::kConsole), window.GetFindWidgets().GetActivePane());
         }
 
 
@@ -159,10 +159,10 @@ namespace DebuggerPaneFindButtonTests
 
             window.OnCreate();
 
-            FindButtonWindow::PressFind (window.GetSourceBar (1));
+            FindButtonWindow::PressFind (window.GetSourceGroup().GetDocument (1).GetBar());
 
-            Assert::IsTrue   (window.IsFindOpen());
-            Assert::AreEqual (DebuggerLayout::GetSourcePaneId (1), window.GetFindPane());
+            Assert::IsTrue   (window.GetFindWidgets().IsOpen());
+            Assert::AreEqual (DebuggerLayout::GetSourcePaneId (1), window.GetFindWidgets().GetActivePane());
         }
 
 
@@ -176,7 +176,7 @@ namespace DebuggerPaneFindButtonTests
 
             window.OnCreate();
 
-            Assert::AreEqual (DebuggerLayout::GetSourcePaneId (0), window.GetPaneOfControl (window.GetSourceBar (0)));
+            Assert::AreEqual (DebuggerLayout::GetSourcePaneId (0), window.GetPaneOfControl (window.GetSourceGroup().GetDocument (0).GetBar()));
         }
     };
 }

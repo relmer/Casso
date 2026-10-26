@@ -43,10 +43,11 @@ public:
     //  A run of a cell's characters drawn in a color of their own.
     struct Span
     {
-        int       cell   = 0;
-        int       start  = 0;
-        int       length = 0;
-        uint32_t  argb   = 0;
+        int       cell       = 0;
+        int       start      = 0;
+        int       length     = 0;
+        uint32_t  argb       = 0;
+        uint32_t  background = 0;   // a fill behind the characters; with argb zero, their text color is the usual one
     };
 
     //  A row's fill spans the view's width on every line it takes; its icon
@@ -82,6 +83,11 @@ public:
 
     //  Replaces the text, clearing the selection and scrolling to the top.
     void                      SetRows  (std::vector<Row> rows);
+
+    //  The rows again after `dropped` rows went from the front, as a log's
+    //  oldest do, with others perhaps at the end: the selection, the find
+    //  highlights and the find scope move up with the text.
+    void                      SetRowsDroppingFront (std::vector<Row> rows, int dropped);
     const std::vector<Row> &  GetRows  () const { return m_rows; }
 
     //  One character cell, in the same coordinates as the bounds.

@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -84,20 +85,11 @@ namespace DebuggerFindReviewTests
             m_host  = &host;
         }
 
-        using DebuggerWindow::GetCommandBox;
-        using DebuggerWindow::GetConsoleView;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindPane;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::GetFocused;
-        using DebuggerWindow::GetSourceView;
+        using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::IsFindOpen;
-        using DebuggerWindow::GetFindHistory;
-        using DebuggerWindow::GetFindStatus;
-        using DebuggerWindow::GetFindWidgetBounds;
-        using DebuggerWindow::SetFindInSelection;
-        using DebuggerWindow::OpenFindIn;
-        using DebuggerWindow::SetFindOptions;
         using DebuggerWindow::AppendConsole;
 
         void  Build()
@@ -121,7 +113,7 @@ namespace DebuggerFindReviewTests
                 rows.push_back (std::move (row));
             }
 
-            GetSourceView (0)->SetRows (std::move (rows));
+            GetSourceGroup().GetDocument (0).GetView()->SetRows (std::move (rows));
         }
 
         //  A key as the window's message handling delivers it: to the window
@@ -178,10 +170,10 @@ namespace DebuggerFindReviewTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             window.Type (L"$");
 
-            view  = window.GetConsoleView();
+            view  = window.GetConsolePane().GetOutput().GetView();
             dark  = DebuggerTextColors::IsDark (theme.ContentBackground());
             row   = DebuggerTextColors::Make (theme.ContentBackground(), theme.Foreground(), theme.ForegroundMuted(), theme.resultText, theme.Accent()).pcRow;
             arrow = dark ? 0xFFFFE34Du : 0xFFA88300u;
@@ -206,16 +198,16 @@ namespace DebuggerFindReviewTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::GetSourcePaneId (0));
+            window.GetFindWidgets().Open (DebuggerLayout::GetSourcePaneId (0));
             window.Type (L"sta");
-            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindStatus(), L"START and sta");
+            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindWidgets().GetStatus(), L"START and sta");
 
-            window.SetFindOptions (false, true, false);
-            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindStatus(), L"whole word: sta alone, found at once");
-            Assert::AreEqual ((size_t) 1, window.GetSourceView (0)->GetFindHighlights().size());
+            window.GetFindWidgets().SetOptions (false, true, false);
+            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindWidgets().GetStatus(), L"whole word: sta alone, found at once");
+            Assert::AreEqual ((size_t) 1, window.GetSourceGroup().GetDocument (0).GetView()->GetFindHighlights().size());
 
-            window.SetFindOptions (true, false, false);
-            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindStatus(), L"match case: sta alone");
+            window.GetFindWidgets().SetOptions (true, false, false);
+            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindWidgets().GetStatus(), L"match case: sta alone");
         }
 
 
@@ -231,15 +223,15 @@ namespace DebuggerFindReviewTests
             window.AppendConsole ({ "LDA $C000", "LDA $01" });
 
             //  The rows after the first: STA, LDA, LDA.
-            window.GetConsoleView()->Select ({ 1, 0 }, { 3, 7 });
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, 0 }, { 3, 7 });
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
             window.Type (L"lda");
-            Assert::AreEqual (std::wstring (L"1 of 3"), window.GetFindStatus(), L"the whole text has three");
+            Assert::AreEqual (std::wstring (L"1 of 3"), window.GetFindWidgets().GetStatus(), L"the whole text has three");
 
             //  Typing selected a match, but the selection taken is the user's.
-            window.SetFindInSelection (true);
-            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindStatus(), L"the selected rows have two, searched at once");
-            Assert::AreEqual ((size_t) 2, window.GetConsoleView()->GetFindHighlights().size());
+            window.GetFindWidgets().SetInSelection (true);
+            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindWidgets().GetStatus(), L"the selected rows have two, searched at once");
+            Assert::AreEqual ((size_t) 2, window.GetConsolePane().GetOutput().GetView()->GetFindHighlights().size());
         }
     };
 }

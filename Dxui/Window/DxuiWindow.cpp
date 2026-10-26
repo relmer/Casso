@@ -64,7 +64,6 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.placement              = params.placement;
     hostParams.placementAnchorHwnd    = params.placementAnchorHwnd;
     hostParams.placementAnchorRectPx  = params.placementAnchorRectPx;
-    hostParams.fitToWorkArea          = params.fitToWorkArea;
 
     m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);
@@ -343,6 +342,14 @@ Error:
     if (ownerDisabled)
     {
         EnableWindow (m_ownerHwnd, TRUE);
+    }
+
+    //  The owner is activated before the dialog hides; otherwise Windows
+    //  activates whatever window was active before the dialog, which can be
+    //  another program the user switched to and back from.
+    if (m_ownerHwnd != nullptr && GetForegroundWindow() == GetHwnd())
+    {
+        SetForegroundWindow (m_ownerHwnd);
     }
 
     if (m_source != nullptr)

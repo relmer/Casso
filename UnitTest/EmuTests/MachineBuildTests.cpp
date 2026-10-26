@@ -143,6 +143,26 @@ public:
     }
 
 
+    TEST_METHOD (AnIIeMapsTheMmusMainRamFromTheStart)
+    {
+        //  A load maps every page to the MMU's main RAM, so a read of a page
+        //  mapped to the CPU's own memory at build would return other bytes
+        //  after one.
+        TestMachine   machine ("Apple2e");
+        const Byte  * mainRam = machine.GetRefs().mainRamDev->GetData();
+
+        for (int page : { 0x00, 0x01, 0x02, 0x04, 0x20, 0xBF })
+        {
+            Word  addr = (Word) (page << 8);
+
+            Assert::IsTrue (machine.GetMemoryBus().GetShadowReadPage (addr) == mainRam + addr,
+                std::format (L"page ${:02X} must read the MMU's main RAM", page).c_str());
+            Assert::IsTrue (machine.GetMemoryBus().GetShadowWritePage (addr) == mainRam + addr,
+                std::format (L"page ${:02X} must write the MMU's main RAM", page).c_str());
+        }
+    }
+
+
     TEST_METHOD (EveryBuildMarksTheDisplayPagesForVideoDirty)
     {
         //  The render loop skips a frame when the bus says nothing on screen

@@ -31,6 +31,7 @@ public:
     void      Put            (uint64_t key, Image image);
     void      PutSpare       (uint64_t key, Image image);
     void      Clear          ();
+    void      EraseFrom      (uint64_t key);
     void      SetCapacity    (size_t capacity);
 
     size_t    GetCount       () const { return m_entries.size(); }

@@ -1,6 +1,12 @@
 #include "Pch.h"
 
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Ui/Debugger/Panes/ConsolePanes.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
+#include "Ui/Debugger/Panes/FindWidgets.h"
+#include "Ui/Debugger/Panes/MemoryWindows.h"
+#include "Ui/Debugger/Panes/UndoListPanes.h"
+#include "Ui/Debugger/Panes/WatchesPane.h"
 
 #include "Core/TextEncoding.h"
 #include "Debugger/Source/SourcePathList.h"
@@ -147,22 +153,15 @@ void DebuggerWindow::ReloadProjectState()
 
     restored.PlaceOnMonitors (GetMonitors());
     m_dockSite->SetPaneLayout (restored);
-    m_syncFloats = true;
+    m_floating->MarkSyncNeeded();
 
-    m_codeOptions = DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions());
+    m_code->SetOptions (DisassemblyOptions::FromText (m_host->GetDebuggerDisassemblyOptions()));
 
     for (int view = 0; view < DebuggerViewState::kMaxCodeViews && m_snapshot != nullptr; view++)
     {
         ApplyCodeView (view);
     }
 
-    m_isHeatRangesOpened = !m_host->GetDebuggerHeatMapRanges().empty();
-    m_heatRanges         = HeatMapRangeSets::FromText (m_host->GetDebuggerHeatMapRanges());
-    (void) m_heatRanges.TryAddDefaultSet();
-    m_heatRangeSet       = (m_heatRanges.FindSet (m_heatRangeSet) != nullptr || m_heatRanges.sets.empty()) ? m_heatRangeSet : m_heatRanges.sets.front().name;
-
-    ApplyHeatRanges();
-    SetHeatRangeMenus();
     RestoreWindowState (true);
 
     m_openViewsRestored = false;
@@ -209,52 +208,9 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
         lines.push_back (line);
     }
 
-    m_consoleHistory.SetLines (std::move (lines));
+    m_consolePane->GetCommandLine().GetHistory().SetLines (std::move (lines));
 
-    m_savedFinds.clear();
-    finds.str (SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("find")));
-
-    while (std::getline (finds, line))
-    {
-        std::vector<std::wstring>  parts;
-        size_t                     at = 0;
-        SavedFind                  saved;
-
-        for (size_t next = line.find (L'\x1F'); ; next = line.find (L'\x1F', at))
-        {
-            parts.push_back (line.substr (at, (next == std::wstring::npos) ? std::wstring::npos : next - at));
-
-            if (next == std::wstring::npos)
-            {
-                break;
-            }
-
-            at = next + 1;
-        }
-
-        if (parts.size() < 2 || parts[0].empty())
-        {
-            continue;
-        }
-
-        saved.matchCase = parts[1].find (L'C') != std::wstring::npos;
-        saved.wholeWord = parts[1].find (L'W') != std::wstring::npos;
-        saved.isRegex   = parts[1].find (L'R') != std::wstring::npos;
-        saved.history.assign (parts.begin() + 2, parts.end());
-        std::erase (saved.history, std::wstring());
-
-        m_savedFinds[parts[0]] = std::move (saved);
-    }
-
-    for (auto & [pane, state] : m_findStates)
-    {
-        ApplySavedFind (pane, state);
-    }
-
-    if (m_findBox != nullptr)
-    {
-        LoadFindState();
-    }
+    m_finds->LoadSaved (SourcePathList::Utf8ToWide (m_host->GetDebuggerWindowState ("find")));
 
     m_columnWidths.clear();
     columns.str (m_host->GetDebuggerWindowState ("columns"));
@@ -287,14 +243,11 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
     //  undo, a line each, its name before its history. A history the text
     //  lacks is empty, and the next machine change clears none of them,
     //  since they are the new machine's.
-    m_registerHistory.FromText (std::string());
-    m_stackHistory.FromText    (std::string());
-    m_watchHistory.Clear();
+    m_registersPane->GetHistory().FromText (std::string());
+    m_stackPane->GetHistory().FromText     (std::string());
+    m_watchesPane->GetHistory().Clear();
 
-    for (const std::unique_ptr<MemoryPane> & pane : m_memoryPanes)
-    {
-        pane->ClearHistory();
-    }
+    m_memoryGroup->ClearHistories();
 
     m_isHistoryRestored = true;
 
@@ -306,19 +259,19 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
         if (name == "registers")
         {
-            m_registerHistory.FromText (text);
+            m_registersPane->GetHistory().FromText (text);
         }
         else if (name == "stack")
         {
-            m_stackHistory.FromText (text);
+            m_stackPane->GetHistory().FromText (text);
         }
         else if (name == "watches")
         {
-            m_watchHistory.FromText (text);
+            m_watchesPane->GetHistory().FromText (text);
         }
         else if (name.starts_with ("memory") && name.size() == 7 && name[6] >= '1' && name[6] < '1' + DebuggerViewState::kMaxMemoryWindows)
         {
-            m_memoryPanes[(size_t) (name[6] - '1')]->SetHistoryText (text);
+            m_memoryGroup->GetWindow (name[6] - '0')->GetModel().SetHistoryText (text);
         }
     }
 
@@ -327,13 +280,11 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
         return;
     }
 
-    m_heatMapView->SetOptions (HeatMapOptions::FromText (m_host->GetDebuggerHeatMapOptions()));
-    m_host->SetDebuggerHeatMapOptions (m_host->GetDebuggerHeatMapOptions());
+    for (const std::unique_ptr<IDebuggerPane> & pane : m_panes)
+    {
+        pane->OnProjectSwitched();
+    }
 
-    m_diskLogPane->SetOptionsText  (m_host->GetDebuggerEventLogOptions (DebugLogKind::Disk));
-    m_inputLogPane->SetOptionsText (m_host->GetDebuggerEventLogOptions (DebugLogKind::Input));
-    m_diskLog.isOpened  = m_host->GetDebuggerEventLogOptions (DebugLogKind::Disk).find ("open=1")  != std::string::npos;
-    m_inputLog.isOpened = m_host->GetDebuggerEventLogOptions (DebugLogKind::Input).find ("open=1") != std::string::npos;
 
     if (!GetSavedFocusPane().empty())
     {
@@ -353,13 +304,13 @@ void DebuggerWindow::RestoreWindowState (bool isProjectSwitch)
 
 std::string DebuggerWindow::GetUndoHistoriesText() const
 {
-    std::string  text = "registers=" + m_registerHistory.ToText() + "\nstack=" + m_stackHistory.ToText() + "\nwatches=" + m_watchHistory.ToText() + "\n";
+    std::string  text = "registers=" + m_registersPane->GetHistory().ToText() + "\nstack=" + m_stackPane->GetHistory().ToText() + "\nwatches=" + m_watchesPane->GetHistory().ToText() + "\n";
 
 
 
-    for (size_t i = 0; i < m_memoryPanes.size(); i++)
+    for (int id = 1; id <= DebuggerViewState::kMaxMemoryWindows; id++)
     {
-        text += std::format ("memory{}={}\n", i + 1, m_memoryPanes[i]->GetHistoryText());
+        text += std::format ("memory{}={}\n", id, m_memoryGroup->GetWindow (id)->GetModel().GetHistoryText());
     }
 
     return text;
@@ -391,108 +342,6 @@ void DebuggerWindow::SaveUndoHistories()
 
     m_undoSavedMs = now;
     m_host->SetDebuggerWindowState ("undo", GetUndoHistoriesText());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::ApplySavedFind
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::ApplySavedFind (const std::wstring & pane, FindState & state) const
-{
-    auto  saved = m_savedFinds.find (pane);
-
-
-
-    if (saved == m_savedFinds.end())
-    {
-        return;
-    }
-
-    state.matchCase = saved->second.matchCase;
-    state.wholeWord = saved->second.wholeWord;
-    state.isRegex   = saved->second.isRegex;
-    state.history   = saved->second.history;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SaveConsoleHistory
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SaveConsoleHistory()
-{
-    std::wstring  text;
-
-
-
-    for (const std::wstring & line : m_consoleHistory.GetLines())
-    {
-        text += line + L"\n";
-    }
-
-    if (m_host != nullptr)
-    {
-        m_host->SetDebuggerWindowState ("console", SourcePathList::WideToUtf8 (text));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DebuggerWindow::SaveFindStates
-//
-//  Every pane's, with those a project brought back for widgets not built
-//  yet.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DebuggerWindow::SaveFindStates()
-{
-    std::map<std::wstring, SavedFind>  all = m_savedFinds;
-    std::wstring                       text;
-
-
-
-    if (m_findBox != nullptr)
-    {
-        SaveFindState();
-    }
-
-    for (const auto & [pane, state] : m_findStates)
-    {
-        all[pane] = SavedFind { state.matchCase, state.wholeWord, state.isRegex, state.history };
-    }
-
-    for (const auto & [pane, saved] : all)
-    {
-        text += pane + L"\x1F" + (saved.matchCase ? L"C" : L"") + (saved.wholeWord ? L"W" : L"") + (saved.isRegex ? L"R" : L"");
-
-        for (const std::wstring & each : saved.history)
-        {
-            text += L"\x1F" + each;
-        }
-
-        text += L"\n";
-    }
-
-    if (m_host != nullptr)
-    {
-        m_host->SetDebuggerWindowState ("find", SourcePathList::WideToUtf8 (text));
-    }
 }
 
 
@@ -551,12 +400,16 @@ void DebuggerWindow::SaveColumnWidths()
 //
 //  DebuggerWindow::ApplyColumnWidths
 //
-//  A width of zero, a hidden column's, is left to the list.
+//  A width of zero, a hidden column's, is left to the list. The widths are
+//  dips, so Layout applies them again when the window's DPI is a different
+//  one, the first layout's included: the controls are built at the default.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DebuggerWindow::ApplyColumnWidths()
 {
+    m_columnWidthsDpi = m_scaler.GetDpi();
+
     for (DxuiListView * list : GetLists())
     {
         auto  widths = m_columnWidths.find (GetPaneOfControl (list));

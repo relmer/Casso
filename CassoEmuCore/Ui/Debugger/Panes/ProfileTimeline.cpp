@@ -3,6 +3,7 @@
 #include "Ui/Debugger/Panes/ProfileTimeline.h"
 
 #include "Core/TextEncoding.h"
+#include "Ui/Debugger/DebuggerStatusText.h"
 
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 
@@ -109,7 +110,9 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
 
     std::stable_sort (shares.begin(), shares.end(), [] (const auto & a, const auto & b) { return a.second > b.second; });
 
-    text = std::format (L"Frame {}: {} cycles", frame.index, total);
+    text = (frame.count > 1) ? std::format (L"Frames {} to {}: {} cycles", DebuggerStatusText::FormatCount (frame.index),
+                                            DebuggerStatusText::FormatCount (frame.index + frame.count - 1), DebuggerStatusText::FormatCount (total))
+                             : std::format (L"Frame {}: {} cycles", DebuggerStatusText::FormatCount (frame.index), DebuggerStatusText::FormatCount (total));
 
     for (size_t i = 0; i < shares.size(); i++)
     {
@@ -120,12 +123,12 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
         }
 
         text += std::format (L"\n{}: {} cycles ({:.1f}%)", TextEncoding::NarrowToWide (routines[shares[i].first].GetName()),
-                             shares[i].second, 100.0 * (double) shares[i].second / (double) std::max<uint64_t> (total, 1));
+                             DebuggerStatusText::FormatCount (shares[i].second), 100.0 * (double) shares[i].second / (double) std::max<uint64_t> (total, 1));
     }
 
     if (rest != 0)
     {
-        text += std::format (L"\nOther routines: {} cycles", rest);
+        text += std::format (L"\nOther routines: {} cycles", DebuggerStatusText::FormatCount (rest));
     }
 
     return text;
@@ -222,7 +225,7 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
 
         for (const auto & [routine, cycles] : shares)
         {
-            float  tall = height * (float) cycles / (float) RoutineProfile::kCyclesPerFrame;
+            float  tall = height * (float) cycles / ((float) RoutineProfile::kCyclesPerFrame * (float) std::max<uint64_t> (m_frames[i].count, 1));
 
             tall = std::min (tall, y - (float) m_boundsDip.top);
 

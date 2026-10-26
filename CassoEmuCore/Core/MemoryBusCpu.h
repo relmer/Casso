@@ -69,7 +69,7 @@ public:
     HRESULT LoadState  (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('C', 'P', 'U', ' ');
-    static constexpr uint16_t  kStateVersion = 2;
+    static constexpr uint16_t  kStateVersion = 3;
     static constexpr size_t    kStateRamSize = 0xC000;
 
 private:

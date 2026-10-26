@@ -265,6 +265,53 @@ namespace DebuggerTests
 
 
 
+        //  The fields printed in the text are in the JSON too: the BPV break after
+        //  the breakpoints, where a load put its bytes and whether it was a
+        //  load, a symbol's size and the frames a profile bar covers.
+        TEST_METHOD (TheJsonHasEveryFieldTheTextHas)
+        {
+            BreakpointListData  list;
+            FileIoData          file;
+            SymbolData          symbols;
+            ProfileData         profile;
+            JsonValue           root;
+            bool                isLoad = false;
+            int                 value  = 0;
+
+
+
+            list.videoBreak = std::make_pair (0x40u, 0x50u);
+            root            = ParseRecord (ReplyJson::WriteReply (MakeOk (list), std::nullopt));
+
+            Assert::AreEqual (S_OK, GetObjectMember (GetObjectMember (root, "data"), "videoBreak").GetInt ("first", value));
+            Assert::AreEqual (0x40, value);
+            Assert::AreEqual (S_OK, GetObjectMember (GetObjectMember (root, "data"), "videoBreak").GetInt ("last", value));
+            Assert::AreEqual (0x50, value);
+
+            file.path    = "prog.hex";
+            file.address = 0x0803;
+            file.isLoad  = true;
+            root         = ParseRecord (ReplyJson::WriteReply (MakeOk (file), std::nullopt));
+
+            Assert::AreEqual (S_OK, GetObjectMember (root, "data").GetInt ("address", value));
+            Assert::AreEqual (0x0803, value);
+            Assert::IsTrue   (GetObjectMember (root, "data").HasBool ("isLoad", isLoad) && isLoad);
+
+            symbols.symbols = { { "TABLE", 0x0900, SymbolTableId::User, false, 16 } };
+            root            = ParseRecord (ReplyJson::WriteReply (MakeOk (symbols), std::nullopt));
+
+            Assert::AreEqual (S_OK, GetArrayMember (GetObjectMember (root, "data"), "symbols").GetArrayElement (0).GetInt ("size", value));
+            Assert::AreEqual (16, value);
+
+            profile.frames = { { 7, {}, 0, 4 } };
+            root           = ParseRecord (ReplyJson::WriteReply (MakeOk (profile), std::nullopt));
+
+            Assert::AreEqual (S_OK, GetArrayMember (GetObjectMember (root, "data"), "frames").GetArrayElement (0).GetInt ("count", value));
+            Assert::AreEqual (4, value);
+        }
+
+
+
         TEST_METHOD (CallStack_CarriesFramesBreaksAndTheLastReturn)
         {
             CallStackData   data;

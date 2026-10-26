@@ -284,6 +284,28 @@ public:
     }
 
 
+    //  The //c's identity is its firmware banks, not whichever one is
+    //  switched in, so a state saved in either bank loads in the other. A
+    //  patch to a bank changes it.
+    TEST_METHOD (TheIIcRomIdentityDoesNotDependOnTheActiveBank)
+    {
+        TestMachine  machine ("Apple2c", TestMachine::Slots::Empty);
+        uint64_t     first   = 0;
+        bool         patched = false;
+
+
+
+        first = machine.GetRomIdentity();
+
+        machine.GetApple2cRomBank()->ToggleRomBank();
+        Assert::AreEqual<uint64_t> (first, machine.GetRomIdentity(), L"the other bank switched in");
+
+        patched = machine.GetApple2cRomBank()->TryPatch (s_kSlotRomByte, static_cast<Byte> (~machine.GetCpu()->PeekByte (s_kSlotRomByte)));
+        Assert::IsTrue (patched, L"the internal $Cxxx ROM must take a patch");
+        Assert::AreNotEqual<uint64_t> (first, machine.GetRomIdentity(), L"a patched bank changes it");
+    }
+
+
     TEST_METHOD (AStateWithADiskDoesNotLoadWithoutIt)
     {
         TestMachine        source ("Apple2e");

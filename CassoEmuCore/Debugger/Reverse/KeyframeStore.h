@@ -181,7 +181,7 @@ public:
     KeyframeStore & operator=   (const KeyframeStore &) = delete;
 
     void      Configure         (const KeyframeSettings & settings);
-    HRESULT   ChangeBudget      (size_t budgetBytes);
+    HRESULT   ChangeBudget      (size_t budgetBytes, uint64_t keepPosition = UINT64_MAX);
     void      Clear             ();
     void      Release           ();
     void      SetWorkQueue      (IWorkQueue * queue);
@@ -268,11 +268,12 @@ private:
     size_t    GetGroupSlots     () const;
     bool      IsGroupDone       () const;
     size_t    GetLeastArena     (size_t stateBytes) const;
-    HRESULT   Relayout          (size_t slotCount, size_t arenaBytes);
+    HRESULT   Relayout          (size_t slotCount, size_t arenaBytes, uint64_t keepPosition = UINT64_MAX);
     HRESULT   TryGrowTable      (bool & outGrew);
     HRESULT   TakeJob           (Job *& outJob);
     HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
     HRESULT   Collect           ();
+    HRESULT   DropPending       ();
     HRESULT   Place             (const std::vector<Byte> & packed, const std::vector<Byte> & side, size_t & outOffset);
     void      NotifyDrop        (KeyframeDrop drop);
 
@@ -283,7 +284,7 @@ private:
     HRESULT   ReloadLatestWhole ();
     HRESULT   DropNewerThan     (bool isByPosition, uint64_t limit);
     size_t    FindGroupStart    (size_t index) const;
-    bool      TryDropOldestGroup();
+    bool      TryDropOldestGroup(uint64_t keepPosition = UINT64_MAX);
     void      DropOldestGroups  ();
     void      PopOldest         ();
     void      ScheduleAfter     (uint64_t cycle);

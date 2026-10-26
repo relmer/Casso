@@ -97,6 +97,10 @@ struct DebugProject
     std::wstring                 filePath;
     bool                         isAutomatic = true;
 
+    //  The file is there but could not be read, so the project is empty and
+    //  is not saved over it.
+    bool                         isUnreadable = false;
+
     //  The engine's part, read from the session.
     void  CaptureEngine (DebugSession & session, const ExecutionHandlers * execution = nullptr);
 
@@ -107,6 +111,8 @@ struct DebugProject
 
 private:
     void  RestoreBreakpointIds (DebugSession & session) const;
+    static void  RunScriptLine (DebugSession & session, const std::string & line, std::vector<int> & created,
+                                const std::function<void (const std::string &)> & run);
     static void       RestoreWatchIds (WatchTable & table, const Ids & ids);
     static JsonValue  IdsToJson       (const Ids & ids);
     static void       IdsFromJson     (const JsonValue & object, const char * name, Ids & ids);

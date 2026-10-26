@@ -51,7 +51,7 @@ public:
     ~DxuiTextInput() override = default;
 
     void  SetRect       (const RECT & rect)           { SetBounds (rect); }
-    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undoBase = { m_text, m_caret, m_anchor }; m_lastTyping = false; }
+    void  SetText       (const std::wstring & text)   { m_text = text; ClampCaret(); m_undoBase = { m_text, m_caret, m_anchor }; m_lastTyping = false; m_undo.clear(); m_redo.clear(); }
     void  SetMaxLength  (size_t maxLen)               { m_maxLen = maxLen; }
 
     //  Selects every character, so a default value is replaced by the first
@@ -72,6 +72,9 @@ public:
     void  SetTheme      (const IDxuiTheme * theme)    { m_theme = theme; }
     void  SetOnChange   (ChangeFn fn)                 { m_change = std::move (fn); }
     void  SetHwnd       (HWND hwnd)                   { m_hwnd = hwnd; }
+
+    //  Called when the focus moves off the field.
+    void  SetOnFocusLost (std::function<void()> fn)   { m_focusLost = std::move (fn); }
 
     // Non-owning measurement hook (DxuiWindow::GetTextRenderer()). With it,
     // clicks place the caret under the cursor and dragging selects;
@@ -97,8 +100,8 @@ public:
     void  SetPrompt      (const std::wstring & text)  { m_prompt = text; }
     void  SetGhostText   (const std::wstring & text)  { m_ghost = text; }
 
-    //  Draws the placeholder in italics and the disabled color, as File
-    //  Explorer's search box draws its hint.
+    //  Whether the placeholder is drawn in italics and the disabled color, as
+    //  File Explorer's search box draws its hint. On by default.
     void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
     void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
@@ -144,7 +147,7 @@ public:
     bool                OnKey             (const DxuiKeyEvent   & ev) override;
     bool                QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
     bool                InvokeCommand     (DxuiStandardCommand command) override;
-    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    void                OnFocusChanged    (bool focused) override { SetFocused (focused); if (!focused && m_focusLost) { m_focusLost(); } }
     LPCWSTR             GetCursorForPoint (POINT clientPx) const override;
     std::wstring        GetAccessibleName () const override { return m_text; }
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
@@ -200,13 +203,14 @@ private:
     bool                 m_dragging          = false;
     bool                 m_chromeless        = false;
     bool                 m_overText          = false;
-    bool                 m_placeholderItalic = false;
+    bool                 m_placeholderItalic = true;
     const wchar_t      * m_face              = nullptr;   // null: the theme's body face
     float                m_fontDip           = 13.0f;
     const IDxuiTheme   * m_theme             = nullptr;
     HWND                 m_hwnd              = nullptr;
     IDxuiTextRenderer  * m_renderer          = nullptr;   // non-owning
     ChangeFn             m_change;
+    std::function<void()>  m_focusLost;
     DxuiDpiScaler        m_scaler;
 
     // The text and selection before each edit, for undo, and the ones undo

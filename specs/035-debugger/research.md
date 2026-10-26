@@ -2698,3 +2698,22 @@ automatic states: an Apple //e state with two WOZ disks goes from 1,353,932 to
 10% larger at 5 ms; LZMS was 1% smaller at 229 ms. Each disk remains twice in
 the file, as its image and as the drive's tracks, so a state file is complete
 without any other file.
+
+## R-048: What the profiler costs (FR-267)
+
+**Question**: could the profiler always be on, with no Profile button?
+Profiling bills every instruction through the per-instruction callback,
+the path trace uses: the opcode and address counts, and the routine
+profile's shadow call stack, call tree and frame ring.
+
+**Measured (2026-10-18)**: CassoCli debug runs of 100,000,000 cycles on an
+Apple //e, Release x64, three runs each, profiling off then on (PROFILE ON).
+With no disk, 2.02 s off and 2.71 s on; booting the DOS 3.3 System Master,
+2.13 s off and 2.98 s on. 100,000,000 cycles are about 98 seconds of the
+machine's time, so at 1x profiling costs under 1% of one core; at full speed
+it takes about 30% of the emulator's throughput (48 times real time down to
+36 with no disk).
+
+**Decision**: open, for the owner. At 1x the cost is small, but at warp
+speed throughput drops about 30%. The choices are always on, always on
+except while running faster than 1x, or the button as it is.

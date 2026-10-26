@@ -6,6 +6,7 @@
 #include "Ui/Debugger/DebuggerWindow.h"
 
 #include "CppUnitTest.h"
+#include "Ui/Debugger/Panes/SourceDocumentPanes.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -84,19 +85,11 @@ namespace DebuggerFindWidgetTests
             m_host  = &host;
         }
 
-        using DebuggerWindow::GetCommandBox;
-        using DebuggerWindow::GetConsoleView;
-        using DebuggerWindow::GetFindBox;
-        using DebuggerWindow::GetFindPane;
+        using DebuggerWindow::GetConsolePane;
+        using DebuggerWindow::GetFindWidgets;
         using DebuggerWindow::GetFocused;
-        using DebuggerWindow::GetSourceView;
+        using DebuggerWindow::GetSourceGroup;
         using DebuggerWindow::FocusControl;
-        using DebuggerWindow::IsFindOpen;
-        using DebuggerWindow::GetFindHistory;
-        using DebuggerWindow::GetFindStatus;
-        using DebuggerWindow::GetFindWidgetBounds;
-        using DebuggerWindow::SetFindInSelection;
-        using DebuggerWindow::OpenFindIn;
 
         void  Build()
         {
@@ -119,7 +112,7 @@ namespace DebuggerFindWidgetTests
                 rows.push_back (std::move (row));
             }
 
-            GetSourceView (0)->SetRows (std::move (rows));
+            GetSourceGroup().GetDocument (0).GetView()->SetRows (std::move (rows));
         }
 
         //  A key as the window's message handling delivers it: to the window
@@ -173,16 +166,16 @@ namespace DebuggerFindWidgetTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
 
-            text   = window.GetConsoleView()->GetBounds();
-            widget = window.GetFindWidgetBounds();
+            text   = window.GetConsolePane().GetOutput().GetView()->GetBounds();
+            widget = window.GetFindWidgets().GetBounds();
 
             Assert::AreEqual (text.top, widget.top,                                   L"at the top of the text");
             Assert::IsTrue   (widget.right <= text.right && widget.right > text.right - 40, L"at its right, clear of the scrollbar");
             Assert::IsTrue   (widget.left > text.left + (text.right - text.left) / 4, L"not across the pane");
-            Assert::IsTrue   (window.GetFindBox()->GetBounds().right <= widget.right, L"the box is inside the widget");
-            Assert::AreEqual (text.top, window.GetConsoleView()->GetBounds().top,     L"and the text keeps its place under it");
+            Assert::IsTrue   (window.GetFindWidgets().GetBox()->GetBounds().right <= widget.right, L"the box is inside the widget");
+            Assert::AreEqual (text.top, window.GetConsolePane().GetOutput().GetView()->GetBounds().top,     L"and the text keeps its place under it");
         }
 
 
@@ -195,23 +188,23 @@ namespace DebuggerFindWidgetTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::GetSourcePaneId (0));
+            window.GetFindWidgets().Open (DebuggerLayout::GetSourcePaneId (0));
             window.Type  (L"sta");
             window.Press (VK_RETURN);
 
-            window.OpenFindIn (DebuggerLayout::kConsole);
-            Assert::AreEqual (std::wstring(), window.GetFindBox()->GetText(), L"the console's widget starts empty");
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
+            Assert::AreEqual (std::wstring(), window.GetFindWidgets().GetBox()->GetText(), L"the console's widget starts empty");
 
             window.Type  (L"lda");
             window.Press (VK_RETURN);
 
             //  A selection would become the text to find, so there is none.
-            window.GetSourceView (0)->ClearSelection();
-            window.OpenFindIn (DebuggerLayout::GetSourcePaneId (0));
-            Assert::AreEqual (std::wstring (L"sta"), window.GetFindBox()->GetText(), L"the source keeps its own text");
+            window.GetSourceGroup().GetDocument (0).GetView()->ClearSelection();
+            window.GetFindWidgets().Open (DebuggerLayout::GetSourcePaneId (0));
+            Assert::AreEqual (std::wstring (L"sta"), window.GetFindWidgets().GetBox()->GetText(), L"the source keeps its own text");
 
-            Assert::AreEqual ((size_t) 1, window.GetFindHistory (DebuggerLayout::GetSourcePaneId (0)).size());
-            Assert::AreEqual (std::wstring (L"lda"), window.GetFindHistory (DebuggerLayout::kConsole).front(), L"and each its own history");
+            Assert::AreEqual ((size_t) 1, window.GetFindWidgets().GetHistory (DebuggerLayout::GetSourcePaneId (0)).size());
+            Assert::AreEqual (std::wstring (L"lda"), window.GetFindWidgets().GetHistory (DebuggerLayout::kConsole).front(), L"and each its own history");
         }
 
 
@@ -224,23 +217,23 @@ namespace DebuggerFindWidgetTests
 
 
             window.Build();
-            window.OpenFindIn (DebuggerLayout::kConsole);
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
 
             for (const wchar_t * text : { L"lda", L"sta" })
             {
-                window.GetFindBox()->SetText (text);
+                window.GetFindWidgets().GetBox()->SetText (text);
                 window.Press (VK_RETURN);
             }
 
-            window.GetFindBox()->SetText (L"");
+            window.GetFindWidgets().GetBox()->SetText (L"");
 
             Assert::IsTrue   (window.Press (VK_UP));
-            Assert::AreEqual (std::wstring (L"sta"), window.GetFindBox()->GetText(), L"Up: the newest");
+            Assert::AreEqual (std::wstring (L"sta"), window.GetFindWidgets().GetBox()->GetText(), L"Up: the newest");
             window.Press (VK_UP);
-            Assert::AreEqual (std::wstring (L"lda"), window.GetFindBox()->GetText(), L"Up again: the one before");
+            Assert::AreEqual (std::wstring (L"lda"), window.GetFindWidgets().GetBox()->GetText(), L"Up again: the one before");
             window.Press (VK_DOWN);
             window.Press (VK_DOWN);
-            Assert::AreEqual (std::wstring(), window.GetFindBox()->GetText(), L"Down past the newest empties the box");
+            Assert::AreEqual (std::wstring(), window.GetFindWidgets().GetBox()->GetText(), L"Down past the newest empties the box");
         }
 
 
@@ -253,17 +246,17 @@ namespace DebuggerFindWidgetTests
 
 
             window.Build();
-            window.GetConsoleView()->Select ({ 1, 0 }, { 1, 9 });
-            window.OpenFindIn (DebuggerLayout::kConsole);
-            window.GetFindBox()->SetText (L"$");
+            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, 0 }, { 1, 9 });
+            window.GetFindWidgets().Open (DebuggerLayout::kConsole);
+            window.GetFindWidgets().GetBox()->SetText (L"$");
 
             window.Press (VK_RETURN);
-            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindStatus(), L"the whole text has two");
+            Assert::AreEqual (std::wstring (L"1 of 2"), window.GetFindWidgets().GetStatus(), L"the whole text has two");
 
-            window.GetConsoleView()->Select ({ 1, 0 }, { 1, 9 });
-            window.SetFindInSelection (true);
+            window.GetConsolePane().GetOutput().GetView()->Select ({ 1, 0 }, { 1, 9 });
+            window.GetFindWidgets().SetInSelection (true);
             window.Press (VK_RETURN);
-            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindStatus(), L"the selected line has one");
+            Assert::AreEqual (std::wstring (L"1 of 1"), window.GetFindWidgets().GetStatus(), L"the selected line has one");
         }
     };
 }

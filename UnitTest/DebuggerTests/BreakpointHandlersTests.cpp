@@ -62,6 +62,65 @@ namespace DebuggerTests
 
 
 
+        //  BRKOP, BRK and BRKINT take an IF clause, and their definitions
+        //  have it; BRK ON again sets the condition of the one BRK entry.
+        TEST_METHOD (OpcodeBrkAndInterruptTakeIf)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk ("BRKOP EA IF A == 1");
+            rig.RunOk ("BRK ON IF X == 2");
+            rig.RunOk ("BRKINT ON IF Y == 3");
+            Assert::AreEqual (std::string ("BPC *\nBRKOP EA IF A == 1\nBRK ON IF X == 2\nBRKINT ON IF Y == 3\n"), BreakpointHandlers::MakeScript (rig.session));
+
+            rig.RunOk ("BRK ON IF X == 4");
+            Assert::AreEqual ((size_t) 3, rig.session.GetBreakpoints().GetAll().size());
+            Assert::AreEqual (std::string ("X == 4"), rig.session.GetBreakpoints().GetAll()[1].condition.text);
+
+            rig.RunFails ("BRK ON IF NOSUCHSYMBOL == 1", "invalid condition");
+        }
+
+
+
+        //  BRK ON with another condition on the BRK entry lists the entry with
+        //  its new condition; only the same condition again has nothing to add.
+        TEST_METHOD (BrkOnWithANewConditionListsTheEntry)
+        {
+            Rig          rig;
+            std::string  changed;
+
+
+
+            rig.RunOk ("BRK ON IF X == 2");
+
+            changed = rig.RunOk ("BRK ON IF X == 4").text.at (0);
+
+            Assert::IsTrue (changed.find ("X == 4") != std::string::npos, TextEncoding::NarrowToWide (changed).c_str());
+            Assert::IsTrue (rig.RunOk ("BRK ON IF X == 4").text.at (0).starts_with ("Nothing to add"));
+        }
+
+
+
+        //  A second execution breakpoint over the same addresses with the same
+        //  condition is an error with the first one's number; another
+        //  condition or another range is a breakpoint of its own.
+        TEST_METHOD (BP_TheSameBreakpointTwiceIsAnError)
+        {
+            Rig  rig;
+
+
+
+            rig.RunOk    ("BP C283");
+            rig.RunFails ("BP C283", "breakpoint already set");
+            rig.RunOk    ("BP C283 IF A == 1");
+            rig.RunOk    ("BP C283:C285");
+            Assert::AreEqual ((size_t) 3, rig.session.GetBreakpoints().GetAll().size());
+        }
+
+
+
         //  A BPV scanline break has no id, so it is listed after the table's
         //  entries, and alone when there are none.
         TEST_METHOD (BPL_ListsTheVideoBreak)
@@ -249,6 +308,31 @@ namespace DebuggerTests
         //  when the symbols are loaded again with the routine moved, the
         //  breakpoint moves with it, with a line in the reply. A breakpoint
         //  set by a number has no symbol.
+        TEST_METHOD (BP_EditedToASymbol_FollowsTheSymbol)
+        {
+            Rig             rig;
+            SymbolHandlers  symbols;
+
+
+
+            rig.session.AddHandler (&symbols);
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0900 PRINTIT\n");
+            rig.RunOk ("SYMUSER LOAD prog.sym");
+
+            rig.RunOk ("BP 300");
+            rig.RunOk ("BPEDIT 0 BP PRINTIT");
+
+            Assert::AreEqual (std::string ("PRINTIT"), rig.session.GetBreakpoints().GetAll().at (0).symbol, L"the edit takes the symbol");
+
+            rig.files.WriteAllText (L"C:\\Work\\prog.sym", "0940 PRINTIT\n");
+            rig.RunOk ("SYMUSER LOAD prog.sym");
+
+            Assert::IsTrue  (rig.session.ShouldStopBefore (0x0940), L"it stops at the symbol's new address");
+            Assert::IsFalse (rig.session.ShouldStopBefore (0x0900), L"and not at the old one");
+        }
+
+
+
         TEST_METHOD (BP_BySymbol_FollowsTheSymbolWhenSymbolsReload)
         {
             Rig                       rig;

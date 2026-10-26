@@ -55,6 +55,10 @@ public:
     //  machine nobody is debugging pays one comparison per slice.
     bool     OnSliceExecuted (uint32_t cyclesExecuted);
 
+    //  The slice the frame loop runs next: `sliceTarget`, or the run's budget
+    //  left when that is less.
+    uint32_t LimitSlice      (uint32_t sliceTarget) const;
+
     //  A pause waiting for the next pass, and how far into the frame that
     //  pass runs before it stops. The frame loop reads both before the pass
     //  and reports reaching the point; a stop on the way there, such as a

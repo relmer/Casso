@@ -187,15 +187,15 @@ already arrived.
 | `registers` | `a`, `x`, `y`, `p`, `s`, `pc`, and `flags` with `n`, `v`, `b`, `d`, `i`, `z`, `c` as booleans |
 | `memory` | `rows`: `{address, bytes, region}`, where `region` is `mainRam`, `auxRam`, `lcBank1`, `lcBank2`, `rom`, `slotRom` or `io`. An I/O byte that cannot be read without side effects is `null` |
 | `disassembly` | `lines`: `{address, bytes, mnemonic, operand, operandAddress, operandSymbol, target, label, documented}`. `operand` is always numeric; `operandSymbol` is the name of `operandAddress` and `label` the name of `address`, each `null` when none is loaded. |
-| `breakpointSet`, `breakpointList` | `breakpoint` or `breakpoints`: `{id, kind, address, last, opcode, condition, access, mode, disk, resolved, line, variable, enabled, hits}`, with absent fields left out. Kind `disk` has a `disk` object, the breakpoint's definition (see "Disk breakpoints" below), and an RWTS or driver breakpoint has `resolved`, the routine it stops at now, absent while its vector has no target. Kind `basicLine` has `line`, kind `basicVariable` has `variable` as it was typed, and kind `basicError` has neither |
+| `breakpointSet`, `breakpointList` | `breakpoint` or `breakpoints`: `{id, kind, address, last, opcode, condition, access, mode, disk, resolved, line, variable, enabled, hits}`, with absent fields left out. Kind `disk` has a `disk` object, the breakpoint's definition (see "Disk breakpoints" below), and an RWTS or driver breakpoint has `resolved`, the routine it stops at now, absent while its vector has no target. Kind `basicLine` has `line`, kind `basicVariable` has `variable` as it was typed, and kind `basicError` has neither. A `breakpointList` with a `BPV` break armed has `videoBreak`: `{first, last}`, its scanlines |
 | `watchList`, `zeroPageList`, `bookmarkList` | `entries`: `{id, address, enabled, value}`, and for a BASIC watch `basic`, the variable, and `basicValue`, the text `PRINT` writes, a string in quotes, or null outside a running program |
 | `searchHits` | `addresses` |
 | `stack` | `sp`, and `entries`: `{address, value}` |
 | `softSwitches` | `switches`: `{name, value}` |
-| `symbols` | `symbols`: `{name, address, table}` |
+| `symbols` | `symbols`: `{name, address, table, constant, size}`, `size` being the bytes the symbol spans where its file stated it, else 0 |
 | `cycles` | `count` |
 | `mode` | `mode` |
-| `fileIo` | `path`, `requested`, `transferred`, `mismatch` |
+| `fileIo` | `path`, `requested`, `transferred`, `address`, the first address loaded or saved, `isLoad`, `mismatch`, and `companion` when a debug or symbol file beside it was loaded too |
 | `basicVariables` | `variables`: `{name, type, address, value}`, and `arrays`: `{name, type, address, sizes, values}`, where `type` is `real`, `integer` or `string`, each value is the text `PRINT` writes, `sizes` has each subscript's count, first subscript first, and `values` runs the first subscript fastest |
 | `basicStack` | `frames`, newest first: `{kind, address, line}`, `kind` being `gosub` or `for`, and a `for` frame's `variable`, `limit` and `step` as `PRINT` writes them |
 | `project` | `scope` (`debugFile`, `binary`, `machineBoot` or `machine`), `key`, `label`, `file` and `isAutomatic`, false for a project saved in a file of the user's choosing |

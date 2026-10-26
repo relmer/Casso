@@ -178,6 +178,52 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Win32FileSystem::AppendAllText
+//
+//  The bytes are written at the end of the file in place, so an append
+//  writes only `content`, not the whole file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32FileSystem::AppendAllText (
+    const std::wstring  & path,
+    const std::string   & content)
+{
+    HRESULT  hr           = S_OK;
+    HANDLE   file         = INVALID_HANDLE_VALUE;
+    DWORD    bytesWritten = 0;
+    BOOL     fWrote       = FALSE;
+    bool     isWhole      = false;
+
+
+
+    file = CreateFileW (path.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    CWR (file != INVALID_HANDLE_VALUE);
+
+    if (!content.empty())
+    {
+        fWrote = WriteFile (file, content.data(), static_cast<DWORD> (content.size()), &bytesWritten, nullptr);
+        CWR (fWrote);
+
+        isWhole = bytesWritten == content.size();
+        CBR (isWhole);
+    }
+
+Error:
+    if (file != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle (file);
+    }
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Exists
 //
 ////////////////////////////////////////////////////////////////////////////////

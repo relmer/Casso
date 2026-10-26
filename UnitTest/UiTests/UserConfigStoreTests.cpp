@@ -2193,6 +2193,34 @@ public:
     }
 
 
+    TEST_METHOD (Merge_EnablementForASlotTheMachineLacks_IsDropped)
+    {
+        JsonValue  m;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "slots": [
+                { "slot": 4, "device": "mockingboard-c" },
+                { "slot": 6, "device": "disk-ii" }
+            ]
+        })JSON");
+
+        //  An enablement saved for a card in slot 3, which this machine's
+        //  config does not have, with no device or ROM of its own.
+        JsonValue u = ParseOrFail (R"JSON({
+            "slots": [
+                { "slot": 3, "enabled": true }
+            ]
+        })JSON");
+
+        m = UserConfigStore::MergeJson (d, u);
+
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (d, m),
+                        L"an enablement with no card must not become a slot entry");
+    }
+
+
     //  Saves one ui pref into a machine's block the way the shell does:
     //  splice into $cassoUiPrefs, then SaveDelta. The game-port adapter key is
     //  what builds before the Joyport setting went global wrote here.

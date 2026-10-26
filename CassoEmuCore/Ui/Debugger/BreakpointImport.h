@@ -35,10 +35,8 @@ public:
     static int  Run (DebugSession & session, const std::string & script, const LineRunner & run);
 
 private:
-    static bool  IsDefinition (DebugVerb verb);
     static bool  TryReadMode   (const std::string & line, CommandMode & mode);
     static bool  TryParse      (DebugSession & session, const std::string & line, CommandMode mode, DebugCommand & command);
     static bool  TryApply      (const std::string & line, const DebugCommand & command, const std::vector<int> & created, const LineRunner & run);
     static bool  TryApplyFlags (const std::string & line, const std::vector<int> & created, const LineRunner & run);
-    static std::vector<int>  GetIds (DebugSession & session);
 };

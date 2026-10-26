@@ -99,6 +99,7 @@ private:
     static bool    TryParseBreakpointArguments (const Arguments & source, DebugCommand & command, std::string & error);
     static bool    TryParseValueBreakpoint   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseOpcodes           (const Arguments & args, DebugCommand & command, std::string & error);
+    static std::string  CutIfClause          (const std::string & text);
     static void    NoteSymbol                (const std::string & text, const IDebugExpressionContext & context, DebugCommand & command);
     static bool    IsMnemonicToken           (const std::string & token);
     static bool    TryParseBeamArguments     (const Arguments & args, DebugCommand & command, std::string & error);
@@ -116,7 +117,8 @@ private:
     static bool    IsDiskOptionWord           (const std::string & token);
     static bool    TryEvaluateQuietly         (const std::string & text, const IDebugExpressionContext & context, Word & value);
     static bool    TryParseFrameArguments    (const Arguments & args, DebugCommand & command, std::string & error);
-    static bool    TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error);
+    static bool    TryParseRegisterCondition (const Tokens & tokens, DebugCommand & command, std::string & error, NumberSyntax syntax);
+    static bool    TryParseFreeCondition     (const std::string & text, DebugCommand & command, std::string & error, NumberSyntax syntax);
     static bool    TryParseWatchpointArguments (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseMemoryArguments   (const Arguments & args, DebugCommand & command, std::string & error);
     static bool    TryParseDataArguments     (const Arguments & args, DebugCommand & command, std::string & error);
