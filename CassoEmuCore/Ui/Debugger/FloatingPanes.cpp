@@ -1363,7 +1363,9 @@ bool FloatingPanes::RouteCommand (const std::wstring & pane, int commandId)
 //
 //  While a floating window is moved by its title bar, draw the debugger
 //  window's drop zones under the cursor, and dock the pane on the zone where
-//  it is released.
+//  it is released. Where another floating window covers the debugger
+//  window, the pointer is not over the docked panes beneath it, so the drag
+//  targets nothing there, as it does off the site.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1379,6 +1381,11 @@ void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool en
 
 
     ScreenToClient (m_host.GetFloatOwner(), &client);
+
+    if (IsOverAnotherWindow (window, screenPx))
+    {
+        client = s_kOffSite;
+    }
 
     if (ended)
     {
@@ -1430,6 +1437,44 @@ void FloatingPanes::OnDrag (const std::wstring & window, POINT screenPx, bool en
     //  The window's place is saved whether or not the drop docked it: a
     //  drop over the debugger away from any zone moves the window too.
     m_host.SaveLayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FloatingPanes::IsOverAnotherWindow
+//
+//  Whether a floating window other than the one dragged is under a screen
+//  point. Floating windows are owned by the debugger window, so each is
+//  above it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool FloatingPanes::IsOverAnotherWindow (const std::wstring & window, POINT screenPx) const
+{
+    RECT  rect = {};
+
+
+
+    for (const auto & [key, each] : m_windows)
+    {
+        if (key == window || each == nullptr)
+        {
+            continue;
+        }
+
+        rect = each->GetScreenRect();
+
+        if (PtInRect (&rect, screenPx))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
