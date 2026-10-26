@@ -817,6 +817,14 @@ listed in validation.md.
   `DiskOperations::DescribeVolumeRefusal` and the commands' `Fail` calls in
   `CassoEmuCore/Devices/Disk/DiskCommandRunner.cpp`, with the image path in
   front in the CLI's messages.
+  - **CLI done**: `DiskCommandResult::FailAction` produces "IMAGE: Unable to
+    delete PROG: it is locked", and `DiskCommandRunner::DescribeVolumeRefusal`
+    takes the volume kind for a damaged file's terms. The list, mkdir, rmdir,
+    get, put, delete and boot refusals use it.
+  - **Left**: `DiskOperations::DescribeVolumeRefusal` and its four
+    `FormatFailure` calls, for Casso Explorer's dialogs. Its other caller is
+    `DescribeReadFailure` in `CassoExplorerDragOut.cpp`, so both convert
+    together once the T259 work in that file is done.
 
 ## Phase 22: Bootstrap, updates and hardware (US15, US14)
 

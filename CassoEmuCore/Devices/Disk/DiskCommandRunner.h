@@ -333,7 +333,10 @@ private:
     //  asserting on user input, but a number is not a reason -- the person
     //  reading it wants to know that their file is locked, not that something
     //  returned 0x80070005.
-    static std::string  DescribeVolumeRefusal (HRESULT hr);
+    //
+    //  The text is the reason in "Unable to delete HELLO: it is locked", and
+    //  a damaged file's is in the terms of kind's file system.
+    static std::string  DescribeVolumeRefusal (HRESULT hr, VolumeKind kind);
 
     //  Turns a tokenizer refusal into something a user can act on: which line,
     //  the line itself, and what is wrong with it. The line's own text is quoted

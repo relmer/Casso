@@ -445,7 +445,7 @@ public:
         result = runner.Run (MakeTextPutOptions (kBlankDsk, "BIG"));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("does not fit") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("the volume has no room") != std::string::npos,
             L"the reason must be the volume's room and not something generic");
 
         AssertNamesNoPlatformCode (result.diagnostics);
@@ -468,7 +468,7 @@ public:
         result = runner.Run (MakePutOptions (kRealImage, kRealFile));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find (": it is locked") != std::string::npos,
             L"the reason must be the lock, not merely that something failed");
 
         AssertNamesNoPlatformCode (result.diagnostics);
@@ -492,7 +492,7 @@ public:
         result = runner.Run (MakeDeleteOptions (kRealImage, kRealFile));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find (": it is locked") != std::string::npos,
             L"the reason must be the lock");
 
         AssertNamesNoPlatformCode (result.diagnostics);

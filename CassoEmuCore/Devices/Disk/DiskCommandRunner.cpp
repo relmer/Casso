@@ -435,56 +435,56 @@ std::string DiskCommandRunner::DescribeDamage (HRESULT hr, VolumeKind kind)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr)
+std::string DiskCommandRunner::DescribeVolumeRefusal (HRESULT hr, VolumeKind kind)
 {
     //  A lookup rather than a ladder: eleven ifs were a table wearing
     //  control flow, and every row added was another early return.
     static constexpr struct { HRESULT code; const char * sentence; }  kSentences[] =
     {
         { HRESULT_FROM_WIN32 (ERROR_ACCESS_DENIED),
-          "is locked on this volume. Unlock it on the disk before writing over it" },
+          "it is locked. Unlock it on the disk first" },
         { HRESULT_FROM_WIN32 (ERROR_DISK_FULL),
-          "does not fit. The volume has no room for the file's contents or "
-          "for another catalog entry" },
+          "the volume has no room for the file's contents or for another "
+          "catalog entry" },
         { HRESULT_FROM_WIN32 (ERROR_CANNOT_MAKE),
-          "does not fit. The volume directory is full: ProDOS has room for 51 "
-          "entries there. Put it in a subdirectory" },
+          "the volume directory is full. ProDOS has room for 51 entries "
+          "there, so put it in a subdirectory" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_NAME),
-          "is not a valid name for this filesystem. It must be a single "
+          "the name is not valid on this file system. It must be a single "
           "component starting with a letter, short enough for the catalog, "
           "and free of commas and control characters" },
         { HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
-          "is not on this volume" },
+          "it is not on this volume" },
         { HRESULT_FROM_WIN32 (ERROR_DUP_NAME),
-          "does not identify a specific file because the name is not unique. Use 'disk list' to show "
-          "indexes, then specify both <name> and --index to select that file" },
+          "the name is not unique. Run 'disk list' for the indexes, then "
+          "specify both <name> and --index to select that file" },
         { HRESULT_FROM_WIN32 (ERROR_FILE_TOO_LARGE),
-          "is larger than this filesystem can record for one file" },
+          "it is larger than this file system can record for one file" },
         { HRESULT_FROM_WIN32 (ERROR_INVALID_PARAMETER),
-          "is a binary and requires a load address. Use %Lload $XXXX" },
+          "it is a binary file and requires a load address. Use %Lload $XXXX" },
         { HRESULT_FROM_WIN32 (ERROR_DIRECTORY_NOT_SUPPORTED),
-          "is a directory, and delete takes files only. Use rmdir, which removes "
-          "a directory and, with --recurse, everything below it" },
-        { HRESULT_FROM_WIN32 (ERROR_HANDLE_EOF),
-          "is damaged and cannot be read" },
+          "it is a directory, and delete accepts files only. Use rmdir, which "
+          "removes a directory and, with --recurse, everything below it" },
         { HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
-          "cannot be the volume's startup program. The image has no operating "
-          "system on the boot tracks" },
+          "the image has no operating system on the boot tracks" },
         { HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
-          "is not a program this volume's boot path launches. On ProDOS that "
-          "requires a file of type SYS, not the kernel itself" },
+          "ProDOS starts only a file of type SYS, and not the kernel itself" },
     };
-    const char *  sentence = "was refused by the filesystem on this volume";
+    std::string  sentence = DescribeDamage (hr, kind);
 
 
 
     for (const auto & row : kSentences)
     {
-        if (row.code == hr)
+        if (sentence.empty() && row.code == hr)
         {
             sentence = row.sentence;
-            break;
         }
+    }
+
+    if (sentence.empty())
+    {
+        sentence = "the operation is not possible on this volume";
     }
 
     return sentence;
@@ -551,8 +551,8 @@ void DiskCommandRunner::RunList (const CommandLineOptions & options, DiskCommand
 
         hr = AppendDirectoryRows (volume, opened.kind, directory, options.disk.recurse, result);
 
-        CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
-                        ApplyPrefix (DescribeVolumeRefusal (hr))));
+        CHRF (hr, result.FailAction (options.disk.imagePath, "list " + options.disk.path,
+                              ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
         snprintf (summary, sizeof (summary), "\n%u %s free of %u\n",
                   (unsigned) listing.freeUnits,
@@ -727,8 +727,8 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
     isProDos = opened.kind == VolumeKind::ProDos;
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
-            result.Fail (options.disk.imagePath, options.disk.path,
-                  "cannot hold directories: this volume is DOS 3.3, which has none"));
+            result.FailAction (options.disk.imagePath, "create " + options.disk.path,
+                               "this volume is DOS 3.3, which has no directories"));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -761,15 +761,15 @@ void DiskCommandRunner::RunMkdir (const CommandLineOptions & options, DiskComman
 
         hr = step.CreateDirectory (FilePath::Parse (prefix), next);
 
-        CHRF (hr, result.Fail (options.disk.imagePath, prefix,
-                        ApplyPrefix (DescribeVolumeRefusal (hr))));
+        CHRF (hr, result.FailAction (options.disk.imagePath, "create " + prefix,
+                              ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
         staged  = next;
         madeAny = true;
     }
 
     CBRFEx (madeAny, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS),
-            result.Fail (options.disk.imagePath, options.disk.path, "is already on this volume"));
+            result.FailAction (options.disk.imagePath, "create " + options.disk.path, "it is already on this volume"));
 
     hr = m_session.SaveAndCommit (opened, staged, result);
     CHR (hr);
@@ -824,8 +824,8 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
     isProDos = opened.kind == VolumeKind::ProDos;
 
     CBRFEx (isProDos, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED),
-            result.Fail (options.disk.imagePath, options.disk.path,
-                  "holds no directories: this volume is DOS 3.3, which has none"));
+            result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                               "this volume is DOS 3.3, which has no directories"));
 
     hr = ResolveVolumePath (options, opened, options.disk.path, typed, result);
     CHR (hr);
@@ -838,15 +838,15 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
         hr = volume.BuildRemovalPlan (path, plan);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     holdsThings = plan.entries.size() > 1;
     permitted   = !holdsThings || options.disk.recurse;
 
     CBRFEx (permitted, HRESULT_FROM_WIN32 (ERROR_DIR_NOT_EMPTY),
-            result.Fail (options.disk.imagePath, options.disk.path,
-                  ApplyPrefix ("holds entries, which --recurse removes with it")));
+            result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                               ApplyPrefix ("it is not empty, and --recurse removes its entries with it")));
 
     if (holdsThings)
     {
@@ -881,8 +881,8 @@ void DiskCommandRunner::RunRmdir (const CommandLineOptions & options, DiskComman
         hr = volume.RemoveDirectory (path, options.disk.force, edited, outcome);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, options.disk.path,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "remove " + options.disk.path,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
@@ -1023,7 +1023,6 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     FilePayload                    payload;
     FilePath                       path;
     std::string                    name;
-    std::string                    damage;
     char                           note[128] = {};
 
 
@@ -1047,15 +1046,9 @@ void DiskCommandRunner::RunGet (const CommandLineOptions & options, DiskCommandR
     }
 
     result.failure = hr;
-    damage         = DescribeDamage (hr, opened.kind);
 
-    //  A damaged file is reported in the file system's terms, and for a name
-    //  that several entries share, the message has how to select one.
-    //  Any other read failure has the generic message.
-    CHRF (hr, !damage.empty() ? result.Fail (options.disk.imagePath, std::string(), std::format ("Unable to read {}: {}", name, damage))
-            : result.Fail (options.disk.imagePath, name,
-                           (hr == HRESULT_FROM_WIN32 (ERROR_DUP_NAME)) ? ApplyPrefix (DescribeVolumeRefusal (hr))
-                                                                       : std::string ("could not be read from this volume")));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "read " + name,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = ApplyEncoding (options, payload, result);
     CHR (hr);
@@ -1669,7 +1662,7 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
         && effective.disk.encoding == CommandLineOptions::DiskOptions::Encoding::Verbatim)
     {
         hr = ApplyHostFileType (parsed, opened.kind, payload);
-        CHRF (hr, result.Fail (options.disk.imagePath, diskName, "has a ProDOS type DOS 3.3 has no file type for"));
+        CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName, "it has a ProDOS type that DOS 3.3 has no file type for"));
     }
 
     path = FilePath::Parse (diskName);
@@ -1684,8 +1677,8 @@ void DiskCommandRunner::RunPut (const CommandLineOptions & options, DiskCommandR
         hr = volume.Write (path, payload, edited);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, diskName,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "write " + diskName,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
@@ -1746,8 +1739,8 @@ void DiskCommandRunner::RunDelete (const CommandLineOptions & options, DiskComma
         hr = volume.Delete (path, edited, outcome);
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, name,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "delete " + name,
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);
@@ -1994,8 +1987,8 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
         }
     }
 
-    CHRF (hr, result.Fail (options.disk.imagePath, name,
-                    ApplyPrefix (DescribeVolumeRefusal (hr))));
+    CHRF (hr, result.FailAction (options.disk.imagePath, "make " + name + " the startup program",
+                          ApplyPrefix (DescribeVolumeRefusal (hr, opened.kind))));
 
     //  REFUSED BEFORE ANYTHING IS WRITTEN, not reported after.
     //
@@ -2007,10 +2000,10 @@ void DiskCommandRunner::RunBoot (const CommandLineOptions & options, DiskCommand
     //  start a program that cannot start -- which is what ProDOS refuses
     //  outright, two screens away in the same command.
     CBRFEx (runnable, HRESULT_FROM_WIN32 (ERROR_BAD_FILE_TYPE),
-            result.Fail (options.disk.imagePath, name,
-                  "is not a program a booting DOS 3.3 can run. Its greeting is RUN, "
-                  "which starts an Applesoft BASIC or Integer BASIC program, and "
-                  "this file is neither"));
+            result.FailAction (options.disk.imagePath, "make " + name + " the startup program",
+                               "a booting DOS 3.3 runs its greeting program with RUN, which "
+                               "starts an Applesoft BASIC or Integer BASIC program, and this "
+                               "file is neither"));
 
     hr = m_session.SaveAndCommit (opened, edited, result);
     CHR (hr);

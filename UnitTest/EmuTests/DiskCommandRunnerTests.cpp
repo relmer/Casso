@@ -216,7 +216,7 @@ public:
         options.disk.path = heading;
         result            = runner.Run (options);
 
-        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("the name is not unique") != std::string::npos);
 
         //  The name and the index together select that entry.
         options.disk.hasIndex = true;
@@ -224,7 +224,7 @@ public:
         result                = runner.Run (options);
 
         Assert::IsTrue (result.diagnostics.find ("--index is only allowed") == std::string::npos);
-        Assert::IsTrue (result.diagnostics.find ("does not identify a specific file because the name is not unique") == std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("the name is not unique") == std::string::npos,
             L"the index resolves to the heading, regardless of the read result for an entry with no sectors");
 
         //  --index requires the name as well, so a wrong index cannot select a
@@ -319,7 +319,7 @@ public:
         options.disk.path = "CASSO";
         result            = runner.Run (options);
 
-        Assert::IsTrue (result.diagnostics.find ("DOS 3.3, which has none") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("Unable to create CASSO: this volume is DOS 3.3, which has no directories") != std::string::npos);
     }
 
 
@@ -3205,7 +3205,7 @@ public:
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("Unable to write PROG: it is locked") != std::string::npos,
             L"the refusal must state the file is locked, not merely that something failed");
 
         Assert::IsTrue (result.diagnostics.find ("PROG") != std::string::npos,
@@ -3237,7 +3237,7 @@ public:
         result = runner.Run (options);
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("does not fit") != std::string::npos,
+        Assert::IsTrue (result.diagnostics.find ("Unable to write BIG: the volume has no room") != std::string::npos,
             L"and reports the volume has no room, not something generic");
 
         AssertNamesNoPlatformCode (result.diagnostics);
@@ -3997,7 +3997,7 @@ public:
         result = runner.Run (MakeDeleteOptions (kBlankImage, "PROG"));
 
         Assert::AreEqual (DiskCommandResult::kNoOutput, result.exitStatus);
-        Assert::IsTrue (result.diagnostics.find ("is locked on this volume") != std::string::npos);
+        Assert::IsTrue (result.diagnostics.find ("Unable to delete PROG: it is locked") != std::string::npos);
 
         AssertNamesNoPlatformCode (result.diagnostics);
         AssertImageMatches (io, kBlankImage, committed);

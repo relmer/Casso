@@ -415,7 +415,7 @@ public:
         Assert::AreEqual (DiskCommandResult::kNoOutput, put.exitStatus,
             L"placing over a locked file must produce no output");
 
-        Assert::IsTrue (put.diagnostics.find ("is locked on this volume") != std::string::npos,
+        Assert::IsTrue (put.diagnostics.find (": it is locked") != std::string::npos,
             L"and must report the file is locked -- not merely that something went wrong");
 
         Assert::IsTrue (put.diagnostics.find (kLockedFile) != std::string::npos,
