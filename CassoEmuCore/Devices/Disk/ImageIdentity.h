@@ -69,11 +69,9 @@ struct ImageIdentity
 
     //  The same answer for a caller that has no IDiskFileIo to ask.
     //
-    //  THE EMULATOR IS THAT CALLER. DiskImageStore reads and writes images
-    //  through its own static filesystem helpers rather than through the
-    //  command line's seam, so routing it through IDiskFileIo would mean
-    //  threading an interface into a class that has no other use for one. The
-    //  two overloads answer the same question from the same two fields; only
-    //  the source of the stat differs.
+    //  THE EMULATOR IS THAT CALLER when it has no identity reader installed:
+    //  DiskImageStore stats a mounted image through this rather than through
+    //  the file seam. The two overloads answer the same question from the
+    //  same two fields; only the source of the stat differs.
     static ImageIdentity  ReadFromFileSystem (const std::string & path);
 };

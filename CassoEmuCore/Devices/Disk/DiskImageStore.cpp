@@ -7,6 +7,7 @@
 #include "Core/TextEncoding.h"
 #include "ChangePrompt.h"
 #include "CommitPlan.h"
+#include "Seams/Win32DiskFileIo.h"
 
 
 
@@ -516,7 +517,7 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
 
     if (SUCCEEDED (hr))
     {
-        hr = WritePreserved (chosen, held);
+        hr = CommitFile (chosen, held, CommitMode::Replace);
     }
 
     if (FAILED (hr))
@@ -1198,22 +1199,16 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
 
     CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
 
-    if (m_flushSink)
+    // Never write in place: a flush that fails midway would otherwise have
+    // already truncated the user's image, trading a stale file for no file at
+    // all. The dirty bit survives a failure, so a later flush retries.
+    //
+    // The failure message includes the recovery copy written above, because a
+    // flush that cannot land is exactly when the session's only lossless copy
+    // of the disk is the one sitting beside the original.
+    if (m_flushSink || !entry.path.empty())
     {
-        hr = m_flushSink (entry.path, bytes);
-        CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
-    }
-    else if (!entry.path.empty())
-    {
-        // Never write in place: a flush that fails midway would otherwise
-        // have already truncated the user's image, trading a stale file for
-        // no file at all. The dirty bit survives a failure, so a later flush
-        // retries.
-        //
-        // The failure message names the recovery copy written above, because
-        // a flush that cannot land is exactly when the session's only
-        // lossless copy of the disk is the one sitting beside the original.
-        hr = WriteFileAtomically (entry.path, bytes);
+        hr = CommitFile (entry.path, bytes, CommitMode::Replace);
         CHRF (hr, ReportSaveFailure (entry.path, hr, recoveryPath));
     }
 
@@ -1397,107 +1392,37 @@ void DiskImageStore::RecordCommittedFile (Entry & entry)
 //
 //  WriteFileAtomically
 //
-//  Write to a sibling temp file, verify every step, then rename it over the
-//  target. The verification matters as much as the temp file: an ofstream
-//  reports a short or failed write only through its stream state, so a full
-//  volume otherwise completes a flush that wrote nothing and looks identical
-//  to success. The state is read after close, since bytes can still be
-//  buffered when write() returns.
+//  DurableCommit over the real file system, for a caller with no store: the
+//  bytes go to a sibling temporary, which is flushed to storage and then
+//  replaces the target in one step.
+//
+//  THE TEMPORARY'S NAME HAS THIS PROCESS'S INVOCATION TAG, and an existing
+//  name is stepped past. With a fixed suffix, two emulators with one image
+//  mounted wrote into each other's temporary, and one renamed the other's
+//  bytes over the target. Reusing the temporary of a writer killed mid-commit
+//  would append this image to the remains of that one.
+//
+//  EACH FAILURE RETURNS ITS WIN32 CODE. The save-failure notice prints the code
+//  and the system's text for it, so a folder without write access, a read-only
+//  target and a full disk each report a distinct code, never E_FAIL.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskImageStore::WriteFileAtomically (const string & path, const vector<Byte> & bytes)
 {
-    HRESULT           hr        = S_OK;
-    bool              hasPath   = !path.empty();
-    bool              foundFree = false;
-    unsigned          attempt   = 0;
-    string            tempPath;
-    std::error_code   ec;
-    size_t            byteCount = bytes.size();
+    HRESULT               hr       = S_OK;
+    bool                  hasPath  = !path.empty();
+    Win32DiskFileIo       fileIo;
+    CommitPlan::Progress  progress = {};
 
 
 
     CBRAEx (hasPath, E_INVALIDARG);
 
-    //  THE NAME USED TO BE A FIXED SUFFIX AND THAT WAS A DEFECT. Two emulators
-    //  holding one image derived the same temporary from it, so each wrote into
-    //  the other's file and one of them renamed the other's bytes over the
-    //  target as its own.
-    //
-    //  CommitPlan ALREADY SOLVED THIS FOR THE COMMAND LINE, with a per-process
-    //  tag and a step past anything already sitting at the name, and its own
-    //  comment names the emulator as the side that still had the bug. A second
-    //  scheme here would be a second thing to keep right; this is the same one.
-    //
-    //  STEPPING PAST AN EXISTING NAME IS WHAT HANDLES AN ABANDONED TEMPORARY.
-    //  A writer that was killed mid-commit leaves one behind, and adopting it
-    //  would mean appending this image to the remains of somebody else's.
-    for (attempt = 0; attempt < CommitPlan::kMaxAttempts; attempt++)
-    {
-        tempPath  = GetCommitTemporaryPath (path, attempt);
-        foundFree = !fs::exists (fs::path (tempPath), ec);
-
-        if (foundFree)
-        {
-            break;
-        }
-    }
-
-    CBREx (foundFree, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
-
-    //  A disk image is a few hundred KB; a payload past 4 GB is a caller bug.
-    CBRAEx (byteCount <= MAXDWORD, E_INVALIDARG);
-
-    //  THE REAL ERROR TRAVELS. This went through an ofstream and a CBR, which
-    //  turned a folder that refused the temporary, a read-only target and a
-    //  full disk all into E_FAIL -- and the save-failure notice, built to
-    //  print the code and the system's own words for it, said "0x80004005
-    //  Unspecified error" for a permission problem. CreateFileW and CWR carry
-    //  the Win32 code out whole. The write's error is captured BEFORE the
-    //  handle closes, because CloseHandle would overwrite it.
-    {
-        std::wstring  wideTemp = fs::path (tempPath).wstring();
-        HANDLE        file     = INVALID_HANDLE_VALUE;
-        DWORD         written  = 0;
-        DWORD         lastErr  = ERROR_SUCCESS;
-        DWORD         expected = static_cast<DWORD> (byteCount);
-        BOOL          ok       = TRUE;
-
-        file = CreateFileW (wideTemp.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
-                            CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        CWR (file != INVALID_HANDLE_VALUE);
-
-        if (!bytes.empty())
-        {
-            ok      = WriteFile (file, bytes.data(), static_cast<DWORD> (bytes.size()),
-                                 &written, nullptr);
-            lastErr = ok ? ERROR_SUCCESS : GetLastError();
-        }
-
-        CloseHandle (file);
-
-        CBREx (ok, HRESULT_FROM_WIN32 (lastErr));
-        CBREx (written == expected, HRESULT_FROM_WIN32 (ERROR_WRITE_FAULT));
-    }
-
-    // Rename replaces an existing target, so the swap is one filesystem
-    // operation: readers see either the old file or the new one. The code the
-    // filesystem gave for a refusal travels with it rather than becoming E_FAIL.
-    fs::rename (tempPath, path, ec);
-    CBREx (!ec, HRESULT_FROM_WIN32 (ec.value()));
+    hr = DurableCommit::Commit (fileIo, path, bytes, GetInvocationTag(), CommitMode::Replace, progress);
+    CHR (hr);
 
 Error:
-    if (FAILED (hr))
-    {
-        std::error_code  cleanupEc;
-
-        // Best effort -- the guarantee is that the TARGET is untouched, not
-        // that the temp never lingers, and a temp we cannot remove must not
-        // turn into a second error report.
-        fs::remove (tempPath, cleanupEc);
-    }
-
     return hr;
 }
 
@@ -1599,15 +1524,7 @@ HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writePro
         hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
         CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
-        if (m_flushSink)
-        {
-            hr = m_flushSink (entry.path, bytes);
-        }
-        else
-        {
-            hr = WriteFileAtomically (entry.path, bytes);
-        }
-
+        hr = CommitFile (entry.path, bytes, CommitMode::Replace);
         CHRN (hr, FormatFlushLossMessage (entry.path, hr).c_str());
 
         // The live image follows the file, and only once the file has
@@ -1873,15 +1790,7 @@ HRESULT DiskImageStore::SalvageToFile (
         hr = BuildSalvagedImage (entry, bytes, report);
         CHRN (hr, FormatSalvageFailedMessage (path).c_str());
 
-        if (m_flushSink)
-        {
-            hr = m_flushSink (path, bytes);
-        }
-        else
-        {
-            hr = WriteFileAtomically (path, bytes);
-        }
-
+        hr = CommitFile (path, bytes, CommitMode::Replace);
         CHRN (hr, FormatSalvageFailedMessage (path).c_str());
     }
 
@@ -3485,7 +3394,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
                 if (SUCCEEDED (hr))
                 {
-                    hr = WritePreserved (savePath, held);
+                    hr = CommitFile (savePath, held, CommitMode::Replace);
                 }
 
                 if (FAILED (hr))
@@ -3561,7 +3470,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
 
                 if (SUCCEEDED (hr))
                 {
-                    hr = WritePreserved (savePath, held);
+                    hr = CommitFile (savePath, held, CommitMode::Replace);
                 }
 
                 //  A save the user asked for and did not get must not be
@@ -4165,32 +4074,39 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskImageStore::WritePreserved
+//  DiskImageStore::CommitFile
 //
-//  Writes a preserved copy.
+//  Every write this class makes: an image, a salvaged copy, a preserved copy.
 //
-//  THROUGH THE SAME SINK AS A FLUSH, so a test captures preserved copies the
-//  way it captures everything else this class writes, and so the atomic
-//  temp-then-rename applies to them too. A preserved copy that could be found
-//  half-written would be worth nothing at the moment it is needed.
+//  THROUGH THE FLUSH SINK WHEN ONE IS INSTALLED, so a test captures every
+//  write in one place. Otherwise through DurableCommit, over the file seam when
+//  the shell installed one and over a local Win32DiskFileIo when not, so a
+//  copy or an image is never found half-written. A half-written preserved copy
+//  is worthless at the moment the user opens it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImageStore::WritePreserved (const string & path, const vector<Byte> & bytes)
+HRESULT DiskImageStore::CommitFile (const string & path, const vector<Byte> & bytes, CommitMode mode)
 {
-    HRESULT  hr = S_OK;
+    HRESULT               hr       = S_OK;
+    Win32DiskFileIo       localIo;
+    IDiskFileIo         & fileIo   = (m_fileIo != nullptr) ? *m_fileIo : localIo;
+    CommitPlan::Progress  progress = {};
 
 
 
     if (m_flushSink)
     {
         hr = m_flushSink (path, bytes);
+        CHR (hr);
     }
     else
     {
-        hr = WriteFileAtomically (path, bytes);
+        hr = DurableCommit::Commit (fileIo, path, bytes, GetInvocationTag(), mode, progress);
+        CHR (hr);
     }
 
+Error:
     return hr;
 }
 
@@ -4229,7 +4145,7 @@ HRESULT DiskImageStore::SaveLoadedImage (Entry & entry, string & outPath)
         CHR (hr);
     }
 
-    hr = WritePreserved (outPath, bytes);
+    hr = CommitFile (outPath, bytes, CommitMode::Replace);
     CHR (hr);
 
 Error:
@@ -4294,6 +4210,21 @@ void DiskImageStore::EjectLostImage (int slot, int drive)
 //
 //  Where a commit of `path` writes before it renames.
 //
+////////////////////////////////////////////////////////////////////////////////
+
+string DiskImageStore::GetCommitTemporaryPath (const string & path, unsigned attempt)
+{
+    return CommitPlan::GetTemporaryPath (path, GetInvocationTag(), attempt);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::GetInvocationTag
+//
 //  ONE INVOCATION TAG FOR THE WHOLE PROCESS, taken once. Two emulators get
 //  different tags and therefore different names; two flushes inside one
 //  emulator get the same tag and are separated by the attempt counter and the
@@ -4302,11 +4233,11 @@ void DiskImageStore::EjectLostImage (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-string DiskImageStore::GetCommitTemporaryPath (const string & path, unsigned attempt)
+uint64_t DiskImageStore::GetInvocationTag()
 {
     static const uint64_t  s_kInvocationTag = CommitPlan::NextInvocationTag();
 
 
 
-    return CommitPlan::GetTemporaryPath (path, s_kInvocationTag, attempt);
+    return s_kInvocationTag;
 }

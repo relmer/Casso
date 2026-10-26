@@ -2,6 +2,7 @@
 #include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "FakeDiskFileIo.h"
 #include "Devices/Disk/DiskCommandRunner.h"
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
@@ -743,6 +744,187 @@ public:
         AssertSucceeded (store2.MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
         Assert::AreEqual (Byte (0), store2.GetImage (6, 0)->ReadBit (0, flippedBit),
             L"the write persisted at motor-off must survive reload");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  The store's commits through the file I/O seam, with no flush sink.
+    //  Each image is at a root that cannot exist, so a write that went around
+    //  the seam would fail on the real file system.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    static constexpr const char *  kSeamImagePath = "Q:/casso-no-such-root/image.dsk";
+    static constexpr const char *  kSeamWozPath   = "Q:/casso-no-such-root/image.woz";
+
+
+
+    //  Points the store's reads, identity checks and commits at `io`.
+    static void UseFileIo (DiskImageStore & store, FakeDiskFileIo & io)
+    {
+        store.SetFileIo         (&io);
+        store.SetImageReader    ([&io] (const string & path, vector<Byte> & bytes) { return io.ReadAllBytes (path, bytes); });
+        store.SetIdentityReader ([&io] (const string & path) { return ImageIdentity::Read (io, path); });
+    }
+
+
+
+    //  Flips the first bit of track 0, so the image has a write to save.
+    static void WriteOneBit (DiskImageStore & store)
+    {
+        DiskImage *  image = store.GetImage (kSlot, kDrive);
+
+
+
+        image->WriteBit (0, 0, static_cast<uint8_t> (image->ReadBit (0, 0) ^ 1));
+    }
+
+
+
+    TEST_METHOD (Flush_ThroughFileIo_FlushesTheTemporaryBeforeTheReplace)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        vector<Byte>    saved;
+        string          temp = DiskImageStore::GetCommitTemporaryPath (kSeamImagePath, 0);
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x24));
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        WriteOneBit (store);
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        saved = io.files[kSeamImagePath];
+        io.SimulatePowerLoss();
+
+        Assert::IsTrue (io.operations == vector<string> { "Write", "CopyMetadata", "Flush", "Replace" },
+            L"the temporary is written, given the image's metadata and flushed before it replaces the image");
+        Assert::AreEqual (size_t (1), io.flushedPaths.size());
+        Assert::AreEqual (temp, io.flushedPaths[0], L"the flush is of the temporary");
+        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), saved.size(), L"the save is a whole image");
+        Assert::IsTrue (io.files[kSeamImagePath] == saved, L"and it survives the power cut whole");
+        Assert::AreEqual (size_t (1), io.files.size(), L"no temporary is left behind");
+    }
+
+
+
+    TEST_METHOD (Flush_ThroughFileIo_KeepsTheImageFilesAttributesAndPermissions)
+    {
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        FakeDiskFileIo::Metadata  custom { FILE_ATTRIBUTE_HIDDEN, "D:P(A;;FA;;;OW)" };
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, MakeDsk (0x24));
+        io.metadata[kSeamImagePath] = custom;
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        WriteOneBit (store);
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        Assert::IsTrue (io.metadata[kSeamImagePath] == custom,
+            L"the saved image has the attributes and permissions it had");
+    }
+
+
+
+    TEST_METHOD (SetImageWriteProtect_ThroughFileIo_IsDurableAndKeepsMetadata)
+    {
+        DiskImageStore            store;
+        FakeDiskFileIo            io;
+        FakeDiskFileIo::Metadata  custom { FILE_ATTRIBUTE_HIDDEN, "D:P(A;;FA;;;OW)" };
+        vector<Byte>              patched;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamWozPath, MakeWoz());
+        io.metadata[kSeamWozPath] = custom;
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamWozPath));
+        AssertSucceeded (store.SetImageWriteProtect (kSlot, kDrive, true));
+
+        patched = io.files[kSeamWozPath];
+        io.SimulatePowerLoss();
+
+        Assert::IsTrue (io.operations == vector<string> { "Write", "CopyMetadata", "Flush", "Replace" },
+            L"the patched image is committed like a save");
+        Assert::IsTrue (patched != MakeWoz(), L"the file has the write-protect flag");
+        Assert::IsTrue (io.files[kSeamWozPath] == patched, L"and it survives the power cut whole");
+        Assert::IsTrue (io.metadata[kSeamWozPath] == custom, L"with the attributes and permissions it had");
+    }
+
+
+
+    TEST_METHOD (SalvageToFile_ThroughFileIo_FlushesTheCopyBeforeItAppears)
+    {
+        DiskImageStore    store;
+        FakeDiskFileIo    io;
+        DenibblizeReport  report;
+        vector<Byte>      copy;
+        string            copyPath = "Q:/casso-no-such-root/broken.salvaged.woz";
+
+
+
+        UseFileIo (store, io);
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "Q:/casso-no-such-root/broken.woz",
+                                               DiskFormat::Woz, MakeDamagedStandardWoz()));
+        AssertSucceeded (store.SalvageToFile (kSlot, kDrive, store.GetMediaId (kSlot, kDrive), copyPath, report));
+
+        copy = io.files[copyPath];
+        io.SimulatePowerLoss();
+
+        Assert::IsTrue (io.operations == vector<string> { "Write", "Flush", "Replace" },
+            L"the copy is flushed before the rename");
+        Assert::IsFalse (copy.empty(), L"the copy has the salvaged image");
+        Assert::IsTrue (io.files[copyPath] == copy, L"and it survives the power cut whole");
+    }
+
+
+
+    TEST_METHOD (FlushEntry_ConflictCopy_ThroughFileIo_IsDurable)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        vector<Byte>    original = MakeDsk (0x24);
+        string          copyPath;
+        vector<Byte>    copy;
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (kSeamImagePath, original);
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, kSeamImagePath));
+        WriteOneBit (store);
+
+        //  The image changes outside Casso, so the save goes to a copy beside it.
+        io.mutateStampOnNextStat = true;
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+
+        for (const auto & [path, bytes] : io.files)
+        {
+            if (path != kSeamImagePath)
+            {
+                copyPath = path;
+                copy     = bytes;
+            }
+        }
+
+        io.SimulatePowerLoss();
+
+        Assert::IsFalse (copyPath.empty(), L"the guest's writes go to a copy");
+        Assert::IsTrue (io.files[kSeamImagePath] == original, L"the changed image is left alone");
+        Assert::IsTrue (io.files[copyPath] == copy, L"and the copy survives the power cut whole");
+        Assert::IsTrue (io.operations == vector<string> { "Write", "Flush", "Replace" },
+            L"the copy is flushed before the rename");
     }
 
 

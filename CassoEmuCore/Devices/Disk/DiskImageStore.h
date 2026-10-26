@@ -9,6 +9,7 @@
 #include "ChangePrompt.h"
 #include "PreservedCopy.h"
 #include "IDiskFileIo.h"
+#include "DurableCommit.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "BayChange.h"
 #include "BayStatus.h"
@@ -465,13 +466,15 @@ public:
     //  implementation detail -- and pure, so both are testable without a disk.
     static string   MakeRecoveryPath        (const string & imagePath, int attempt);
 
-    //  Replaces `path` with `bytes` without ever leaving the target in a
-    //  partially written state: the bytes land in a sibling temporary file
-    //  that is verified in full, then renamed over the target. A failure at
-    //  any step leaves the ORIGINAL file exactly as it was and reports it,
-    //  which is what a flush needs -- opening the target directly truncates
-    //  it before the first byte is written, so a write that then fails
-    //  (a full volume, a disconnected share) destroys the only copy.
+    //  Replaces `path` with `bytes` through DurableCommit on the real file
+    //  system: the bytes go to a sibling temporary, which is flushed to
+    //  storage and then replaces the target in one step. After a failure at
+    //  any step the ORIGINAL file is exactly as it was and the failure is
+    //  reported, and after a power cut the target is the old file or the new
+    //  one, whole.
+    //  Opening the target directly would truncate it before the first byte is
+    //  written, so a write that then failed (a full volume, a disconnected
+    //  share) would destroy the only copy.
     //
     //  Public because it is the unit of behavior worth testing on its own:
     //  the failure paths are filesystem states, not emulator states.
@@ -708,9 +711,14 @@ private:
     //  is installed and through the filesystem when none is.
     bool           DoesPathExist (const string & path) const;
 
-    //  Writes bytes to a path, through the flush sink when one is installed so
-    //  a test captures preserved copies the same way it captures flushes.
-    HRESULT        WritePreserved (const string & path, const vector<Byte> & bytes);
+    //  Puts bytes at a path: through the flush sink when one is installed, and
+    //  otherwise through DurableCommit over the file seam, or over a local
+    //  Win32DiskFileIo when no seam is installed. Every write of an image, a
+    //  salvaged copy or a preserved copy goes through here.
+    HRESULT        CommitFile (const string & path, const vector<Byte> & bytes, CommitMode mode);
+
+    //  The tag in this process's commit temporaries, taken once.
+    static uint64_t  GetInvocationTag();
 
     //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
     //  ordinary eject flushes first, which here would either fail or write the
