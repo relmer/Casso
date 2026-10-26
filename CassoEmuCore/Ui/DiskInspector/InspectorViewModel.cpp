@@ -518,7 +518,7 @@ void InspectorViewModel::PanBy (Point delta)
 
 InspectorViewModel::Point InspectorViewModel::GetDiskPoint (int quarterTrack, double turn) const
 {
-    Point  fit = GetFitPoint (quarterTrack, turn);
+    Point  fit = GetFitPoint (quarterTrack, turn + m_rotation);
 
 
 
@@ -647,7 +647,7 @@ void InspectorViewModel::StartFlight (double nowMs)
     {
         end             = (end < start) ? end + 1.0 : end;
         m_flightFrom    = GetView();
-        m_flightTo      = GetChordView (GetFitPoint (m_quarterTrack, start), GetFitPoint (m_quarterTrack, end));
+        m_flightTo      = GetChordView (GetFitPoint (m_quarterTrack, start + m_rotation), GetFitPoint (m_quarterTrack, end + m_rotation));
         m_flightStartMs = nowMs;
         m_isFlying      = true;
     }
@@ -736,7 +736,7 @@ double InspectorViewModel::Ease (double t)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PlatterPlacement InspectorViewModel::GetPlacement (const RECT & boundsPx, double rotation) const
+PlatterPlacement InspectorViewModel::GetPlacement (const RECT & boundsPx) const
 {
     PlatterPlacement  view;
     double            fit  = std::max (0.0, std::min (boundsPx.right - boundsPx.left, boundsPx.bottom - boundsPx.top) / 2.0 - kRimInsetPx);
@@ -746,7 +746,7 @@ PlatterPlacement InspectorViewModel::GetPlacement (const RECT & boundsPx, double
     view.centerXPx     = static_cast<float> ((boundsPx.left + boundsPx.right) / 2.0 + m_pan.x * fit);
     view.centerYPx     = static_cast<float> ((boundsPx.top + boundsPx.bottom) / 2.0 + m_pan.y * fit);
     view.outerRadiusPx = static_cast<float> (fit * m_zoom);
-    view.rotation      = static_cast<float> (rotation);
+    view.rotation      = static_cast<float> (m_rotation);
     view.headLimitRing = (m_analysis != nullptr) ? m_analysis->headLimit + 1 : DiskImage::kQuarterTrackCount;
 
     return view;

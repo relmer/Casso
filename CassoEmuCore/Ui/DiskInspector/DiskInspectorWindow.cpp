@@ -5344,7 +5344,9 @@ bool DiskInspectorWindow::IsWindowDiskA() const
 
 void DiskInspectorWindow::TickHead()
 {
-    int  qt = -1;
+    int            qt       = -1;
+    bool           isOnDisk = false;
+    InspectorHead  head;
 
 
 
@@ -5361,9 +5363,26 @@ void DiskInspectorWindow::TickHead()
 
     RequestWrittenTracks();
 
-    if (m_headState != nullptr && m_headState->hasDisk && m_headState->mediaId == m_analysis.mediaId && IsWindowDiskA())
+    isOnDisk = m_headState != nullptr && m_headState->hasDisk && m_headState->mediaId == m_analysis.mediaId && IsWindowDiskA();
+
+    if (isOnDisk)
     {
         qt = m_followHead.Tick (m_headState->headQuarterTrack, static_cast<int64_t> (GetTickCount64()));
+
+        head.isShown      = true;
+        head.quarterTrack = m_headState->headQuarterTrack;
+        head.turn         = m_headState->angle;
+        head.activity     = m_headState->activity;
+    }
+
+    m_context.head = head;
+
+    //  While the drive turns, the platter turns under the head at 12
+    //  o'clock. Zoomed in, the platter does not turn and the head moves
+    //  around it (FR-064).
+    if (isOnDisk && m_headState->isTurning && m_model.IsAtFit())
+    {
+        m_model.SetRotation (-m_headState->angle);
     }
 
     if (qt >= 0)

@@ -44,8 +44,8 @@ public:
     bool               IsDragging  () const { return m_isPanning; }
     void               ZoomBy      (double factor, POINT anchorPx);
     void               ZoomAboutCenter (double factor);
-    double             GetRotation () const { return m_rotation; }
-    void               SetRotation (double rotation) { m_rotation = rotation; }
+    //  Where the head's bullseye is drawn, or false when there is no head.
+    bool               GetHeadPoint (POINT & outPointPx) const;
     void               SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
 
 private:
@@ -101,6 +101,7 @@ private:
     const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
+    void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
     static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);
     PlatterPlacement  MakeView       () const;
@@ -115,6 +116,5 @@ private:
     POINT                      m_lastAt           = {};
     int64_t                    m_lastClickMs      = 0;
     int                        m_hoverRing        = -1;
-    double                     m_rotation         = 0.0;
     mutable vector<RingTurns>  m_ringTurns;
 };

@@ -59,6 +59,9 @@ private:
     void           PaintShimmer    (IDxuiPainter & painter, const StripGeometry & g) const;
     void           PaintDiffs      (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintHits       (IDxuiPainter & painter, const TrackAnalysis & track, const StripGeometry & g);
+    void           PaintHead       (IDxuiPainter & painter, const StripGeometry & g) const;
+    bool           IsHeadOnTrack   () const;
+    static LPCWSTR GetHeadLabel    (HeadActivity activity);
     void           PaintDividers   (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
     void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);

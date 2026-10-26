@@ -7,6 +7,29 @@
 #include "Ui/DiskInspector/EditController.h"
 #include "Ui/DiskInspector/FindMarks.h"
 #include "Ui/DiskInspector/InspectorViewModel.h"
+#include "Shell/InspectorStatusPublisher.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorHead
+//
+//  The drive's head as the platter and the strip draw it: its quarter
+//  track, the turn of the record under it, and what it is doing (FR-064,
+//  FR-066).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct InspectorHead
+{
+    bool          isShown      = false;
+    int           quarterTrack = -1;
+    double        turn         = 0.0;
+    HeadActivity  activity     = HeadActivity::Idle;
+};
 
 
 
@@ -38,6 +61,7 @@ struct InspectorViewContext
     POINT                       hoverPx           = { SHRT_MIN, SHRT_MIN };
     RECT                        scenePx           = {};
     bool                        isDiffsOverlay    = false;
+    InspectorHead               head;
     const DiskComparison      * comparison        = nullptr;
     const DiskAnalysis        * analysisB         = nullptr;
     const TrackAnalysis       * trackB            = nullptr;

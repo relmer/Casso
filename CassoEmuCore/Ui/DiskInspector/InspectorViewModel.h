@@ -98,6 +98,11 @@ public:
     Point   GetDiskPoint    (int quarterTrack, double turn) const;
     View    GetView         () const { return { m_zoom, m_pan }; }
 
+    //  How far the drive has turned the platter, as a fraction of a turn
+    //  clockwise. Every turn on screen is shifted by it (FR-064).
+    double  GetRotation     () const { return m_rotation; }
+    void    SetRotation     (double rotation) { m_rotation = rotation; }
+
     //  A point on a ring at fit, zoom 1 and no pan.
     static Point  GetFitPoint (int quarterTrack, double turn);
 
@@ -117,7 +122,7 @@ public:
     bool    StepFlight      (double nowMs);
     void    StopFlight      () { m_isFlying = false; }
     bool    IsFlying        () const { return m_isFlying; }
-    PlatterPlacement  GetPlacement (const RECT & boundsPx, double rotation) const;
+    PlatterPlacement  GetPlacement (const RECT & boundsPx) const;
 
     //  Strip.
     double  GetStripStart   () const { return m_stripStart; }
@@ -152,6 +157,7 @@ private:
     uint32_t              m_anchorCell    = 0;
     bool                  m_hasAnchor     = false;
     double                m_zoom          = 1.0;
+    double                m_rotation      = 0.0;
     Point                 m_pan;
     double                m_stripStart    = 0.0;
     double                m_stripSpan     = kDefaultStripSpan;

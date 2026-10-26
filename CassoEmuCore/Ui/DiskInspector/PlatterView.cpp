@@ -43,6 +43,11 @@ static constexpr double   s_kMinDiffTurn     = 0.004;
 static constexpr float    s_kMinHitDip       = 3.0f;
 static constexpr float    s_kHitEdgeDip      = 1.0f;
 static constexpr float    s_kHitSolidDip     = 24.0f;
+static constexpr float    s_kHeadReachDip    = 14.0f;
+static constexpr float    s_kHeadArmDip      = 12.0f;
+static constexpr float    s_kHeadEyeDip      = 6.0f;
+static constexpr uint32_t s_kHeadArmAlpha    = 0x50000000u;
+static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
@@ -81,6 +86,7 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         painter.SetClipRect (&clip);
         PaintDisk    (painter, theme, view);
         PaintNibbles (painter, text, theme, view);
+        PaintHead    (painter, theme, view);
         painter.SetClipRect (hadClip ? &oldClip : nullptr);
     }
 }
@@ -98,7 +104,7 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view)
 {
     float            hub  = view.outerRadiusPx * PlatterRenderer::kInnerFraction;
-    float            a    = static_cast<float> (m_rotation * 6.283185307179586);
+    float            a    = static_cast<float> (view.rotation * s_kTwoPi);
     float            mark = m_scaler.ToPxf (s_kIndexMarkDip);
     vector<FileArc>  arcs;
 
@@ -2055,7 +2061,7 @@ void PlatterView::OutlineCircle (IDxuiPainter & painter, float cx, float cy, flo
 
 PlatterPlacement PlatterView::MakeView() const
 {
-    return m_context.model->GetPlacement (m_boundsDip, m_rotation);
+    return m_context.model->GetPlacement (m_boundsDip);
 }
 
 
@@ -2082,4 +2088,95 @@ InspectorViewModel::Point PlatterView::ToViewPoint (POINT pointPx) const
     point.y = (pointPx.y - (m_boundsDip.top + m_boundsDip.bottom) / 2.0) / half;
 
     return point;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetHeadPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PlatterView::GetHeadPoint (POINT & outPointPx) const
+{
+    PlatterPlacement  view    = MakeView();
+    bool              isShown = m_context.head.isShown && m_context.head.quarterTrack >= 0 && m_context.head.quarterTrack < PlatterRenderer::kRingCount;
+    double            radius  = isShown ? PlatterGeometry::GetRingMiddle (m_context.head.quarterTrack) * view.outerRadiusPx : 0.0;
+    double            angle   = (m_context.head.turn + view.rotation) * s_kTwoPi;
+
+
+
+    outPointPx.x = static_cast<LONG> (std::lround (view.centerXPx + radius * std::sin (angle)));
+    outPointPx.y = static_cast<LONG> (std::lround (view.centerYPx - radius * std::cos (angle)));
+
+    return isShown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::PaintHead
+//
+//  The head marker: a translucent arm from beyond the rim in to the head's
+//  ring, and a bullseye exactly on the head's quarter track and angle. The
+//  color indicates idle, reading or writing, and a blocked write adds a
+//  cross. The marker is drawn over everything and is not hit-tested, so the
+//  pointer acts on the platter under it (FR-064).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const
+{
+    const DiskInspectorColors  & colors = m_context.palette.colors;
+    POINT                        eyeAt  = {};
+    double                       angle  = (m_context.head.turn + view.rotation) * s_kTwoPi;
+    float                        sinA   = static_cast<float> (std::sin (angle));
+    float                        cosA   = static_cast<float> (std::cos (angle));
+    float                        outer  = view.outerRadiusPx + m_scaler.ToPxf (s_kHeadReachDip);
+    float                        half   = m_scaler.ToPxf (s_kHeadArmDip) / 2.0f;
+    float                        eye    = m_scaler.ToPxf (s_kHeadEyeDip);
+    float                        line   = m_scaler.ToPxf (s_kSelectOutlineDip);
+    float                        ex     = 0.0f;
+    float                        ey     = 0.0f;
+    float                        ox     = view.centerXPx + outer * sinA;
+    float                        oy     = view.centerYPx - outer * cosA;
+    float                        px     = half * cosA;
+    float                        py     = half * sinA;
+    float                        cross  = eye * 0.7f;
+    uint32_t                     argb   = colors.headIdle;
+    uint32_t                     halo   = (theme.Background() & 0x00FFFFFFu) | s_kHeadHaloAlpha;
+
+
+
+    if (!GetHeadPoint (eyeAt))
+    {
+        return;
+    }
+
+    ex   = static_cast<float> (eyeAt.x);
+    ey   = static_cast<float> (eyeAt.y);
+    argb = (m_context.head.activity == HeadActivity::Reading) ? colors.headReading
+         : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
+                                                      : colors.headWriting;
+
+    //  The arm, along the radius from the bullseye out past the rim.
+    painter.FillConvexQuad (ex + px, ey + py, ox + px, oy + py, ox - px, oy - py, ex - px, ey - py, (argb & 0x00FFFFFFu) | s_kHeadArmAlpha);
+
+    //  The bullseye: a dark halo so it reads over any ring color, its ring,
+    //  and a dot on the head's position.
+    OutlineCircle (painter, ex, ey, eye, line * 2.0f, halo);
+    OutlineCircle (painter, ex, ey, eye, line, argb);
+    painter.FillCircle (ex, ey, line, argb);
+
+    if (m_context.head.activity == HeadActivity::WriteBlocked)
+    {
+        painter.DrawLine (ex - cross, ey - cross, ex + cross, ey + cross, line, argb);
+        painter.DrawLine (ex - cross, ey + cross, ex + cross, ey - cross, line, argb);
+    }
 }

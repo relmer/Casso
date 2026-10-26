@@ -34,6 +34,10 @@ static constexpr float     s_kFilesShare     = 0.3f;
 static constexpr float     s_kDiffBandDip    = 4.0f;
 static constexpr float     s_kMinHitDip      = 4.0f;
 static constexpr float     s_kHitLineDip     = 2.0f;
+static constexpr float     s_kHeadLineDip    = 2.0f;
+static constexpr float     s_kTrailDip       = 48.0f;
+static constexpr int       s_kTrailSteps     = 12;
+static constexpr uint32_t  s_kTrailAlpha     = 0x90u;
 
 
 
@@ -58,6 +62,7 @@ void TrackStripView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     if (track != nullptr && track->framed.cellCount > 0 && !track->framed.nibbles.empty())
     {
         PaintTrack (painter, text, theme, *track);
+        PaintHead  (painter, MakeGeometry());
     }
     else if (m_context.hasDisk)
     {
@@ -937,7 +942,9 @@ std::wstring TrackStripView::GetReadout() const
         last  = (span >= 1.0) ? track->framed.cellCount - 1 : FluxTiming::GetCellAt (m_cellTurns, start + span);
     }
 
-    return (track != nullptr && track->framed.cellCount > 0) ? InspectorText::FormatStripReadout (span, first, last) : std::wstring();
+    return (track != nullptr && track->framed.cellCount > 0)
+         ? InspectorText::FormatStripReadout (span, first, last, IsHeadOnTrack() ? GetHeadLabel (m_context.head.activity) : L"")
+         : std::wstring();
 }
 
 
@@ -1341,4 +1348,109 @@ void TrackStripView::PaintMarquee (IDxuiPainter & painter, const vector<StripSeg
         s = marquee.DrawLine (painter, right, bottom, left,  bottom, s);
         marquee.DrawLine (painter, left, bottom, left, top, s);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::IsHeadOnTrack
+//
+//  True when the head is over the record of the selected quarter track, on
+//  side A.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrackStripView::IsHeadOnTrack() const
+{
+    const InspectorHead &  head     = m_context.head;
+    int                    selected = m_context.model->GetQuarterTrack();
+    bool                   isOn     = m_side == 0 && head.isShown && m_context.analysis != nullptr;
+
+
+
+    isOn = isOn && head.quarterTrack >= 0 && head.quarterTrack < DiskImage::kQuarterTrackCount && selected >= 0 && selected < DiskImage::kQuarterTrackCount;
+
+    return isOn && m_context.analysis->entries[head.quarterTrack].slot >= 0 &&
+           m_context.analysis->entries[head.quarterTrack].slot == m_context.analysis->entries[selected].slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetHeadLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR TrackStripView::GetHeadLabel (HeadActivity activity)
+{
+    LPCWSTR  label = L"Motor off";
+
+
+
+    switch (activity)
+    {
+        case HeadActivity::Reading:      label = L"Reading";       break;
+        case HeadActivity::Writing:      label = L"Writing";       break;
+        case HeadActivity::WriteBlocked: label = L"Write blocked"; break;
+        case HeadActivity::Idle:         label = L"Motor off";     break;
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::PaintHead
+//
+//  While the motor turns the selected track, the head's position as a line
+//  across the bar, in the head marker's colors, with a trail behind it that
+//  fades out over a fixed width (FR-066).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void TrackStripView::PaintHead (IDxuiPainter & painter, const StripGeometry & g) const
+{
+    const InspectorHead &        head   = m_context.head;
+    const DiskInspectorColors &  colors = m_context.palette.colors;
+    RECT                         bar    = GetBarRect();
+    float                        top    = static_cast<float> (bar.top);
+    float                        height = static_cast<float> (bar.bottom - bar.top);
+    float                        line   = m_scaler.ToPxf (s_kHeadLineDip);
+    float                        step   = m_scaler.ToPxf (s_kTrailDip) / s_kTrailSteps;
+    float                        x      = g.GetX (head.turn);
+    float                        x0     = 0.0f;
+    uint32_t                     argb   = (head.activity == HeadActivity::Reading) ? colors.headReading : colors.headWriting;
+    uint32_t                     alpha  = 0;
+    int                          k      = 0;
+
+
+
+    if (!IsHeadOnTrack() || head.activity == HeadActivity::Idle || x < static_cast<float> (bar.left) || x > static_cast<float> (bar.right))
+    {
+        return;
+    }
+
+    //  The trail, oldest and faintest first.
+    for (k = s_kTrailSteps; k > 0; k--)
+    {
+        x0    = std::max (x - step * k, static_cast<float> (bar.left));
+        alpha = s_kTrailAlpha * (s_kTrailSteps - k + 1) / s_kTrailSteps;
+
+        if (x0 < x - step * (k - 1))
+        {
+            painter.FillRect (x0, top, x - step * (k - 1) - x0, height, (argb & 0x00FFFFFFu) | (alpha << 24));
+        }
+    }
+
+    painter.FillRect (x - line / 2.0f, top, line, height, argb);
 }
