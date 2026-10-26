@@ -822,8 +822,9 @@ listed in validation.md.
 - [X] T262 Report an emulated Uthernet II's listen on a TCP port the PC
   already has, in an infobar with a close box and on the Network page (the
   Serial card page to follow), with the Super Serial Card or serial port using
-  that port when there is one (FR-091b, Session 2026-10-26). `W5100SocketBridge::TakeListenFailures` and
-  `DescribeListenFailure`, `MachineHost::GetSerialPortOnTcp`,
+  that port when there is one (FR-091b, Session 2026-10-26).
+  `W5100SocketBridge::GetFailedListens` and `DescribeListenFailure`,
+  `MachineHost::GetSerialPortOnTcp`,
   `EmulatorShell::ReportUthernetListenFailures`. Tests in
   `UnitTest/NetworkTests/W5100SocketBridgeTests.cpp` and
   `UnitTest/EmuTests/Apple2cBootTests.cpp`.
