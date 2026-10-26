@@ -914,7 +914,7 @@ void Acia6551::AdvanceTransmitter (int64_t fixedCycles)
         sent      = m_tsr;
         m_tsrBusy = false;
 
-        if (m_endpoint != nullptr)
+        if (m_endpoint != nullptr && (!m_isOutputMuted || m_endpoint->IsLoopback()))
         {
             m_endpoint->OnByteTransmitted (sent);
         }

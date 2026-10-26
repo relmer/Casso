@@ -137,6 +137,10 @@ public:
     // Emulation thread only.
     void    SetEndpoint (IAciaEndpoint * endpoint);
 
+    // While muted, as in a replay of what was sent live, transmitted bytes
+    // go to a loopback plug only. Emulation thread.
+    void    SetOutputMuted (bool isMuted) { m_isOutputMuted = isMuted; }
+
     // Called by an attachment, from any thread.
     void    EnqueueReceivedBytes  (const Byte * bytes, size_t count);
     void    SetModemInputs        (bool cts, bool dsr, bool dcd);
@@ -248,7 +252,8 @@ private:
     bool                      m_irqBound     = false;
     bool                      m_irqConnected = true;
 
-    IAciaEndpoint *           m_endpoint = nullptr;
+    IAciaEndpoint *           m_endpoint      = nullptr;
+    bool                      m_isOutputMuted = false;
 
     InputJournal         *    m_inputJournal = nullptr;
     uint16_t                  m_chipIndex    = 0;

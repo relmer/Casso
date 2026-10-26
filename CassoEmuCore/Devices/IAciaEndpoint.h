@@ -44,4 +44,11 @@ public:
     {
         (void) active;
     }
+
+    // A plug that returns what is sent to the chip itself. Its bytes stay
+    // in the machine, so a muted chip passes them to it.
+    virtual bool IsLoopback () const
+    {
+        return false;
+    }
 };

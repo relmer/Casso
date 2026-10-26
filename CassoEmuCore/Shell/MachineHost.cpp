@@ -122,7 +122,9 @@ void MachineHost::SetOutputMuted (bool isMuted)
 //
 //  The speaker and the printer card hold their own flag. The Disk II's
 //  drive sounds go out through its audio sink, which is held here and
-//  detached while muted. Muting twice, or unmuting twice, changes nothing.
+//  detached while muted. The serial chips are muted with the printer, since
+//  what they send goes to a file or another machine. Muting twice, or
+//  unmuting twice, changes nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +136,11 @@ void MachineHost::SetOutputMuted (bool isSoundMuted, bool isPrinterMuted)
     }
 
     m_isPrinterMuted = isPrinterMuted;
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->SetOutputMuted (isPrinterMuted);
+    }
 
     if (isSoundMuted == m_isSoundMuted)
     {
