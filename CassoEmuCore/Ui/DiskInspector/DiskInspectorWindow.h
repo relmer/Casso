@@ -160,6 +160,7 @@ private:
     void  PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     bool  IsWindowDiskA    () const;
     bool  IsWriteProtected () const { return m_context.drive != nullptr && m_context.drive->writeProtect.Any(); }
+    void  PaintNoDisk      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void  TakeReplies      ();
     void  TakeResults      ();
     void  UpdateRings      ();

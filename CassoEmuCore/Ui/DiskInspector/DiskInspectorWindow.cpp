@@ -1097,6 +1097,11 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                          DxuiTextVAlign::Center, DxuiFontWeight::Normal, true);
     }
 
+    if (!m_context.hasDisk && m_openError.empty() && m_pendingRequest == 0)
+    {
+        PaintNoDisk (painter, text, theme);
+    }
+
     //  The view the keys act on, outlined once a key has been used (FR-059).
     if (m_isFocusShown && m_context.hasDisk && !m_is35)
     {
@@ -5983,4 +5988,60 @@ void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
     {
         ShowTrackTab (m_trackTab);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::PaintNoDisk
+//
+//  An empty drive: a dashed outline of the disk and its hub where the
+//  platter would be, and over it the reason no disk is drawn (FR-061,
+//  FR-070).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::PaintNoDisk (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
+{
+    static constexpr double  kTwoPi    = 6.283185307179586;
+    static constexpr float   kInsetDip = 16.0f;
+    static constexpr float   kDashDip  = 12.0f;
+
+
+
+    float          cx      = (m_platterAreaPx.left + m_platterAreaPx.right) / 2.0f;
+    float          cy      = (m_platterAreaPx.top + m_platterAreaPx.bottom) / 2.0f;
+    float          rim     = std::min (m_platterAreaPx.right - m_platterAreaPx.left, m_platterAreaPx.bottom - m_platterAreaPx.top) / 2.0f - m_scaler.ToPxf (kInsetDip);
+    float          line    = m_scaler.ToPxf (1.5f);
+    bool           isNoCtl = m_headState != nullptr && !m_headState->hasController;
+    std::wstring   why     = isNoCtl ? std::wstring (L"This machine has no Disk II controller in slot 6") : std::format (L"No disk in drive {}", m_drive + 1);
+    double         a       = 0.0;
+    double         b       = 0.0;
+    int            k       = 0;
+    int            dashes  = 0;
+
+
+
+    //  The same dash length on both circles.
+    for (float radius : { rim, rim * PlatterRenderer::kInnerFraction })
+    {
+        dashes = std::max (8, static_cast<int> (kTwoPi * radius / (2.0f * m_scaler.ToPxf (kDashDip))));
+
+        for (k = 0; radius > 0.0f && k < dashes; k++)
+        {
+            a = kTwoPi * k / dashes;
+            b = kTwoPi * (k + 0.5) / dashes;
+
+            painter.DrawLine (cx + radius * static_cast<float> (std::sin (a)), cy - radius * static_cast<float> (std::cos (a)),
+                              cx + radius * static_cast<float> (std::sin (b)), cy - radius * static_cast<float> (std::cos (b)), line, theme.ForegroundMuted());
+        }
+    }
+
+    text.DrawString (why.c_str(), static_cast<float> (m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.top),
+                     static_cast<float> (m_platterAreaPx.right - m_platterAreaPx.left), static_cast<float> (m_platterAreaPx.bottom - m_platterAreaPx.top),
+                     theme.ForegroundMuted(), m_scaler.ToPxf (InspectorView::kTextDip + 1.0f), DxuiTheme::kBodyFace, DxuiTextHAlign::Center,
+                     DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, true);
 }
