@@ -275,6 +275,7 @@ private:
     void RunOneFrame();
     void RunCpuThreadFrame();
     void ExecuteCpuSlices();
+    void ReportUthernetListenFailures();
 
     // Paste the clipboard's text into the guest keyboard with Caps Lock
     // applied, and say so when that changed the text. Ctrl+V and Edit > Paste.

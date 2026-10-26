@@ -188,6 +188,11 @@ public:
     //  attach `device` to.
     static std::string  DescribeAttachmentFailure (const std::string & device, const std::string & path);
 
+    //  The serial port whose connector listens on `tcpPort`, 0 for none, and
+    //  whether a port is a Super Serial Card's. Called on the CPU thread.
+    int   GetSerialPortOnTcp (uint16_t tcpPort) const;
+    bool  IsSerialPortOnCard (int port) const;
+
     //  The parallel card in each slot, and the ImageWriter II attached to the
     //  card in `slot` or taken off it while the machine runs. Attaching fails
     //  with ERROR_BUSY while another connector has the printer. Called on the
@@ -327,6 +332,7 @@ private:
     std::array<std::unique_ptr<IAciaEndpoint>, s_kSerialPortCount + 1>   m_serialEndpoints;
     std::array<AciaBridgeEndpoint *, s_kSerialPortCount + 1>              m_serialBridges   = {};
     std::array<bool, s_kSerialPortCount + 1>                              m_serialOnCard    = {};
+    std::array<uint16_t, s_kSerialPortCount + 1>                          m_serialTcpPorts  = {};   // each connector's TCP port, 0 for none
 
     //  The serial port the ImageWriter II is attached to, or 0, and its
     //  endpoint, ticked with the bridges.

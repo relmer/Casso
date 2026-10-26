@@ -162,6 +162,90 @@ void W5100SocketBridge::GetInboundPorts (std::vector<FirewallPort> & outPorts) c
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  W5100SocketBridge::TakeListenFailures
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<W5100SocketBridge::ListenFailure> W5100SocketBridge::TakeListenFailures()
+{
+    std::vector<ListenFailure>  failures;
+
+
+
+    failures.swap (m_listenFailures);
+
+    return failures;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::DescribeListenFailure
+//
+//  A clash with the machine's serial connector is the one the user can fix in
+//  Casso, so that case comes first: the link's boot disk listens on port 6502,
+//  the port a serial connector is most often set to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string W5100SocketBridge::DescribeListenFailure (const ListenFailure & failure, int serialPort, bool onCard)
+{
+    std::string  text  = std::format ("The Uthernet II cannot listen on TCP port {}", failure.port);
+    bool         inUse = failure.hr == HRESULT_FROM_WIN32 (WSAEADDRINUSE) || failure.hr == HRESULT_FROM_WIN32 (WSAEACCES);
+
+
+
+    if (serialPort != 0 && onCard)
+    {
+        text += std::format (", because the Super Serial Card in slot {} is already using that port. Change the card's serial connector in Settings.", serialPort);
+    }
+    else if (serialPort != 0)
+    {
+        text += std::format (", because serial port {} is already using that port. Change that port's connector in Settings.", serialPort);
+    }
+    else if (inUse)
+    {
+        text += ", because another program on this PC has it.";
+    }
+    else
+    {
+        text += ".";
+    }
+
+    return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::NoteListenFailure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100SocketBridge::NoteListenFailure (uint16_t port, HRESULT hr)
+{
+    bool  first = m_reportedPorts.insert (port).second;
+
+
+
+    if (first)
+    {
+        m_listenFailures.push_back ({ port, hr });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  W5100SocketBridge::Fail
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,14 +384,15 @@ void W5100SocketBridge::OnListen (int socket)
     CHR (hr);
 
     hr = slot.host->Bind ({ address, m_chip.GetSourcePort (socket) }, false);
-    CHR (hr);
+    CHRF (hr, NoteListenFailure (m_chip.GetSourcePort (socket), hr));
 
     hr = slot.host->Listen();
-    CHR (hr);
+    CHRF (hr, NoteListenFailure (m_chip.GetSourcePort (socket), hr));
 
     slot.phase    = Phase::Listening;
     slot.hostPort = m_chip.GetSourcePort (socket);
     m_chip.SetSocketStatus (socket, R::kSockListen);
+    m_reportedPorts.erase (slot.hostPort);
 
 Error:
     if (FAILED (hr))

@@ -321,6 +321,48 @@ namespace W5100SocketBridgeTests
         }
 
 
+        //  The link boot disk listens again every few seconds, so a port in use
+        //  is listed once, not on each listen.
+        TEST_METHOD (AListenOnAPortInUse_IsListedOnce)
+        {
+            UthernetRig                                    rig;
+            std::vector<W5100SocketBridge::ListenFailure>  failures;
+
+            rig.network.OccupyPort (HostSocketKind::Tcp, kAdtPro);
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+
+            failures = rig.card.GetBridge().TakeListenFailures();
+
+            Assert::AreEqual ((size_t) 1, failures.size());
+            Assert::AreEqual ((uint16_t) kAdtPro, failures[0].port);
+            Assert::AreEqual (HRESULT_FROM_WIN32 (WSAEADDRINUSE), failures[0].hr);
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.bus.Command (0, R::kCmdListen);
+
+            Assert::IsTrue (rig.card.GetBridge().TakeListenFailures().empty(), L"the second listen is not listed again");
+        }
+
+
+        TEST_METHOD (AFailedListen_IsDescribedByWhatHasThePort)
+        {
+            W5100SocketBridge::ListenFailure  inUse { 6502, HRESULT_FROM_WIN32 (WSAEADDRINUSE) };
+            W5100SocketBridge::ListenFailure  other { 6502, E_FAIL };
+
+            Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502, because the Super Serial Card in slot 2 is already using that port. "
+                                           "Change the card's serial connector in Settings."),
+                              W5100SocketBridge::DescribeListenFailure (inUse, 2, true));
+            Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502, because serial port 2 is already using that port. "
+                                           "Change that port's connector in Settings."),
+                              W5100SocketBridge::DescribeListenFailure (inUse, 2, false));
+            Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502, because another program on this PC has it."),
+                              W5100SocketBridge::DescribeListenFailure (inUse, 0, false));
+            Assert::AreEqual (std::string ("The Uthernet II cannot listen on TCP port 6502."),
+                              W5100SocketBridge::DescribeListenFailure (other, 0, false));
+        }
+
+
         TEST_METHOD (SoftwareResetClosesHostSockets)
         {
             UthernetRig  rig;

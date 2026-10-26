@@ -30,6 +30,13 @@ class W5100SocketBridge : public IW5100Backend
 {
 public:
 
+    //  A listen the PC could not open: the guest's port, and why.
+    struct ListenFailure
+    {
+        uint16_t  port = 0;
+        HRESULT   hr   = S_OK;
+    };
+
     W5100SocketBridge (W5100 & chip, VirtualNetwork & network) : m_chip (chip), m_network (network) {}
     ~W5100SocketBridge () override;
 
@@ -47,6 +54,16 @@ public:
     //  while LAN access is on: each listening TCP socket's, and each UDP
     //  socket's bound to its guest port.
     void  GetInboundPorts (std::vector<FirewallPort> & outPorts) const;
+
+    //  The listens that failed since the last call. Each port is listed once
+    //  until a listen on it succeeds, as the link boot disk listens again
+    //  every few seconds.
+    std::vector<ListenFailure>  TakeListenFailures ();
+
+    //  A failed listen as a notice's sentence. `serialPort` is the serial
+    //  port whose connector has the same TCP port, 0 for none, and `onCard`
+    //  is whether that port is a Super Serial Card's.
+    static std::string  DescribeListenFailure (const ListenFailure & failure, int serialPort, bool onCard);
 
 private:
 
@@ -91,6 +108,7 @@ private:
     void  SendUdp          (int socket);
     void  SendMacRaw       (int socket, uint64_t now);
     void  Fail             (int socket, Byte interrupt);
+    void  NoteListenFailure (uint16_t port, HRESULT hr);
 
     void  PumpSocket       (int socket, uint64_t now);
     void  PumpConnecting   (int socket);
@@ -110,4 +128,6 @@ private:
     uint64_t                        m_now         = 0;
     std::array<Slot, kSocketCount>  m_slots;
     std::vector<Byte>               m_buffer;
+    std::vector<ListenFailure>      m_listenFailures;
+    std::set<uint16_t>              m_reportedPorts;   // failed listens already listed
 };

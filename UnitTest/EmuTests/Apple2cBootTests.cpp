@@ -560,10 +560,13 @@ public:
         Assert::AreEqual (2, running[0].serialPort);
         Assert::AreEqual (std::string ("127.0.0.1:6502"), running[0].address);
         Assert::AreEqual (machine.GetConfig().name, running[0].machine);
+        Assert::AreEqual (2, machine.GetSerialPortOnTcp (6502), L"port 2 has TCP port 6502");
+        Assert::IsFalse  (machine.IsSerialPortOnCard (2), L"a //c's built-in port");
 
         Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "", &factory, nullptr));
         AssertSucceeded (registry.Enumerate (running));
         Assert::IsTrue (running.empty(), L"connected elsewhere");
+        Assert::AreEqual (0, machine.GetSerialPortOnTcp (6502), L"and no port has TCP port 6502");
 
         Assert::AreEqual (S_OK, machine.ConnectSerialPort (2, "tcp:6502", &factory, nullptr));
         machine.DetachSerialPorts();

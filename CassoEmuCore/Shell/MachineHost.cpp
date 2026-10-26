@@ -458,6 +458,48 @@ std::string MachineHost::DescribeAttachmentFailure (const std::string & device, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::GetSerialPortOnTcp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int MachineHost::GetSerialPortOnTcp (uint16_t tcpPort) const
+{
+    int  found = 0;
+
+
+
+    for (int port = 1; port <= s_kSerialPortCount && found == 0 && tcpPort != 0; port++)
+    {
+        if (m_serialTcpPorts[(size_t) port] == tcpPort)
+        {
+            found = port;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::IsSerialPortOnCard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineHost::IsSerialPortOnCard (int port) const
+{
+    return port >= 1 && port <= s_kSerialPortCount && m_serialOnCard[(size_t) port];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SetParallelCard
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -585,6 +627,8 @@ HRESULT MachineHost::OpenSerialStream (int port, const SerialPortDevice & device
     hr = AttachSerialStream (port, std::shared_ptr<IByteStream> (std::move (stream)), &bridge);
     CHR (hr);
 
+    m_serialTcpPorts[(size_t) port] = (device.kind == SerialPortDevice::Kind::Tcp) ? device.tcpPort : (uint16_t) 0;
+
     //  Casso Explorer finds the port by its file; one that cannot be written
     //  does not stop the port; the port is only unlisted.
     if (m_runningRegistry != nullptr && device.kind == SerialPortDevice::Kind::Tcp)
@@ -679,6 +723,7 @@ void MachineHost::InstallSerialEndpoint (int port, std::unique_ptr<IAciaEndpoint
 
     m_serialBridges[(size_t) port]   = bridge;
     m_serialEndpoints[(size_t) port] = std::move (endpoint);
+    m_serialTcpPorts[(size_t) port]  = 0;
 }
 
 

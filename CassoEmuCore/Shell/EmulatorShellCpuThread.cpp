@@ -257,6 +257,38 @@ void EmulatorShell::ConfigureNetworkCard (const NetworkCardSettings & settings)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReportUthernetListenFailures
+//
+//  A port the guest cannot listen on is reported as a notice, with the
+//  machine's serial connector when that connector has the port.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReportUthernetListenFailures()
+{
+    UthernetCard *  card = m_machine.GetRefs().uthernet;
+
+
+
+    if (card == nullptr)
+    {
+        return;
+    }
+
+    for (const W5100SocketBridge::ListenFailure & failure : card->GetBridge().TakeListenFailures())
+    {
+        int  serialPort = m_machine.GetSerialPortOnTcp (failure.port);
+
+        m_chrome->PostNotice (TextEncoding::NarrowToWide (W5100SocketBridge::DescribeListenFailure (failure, serialPort, m_machine.IsSerialPortOnCard (serialPort))));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetGuestInboundPorts
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -480,6 +512,7 @@ void EmulatorShell::RunCpuThreadFrame()
 
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
+    ReportUthernetListenFailures();
 
     if (m_renderer->ShouldPublishFrame())
     {
