@@ -400,9 +400,11 @@ public:
     }
 
 
-    //  The drag window rereads a description only when told to, a target's
-    //  as well as the source's, and once per change is enough.
-    TEST_METHOD (GiveFeedback_TellsTheDragWindowOfEachChange)
+    //  The drag window rereads what is on the object when it gets to the
+    //  message, so a reread asked for only on a change can land while File
+    //  Explorer has its words cleared for a moment, and a bare "+" stays
+    //  drawn. Every feedback asks again, so the window catches up.
+    TEST_METHOD (GiveFeedback_TellsTheDragWindowOnEveryFeedback)
     {
         Fixture  fixture;
         HWND     window = CreateWindowExW (0, L"STATIC", nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE, nullptr, nullptr, nullptr);
@@ -410,27 +412,18 @@ public:
         Assert::IsNotNull (window);
         Build (fixture);
 
-        StoreDword (fixture.source, L"IsShowingLayered", 1);
         StoreDword (fixture.source, L"DragWindow", (DWORD) (ULONG_PTR) window);
-        StoreDescription (fixture.source, DROPIMAGE_INVALID, L"", L"");
 
-        fixture.source->GiveFeedback (DROPEFFECT_NONE);
-        Assert::AreEqual (1, CountUpdates (window), L"The source's first description");
+        fixture.source->GiveFeedback (DROPEFFECT_COPY);
+        Assert::AreEqual (0, CountUpdates (window), L"Without the drag window up, OLE's cursors show the effect");
 
-        fixture.source->GiveFeedback (DROPEFFECT_NONE);
-        Assert::AreEqual (0, CountUpdates (window), L"The same description again is not redrawn");
-
+        StoreDword (fixture.source, L"IsShowingLayered", 1);
         StoreDescription (fixture.source, DROPIMAGE_COPY, L"Copy to %1", L"out");
-        fixture.source->GiveFeedback (DROPEFFECT_COPY);
-        Assert::AreEqual (1, CountUpdates (window), L"The target's words, which the window would otherwise never draw");
 
-        StoreDescription (fixture.source, DROPIMAGE_INVALID, L"Copy to %1", L"out");
         fixture.source->GiveFeedback (DROPEFFECT_COPY);
-        Assert::AreEqual (0, CountUpdates (window), L"A type left invalid and filled in to what is drawn already");
-
-        StoreDescription (fixture.source, DROPIMAGE_INVALID, L"", L"");
-        fixture.source->GiveFeedback (DROPEFFECT_NONE);
-        Assert::AreEqual (1, CountUpdates (window), L"Leaving the target");
+        fixture.source->GiveFeedback (DROPEFFECT_COPY);
+        fixture.source->GiveFeedback (DROPEFFECT_COPY);
+        Assert::AreEqual (3, CountUpdates (window), L"The same description is asked to be reread each time");
 
         DestroyWindow (window);
     }

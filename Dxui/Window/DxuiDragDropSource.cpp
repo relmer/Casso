@@ -331,8 +331,14 @@ STDMETHODIMP DxuiDragDropSource::GiveFeedback (DWORD effect)
 //  DxuiDragDropSource::DescribeEffect
 //
 //  The shell's drag window draws a description only when the source tells
-//  it to reread one, so it is told after every change, the target's
-//  included; without that, File Explorer's "Copy to %1" is never drawn.
+//  it to reread one, and it rereads what is on the object when it gets to
+//  the message, not what was there when the message was posted. File
+//  Explorer clears its words and sets them again within a few milliseconds
+//  as the effect settles, so a reread asked for on each change can land in
+//  the gap and leave a bare "+" drawn. It is asked for on every feedback
+//  instead, which OLE gives several times a second with the pointer still,
+//  so the window always catches up with the description.
+//
 //  File Explorer also clears the description, to DROPIMAGE_INVALID with no
 //  words, wherever it has no effect yet, and a target may set none at all.
 //  Either way the type is filled in from the effect, so the window still
@@ -379,13 +385,6 @@ void DxuiDragDropSource::DescribeEffect (DWORD effect)
         description->type = type;
         m_describesEffect = true;
     }
-
-    if (bytes == m_shownDescription)
-    {
-        return;
-    }
-
-    m_shownDescription = bytes;
 
     window = (HWND) (ULONG_PTR) GetStoredDword (L"DragWindow", 0);
 

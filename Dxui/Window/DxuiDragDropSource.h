@@ -112,7 +112,6 @@ private:
     std::map<std::pair<CLIPFORMAT, int>, std::vector<uint8_t>>  m_rendered;
     std::map<std::pair<CLIPFORMAT, int>, int>                   m_renderCounts;
     std::map<CLIPFORMAT, std::vector<uint8_t>>                  m_stored;
-    std::map<CLIPFORMAT, DWORD>                                 m_storedTymed;        // the medium each was set in, read back in it
+    std::map<CLIPFORMAT, DWORD>                                 m_storedTymed;               // the medium each was set in, read back in it
     bool                                                        m_describesEffect = false;   // the stored description's type is one GiveFeedback set
-    std::vector<uint8_t>                                        m_shownDescription;   // the description the drag window was last told to draw
 };

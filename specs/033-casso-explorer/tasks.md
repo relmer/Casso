@@ -785,10 +785,14 @@ listed in validation.md.
   with no words wherever it has no effect yet, leaving the type to the
   source. `DxuiDragDropSource::GiveFeedback` now fills an invalid type in from
   the effect, copy when the target offers copy or move, makes a description
-  for a target that sets none, and posts the update after each change to the
-  description, the target's included. Checked on screen with a real drag of
-  HELLO out of a DOS 3.3 image and cancelled over File Explorer: "+ Copy to
-  out" under the image. Tests in `DxuiDragDropSourceTests.cpp`. The debug
+  for a target that sets none, and posts the update on every feedback. The
+  window rereads whatever is on the object when it gets to the message, and
+  File Explorer clears its words and sets them again within a few
+  milliseconds as the effect settles. So the first fix, which posted only on
+  a change, left a bare "+" drawn in about a third of drags held still, as
+  the owner found. Checked on screen with hand-paced drags of HELLO out of a
+  DOS 3.3 image, held still over File Explorer and cancelled: "+ Copy to
+  out" in 8 of 8. Tests in `DxuiDragDropSourceTests.cpp`. The debug
   trace and drag mode file used to find it were taken out. The black block
   beside a host disk image's tip, in the owner's picture, did not reproduce
   in four captures over File Explorer and over Casso Explorer's own tree.
