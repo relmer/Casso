@@ -893,6 +893,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_slotKind.assign   (m_slotKind.size(), TrackKind::Bits);
     m_fluxTracks.assign (m_fluxTracks.size(), FluxTrack());
     m_guestWriteCounts.assign (m_guestWriteCounts.size(), 0);
+    m_saveCount = 0;
     InitWholeTrackMap();
 
     switch (fmt)
@@ -1026,6 +1027,7 @@ void DiskImage::Eject()
     m_slotKind.assign             (kDefaultTrackCount, TrackKind::Bits);
     m_fluxTracks.assign           (kDefaultTrackCount, FluxTrack());
     InitWholeTrackMap();
+    m_saveCount           = 0;
     m_loaded              = false;
     m_dirty               = false;
     m_imageWriteProtected = false;

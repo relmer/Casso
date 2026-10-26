@@ -6,6 +6,7 @@
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/Inspector/ImageDetails.h"
 #include "Ui/DiskInspector/InspectorTables.h"
+#include "Shell/InspectorStatusPublisher.h"
 #include "Machines/Apple2/Common/WozCompatibility.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 
@@ -448,6 +449,56 @@ public:
         Assert::AreEqual (std::wstring (L"WOZ 1"), GetValue (rows, L"Format"));
         Assert::IsTrue   (GetValue (rows, L"Record 0").starts_with (L"6,400 bytes used, 51,200 bits"));
         Assert::AreNotEqual (std::wstring (L"(missing)"), GetValue (rows, L"Records no map refers to"));
+    }
+
+
+
+    //  In Casso the values in the tab are the file's as read, and what changed
+    //  since is marked: a record's length after a guest write, a record the
+    //  guest added, the write-protect flag, the checksum's moment and a save
+    //  (FR-071).
+    TEST_METHOD (TheImageTabMarksWhatChangedSinceTheFileWasRead)
+    {
+        static constexpr size_t  kBits    = 51200;
+        static constexpr size_t  kLonger  = 52000;
+
+        vector<WozSyntheticTrack>        tracks (1);
+        vector<Byte>                     woz;
+        DiskImage                        disk;
+        ImageDetails                     details;
+        std::shared_ptr<const DiskCopy>  live;
+        DriveHeadState                   drive;
+        vector<TableRow>                 rows;
+
+
+
+        tracks[0].data          = vector<Byte> (kBits / 8, 0xFF);
+        tracks[0].bitCount      = kBits;
+        tracks[0].quarterTracks = { 0 };
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (tracks, woz));
+        AssertSucceeded (WozLoader::Load (woz, disk));
+
+        details = ImageDetails::MakeFromCopy (*DiskCopy::MakeFromImage (disk, 1, "test.woz", woz.size(), false));
+        rows    = InspectorTables::BuildImage (details);
+        Assert::AreEqual (std::wstring (L"(missing)"), GetValue (rows, L"Saved"), L"no marks without the drive");
+        Assert::IsFalse  (GetValue (rows, L"Checksum").starts_with (L"Checked when"));
+
+        disk.ResizeTrack (0, kLonger);
+        disk.EnsureTrackSlots (2);
+        disk.ResizeTrack (1, kBits);
+        disk.CountGuestWrite (1);
+        disk.SetImageWriteProtected (!details.info.isWriteProtected);
+
+        live               = DiskCopy::MakeFromImage (disk, 1, "test.woz", woz.size(), false);
+        drive.writeProtect = disk.GetWriteProtectInfo();
+        drive.saveCount    = 1;
+        rows               = InspectorTables::BuildImage (details, live.get(), &drive);
+
+        Assert::IsTrue (GetValue (rows, L"Checksum").starts_with (L"Checked when the file was read: "));
+        Assert::IsTrue (GetValue (rows, L"Write protected").ends_with (L"changed since the file was read"));
+        Assert::IsTrue (GetValue (rows, L"Record 0").find (L"52,000 bits, changed since the file was read") != std::wstring::npos, GetValue (rows, L"Record 0").c_str());
+        Assert::AreEqual (std::wstring (L"51,200 bits, added since the file was read"), GetValue (rows, L"Record 1"));
+        Assert::AreNotEqual (std::wstring (L"(missing)"), GetValue (rows, L"Saved"));
     }
 
 

@@ -17,6 +17,7 @@
 
 //  An em dash stands for a value that does not apply.
 static constexpr LPCWSTR  s_kpszNone = s_kpszEmDash;
+static constexpr LPCWSTR  s_kpszChanged = L", changed since the file was read";
 
 enum FindingColumn
 {
@@ -689,14 +690,18 @@ vector<std::wstring> InspectorTables::GetImageColumns()
 //  The Image tab (FR-050): the file, then for a WOZ its checksum, INFO,
 //  META, maps, records, records no map refers to and chunks, and for a
 //  sector image its order; then the file's problems (FR-051). A section
-//  starts with a row with only its title.
+//  starts with a row with only its title. For the disk in a drive, `live`
+//  and `drive` mark each value Casso changed since the file was read with
+//  its current value, each record the guest added, and a save (FR-071).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image)
+vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image, const DiskCopy * live, const DriveHeadState * drive)
 {
     vector<TableRow>  rows;
     bool              isProDos = image.format == DiskFormat::Po;
+    bool              isSaved  = drive != nullptr && drive->saveCount > 0;
+    std::wstring      crc;
 
 
 
@@ -708,9 +713,11 @@ vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image)
 
     if (image.isWoz)
     {
-        AddRow (rows, L"Checksum", image.isCrcMatch ? std::format (L"Matches (${:08X})", image.layout.storedCrc)
-                                                    : std::format (L"Stored ${:08X}, computed ${:08X}", image.layout.storedCrc, image.layout.computedCrc));
-        AddInfoRows   (rows, image.info);
+        crc = image.isCrcMatch ? std::format (L"Matches (${:08X})", image.layout.storedCrc)
+                               : std::format (L"Stored ${:08X}, computed ${:08X}", image.layout.storedCrc, image.layout.computedCrc);
+
+        AddRow (rows, L"Checksum", (live != nullptr) ? L"Checked when the file was read: " + crc : crc);
+        AddInfoRows   (rows, image.info, drive);
         AddMetaRows   (rows, image.layout);
         AddMapRows    (rows, L"TMAP", image.layout.tmap);
 
@@ -719,13 +726,20 @@ vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image)
             AddMapRows (rows, L"FLUX", image.layout.flux);
         }
 
-        AddRecordRows (rows, image.layout);
+        AddRecordRows (rows, image.layout, live);
         AddChunkRows  (rows, image.layout);
     }
     else if (image.format == DiskFormat::Dsk || image.format == DiskFormat::Do || isProDos)
     {
         AddRow (rows, L"Sector order", isProDos ? L"ProDOS" : L"DOS 3.3");
         AddRow (rows, L"Tracks",       L"Casso builds each track from the sectors with volume 254");
+    }
+
+    if (isSaved)
+    {
+        AddRow (rows, L"Saved", image.isWoz ? L"Casso has saved the disk since the file was read. The save rewrote the file as WOZ 2, or WOZ 2.1 with flux tracks, "
+                                              L"so its track records are now at new locations."
+                                            : L"Casso has saved the disk since the file was read, and the save rewrote the file.");
     }
 
     if (!image.problems.empty())
@@ -753,7 +767,7 @@ vector<TableRow> InspectorTables::BuildImage (const ImageDetails & image)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorTables::AddInfoRows (vector<TableRow> & inOut, const WozInfo & info)
+void InspectorTables::AddInfoRows (vector<TableRow> & inOut, const WozInfo & info, const DriveHeadState * drive)
 {
     static constexpr LPCWSTR  kBootFormats[] = { L"Unknown", L"16-sector", L"13-sector", L"16-sector and 13-sector" };
     static constexpr LPCWSTR  kMachines[]    = { L"][", L"][+", L"//e", L"//c", L"//e Enhanced", L"IIgs", L"//c+", L"///", L"///+" };
@@ -769,7 +783,15 @@ void InspectorTables::AddInfoRows (vector<TableRow> & inOut, const WozInfo & inf
     AddRow (inOut, L"INFO", L"");
     AddRow (inOut, L"Version",           std::to_wstring (info.version));
     AddRow (inOut, L"Disk type",         info.diskType == WozLoader::kDiskType35 ? L"3.5\"" : info.diskType == WozLoader::kDiskType525 ? L"5.25\"" : std::to_wstring (info.diskType));
-    AddRow (inOut, L"Write protected",   info.isWriteProtected ? L"Yes" : L"No");
+    if (drive != nullptr && drive->writeProtect.imageFlag != info.isWriteProtected)
+    {
+        AddRow (inOut, L"Write protected", (drive->writeProtect.imageFlag ? std::wstring (L"Yes") : std::wstring (L"No")) + s_kpszChanged);
+    }
+    else
+    {
+        AddRow (inOut, L"Write protected", info.isWriteProtected ? L"Yes" : L"No");
+    }
+
     AddRow (inOut, L"Synchronized",      info.isSynchronized ? L"Yes" : L"No");
     AddRow (inOut, L"Cleaned",           info.isCleaned ? L"Yes" : L"No");
     AddRow (inOut, L"Creator",           TextEncoding::Utf8ToWide (info.creator));
@@ -868,10 +890,12 @@ void InspectorTables::AddMapRows (vector<TableRow> & inOut, LPCWSTR title, const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayout & layout)
+void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayout & layout, const DiskCopy * live)
 {
     vector<bool>  isFlux (std::max (layout.records.size(), layout.v1Records.size()), false);
     size_t        r      = 0;
+    size_t        now    = 0;
+    bool          isHad  = false;
 
 
 
@@ -889,10 +913,13 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
     {
         const WozTrackRecordFields &  rec = layout.records[r];
 
+        now = GetRecordLength (live, r, rec.bitOrByteCount);
+
         if (rec.startBlock != 0 || rec.blockCount != 0 || rec.bitOrByteCount != 0)
         {
             AddRow (inOut, std::format (L"Record {}", r), std::format (L"Start block {}, {} blocks, {} {}", rec.startBlock, rec.blockCount,
-                                                                          InspectorFormat::FormatCount (rec.bitOrByteCount), isFlux[r] ? L"bytes" : L"bits"));
+                                                                          InspectorFormat::FormatCount (now), isFlux[r] ? L"bytes" : L"bits")
+                                                          + (now != rec.bitOrByteCount ? s_kpszChanged : L""));
         }
     }
 
@@ -900,9 +927,27 @@ void InspectorTables::AddRecordRows (vector<TableRow> & inOut, const WozFileLayo
     {
         const WozV1RecordFields &  rec = layout.v1Records[r];
 
+        now = GetRecordLength (live, r, rec.bitCount);
+
         AddRow (inOut, std::format (L"Record {}", r), std::format (L"{} bytes used, {} bits, splice point {}, splice nibble ${:02X}, splice bit count {}",
-                                                                      InspectorFormat::FormatCount (rec.bytesUsed), InspectorFormat::FormatCount (rec.bitCount),
-                                                                      rec.splicePoint, rec.spliceNibble, rec.spliceBitCount));
+                                                                      InspectorFormat::FormatCount (rec.bytesUsed), InspectorFormat::FormatCount (now),
+                                                                      rec.splicePoint, rec.spliceNibble, rec.spliceBitCount)
+                                                      + (now != rec.bitCount ? s_kpszChanged : L""));
+    }
+
+    //  Records the guest wrote where the file had none. An empty track, there
+    //  for the guest to format, is not listed (FR-005).
+    for (r = 0; live != nullptr && r < live->tracks.size(); r++)
+    {
+        isHad = (r < layout.records.size() && (layout.records[r].blockCount != 0 || layout.records[r].bitOrByteCount != 0)) ||
+                (r < layout.v1Records.size() && layout.v1Records[r].bitCount != 0);
+        now   = GetRecordLength (live, r, 0);
+
+        if (!isHad && now > 0 && live->tracks[r]->guestWriteCount > 0)
+        {
+            AddRow (inOut, std::format (L"Record {}", r), std::format (L"{} {}, added since the file was read", InspectorFormat::FormatCount (now),
+                                                                          live->tracks[r]->kind == TrackKind::Flux ? L"bytes" : L"bits"));
+        }
     }
 
     if (!layout.unreferenced.empty())
@@ -994,4 +1039,26 @@ void InspectorTables::AddRow (vector<TableRow> & inOut, const std::wstring & ite
 
     row.cells = { item, value };
     inOut.push_back (std::move (row));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorTables::GetRecordLength
+//
+//  A record's length now: its bits, or its bytes on a flux record, or
+//  `stored` without the disk in the drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t InspectorTables::GetRecordLength (const DiskCopy * live, size_t record, size_t stored)
+{
+    const TrackCopy *  track = (live != nullptr && record < live->tracks.size()) ? live->tracks[record].get() : nullptr;
+
+
+
+    return (track == nullptr) ? stored : (track->kind == TrackKind::Flux) ? track->fluxBytes.size() : track->bitCount;
 }

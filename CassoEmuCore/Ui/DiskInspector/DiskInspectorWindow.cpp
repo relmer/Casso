@@ -2181,7 +2181,8 @@ void DiskInspectorWindow::RefreshTables()
             m_filesCheck->SetChecked (true);
         }
 
-        m_imageTab->SetRows (m_context.hasDisk ? InspectorTables::BuildImage (m_analysis.image) : vector<TableRow>());
+        m_imageTab->SetRows (m_context.hasDisk ? InspectorTables::BuildImage (m_analysis.image, m_context.drive != nullptr ? m_analysis.copy.get() : nullptr, m_context.drive)
+                                               : vector<TableRow>());
         RefreshFileList();
 
         //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image

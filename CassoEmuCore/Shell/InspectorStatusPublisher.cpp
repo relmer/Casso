@@ -114,6 +114,7 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
     if (image != nullptr)
     {
         state.writeProtect = image->GetWriteProtectInfo();
+        state.saveCount    = image->GetSaveCount();
 
         for (slot = 0; slot < image->GetTrackCount(); slot++)
         {
@@ -138,5 +139,6 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
 bool InspectorStatusPublisher::IsSameCounts (const DriveHeadState & a, const DriveHeadState & b)
 {
-    return a.mediaId == b.mediaId && a.recordWriteCounts == b.recordWriteCounts && a.visitCounts == b.visitCounts;
+    return a.mediaId == b.mediaId && a.recordWriteCounts == b.recordWriteCounts && a.visitCounts == b.visitCounts &&
+           a.saveCount == b.saveCount && a.writeProtect.imageFlag == b.writeProtect.imageFlag;
 }

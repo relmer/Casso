@@ -516,6 +516,7 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
     }
 
     entry.image->ClearDirty();
+    entry.image->NoteSaved();
 
     return true;
 }
@@ -1225,6 +1226,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment)
     // must not repeat on every later eject or power cycle.
     entry.image->SetSourceCrcMismatch (false);
     entry.image->ClearDirty();
+    entry.image->NoteSaved();
 
     //  The file this store just wrote is a change to it, and without this the
     //  next flush would find its own commit sitting where the mount-time

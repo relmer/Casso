@@ -239,7 +239,7 @@ without the others in its merge.
 - [X] T097 [US6] Turning platter, head marker states (idle, reading, writing, write blocked), zoomed platter stays still with the marker moving, strip head position with fading trail and drive state (FR-064, FR-066)
 - [X] T098 [US6] Follow head and "Go to head" in `UI/InspectorViewModel.cpp` and the toolbar (FR-067)
 - [X] T099 [US6] Re-analysis of written tracks within 500 ms (twice a second during continuous bit writes), written and read marks with visit counts in the Tracks tab, "Reads" overlay, Find results marked out of date, write-protect state and causes in the toolbar (FR-047, FR-056, FR-065, FR-068, FR-069)
-- [ ] T100 [US6] Image tab changed-value marks, records added since load, "Checked when the file was read", save note (FR-071)
+- [X] T100 [US6] Image tab changed-value marks, records added since load, "Checked when the file was read", save note (FR-071)
 - [ ] T101 [US6] Casso preferences: `diskInspector` block in `CEC/Config/GlobalUserPrefs.h` / `.cpp` (placement, mode, tabs, timing range, overlays, "Show deleted files", Follow head, last drive, open at exit) saved through `SaveGlobalPrefsDeferred`; reopen at launch on the last drive (FR-080)
 - [ ] T102 [US6] Measure SC-005 (five alternating pinned runs at Maximum speed; five 60 s runs at normal speed) and record results in Notes
 

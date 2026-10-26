@@ -197,6 +197,11 @@ public:
     void             CountGuestWrite     (int slot);
     uint64_t         GetGuestWriteCount  (int slot) const;
 
+    //  Times the store wrote the disk to a file since it was inserted or
+    //  reloaded, for the inspector's Image tab (FR-071).
+    void             NoteSaved           () { m_saveCount++; }
+    uint64_t         GetSaveCount        () const { return m_saveCount; }
+
     //  The file's bytes as the disk was inserted or last reloaded. A save
     //  leaves them, so they give the disk as it went in.
     const vector<Byte> &  GetSourceBytes () const { return m_rawSourceBytes; }
@@ -286,28 +291,29 @@ private:
     // which case neither out-parameter is meaningful.
     bool     TryLocateBit     (int track, size_t bitIndex, size_t & byteIdx, int & shift) const;
 
-    string                       m_filePath;
-    vector<vector<Byte>>         m_trackBits;
-    vector<size_t>               m_trackBitCounts;
-    vector<bool>                 m_trackDirty;
-    vector<bool>                 m_trackChangedByWriter;
-    vector<bool>                 m_trackGuestWritten;
-    vector<uint64_t>             m_guestWriteCounts;
-    vector<int>                  m_quarterTrackMap;
-    vector<TrackKind>            m_slotKind;
-    vector<FluxTrack>            m_fluxTracks;
-    uint64_t                     m_layoutGeneration    = 0;
-    IPendingWriteOwner *         m_pendingWriteOwner   = nullptr;
-    vector<DamagedTrack>         m_damagedTracks;
-    vector<DamagedQuarterTrack>  m_damagedQuarterTracks;
-    DiskFormat                   m_format              = DiskFormat::Dsk;
-    bool                         m_loaded              = false;
-    bool                         m_dirty               = false;
-    bool                         m_imageWriteProtected = false;
-    bool                         m_userWriteProtected  = false;
-    bool                         m_fileReadOnly        = false;
-    bool                         m_fileNoPermission    = false;
-    bool                         m_sourceCrcMismatch   = false;
-    vector<Byte>                 m_rawSourceBytes;
-    WozMetadata                  m_wozMetadata;
+    string                         m_filePath;
+    vector<vector<Byte>>           m_trackBits;
+    vector<size_t>                 m_trackBitCounts;
+    vector<bool>                   m_trackDirty;
+    vector<bool>                   m_trackChangedByWriter;
+    vector<bool>                   m_trackGuestWritten;
+    vector<uint64_t>               m_guestWriteCounts;
+    uint64_t                       m_saveCount            = 0;
+    vector<int>                    m_quarterTrackMap;
+    vector<TrackKind>              m_slotKind;
+    vector<FluxTrack>              m_fluxTracks;
+    uint64_t                       m_layoutGeneration     = 0;
+    IPendingWriteOwner           * m_pendingWriteOwner    = nullptr;
+    vector<DamagedTrack>           m_damagedTracks;
+    vector<DamagedQuarterTrack>    m_damagedQuarterTracks;
+    DiskFormat                     m_format               = DiskFormat::Dsk;
+    bool                           m_loaded               = false;
+    bool                           m_dirty                = false;
+    bool                           m_imageWriteProtected  = false;
+    bool                           m_userWriteProtected   = false;
+    bool                           m_fileReadOnly         = false;
+    bool                           m_fileNoPermission     = false;
+    bool                           m_sourceCrcMismatch    = false;
+    vector<Byte>                   m_rawSourceBytes;
+    WozMetadata                    m_wozMetadata;
 };

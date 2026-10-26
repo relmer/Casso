@@ -63,7 +63,7 @@ public:
     static vector<TableRow>  BuildTracks   (const DiskAnalysis & analysis, const FindMarks * marks = nullptr, const EditController * edits = nullptr,
                                              const std::set<int> * appliedSlots = nullptr, const DriveHeadState * drive = nullptr);
     static vector<TableRow>  BuildFields   (const DiskAnalysis & analysis, int quarterTrack);
-    static vector<TableRow>  BuildImage    (const ImageDetails & image);
+    static vector<TableRow>  BuildImage    (const ImageDetails & image, const DiskCopy * live = nullptr, const DriveHeadState * drive = nullptr);
 
     //  Find's hits, a row each in order: the track, the sector and field a
     //  hit lies in where it lies in one, its nibble or byte, and the file that
@@ -89,10 +89,11 @@ private:
     static bool          IsNumberChar           (wchar_t ch);
     static bool          TryParseNumber         (const std::wstring & s, double & outValue);
 
-    static void          AddInfoRows       (vector<TableRow> & inOut, const WozInfo & info);
+    static void          AddInfoRows       (vector<TableRow> & inOut, const WozInfo & info, const DriveHeadState * drive);
     static void          AddMetaRows       (vector<TableRow> & inOut, const WozFileLayout & layout);
     static void          AddMapRows        (vector<TableRow> & inOut, LPCWSTR title, const std::array<Byte, WozFileLayout::kMapEntries> & map);
-    static void          AddRecordRows     (vector<TableRow> & inOut, const WozFileLayout & layout);
+    static void          AddRecordRows     (vector<TableRow> & inOut, const WozFileLayout & layout, const DiskCopy * live);
+    static size_t        GetRecordLength   (const DiskCopy * live, size_t record, size_t stored);
     static void          AddChunkRows      (vector<TableRow> & inOut, const WozFileLayout & layout);
     static std::wstring  FormatImageFormat (const ImageDetails & image);
     static void          AddRow            (vector<TableRow> & inOut, const std::wstring & item, const std::wstring & value);

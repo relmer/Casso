@@ -47,6 +47,7 @@ struct DriveHeadState
     HeadActivity                                         activity          = HeadActivity::Idle;
     WriteProtectInfo                                     writeProtect;
     uint64_t                                             countsGeneration  = 0;
+    uint64_t                                             saveCount         = 0;
     vector<uint64_t>                                     recordWriteCounts;
     std::array<uint32_t, DiskImage::kQuarterTrackCount>  visitCounts       = {};
 };
