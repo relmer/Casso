@@ -234,6 +234,11 @@ private:
     void       RunSequencer (uint8_t pulse);
     void       StepBitCell (bool hasTrack);
 
+    //  Creates the track under the head for a write over a position with no
+    //  data, where the disk has a reserved slot. Returns whether there is a
+    //  track under the head.
+    bool       TryCreateTrackUnderHead();
+
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
     size_t     GetCurrentTrackBits() const;

@@ -6,6 +6,7 @@
 #include "Devices/Disk/DiskTrackSnapshot.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "EmuTests/FluxTestImages.h"
 
 // Disk2Controller carries two DiskImage instances; per-test heap
@@ -346,6 +347,73 @@ namespace Disk2State
 
         disk.LoadFromBytes (DiskFormat::Dsk, raw, "");
         Assert::IsTrue (disk.IsLoaded());
+    }
+
+
+    // A 35-track WOZ, each track 51,200 bits of a varied pattern, mapped at
+    // 4N to 4N+3, loaded into the disk.
+    static void LoadTestWoz (DiskImage & disk)
+    {
+        constexpr int                   kTracks    = 35;
+        constexpr size_t                kTrackBits = 51200;
+        std::vector<WozSyntheticTrack>  tracks (kTracks);
+        std::vector<Byte>               woz;
+        size_t                          i          = 0;
+        int                             n          = 0;
+
+
+
+        for (n = 0; n < kTracks; n++)
+        {
+            tracks[n].data.resize (kTrackBits / CHAR_BIT);
+
+            for (i = 0; i < tracks[n].data.size(); i++)
+            {
+                tracks[n].data[i] = static_cast<Byte> (0x96 + i * 7 + n);
+            }
+
+            tracks[n].bitCount      = kTrackBits;
+            tracks[n].quarterTracks = { 4 * n, 4 * n + 1, 4 * n + 2, 4 * n + 3 };
+        }
+
+        Assert::AreEqual (S_OK, WozLoader::BuildSyntheticV21 (tracks, woz));
+
+        disk.LoadFromBytes (DiskFormat::Woz, woz, "test.woz");
+        Assert::IsTrue (disk.IsLoaded());
+    }
+
+
+    // Steps the selected drive's head outward to `quarterTrack`, a half
+    // track at a time. The motor must be on.
+    static void StepTo (Disk2Controller & controller, int quarterTrack)
+    {
+        int  phase = 0;
+
+
+
+        while (controller.GetQuarterTrack() < quarterTrack)
+        {
+            phase = ((controller.GetQuarterTrack() / 2) + 1) & 3;
+
+            controller.Write (static_cast<Word> (0xC0E1 + phase * 2), 0x00);
+            controller.Write (static_cast<Word> (0xC0E0 + phase * 2), 0x00);
+        }
+    }
+
+
+    // A state of a WOZ disk with 35 slots, as a build before the reservation
+    // saved one.
+    static std::vector<Byte> SaveThirtyFiveSlotWozState()
+    {
+        auto  source = std::make_unique<DiskImage>();
+
+
+
+        source->SetSourceFormat  (DiskFormat::Woz);
+        source->SetLoadedForTest (true, false);
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, source->GetTrackCount());
+
+        return SavePart (*source);
     }
 
 
@@ -1023,6 +1091,171 @@ namespace Disk2State
             Assert::IsTrue (controller->GetEngine (0).GetWriteNibbles() > 0, L"the script wrote to the disk");
             Assert::IsTrue (firstRun   == secondRun,   L"latch values after load");
             Assert::IsTrue (firstMedia == secondMedia, L"disk bits after load");
+        }
+
+
+        //  A step back across the first write to a blank track puts the track
+        //  back to no data, and the disk is dirty, because the file differs.
+        TEST_METHOD (DiskStepBackAcrossTheFirstWriteToABlankTrack)
+        {
+            constexpr int       kTrack36   = 4 * 36;
+            auto                controller = std::make_unique<Disk2Controller> (kSlot);
+            DiskImage         * disk       = controller->GetDisk (0);
+            std::vector<Byte>   saved;
+            HRESULT             hr         = S_OK;
+
+
+
+            LoadTestWoz (*disk);
+
+            controller->Read (kMotorOn);
+            StepTo (*controller, kTrack36);
+
+            saved = SavePart (*disk);
+
+            controller->Read (kQ6High);
+            WriteBytes (*controller, 10);
+
+            Assert::AreEqual (36, disk->ResolveQuarterTrack (kTrack36), L"the guest's write created track 36");
+
+            disk->ClearDirty();
+
+            hr = LoadFrom (*disk, saved);
+            Assert::AreEqual (S_OK, hr, L"the state from before the write loads");
+
+            Assert::AreEqual (-1, disk->ResolveQuarterTrack (kTrack36), L"track 36 has no data again");
+            Assert::IsTrue   (disk->IsDirty(), L"and the disk is dirty");
+        }
+
+
+        //  From a keyframe taken before a track is created, the controller
+        //  and the disk run the same again, the creation included.
+        TEST_METHOD (ControllerAndDiskRunTheSameAcrossATrackCreation)
+        {
+            constexpr int       kTrack36   = 4 * 36;
+            auto                controller = std::make_unique<Disk2Controller> (kSlot);
+            DiskImage         * disk       = controller->GetDisk (0);
+            DiskTrackSnapshot   snapshot;
+            std::vector<Byte>   saved;
+            std::vector<Byte>   before;
+            std::vector<Byte>   firstRun;
+            std::vector<Byte>   secondRun;
+            std::vector<Byte>   firstMedia;
+            std::vector<Byte>   secondMedia;
+            HRESULT             hr         = S_OK;
+
+
+
+            LoadTestWoz (*disk);
+
+            controller->Read (kMotorOn);
+            StepTo (*controller, kTrack36);
+
+            snapshot.Capture (*disk, nullptr);
+            saved  = SavePart (*controller);
+            before = SavePart (*disk);
+
+            firstRun   = RunScript (*controller);
+            firstMedia = SavePart (*disk);
+
+            hr = snapshot.Restore (*disk);
+            Assert::AreEqual (S_OK, hr);
+
+            hr = LoadFrom (*controller, saved);
+            Assert::AreEqual (S_OK, hr);
+
+            secondRun   = RunScript (*controller);
+            secondMedia = SavePart (*disk);
+
+            Assert::IsFalse (firstMedia == before,      L"the script created track 36");
+            Assert::IsTrue  (firstRun   == secondRun,   L"latch values after load");
+            Assert::IsTrue  (firstMedia == secondMedia, L"disk bits after load");
+        }
+
+
+        //  A WOZ state from before the reservation has fewer slots. It loads
+        //  when every surplus slot of the disk is an empty bit slot.
+        TEST_METHOD (DiskLoadsAWozStateWithFewerBlankSlots)
+        {
+            auto     target = std::make_unique<DiskImage>();
+            HRESULT  hr     = S_OK;
+
+
+
+            LoadTestWoz (*target);
+            target->EnsureTrackSlots (DiskImage::kMaxTracks);
+
+            hr = LoadFrom (*target, SaveThirtyFiveSlotWozState());
+            Assert::AreEqual (S_OK, hr, L"the state loads");
+        }
+
+
+        TEST_METHOD (DiskRejectsFewerSlotsWhenTheSurplusHoldsData)
+        {
+            auto     target = std::make_unique<DiskImage>();
+            HRESULT  hr     = S_OK;
+
+
+
+            LoadTestWoz (*target);
+            target->EnsureTrackSlots (DiskImage::kMaxTracks);
+            target->ResizeTrack (38, 512);
+
+            hr = LoadFrom (*target, SaveThirtyFiveSlotWozState());
+            Assert::AreEqual (kInvalidData, hr, L"a surplus slot with data is another disk");
+        }
+
+
+        TEST_METHOD (DiskRejectsFewerSlotsOnASectorImage)
+        {
+            auto               source = std::make_unique<DiskImage>();
+            auto               target = std::make_unique<DiskImage>();
+            std::vector<Byte>  saved;
+            HRESULT            hr     = S_OK;
+
+
+
+            LoadTestDisk (*source);
+            saved = SavePart (*source);
+
+            LoadTestDisk (*target);
+            target->EnsureTrackSlots (DiskImage::kMaxTracks);
+
+            hr = LoadFrom (*target, saved);
+            Assert::AreEqual (kInvalidData, hr, L"a sector image's slot count is fixed");
+        }
+
+
+        //  A snapshot restored over a created track takes it back to no data,
+        //  and the engine looks the slot up again, so the next write creates
+        //  the track again and lands.
+        TEST_METHOD (SnapshotRestoreAcrossATrackCreation_RefreshesTheEngine)
+        {
+            constexpr int       kTrack36   = 4 * 36;
+            auto                controller = std::make_unique<Disk2Controller> (kSlot);
+            DiskImage         * disk       = controller->GetDisk (0);
+            DiskTrackSnapshot   snapshot;
+            HRESULT             hr         = S_OK;
+
+
+
+            LoadTestWoz (*disk);
+
+            controller->Read (kMotorOn);
+            StepTo (*controller, kTrack36);
+
+            snapshot.Capture (*disk, nullptr);
+
+            controller->Read (kQ6High);
+            WriteBytes (*controller, 10);
+            Assert::AreEqual (36, disk->ResolveQuarterTrack (kTrack36), L"the write created track 36");
+
+            hr = snapshot.Restore (*disk);
+            Assert::AreEqual (S_OK, hr);
+            Assert::AreEqual (-1, disk->ResolveQuarterTrack (kTrack36), L"the restore took it back to no data");
+
+            WriteBytes (*controller, 10);
+            Assert::AreEqual (36, disk->ResolveQuarterTrack (kTrack36), L"and the next write creates it again");
         }
     };
 }

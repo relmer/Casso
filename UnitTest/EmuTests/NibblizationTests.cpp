@@ -4,6 +4,7 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/ProDosSkeleton.h"
 #include "Machines/Apple2/Common/TrackWritability.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "HResultAssert.h"
 #include "Machines/Apple2/Common/SectorDecodeReport.h"
 
@@ -1246,6 +1247,45 @@ public:
                 L"a write that avoids the damage must be allowed");
             Assert::IsFalse (writability.AreTracksWritable (includes),
                 L"a write that needs the damaged track must be refused");
+        }
+    }
+
+
+    //  A track the guest created is at quarter tracks 4N to 4N+3 of slot N,
+    //  so the host tools read the image as having no data between tracks.
+    TEST_METHOD (TrackWritability_GuestCreatedTracks_KeepTheImageWritable)
+    {
+        constexpr int       kCreated = 36;
+        DiskImage           sectors;
+        DiskImage           img;
+        vector<Byte>        raw      = MakePinnedRandomImage (0x5EED1234u);
+        vector<Byte>        woz;
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+        size_t              i        = 0;
+
+
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (raw, sectors));
+        AssertSucceeded (WozLoader::Serialize (sectors, woz));
+
+        img.LoadFromBytes (DiskFormat::Woz, woz, "created.woz");
+        Assert::IsTrue (img.IsLoaded(), L"the WOZ loads");
+
+        Assert::IsTrue (img.TryCreateTrack (4 * kCreated, 51200), L"the guest creates track 36");
+
+        for (i = 0; i < 64; i++)
+        {
+            img.WriteBit (kCreated, i, 1);
+        }
+
+        AssertSucceeded (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered, report));
+
+        {
+            TrackWritability  writability = TrackWritability::Evaluate (img, report);
+
+            Assert::IsTrue (writability.IsImageWritable(), L"the image is writable");
+            Assert::IsTrue (writability.IsTrackWritable (0), L"and so is track 0");
         }
     }
 

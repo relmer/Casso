@@ -534,7 +534,8 @@ Error:
 //  routes per-track bit streams into the DiskImage. Sets the
 //  write-protect flag from the INFO chunk. Returns E_FAIL on malformed
 //  or unsupported variants (unknown signature, truncated chunk, missing
-//  TMAP/TRKS).
+//  TMAP/TRKS). A whole track with no data gets an empty slot
+//  (ReserveBlankTracks), for a guest write to create it in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -807,12 +808,185 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         }
     }
 
+    ReserveBlankTracks (out);
+
     out.ClearDirty();
 
     UNREFERENCED_PARAMETER (trackI);
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::ReserveBlankTracks
+//
+//  An empty bit slot for every whole track 0 to 39 whose quarter track 4N
+//  has no data, mapped at 4N to 4N+3, the placement Casso writes. A guest
+//  that formats such a track then writes into a slot that exists from the
+//  mount, so the slot count of every keyframe is the same.
+//
+//  THE SLOT IS TRK INDEX N WHEN THAT INDEX IS FREE, otherwise the lowest free
+//  one, in ascending track order. A file saved after the guest writes maps
+//  the created track at its index, so loading it again reserves every other
+//  track at the index it had. The indexes in use come from the map after
+//  the positions of empty bit records are unmapped, which is the map a save
+//  writes back.
+//
+//  A DAMAGED IMAGE IS LEFT AS LOADED. It is write-protected, so no track can
+//  be created on it, and its map is what the damage report reads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::ReserveBlankTracks (DiskImage & out)
+{
+    HRESULT       hr        = S_OK;
+    bool          isDamaged = out.IsDamaged();
+    vector<bool>  used      (kV2TrkRecordCount, false);
+    int           qt        = 0;
+    int           track     = 0;
+    int           slot      = 0;
+
+
+
+    BAIL_OUT_IF (isDamaged, S_OK);
+
+    UnmapEmptyBitSlots (out);
+
+    for (qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+    {
+        slot = out.GetMappedSlot (qt);
+
+        if (slot >= 0 && slot < static_cast<int> (used.size()))
+        {
+            used[slot] = true;
+        }
+    }
+
+    for (track = 0; track < kMaxTracks; track++)
+    {
+        if (out.GetMappedSlot (track * kQuarterTracksPerTrack) < 0)
+        {
+            //  At most 159 positions are mapped when 4N is not, so at most
+            //  159 indexes are in use, and one is free.
+            slot = PickReservedSlot (used, track);
+            CBRA (slot >= 0);
+
+            used[slot] = true;
+
+            //  The resize empties bits an earlier load left in the slot.
+            out.EnsureTrackSlots (slot + 1);
+            out.ResizeTrack      (slot, 0);
+
+            MapReservedTrack (out, track, slot);
+        }
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::UnmapEmptyBitSlots
+//
+//  A position mapped to a bit slot with no data is unmapped, as a save writes
+//  it: a save writes no TMAP entry for a track with no bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::UnmapEmptyBitSlots (DiskImage & out)
+{
+    int  qt   = 0;
+    int  slot = 0;
+
+
+
+    for (qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
+    {
+        slot = out.GetMappedSlot (qt);
+
+        if (slot >= 0 && out.GetTrackKind (slot) == TrackKind::Bits && out.ResolveQuarterTrack (qt) < 0)
+        {
+            out.SetQuarterTrackSlot (qt, -1);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::PickReservedSlot
+//
+//  TRK index `wholeTrack` when it is free, and otherwise the lowest free
+//  index, or -1 when none is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int WozLoader::PickReservedSlot (const vector<bool> & used, int wholeTrack)
+{
+    int  slot  = -1;
+    int  index = 0;
+
+
+
+    if (wholeTrack < static_cast<int> (used.size()) && !used[wholeTrack])
+    {
+        slot = wholeTrack;
+    }
+
+    for (index = 0; slot < 0 && index < static_cast<int> (used.size()); index++)
+    {
+        if (!used[index])
+        {
+            slot = index;
+        }
+    }
+
+    return slot;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::MapReservedTrack
+//
+//  Maps quarter tracks 4N to 4N+3 of whole track N to `slot`, wherever they
+//  are unmapped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WozLoader::MapReservedTrack (DiskImage & out, int wholeTrack, int slot)
+{
+    int  k  = 0;
+    int  qt = 0;
+
+
+
+    for (k = 0; k < kQuarterTracksPerTrack; k++)
+    {
+        qt = wholeTrack * kQuarterTracksPerTrack + k;
+
+        if (out.GetMappedSlot (qt) < 0)
+        {
+            out.SetQuarterTrackSlot (qt, slot);
+        }
+    }
 }
 
 

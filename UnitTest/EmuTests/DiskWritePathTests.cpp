@@ -320,6 +320,292 @@ public:
         Assert::IsTrue (payloadAt != std::string::npos,
             L"Nibbles written through the LSS must frame back to the payload (GH #89).");
     }
+
+
+    //  Sync and an address prologue, written over a blank track.
+    static inline const std::vector<Byte>  s_kBlankTrackWrite = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xD5, 0xAA, 0x96 };
+    static inline const std::vector<Byte>  s_kPrologue        = { 0xD5, 0xAA, 0x96 };
+
+
+    //  The cells WriteThroughEngine turns per nibble: one to load, eight to
+    //  shift out.
+    static constexpr size_t  kCellsPerWrittenNibble = 9;
+
+
+    //  Writes `nibbles` through the engine's write path at the head's quarter
+    //  track, as the controller does with Q7 high.
+    static void WriteThroughEngine (Disk2NibbleEngine & eng, const std::vector<Byte> & nibbles)
+    {
+        eng.SetWriteMode (true);
+
+        for (Byte nibble : nibbles)
+        {
+            eng.SetShiftLoadMode (true);
+            eng.WriteLatch (nibble);
+            eng.Tick (Disk2NibbleEngine::kCyclesPerBit);
+            eng.SetShiftLoadMode (false);
+            eng.Tick (Disk2NibbleEngine::kCyclesPerBit * 8);
+        }
+
+        eng.SetWriteMode (false);
+    }
+
+
+    //  `count` 512-bit tracks, record N for track N at quarter tracks 4N to
+    //  4N+3, the first of them flux when `isFirstFlux`.
+    static std::vector<WozSyntheticTrack> MakeWozTracks (int count, bool isFirstFlux)
+    {
+        std::vector<WozSyntheticTrack>  tracks (count);
+        int                             n      = 0;
+
+
+
+        for (n = 0; n < count; n++)
+        {
+            tracks[n].data.assign (64, 0xFF);
+            tracks[n].bitCount      = 512;
+            tracks[n].quarterTracks = { 4 * n, 4 * n + 1, 4 * n + 2, 4 * n + 3 };
+        }
+
+        if (isFirstFlux)
+        {
+            tracks[0].data.clear();
+            tracks[0].bitCount = 0;
+            tracks[0].isFlux   = true;
+        }
+
+        return tracks;
+    }
+
+
+    //  A chunk's payload, by its id, walking the chunk table from the header.
+    static std::vector<Byte> GetChunk (const std::vector<Byte> & woz, const char * id)
+    {
+        size_t             pos   = WozLoader::kHeaderSize;
+        uint32_t           size  = 0;
+        std::vector<Byte>  chunk;
+
+
+
+        while (chunk.empty() && pos + 8 <= woz.size())
+        {
+            size = (uint32_t) woz[pos + 4] | ((uint32_t) woz[pos + 5] << 8) | ((uint32_t) woz[pos + 6] << 16) | ((uint32_t) woz[pos + 7] << 24);
+
+            if (memcmp (woz.data() + pos, id, 4) == 0)
+            {
+                chunk.assign (woz.begin() + pos + 8, woz.begin() + pos + 8 + size);
+            }
+
+            pos += 8 + size;
+        }
+
+        return chunk;
+    }
+
+
+    //  A guest write over a whole track a 35-track WOZ has no data for creates
+    //  the track and lands, with the bit cursor where it would have been.
+    TEST_METHOD (LssWrite_OverATrackTheWozLeavesBlank_LandsAndReadsBack)
+    {
+        constexpr int      kTrack36 = 36;
+        DiskImage          img;
+        Disk2NibbleEngine  eng;
+        std::vector<Byte>  woz;
+        int                slots    = 0;
+        size_t             before   = 0;
+        size_t             cells    = s_kBlankTrackWrite.size() * kCellsPerWrittenNibble;
+
+
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (MakeWozTracks (35, false), woz));
+        img.LoadFromBytes (DiskFormat::Woz, woz, "blank36.woz");
+        slots = img.GetTrackCount();
+
+        eng.SetDiskImage    (&img);
+        eng.SetMotorOn      (true);
+        eng.SetCurrentTrack (4 * kTrack36);
+
+        before = eng.GetBitPosition();
+        WriteThroughEngine (eng, s_kBlankTrackWrite);
+
+        Assert::AreEqual (kTrack36, img.ResolveQuarterTrack (4 * kTrack36), L"the write created track 36");
+        Assert::AreEqual ((size_t) 51200, img.GetTrackBitCount (kTrack36), L"at the length of a blank track");
+        Assert::AreEqual (slots, img.GetTrackCount(), L"in a slot the load reserved");
+        Assert::AreEqual ((before + cells) % 51200, eng.GetBitPosition(), L"with the cursor where it would have been");
+        Assert::IsTrue   (FindSubsequence (FrameTrack (img, kTrack36), s_kPrologue) != std::string::npos, L"and the write reads back");
+    }
+
+
+    //  The same over a TRK record whose counts are zero.
+    TEST_METHOD (LssWrite_OverAnEmptyBitRecord_LandsAndReadsBack)
+    {
+        DiskImage          img;
+        Disk2NibbleEngine  eng;
+        std::vector<Byte>  woz;
+        size_t             recordAt = WozLoader::kHeaderSize + (8 + 60) + (8 + 160) + 8;
+
+
+
+        AssertSucceeded (WozLoader::BuildSyntheticV2 (1, false, std::vector<Byte>(), 0, woz));
+
+        memset (woz.data() + recordAt, 0, 4);
+        memset (woz.data() + 8, 0, 4);
+
+        img.LoadFromBytes (DiskFormat::Woz, woz, "empty.woz");
+
+        eng.SetDiskImage    (&img);
+        eng.SetMotorOn      (true);
+        eng.SetCurrentTrack (0);
+
+        WriteThroughEngine (eng, s_kBlankTrackWrite);
+
+        Assert::AreEqual (0, img.ResolveQuarterTrack (0), L"the write created track 0");
+        Assert::IsTrue   (FindSubsequence (FrameTrack (img, 0), s_kPrologue) != std::string::npos, L"and the write reads back");
+    }
+
+
+    TEST_METHOD (LssWrite_OverABlankTrackOfAProtectedWoz_LeavesItBlank)
+    {
+        DiskImage          img;
+        Disk2NibbleEngine  eng;
+        std::vector<Byte>  woz;
+
+
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (MakeWozTracks (35, false), woz));
+        img.LoadFromBytes (DiskFormat::Woz, woz, "protected.woz");
+        img.SetUserWriteProtected (true);
+
+        eng.SetDiskImage    (&img);
+        eng.SetMotorOn      (true);
+        eng.SetCurrentTrack (4 * 36);
+
+        WriteThroughEngine (eng, s_kBlankTrackWrite);
+
+        Assert::AreEqual ((size_t) 0, img.GetTrackBitCount (36), L"a protected disk gains no track");
+        Assert::IsFalse  (img.IsDirty());
+    }
+
+
+    //  The controller's disk in an empty drive is not loaded, and gains no
+    //  track that would then read back as a disk.
+    TEST_METHOD (LssWrite_IntoAnEmptyDrive_CreatesNothing)
+    {
+        Disk2Controller      controller (kSlot6);
+        DiskImage          * img        = controller.GetDisk (kDrive1);
+        Disk2NibbleEngine    eng;
+
+
+
+        eng.SetDiskImage    (img);
+        eng.SetMotorOn      (true);
+        eng.SetCurrentTrack (0);
+
+        WriteThroughEngine (eng, s_kBlankTrackWrite);
+
+        Assert::AreEqual ((size_t) 0, img->GetTrackBitCount (0), L"an empty drive gains no track");
+        Assert::AreEqual (-1, img->ResolveQuarterTrack (0));
+    }
+
+
+    TEST_METHOD (LssWrite_OverTrack37OfASectorImage_CreatesNothing)
+    {
+        DiskImage          img;
+        Disk2NibbleEngine  eng;
+
+
+
+        img.LoadFromBytes (DiskFormat::Dsk, std::vector<Byte> (NibblizationLayer::kImageByteSize, 0), "sectors.dsk");
+
+        eng.SetDiskImage    (&img);
+        eng.SetMotorOn      (true);
+        eng.SetCurrentTrack (4 * 37);
+
+        WriteThroughEngine (eng, s_kBlankTrackWrite);
+
+        Assert::AreEqual (-1, img.ResolveQuarterTrack (4 * 37), L"a sector image gains no track");
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount());
+    }
+
+
+    //  On a WOZ with a flux track, a created track is a bit track: the saved
+    //  TMAP has it, and the FLUX map has only the flux track.
+    TEST_METHOD (LssWrite_OverABlankTrackOfAFluxWoz_CreatesABitTrack)
+    {
+        DiskImage          img;
+        DiskImage          reloaded;
+        Disk2NibbleEngine  eng;
+        std::vector<Byte>  woz;
+        std::vector<Byte>  saved;
+        std::vector<Byte>  flux;
+        int                qt       = 0;
+
+
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (MakeWozTracks (35, true), woz));
+        img.LoadFromBytes (DiskFormat::Woz, woz, "flux.woz");
+
+        eng.SetDiskImage    (&img);
+        eng.SetMotorOn      (true);
+        eng.SetCurrentTrack (4 * 36);
+
+        WriteThroughEngine (eng, s_kBlankTrackWrite);
+
+        Assert::IsTrue (img.GetTrackKind (36) == TrackKind::Bits, L"the created track is a bit track");
+
+        AssertSucceeded (WozLoader::Serialize (img, saved));
+
+        Assert::AreEqual ((Byte) 36, GetChunk (saved, "TMAP")[4 * 36], L"the saved TMAP has it");
+
+        flux = GetChunk (saved, "FLUX");
+
+        for (qt = 0; qt < (int) flux.size(); qt++)
+        {
+            Assert::IsTrue (flux[qt] == 0xFF || qt < 4, L"and the FLUX map has only the flux track");
+        }
+
+        reloaded.LoadFromBytes (DiskFormat::Woz, saved, "flux.woz");
+        Assert::IsTrue (reloaded.GetTrackKind (reloaded.GetMappedSlot (0)) == TrackKind::Flux, L"which loads as flux");
+    }
+
+
+    //  A flush of a created track writes it at all four of its quarter
+    //  tracks.
+    TEST_METHOD (StoreFlush_OfACreatedTrack_MapsAllFourPositionsInTheSavedFile)
+    {
+        DiskImageStore     store;
+        DiskImage          reloaded;
+        Disk2NibbleEngine  eng;
+        std::vector<Byte>  woz;
+        std::vector<Byte>  saved;
+        int                k        = 0;
+
+
+
+        store.SetFlushSink ([&saved] (const std::string &, const std::vector<Byte> & bytes) { saved = bytes; return S_OK; });
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (MakeWozTracks (35, false), woz));
+        AssertSucceeded (store.MountFromBytes (kSlot6, kDrive1, "created.woz", DiskFormat::Woz, woz));
+
+        eng.SetDiskImage    (store.GetImage (kSlot6, kDrive1));
+        eng.SetMotorOn      (true);
+        eng.SetCurrentTrack (4 * 36);
+
+        WriteThroughEngine (eng, s_kBlankTrackWrite);
+        eng.SetDiskImage (nullptr);
+
+        AssertSucceeded (store.Flush (kSlot6, kDrive1));
+        Assert::IsFalse (saved.empty(), L"the flush wrote the file");
+
+        reloaded.LoadFromBytes (DiskFormat::Woz, saved, "created.woz");
+
+        for (k = 0; k < 4; k++)
+        {
+            Assert::AreEqual (36, reloaded.GetMappedSlot (4 * 36 + k), L"the saved file maps quarter tracks 144 to 147 to track 36");
+        }
+
+        Assert::AreEqual (36, reloaded.ResolveQuarterTrack (4 * 36), L"which has the write");
+    }
 };
 
 

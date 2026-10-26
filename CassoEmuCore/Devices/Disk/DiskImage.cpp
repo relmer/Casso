@@ -189,6 +189,75 @@ int DiskImage::GetMappedSlot (int quarterTrack) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TryCreateTrack
+//
+//  Sizes the slot a quarter track maps to as a blank bit track, when the
+//  guest writes over a position with no data. Only a loaded, writable WOZ
+//  qualifies, and only an empty bit slot: the load reserved one for every
+//  whole track it found with no data (WozLoader::ReserveBlankTracks). An
+//  empty drive's disk is not loaded, a sector image's slots are all sized,
+//  and a protected disk never gains a track a later save would write out.
+//
+//  THE IMAGE IS NOT MARKED DIRTY. The bit the guest writes next does that,
+//  so the save, the flush hold and replay handle the track as any guest write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImage::TryCreateTrack (int quarterTrack, size_t bitCount)
+{
+    int   slot      = GetMappedSlot (quarterTrack);
+    bool  inRange   = slot >= 0 && slot < static_cast<int> (m_trackBits.size());
+    bool  canCreate = m_loaded
+                   && m_format == DiskFormat::Woz
+                   && !IsWriteProtected()
+                   && bitCount > 0
+                   && inRange
+                   && m_slotKind[slot] == TrackKind::Bits
+                   && m_trackBitCounts[slot] == 0;
+
+
+
+    if (canCreate)
+    {
+        ResizeTrack (slot, bitCount);
+    }
+
+    return canCreate;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AreSlotsBlankFrom
+//
+//  Whether every slot from `firstSlot` on is an empty bit slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImage::AreSlotsBlankFrom (size_t firstSlot) const
+{
+    bool    isBlank = true;
+    size_t  slot    = 0;
+
+
+
+    for (slot = firstSlot; isBlank && slot < m_trackBits.size(); slot++)
+    {
+        isBlank = m_slotKind[slot] == TrackKind::Bits && m_trackBitCounts[slot] == 0;
+    }
+
+    return isBlank;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTrackKind
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1340,7 +1409,10 @@ const DiskImage::SharedTrack & DiskImage::GetSharedTrack (size_t track) const
 //  LoadState
 //
 //  The medium must already be mounted: a saved state whose loaded flag or
-//  track count differs from this image's belongs to another disk. Each track's
+//  track count differs from this image's belongs to another disk. A WOZ state
+//  with fewer tracks is the one exception, when every surplus slot of this
+//  image is an empty bit slot: a build before WozLoader::ReserveBlankTracks
+//  saved the same disk with fewer slots, and those slots stay empty. Each track's
 //  byte size is capped before it is allocated, its bit count must fit in its
 //  bytes, and a flux track's bytes must be a whole stream, so a corrupt blob
 //  cannot size a buffer or send a reader past one. The tracks are read into a
@@ -1368,6 +1440,7 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     vector<TrackKind>     slotKinds;
     vector<vector<Byte>>  fluxBytes;
     uint32_t              diskTracks          = static_cast<uint32_t> (m_trackBits.size());
+    bool                  isSurplusBlank      = false;
 
 
 
@@ -1382,12 +1455,17 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     reader.ReadUInt32 (trackCount);
 
     CBREx (loaded     == m_loaded,   HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
-    CBREx (trackCount == diskTracks, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    CBREx (trackCount <= diskTracks, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    trackBits.resize      (trackCount);
-    trackBitCounts.resize (trackCount, 0);
-    slotKinds.resize      (trackCount, TrackKind::Bits);
-    fluxBytes.resize      (trackCount);
+    isSurplusBlank = trackCount == diskTracks || (m_format == DiskFormat::Woz && AreSlotsBlankFrom (trackCount));
+    CBREx (isSurplusBlank, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    //  Every slot is staged; a surplus slot is staged empty, which is what
+    //  it has, so it commits clean.
+    trackBits.resize      (diskTracks);
+    trackBitCounts.resize (diskTracks, 0);
+    slotKinds.resize      (diskTracks, TrackKind::Bits);
+    fluxBytes.resize      (diskTracks);
 
     for (track = 0; track < trackCount; track++)
     {
@@ -1401,7 +1479,7 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     hr = reader.EndSection();
     CHR (hr);
 
-    for (track = 0; track < trackCount; track++)
+    for (track = 0; track < diskTracks; track++)
     {
         CommitStateTrack (static_cast<int> (track), trackBits[track], trackBitCounts[track], slotKinds[track], fluxBytes[track]);
     }
@@ -1412,7 +1490,7 @@ HRESULT DiskImage::LoadState (StateReader & reader)
     m_imageWriteProtected = imageWriteProtected;
     m_userWriteProtected  = userWriteProtected;
 
-    for (track = 0; track < trackCount; track++)
+    for (track = 0; track < diskTracks; track++)
     {
         TouchTrack (static_cast<int> (track));
     }

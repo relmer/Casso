@@ -216,6 +216,12 @@ public:
     // damaged slot resolves to nothing.
     int              GetMappedSlot       (int quarterTrack) const;
 
+    // Sizes the empty bit slot a quarter track maps to as a blank track of
+    // `bitCount` bits, for a guest write over a position with no data.
+    // Returns whether it did: only a loaded, writable WOZ has such slots, and
+    // the image is not marked dirty until a bit is written.
+    bool             TryCreateTrack      (int quarterTrack, size_t bitCount);
+
     // Flux slots. A slot is a flux track when the image's FLUX map refers to
     // it; its bit buffer then stays empty and every bit-level accessor sees
     // no data, so only code that asks for the flux reads it.
@@ -314,6 +320,10 @@ private:
 
     void     TouchTrack       (int track);
     void     RenewIdentity    ();
+
+    // Whether every slot from firstSlot on is an empty bit slot: the slots a
+    // WOZ load reserves, which a state saved before the reservation lacks.
+    bool     AreSlotsBlankFrom (size_t firstSlot) const;
     HRESULT  LoadDsk          (const vector<Byte> & raw);
     void     InitWholeTrackMap ();
 

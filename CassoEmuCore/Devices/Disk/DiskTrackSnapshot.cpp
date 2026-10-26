@@ -94,6 +94,11 @@ HRESULT DiskTrackSnapshot::Restore (DiskImage & disk) const
         disk.m_trackGeneration[track] = sameMedium ? m_tracks[track].generation : ++disk.m_lastGeneration;
     }
 
+    //  A restore can take a track back to no data or put data in one, which
+    //  changes what its quarter tracks resolve to, so a drive that cached the
+    //  slot looks it up again.
+    disk.m_layoutGeneration++;
+
     disk.m_dirty               = m_dirty;
     disk.m_imageWriteProtected = m_imageWriteProtected;
     disk.m_userWriteProtected  = m_userWriteProtected;

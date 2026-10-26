@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Devices/Disk/DiskImage.h"
+#include "Machines/Apple2/Common/WozLoader.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -194,5 +195,83 @@ public:
             L"Phase 10: Serialize routes DSK through NibblizationLayer::Denibblize");
         Assert::AreEqual (size_t (143360), bytes.size(),
             L"Phase 10: a default 35-track DSK serializes to 143360 bytes");
+    }
+
+
+    //  A WOZ of `count` 512-bit tracks, mapped at 4N to 4N+3, or at 4N-1, 4N
+    //  and 4N+1 as Applesauce maps them, loaded into `img`.
+    static void LoadWoz (DiskImage & img, int count, bool isApplesauce)
+    {
+        vector<WozSyntheticTrack>  tracks (count);
+        vector<Byte>               woz;
+        int                        n      = 0;
+
+
+
+        for (n = 0; n < count; n++)
+        {
+            tracks[n].data.assign (64, 0xFF);
+            tracks[n].bitCount      = 512;
+            tracks[n].quarterTracks = isApplesauce ? vector<int> { max (4 * n - 1, 0), 4 * n, 4 * n + 1 }
+                                                   : vector<int> { 4 * n, 4 * n + 1, 4 * n + 2, 4 * n + 3 };
+        }
+
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (tracks, woz));
+
+        img.LoadFromBytes (DiskFormat::Woz, woz, "created.woz");
+        Assert::IsTrue (img.IsLoaded(), L"the WOZ loads");
+    }
+
+
+    TEST_METHOD (TryCreateTrack_OnAReservedBlankTrack_SizesItWithoutMarkingDirty)
+    {
+        DiskImage  img;
+        uint64_t   generation = 0;
+
+
+
+        LoadWoz (img, 35, false);
+        generation = img.GetLayoutGeneration();
+
+        Assert::IsTrue   (img.TryCreateTrack (4 * 36, 51200), L"track 36 is created");
+        Assert::AreEqual ((size_t) 51200, img.GetTrackBitCount (36), L"with 51,200 bits");
+        Assert::IsFalse  (img.IsDirty(), L"and nothing to save until the guest writes");
+        Assert::AreNotEqual (generation, img.GetLayoutGeneration(), L"and the layout changes");
+    }
+
+
+    TEST_METHOD (TryCreateTrack_DeclinesEveryOtherCase)
+    {
+        DiskImage                  protectedWoz;
+        DiskImage                  unloaded;
+        DiskImage                  dsk;
+        DiskImage                  flux;
+        DiskImage                  woz;
+        DiskImage                  applesauce;
+        vector<WozSyntheticTrack>  fluxTracks (1);
+        vector<Byte>               fluxBytes;
+
+
+
+        LoadWoz (protectedWoz, 35, false);
+        protectedWoz.SetUserWriteProtected (true);
+        Assert::IsFalse (protectedWoz.TryCreateTrack (4 * 36, 51200), L"a write-protected disk");
+
+        Assert::IsFalse (unloaded.TryCreateTrack (0, 51200), L"a disk that is not loaded");
+
+        dsk.LoadFromBytes (DiskFormat::Dsk, vector<Byte> (143360, 0), "sectors.dsk");
+        Assert::IsFalse (dsk.TryCreateTrack (4 * 37, 51200), L"track 37 of a sector image");
+
+        fluxTracks[0].isFlux        = true;
+        fluxTracks[0].quarterTracks = { 0 };
+        AssertSucceeded (WozLoader::BuildSyntheticV21 (fluxTracks, fluxBytes));
+        flux.LoadFromBytes (DiskFormat::Woz, fluxBytes, "flux.woz");
+        Assert::IsFalse (flux.TryCreateTrack (0, 51200), L"a flux slot");
+
+        LoadWoz (woz, 35, false);
+        Assert::IsFalse (woz.TryCreateTrack (0, 51200), L"a slot that has data");
+
+        LoadWoz (applesauce, 35, true);
+        Assert::IsFalse (applesauce.TryCreateTrack (2, 51200), L"a position with no mapping");
     }
 };

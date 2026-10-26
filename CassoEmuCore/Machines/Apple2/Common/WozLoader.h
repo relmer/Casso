@@ -219,4 +219,14 @@ private:
                                  const Byte          *  trksData,
                                  size_t                 trksSize,
                                  WozFileLayout       &  out);
+
+    //  Reserves an empty bit slot for every whole track 0 to 39 whose
+    //  quarter track 4N has no data, mapped at 4N to 4N+3, so a guest write
+    //  there can create the track (DiskImage::TryCreateTrack) with the slot
+    //  count fixed from the mount. Its steps: unmap the positions an empty
+    //  bit record maps, pick a TRK index, and map the track.
+    static void  ReserveBlankTracks (DiskImage & out);
+    static void  UnmapEmptyBitSlots (DiskImage & out);
+    static int   PickReservedSlot   (const vector<bool> & used, int wholeTrack);
+    static void  MapReservedTrack   (DiskImage & out, int wholeTrack, int slot);
 };

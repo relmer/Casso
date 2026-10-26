@@ -4,6 +4,20 @@
 #include "Devices/Disk/DiskImage.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Machines/Apple2/Common/NibblizationLayer.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  The blank track's length
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static_assert (Disk2NibbleEngine::kUnformattedTrackBits == NibblizationLayer::kTrackBitCapacity,
+               "a track the guest creates is the length a sector image's tracks are");
 
 
 
@@ -787,11 +801,20 @@ void Disk2NibbleEngine::RunSequencer (uint8_t pulse)
 
 void Disk2NibbleEngine::StepBitCell (bool hasTrack)
 {
-    bool     writing   = m_writeMode && hasTrack && !m_disk->IsWriteProtected();
+    bool     writing   = false;
     uint8_t  outBit    = (m_readLatch & kLatchMsbMask) ? 1 : 0;
     size_t   trackBits = 0;
 
 
+
+    //  The first bit written over a position with no data creates its
+    //  track, when the disk has a slot reserved for it.
+    if (m_writeMode && !hasTrack)
+    {
+        hasTrack = TryCreateTrackUnderHead();
+    }
+
+    writing = m_writeMode && hasTrack && !m_disk->IsWriteProtected();
 
     if (m_isFluxSlot)
     {
@@ -826,6 +849,40 @@ void Disk2NibbleEngine::StepBitCell (bool hasTrack)
         // under the head.
         m_bitPos = (m_bitPos + 1) % kUnformattedTrackBits;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryCreateTrackUnderHead
+//
+//  Creates the track under the head as a blank track of kUnformattedTrackBits
+//  bits, the length the cursor already turns at over a blank position, so the
+//  first bit lands where it would have, at the same cursor. Returns whether
+//  there is a track under the head.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2NibbleEngine::TryCreateTrackUnderHead()
+{
+    bool  isCreated = false;
+
+
+
+    if (m_disk != nullptr)
+    {
+        isCreated = m_disk->TryCreateTrack (m_currentTrack, kUnformattedTrackBits);
+
+        if (isCreated)
+        {
+            ResolveSlot();
+        }
+    }
+
+    return m_slot >= 0;
 }
 
 
