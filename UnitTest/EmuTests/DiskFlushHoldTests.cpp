@@ -102,6 +102,66 @@ public:
     }
 
 
+    //  A .nib saves its clean tracks from the bytes it was last saved as, so a
+    //  commit after an earlier save writes the track as the earlier save wrote it.
+    TEST_METHOD (ACommitAfterAnEarlierSaveKeepsTheTrackItSaved)
+    {
+        auto               store = std::make_unique<DiskImageStore>();
+        Files              files;
+        std::vector<Byte>  first;
+
+
+
+        PrepareDirtyDisk (*store, files);
+
+        AssertSucceeded (store->FlushAll(), L"FlushAll");
+        first = files.last;
+
+        DirtyTrack (*store, 5);
+        store->SetFlushHold (true);
+
+        AssertSucceeded (store->FlushAllUnlessHeld(), L"FlushAllUnlessHeld");
+        Assert::AreEqual<size_t> (1, files.writes, L"FlushAllUnlessHeld wrote nothing");
+
+        AssertSucceeded (store->CommitHeldWrites(), L"CommitHeldWrites");
+
+        Assert::AreEqual<size_t> (2, files.writes, L"the commit wrote");
+        Assert::IsTrue (IsTrackEqual (files.last, first, 0), L"and track 0 is as the first save wrote it");
+    }
+
+
+    //  The same for a disk that left its bay and was seated again: its eject
+    //  saved it, and its next save writes that save's tracks.
+    TEST_METHOD (AReseatedDiskKeepsTheTrackItsEjectSaved)
+    {
+        auto               store   = std::make_unique<DiskImageStore>();
+        Files              files;
+        std::vector<Byte>  first;
+        uint64_t           mediaId = 0;
+        uint64_t           now     = 0;
+        bool               changed = false;
+
+
+
+        PrepareDirtyDisk (*store, files);
+
+        store->SetPositionSource (&now);
+        store->SetMediaRetention (true);
+        mediaId = store->GetMediaId (s_kHoldSlot, s_kHoldDrive);
+
+        store->Eject (s_kHoldSlot, s_kHoldDrive);
+        first = files.last;
+
+        AssertSucceeded (store->SeatMedia (s_kHoldSlot, s_kHoldDrive, mediaId, changed), L"SeatMedia");
+        DirtyTrack (*store, 5);
+
+        AssertSucceeded (store->FlushAll(), L"FlushAll");
+
+        Assert::AreEqual<size_t> (2, files.writes, L"the eject and the flush wrote");
+        Assert::IsTrue (IsTrackEqual (files.last, first, 0), L"and track 0 is as the eject saved it");
+    }
+
+
     //  The owner's answer: held writes are saved by default when the disk
     //  leaves, the machine is switched, or the emulator exits.
     TEST_METHOD (HoldStillSavesOnEjectSwitchAndExit)
@@ -334,6 +394,30 @@ private:
         }
 
         Assert::IsTrue (done, L"track 0 has an address field");
+    }
+
+
+    //  The guest writes one bit of `track`.
+    static void DirtyTrack (DiskImageStore & store, int track)
+    {
+        DiskImage  * image = store.GetImage (s_kHoldSlot, s_kHoldDrive);
+
+
+
+        Assert::IsNotNull (image, L"a disk is mounted");
+
+        image->WriteBit (track, s_kHoldBitIndex, image->ReadBit (track, s_kHoldBitIndex) ^ 1);
+    }
+
+
+    static bool IsTrackEqual (const std::vector<Byte> & left, const std::vector<Byte> & right, int track)
+    {
+        size_t  first = static_cast<size_t> (track) * NibbleImageCodec::kNibTrackSize;
+
+
+
+        return std::equal (left.begin()  + first, left.begin() + first + NibbleImageCodec::kNibTrackSize,
+                           right.begin() + first);
     }
 
 

@@ -180,6 +180,12 @@ public:
     bool             IsTrackDirty        (int track) const;
     void             ClearDirty          ();
 
+    //  The bytes Serialize produced are now what the file has: they become
+    //  the source a serializer copies clean tracks from, and the image is
+    //  clean. When only the dirty bits are cleared, the next save copies clean
+    //  tracks from the file as it was at mount.
+    void             MarkSaved           (const vector<Byte> & savedBytes);
+
     //  Records that a track's bits were replaced wholesale, which the bulk
     //  writers below must do because they bypass WriteBit and so bypass the
     //  bookkeeping it does. A consumer that copies clean tracks and re-derives

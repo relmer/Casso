@@ -741,6 +741,23 @@ void DiskImage::ClearDirty()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MarkSaved
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImage::MarkSaved (const vector<Byte> & savedBytes)
+{
+    m_rawSourceBytes = savedBytes;
+
+    ClearDirty();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Serialize
 //
 //  For sector-based formats (DSK/DO/PO) this calls back into the
@@ -874,8 +891,9 @@ void DiskImage::SetLoadedForTest (bool loaded, bool dirty)
 //
 //  In-memory load entry point used by DiskImageStore and unit tests. The
 //  raw bytes are routed through the appropriate loader (NibblizationLayer
-//  for DSK/DO/PO; WozLoader for WOZ). The cached raw bytes preserve the
-//  Phase 9 round-trip path until WOZ writeback lands.
+//  for DSK/DO/PO; WozLoader for WOZ). The cached raw bytes are the file's
+//  bytes as last read or written (MarkSaved), and the .nib serializer copies
+//  clean tracks from them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1086,10 +1104,13 @@ HRESULT DiskImage::Flush()
 
         hr = DiskImageStore::WriteFileAtomically (m_filePath, bytes);
         CHR (hr);
-    }
 
-    m_dirty = false;
-    ClearDirty();
+        MarkSaved (bytes);
+    }
+    else
+    {
+        ClearDirty();
+    }
 
 Error:
     return hr;

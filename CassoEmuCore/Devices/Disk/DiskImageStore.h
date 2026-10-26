@@ -611,7 +611,7 @@ private:
     //  failed, and recording the file the save committed.
     HRESULT       PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved);
     void          ReportSaveFailure       (Entry & entry, FlushMoment moment, const FlushOutcome & outcome);
-    void          RecordCommittedFile     (Entry & entry);
+    void          RecordCommittedFile     (Entry & entry, const vector<Byte> & savedBytes);
 
     //  Tells the user the guest's version could not be written beside the
     //  file that displaced it -- as a question where one can still be

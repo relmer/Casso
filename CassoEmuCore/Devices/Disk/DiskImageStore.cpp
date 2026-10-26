@@ -525,7 +525,7 @@ bool DiskImageStore::RescueOnTheWayOut (Entry & entry, const string & original)
         return false;
     }
 
-    entry.image->ClearDirty();
+    entry.image->MarkSaved (held);
 
     return true;
 }
@@ -1343,7 +1343,7 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry, FlushMoment moment, FlushOutc
         CHRF (hr, ReportSaveFailure (entry, moment, outOutcome));
     }
 
-    RecordCommittedFile (entry);
+    RecordCommittedFile (entry, bytes);
 
 Error:
     return hr;
@@ -1519,10 +1519,10 @@ void DiskImageStore::ReportSaveFailure (Entry & entry, FlushMoment moment, const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::RecordCommittedFile (Entry & entry)
+void DiskImageStore::RecordCommittedFile (Entry & entry, const vector<Byte> & savedBytes)
 {
     entry.image->SetSourceCrcMismatch (false);
-    entry.image->ClearDirty();
+    entry.image->MarkSaved (savedBytes);
     entry.sharedState.ClearRecovery();
     MarkStatusChanged();
 
@@ -3562,7 +3562,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                     return;
                 }
 
-                entry.image->ClearDirty();
+                entry.image->MarkSaved (held);
                 entry.sharedState.SetPreservedPath (string());
 
                 hr = RepointBayToFile (slot, drive, savePath);
@@ -3644,7 +3644,7 @@ void DiskImageStore::ResolvePendingChange (int slot, int drive, ChangeAction cho
                 //  handing back a complete disk and then making them go and
                 //  find it. Keeping a version during a conflict already works
                 //  this way, and one act should not have two outcomes.
-                entry.image->ClearDirty();
+                entry.image->MarkSaved (held);
 
                 hr = RepointBayToFile (slot, drive, savePath);
                 IGNORE_RETURN_VALUE (hr, S_OK);
@@ -4298,6 +4298,8 @@ HRESULT DiskImageStore::SaveLoadedImage (Entry & entry, string & outPath)
 
     hr = CommitFile (outPath, bytes, CommitMode::Replace);
     CHR (hr);
+
+    entry.image->MarkSaved (bytes);
 
 Error:
     //  outPath IS LEFT AS THE PATH THAT WAS TRIED, even on failure. The notice

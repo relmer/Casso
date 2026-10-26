@@ -640,6 +640,115 @@ public:
     TEST_METHOD (Flush_FaithfulRoundTrip_Do)   { VerifyFaithfulSectorFlush (DiskFormat::Do,  "rt.do");  }
     TEST_METHOD (Flush_FaithfulRoundTrip_Po)   { VerifyFaithfulSectorFlush (DiskFormat::Po,  "rt.po");  }
 
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  A .nib's second save. The serializer copies every clean track from
+    //  the image's source bytes, and when those were the bytes read at
+    //  mount, a second save put back the tracks the first save had written.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    //  A whole .nib of legal nibbles, so a track derived from the live bits
+    //  is the same length and is not rotated.
+    static vector<Byte> MakeLegalNib()
+    {
+        vector<Byte>  file (NibbleImageCodec::kNibImageSize);
+        size_t        i    = 0;
+
+
+
+        for (i = 0; i < file.size(); i++)
+        {
+            file[i] = static_cast<Byte> (0x80 | (i % 127));
+        }
+
+        return file;
+    }
+
+
+
+    static bool IsNibTrackEqual (const vector<Byte> & left, const vector<Byte> & right, int track)
+    {
+        size_t  first = static_cast<size_t> (track) * NibbleImageCodec::kNibTrackSize;
+
+
+
+        return std::equal (left.begin()  + first, left.begin() + first + NibbleImageCodec::kNibTrackSize,
+                           right.begin() + first);
+    }
+
+
+
+    //  Writes track 3 and saves, then writes track 20 and saves, and checks
+    //  that the second save has both writes.
+    static void SaveNibTwice (DiskImageStore & store, const vector<Byte> & file, std::function<vector<Byte>()> readSaved)
+    {
+        DiskImage *   image = store.GetImage (kSlot, kDrive);
+        vector<Byte>  first;
+        vector<Byte>  second;
+        DiskImage     reloaded;
+
+
+
+        image->WriteBit (3, 7, image->ReadBit (3, 7) ^ 1);
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+        first = readSaved();
+
+        Assert::IsFalse (IsNibTrackEqual (first, file, 3), L"the first save has the write to track 3");
+
+        image->WriteBit (20, 7, image->ReadBit (20, 7) ^ 1);
+        AssertSucceeded (store.Flush (kSlot, kDrive));
+        second = readSaved();
+
+        Assert::IsTrue  (IsNibTrackEqual (second, first, 3), L"track 3 of the second save is as the first saved it");
+        Assert::IsFalse (IsNibTrackEqual (second, file, 20), L"and has the write to track 20");
+
+        AssertSucceeded (NibbleImageCodec::Load (second, reloaded));
+        Assert::AreEqual (image->ReadBit (3, 7), reloaded.ReadBit (3, 7), L"a reload has the first write");
+    }
+
+
+
+    TEST_METHOD (Flush_NibbleSecondFlushKeepsTheTrackTheFirstSaved)
+    {
+        DiskImageStore  store;
+        vector<Byte>    file = MakeLegalNib();
+        vector<Byte>    captured;
+
+
+
+        store.SetFlushSink ([&captured] (const string &, const vector<Byte> & bytes)
+        {
+            captured = bytes;
+            return S_OK;
+        });
+
+        AssertSucceeded (store.MountFromBytes (kSlot, kDrive, "two.nib", DiskFormat::Nib, file));
+
+        SaveNibTwice (store, file, [&captured] () { return captured; });
+    }
+
+
+
+    TEST_METHOD (Flush_NibbleThroughFileIo_SecondFlushKeepsTheTrackTheFirstSaved)
+    {
+        DiskImageStore  store;
+        FakeDiskFileIo  io;
+        vector<Byte>    file = MakeLegalNib();
+        string          path = "Q:/casso-no-such-root/two.nib";
+
+
+
+        UseFileIo (store, io);
+        io.SeedDurable (path, file);
+
+        AssertSucceeded (store.Mount (kSlot, kDrive, path));
+
+        SaveNibTwice (store, file, [&io, &path] () { return io.files[path]; });
+    }
+
+
+
     TEST_METHOD (Flush_WozGuestWriteSurvivesReloadThroughStore)
     {
         DiskImageStore   store;
