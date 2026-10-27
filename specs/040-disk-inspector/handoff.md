@@ -104,7 +104,9 @@ Release, pinned to one core of the cache CCD where it matters:
   Adding an opt-in speed log is your call.
 - **The Print Shop's findings.** Accept them as they are, or group "marked used but no
   file uses it" into one finding per track or per run of tracks.
-- **Menu bar: yes or no.** A mock-up was sent in chat.
+- **Menu bar: yes or no.** The mock-ups are in `mockups/`: the window with
+  View open, and every menu's contents. Delete `mockups/` once the menu bar is
+  decided.
 - **The walkthrough's text.** Plain wording for someone new to disk internals
   is a judgment call; it is in `CEC/Ui/DiskInspector/InspectorWalkthrough.cpp`.
 ## Open work
