@@ -99,14 +99,12 @@ public:
     void  PostCommand    (ReverseCommand command, uint64_t argument = 0);
     void  RunCommand     (ReverseCommand command, uint64_t argument);
 
-    // A change behind live: the command queue's gate, on the posting thread;
-    // the question, on the UI thread; the cut, on the CPU thread; and a
-    // debugger edit deferred until the answer.
+    // A change behind live forks history first, with no question: the
+    // command queue's gate, on the posting thread; the fork, on the CPU
+    // thread; and a debugger edit's guard, on the CPU thread.
     bool  AllowCommand     (WORD id, const std::string & payload);
-    bool  AskToDiverge     ();
     void  Diverge          ();
     bool  GuardEdit        (const DebugCommand & command);
-    void  OnConfirmDiverge ();
     bool  IsBehindLiveForUi();
 
     // Input the guest reads, deferred behind live until the replayed guest
@@ -117,7 +115,7 @@ public:
     void  StopForHeldInputRead          ();
     void  OnHeldInputRead               ();
     void  ResumeAfterHeldInput          ();
-    void  OnConfirmInputDiverge         ();
+    void  ForkForHeldInput              ();
     void  ApplyHeldInputs               (const std::vector<HeldInput> & inputs);
     void  ApplyHeldMouseTarget          (uint32_t target);
     void  PressGuestMouseHeldBehindLive ();

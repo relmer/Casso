@@ -823,8 +823,7 @@ void ShellHistory::FinishRewind()
 //
 //  The command queue's gate, on the posting thread. A command that changes
 //  the machine, posted from the UI thread while the machine is behind live,
-//  prompts first; a yes queues the cut ahead of it, a no drops it. The CPU
-//  thread's own commands, and the rest, go ahead.
+//  has a fork queued ahead of it, with no question. Every command goes ahead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -834,7 +833,6 @@ bool ShellHistory::AllowCommand (
 {
     bool               isUiThread = m_host.GetMainWindow() != nullptr && GetWindowThreadProcessId (m_host.GetMainWindow(), nullptr) == GetCurrentThreadId();
     DivergenceVerdict  verdict    = DivergenceVerdict::Proceed;
-    bool               isAllowed  = true;
 
 
 
@@ -847,40 +845,13 @@ bool ShellHistory::AllowCommand (
 
     verdict = DivergenceGate::Judge (IsBehindLiveForUi(), DivergenceGate::IsStateChangingCommand (id));
 
-    if (verdict == DivergenceVerdict::Ask)
+    // Queued ahead of the command, so history forks before it runs.
+    if (verdict == DivergenceVerdict::Fork)
     {
-        isAllowed = AskToDiverge();
-
-        if (isAllowed)
-        {
-            m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
-        }
+        m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
     }
 
-    return isAllowed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AskToDiverge
-//
-//  UI thread. Whether the user agrees to discard the recorded history after
-//  the machine's position.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellHistory::AskToDiverge()
-{
-    int  choice = DxuiMessageBox (m_host.GetMainWindow(), &m_host.GetChromeTheme(), DivergenceGate::kpszQuestion, DivergenceGate::kpszTitle,
-                                  MB_YESNO | MB_DEFBUTTON2 | MB_ICONWARNING);
-
-
-
-    return choice == IDYES;
+    return true;
 }
 
 
@@ -891,7 +862,7 @@ bool ShellHistory::AskToDiverge()
 //
 //  Diverge
 //
-//  CPU thread: the yes, acted on ahead of the change that prompted.
+//  CPU thread: the fork queued ahead of a change made behind live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -909,7 +880,7 @@ void ShellHistory::Diverge()
 
     UpdateReplayCaption();
 
-    //  The edits deferred for the question run now, live, in the order made.
+    //  Any debugger edits deferred run now, live, in the order made.
     edits = m_deferredEdits.TakeAll();
 
     if (m_client != nullptr && !edits.empty())
@@ -929,61 +900,21 @@ Error:
 //
 //  GuardEdit
 //
-//  CPU thread, the debugger session's history guard. Live, the edit is
-//  made. Behind live the command is deferred with any others deferred
-//  since, and the first one posts the question to the UI thread; on a yes
-//  the cut runs every deferred command, live.
+//  CPU thread, the debugger session's history guard. Behind live, history
+//  forks first, with no question, and the edit is then made live.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellHistory::GuardEdit (const DebugCommand & command)
 {
-    bool  isFirst = false;
+    UNREFERENCED_PARAMETER (command);
 
-
-
-    if (!IsBehindLive())
+    if (IsBehindLive())
     {
-        return true;
+        Diverge();
     }
 
-    isFirst = m_deferredEdits.Defer (command);
-
-    if (isFirst)
-    {
-        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_DIVERGE, 0, 0);
-    }
-
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnConfirmDiverge
-//
-//  UI thread: puts the question for the deferred debugger edits. A yes
-//  queues the cut, which runs them; a no drops them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellHistory::OnConfirmDiverge()
-{
-    if (!m_deferredEdits.HasAny())
-    {
-        return;
-    }
-
-    if (!AskToDiverge())
-    {
-        m_deferredEdits.Clear();
-        return;
-    }
-
-    m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
+    return true;
 }
 
 
@@ -1021,7 +952,7 @@ void ShellHistory::HoldInputBehindLive (HeldInput input)
 
 
 
-    if (verdict == DivergenceVerdict::Ask || verdict == DivergenceVerdict::Hold)
+    if (verdict == DivergenceVerdict::Fork || verdict == DivergenceVerdict::Hold)
     {
         m_divergenceGate.HoldInput (input);
     }
@@ -1033,9 +964,9 @@ void ShellHistory::HoldInputBehindLive (HeldInput input)
         RunForHeldInput();
     }
 
-    if (verdict == DivergenceVerdict::Ask)
+    if (verdict == DivergenceVerdict::Fork)
     {
-        PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_INPUT, 0, 0);
+        PostMessageW (m_host.GetMainWindow(), WM_APP_FORK_FOR_INPUT, 0, 0);
     }
 }
 
@@ -1146,7 +1077,7 @@ void ShellHistory::OnHeldInputRead()
 
     // A question already open answers for this read too, and its answer runs
     // the replay on.
-    if (m_divergenceGate.IsAsking())
+    if (m_divergenceGate.IsForking())
     {
         return;
     }
@@ -1157,7 +1088,7 @@ void ShellHistory::OnHeldInputRead()
 
     if (isAsking)
     {
-        OnConfirmInputDiverge();
+        ForkForHeldInput();
     }
     else
     {
@@ -1202,47 +1133,30 @@ void ShellHistory::ResumeAfterHeldInput()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnConfirmInputDiverge
+//  ForkForHeldInput
 //
-//  UI thread: puts the question for the input deferred. A yes queues the
-//  cut; the machine going live then writes the game port as the host has it
-//  now and posts back what was deferred, and a stopped replay runs on from
-//  there. A no drops it, a paste included, and the replay goes on.
+//  UI thread: history forks for the input deferred, with no question. The
+//  fork is queued; the machine going live then writes the game port as the
+//  host has it now and posts back what was deferred, and a stopped replay
+//  runs on from there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellHistory::OnConfirmInputDiverge()
+void ShellHistory::ForkForHeldInput()
 {
-    bool  isConfirmed  = false;
-    bool  hasHeldPaste = m_divergenceGate.HasHeldPaste();
-
-
-
-    if (!m_divergenceGate.IsAsking())
+    if (!m_divergenceGate.IsForking())
     {
         return;
     }
 
-    isConfirmed = AskToDiverge();
-    m_divergenceGate.Answer (isConfirmed);
+    m_divergenceGate.Answer (true);
 
     PublishHeldInput();
 
-    if (!isConfirmed)
-    {
-        if (hasHeldPaste)
-        {
-            m_host.TruncatePaste (m_pasteLengthBeforeHold);
-        }
-
-        ResumeAfterHeldInput();
-        return;
-    }
-
     m_cpuManager.PostCommand (IDM_DEBUG_DIVERGE);
 
-    // Live already, the replay having caught up while the question was
-    // open: no return to live posts the input back, so post it now.
+    // Live already, the replay having caught up while the fork was on its
+    // way: no return to live posts the input back, so post it now.
     if (!IsBehindLiveForUi())
     {
         PostMessageW (m_host.GetMainWindow(), WM_APP_GAMEPORT_FLUSH, 0, 0);

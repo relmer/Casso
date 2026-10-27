@@ -17,10 +17,11 @@
 //
 //  The commands the input journal records, which are the ones that change
 //  what the machine computes; the answer to a changed disk file, which can
-//  put a different disk in the drive; and a machine switch, a state file
-//  loaded or a debugger restart, each of which replaces the machine. A
-//  change to the machine's configuration in Settings arrives as a switch.
-//  A paste types into the machine as keys do.
+//  put a different disk in the drive; and a state file loaded or a debugger
+//  restart, each of which replaces the machine's state. A machine switch, or
+//  a change to the machine's configuration in Settings, which arrives as a
+//  switch, forks nothing: the outgoing machine's history is saved at its
+//  position. A paste types into the machine as keys do.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +37,6 @@ bool DivergenceGate::IsStateChangingCommand (WORD id)
     switch (id)
     {
         case IDM_DISK_RESOLVE_CHANGE:
-        case IDM_FILE_OPEN:
         case IDM_FILE_LOAD_STATE:
         case IDM_DEBUG_RESTART:
             return true;
@@ -60,7 +60,7 @@ DivergenceVerdict DivergenceGate::Judge (
     bool  isBehindLive,
     bool  isStateChange)
 {
-    return (isBehindLive && isStateChange) ? DivergenceVerdict::Ask : DivergenceVerdict::Proceed;
+    return (isBehindLive && isStateChange) ? DivergenceVerdict::Fork : DivergenceVerdict::Proceed;
 }
 
 
@@ -238,7 +238,7 @@ DivergenceVerdict DivergenceGate::JudgeGamePort (
 
     GetHeldGamePortLines (before, wanted, m_gamePortLines);
 
-    if (m_state == State::Asking || m_state == State::AwaitingLive)
+    if (m_state == State::Forking || m_state == State::AwaitingLive)
     {
         return DivergenceVerdict::Hold;
     }
@@ -274,7 +274,7 @@ DivergenceVerdict DivergenceGate::JudgeInput (
     bool  isBehindLive,
     bool  isReadGated)
 {
-    if (m_state == State::Asking || m_state == State::AwaitingLive)
+    if (m_state == State::Forking || m_state == State::AwaitingLive)
     {
         return DivergenceVerdict::Hold;
     }
@@ -290,9 +290,9 @@ DivergenceVerdict DivergenceGate::JudgeInput (
         return DivergenceVerdict::Hold;
     }
 
-    StartAsking();
+    StartForking();
 
-    return DivergenceVerdict::Ask;
+    return DivergenceVerdict::Fork;
 }
 
 
@@ -352,7 +352,7 @@ void DivergenceGate::ReleaseMousePress()
 
 void DivergenceGate::SetMouseTarget (std::optional<uint32_t> target)
 {
-    if (m_state == State::Asking || m_state == State::AwaitingLive)
+    if (m_state == State::Forking || m_state == State::AwaitingLive)
     {
         return;
     }
@@ -423,7 +423,7 @@ bool DivergenceGate::OnHeldInputRead()
 
     if (isAsking)
     {
-        StartAsking();
+        StartForking();
     }
 
     return isAsking;
@@ -446,7 +446,7 @@ bool DivergenceGate::OnHeldInputRead()
 
 void DivergenceGate::Answer (bool isConfirmed)
 {
-    if (m_state != State::Asking)
+    if (m_state != State::Forking)
     {
         return;
     }
@@ -607,15 +607,15 @@ void DivergenceGate::Hold()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DivergenceGate::StartAsking
+//  DivergenceGate::StartForking
 //
 //  Whatever is held already is part of the same question.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DivergenceGate::StartAsking()
+void DivergenceGate::StartForking()
 {
-    m_state = State::Asking;
+    m_state = State::Forking;
 }
 
 

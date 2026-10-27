@@ -513,7 +513,7 @@ public:
 
         Assert::IsFalse (isApplied);
         Assert::IsTrue  (gate.IsHolding(), L"a deflection is held");
-        Assert::IsFalse (gate.IsAsking(),  L"with no question yet");
+        Assert::IsFalse (gate.IsForking(),  L"with no question yet");
         Assert::IsTrue  (gate.GetHeldLines().paddles[0] == std::optional<Byte> (kFarEnd));
         Assert::AreEqual<int> (kRecorded, machine.GetRefs().iieSoftSwitches->GetPaddle (0), L"the paddle kept its recorded value");
 

@@ -1984,10 +1984,10 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         return DxuiMessageResult::Handled;
     }
 
-    // The //c's 80/40 switch behind live waits on this question.
-    if (msg == WM_APP_CONFIRM_INPUT)
+    // The //c's 80/40 switch behind live forks history first.
+    if (msg == WM_APP_FORK_FOR_INPUT)
     {
-        m_history->OnConfirmInputDiverge();
+        m_history->ForkForHeldInput();
 
         return DxuiMessageResult::Handled;
     }
@@ -1996,14 +1996,6 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     if (msg == WM_APP_HELD_INPUT_READ)
     {
         m_history->OnHeldInputRead();
-
-        return DxuiMessageResult::Handled;
-    }
-
-    // A debugger edit behind live waits on this question.
-    if (msg == WM_APP_CONFIRM_DIVERGE)
-    {
-        m_history->OnConfirmDiverge();
 
         return DxuiMessageResult::Handled;
     }

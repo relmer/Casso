@@ -41,10 +41,13 @@ public:
     {
         for (WORD id : { IDM_MACHINE_RESET, IDM_MACHINE_POWERCYCLE, IDM_DISK_INSERT1, IDM_DISK_INSERT2, IDM_DISK_EJECT1, IDM_DISK_EJECT2,
                          IDM_DISK_WRITEPROTECT1, IDM_DISK_WRITEPROTECT2, IDM_DISK_WP1, IDM_DISK_WP2, IDM_DISK_RESOLVE_CHANGE,
-                         IDM_FILE_OPEN, IDM_FILE_LOAD_STATE, IDM_DEBUG_RESTART })
+                         IDM_FILE_LOAD_STATE, IDM_DEBUG_RESTART })
         {
             Assert::IsTrue (DivergenceGate::IsStateChangingCommand (id), std::format (L"command {}", id).c_str());
         }
+
+        // A machine switch saves the outgoing machine's history, and forks nothing.
+        Assert::IsFalse (DivergenceGate::IsStateChangingCommand (IDM_FILE_OPEN), L"a machine switch");
     }
 
 
@@ -78,7 +81,7 @@ public:
 
     TEST_METHOD (AChangeIsAskedAboutOnlyBehindLive)
     {
-        Assert::IsTrue (DivergenceGate::Judge (true,  true)  == DivergenceVerdict::Ask);
+        Assert::IsTrue (DivergenceGate::Judge (true,  true)  == DivergenceVerdict::Fork);
         Assert::IsTrue (DivergenceGate::Judge (false, true)  == DivergenceVerdict::Proceed);
         Assert::IsTrue (DivergenceGate::Judge (true,  false) == DivergenceVerdict::Proceed);
         Assert::IsTrue (DivergenceGate::Judge (false, false) == DivergenceVerdict::Proceed);
@@ -107,7 +110,7 @@ public:
         HoldKey (gate, MakeKey (DxuiKeyEventKind::Down, 'A'), std::nullopt);
 
         Assert::IsTrue  (gate.IsHolding(), L"held");
-        Assert::IsFalse (gate.IsAsking(),  L"no question yet");
+        Assert::IsFalse (gate.IsForking(),  L"no question yet");
         Assert::IsTrue  (gate.GetHeldLines().isKeyDown, L"the key is down");
 
         HoldKey (gate, MakeKey (DxuiKeyEventKind::Char, 'a'), kLatchA);
@@ -136,7 +139,7 @@ public:
         HoldKey (gate, MakeKey (DxuiKeyEventKind::Char, 'a'), kLatchA);
 
         Assert::IsTrue (gate.OnHeldInputRead(), L"a read asks");
-        Assert::IsTrue (gate.IsAsking());
+        Assert::IsTrue (gate.IsForking());
         Assert::IsTrue (gate.GetHeldLines().IsEmpty(), L"no more reads are in question");
 
         HoldKey (gate, MakeKey (DxuiKeyEventKind::Up, 'A'), std::nullopt);
@@ -172,7 +175,7 @@ public:
 
         gate.Answer (false);
 
-        Assert::IsFalse (gate.IsAsking());
+        Assert::IsFalse (gate.IsForking());
         Assert::IsFalse (gate.IsHolding());
         Assert::IsTrue  (gate.JudgeKey (true, MakeKey (DxuiKeyEventKind::Char, 'a')) == DivergenceVerdict::Drop, L"the character is dropped");
 
@@ -199,7 +202,7 @@ public:
 
         Assert::AreEqual<size_t> (2, held.size(), L"handed back");
         Assert::IsFalse (gate.IsHolding());
-        Assert::IsFalse (gate.IsAsking(), L"never asked");
+        Assert::IsFalse (gate.IsForking(), L"no fork");
     }
 
 
@@ -209,7 +212,7 @@ public:
         DivergenceGate  gate;
 
         Assert::IsFalse (gate.OnHeldInputRead());
-        Assert::IsFalse (gate.IsAsking());
+        Assert::IsFalse (gate.IsForking());
     }
 
 
@@ -220,7 +223,7 @@ public:
         Assert::IsTrue (gate.JudgeKey (true, MakeKey (DxuiKeyEventKind::Down, 'A', true)) == DivergenceVerdict::Drop);
         Assert::IsTrue (gate.JudgeKey (true, MakeKey (DxuiKeyEventKind::Up,   'A'))       == DivergenceVerdict::Drop);
         Assert::IsFalse (gate.IsHolding());
-        Assert::IsFalse (gate.IsAsking());
+        Assert::IsFalse (gate.IsForking());
     }
 
 
@@ -249,7 +252,7 @@ public:
         Assert::IsTrue (gatePressed.JudgeGamePort   (true, rest, pressed)   == DivergenceVerdict::Hold);
         Assert::IsTrue (gateClosed.JudgeGamePort    (true, rest, closed)    == DivergenceVerdict::Hold);
 
-        Assert::IsTrue (gateDeflected.IsHolding() && !gateDeflected.IsAsking(), L"held, not asked");
+        Assert::IsTrue (gateDeflected.IsHolding() && !gateDeflected.IsForking(), L"deferred, with no fork");
 
         lines = gateDeflected.GetHeldLines();
         Assert::IsTrue (lines.paddles[0] == std::optional<Byte> (kFarEnd), L"the deflected axis");
@@ -332,7 +335,7 @@ public:
         Assert::IsTrue (gate.OnHeldInputRead());
 
         Assert::IsTrue (gate.JudgeGamePort (true, rest, MakeStick (kFarEnd, 0)) == DivergenceVerdict::Hold);
-        Assert::IsTrue (gate.IsAsking(), L"still the one question");
+        Assert::IsTrue (gate.IsForking(), L"the one fork");
     }
 
 
@@ -383,7 +386,7 @@ public:
         Assert::IsTrue (gate.IsHolding());
         Assert::IsTrue (gate.GetHeldLines().mouseButton == std::optional<bool> (true), L"the button is down on the watched lines");
 
-        Assert::IsTrue (gate.JudgeInput (true, false) == DivergenceVerdict::Ask, L"the switch asks at once");
+        Assert::IsTrue (gate.JudgeInput (true, false) == DivergenceVerdict::Fork, L"the switch forks at once");
         gate.HoldInput (HeldInput::EightyColumnToggle);
 
         gate.Answer (true);
@@ -393,7 +396,7 @@ public:
         Assert::IsTrue (heldInputs[0] == HeldInput::MousePress);
         Assert::IsTrue (heldInputs[1] == HeldInput::EightyColumnToggle);
 
-        Assert::IsTrue (gate.JudgeInput (true, false) == DivergenceVerdict::Ask);
+        Assert::IsTrue (gate.JudgeInput (true, false) == DivergenceVerdict::Fork);
         gate.HoldInput (HeldInput::EightyColumnToggle);
         gate.Answer (false);
         gate.TakeHeld (held, heldInputs);

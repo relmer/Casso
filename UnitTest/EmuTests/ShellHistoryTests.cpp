@@ -255,6 +255,23 @@ namespace ShellHistoryTests
         }
 
 
+        TEST_METHOD (ADebuggerEditBehindLiveForksWithNoQuestion)
+        {
+            ShellRig        rig (false);
+            ShellHistory &  history = rig.shell->GetHistory();
+            DebugCommand    edit;
+
+
+
+            rig.RunFrames (kFrames);
+            rig.Reverse (ReverseCommand::StepBack);
+
+            Assert::IsTrue (history.GuardEdit (edit), L"the edit is made");
+            Assert::IsFalse (history.IsBehindLive(), L"live where it was made");
+            Assert::AreEqual<size_t> (1, history.GetReverseHost()->GetController().GetKeyframes().GetBranchCount(), L"the future left behind is a branch");
+        }
+
+
         TEST_METHOD (CancelingTurningHistoryOffKeepsItOn)
         {
             ShellRig        rig (false);

@@ -14,8 +14,8 @@
 //  DivergenceVerdict
 //
 //  What becomes of an action from the user while the machine may be behind
-//  live: it goes ahead, the user is asked first, it is held -- until the
-//  guest reads it, behind a question, or after an answer -- or it is
+//  live: it goes ahead, history forks first, it is deferred -- until the
+//  guest reads it, or until the fork makes the machine live -- or it is
 //  dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +23,7 @@
 enum class DivergenceVerdict
 {
     Proceed,
-    Ask,
+    Fork,
     Hold,
     Drop,
 };
@@ -60,21 +60,19 @@ enum class HeldInput
 //  Behind live the machine replays recorded history, and anything that would
 //  change its state -- a key into the emulated machine, a disk mounted,
 //  ejected or write-protected, a reset or power cycle, a debugger edit --
-//  would make that history false from there on. A command is asked about at
-//  once: on a yes the history is cut there and the command runs live, on a
-//  no it is dropped and the replay goes on.
+//  would make that history false from there on. History forks at once, with
+//  no question: the recorded future becomes a branch left behind, and the
+//  command runs live.
 //
 //  Input the guest reads -- keys, a paste, the game port, the //c mouse --
-//  is held instead, without a question, and the replay goes on. The
-//  question waits until the replayed guest reads a line the held input
-//  would change (see HeldInputWatch); the shell then puts the machine back
-//  before that read and asks. A yes cuts history there and the held input
-//  goes in live; a no drops it and the replay goes on. A replay that
-//  reaches live with nothing in question hands the held input back to go in
-//  there, with no question at all.
+//  is deferred instead, and the replay goes on. When the replayed guest
+//  reads a line the deferred input would change (see HeldInputWatch), the
+//  shell puts the machine back before that read, history forks there, and
+//  the deferred input goes in live. A replay that arrives at live with no
+//  fork due posts the deferred input back to go in there.
 //
 //  A key press leaves its key waiting in the latch until the guest reads it,
-//  so a press stays in question after its release. A button, a stick or the
+//  so a press stays deferred after its release. A button, a stick or the
 //  mouse button let go of before any read is no longer held: what the guest
 //  would read of it is what it reads anyway.
 //
@@ -84,25 +82,22 @@ enum class HeldInput
 //  left where it was, one wandering within kAxisTolerance, or one let go of
 //  holds nothing.
 //
-//  The //c's 80/40 switch flips whatever the machine holds when it goes in,
-//  so it has no value of its own to compare a read against; it is asked
-//  about at once, as a command is.
+//  The //c's 80/40 switch flips whatever the machine has when it goes in,
+//  so it has no value to compare a read against; it forks at once, as a
+//  command does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class DivergenceGate
 {
 public:
-    static constexpr const wchar_t  * kpszTitle    = L"Replaying history";
-    static constexpr const wchar_t  * kpszQuestion = L"The machine is replaying recorded history. Making this change discards the history recorded after this point.\n\nDiscard it and make the change?";
-
     //  How far, in paddle units, an axis may move before it counts as moved.
     static constexpr int              kAxisTolerance = 16;
 
     //  A command posted to the machine's thread that changes its state.
     static bool               IsStateChangingCommand (WORD id);
 
-    //  A command, or a debugger edit: asked about behind live only.
+    //  A command, or a debugger edit: a fork first, behind live only.
     static DivergenceVerdict  Judge                  (bool isBehindLive, bool isStateChange);
 
     //  The game-port lines the host holds: each that moved from what the
@@ -120,7 +115,7 @@ public:
     DivergenceVerdict         JudgeGamePort          (bool isBehindLive, const GamePortState & lastWritten, const GamePortState & wanted);
 
     //  A host input other than a key or the game port. One the guest reads
-    //  is held; one it does not is asked about at once.
+    //  is deferred; one it does not forks at once.
     DivergenceVerdict         JudgeInput             (bool isBehindLive, bool isReadGated);
     void                      HoldInput              (HeldInput input);
 
@@ -134,11 +129,12 @@ public:
     void                      HoldPaste              (Byte latch);
     bool                      HasHeldPaste           () const { return m_isPasteHeld; }
 
-    //  The replayed guest read a held line: true when that asks the question
+    //  The replayed guest read a deferred line: true when history forks there
     //  now. False when nothing is held any more.
     bool                      OnHeldInputRead        ();
 
-    //  The user's answer to the question an input asked.
+    //  The fork made for the deferred input, which goes in once the machine
+    //  is live; false drops what was deferred.
     void                      Answer                 (bool isConfirmed);
 
     //  The machine is live again: the keys and other inputs held after a
@@ -149,11 +145,11 @@ public:
     void                      OnLive                 ();
 
     //  What the held input puts on the lines the guest reads; empty unless
-    //  input is held with no question asked.
+    //  input is deferred with no fork made for it.
     HeldInputLines            GetHeldLines           () const;
 
     bool                      IsHolding              () const { return m_state == State::Holding; }
-    bool                      IsAsking               () const { return m_state == State::Asking; }
+    bool                      IsForking               () const { return m_state == State::Forking; }
     bool                      IsAwaitingLive         () const { return m_state == State::AwaitingLive; }
 
 private:
@@ -161,7 +157,7 @@ private:
     {
         Idle,
         Holding,
-        Asking,
+        Forking,
         AwaitingLive,
     };
 
@@ -169,7 +165,7 @@ private:
     static bool  IsAxisAtRest  (Byte value);
 
     void         Hold          ();
-    void         StartAsking   ();
+    void         StartForking   ();
     void         DropHeld      ();
     bool         HasAnyHeld    () const;
     void         SettleHolding ();
