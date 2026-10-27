@@ -134,11 +134,11 @@
 
 **Independent Test**: quickstart.md Story 5.
 
-- [ ] T054 [P] [US5] `CassoEmuCore/Debugger/HeatHistory.cpp`: on `KeyframeDrop::PathChanged`, drop the heat after the position and rebuild from the side bytes of the new path; test in `UnitTest/EmuTests/HeatHistoryTests.cpp`
-- [ ] T055 [P] [US5] `CassoEmuCore/Debugger/CallStackHistory.cpp`: on `PathChanged`, drop the call record copies after the position and start a rebuild, as after a move; test in `UnitTest/EmuTests/CallStackHistoryTests.cpp`
-- [ ] T056 [P] [US5] `CassoEmuCore/Shell/DebugEventLogs.cpp`: on `PathChanged`, `CutBack` every cache to the position and rebuild the newer stretches from history; test in `UnitTest/EmuTests/DebugEventLogsTests.cpp`
-- [ ] T057 [US5] The debugger timeline draws the same marks and flyout as the rewind bar, with no mark for a breakpoint stop (FR-028), through `CassoEmuCore/Ui/Debugger/DebuggerWindowTimeline.cpp`; reverse continue and the step backs work on the active branch (FR-029), checked by the existing reverse continue tests plus one after a switch in `UnitTest/EmuTests/ReverseForkTests.cpp`
-- [ ] T058 [US5] Run quickstart.md Story 5 on screen, fix what fails, commit and push
+- [X] T054 [P] [US5] `CassoEmuCore/Debugger/HeatHistory.cpp`: on `KeyframeDrop::PathChanged`, drop the heat after the position and rebuild from the side bytes of the new path; test in `UnitTest/EmuTests/HeatHistoryTests.cpp` Done: the anchor stays when the fork's drops moved it to a keyframe before the fork, so the totals at the branch's live end are a straight run's.
+- [X] T055 [P] [US5] `CassoEmuCore/Debugger/CallStackHistory.cpp`: on `PathChanged`, drop the call record copies after the position and start a rebuild, as after a move; test in `UnitTest/EmuTests/CallStackHistoryTests.cpp` Done; the existing handling passed the new test with no change.
+- [X] T056 [P] [US5] `CassoEmuCore/Shell/DebugEventLogs.cpp`: on `PathChanged`, `CutBack` every cache to the position and rebuild the newer stretches from history; test in `UnitTest/EmuTests/DebugEventLogsTests.cpp` Done.
+- [X] T057 [US5] The debugger timeline draws the same marks and flyout as the rewind bar, with no mark for a breakpoint stop (FR-028), through `CassoEmuCore/Ui/Debugger/DebuggerWindowTimeline.cpp`; reverse continue and the step backs work on the active branch (FR-029), checked by the existing reverse continue tests plus one after a switch in `UnitTest/EmuTests/ReverseForkTests.cpp` Done: the debugger's strip uses `ShellHistory::m_thumbnails`, to which `PublishMarks` sends the same marks and branches as to the bar's, and the row labeler and the hover and switch functions are set on both. Marks come from the input journal and forks only, so a breakpoint stop has none.
+- [X] T058 [US5] Run quickstart.md Story 5 on screen, fix what fails, commit and push Done 2026-10-27 with the workstation locked: a key typed after F2 forked at the read, and the debugger opened afterward has the fork mark on its timeline. The flyout and a switch from the debugger's strip were not driven, since a posted move draws a WM_MOUSELEAVE while the real pointer is elsewhere; they run through the same strip, source and `ShellHistory::SwitchBranch` as the bar's, which were checked in T053. The switch, reverse continue and the views that follow it are covered by the T054 to T057 tests.
 
 ---
 
