@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Debugger/Reverse/ArenaExtents.h"
+#include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/SnapshotCompressor.h"
 
 class MachineHost;
@@ -68,6 +69,7 @@ struct KeyframeInfo
     uint64_t  gapStart     = 0;      // with hasGapBefore: where recording paused before it
     bool      isWhole      = false;  // false: XOR difference from its group's whole snapshot
     bool      isBoundary   = false;  // the state does not follow from the one before: a replay loads it
+    bool      isLiveEnd    = false;  // taken where the machine left live for history: a branch switch loads it
     bool      hasGapBefore = false;  // recording paused between gapStart and this keyframe
 };
 
@@ -100,7 +102,8 @@ enum class KeyframeCopy
 //  KeyframeDrop
 //
 //  Which keyframes KeyframeStore is about to drop: the oldest, the newest,
-//  or every one.
+//  or every one; or that the active path has changed past
+//  KeyframeStore::GetPathChangePosition, after a switch to another branch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,6 +112,34 @@ enum class KeyframeDrop
     Oldest,
     Newest,
     All,
+    PathChanged,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  KeyframeBranch
+//
+//  A branch of history left behind by a fork: where it forks from, by the
+//  position and the history cycle there on the path it forks from (parent 0
+//  for the active path, else another branch's id), its live end, and when
+//  the user left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct KeyframeBranch
+{
+    uint32_t  id              = 0;
+    uint32_t  parent          = 0;
+    uint64_t  forkPosition    = 0;
+    uint64_t  forkCycle       = 0;
+    uint64_t  liveEndPosition = 0;
+    uint64_t  liveEndCycle    = 0;
+    uint64_t  leftAtWallTime  = 0;
+    size_t    keyframeCount   = 0;
 };
 
 
@@ -161,6 +192,20 @@ enum class KeyframeDrop
 //  is called before each keyframe goes, while its side bytes can still be
 //  read.
 //
+//  History branches. The table is the active path, the keyframes a step or
+//  a seek moves through, and every index is of a keyframe on it. A fork at
+//  a position moves the keyframes from there on, and the input journal's
+//  records from the fork's journal index on, into a branch left behind;
+//  their packed bytes stay where they are in the arena, and a difference in
+//  the branch stays against its group's whole snapshot, which is on the path
+//  before the fork. A switch to a branch forks the active path where the
+//  branch begins and moves the branch's keyframes and records onto it, one
+//  segment at a time along the branch's ancestors. Room is made by trimming
+//  the oldest group of the oldest branch with none forked from it, before
+//  any keyframe on the active path; the active path's oldest group is
+//  dropped only with no branch left, so every branch's whole snapshots
+//  stay. More than kMaxBranches branches drops the oldest whole.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class KeyframeStore
@@ -207,13 +252,25 @@ public:
     HRESULT   DropAfterPosition (uint64_t position);
     void      MarkNewestBoundary()                    { GetEntry (m_count - 1).info.isBoundary = true; }
     void      MarkNewestGap     (uint64_t gapStart);
+    void      MarkNewestLiveEnd ()                    { GetEntry (m_count - 1).info.isLiveEnd = true; }
+
+    //  Branches: a fork at position, with the journal's records from
+    //  journalIndex on and the history cycle there; a switch to a branch;
+    //  and the branches left behind, oldest first.
+    static constexpr size_t  kMaxBranches = 8;
+
+    HRESULT   Fork              (uint64_t position, uint64_t cycle, InputJournal & journal, size_t journalIndex);
+    HRESULT   SwitchTo          (uint32_t branchId, InputJournal & journal);
+    void      GetBranches       (std::vector<KeyframeBranch> & outBranches) const;
+    size_t    GetBranchCount    () const { return m_branches.size(); }
+    uint64_t  GetPathChangePosition () const { return m_pathChangePosition; }
 
     size_t                    GetCount        () const { return m_count; }
     size_t                    GetPendingCount () const { return m_pendingCount; }
     const KeyframeInfo      & GetInfo         (size_t index) const { return GetEntry (index).info; }
     void                      GetSide         (size_t index, const Byte *& outData, size_t & outSize) const;
     size_t                    GetSideByteCount() const { return m_sideBytes; }
-    size_t                    GetByteCount    () const { return m_storedBytes + m_wholeBytes; }
+    size_t                    GetByteCount    () const { return m_storedBytes + m_branchBytes + m_wholeBytes; }
     size_t                    GetUsedBytes    () const;
     bool                      IsFull          () const { return m_isFull; }
     size_t                    GetReservedBytes() const;
@@ -246,6 +303,16 @@ private:
         size_t        offset = 0;      // where its packed bytes start in the arena
     };
 
+    //  A branch left behind: its keyframes, oldest first, and the journal's
+    //  records from its fork on, the first at firstJournalIndex.
+    struct Branch
+    {
+        KeyframeBranch             info;
+        std::vector<Entry>         entries;
+        std::vector<InputRecord>   records;
+        size_t                     firstJournalIndex = 0;
+    };
+
     //  One keyframe's work: the state handed over, and what packing it gave;
     //  the side bytes ride along untouched by the work.
     struct Job
@@ -270,7 +337,7 @@ private:
     size_t    GetExtentRoom     () const { return 2 * m_entries.size(); }
     bool      IsGroupDone       () const;
     size_t    GetLeastArena     (size_t stateBytes) const;
-    HRESULT   Relayout          (size_t slotCount, size_t arenaBytes, uint64_t keepPosition = UINT64_MAX);
+    HRESULT   Relayout          (size_t slotCount, size_t arenaBytes, uint64_t keepPosition = UINT64_MAX, bool isDropping = true);
     HRESULT   TryGrowTable      (bool & outGrew);
     HRESULT   TakeJob           (Job *& outJob);
     HRESULT   SubmitJob         (Job & job, uint64_t position, uint64_t cycle, size_t journalIndex);
@@ -288,6 +355,15 @@ private:
     bool      TryDropOldestGroup(uint64_t keepPosition = UINT64_MAX);
     void      DropOldestGroups  ();
     void      PopOldest         ();
+    HRESULT   MoveTailToBranch  (uint64_t position, uint64_t cycle, InputJournal & journal, size_t journalIndex);
+    HRESULT   MoveBranchOnPath  (size_t branchIndex, InputJournal & journal);
+    bool      TryTrimBranch     ();
+    void      DropBranch        (size_t branchIndex);
+    void      CapBranches       ();
+    bool      HasChildBranch    (uint32_t id) const;
+    size_t    FindOldestLeaf    () const;
+    size_t    FindBranch        (uint32_t id) const;
+    void      ResetGroup        ();
     void      ScheduleAfter     (uint64_t cycle);
 
     static uint64_t  ReadWallClock ();
@@ -316,6 +392,11 @@ private:
 
     //  Each owner's drop listener, in the order they were set.
     std::vector<std::pair<const void *, DropListener>>  m_dropListeners;
+
+    std::vector<Branch>            m_branches;                     // the branches left behind, oldest first
+    size_t                         m_branchBytes        = 0;       // the stored bytes of their keyframes
+    uint32_t                       m_nextBranchId       = 1;
+    uint64_t                       m_pathChangePosition = 0;       // where the active path changed at the last switch
 
     // Used by the work, so touched by the caller's thread only while none is in flight.
     std::vector<Byte>              m_latestWhole;          // unpacked copy of the newest whole snapshot

@@ -615,7 +615,8 @@ void HistoryThumbnails::Attach (KeyframeStore * keyframes)
 //
 //  After a keyframe is dropped from the new end, as when history is cut at
 //  an edit in the past, a keyframe of another state can be taken at the same
-//  position, so the pictures at that position are removed. A drop of the
+//  position, so the pictures at that position are removed; a switch to
+//  another branch removes those from its fork position on. A drop of the
 //  oldest removes nothing: positions only grow, so no later keyframe takes
 //  the same position.
 //
@@ -630,6 +631,10 @@ void HistoryThumbnails::OnKeyframeDrop (KeyframeDrop drop)
     else if (drop == KeyframeDrop::Newest && m_keyframes != nullptr && m_keyframes->GetCount() > 0)
     {
         ForgetPictures (m_keyframes->GetInfo (m_keyframes->GetCount() - 1).position);
+    }
+    else if (drop == KeyframeDrop::PathChanged && m_keyframes != nullptr)
+    {
+        ForgetPictures (m_keyframes->GetPathChangePosition());
     }
 }
 

@@ -192,6 +192,58 @@ void InputJournal::Truncate (size_t endIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MoveAfter
+//
+//  The records at and after index, copied out in order, then dropped as
+//  Truncate drops them: a fork moves them into the branch left behind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputJournal::MoveAfter (
+    size_t                       index,
+    std::vector<InputRecord>   & outRecords)
+{
+    size_t  i = std::max (index, m_firstIndex);
+
+
+
+    outRecords.clear();
+
+    for (; i < GetEndIndex(); i++)
+    {
+        outRecords.push_back (GetRecord (i));
+    }
+
+    Truncate (index);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Append
+//
+//  Records put back after the newest, as a branch switch returns a branch's
+//  records to the journal; on or off, the journal takes them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputJournal::Append (const std::vector<InputRecord> & records)
+{
+    for (const InputRecord & record : records)
+    {
+        AppendSlot() = record;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiscardBefore
 //
 //  Drops every record before beginIndex, once no snapshot can reach them any

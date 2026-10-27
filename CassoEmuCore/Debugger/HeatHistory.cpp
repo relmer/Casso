@@ -611,7 +611,9 @@ Error:
 //
 //  History is about to drop a keyframe: when it is the anchor, the anchor
 //  moves to the neighbor that stays, by the counts of the stretch between,
-//  which are still there to read. Dropping everything drops the anchor.
+//  which are still there to read. Dropping everything drops the anchor, as
+//  a switch to another branch does, with the map's records from the switch's
+//  fork position forgotten.
 //  Dropping the newest drops a future, and the map's records from it, from
 //  the keyframe before it or the machine, whichever is earlier, are
 //  forgotten. Dropping the oldest keeps the written bits at the keyframe
@@ -635,7 +637,7 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
         m_oldestBits.swap (m_bits);
         m_oldestBitsAt = m_keyframes->GetInfo (1).position;
     }
-    else if (drop == KeyframeDrop::All)
+    else if (drop == KeyframeDrop::All || drop == KeyframeDrop::PathChanged)
     {
         m_oldestBits.clear();
     }
@@ -646,12 +648,16 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
         {
             cut = std::min (cut, m_keyframes->GetInfo (count - 2).position);
         }
+        else if (drop == KeyframeDrop::PathChanged)
+        {
+            cut = std::min (cut, m_keyframes->GetPathChangePosition());
+        }
 
         m_map.ForgetAccessesFrom (cut);
         m_lookups.clear();
     }
 
-    if (!m_hasAnchor || drop == KeyframeDrop::All)
+    if (!m_hasAnchor || drop == KeyframeDrop::All || drop == KeyframeDrop::PathChanged)
     {
         DropAnchor();
         return;

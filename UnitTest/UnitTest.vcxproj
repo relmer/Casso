@@ -982,6 +982,8 @@
     <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
     <ClCompile Include="EmuTests\HistoryMarkTests.cpp" />
     <ClCompile Include="EmuTests\ArenaExtentsTests.cpp" />
+    <ClCompile Include="EmuTests\KeyframeStoreBranchTests.cpp" />
+    <ClCompile Include="EmuTests\InputJournalBranchTests.cpp" />
     <ClCompile Include="EmuTests\RewindBarBandTests.cpp" />
     <ClCompile Include="EmuTests\ReplayIndicatorTests.cpp" />
     <ClCompile Include="EmuTests\ImageShrinkTests.cpp" />

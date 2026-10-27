@@ -59,8 +59,8 @@ void ArenaExtents::Clear()
 //
 //  The start of the first free extent that fits size is taken, and an extent
 //  used up whole is removed from the list. False, with nothing taken, when
-//  none fits. A size
-//  of zero takes nothing and fits at the start of the first extent.
+//  none fits. A size of zero takes nothing and fits at the start of the
+//  first extent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

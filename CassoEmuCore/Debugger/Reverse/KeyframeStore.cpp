@@ -108,14 +108,17 @@ Error:
 //  The newest group is never dropped, and its side bytes are not bounded by
 //  the least arena, so the table and arena grow to fit what is left when it
 //  is more than the sizes given, and so do the groups left in for keepPosition.
-//  Call it with nothing in flight.
+//  The branches' keyframes are copied after the active path's. Without
+//  isDropping nothing is dropped, and the table and arena grow to fit. Call
+//  it with nothing in flight.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT KeyframeStore::Relayout (
     size_t    slotCount,
     size_t    arenaBytes,
-    uint64_t  keepPosition)
+    uint64_t  keepPosition,
+    bool      isDropping)
 {
     HRESULT                  hr         = S_OK;
     bool                     isDropped  = true;
@@ -130,12 +133,12 @@ HRESULT KeyframeStore::Relayout (
 
     CBRA (m_pendingCount == 0);
 
-    while (isDropped && (GetByteCount() > m_settings.budgetBytes || m_storedBytes > arenaBytes || m_count > slotCount))
+    while (isDropping && isDropped && (GetByteCount() > m_settings.budgetBytes || m_storedBytes + m_branchBytes > arenaBytes || m_count > slotCount))
     {
         isDropped = TryDropOldestGroup (keepPosition);
     }
 
-    arenaBytes = (std::max) (arenaBytes, m_storedBytes);
+    arenaBytes = (std::max) (arenaBytes, m_storedBytes + m_branchBytes);
     slotCount  = (std::max) (slotCount, m_count);
 
     buffer = new (std::nothrow) Byte[arenaBytes];
@@ -156,6 +159,21 @@ HRESULT KeyframeStore::Relayout (
         }
 
         end += entries[i].info.storedBytes;
+    }
+
+    //  The branches' keyframes follow the active path's.
+    for (Branch & branch : m_branches)
+    {
+        for (Entry & entry : branch.entries)
+        {
+            if (entry.info.storedBytes != 0)
+            {
+                memcpy (arena.get() + end, m_arena.get() + entry.offset, entry.info.storedBytes);
+            }
+
+            entry.offset  = end;
+            end          += entry.info.storedBytes;
+        }
     }
 
     m_entries.swap (entries);
@@ -209,6 +227,10 @@ void KeyframeStore::Clear()
     m_latestWhole.clear();
 
     m_extents.Clear();
+    m_branches.clear();
+
+    m_branchBytes        = 0;
+    m_pathChangePosition = 0;
 
     m_storedBytes  = 0;
     m_sideBytes    = 0;
@@ -822,8 +844,15 @@ HRESULT KeyframeStore::SubmitJob (
         CHR (hr);
     }
 
+    //  The table is the active path's alone, so a branch dropped frees no
+    //  slot: every branch goes before the active path's oldest group can.
     if (m_count == m_entries.size())
     {
+        while (!m_branches.empty())
+        {
+            DropBranch (FindOldestLeaf());
+        }
+
         isDropped = TryDropOldestGroup();
         CBRA (isDropped);
     }
@@ -1719,7 +1748,8 @@ size_t KeyframeStore::FindGroupStart (size_t index) const
 //  it, when a collected whole snapshot follows it; false when none does, so
 //  the newest group and every keyframe in flight stay. False too when the
 //  next group starts past keepPosition, so the keyframe at or before it
-//  stays.
+//  stays. While any branch is left, a branch is trimmed instead, so the
+//  whole snapshots the branches' differences are against stay.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1730,6 +1760,11 @@ bool KeyframeStore::TryDropOldestGroup (uint64_t keepPosition)
     bool    isDropped = false;
 
 
+
+    if (!m_branches.empty())
+    {
+        return TryTrimBranch();
+    }
 
     while (nextGroup < collected && !GetEntry (nextGroup).info.isWhole)
     {
@@ -1797,6 +1832,521 @@ void KeyframeStore::PopOldest()
 
     m_first = (m_first + 1) % m_entries.size();
     m_count--;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Fork
+//
+//  The keyframes at and after position, and the journal's records from
+//  journalIndex on, become a branch left behind; cycle is the history cycle
+//  at position. With no keyframe there, no branch is made, and the
+//  records go as a cut drops them. More than kMaxBranches branches then
+//  drops the oldest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::Fork (
+    uint64_t         position,
+    uint64_t         cycle,
+    InputJournal   & journal,
+    size_t           journalIndex)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = MoveTailToBranch (position, cycle, journal, journalIndex);
+    CHR (hr);
+
+    CapBranches();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SwitchTo
+//
+//  The branch's segments, from the one forked from the active path down to
+//  the branch itself, each moved onto the active path in turn: the active
+//  path forks where the segment begins, then takes its keyframes and
+//  records. The tail of a segment forked from again goes back to a branch,
+//  which the user left when the segment was left. PathChanged then goes to
+//  the listeners, with the first fork position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::SwitchTo (
+    uint32_t         branchId,
+    InputJournal   & journal)
+{
+    HRESULT                hr      = S_OK;
+    size_t                 index   = FindBranch (branchId);
+    uint32_t               id      = branchId;
+    uint64_t               leftAt  = 0;
+    bool                   isFirst = true;
+    bool                   isFound = index < m_branches.size();
+    uint32_t               nextId  = 0;
+    std::vector<uint32_t>  path;
+
+
+
+    CBRAEx (isFound, E_INVALIDARG);
+
+    hr = WaitForPending();
+    CHR (hr);
+
+    while (id != 0)
+    {
+        index   = FindBranch (id);
+        isFound = index < m_branches.size();
+        CBRA (isFound);
+
+        path.insert (path.begin(), id);
+        id = m_branches[index].info.parent;
+    }
+
+    m_pathChangePosition = m_branches[FindBranch (path.front())].info.forkPosition;
+
+    for (uint32_t segment : path)
+    {
+        index   = FindBranch (segment);
+        nextId  = m_nextBranchId;
+        isFound = index < m_branches.size();
+
+        CBRA (isFound);
+
+        hr = MoveTailToBranch (m_branches[index].info.forkPosition, m_branches[index].info.forkCycle, journal, m_branches[index].firstJournalIndex);
+        CHR (hr);
+
+        if (!isFirst && m_nextBranchId != nextId)
+        {
+            m_branches.back().info.leftAtWallTime = leftAt;
+        }
+
+        index  = FindBranch (segment);
+        leftAt = m_branches[index].info.leftAtWallTime;
+
+        hr = MoveBranchOnPath (index, journal);
+        CHR (hr);
+
+        isFirst = false;
+    }
+
+    NotifyDrop (KeyframeDrop::PathChanged);
+
+    CapBranches();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetBranches
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::GetBranches (std::vector<KeyframeBranch> & outBranches) const
+{
+    outBranches.clear();
+
+    for (const Branch & branch : m_branches)
+    {
+        outBranches.push_back (branch.info);
+        outBranches.back().keyframeCount = branch.entries.size();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveTailToBranch
+//
+//  The active path's keyframes at and after position move into a new
+//  branch, newest first, each sent to the listeners as the newest dropped,
+//  and the journal's records from journalIndex with them. Branches forked
+//  from the active path after position now fork from the new branch. The
+//  newest group left is reloaded, as after a cut.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::MoveTailToBranch (
+    uint64_t         position,
+    uint64_t         cycle,
+    InputJournal   & journal,
+    size_t           journalIndex)
+{
+    HRESULT  hr     = S_OK;
+    size_t   moved  = 0;
+    size_t   i      = 0;
+    Branch   branch;
+
+
+
+    hr = WaitForPending();
+    CHR (hr);
+
+    while (moved < m_count && GetEntry (m_count - 1 - moved).info.position >= position)
+    {
+        moved++;
+    }
+
+    if (moved == 0)
+    {
+        journal.Truncate (journalIndex);
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    branch.entries.resize (moved);
+
+    for (i = moved; i > 0; i--)
+    {
+        const Entry  & newest = GetEntry (m_count - 1);
+
+
+
+        NotifyDrop (KeyframeDrop::Newest);
+
+        branch.entries[i - 1] = newest;
+
+        m_storedBytes -= newest.info.storedBytes;
+        m_sideBytes   -= newest.info.sideBytes;
+        m_branchBytes += newest.info.storedBytes;
+        m_count--;
+    }
+
+    branch.info.id              = m_nextBranchId++;
+    branch.info.parent          = 0;
+    branch.info.forkPosition    = position;
+    branch.info.forkCycle       = cycle;
+    branch.info.liveEndPosition = branch.entries.back().info.position;
+    branch.info.liveEndCycle    = branch.entries.back().info.cycle;
+    branch.info.leftAtWallTime  = m_wallClock();
+    branch.firstJournalIndex    = journalIndex;
+
+    journal.MoveAfter (journalIndex, branch.records);
+
+    for (Branch & each : m_branches)
+    {
+        if (each.info.parent == 0 && each.info.forkPosition > position)
+        {
+            each.info.parent = branch.info.id;
+        }
+    }
+
+    m_branches.push_back (std::move (branch));
+
+    if (m_count == 0)
+    {
+        ResetGroup();
+        BAIL_OUT_IF (true, S_OK);
+    }
+
+    hr = ReloadLatestWhole();
+    CHR (hr);
+
+    ScheduleAfter (GetEntry (m_count - 1).info.cycle);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MoveBranchOnPath
+//
+//  A branch forked from the active path at its newest keyframe's end: its
+//  keyframes go after the active path's, its records after the journal's,
+//  and the branches forked from it now fork from the active path. The
+//  table grows to fit, with nothing dropped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT KeyframeStore::MoveBranchOnPath (
+    size_t           branchIndex,
+    InputJournal   & journal)
+{
+    HRESULT   hr       = S_OK;
+    Branch  & branch   = m_branches[branchIndex];
+    size_t    needed   = m_count + branch.entries.size();
+    bool      isAtFork = journal.GetEndIndex() == branch.firstJournalIndex;
+
+
+
+    CBRA (isAtFork);
+
+    if (needed > m_entries.size())
+    {
+        hr = Relayout (needed + GetGroupSlots(), m_arenaBytes, UINT64_MAX, false);
+        CHR (hr);
+    }
+
+    for (const Entry & entry : branch.entries)
+    {
+        GetEntry (m_count) = entry;
+
+        m_storedBytes += entry.info.storedBytes;
+        m_sideBytes   += entry.info.sideBytes;
+        m_branchBytes -= entry.info.storedBytes;
+        m_count++;
+    }
+
+    journal.Append (branch.records);
+
+    for (Branch & each : m_branches)
+    {
+        if (each.info.parent == branch.info.id)
+        {
+            each.info.parent = 0;
+        }
+    }
+
+    m_branches.erase (m_branches.begin() + (ptrdiff_t) branchIndex);
+
+    hr = ReloadLatestWhole();
+    CHR (hr);
+
+    ScheduleAfter (GetEntry (m_count - 1).info.cycle);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryTrimBranch
+//
+//  The oldest group of the oldest branch with none forked from it goes; a
+//  branch of one group goes whole. The branch's keyframe after the group
+//  then begins a gap from the fork, since nothing before it can be replayed
+//  to; its records stay, so the journal's indices along it stay valid.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KeyframeStore::TryTrimBranch()
+{
+    size_t    index     = FindOldestLeaf();
+    size_t    nextGroup = 1;
+    Branch  * branch    = nullptr;
+
+
+
+    if (index >= m_branches.size())
+    {
+        return false;
+    }
+
+    branch = &m_branches[index];
+
+    while (nextGroup < branch->entries.size() && !branch->entries[nextGroup].info.isWhole)
+    {
+        nextGroup++;
+    }
+
+    m_isFull = true;
+
+    if (nextGroup >= branch->entries.size())
+    {
+        DropBranch (index);
+        return true;
+    }
+
+    for (size_t i = 0; i < nextGroup; i++)
+    {
+        m_extents.Free (branch->entries[i].offset, branch->entries[i].info.storedBytes);
+        m_branchBytes -= branch->entries[i].info.storedBytes;
+    }
+
+    branch->entries.erase (branch->entries.begin(), branch->entries.begin() + (ptrdiff_t) nextGroup);
+
+    branch->entries.front().info.isBoundary   = true;
+    branch->entries.front().info.hasGapBefore = true;
+    branch->entries.front().info.gapStart     = branch->info.forkPosition;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DropBranch
+//
+//  Every keyframe of the branch goes, with its records. Branches forked
+//  from it fork from its parent instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::DropBranch (size_t branchIndex)
+{
+    Branch  & branch = m_branches[branchIndex];
+
+
+
+    for (const Entry & entry : branch.entries)
+    {
+        m_extents.Free (entry.offset, entry.info.storedBytes);
+        m_branchBytes -= entry.info.storedBytes;
+    }
+
+    for (Branch & each : m_branches)
+    {
+        if (each.info.parent == branch.info.id)
+        {
+            each.info.parent = branch.info.parent;
+        }
+    }
+
+    m_branches.erase (m_branches.begin() + (ptrdiff_t) branchIndex);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CapBranches
+//
+//  More than kMaxBranches branches drops the oldest with none forked from
+//  it, whole, until kMaxBranches are left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::CapBranches()
+{
+    while (m_branches.size() > kMaxBranches)
+    {
+        DropBranch (FindOldestLeaf());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasChildBranch
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool KeyframeStore::HasChildBranch (uint32_t id) const
+{
+    return std::any_of (m_branches.begin(), m_branches.end(), [id] (const Branch & each) { return each.info.parent == id; });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindOldestLeaf
+//
+//  The index of the branch the user left longest ago with none forked from
+//  it, or the branch count with none left. Every tree of branches has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t KeyframeStore::FindOldestLeaf() const
+{
+    size_t  oldest = m_branches.size();
+    size_t  i      = 0;
+
+
+
+    for (i = 0; i < m_branches.size(); i++)
+    {
+        if (HasChildBranch (m_branches[i].info.id))
+        {
+            continue;
+        }
+
+        if (oldest == m_branches.size() || m_branches[i].info.leftAtWallTime < m_branches[oldest].info.leftAtWallTime)
+        {
+            oldest = i;
+        }
+    }
+
+    return oldest;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindBranch
+//
+//  The index of the branch with id, or the branch count with none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+size_t KeyframeStore::FindBranch (uint32_t id) const
+{
+    size_t  i = 0;
+
+
+
+    while (i < m_branches.size() && m_branches[i].info.id != id)
+    {
+        i++;
+    }
+
+    return i;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetGroup
+//
+//  No keyframe is left on the active path: the next one opens a group.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void KeyframeStore::ResetGroup()
+{
+    m_latestWhole.clear();
+
+    m_groupLength  = 0;
+    m_wholeBytes   = 0;
+    m_groupWhole   = 0;
+    m_groupDiffs   = 0;
+    m_nextDueCycle = 0;
 }
 
 

@@ -171,6 +171,12 @@ public:
     uint64_t             GetCutCount   () const { return m_cutCount; }
 
     void  Truncate      (size_t endIndex);
+
+    //  A fork's and a branch switch's moves: the records at and after index
+    //  taken out into outRecords, and records put back at the end, the first
+    //  at the journal's end index.
+    void  MoveAfter     (size_t index, std::vector<InputRecord> & outRecords);
+    void  Append        (const std::vector<InputRecord> & records);
     void  DiscardBefore (size_t beginIndex);
     void  Clear         ();
 

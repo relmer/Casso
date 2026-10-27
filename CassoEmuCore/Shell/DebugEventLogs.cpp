@@ -449,7 +449,8 @@ void DebugEventLogs::EndAt (uint64_t position)
 //
 //  The newest keyframes go when history is cut at the machine's position,
 //  and every keyframe when it is cut back to its start: the stretches
-//  rebuilt after the cut go with them.
+//  rebuilt after the cut go with them. A switch to another branch changes
+//  the path from its fork position on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -458,6 +459,11 @@ void DebugEventLogs::OnDrop (KeyframeDrop drop)
     uint64_t  position = (drop == KeyframeDrop::All) ? 0 : m_machine.GetPosition();
 
 
+
+    if (drop == KeyframeDrop::PathChanged && m_controller != nullptr)
+    {
+        position = std::min (position, m_controller->GetKeyframes().GetPathChangePosition());
+    }
 
     if (drop == KeyframeDrop::Oldest)
     {
