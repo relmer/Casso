@@ -33,15 +33,17 @@ The body is not compressed: the keyframes in it are packed already (XPRESS, by `
 
 | Section | Tag | Contents |
 |---|---|---|
-| Fingerprint | `HFMT` | 64-bit checksum over the tag and version of every section `MachineHost::SaveState` writes for this machine |
+| Fingerprint | `HFMT` | 64-bit checksum over the tag and version of every top-level section each state part of the machine writes (`MachineHost::ComputeStateFingerprint`) |
 | Settings | `HSET` | `intervalCycles`, `wholeEvery`, `longestGroup` |
-| Segments | `HSEG` | Segment count; per segment: `id`, `parent` (`UINT32_MAX` for the root), `forkPosition`, `firstJournalIndex`, `leftAtWallTime`, live-end position and cycle, keyframe count; then the active leaf's `id` |
+| Segments | `HSEG` | Segment count; per segment: `id`, `parent` (0 for a branch forked from the active path), `forkPosition`, `forkCycle`, `firstJournalIndex`, `leftAtWallTime`, live-end position and cycle, keyframe count; then the next branch id. The first segment is the active path, whose id, parent and fork fields are zero; the branches left behind follow, oldest first |
 | Keyframes | `HKEY` | Per segment, oldest first: every `KeyframeInfo` field, and the keyframe's offset into `HARN` |
-| Arena | `HARN` | Byte count, then the packed bytes and side bytes of every keyframe, end to end |
-| Journal | `HJRN` | Per segment: record count, then every `InputRecord` field; the active path's records are listed under their segments |
-| Media | `HMED` | Per media id a keyframe refers to: `mediaId`, path (UTF-8), `DiskFormat`, `ImageIdentity`, image byte count, image bytes |
+| Arena | `HARN` | Byte count, then the packed bytes and side bytes of every keyframe, end to end in segment order |
+| Journal | `HJRN` | Per segment: entry count, then every `InputRecord` field; the active path's are the journal's from its first index |
+| Media | `HMED` | Per bay with a medium: slot, drive and the medium's id, which the keyframes use for it |
 | Branch disks | `HBDV` | After 041 (R-011): per segment, its `BranchDiskVersion` entries |
 | Resume | `HPOS` | The position and cycle the machine was at when saved; equal to the live end unless it was behind live |
+
+The disks themselves are the payload's, as every state file has them. Until Phase 7, history is not saved while the disk store retains a disk that left a bay, since its keyframes may refer to it: such a file is written with no section.
 
 ## Reading
 
@@ -52,8 +54,9 @@ The body is not compressed: the keyframes in it are packed already (XPRESS, by `
 | `HFMT` differs from the running build's | As above |
 | Any section fails to parse | As above |
 | Arena larger than the current budget | The oldest groups are dropped, branches left behind first (FR-016), until it fits |
-| A media file's `ImageIdentity` differs at load | The disk mounts from its file; a gap mark at the load's keyframe; the stretch before it can be viewed and replayed, and a change there is ignored with a notice |
-| All present and valid | The store is rebuilt with these segments; the machine state is the live end of the active branch; the machine then seeks to `HPOS`, paused |
+| Saved with another keyframe interval | As a bad section |
+| The bays with media differ from `HMED`'s | As a bad section |
+| All present and valid | Each bay's medium is given its saved id, and the id counter moves past it; the store is rebuilt with these segments; the machine state is the live end of the active branch, where a boundary keyframe is taken; the machine then seeks to `HPOS`, paused |
 
 **Rules**:
 
@@ -63,7 +66,7 @@ The body is not compressed: the keyframes in it are packed already (XPRESS, by `
 
 ## Writing
 
-The section is laid out from the store directly: settings, segments, keyframe infos, then each used extent copied in order, which also compacts the arena's free space out of the file. The writer waits for keyframes in flight to finish packing before laying out the arena. The automatic save at exit writes it to the temporary file the state file already uses, and renames it over the old file.
+The section is laid out from the store directly: settings, segments, keyframe infos, then each keyframe's stored bytes copied in order, so the file has none of the arena's free space. The writer waits for keyframes in flight to finish packing before laying out the arena. At exit, the section is built as the CPU thread stops, before recording stops, and the automatic save then writes it to the temporary file the state file already uses, and renames it over the old file.
 
 ## Tests
 

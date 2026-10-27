@@ -138,6 +138,14 @@ During the `VERIFY` loop, history grew by 36.6 MB in 60 emulated seconds, about 
 - **Speed**: SC-007 allows 1 s for loading a full history. A load reads the file, checks the hash, lays the extents into the arena and unpacks the newest whole snapshot, and nothing else. A task measures load and save at the 64 MB default.
 
 **Alternatives considered**: a separate history file beside the automatic state. Rejected after the owner's 2026-10-25 answer: saves include history, File > Save state included, and one format serves both.
+**As built (Phase 6)**:
+
+- The active path is the first segment and the branches follow. The media table lists each bay's medium id, since the payload has the disks' bytes; at a load each bay's medium is given its saved id (`DiskImage::SetImageId`), and the id counter moves past it.
+- Until Phase 7, no history is saved while the disk store retains a disk that left a bay, since the store has no public function to recreate one with a given id. No disk-mismatch gap arises while the payload has the disks' bytes; T066 moves to Phase 7 with 041's store.
+- History saved with another keyframe interval is discarded as a bad section.
+- At exit, `EmulatorShell::OnCpuThreadStop` builds the section before recording stops. Behind live the machine goes to the live end first, so the stop writes the live end's disks.
+- A state with no history is marked with an `InputKind::StateLoad` entry and a boundary keyframe. The loaded state's history cycles count from the power-on before its save, and a count below the newest keyframe's would clear history, so they are raised to those before the load.
+- Timing, Release, `SavedHistoryScenarioTests` on a //e drawing random hi-res lines: 6440 s of recording, 38,654 keyframes in 60.4 MB, a 69.7 MB file; save 76 ms, load 57 ms. SC-007 allows 1 s for the load.
 
 ## R-011: The disk rule and 041
 
