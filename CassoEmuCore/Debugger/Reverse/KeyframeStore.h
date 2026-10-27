@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Debugger/Reverse/ArenaExtents.h"
 #include "Debugger/Reverse/SnapshotCompressor.h"
 
 class MachineHost;
@@ -135,8 +136,8 @@ enum class KeyframeDrop
 //  or ejected) starts a new group.
 //
 //  The memory is taken once, on the first Add: a table of keyframes and one
-//  arena the packed snapshots are laid into end to end, wrapping around, so
-//  recording seldom allocates again: only a table that fills while much of
+//  arena the packed snapshots are laid into, each in the first free extent
+//  it fits (ArenaExtents), so recording seldom allocates again: only a table that fills while much of
 //  the arena is free is laid out again, with slots sized to the keyframes
 //  held, so small keyframes use the budget. Over the byte budget, or out of
 //  room in the table or the arena, the oldest group is dropped whole, oldest first,
@@ -266,6 +267,7 @@ private:
     void      ComputeLayout     (size_t stateBytes, size_t & outSlotCount, size_t & outArenaBytes) const;
     void      ComputeFitLayout  (size_t & outSlotCount, size_t & outArenaBytes) const;
     size_t    GetGroupSlots     () const;
+    size_t    GetExtentRoom     () const { return 2 * m_entries.size(); }
     bool      IsGroupDone       () const;
     size_t    GetLeastArena     (size_t stateBytes) const;
     HRESULT   Relayout          (size_t slotCount, size_t arenaBytes, uint64_t keepPosition = UINT64_MAX);
@@ -279,7 +281,6 @@ private:
 
     const Job      & GetPendingJob  (size_t pendingIndex) const;
     static size_t    GetPackedBytes (const KeyframeInfo & info) { return info.storedBytes - info.sideBytes; }
-    bool      TryFindRoom       (size_t size, size_t & outOffset) const;
     void      Pack              (Job & job);
     HRESULT   ReloadLatestWhole ();
     HRESULT   DropNewerThan     (bool isByPosition, uint64_t limit);
@@ -296,9 +297,9 @@ private:
     std::vector<Entry>             m_entries;              // the table, used as a ring; sized once by Reserve
     size_t                         m_first        = 0;     // slot of the oldest keyframe
     size_t                         m_count        = 0;
-    std::unique_ptr<Byte[]>        m_arena;                // packed snapshots, end to end, wrapping around
+    std::unique_ptr<Byte[]>        m_arena;                // packed snapshots, one to an extent
     size_t                         m_arenaBytes   = 0;
-    size_t                         m_arenaEnd     = 0;     // just past the newest packed snapshot
+    ArenaExtents                   m_extents;              // the arena's free space
     size_t                         m_storedBytes  = 0;
     size_t                         m_sideBytes    = 0;     // of m_storedBytes, the side bytes
     size_t                         m_groupLength  = 0;     // keyframes in the newest group

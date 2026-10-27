@@ -119,7 +119,9 @@ HRESULT KeyframeStore::Relayout (
 {
     HRESULT                  hr         = S_OK;
     bool                     isDropped  = true;
+    bool                     isPlaced   = false;
     size_t                   end        = 0;
+    size_t                   offset     = 0;
     Byte                   * buffer     = nullptr;
     std::vector<Entry>       entries;
     std::unique_ptr<Byte[]>  arena;
@@ -160,8 +162,15 @@ HRESULT KeyframeStore::Relayout (
     m_arena.swap (arena);
 
     m_arenaBytes = arenaBytes;
-    m_arenaEnd   = end;
     m_first      = 0;
+
+    m_extents.Reset (arenaBytes, GetExtentRoom());
+
+    if (end > 0)
+    {
+        isPlaced = m_extents.TryAllocate (end, offset);
+        CBRA (isPlaced && offset == 0);
+    }
 
 Error:
     return hr;
@@ -199,7 +208,8 @@ void KeyframeStore::Clear()
 
     m_latestWhole.clear();
 
-    m_arenaEnd     = 0;
+    m_extents.Clear();
+
     m_storedBytes  = 0;
     m_sideBytes    = 0;
     m_groupLength  = 0;
@@ -441,8 +451,8 @@ Error:
 //  budget; the arena, which is the rest of the budget after the table and
 //  the unpacked newest whole snapshot; and the work buffers, with room for
 //  a state that grows a little. The arena is never smaller than the newest
-//  group, plus a keyframe in flight and the room lost where the arena wraps,
-//  can need at the packer's worst case, so a store whose budget is too small
+//  group, plus a keyframe in flight and the room lost to the gaps between
+//  extents, can need at the packer's worst case, so a store whose budget is too small
 //  for that holds more than its budget.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -473,6 +483,7 @@ HRESULT KeyframeStore::Reserve (size_t stateBytes)
 
     m_arenaBytes = arenaBytes;
     m_entries.resize (slotCount);
+    m_extents.Reset (arenaBytes, GetExtentRoom());
 
     m_latestWhole.reserve (stateRoom);
     m_scratch.reserve     (stateRoom);
@@ -577,8 +588,8 @@ bool KeyframeStore::IsGroupDone() const
 //
 //  The smallest arena that always fits the newest group at the packer's
 //  worst case for a state of stateBytes: its first wholeEvery keyframes,
-//  every keyframe in flight, and two more for the room lost where the arena
-//  wraps. Past wholeEvery its differences together pack smaller than its
+//  every keyframe in flight, and two more for the room lost to the gaps
+//  between extents. Past wholeEvery its differences together pack smaller than its
 //  whole snapshot until the last one, which adds two more.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -679,8 +690,8 @@ Error:
 //
 //  The bytes held against the budget, for a meter of how full it is: all of
 //  it once the oldest have been dropped for room, since the store then holds
-//  all it can, even where a group dropped whole or the room lost where the
-//  arena wraps leaves the bytes held short of the budget. The table counts
+//  all it can, even where a group dropped whole or the room lost to the gaps
+//  between extents leaves the bytes held short of the budget. The table counts
 //  from the first keyframe on: its slots come out of the budget, so the
 //  arena fills, and the oldest start being dropped, with the snapshots alone
 //  short of the budget by the table's size.
@@ -1117,8 +1128,8 @@ Error:
 //
 //  Place
 //
-//  Copies packed, then side, into the arena after the newest packed
-//  snapshot, dropping the oldest groups until they fit. The arena always
+//  Copies packed, then side, into the first free extent of the arena they
+//  fit in, dropping the oldest groups until they fit. The arena always
 //  has room for the snapshots of the newest group, so only side bytes can
 //  fail to fit, which is E_OUTOFMEMORY without an assert.
 //
@@ -1131,7 +1142,7 @@ HRESULT KeyframeStore::Place (
 {
     HRESULT  hr        = S_OK;
     size_t   size      = packed.size() + side.size();
-    bool     hasRoom   = TryFindRoom (size, outOffset);
+    bool     hasRoom   = m_extents.TryAllocate (size, outOffset);
     bool     hasSide   = !side.empty();
     bool     isDropped = false;
 
@@ -1143,7 +1154,7 @@ HRESULT KeyframeStore::Place (
         BAIL_OUT_IF (!isDropped && hasSide, E_OUTOFMEMORY);
         CBRAEx (isDropped, E_OUTOFMEMORY);
 
-        hasRoom = TryFindRoom (size, outOffset);
+        hasRoom = m_extents.TryAllocate (size, outOffset);
     }
 
     if (!packed.empty())
@@ -1156,69 +1167,8 @@ HRESULT KeyframeStore::Place (
         memcpy (m_arena.get() + outOffset + packed.size(), side.data(), side.size());
     }
 
-    m_arenaEnd = outOffset + size;
-
 Error:
     return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryFindRoom
-//
-//  Where size bytes can go: straight after the newest packed snapshot, or
-//  at the start of the arena when the end has no room and the oldest one
-//  does not start before size. The packed snapshots held run from the
-//  oldest's offset to m_arenaEnd, wrapping around the end of the arena.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool KeyframeStore::TryFindRoom (
-    size_t    size,
-    size_t  & outOffset) const
-{
-    size_t  collected = m_count - m_pendingCount;
-    size_t  head      = 0;
-    size_t  tail      = m_arenaEnd;
-    bool    isHolding = collected > 0 && m_storedBytes > 0;
-    bool    isWrapped = false;
-    bool    hasRoom   = false;
-
-
-
-    if (isHolding)
-    {
-        head      = GetEntry (0).offset;
-        isWrapped = tail <= head;
-    }
-    else
-    {
-        // Nothing held: anywhere the size fits, after the newest if it can.
-        head = m_arenaBytes;
-        tail = (collected > 0 && tail + size <= m_arenaBytes) ? tail : 0;
-    }
-
-    if (!isWrapped && m_arenaBytes - tail >= size)
-    {
-        outOffset = tail;
-        hasRoom   = true;
-    }
-    else if (!isWrapped && head >= size)
-    {
-        outOffset = 0;
-        hasRoom   = true;
-    }
-    else if (isWrapped && head - tail >= size)
-    {
-        outOffset = tail;
-        hasRoom   = true;
-    }
-
-    return hasRoom;
 }
 
 
@@ -1660,6 +1610,8 @@ HRESULT KeyframeStore::DropNewerThan (
     {
         NotifyDrop (KeyframeDrop::Newest);
 
+        m_extents.Free (GetEntry (m_count - 1).offset, GetEntry (m_count - 1).info.storedBytes);
+
         m_storedBytes -= GetEntry (m_count - 1).info.storedBytes;
         m_sideBytes   -= GetEntry (m_count - 1).info.sideBytes;
         m_count--;
@@ -1677,8 +1629,7 @@ HRESULT KeyframeStore::DropNewerThan (
         BAIL_OUT_IF (true, S_OK);
     }
 
-    newest     = &GetEntry (m_count - 1);
-    m_arenaEnd = newest->offset + newest->info.storedBytes;
+    newest = &GetEntry (m_count - 1);
 
     hr = ReloadLatestWhole();
     CHR (hr);
@@ -1838,6 +1789,8 @@ void KeyframeStore::DropOldestGroups()
 void KeyframeStore::PopOldest()
 {
     NotifyDrop (KeyframeDrop::Oldest);
+
+    m_extents.Free (GetEntry (0).offset, GetEntry (0).info.storedBytes);
 
     m_storedBytes -= GetEntry (0).info.storedBytes;
     m_sideBytes   -= GetEntry (0).info.sideBytes;
