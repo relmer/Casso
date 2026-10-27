@@ -95,11 +95,19 @@ bool NibbleImageCodec::HasAnyNibble (const vector<Byte> & raw)
 //
 //  The file's per-track blocks become the image's per-track bit streams.
 //
-//  Each block is packed straight in at eight bits per byte, MSB first, so a
-//  track of N bytes becomes a track of N*8 bits. That is what makes the load
-//  and the derivation exact inverses for an untouched track: eight shifts
-//  assemble byte zero and set the high bit on the eighth, so reading the
-//  stream back gives the same bytes in the same order.
+//  Each byte is packed in at eight bits, MSB first, and each $FF of a gap
+//  is followed by two zero cells, the self-sync a drive writes there. A read
+//  of the stream returns the same bytes in the same order, because the shift
+//  register skips the zeros: the load and the derivation are exact inverses
+//  for an untouched track.
+//
+//  THE ZEROS ARE WHAT LETS A GUEST WRITE INTO THE TRACK. A nibble file has
+//  the bytes a drive read and none of the timing between them, so a gap of
+//  eight-cell $FF bytes has no zero for the shift register to drop. A guest
+//  write ends on a bit the file's bytes do not start on, and without the
+//  zeros every field after it on the track was read out of step: DOS 3.3
+//  could not find the next sector, reported an I/O error, and could not read
+//  that sector again.
 //
 //  Bytes with the high bit clear are packed like any other. They are illegal
 //  on real media, they appear in real images anyway, and refusing them would
@@ -109,11 +117,16 @@ bool NibbleImageCodec::HasAnyNibble (const vector<Byte> & raw)
 
 HRESULT NibbleImageCodec::Load (const vector<Byte> & raw, DiskImage & out)
 {
-    HRESULT   hr        = S_OK;
-    size_t    trackSize = 0;
-    size_t    rawSize   = 0;
-    int       track     = 0;
-    bool      readable  = false;
+    HRESULT       hr        = S_OK;
+    size_t        trackSize = 0;
+    size_t        rawSize   = 0;
+    size_t        bitCount  = 0;
+    size_t        bitPos    = 0;
+    size_t        i         = 0;
+    int           bit       = 0;
+    int           track     = 0;
+    bool          readable  = false;
+    vector<bool>  isGapSync;
 
 
 
@@ -132,14 +145,33 @@ HRESULT NibbleImageCodec::Load (const vector<Byte> & raw, DiskImage & out)
 
     for (track = 0; track < kTrackCount; track++)
     {
-        vector<Byte>  &  buf    = out.GetTrackBitsForWrite (track);
-        size_t           offset = static_cast<size_t> (track) * trackSize;
+        const Byte  * block = &raw[static_cast<size_t> (track) * trackSize];
 
-        out.ResizeTrack (track, trackSize * 8);
+        FindGapSync (block, trackSize, isGapSync);
 
-        memcpy (buf.data(), &raw[offset], trackSize);
+        bitCount = trackSize * kBitsPerNibble + static_cast<size_t> (std::ranges::count (isGapSync, true)) * kSelfSyncZeros;
 
-        out.SetTrackBitCount (track, trackSize * 8);
+        out.ResizeTrack (track, bitCount);
+
+        vector<Byte>  &  buf = out.GetTrackBitsForWrite (track);
+
+        for (i = 0, bitPos = 0; i < trackSize; i++)
+        {
+            for (bit = 7; bit >= 0; bit--, bitPos++)
+            {
+                if (((block[i] >> bit) & 1) != 0)
+                {
+                    buf[bitPos >> 3] = static_cast<Byte> (buf[bitPos >> 3] | (0x80 >> (bitPos & 7)));
+                }
+            }
+
+            //  ResizeTrack zero-filled the buffer, so the self-sync zeros
+            //  are already there.
+            if (isGapSync[i])
+            {
+                bitPos += kSelfSyncZeros;
+            }
+        }
     }
 
     out.SetSourceFormat (DiskFormat::Nib);
@@ -163,10 +195,11 @@ Error:
 //  the sequencer's own rule and it is shared with the sector decoder rather
 //  than restated, so the two can never disagree about where a nibble ends.
 //
-//  THE COUNT CAN ONLY FALL, NEVER RISE. A self-sync byte occupies ten bit
-//  cells and still yields one byte, so a track carrying any sync derives fewer
-//  bytes than its block holds. The ceiling is trackBits/8, which IS the block
-//  size, so overflow is arithmetic rather than something to guard against.
+//  A self-sync byte occupies ten bit cells and yields one byte, so a track
+//  derives at most trackBits/8 bytes. A loaded nibble track is longer than its
+//  block by its gaps' zero cells, so after a guest write of eight-cell nibbles
+//  over them a track can derive a byte or two more than its block has room
+//  for, and the surplus comes off the gap in Render.
 //
 //  AN EMPTY RESULT IS AN ANSWER HERE, NOT A SWALLOWED FAILURE, which is worth
 //  stating because the reverse is a standing hazard in this codebase. A track
@@ -199,6 +232,19 @@ HRESULT NibbleImageCodec::DeriveTrack (const DiskImage & img, int track, vector<
 
     while (bitPos < trackBits)
     {
+        //  Zero cells left at the end of the revolution are the self-sync of
+        //  the gap that wraps to the start. A read begun in them finds the
+        //  track's first nibble again, so the walk ends there.
+        while (bitPos < trackBits && img.ReadBit (track, bitPos) == 0)
+        {
+            bitPos++;
+        }
+
+        if (bitPos >= trackBits)
+        {
+            break;
+        }
+
         nibble = NibblizationLayer::ReadNibbleAt (img, track, bitPos);
 
         if (nibble == 0)
@@ -211,6 +257,55 @@ HRESULT NibbleImageCodec::DeriveTrack (const DiskImage & img, int track, vector<
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibbleImageCodec::FindGapSync
+//
+//  Which bytes of a track's block are the sync of a gap: each $FF in the
+//  run that ends right before a field's prologue, the track taken as a
+//  circle, since a gap can wrap from the end of the block to its start.
+//
+//  $FF is a legal data nibble too, so a run counts only by what follows it,
+//  as in RotateGapToEnd.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void NibbleImageCodec::FindGapSync (const Byte * block, size_t count, vector<bool> & outIsGapSync)
+{
+    size_t  i       = 0;
+    size_t  back    = 0;
+    size_t  at      = 0;
+    bool    isField = false;
+
+
+
+    outIsGapSync.assign (count, false);
+
+    for (i = 0; i < count; i++)
+    {
+        isField = block[i]               == NibblizationLayer::kProlog0 &&
+                  block[(i + 1) % count] == NibblizationLayer::kProlog1 &&
+                  (block[(i + 2) % count] == NibblizationLayer::kAddressProlog2 ||
+                   block[(i + 2) % count] == NibblizationLayer::kDataProlog2);
+
+        for (back = 1; isField && back < count; back++)
+        {
+            at = (i + count - back) % count;
+
+            if (block[at] != kSyncNibble || outIsGapSync[at])
+            {
+                break;
+            }
+
+            outIsGapSync[at] = true;
+        }
+    }
 }
 
 
@@ -245,6 +340,10 @@ Error:
 //  track, so there is no structural answer to find -- but the padding still has
 //  to go somewhere, and the widest quiet stretch remains the best guess.
 //
+//  The sequence is a circle, so a run at its end goes on into the run at its
+//  start, and the two are one gap when a field follows. A track derived from
+//  bit zero of a loaded nibble track ends in exactly that gap.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void NibbleImageCodec::RotateGapToEnd (vector<Byte> & nibbles)
@@ -257,6 +356,8 @@ void NibbleImageCodec::RotateGapToEnd (vector<Byte> & nibbles)
     size_t  fallbackEnd = 0;
     size_t  fallbackLen = 0;
     size_t  end         = 0;
+    size_t  leading     = 0;
+    size_t  trailing    = 0;
     size_t  i           = 0;
     bool    beforeField = false;
 
@@ -299,6 +400,28 @@ void NibbleImageCodec::RotateGapToEnd (vector<Byte> & nibbles)
         }
 
         runLength = 0;
+    }
+
+    while (leading < count && nibbles[leading] == kSyncNibble)
+    {
+        leading++;
+    }
+
+    while (leading < count && trailing < count - leading && nibbles[count - 1 - trailing] == kSyncNibble)
+    {
+        trailing++;
+    }
+
+    beforeField = (trailing != 0) && (leading + 2 < count) &&
+                  (nibbles[leading]     == NibblizationLayer::kProlog0) &&
+                  (nibbles[leading + 1] == NibblizationLayer::kProlog1) &&
+                  (nibbles[leading + 2] == NibblizationLayer::kAddressProlog2 ||
+                   nibbles[leading + 2] == NibblizationLayer::kDataProlog2);
+
+    if (beforeField && leading + trailing > bestLen)
+    {
+        bestLen = leading + trailing;
+        bestEnd = leading;
     }
 
     if (bestLen == 0)
@@ -490,22 +613,30 @@ HRESULT NibbleImageCodec::Render (
         hr = DeriveTrack (img, track, nibbles);
         CHR (hr);
 
-        //  More derived bytes than the block holds is arithmetically
-        //  impossible, so this asserts rather than truncating: reaching it
-        //  means the derivation or the track length is wrong.
-        nibbleCount = nibbles.size();
-        fitsInBlock = nibbleCount <= trackSize;
-
-        CBRA (fitsInBlock);
-
-        //  Only when there is padding to place. A track that fills its block
-        //  exactly needs none, and rotating it anyway would move every byte for
-        //  no reason -- which would also cost the guarantee that a full track
-        //  derives back byte-identical.
-        if (nibbleCount < trackSize)
+        //  Only when there is padding to place or a surplus to take off. A
+        //  track that fills its block exactly gets neither, and rotating it
+        //  anyway would move every byte for no reason -- which would also cost
+        //  the guarantee that a full track derives back byte-identical.
+        if (nibbles.size() != trackSize)
         {
             RotateGapToEnd (nibbles);
         }
+
+        //  After a guest write of eight-cell nibbles over a gap's ten-cell
+        //  sync, a track can derive a byte or two more than its block has room
+        //  for. They come off the sync RotateGapToEnd moved to the end.
+        while (nibbles.size() > trackSize && nibbles.back() == kSyncNibble)
+        {
+            nibbles.pop_back();
+        }
+
+        //  A track too long after that has no sync at its end: a guest wrote
+        //  more nibbles than a block can store. The save fails rather than
+        //  cutting a field short.
+        nibbleCount = nibbles.size();
+        fitsInBlock = nibbleCount <= trackSize;
+
+        CBREx (fitsInBlock, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
         memcpy (&out[offset], nibbles.data(), nibbleCount);
     }

@@ -29,6 +29,7 @@ public:
     static constexpr size_t  kNb2ImageSize  = kNb2TrackSize * kTrackCount;
     static constexpr Byte    kSyncNibble    = 0xFF;
     static constexpr size_t  kBitsPerNibble = 8;
+    static constexpr size_t  kSelfSyncZeros = 2;      // the zero cells after a gap's , as a drive writes sync
 
     //  Track size a file's total length implies; ERROR_BAD_LENGTH for any other.
     static HRESULT  ResolveGeometry (size_t imageByteSize, size_t & outTrackSize);
@@ -60,4 +61,5 @@ private:
 
     static HRESULT  DeriveTrack     (const DiskImage & img, int track, vector<Byte> & outNibbles);
     static void     RotateGapToEnd  (vector<Byte> & nibbles);
+    static void     FindGapSync     (const Byte * block, size_t count, vector<bool> & outIsGapSync);
 };

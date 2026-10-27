@@ -180,6 +180,7 @@
     <ClCompile Include="GuestVisibleSharedImageTests.cpp" />
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="GuestVisibleBlankTrackTests.cpp" />
+    <ClCompile Include="GuestVisibleNibWriteTests.cpp" />
     <ClCompile Include="IdleHistoryRateTests.cpp" />
     <ClCompile Include="HistoryRateTests.cpp" />
     <ClCompile Include="DebugEventReplayRateTests.cpp" />

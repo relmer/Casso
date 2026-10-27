@@ -620,4 +620,98 @@ public:
 
         Assert::IsTrue (longest > 0, L"a padded track ends in a run of sync bytes");
     }
+
+
+
+    //  A DOS 3.3 disk written as a nibble image, sectors varied so a misplaced
+    //  one is visible.
+    static void  MakeDosNibble (vector<Byte> & outSectors, vector<Byte> & outNibFile)
+    {
+        DiskImage  written;
+        size_t     i       = 0;
+
+        outSectors.assign (NibblizationLayer::kImageByteSize, 0);
+
+        for (i = 0; i < outSectors.size(); i++)
+        {
+            outSectors[i] = static_cast<Byte> ((i * 7 + (i / 256)) & 0xFF);
+        }
+
+        AssertSucceeded (NibblizationLayer::NibblizeDsk (outSectors, written));
+        AssertSucceeded (NibbleImageCodec::Serialize (written, vector<Byte>(), outNibFile));
+    }
+
+
+
+    //  The sync of each gap is laid down with the two zero cells a drive
+    //  writes after it, so the field after a guest write that ends between
+    //  two of the file's bytes is readable. The shift register skips the
+    //  zeros, so each track derives back to exactly the bytes of its block.
+    TEST_METHOD (Load_LaysAGapsSyncDownAsSelfSyncAndDerivesBackExactly)
+    {
+        DiskImage     img;
+        vector<Byte>  sectors;
+        vector<Byte>  nibFile;
+        vector<Byte>  out;
+        int           track   = 0;
+
+        MakeDosNibble (sectors, nibFile);
+
+        AssertSucceeded (NibbleImageCodec::Load (nibFile, img));
+
+        for (track = 0; track < NibbleImageCodec::kTrackCount; track++)
+        {
+            Assert::IsTrue (img.GetTrackBitCount (track) > NibbleImageCodec::kNibTrackSize * NibbleImageCodec::kBitsPerNibble,
+                L"each gap's sync has its zero cells");
+        }
+
+        AssertSucceeded (NibbleImageCodec::Serialize (img, vector<Byte>(), out));
+
+        Assert::IsTrue (out == nibFile, L"and every track derives back to the bytes of its block");
+    }
+
+
+
+    //  After a guest write of eight-cell nibbles over a gap's ten-cell sync, a
+    //  track can derive more bytes than its block has room for. The surplus
+    //  comes off the longest gap, here the one that wraps from the end of the
+    //  track to its start, and every field on the track stays.
+    TEST_METHOD (Serialize_ASurplusComesOffTheLongestGap)
+    {
+        constexpr size_t    kSurplus  = 30;
+        constexpr size_t    kTrack0   = static_cast<size_t> (NibblizationLayer::kSectorsPerTrack * NibblizationLayer::kSectorByteSize);
+        DiskImage           img;
+        DiskImage           reloaded;
+        vector<Byte>        sectors;
+        vector<Byte>        nibFile;
+        vector<Byte>        longer;
+        vector<Byte>        out;
+        vector<Byte>        recovered;
+        SectorDecodeReport  report;
+
+        MakeDosNibble (sectors, nibFile);
+
+        AssertSucceeded (NibbleImageCodec::Load (nibFile, img));
+
+        //  Track 0 at eight cells a byte with kSurplus more sync bytes at the
+        //  end of its block: more nibbles than the block has room for.
+        longer.assign (nibFile.begin(), nibFile.begin() + NibbleImageCodec::kNibTrackSize);
+        longer.insert (longer.end(), kSurplus, NibbleImageCodec::kSyncNibble);
+
+        img.ResizeTrack (0, longer.size() * NibbleImageCodec::kBitsPerNibble);
+        memcpy (img.GetTrackBitsForWrite (0).data(), longer.data(), longer.size());
+        img.MarkTrackDirty (0);
+
+        AssertSucceeded (NibbleImageCodec::Serialize (img, nibFile, out), L"the track saves");
+
+        Assert::AreEqual (NibbleImageCodec::kNibImageSize, out.size(), L"in its block");
+        Assert::IsTrue   (std::equal (out.begin(), out.begin() + NibbleImageCodec::kNibTrackSize, nibFile.begin()),
+            L"with the surplus taken off the gap that ends it");
+
+        AssertSucceeded (NibbleImageCodec::Load (out, reloaded));
+        AssertSucceeded (NibblizationLayer::Denibblize (reloaded, DiskFormat::Dsk, recovered, report));
+
+        Assert::IsTrue (report.GetOutcome (0) == TrackDecodeOutcome::Complete, L"track 0 has all sixteen sectors");
+        Assert::IsTrue (std::equal (recovered.begin(), recovered.begin() + kTrack0, sectors.begin()), L"with their bytes");
+    }
 };
