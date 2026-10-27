@@ -19,10 +19,13 @@
 //
 //  Take releases the token on the test thread and has the stand-in claim it.
 //  GiveBack has the stand-in release it and the test thread claim it again,
-//  and the destructor does the same if the test did not. An exception thrown
-//  by work on the stand-in, Assert::Fail among them, comes back to the test
-//  thread from RunOnOwner, because Assert::Fail off the test thread ends the
-//  test host. Every wait gives up after five seconds with ERROR_TIMEOUT.
+//  and the destructor does the same if the test did not. A C++ exception
+//  thrown by work on the stand-in comes back to the test thread from
+//  RunOnOwner. A failed Assert does not: it raises SEH exception 0xE3530001,
+//  which catch (...) does not catch under /EHsc, and off the test thread it
+//  ends the test host. Work that checks something there writes the result to
+//  a variable, and the test thread asserts on it. Every wait ends after five
+//  seconds with ERROR_TIMEOUT.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
