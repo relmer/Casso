@@ -821,7 +821,7 @@ static constexpr size_t kCodeHeatColumn        = DisassemblyCells::kHeatColumn;
     IHostDialogs       * GetHostDialogs         () override { return (m_host != nullptr) ? &m_host->GetHostDialogs() : nullptr; }
     bool                 IsTooltipVisible       () const override { return m_tooltip.IsVisible(); }
     void                 RepaintLater           () override { RequestPaint(); }
-    HWND                 GetOwnerHwnd           () const override { return GetHwnd(); }
+    HWND                 GetOwnerHwnd           () const override { return GetRoutingHwnd(); }
     IDxuiTextRenderer  * GetPaneTextRenderer    () override { return GetTextRenderer(); }
     DxuiHwndSource     * GetPanePopupHost       () override { return GetPopupHost(); }
     DxuiWindow         * GetPaneWindow          (const std::wstring & pane) override { return GetPaneHost (pane); }
