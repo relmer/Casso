@@ -108,6 +108,16 @@ public:
         Assert::IsTrue (Mentions (body, L"Closed Apple"), L"//e has a Closed Apple key");
     }
 
+    //  Every model rewinds while F2 is down, which is missing from the
+    //  History menu's shortcut column.
+    TEST_METHOD (EveryModel_HoldingF2Rewinds)
+    {
+        for (const KeyboardMapText::Machine & m : { MakeTwoPlus(), MakeTwoe() })
+        {
+            Assert::IsTrue (Mentions (KeyboardMapText::BuildBody (m), L"F2, held"), L"holding F2 rewinds");
+        }
+    }
+
     //  The dialog sizes itself from the rows, so a machine with fewer keys
     //  must actually produce fewer rows rather than blank ones.
     TEST_METHOD (FewerKeys_ProduceFewerRows)

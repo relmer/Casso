@@ -191,8 +191,8 @@
 ## Phase 8: Polish and Cross-Cutting Concerns
 
 - [ ] T078 Re-measure SC-001a and SC-001b with `HistoryCostTests` (Release, pinned) against T001's figures, and SC-002, SC-007 and SC-008 on the final build; update research.md
-- [ ] T079 [P] Document the History menu, F2, Ctrl+F11, Ctrl+F2, the rewind bar, forks and saved history in `docs/` beside the debugger's history documentation, and in the key map (`IDM_HELP_KEYMAP`)
-- [ ] T080 [P] Remove dead code the move left: `rg -n "AskToDiverge|kpszQuestion|SetUserMaximumSpeed|reverseRecording" CassoEmuCore UnitTest` returns only the old JSON keys' read
+- [X] T079 [P] Document the History menu, F2, Ctrl+F11, Ctrl+F2, the rewind bar, forks and saved history in `docs/` beside the debugger's history documentation, and in the key map (`IDM_HELP_KEYMAP`) Done in `docs/History.md`, linked from the debugger's timeline section, and an "F2, held" row in the keyboard map.
+- [X] T080 [P] Remove dead code the move left: `rg -n "AskToDiverge|kpszQuestion|SetUserMaximumSpeed|reverseRecording" CassoEmuCore UnitTest` returns only the old JSON keys' read Done: the deferred debugger edits, unused since an edit behind live forks at once, are removed; the old JSON key is read and written by `GlobalUserPrefs`, as R-012 settles.
 - [ ] T081 Full gate: `scripts/RunTests.ps1 -Build` in Debug and Release, `scripts/RunTests.ps1 -Build -Scenario`, `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, ARM64 Debug and Release builds (build only; there is no ARM64 device), any AddressSanitizer scenario run master requires after 041, and `scripts/CheckStyle.ps1 -Mode Tree`; report any suite that could not run, and why
 - [ ] T082 Draft the CHANGELOG `[Unreleased]` entries (one terse line each, under Added and Changed) and the README feature line, run Check-Prose, and give them to the owner for approval before the master merge
 

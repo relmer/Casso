@@ -54,6 +54,11 @@ std::vector<DialogTextRun> KeyboardMapText::BuildBody (const Machine & machine)
     row.text = L"Backspace";  row.rightText = L"Left arrow, the Apple's backspace";
     body.push_back (row);
 
+    // The menu's Rewind steps back one frame, and its shortcut column lists
+    // F2 without the rewind that continues while the key is down.
+    row.text = L"F2, held";   row.rightText = L"Rewind until released";
+    body.push_back (row);
+
     if (machine.hasGamePort)
     {
         body.push_back ({ L"", false, L"" });

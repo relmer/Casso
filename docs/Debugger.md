@@ -1025,6 +1025,8 @@ history, stopping the machine first if it is running, and the machine stays
 stopped there; clicking the live end goes live, also stopped. The timeline
 docks and floats, and its place is restored, as the command bar's is.
 Floating, it is as long as it was docked, and dragging either end resizes it.
+It is the emulator window's rewind bar as well, with the same marks and
+branches; [History.md](History.md) covers rewinding, forks and saved history.
 
 No step back or seek can cross a time the Uthernet II was in use. Its open
 connections are on the host, and no replay can open them again. While the
