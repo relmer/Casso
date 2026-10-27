@@ -1781,7 +1781,10 @@ legend, and tilt the platter and back.
 - **FR-024**: In Timing mode the platter MUST color flux tracks by each cell's
   deviation from the nominal 3.91 µs cell, fast toward one color, slow toward
   another and neutral at nominal, and MUST show bit tracks and sector-image
-  tracks in dimmed structure colors. The timing range MUST default to ±5% and
+  tracks in dimmed structure colors. A cell's time is the mean over the 32
+  cells around it, since one transition's interval is mostly jitter, not
+  the drive's speed; a coarser level has the mean of the cells it
+  covers. The timing range MUST default to ±5% and
   be adjustable from ±1% to ±25%, and the legend MUST show its numeric scale.
 - **FR-025**: The platter MUST zoom from fit to at least 600×, about the
   pointer, with the mouse wheel, the "−", "+" and "Fit" buttons, and the

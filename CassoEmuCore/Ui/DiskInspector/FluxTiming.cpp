@@ -10,6 +10,7 @@
 
 static constexpr double  s_kTicksPerMicrosecond = 8.0;
 static constexpr double  s_kHalfScale           = 127.0;
+static constexpr uint32_t  s_kSmoothCells         = 32;
 
 
 
@@ -71,24 +72,39 @@ double FluxTiming::DecodeDeviation (Byte value)
 //  FluxTiming::BuildDeviations
 //
 //  A byte per cell, laid out as PlatterCells lays out kinds, so the two
-//  share their level offsets. A track without cell times is all nominal.
+//  share their level offsets. A cell's time is the mean over the
+//  s_kSmoothCells cells around it, across the index where it wraps: a
+//  capture's transitions jitter around the drive's speed, and one
+//  interval alone is mostly jitter. A track without cell times is all
+//  nominal.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void FluxTiming::BuildDeviations (const TrackAnalysis & track, vector<Byte> & outCells)
 {
     const FramedTrack &  framed = track.framed;
+    uint32_t             count  = framed.cellCount;
+    uint32_t             window = std::min (s_kSmoothCells, std::max<uint32_t> (count, 1));
     uint32_t             cell   = 0;
+    double               sum    = 0;
 
 
 
-    outCells.assign (framed.cellCount, kNominal);
+    outCells.assign (count, kNominal);
 
-    if (framed.isFlux && framed.cellTicks.size() >= framed.cellCount)
+    if (framed.isFlux && count > 0 && framed.cellTicks.size() >= count)
     {
-        for (cell = 0; cell < framed.cellCount; cell++)
+        //  The window starts window / 2 cells before cell 0 and slides one
+        //  cell at a time.
+        for (cell = 0; cell < window; cell++)
         {
-            outCells[cell] = EncodeDeviation (GetDeviation (framed.cellTicks[cell]));
+            sum += framed.cellTicks[(cell + count - window / 2) % count];
+        }
+
+        for (cell = 0; cell < count; cell++)
+        {
+            outCells[cell] = EncodeDeviation (GetDeviation (sum / window));
+            sum           += framed.cellTicks[(cell + window - window / 2) % count] - framed.cellTicks[(cell + count - window / 2) % count];
         }
     }
 }
@@ -101,9 +117,8 @@ void FluxTiming::BuildDeviations (const TrackAnalysis & track, vector<Byte> & ou
 //
 //  FluxTiming::BuildLevels
 //
-//  Coarser levels have the deviation furthest from nominal in each pair, so
-//  one odd cell still shows at fit, as PlatterCells keeps the most important
-//  kind.
+//  Each coarser level has the mean of each pair, so a stretch's speed is
+//  visible at fit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,7 +141,7 @@ void FluxTiming::BuildLevels (const vector<Byte> & cells, vector<vector<Byte>> &
             Byte  a = below[2 * i];
             Byte  b = (2 * i + 1 < below.size()) ? below[2 * i + 1] : a;
 
-            level[i] = (std::abs (a - kNominal) >= std::abs (b - kNominal)) ? a : b;
+            level[i] = static_cast<Byte> ((a + b + 1) / 2);
         }
 
         outLevels.push_back (std::move (level));

@@ -62,8 +62,8 @@ public:
         FluxTiming::BuildDeviations (track, cells);
 
         Assert::AreEqual (static_cast<size_t> (track.framed.cellCount), cells.size());
-        Assert::AreEqual (-0.041, FluxTiming::DecodeDeviation (cells[10]),               0.005, L"the first half runs fast");
-        Assert::AreEqual ( 0.055, FluxTiming::DecodeDeviation (cells[cells.size() - 10]), 0.005, L"the second half runs slow");
+        Assert::AreEqual (-0.041, FluxTiming::DecodeDeviation (cells[100]),               0.005, L"the first half runs fast");
+        Assert::AreEqual ( 0.055, FluxTiming::DecodeDeviation (cells[cells.size() - 100]), 0.005, L"the second half runs slow");
         Assert::AreEqual (FluxTiming::kNominal, FluxTiming::EncodeDeviation (0.0));
         Assert::AreEqual (static_cast<Byte> (255), FluxTiming::EncodeDeviation (0.9), L"clamped to full scale");
     }
@@ -140,18 +140,55 @@ public:
 
 
 
-    TEST_METHOD (CoarserLevelsKeepTheFurthestDeviation)
+    TEST_METHOD (CoarserLevelsAverageTheirCells)
     {
         vector<Byte>          cells (64, FluxTiming::kNominal);
         vector<vector<Byte>>  levels;
 
 
 
-        cells[33] = FluxTiming::EncodeDeviation (-0.2);
+        for (size_t i = 0; i < cells.size(); i += 2)
+        {
+            cells[i] = FluxTiming::EncodeDeviation (-0.2);
+        }
+
         FluxTiming::BuildLevels (cells, levels);
 
         Assert::AreEqual (static_cast<size_t> (7), levels.size());
-        Assert::AreEqual (cells[33], levels.back()[0], L"one fast cell shows at the coarsest level");
+        Assert::AreEqual (-0.1, FluxTiming::DecodeDeviation (levels.back()[0]), 0.005, L"half the cells 20% fast is 10% fast");
+    }
+
+
+
+    //  A real capture's transitions jitter around the drive's speed: here
+    //  intervals alternate 26 and 34 ticks, a 30-tick mean, about 4% fast.
+    //  A cell's value is the speed around it, not the cell's interval.
+    TEST_METHOD (JitterAveragesToTheSpeedAroundEachCell)
+    {
+        auto           copy  = std::make_shared<TrackCopy>();
+        TrackContext   context;
+        TrackAnalysis  track;
+        vector<Byte>   cells;
+        double         worst = 0;
+
+
+
+        copy->kind = TrackKind::Flux;
+
+        for (int i = 0; i < kTransitions; i++)
+        {
+            copy->fluxBytes.push_back (static_cast<Byte> ((i % 2) == 0 ? 26 : 34));
+        }
+
+        TrackAnalyzer::Analyze (*copy, context, DecodeSettings::MakeStandard(), track);
+        FluxTiming::BuildDeviations (track, cells);
+
+        for (size_t i = 0; i < cells.size(); i++)
+        {
+            worst = std::max (worst, std::abs (FluxTiming::DecodeDeviation (cells[i]) + 0.041));
+        }
+
+        Assert::IsTrue (worst < 0.01, std::format (L"every cell within 1% of 4.1% fast; worst off by {:.3f}", worst).c_str());
     }
 
 

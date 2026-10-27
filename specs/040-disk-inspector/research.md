@@ -132,8 +132,10 @@ were opened in Casso and their Findings read. Neither threshold changed:
   before it ends; DOS follows the same chain, so the entries are what DOS
   would read. The reader is bounded by its visited set. Whether the map
   should stop treating such a disk as DOS 3.3 is a question for the owner.
-- *Bandits* (SC-012) is not on the development machine, so that check is
-  open.
+- *Bandits* (SC-012): 34 tracks with data, 19 flux. Its flux tracks run
+  within about 2% of nominal over 800 cells, and alternate about 4% fast and
+  slow over 50 to 100 cells. One interval varies by about 5%, so Timing
+  mode averages each cell over the 32 around it (FR-024).
 
 ## R5. The parts shared with 035: field formats and the `??` matcher
 
