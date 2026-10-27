@@ -272,6 +272,12 @@ protected:
     void  RefreshFocusOrder (IDxuiControl * fallback);
 
     //
+    //  The focus manager, for a window that walks focus with Tab outside
+    //  dialog mode and routes keys to the focused control itself.
+    //
+    DxuiFocusManager &  GetFocusManager () { return m_focus; }
+
+    //
     //  Subclass hooks. OnCreate fires once the backend + HWND exist
     //  (populate children here). OnWindowClose fires on the caption
     //  close box / WM_CLOSE (default hides -- non-modal); override to

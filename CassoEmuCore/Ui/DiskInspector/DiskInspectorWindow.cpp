@@ -529,6 +529,10 @@ void DiskInspectorWindow::OnCreate()
 
     m_diskTab = kTabTracks;
     ShowTrackTab (kTabSectorData);
+
+    //  Tab and Shift+Tab walk the window's controls (FR-059).
+    GetFocusManager().SetTheme (GetTheme());
+    GetFocusManager().Attach   (this);
 }
 
 
@@ -1144,8 +1148,9 @@ void DiskInspectorWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
     PaintHelp (text, theme);
 
-    //  The view the keys act on, outlined once a key has been used (FR-059).
-    if (m_isFocusShown && m_context.hasDisk && !m_is35)
+    //  The view the keys act on, outlined once a key has been used, unless a
+    //  control has the focus (FR-059).
+    if (m_isFocusShown && m_context.hasDisk && !m_is35 && GetFocusManager().GetFocusedControl() == nullptr)
     {
         focus = GetKeyTargetBounds();
         InflateRect (&focus, m_scaler.ToPx (s_kFocusGapDip), m_scaler.ToPx (s_kFocusGapDip));
@@ -1293,6 +1298,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     {
         m_keyTarget    = GetKeyTarget (p);
         m_isFocusShown = false;
+        GetFocusManager().SetFocused (nullptr);
         m_findBar->SetInputFocused (m_keyTarget == KeyTarget::FindBar && m_findBar->IsInputFocused());
     }
 
@@ -1386,6 +1392,24 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
     //  zoom and its Ctrl+F and Ctrl+G.
     if (m_isFindOpen && m_keyTarget == KeyTarget::FindBar && !(ev.ctrl && (IsZoomKey (ev.vk) || ev.vk == 'F' || ev.vk == 'G')) && m_findBar->OnKey (ev))
     {
+        isHandled = true;
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_TAB && !ev.ctrl && !ev.alt)
+    {
+        //  Tab and Shift+Tab move the focus from control to control, in the
+        //  order the controls are laid out now (FR-059).
+        RefreshFocusOrder (nullptr);
+        isHandled = GetFocusManager().HandleKey (ev.shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+    }
+    else if (ev.kind == DxuiKeyEventKind::Down && GetFocusManager().GetFocusedControl() != nullptr && (ev.vk == VK_ESCAPE || ev.vk == VK_F6))
+    {
+        //  Escape and F6 return the keys from the focused control to the views.
+        GetFocusManager().SetFocused (nullptr);
+        isHandled = ev.vk == VK_ESCAPE;
+    }
+    else if (GetFocusManager().GetFocusedControl() != nullptr && GetFocusManager().GetFocusedControl()->OnKey (ev))
+    {
+        //  A focused control takes Enter, Space and its arrows first.
         isHandled = true;
     }
     else if (m_keyTarget == KeyTarget::SectorData && m_byteView->IsEditing() && HandleEditKey (ev))
@@ -1874,7 +1898,7 @@ void DiskInspectorWindow::UpdateControls()
     {
         m_zoomLabel->SetText    (std::format (L"{:.0f}{}", m_model.GetZoom(), s_kpszMultiplyX));
         m_fit->SetEnabled       (!m_model.IsAtFit());
-    m_topDown->SetEnabled   (m_model.IsTilted());
+        m_topDown->SetEnabled   (m_model.IsTilted());
         m_zoomOut->SetEnabled   (!m_model.IsAtFit());
         m_zoomOut->SetVisible   (m_context.hasDisk);
         m_decodeButton->SetVisible (m_context.hasDisk);
