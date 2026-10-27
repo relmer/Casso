@@ -498,6 +498,8 @@ private:
     bool                             m_wasPausedAtDebugBuild = false;
     bool                             m_wasHeatRebuilding     = false;   // the last build's heat map awaited its rebuilt heat
     bool                             m_wasCallRebuilding     = false;   // the last build's call stack awaited its rebuilt record
+    bool                             m_wasStepping           = false;   // a step or a trace run was under way at the last pass
+    ULONGLONG                        m_steppingSince         = 0;       // the first pass during it
 
     // While the window is closed and BRKUNINIT keeps the heat map on, how
     // often it is folded, and when it last was.

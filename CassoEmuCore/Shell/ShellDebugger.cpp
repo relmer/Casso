@@ -1992,6 +1992,7 @@ void ShellDebugger::PublishDebuggerView()
     bool                  isDue      = false;
     bool                  isBreaking = false;
     bool                  isTaken    = true;
+    bool                  isStepping = false;
     DebugViewInput        input;
     DebuggerViewSnapshot  live;
 
@@ -2024,6 +2025,26 @@ void ShellDebugger::PublishDebuggerView()
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
         isTaken = !m_isDebugViewFresh;
+    }
+
+    //  A step or a trace run un-pauses the machine until it lands. A view
+    //  built in between has a running machine's rows, without the trace's
+    //  next instructions, and the view after it puts them back: a flash in
+    //  the trace pane. Such a run gets no view for one build interval from
+    //  the first pass during it, so a long trace run refreshes as a run
+    //  does.
+    isStepping = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
+
+    if (isStepping && !m_wasStepping)
+    {
+        m_steppingSince = now;
+    }
+
+    m_wasStepping = isStepping;
+
+    if (isStepping && now - m_steppingSince < DebuggerViewState::kBuildIntervalMs)
+    {
+        return;
     }
 
     isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
