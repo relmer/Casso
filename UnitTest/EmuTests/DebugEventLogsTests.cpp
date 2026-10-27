@@ -52,10 +52,29 @@ namespace DebugEventLogsTests
     }
 
 
+    //  The Disk II and input events are unions of payloads, compared byte
+    //  for byte. An IoEvent is compared field by field: the byte after its
+    //  kind and its last byte are padding, which nothing sets.
+    template <typename T>
+    static bool  IsSameEvent (const T & a, const T & b)
+    {
+        return memcmp (&a, &b, sizeof (T)) == 0;
+    }
+
+
+    static bool  IsSameEvent (const IoEvent & a, const IoEvent & b)
+    {
+        return a.cycle       == b.cycle       && a.cycleInFrame == b.cycleInFrame && a.scanline  == b.scanline  &&
+               a.cycleInLine == b.cycleInLine && a.kind         == b.kind         && a.address   == b.address   &&
+               a.turnedOn    == b.turnedOn    && a.turnedOff    == b.turnedOff    && a.chip      == b.chip      &&
+               a.reg         == b.reg         && a.value        == b.value;
+    }
+
+
     template <typename T>
     static bool  IsSameEntry (const DebugEventEntry<T> & a, const DebugEventEntry<T> & b)
     {
-        return a.kind == b.kind && a.position == b.position && a.cycle == b.cycle && memcmp (&a.event, &b.event, sizeof (T)) == 0;
+        return a.kind == b.kind && a.position == b.position && a.cycle == b.cycle && IsSameEvent (a.event, b.event);
     }
 
 
@@ -197,6 +216,7 @@ namespace DebugEventLogsTests
 
                 for (i = 0; i < live.size(); i++)
                 {
+
                     Assert::IsTrue (IsSameEntry (live[i], result.entries[i]), std::format (L"entry {} of the stretch from {}", i, result.startPosition).c_str());
                 }
 
