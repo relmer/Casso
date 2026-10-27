@@ -885,6 +885,7 @@
     <ClCompile Include="Dxui\DxuiToolbarDockGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiToolbarDragSessionTests.cpp" />
     <ClCompile Include="Dxui\DxuiImageStripTests.cpp" />
+    <ClCompile Include="Dxui\DxuiImageStripMarkTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerMemoryMenuTests.cpp" />
     <ClCompile Include="DebuggerTests\DebuggerNoNewWindowButtonTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuCueTests.cpp" />

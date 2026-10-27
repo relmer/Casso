@@ -90,6 +90,21 @@ public:
     int   GetHoveredCell   () const { return m_hovered; }
     bool  IsPreviewShown   () const { return m_preview != nullptr; }
 
+    //  A mark's badge as the last paint placed it: its rectangle, where its
+    //  line crosses the strip, its tip (every mark merged into it, one to a
+    //  line), the source's key for its first mark, and whether it opens rows.
+    struct MarkBadge
+    {
+        RECT          rect    = {};
+        float         along   = 0.0f;
+        std::wstring  tip;
+        uint64_t      id      = 0;
+        bool          hasRows = false;
+    };
+
+    const std::vector<MarkBadge> &  GetMarkBadges () const { return m_badges; }
+    bool  TryGetBadgeAt    (int x, int y, size_t & outIndex) const;
+
     //  Where the preview's picture sits on screen, empty with none up, and
     //  the picture it shows.
     RECT                                  GetPreviewRectPx () const;
@@ -135,6 +150,11 @@ private:
     static constexpr float  kSidePadDip     = 6.0f;
     static constexpr float  kLiveDotDip     = 6.0f;
     static constexpr float  kHoverLineDip   = 1.0f;   // the line at the pointer, thinner than the playhead's
+    static constexpr float  kMarkLineDip    = 1.0f;   // a mark's line across the pictures
+    static constexpr float  kMarkBadgeDip   = 14.0f;  // a mark's badge, square for a glyph alone
+    static constexpr float  kMarkGlyphDip   = 10.0f;  // the glyph in it
+
+    static constexpr wchar_t  kGlyphFace[]  = L"Segoe MDL2 Assets";
 
     //  The end labels, each a button.
     enum class Part { None, Leading, Trailing };
@@ -146,6 +166,7 @@ private:
     void  ShowPreview      ();
     void  FollowPointer    ();
     void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  PaintMarks       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
     void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
     void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
@@ -198,4 +219,7 @@ private:
     int            m_hovered      = -1;
 
     mutable std::wstring  m_tip;          // an end label's tip, kept while it shows
+
+    std::vector<DxuiStripMark>  m_marks;   // the source's marks, read each paint
+    std::vector<MarkBadge>      m_badges;  // where the last paint placed them
 };

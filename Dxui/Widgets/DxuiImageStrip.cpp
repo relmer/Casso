@@ -389,6 +389,8 @@ void DxuiImageStrip::Paint (
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
+    PaintMarks (text, theme);
+
     //  The point under the pointer has a thin gray line, and its labels are
     //  the source's for that point, centered on it.
     if (m_hovered >= 0 && m_hovered < m_count)
@@ -443,8 +445,8 @@ void DxuiImageStrip::Paint (
 //
 //  DxuiImageStrip::GetTooltipAt
 //
-//  The preview takes the place of a tip over the pictures; each end label
-//  has the source's tip for it.
+//  A mark's badge has its tip; the preview takes the place of a tip over
+//  the rest of the pictures; each end label has the source's tip for it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -453,9 +455,18 @@ const wchar_t * DxuiImageStrip::GetTooltipAt (
     int     y,
     RECT  & anchor) const
 {
-    Part  part = HitTestPart (x, y);
+    Part    part  = HitTestPart (x, y);
+    size_t  badge = 0;
 
 
+
+    if (TryGetBadgeAt (x, y, badge))
+    {
+        m_tip  = m_badges[badge].tip;
+        anchor = m_badges[badge].rect;
+
+        return m_tip.empty() ? nullptr : m_tip.c_str();
+    }
 
     if (m_source == nullptr || part == Part::None)
     {
@@ -1071,6 +1082,127 @@ void DxuiImageStrip::PaintHoverLine (
 
     hr = text.DrawIconBitmap (&ink, 1, 1, (float) m_pointer.x, (float) m_rc.top - reach, thick, (float) (m_rc.bottom - m_rc.top) + reach * 2.0f);
     IGNORE_RETURN_VALUE (hr, S_OK);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintMarks
+//
+//  Each of the source's marks on a strip lying down: a thin line across the
+//  pictures at its offset, and its glyph in a badge on the pictures' bottom
+//  edge, with the count beside the glyph when it is above 1. A mark closer
+//  to the one before than a badge's width joins that badge, whose tip lists
+//  both. Drawn as pictures are, since pictures draw over shapes. The badges
+//  are saved for the tooltip's hit test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintMarks (
+    IDxuiTextRenderer & text,
+    const IDxuiTheme  & theme)
+{
+    constexpr uint32_t  kOpaque    = 0xFF000000u;
+    constexpr uint32_t  kColorMask = 0x00FFFFFFu;
+    constexpr uint32_t  kBadgeArgb = 0xE0000000u;
+    constexpr float     kCountWide = 2.0f;
+    HRESULT             hr         = S_OK;
+    float               thick      = std::max (1.0f, (float) std::lround (m_scaler.ToPxf (kMarkLineDip)));
+    float               badge      = m_scaler.ToPxf (kMarkBadgeDip);
+    float               size       = m_scaler.ToPxf (kMarkGlyphDip);
+    float               top        = (float) m_rc.bottom - badge;
+    float               along      = 0.0f;
+    float               width      = 0.0f;
+    uint32_t            ink        = theme.Foreground() | kOpaque;
+    uint32_t            back       = (theme.Background() & kColorMask) | kBadgeArgb;
+    std::wstring        label;
+    MarkBadge           placed;
+
+
+
+    m_badges.clear();
+
+    if (m_source == nullptr || m_vertical || m_count <= 0)
+    {
+        return;
+    }
+
+    m_source->GetMarks (m_marks);
+
+    for (const DxuiStripMark & mark : m_marks)
+    {
+        along = GetLineAlong (mark.offset);
+
+        if (!m_badges.empty() && along - m_badges.back().along < badge)
+        {
+            m_badges.back().tip += L"\n" + mark.tip;
+            continue;
+        }
+
+        label = std::wstring (1, mark.glyph);
+
+        if (mark.count > 1)
+        {
+            label += std::to_wstring (mark.count);
+        }
+
+        width = (mark.count > 1) ? badge * kCountWide : badge;
+
+        hr = text.DrawIconBitmap (&ink, 1, 1, along - thick / 2.0f, (float) m_rc.top, thick, (float) (m_rc.bottom - m_rc.top));
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.DrawIconBitmap (&back, 1, 1, along - width / 2.0f, top, width, badge);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = text.DrawString (label.c_str(), along - width / 2.0f, top, width, badge, ink, size, kGlyphFace,
+                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        placed.rect    = RECT { (LONG) std::lround (along - width / 2.0f), (LONG) std::lround (top), (LONG) std::lround (along + width / 2.0f), m_rc.bottom };
+        placed.along   = along;
+        placed.tip     = mark.tip;
+        placed.id      = mark.id;
+        placed.hasRows = mark.hasRows;
+
+        m_badges.push_back (placed);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::TryGetBadgeAt
+//
+//  The badge the last paint placed under a point, if any.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiImageStrip::TryGetBadgeAt (
+    int       x,
+    int       y,
+    size_t  & outIndex) const
+{
+    POINT   pt = { x, y };
+    size_t  i  = 0;
+
+
+
+    for (i = 0; i < m_badges.size(); i++)
+    {
+        if (PtInRect (&m_badges[i].rect, pt))
+        {
+            outIndex = i;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

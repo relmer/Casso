@@ -10,6 +10,31 @@ struct DxuiIconImage;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiStripMark
+//
+//  A mark along a strip: where it is, in cells from the leading edge as the
+//  playhead's offset is, the glyph drawn for it, a count beside the glyph
+//  when above 1, its tip, the source's key for it, and whether resting the
+//  pointer on it opens a flyout of rows rather than a tip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiStripMark
+{
+    float         offset  = 0.0f;
+    wchar_t       glyph   = 0;
+    int           count   = 1;
+    std::wstring  tip;
+    uint64_t      id      = 0;
+    bool          hasRows = false;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IDxuiImageStripSource
 //
 //  What a DxuiImageStrip shows. The strip says how many cells it has room
@@ -79,4 +104,7 @@ public:
     virtual bool          IsTrailingLabelClickable () { return true; }
     virtual std::wstring  GetTrailingTip           () { return std::wstring(); }
     virtual void          OnTrailingLabelClicked   () {}
+
+    //  The marks along the strip, in offset order; none by default.
+    virtual void          GetMarks                 (std::vector<DxuiStripMark> & outMarks) { outMarks.clear(); }
 };
