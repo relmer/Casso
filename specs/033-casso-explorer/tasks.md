@@ -1096,6 +1096,103 @@ are allowed.
 T251 before T252, T253, T254 and T255. T256 last. T254 and T255 can run
 alongside each other once T251 is in.
 
+## Phase 26: Component split (SC-037, R33)
+
+**Purpose**: no .cpp the branch adds past about 2,000 lines, with each large
+class split into component classes as plan.md's Component split maps them.
+Each component is built as `CassoEmuCore/Shell/Components/` are: a class
+with a reference to the class it comes from, which declares it a friend
+and has it as a member, and the component has the state it uses. Callers
+call a component through that member; the class forwards nothing. No
+behavior changes, and no test changes what it checks.
+
+**Gate for each task**: the Debug x64 build, `scripts/CheckStyle.ps1 -Mode
+Staged`, the unit suite, and the CassoLink scenario suites, then one
+commit and a push. The owner's final manual passes, T214 and T256
+included, follow this phase, so none is repeated after it.
+
+- [ ] T266 Split `CassoEmuCore/CassoExplorer/CassoExplorerWindow.h/.cpp`
+  into components in `CassoEmuCore/CassoExplorer/Window/`: links
+  (connections, bootstrap, firewall, link drives, activity log); drag and
+  drop (drop target, host drops, the right-drag menu, drag out, tree and
+  disk drags); tabs (strip, tab drag, tear-off, tab menu); preview pane
+  (fill, CRT picture, shell preview, hex and text settings, find, picture
+  and text menus, archive rows, `PreviewBytes` and `FileBytes`); address
+  bar (segments, typed paths, suggestions, history and roots menus, search
+  box); menus (list, tree and header menus, Open with, New, pins, packaged
+  and Windows commands, verb glyphs and SVGs); commands (`Dispatch`,
+  `IsEnabled`, `IsChecked`, `RunVerb`, raw verbs, outcomes); file
+  operations (rename, undo, paste, delete, properties, Casso targets);
+  input (`OnMouse`, `OnKey`, focus stops, toolbar routing); tips (hover,
+  tree, list and status tips); and folder sync (watched folders, columns,
+  folder views, known folders, Quick access, drives). The window is left with
+  creation, layout, theme, the list's fill, timers and messages. Statics
+  the unit tests call (`GetDraggedPaths`, `IsDraggedFromFolder`,
+  `IsDraggedItem`, `BuildTextRows`, `GetSourceColors`,
+  `MergeUserMachineDelta`, `GetToolbarUnder`, `GetListRowHeightPx`) move
+  with their area, and the tests in `UnitTest/` follow them.
+- [ ] T267 Split `CassoEmuCore/CassoExplorer/CassoExplorerBrowser.h/.cpp`
+  into listing loads (host, shell, Recycle Bin, roots, images, Apple drives,
+  link items), preview (`UpdatePreview` and each kind of preview) and cells
+  (columns, cells, icons, formatting). The browser is left with navigation,
+  selection, sorting and grouping, and tabs.
+- [ ] T268 Split `CassoEmuCore/CassoExplorer/CassoExplorerActions.h/.cpp`
+  into Apple-drive operations (puts, gets, link disks, disk images over the
+  link), copies and extraction (put, copy, extract, collision names,
+  capacity) and go-to and search parsing. The actions are left with verbs, plans,
+  delete, rename and create.
+- [ ] T269 Split `Dxui/Widgets/DxuiListView.h/.cpp` and
+  `Dxui/Widgets/DxuiListViewItems.cpp` into scrollbars (both orientations,
+  on `Dxui/Widgets/DxuiScrollbar.h` where it fits), groups and lines, the
+  header (paint, press, column order, slides), keyboard navigation, and
+  item layouts (icons, tiles, list). The list is left with rows, columns,
+  selection, the details rows' paint and mouse dispatch. The Dxui tests
+  in `UnitTest/Dxui/` pass as they are.
+- [ ] T270 Split `CassoEmuCore/Seams/Win32ShellItemVerbs.h/.cpp` into menus
+  and Open with, the Recycle Bin, the namespace (shell folders, navigation
+  roots, desktop, pinned), search (index and walks) and transfers
+  (clipboard, paste, drag, move, rename). `Win32ShellItemVerbs` implements
+  `CassoEmuCore/Seams/IShellItemVerbs.h` by forwarding to them.
+- [ ] T271 Split `Dxui/Widgets/DxuiHexView.h/.cpp` into row layout (line
+  index, offsets, cells) and formatting (values, text, code pages). The
+  view is left with selection, input and paint.
+- [ ] T272 Factor the ADTPro server (requests, directory, get, put, virtual
+  drive) out of `CassoEmuCore/CassoLink/CassoLinkHost.h/.cpp`. The host
+  is left with Casso's protocol.
+- [ ] T273 Factor the connector (bootstrap, connect, open stream, await
+  program) and whole-disk transfers (read, write, format timing, the
+  unreadable list) out of `CassoEmuCore/CassoLink/CassoLinkSession.h/.cpp`.
+  The session is left with the queue, the run loop and the operations.
+- [ ] T274 Factor a writer for writes and deletions out of
+  `CassoEmuCore/Machines/Apple2/Common/ProDosVolume.h/.cpp`, which is left with
+  reading and the integrity report.
+- [ ] T275 Factor JSON extraction and building, and the connectors and the
+  printer, out of `CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp`,
+  which is left with the panel's state and setters.
+- [ ] T276 Factor render targets (texture, deferred, offscreen) and icons
+  (vector, SVG, bitmaps) out of `Dxui/Render/DxuiTextRenderer.h/.cpp`,
+  which is left with text, primitives and fonts.
+- [ ] T277 Factor painting, and metrics and scrolling, out of
+  `Dxui/Widgets/DxuiPopupMenu.h/.cpp`, which is left with rows, hover, keys and
+  child menus.
+- [ ] T278 Factor painting (standard and Explorer styles) and drag slides
+  out of `Dxui/Widgets/DxuiTabStrip.h/.cpp`, which is left with tabs, selection,
+  scrolling and input.
+- [ ] T279 Check `Dxui/Widgets/DxuiTreeView.cpp`, at the limit: split it
+  only where a seam came up in T269 or T278, and record the outcome here.
+- [ ] T280 Run the final gate: the full unit and scenario suites, Release
+  and ARM64 builds, the Debug x64 rebuild with `-RunCodeAnalysis`, and
+  `scripts/CheckStyle.ps1 -Mode Tree`. Record the sizes of every file in
+  scope in `specs/033-casso-explorer/validation.md`.
+- [ ] T281 One review agent reads the phase's diff for behavior changes,
+  state left in the wrong component and dead forwards; fix what it
+  confirms, with the T280 gate again.
+
+**Dependencies**: T266 to T278 in order, one at a time, since several
+share project and filter files; T279 after T269 and T278; T280 after all
+of them; T281 last. The laptop session stays off every file in scope
+until T281.
+
 ## Section H dependencies
 
 - **Phase 16 first.** T181 before T182 to T186.

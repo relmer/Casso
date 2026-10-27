@@ -87,6 +87,11 @@ the in-process stream. V, the Apple side stays a shim and a sector server,
 and file systems stay in `IVolume` (R16, R20). VI, the link lives in
 `CassoEmuCore/CassoLink/`; no executable changes. PASS.
 
+Component split re-check (SC-037): I and V, each component is smaller than
+the class it is split from and has the state it uses; II, no test changes what it
+checks, and statics tests call move with their area; VI, every component
+stays in the core libraries. PASS.
+
 ## Project Structure
 
 ### Documentation (this feature)
@@ -376,6 +381,46 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
     for a ][+ or //e with whichever lands first.
 24. **Validation**: quickstart §7b's emulated steps on Debug and Release,
     with SC-029, SC-030 and SC-032 written to validation.md.
+25. **Component split** (Session 2026-10-26, SC-037): every .cpp the
+    branch added past about 2,000 lines, and the grown files with a logical
+    seam, split into component classes as below, before the owner's final
+    manual passes and the master merge. No behavior changes.
+
+### Component split
+
+Each component is built as Shell/Components are: a class with a
+reference to the class it comes from, which declares it a friend and has
+it as a member. A component has the state it uses, and the owner forwards
+nothing; a caller calls a component's method through the owner's member,
+as `m_links.EditLink (name)`. A function a component shares with another
+stays where most of its callers are. Statics that tests call move with
+their area, and the tests follow them.
+
+| Class | Components | Left in the class |
+|---|---|---|
+| `CassoExplorerWindow` | links (connections, bootstrap, firewall, link drives, activity log); drag and drop (drop target, host drops, right-drag menu, drag out, tree and disk drags); tabs (strip, tab drag, tear-off, tab menu); preview pane (fill, CRT picture, shell preview, hex and text settings, find, picture and text menus, archive rows, `PreviewBytes`, `FileBytes`); address bar (segments, typed paths, suggestions, history and roots menus, search box); menus (list, tree and header menus, Open with, New, pins, packaged and Windows commands, verb glyphs and SVGs); commands (`Dispatch`, `IsEnabled`, `IsChecked`, `RunVerb`, raw verbs, outcomes); file operations (rename, undo, paste, delete, properties, Casso targets); input (`OnMouse`, `OnKey`, focus stops, toolbar routing); tips (hover, tree, list and status tips); folder sync (watched folders, columns, folder views, known folders, Quick access, drives) | creation, layout, theme, the list's fill, timers and messages |
+| `CassoExplorerBrowser` | listing loads (host, shell, Recycle Bin, roots, images, Apple drives, link items); preview (`UpdatePreview` and each kind of preview); cells (columns, cells, icons, formatting) | navigation, selection, sorting and grouping, tabs |
+| `CassoExplorerActions` | Apple-drive operations (puts, gets, link disks, disk images over the link); copies and extraction (put, copy, extract, collision names, capacity); go-to and search parsing | verbs, plans, delete, rename, create |
+| `DxuiListView` with `DxuiListViewItems.cpp` | scrollbars (both orientations, on `DxuiScrollbar` where it fits); groups and lines; header (paint, press, column order, slides); keyboard navigation; item layouts (icons, tiles, list) | rows, columns, selection, the details rows' paint, mouse dispatch |
+| `Win32ShellItemVerbs` | menus and Open with; Recycle Bin; namespace (shell folders, navigation roots, desktop, pinned); search (index and walks); transfers (clipboard, paste, drag, move, rename) | `IShellItemVerbs`, implemented by forwarding |
+| `DxuiHexView` | row layout (line index, offsets, cells); formatting (values, text, code pages) | selection, input, paint |
+| `CassoLinkHost` | the ADTPro server (requests, directory, get, put, virtual drive) | Casso's protocol |
+| `CassoLinkSession` | the connector (bootstrap, connect, open stream, await program); whole-disk transfers (read, write, format timing, unreadable list) | the queue, the run loop, operations |
+| `ProDosVolume` | a writer for writes and deletions | reading and the integrity report |
+| `SettingsPanelState` | JSON extraction and building; connectors and the printer | the panel's state and setters |
+| `DxuiTextRenderer` | render targets (texture, deferred, offscreen); icons (vector, SVG, bitmaps) | text, shapes, fonts |
+| `DxuiPopupMenu` | painting; metrics and scrolling | rows, hover, keys, child menus |
+| `DxuiTabStrip` | painting (standard and Explorer styles); drag slides | tabs, selection, scrolling, input |
+
+`DxuiTreeView` is at the limit and keeps its shape unless a seam appears
+while the others are split.
+
+Order: the window first, then the browser, actions, list view, shell verbs,
+hex view, link host, link session, then the grown files. Each class is one
+commit, with the build, CheckStyle, the unit suite and the CassoLink
+scenario suites passing. At the end: the full unit and scenario suites,
+Release, ARM64 and the code analysis rebuild, then one review agent reads
+the result. The laptop session stays off these files until the phase ends.
 
 ## Risks
 

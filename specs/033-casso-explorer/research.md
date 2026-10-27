@@ -922,3 +922,22 @@ user's program.
 
 **Alternatives considered**: keeping the reboot for the printer, not chosen
 by the owner.
+
+## R33. Splitting the large classes
+
+**Decision**: each class past about 2,000 lines of .cpp is split into
+component classes, built as Casso's shell components are: a class with a
+reference to the class it comes from, a friend of it, which has the state
+it uses. The class map is in plan.md's Component split.
+
+**Rationale**: `CassoExplorerWindow.cpp` is 17,455 lines, and its header
+declares about 155 members. With the .cpp split alone, every member is in
+one class, and a change in one area means reading the whole header.
+Components have only their area's state, and unit tests can call the logic
+in them. The split comes before the final manual passes, so they are run
+once.
+
+**Alternatives considered**: one class across several .cpp files, as
+`EmulatorWindow.cpp` and `EmulatorWindowInput.cpp` are, faster and with
+less risk, but rejected by the owner (Session 2026-10-26). Leaving the
+files as they are fails SC-037.

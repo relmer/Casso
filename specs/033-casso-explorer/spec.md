@@ -464,6 +464,24 @@ hardware.
   a row lower and is a row shorter. A boot disk written before the move has its
   shim at $3D00, where the program no longer jumps back to, so it must be
   written again. The typed bootstrap is 105 bytes longer.
+- Q: How large may a source file the feature adds or grows be, and how is
+  one past that split? → A: About 2,000 lines for a .cpp in most cases.
+  A class past it is split into component classes with separate state,
+  each with a reference to the class it was split from, as Casso's shell
+  components are; spreading one class over several .cpp files does not
+  count. Every .cpp
+  the feature added past the limit is split: CassoExplorerWindow (17,455
+  lines), CassoExplorerBrowser (5,171), CassoExplorerActions (4,217),
+  DxuiListView with DxuiListViewItems (6,932 and 3,904; the feature took
+  DxuiListView from 3,610), Win32ShellItemVerbs (3,763), DxuiHexView
+  (3,131), CassoLinkHost (2,393) and CassoLinkSession (2,374). Files the
+  feature grew past it are split where a logical seam exists: ProDosVolume
+  (3,048, from 1,763), SettingsPanelState (3,480, from 2,771),
+  DxuiTextRenderer (3,011, from 2,265), DxuiPopupMenu (2,997, from 2,134),
+  DxuiTabStrip (2,183, from 491) and DxuiTreeView (2,002, from 834).
+  CassoExplorerCommands stays, well under the limit. The refactor changes no
+  behavior and lands before the owner's final manual passes, with the //c
+  walkthrough moved to 2026-10-28, so no pass is repeated after it.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -2049,6 +2067,10 @@ to Casso over TCP.
 - **SC-036**: On a network Windows calls public, the warning says so and
   offers both remedies, while a connection over a serial cable on the same PC
   carries no warning at all.
+- **SC-037**: No .cpp the feature adds is over about 2,000 lines, and each
+  class split to get there is a set of component classes with separate
+  state rather than one class across several files. The unit and scenario
+  suites pass unchanged in what they check before and after each split.
 
 ## Assumptions
 
