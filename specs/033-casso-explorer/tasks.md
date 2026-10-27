@@ -1176,11 +1176,14 @@ included, follow this phase, so none is repeated after it.
   and the List view's column flow (`DxuiListFlowLayout`); the painting of
   rows and items is `DxuiListPainter`. The public nested types are in
   `DxuiListViewTypes`, which `DxuiListView` derives from.
-- [ ] T270 Split `CassoEmuCore/Seams/Win32ShellItemVerbs.h/.cpp` into menus
+- [X] T270 Split `CassoEmuCore/Seams/Win32ShellItemVerbs.h/.cpp` into menus
   and Open with, the Recycle Bin, the namespace (shell folders, navigation
   roots, desktop, pinned), search (index and walks) and transfers
   (clipboard, paste, drag, move, rename). `Win32ShellItemVerbs` implements
   `CassoEmuCore/Seams/IShellItemVerbs.h` by forwarding to them.
+
+  Done in `CassoEmuCore/Seams/ShellVerbs/`. The nested `CenterDialogsOver`
+  and `OperationRecorder` went with the recycle bin and the transfers.
 - [ ] T271 Split `Dxui/Widgets/DxuiHexView.h/.cpp` into row layout (line
   index, offsets, cells) and formatting (values, text, code pages). The
   view is left with selection, input and paint.

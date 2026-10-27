@@ -327,6 +327,11 @@
     <ClCompile Include="Config\FileAssociations.cpp" />
     <ClCompile Include="CassoExplorer\Model\SearchQuery.cpp" />
     <ClCompile Include="Seams\Win32ShellItemVerbs.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32RecycleBin.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32ShellMenus.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32ShellNamespace.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32ShellSearch.cpp" />
+    <ClCompile Include="Seams\ShellVerbs\Win32ShellTransfers.cpp" />
     <ClCompile Include="Seams\Win32PackagedCommands.cpp" />
     <ClCompile Include="Seams\Win32PreviewHelper.cpp" />
     <ClCompile Include="Seams\Win32ShellPreview.cpp" />
@@ -786,6 +791,12 @@
     <ClInclude Include="CassoExplorer\Model\SearchQuery.h" />
     <ClInclude Include="Seams\IShellItemVerbs.h" />
     <ClInclude Include="Seams\Win32ShellItemVerbs.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32RecycleBin.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32ShellMenus.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32ShellNamespace.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32ShellSearch.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32ShellTransfers.h" />
+    <ClInclude Include="Seams\ShellVerbs\Win32ShellVerbsTypes.h" />
     <ClInclude Include="Seams\Win32PackagedCommands.h" />
     <ClInclude Include="Seams\Win32PreviewHelper.h" />
     <ClInclude Include="Seams\Win32ShellPreview.h" />
