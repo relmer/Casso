@@ -48,14 +48,15 @@ struct EmulatorCommand
 class CpuManager
 {
 public:
-    using ThreadEnterFn = std::function<void()>;
-    using ThreadExitFn  = std::function<void()>;
-    using CommandFn     = std::function<void(const EmulatorCommand &)>;
-    using FrameFn       = std::function<void()>;
-    using ServiceFn     = std::function<void()>;
-    using TimePoint     = std::chrono::steady_clock::time_point;
-    using Now           = std::function<TimePoint ()>;
-    using GateFn        = std::function<bool (WORD, const std::string &)>;
+    using ThreadEnterFn  = std::function<void()>;
+    using ThreadExitFn   = std::function<void()>;
+    using CommandFn      = std::function<void(const EmulatorCommand &)>;
+    using FrameFn        = std::function<void()>;
+    using ServiceFn      = std::function<void()>;
+    using TimePoint      = std::chrono::steady_clock::time_point;
+    using Now            = std::function<TimePoint ()>;
+    using GateFn         = std::function<bool (WORD, const std::string &)>;
+    using DeployFreezeFn = std::function<void()>;
 
 
     CpuManager  ();
@@ -138,12 +139,32 @@ public:
 
     static double  ComputeTickFraction (TimePoint tickStart, TimePoint requestedAt);
 
+    //  The update installer's freeze, which is stronger than a park: a frozen
+    //  CPU thread runs no frame, no command and no service pass, and has
+    //  released the disk store through the freeze hook. The freeze takes
+    //  effect between passes, after WaitWhilePaused and before the command
+    //  drain, so a command posted before it stays queued. HoldForDeploy
+    //  returns ERROR_TIMEOUT, and withdraws the request, when the freeze does
+    //  not take effect within timeoutMs. The window thread calls Claim on the
+    //  store's token after HoldForDeploy returns and Release before
+    //  ReleaseDeployHold or Stop, and the CPU thread calls Claim again through
+    //  the thaw hook. Stop ends a freeze.
+    HRESULT  HoldForDeploy         (DWORD timeoutMs);
+    void     ReleaseDeployHold     ();
+    bool     IsHeldForDeploy       () const noexcept;
+    bool     IsDeployHoldRequested () const noexcept;
+
+    //  Run on the CPU thread: onFreeze before it is marked frozen, onThaw once
+    //  the freeze ends. Set before Start.
+    void     SetDeployFreezeHooks    (DeployFreezeFn onFreeze, DeployFreezeFn onThaw) { m_onDeployFreeze = std::move (onFreeze); m_onDeployThaw = std::move (onThaw); }
+
 private:
     void            ThreadProc        ();
     HRESULT         SetUpThread       (bool & outComInitialized, HANDLE & outTimer, LARGE_INTEGER & outQpcFreq);
     void            TearDownThread    (HANDLE hTimer, bool isComInitialized);
     static HRESULT  ArmFrameTimer     (HANDLE hTimer, const LARGE_INTEGER & qpcFreq, LONGLONG & inOutDeadline);
     void            WaitWhilePaused   ();
+    bool            ServeDeployFreeze   ();
     void            DrainCommandQueue ();
     bool            TryPark           ();
     void            ParkForExit       ();
@@ -161,6 +182,9 @@ private:
     std::mutex                    m_pauseMutex;
     std::condition_variable       m_pauseCV;
     std::condition_variable       m_parkedCV;
+    std::condition_variable       m_deployFrozenCV;
+    std::atomic<bool>             m_isDeployFreezeRequested { false };    // written under m_pauseMutex
+    std::atomic<bool>             m_isFrozenForDeploy       { false };    // written under m_pauseMutex
 
     std::mutex                    m_cmdMutex;
     std::vector<EmulatorCommand>  m_commandQueue;
@@ -172,9 +196,11 @@ private:
     TimePoint                     m_tickStart    = {};
     std::optional<TimePoint>      m_dispatchedAt;
 
-    ThreadEnterFn  m_onThreadEnter;
-    CommandFn      m_onCommand;
-    FrameFn        m_onFrame;
-    ServiceFn      m_onService;
-    ThreadExitFn   m_onThreadExit;
+    ThreadEnterFn   m_onThreadEnter;
+    CommandFn       m_onCommand;
+    FrameFn         m_onFrame;
+    ServiceFn       m_onService;
+    ThreadExitFn    m_onThreadExit;
+    DeployFreezeFn  m_onDeployFreeze;
+    DeployFreezeFn  m_onDeployThaw;
 };

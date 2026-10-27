@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Core/ThreadOwnership.h"
 #include "Shell/CpuManager.h"
 #include "resource.h"
 
@@ -186,6 +187,201 @@ public:
 
         Assert::IsFalse (cpu.IsRunning(),
                          L"Stop must bring the thread down even from a paused wait");
+    }
+
+
+    //  A deploy freeze stops frames, the command drain and the service pass
+    //  until it is released; a command posted while frozen runs after.
+    TEST_METHOD (HoldForDeploy_HoldsFramesCommandsAndService)
+    {
+        CpuManager        cpu;
+        std::atomic<int>  frames   { 0 };
+        std::atomic<int>  commands { 0 };
+        std::atomic<int>  services { 0 };
+        int               frameMark   = 0;
+        int               serviceMark = 0;
+        HRESULT           hr          = S_OK;
+
+
+
+        cpu.SetServiceFunction ([&] { services.fetch_add (1, std::memory_order_acq_rel); });
+
+        hr = cpu.Start (nullptr,
+                        [&] (const EmulatorCommand &) { commands.fetch_add (1, std::memory_order_acq_rel); },
+                        [&] ()                        { frames.fetch_add   (1, std::memory_order_acq_rel); },
+                        nullptr);
+        Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
+
+        WaitFor ([&] { return frames.load (std::memory_order_acquire) > 0; });
+
+        hr = cpu.HoldForDeploy (s_kWaitMs);
+        Assert::AreEqual (S_OK, hr, L"the freeze takes effect");
+        Assert::IsTrue  (cpu.IsHeldForDeploy(),       L"the thread is frozen");
+        Assert::IsTrue  (cpu.IsDeployHoldRequested(), L"and the request is in place");
+
+        frameMark   = frames.load (std::memory_order_acquire);
+        serviceMark = services.load (std::memory_order_acquire);
+
+        cpu.PostCommand (IDM_DISK_EJECT1);
+        std::this_thread::sleep_for (std::chrono::milliseconds (s_kParkMs));
+
+        Assert::AreEqual (frameMark,   frames.load (std::memory_order_acquire),   L"no frame runs while frozen");
+        Assert::AreEqual (serviceMark, services.load (std::memory_order_acquire), L"no service pass runs while frozen");
+        Assert::AreEqual (0,           commands.load (std::memory_order_acquire), L"and no command is drained");
+
+        cpu.ReleaseDeployHold();
+        WaitFor ([&] { return commands.load (std::memory_order_acquire) > 0; });
+
+        Assert::AreEqual (1, commands.load (std::memory_order_acquire), L"the queued command runs after the release");
+        Assert::IsFalse (cpu.IsDeployHoldRequested(), L"and nothing is requested");
+
+        cpu.Stop();
+    }
+
+
+    //  A paused machine with no service function waits for a command or a
+    //  resume; the freeze request ends that wait, so the freeze takes effect
+    //  well before the deadline.
+    TEST_METHOD (HoldForDeploy_WhilePausedWithNoServiceFunction_IsHeldBeforeTheDeadline)
+    {
+        CpuManager  cpu;
+        auto        start = std::chrono::steady_clock::now();
+        HRESULT     hr    = S_OK;
+
+
+
+        cpu.SetPaused (true);
+
+        hr = cpu.Start (nullptr, nullptr, nullptr, nullptr);
+        Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
+
+        Assert::IsTrue (cpu.TryWaitUntilParked (std::chrono::milliseconds (s_kWaitMs)), L"the thread parks");
+
+        start = std::chrono::steady_clock::now();
+        hr    = cpu.HoldForDeploy (s_kWaitMs);
+
+        Assert::AreEqual (S_OK, hr, L"the freeze takes effect on a paused thread");
+        Assert::IsTrue  (std::chrono::steady_clock::now() - start < std::chrono::milliseconds (s_kWaitMs / 2),
+                         L"well before the deadline");
+
+        cpu.ReleaseDeployHold();
+        cpu.Stop();
+    }
+
+
+    TEST_METHOD (Stop_WhileHeldForDeploy_JoinsThread)
+    {
+        CpuManager  cpu;
+        HRESULT     hr = S_OK;
+
+
+
+        hr = cpu.Start (nullptr, nullptr, nullptr, nullptr);
+        Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
+
+        hr = cpu.HoldForDeploy (s_kWaitMs);
+        Assert::AreEqual (S_OK, hr, L"the freeze takes effect");
+
+        // A Stop that hangs here would deadlock a failed update's shutdown.
+        cpu.Stop();
+
+        Assert::IsFalse (cpu.IsRunning(),             L"Stop brings the thread down from a freeze");
+        Assert::IsFalse (cpu.IsHeldForDeploy(),       L"the freeze has ended");
+        Assert::IsFalse (cpu.IsDeployHoldRequested(), L"and nothing is requested");
+    }
+
+
+    //  A freeze that misses its deadline is withdrawn, so the thread does not
+    //  freeze later, after its caller has given up.
+    TEST_METHOD (HoldForDeploy_TimesOutAndWithdrawsWhileACommandRuns)
+    {
+        CpuManager         cpu;
+        std::atomic<bool>  isInCommand  = false;
+        std::atomic<bool>  isLetGo      = false;
+        std::atomic<int>   commands     { 0 };
+        HRESULT            hr           = S_OK;
+
+
+
+        hr = cpu.Start (nullptr,
+                        [&] (const EmulatorCommand & cmd)
+                        {
+                            if (cmd.id == IDM_DISK_EJECT1)
+                            {
+                                auto  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (s_kWaitMs);
+
+                                isInCommand = true;
+
+                                while (!isLetGo.load() && std::chrono::steady_clock::now() < deadline)
+                                {
+                                    std::this_thread::sleep_for (std::chrono::milliseconds (s_kPollMs));
+                                }
+                            }
+
+                            commands.fetch_add (1, std::memory_order_acq_rel);
+                        },
+                        nullptr,
+                        nullptr);
+        Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
+
+        cpu.PostCommand (IDM_DISK_EJECT1);
+        WaitFor ([&] { return isInCommand.load(); });
+        Assert::IsTrue (isInCommand.load(), L"the command is running");
+
+        hr = cpu.HoldForDeploy (s_kParkMs);
+
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TIMEOUT), hr, L"the freeze times out while the command runs");
+        Assert::IsFalse (cpu.IsDeployHoldRequested(), L"and is withdrawn");
+
+        isLetGo = true;
+        cpu.PostCommand (IDM_DISK_EJECT2);
+        WaitFor ([&] { return commands.load (std::memory_order_acquire) == 2; });
+
+        Assert::AreEqual (2, commands.load (std::memory_order_acquire), L"the thread runs on: it never froze");
+        Assert::IsFalse (cpu.IsHeldForDeploy(), L"and is not frozen");
+
+        cpu.Stop();
+    }
+
+
+    //  The freeze hooks move the disk store's token: the emulation thread
+    //  releases it before it is frozen, the test thread claims it while frozen,
+    //  and the emulation thread claims it again after the release.
+    TEST_METHOD (HoldForDeploy_LetsAnotherThreadClaimTheStore)
+    {
+        CpuManager                         cpu;
+        ThreadOwnership                    ownership;
+        std::atomic<bool>                  isClaimedAfter = false;
+        HRESULT                            hr             = S_OK;
+
+
+
+        ownership.Release();
+
+        cpu.SetDeployFreezeHooks ([&] { ownership.Release(); }, [&] { ownership.Claim(); });
+
+        hr = cpu.Start ([&] { ownership.Claim(); },
+                        [&] (const EmulatorCommand &) { isClaimedAfter = ownership.IsHeldByCurrentThread(); },
+                        nullptr,
+                        [&] { ownership.Release(); });
+        Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
+
+        hr = cpu.HoldForDeploy (s_kWaitMs);
+        Assert::AreEqual (S_OK, hr, L"the freeze takes effect");
+
+        ownership.Claim();
+        Assert::IsTrue (ownership.IsHeldByCurrentThread(), L"the test thread has the store while the thread is frozen");
+
+        ownership.Release();
+        cpu.ReleaseDeployHold();
+
+        cpu.PostCommand (IDM_DISK_EJECT1);
+        WaitFor ([&] { return isClaimedAfter.load(); });
+
+        Assert::IsTrue (isClaimedAfter.load(), L"the emulation thread has the store again after the release");
+
+        cpu.Stop();
+        ownership.Claim();
     }
 
 private:

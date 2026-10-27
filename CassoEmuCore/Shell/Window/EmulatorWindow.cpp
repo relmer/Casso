@@ -904,6 +904,12 @@ int EmulatorShell::RunMessageLoop()
     m_cpuManager.SetServiceFunction ([this] { ServiceCpuThread(); });
     m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_debugger->AllowCommand (id, payload); });
 
+    // The disk store's token moves off the CPU thread while an update
+    // installer's freeze lasts, so the window thread can save the disks, and
+    // moves back after.
+    m_cpuManager.SetDeployFreezeHooks ([this] { m_machine.ReleaseDiskOwnership(); },
+                                     [this] { m_machine.ClaimDiskOwnership(); });
+
     // Cold-boot mount window is closed once the UI message loop is
     // ready to deliver user input -- any mount issued from here on
     // is treated as a real, user-initiated swap and fires the

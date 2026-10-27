@@ -114,6 +114,7 @@ void CpuManager::Stop()
     {
         std::lock_guard<std::mutex>  lock (m_pauseMutex);
 
+        m_isDeployFreezeRequested.store (false, std::memory_order_release);
         m_pauseCV.notify_all();
     }
 
@@ -602,6 +603,7 @@ void CpuManager::WaitWhilePaused()
     {
         return !m_paused.load  (std::memory_order_acquire) ||
                !m_running.load (std::memory_order_acquire) ||
+               m_isDeployFreezeRequested.load (std::memory_order_acquire) ||
                HasPendingCommands();
     };
 
@@ -621,6 +623,168 @@ void CpuManager::WaitWhilePaused()
     {
         m_pauseCV.wait (lock, isWoken);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HoldForDeploy
+//
+//  Window thread: requests a freeze of the CPU thread between passes and
+//  waits up to timeoutMs for it to take effect. A frozen thread runs no frame,
+//  no command and no service pass, and has released the disk store through the
+//  freeze hook. The request ends a paused thread's wait at once, with or
+//  without a service function. A request that does not take effect in time is
+//  withdrawn under the same mutex, so no freeze starts after its caller has
+//  given up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CpuManager::HoldForDeploy (DWORD timeoutMs)
+{
+    HRESULT                       hr        = S_OK;
+    bool                          isRunning = m_thread.joinable() && m_running.load (std::memory_order_acquire);
+    bool                          isFrozen  = false;
+    std::unique_lock<std::mutex>  lock (m_pauseMutex, std::defer_lock);
+
+
+
+    CBREx (isRunning, E_UNEXPECTED);
+
+    lock.lock();
+
+    m_isDeployFreezeRequested.store (true, std::memory_order_release);
+    m_pauseCV.notify_all();
+
+    isFrozen = m_deployFrozenCV.wait_for (lock, std::chrono::milliseconds (timeoutMs),
+                                      [this] { return m_isFrozenForDeploy.load (std::memory_order_acquire); });
+
+    if (!isFrozen)
+    {
+        m_isDeployFreezeRequested.store (false, std::memory_order_release);
+        m_pauseCV.notify_all();
+    }
+
+    lock.unlock();
+
+    CBREx (isFrozen, HRESULT_FROM_WIN32 (ERROR_TIMEOUT));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReleaseDeployHold
+//
+//  Window thread: ends the freeze. The CPU thread calls Claim on the disk
+//  store's token again through the thaw hook, so the caller calls Release on
+//  it first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::ReleaseDeployHold()
+{
+    std::lock_guard<std::mutex>  lock (m_pauseMutex);
+
+
+
+    m_isDeployFreezeRequested.store (false, std::memory_order_release);
+    m_pauseCV.notify_all();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsHeldForDeploy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManager::IsHeldForDeploy() const noexcept
+{
+    return m_isFrozenForDeploy.load (std::memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsDeployHoldRequested
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManager::IsDeployHoldRequested() const noexcept
+{
+    return m_isDeployFreezeRequested.load (std::memory_order_acquire);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ServeDeployFreeze
+//
+//  CPU thread, between WaitWhilePaused and DrainCommandQueue: when a freeze is
+//  requested, releases the disk store through the freeze hook, marks the
+//  thread frozen and waits until the freeze ends or the thread is stopping,
+//  then claims the store through the thaw hook. A request withdrawn while the
+//  hook ran starts no freeze. Returns whether a freeze was requested, so the loop
+//  starts the pass again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuManager::ServeDeployFreeze()
+{
+    bool  isRequested = m_isDeployFreezeRequested.load (std::memory_order_acquire);
+
+
+
+    if (isRequested)
+    {
+        if (m_onDeployFreeze)
+        {
+            m_onDeployFreeze();
+        }
+
+        {
+            std::unique_lock<std::mutex>  lock (m_pauseMutex);
+
+            if (m_isDeployFreezeRequested.load (std::memory_order_acquire))
+            {
+                m_isFrozenForDeploy.store (true, std::memory_order_release);
+                m_deployFrozenCV.notify_all();
+
+                m_pauseCV.wait (lock, [this]
+                {
+                    return !m_isDeployFreezeRequested.load (std::memory_order_acquire) ||
+                           !m_running.load (std::memory_order_acquire);
+                });
+
+                m_isFrozenForDeploy.store (false, std::memory_order_release);
+            }
+        }
+
+        if (m_onDeployThaw)
+        {
+            m_onDeployThaw();
+        }
+    }
+
+    return isRequested;
 }
 
 
@@ -655,6 +819,12 @@ void CpuManager::ThreadProc()
     while (m_running.load (std::memory_order_acquire))
     {
         WaitWhilePaused();
+
+        //  A freeze runs nothing until it ends, then starts the pass again.
+        if (ServeDeployFreeze())
+        {
+            continue;
+        }
 
         // Runs before the pause check below, so a paused machine still
         // services mount / eject / settings commands: the shell gives the
