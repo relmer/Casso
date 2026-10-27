@@ -2,6 +2,19 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Window/ExplorerLayout.h"
+#include "CassoExplorer/Window/ExplorerListPane.h"
+#include "CassoExplorer/Window/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/ExplorerLinks.h"
+#include "CassoExplorer/Window/ExplorerDragDrop.h"
+#include "CassoExplorer/Window/ExplorerTabStrip.h"
+#include "CassoExplorer/Window/ExplorerPreview.h"
+#include "CassoExplorer/Window/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/ExplorerMenus.h"
+#include "CassoExplorer/Window/ExplorerDispatch.h"
+#include "CassoExplorer/Window/ExplorerFileOps.h"
+#include "CassoExplorer/Window/ExplorerInput.h"
+#include "CassoExplorer/Window/ExplorerTips.h"
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CassoExplorerCommands.h"
@@ -53,6 +66,12 @@ struct CassoExplorerSessionWindow;
 //  Keyboard focus is one of the three panes, moved by Tab and by a press.
 //  The window is laid out by hand: the dock layout sizes a slab from the
 //  child's current bounds, which a splitter changes on every drag.
+//
+//  Each area is a component class in CassoExplorer/Window/, with the state
+//  it uses and a reference to the window: the layout, the list pane, folder
+//  sync, links, drag and drop, the tab strip, the preview pane, the address
+//  bar, menus, dispatch, file operations, input and tips. The window has the
+//  widgets, its messages and timers, and the session.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,9 +125,6 @@ public:
     //  arguments as UTF-16 text, its path made full.
     static constexpr ULONG_PTR  kLaunchCopyId   = 0x43454C41;   // 'CELA'
 
-    //  Opens a folder, a disk image, or a file's folder in a new tab.
-    void  OpenPathInNewTab (const std::wstring & path);
-
     //  The window's placement in the preferences' terms.
     CassoExplorerPrefs::Placement  GetPlacement () const;
 
@@ -119,71 +135,24 @@ public:
     //  rather than only on a clean exit.
     void  SaveSession();
 
-    //  A tab dragged from another window of the app: whether the point is
-    //  over this window's tab strip, the gap it opens while it is, and the
-    //  tab arriving on the drop, at the gap.
-    bool  IsOverTabStrip (POINT screen) const;
-    void  OnTabHover     (bool over, POINT screen);
-    void  AcceptTab      (BrowserModel::Tab tab);
-
     //  CassoLink posts its changes to one window; this one, from now on.
     void  TakeLinkNotifications();
-
-    //  A CassoLink operation finished or a link changed state: the tree, the
-    //  list and the status bar are brought up to date.
-    void  RefreshLinkViews();
 
     //  Closed by the app, which has saved the session already.
     void  CloseForApp();
 
     void    Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void    Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool    OnMouse           (const DxuiMouseEvent & ev) override;
-    bool    OnKey             (const DxuiKeyEvent & ev) override;
-    LPCWSTR GetCursorForPoint (POINT clientPx) const override;
+    bool    OnMouse           (const DxuiMouseEvent & ev) override  { return m_input.OnMouse (ev); }
+    bool    OnKey             (const DxuiKeyEvent & ev) override    { return m_input.OnKey (ev); }
+    LPCWSTR GetCursorForPoint (POINT clientPx) const override       { return m_input.GetCursorForPoint (clientPx); }
 
     //  Windows changed its light or dark setting or its accent: Follow
     //  system takes the new one at once, and every theme takes the accent.
     void    OnThemeChanged    () override;
-
-    static constexpr int       kMaxCatalogName     = 30;
-    static constexpr UINT_PTR  kTooltipTimerId     = 0x5153;
-    static constexpr int       kDragImageDip       = 96;       // a dragged item's icon, as File Explorer draws it
-
-    static constexpr const wchar_t *  kCassoNodeTip    = L"Folders Casso has opened disk images from, most recently used first";
-    static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
-    static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
-    static constexpr float            kPromptFontDip   = 12.0f;   // Explorer's, 9 points
-    static constexpr uint32_t         kPreviewLift     = 7;       // the dark Preview pane over the list, per channel
-    static uint32_t  GetPreviewBackground (const IDxuiTheme & theme);
-
-    static constexpr const wchar_t *  kMissingNodeTip  = L"This folder is on a removable drive which is not currently connected.";
-
-    static constexpr const wchar_t *  kExplorerTypedPathsKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths";
-    static constexpr size_t           kMaxCompletions        = 200;
-
-    static constexpr const wchar_t *  kExplorerIconFolder    = L"\\SystemApps\\MicrosoftWindows.Client.FileExp_cw5n1h2txyewy\\FileExplorerExtensions\\Assets\\images\\contrast-standard\\";
-
-    //  A 5.25-inch floppy in File Explorer's icon hand: a 16-unit jacket with
-    //  the write-protect notch cut in its edge, its hub ring and index hole,
-    //  and the head slot in the accent. {INK}, {ACC}
-    //  and {BODY} take the theme's outline, accent and fill.
-    static constexpr const char *     kFloppy525Svg =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 16 16\">"
-        "<path fill=\"{BODY}\" stroke=\"{INK}\" d=\"M13.5 1.5h-11a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V5.5h-1V3.5h1v-1a1 1 0 0 0-1-1Z\"/>"
-        "<circle cx=\"8\" cy=\"6.5\" r=\"2.25\" stroke=\"{INK}\"/>"
-        "<circle cx=\"4.5\" cy=\"6.5\" r=\".6\" fill=\"{INK}\"/>"
-        "<rect x=\"7.25\" y=\"10\" width=\"1.5\" height=\"4\" rx=\".75\" fill=\"{ACC}\"/>"
-        "</svg>";
-    static constexpr uint64_t  kDos33ImageBytes = 35 * 16 * 256;
-    static constexpr UINT      kTooltipTickMs   = 16;   // the menus' reveal runs on it too, so display rate
-    //  Explorer's tabs are 33 dip tall. Its strip is 9 dip taller because it is
-    //  also the window's caption; this window has a caption bar of its own, so
-    //  the strip keeps only a small gap above the tabs.
-    static constexpr int       kTabHeightDip       = 37;
-    static constexpr int       kTabTopDip          = 4;
-    static constexpr float     kTabLeadDip         = 8.67f;  // the first tab from the strip's left edge, measured at 150%
-    static constexpr float     kNewTabGapDip       = 6.67f;  // the last tab to the + button
+    static constexpr UINT_PTR  kTooltipTimerId = 0x5153;
+    static constexpr UINT      kTooltipTickMs  = 16;   // the menus' reveal runs on it too, so display rate
+    static constexpr float     kNewTabGapDip   = 6.67f;   // the last tab to the + button
 
     //  Explorer's navigation glyphs are smaller than Casso's toolbar icons:
     //  15 pixels of ink at 120 DPI.
@@ -212,97 +181,17 @@ public:
     //  Explorer's tree and list text: 9 points, 12 dip.
     static constexpr float     kProseFontDip         = 12.0f;
     static constexpr int       kCommandBarGroupGapDp = 9;    // 14 px at 150%, with the separator centered in it
-
-    //  Explorer's two strips, measured at 100, 125, 150 and 200%: the command
-    //  bar is 47 dip rounded down, its line included; the address bar's strip
-    //  is 48 dip rounded down with its line added. The address box is 32 dip
-    //  tall, and the command bar starts 4 dip in.
-    static constexpr float     kCommandBarDip        = 47.0f;
-    static constexpr float     kNavStripFillDip      = 48.0f;
-    static constexpr int       kAddressBoxDip        = 32;
-    static constexpr int       kFindBoxMinDip        = 100;
-    static constexpr int       kFindBoxMaxDip        = 720;
-    static constexpr float     kFindBoxShare         = 0.3f;    // of the width right of the tree, measured at 150%
-    static constexpr float     kFindBoxRightInsetDip = 5.33f;   // past the toolbar's own padding
-    static constexpr int       kFindBoxGapDip        = 8;
     static constexpr int       kCommandBarPadXDp     = 6;
-    static constexpr UINT      kListRowHalfDip       = 14;
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
-    static constexpr int       kMenuIconDip        = 16;     // DxuiPopupMenu's row icon
 
     //  The preview's rows hold one line of fixed-width text each, so they
     //  are the line's height rather than a file listing's roomier row.
-    static constexpr int  kPreviewRowHeightDip = 18;
-    static constexpr int  kTabWidthDip         = 240;
-    static constexpr int  kTabMinWidthDip      = 100;
-    static constexpr int  kMinTreeWidthDip     = 140;
-    static constexpr int  kMinListWidthDip     = 220;
-    static constexpr int  kMinPreviewWidthDip  = 280;   // wide enough for the hex view's toolbar
-    static constexpr int  kMinWindowWidthDip   = 200;
-    static constexpr int  kCascadeStepDip      = 32;    // a second window's offset from the saved placement
-
-    //  Where DOS 3.3 on a 48K machine leaves HIMEM, against which Integer BASIC
-    //  keeps its program.
-    static constexpr int  kIntegerBasicHimem   = 0x9600;
-
-    //  Preview text is drawn this far from the background toward the theme's
-    //  foreground, a gray like a terminal's text rather than full white.
-    static constexpr float  kPreviewTextStrength = 0.8f;
-
-    //  Room around a picture in the preview for its glow, which spills past
-    //  the picture's edges.
-    static constexpr int    kPictureInsetDip     = 16;
-
-    //  Each zoom step, in percent of the theme's text size.
-    static constexpr int    kPreviewZoomStep     = 10;
-
-    //  The widest a pane's message runs before it wraps.
-    static constexpr int     kMessageWidthDip = 400;
-
-    //  How far below the list's top a search's message sits: File Explorer's,
-    //  measured at 150% as 27 pixels.
-    static constexpr int     kSearchMessageTopDip = 18;
-
-    //  The list's Bootstrap button: its size, and how far below the middle of
-    //  the list's message it starts, past two lines of text.
-    static constexpr int     kListActionWidthDip  = 160;
-    static constexpr int     kListActionWideDip   = 200;   // the firewall's actions, whose labels are longer
-    static constexpr int     kListActionGapDip    = 12;    // between the two firewall actions
-    static constexpr int     kListActionHeightDip = 32;
-    static constexpr int     kListActionOffsetDip = 36;
-
-    //  How far each level of the tree sits in from its parent: File
-    //  Explorer's, measured at 125% as 10 pixels.
-    static constexpr int     kTreeIndentDip   = 8;
-
-    //  A tree row's icon starts 18 dip past the middle of its twisty and its
-    //  label 3.33 dip past the icon: measured at 150%.
-    static constexpr float   kTreeIconLeadDip = 10.0f;
-    static constexpr float   kTreeIconGapDip  = 3.33f;
-    static constexpr float   kTreeLeftPadDip  = 8.0f;    // the top level from the pane's left edge
-
-    //  The status bar's fields, left to right: Explorer's item count and
-    //  selection, flowing from the left; the space between; then free space,
-    //  the preview's detail and its zoom.
-    static constexpr size_t  kStatusCount    = 0;
-    static constexpr size_t  kStatusSelected = 1;
-    static constexpr size_t  kStatusFill     = 2;
-    static constexpr size_t  kStatusFree     = 3;
-    static constexpr size_t  kStatusDetail   = 4;
-    static constexpr size_t  kStatusZoom     = 5;
-
-    //  Status bar field widths: free space, and the preview's detail and zoom
-    //  when the preview is hidden and they cannot follow its edge.
-    static constexpr int     kStatusBandDip        = 26;   // Explorer's status bar, measured at 150%
-    static constexpr float   kStatusLeadDip        = 14.67f;   // its item count, from the band's left edge
-    static constexpr int     kStatusFreeDip        = 140;
-    static constexpr int     kStatusDetailDip      = 280;
-    static constexpr int     kStatusZoomDip        = 64;
-    static constexpr size_t  kActivityTipLines     = 10;
-    static constexpr float   kActivityTipWidthDip  = 720.0f;   // a log line, time and link and all, on one line
-    static constexpr int     kActivityShownMinutes = 15;
+    static constexpr int    kPreviewRowHeightDip = 18;
+    static constexpr int    kMinWindowWidthDip   = 200;
+    static constexpr int    kCascadeStepDip      = 32;   // a second window's offset from the saved placement
+    static constexpr float  kStatusLeadDip       = 14.67f;   // its item count, from the band's left edge
 
     //  The private message that holds a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
@@ -360,24 +249,6 @@ public:
     static constexpr UINT_PTR  kShellPreviewTimerId  = 0x5158;   // gives up on a shell preview that has not arrived
     static constexpr UINT_PTR  kRefreshTimerId       = 0x5159;   // refills the list after a refresh's blank
 
-    //  How long a shell preview has before the bytes replace it.
-    static constexpr UINT  kShellPreviewTimeoutMs = 5000;
-    static constexpr UINT  kDrivePollMs           = 2000;
-
-    //  How long the list stays empty on a refresh, as File Explorer's does,
-    //  so the refresh can be seen.
-    static constexpr UINT  kRefreshBlankMs        = 100;
-
-    //  How long a drag rests on a collapsed tree node before it opens,
-    //  measured against File Explorer's: between 970 and 1,090 ms.
-    static constexpr UINT  kTreeDropExpandMs      = 1000;
-
-    //  File Explorer's Quick access, pinned and frequent folders alike, is the
-    //  jump list of this application id, in the Recent folder's
-    //  AutomaticDestinations.
-    static constexpr const wchar_t *  kQuickAccessFile = L"f01b4d95cf55d32a.automaticDestinations-ms";
-    static constexpr int       kRestoreRetries       = 5;
-
     //  How long to let a burst settle before re-reading. Copying a hundred
     //  files reports a hundred changes; re-reading once at the end is both
     //  faster and steadier to look at.
@@ -388,58 +259,6 @@ public:
     static constexpr int       kDropTagList          = 0;
     static constexpr int       kDropTagTree          = 1;
     static constexpr int       kDropTagTabs          = 2;
-
-    //  The strip a pointer event goes to: the command bar over its band, the
-    //  navigation toolbar anywhere else.
-    //  The panes' widths in a body this wide, from the widths the user left
-    //  them at. The list gives up width first, down to its minimum; then the
-    //  preview, down to its own; then the tree. Past all three minimums the
-    //  three shrink together. A preview width of zero is a hidden preview.
-    struct PaneWidths
-    {
-        int  tree    = 0;
-        int  list    = 0;
-        int  preview = 0;
-    };
-
-    static PaneWidths  FitPanes (int bodyDip, int treeDip, int previewDip);
-
-    //  Whether a list column shows: the user's choice from the header's menu,
-    //  and the catalog's two columns only inside a disk image.
-    static bool  IsListColumnShown (size_t column, bool chosen, Location::Kind kind, bool searching = false);
-    void         ApplyColumnOrder  ();
-
-    //  File Explorer's list row, measured at nine scales from 100% to 350%:
-    //  twice 14 dip rounded up, and a pixel more at any scale that is not a
-    //  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.
-    static int  GetListRowHeightPx (UINT dpi);
-
-    //  The address box: the toolbar's free span, 32 dip tall and centered
-    //  in the strip above its bottom line.
-    static RECT  GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
-
-    static DxuiToolbar &  GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar);
-
-    //  The files in a drag, and whether a drop on a folder or item would
-    //  put them back where they are or onto themselves.
-    static std::vector<std::wstring>  GetDraggedPaths     (IDataObject * data);
-    static bool                       IsDraggedFromFolder (IDataObject * data, const std::wstring & folder);
-    static bool                       IsDraggedItem       (IDataObject * data, const std::wstring & target);
-
-    //  The text view's rows for a preview; an assembler's source with its line
-    //  numbers and, given colors, its syntax colored.
-    static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
-
-    //  Visual Studio's code colors for the theme's background, dark or light,
-    //  as Casso's debugger colors its source.
-    static SourceSyntax::Colors            GetSourceColors (const IDxuiTheme * theme);
-
-    //  Half of the largest luminance GetSourceColors weighs, 255 times 1000.
-    static constexpr uint32_t              s_kDarkLumaLimit = 127500;
-
-    //  A machine's configuration with the user's changes to it from Casso's
-    //  prefs file merged in, as Casso merges them; the file is only read.
-    static HRESULT  MergeUserMachineDelta (const std::string & machine, IFileSystem & files, std::string & inoutJson);
 
 protected:
     void  OnCreate        () override;
@@ -455,560 +274,19 @@ protected:
     DxuiMessageResult  OnEndSession (bool ending) override;
 
 private:
-    //  Keyboard focus. The toolbar is one pane, with its focused button in
-    //  m_toolbarFocus; FocusRing defines the Tab order.
-    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, GoTo, Search, Preview, CommandBar, LocationSearch };
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  PreviewBytes
-    //
-    //  The previewed file's bytes, as a source for the hex view. The browser
-    //  owns the preview content and replaces it on every selection change, so
-    //  this stores a pointer rather than a copy, updated each time the preview
-    //  is refilled.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    class PreviewBytes : public IDxuiHexSource
-    {
-    public:
-        void  SetBytes (const std::vector<Byte> * bytes) { m_bytes = bytes; }
-
-        uint64_t  GetByteCount() const override
-        {
-            return (m_bytes != nullptr) ? (uint64_t) m_bytes->size() : 0;
-        }
-
-        void  ReadBytes (uint64_t offset, std::span<uint8_t> out) const override
-        {
-            size_t  start = (size_t) offset;
-
-            for (size_t idx = 0; idx < out.size(); idx++)
-            {
-                out[idx] = (m_bytes != nullptr && (start + idx) < m_bytes->size())
-                         ? (uint8_t) (*m_bytes)[start + idx]
-                         : (uint8_t) 0;
-            }
-        }
-
-    private:
-        const std::vector<Byte> *  m_bytes = nullptr;
-    };
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  FileBytes
-    //
-    //  A host file, as a source for the hex view. The view asks only for the
-    //  rows it draws, and those come from a 1 MB window of the file that moves
-    //  when a row falls outside it, so a file of any size costs about the
-    //  same. A read larger than half the window, as a search makes, goes to
-    //  the file directly.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    class FileBytes : public IDxuiHexSource
-    {
-    public:
-        ~FileBytes() override { Close(); }
-
-        bool  Open  (const std::wstring & path);
-        void  Close ();
-
-        //  Which character set the start of the file is text in, if any.
-        HostCharset  GetCharset () const;
-
-        const std::wstring &  GetPath  () const { return m_path; }
-
-        //  Whether the file at the path has the size and write time it had
-        //  when opened; false once another program changed or replaced it.
-        bool                  IsCurrent () const;
-
-        //  Why the last Open failed, or S_OK.
-        HRESULT               GetError () const { return m_error; }
-
-        uint64_t  GetByteCount () const override { return m_size; }
-        void      ReadBytes    (uint64_t offset, std::span<uint8_t> out) const override;
-
-        static constexpr size_t  kWindowBytes     = 1024 * 1024;
-        static constexpr size_t  kTextSampleBytes = 64 * 1024;
-
-    private:
-        void  ReadAt (uint64_t offset, std::span<uint8_t> out) const;
-
-        HANDLE                        m_file       = INVALID_HANDLE_VALUE;
-        HRESULT                       m_error      = S_OK;
-        std::wstring                  m_path;
-        uint64_t                      m_size       = 0;
-        FILETIME                      m_written    = {};
-        mutable std::vector<uint8_t>  m_window;
-        mutable uint64_t              m_windowBase = 0;
-    };
-
-    void  ConfigureWidgets();
-    void  ApplyTheme();
-    void  AdoptSystemColors();
-    void  PreviewTheme (int index);
-    void  SelectTheme  (const char * name);
-
-    static bool  IsCassoThemeName (const std::string & name);
-    void  RecomputeLayout();
-    void  FillList();
-    void  RevealLocationInTree();
-
-    //  Pin to Quick access, or Unpin, for a folder, as Explorer's menus have it.
-    void  AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
-
-    //  Open in new tab and new window, and the pins, for a folder or image.
-    void  AddOpenRows       (std::vector<DxuiPopupMenuItem> & items, const Location & location, bool withOpen);
-
-    //  New's choices for a location, as File Explorer's New lists them.
-    void  AddNewChoices     (std::vector<DxuiPopupMenuItem> & items, const Location & target,
-                             std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk);
-    void  RunNewChoice      (const Location & target, const std::wstring & verb);
-    void  GoToLocation      (const Location & location);
-
-    //  The rows of the Sort, Group by and View menus, shared by the command
-    //  bar and the list's background menu.
-    std::vector<DxuiPopupMenuItem>  GetSortChoices  ();
-    std::vector<DxuiPopupMenuItem>  GetGroupChoices ();
-    std::vector<DxuiPopupMenuItem>  GetViewChoices  ();
-    void                            AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
-    bool                            ShowScrollbarMenu (const DxuiMouseEvent & ev);
-    void  OnShellListed     (const std::wstring & key);
-    void  OnLinkChanged     ();
-
-    //  The running Cassos read again, at start and when their folder changes.
-    void  OnRunningChanged  ();
-
-    //  A verb's label as a window's title: no access key, no trailing dots.
-    static std::wstring  GetVerbTitle (CassoExplorerActions::Verb verb);
-
-    //  The raw read and write pickers' own history, apart from other pickers.
-    static constexpr GUID  s_kRawPickerGuid = { 0xe347dd39, 0x4a18, 0x4a0d, { 0x93, 0x4a, 0xfd, 0x63, 0xb7, 0x9c, 0xba, 0x3e } };
-
-    //  The whole-disk read and write pickers' own history.
-    static constexpr GUID  s_kLinkDiskPickerGuid = { 0x71d2ac7c, 0x3b03, 0x4c2c, { 0xac, 0xae, 0x2d, 0xa5, 0x0c, 0x9d, 0x7f, 0x8b } };
-    void  ScrollTreeToRow (int row);
-    int   WalkTreeLabels (int row, const std::wstring & path);
-    void  FillTabs();
-    void  FillAddress();
-    void  FillNavTips();
-    std::wstring  GetNavLabel (const Location & location);
-    std::vector<BrowserModel::AddressSegment>  GetAddressSegmentsFor (const Location & location);
-    void  SubmitAddress (const std::wstring & text);
-    void  AddTypedPath  (const std::wstring & text);
-    void  ShowAddressMenu (int index, const RECT & anchor);
-    void  ShowAddressOverflowMenu (const RECT & anchor);
-    void  ShowAddressRootsMenu    (const RECT & anchor);
-    void  OpenSelectedEntries     ();
-    void  SearchLocation          (const std::wstring & query);
-    void  LeaveSearch             ();
-    std::wstring  GetCassoSearchScope();
-    bool  OnFindBoxKey            (const DxuiKeyEvent & ev);
-    void  ShowAddressHistoryMenu  (const RECT & anchor);
-
-    //  The list under the address bar: the history when nothing is typed,
-    //  what the typed path could go on to be once something is.
-    void  ShowAddressSuggestions  (const std::wstring & typed);
-    int   ChooseFormatDefault     (const std::wstring & image);
-    bool  OnAddressKey            (WPARAM vk);
-    std::vector<std::wstring>  GetAddressHistory () const;
-
-    static std::vector<std::wstring>  GetCompletions            (const std::wstring & typed);
-    void                              ShowAddressContextMenu    (int x, int y);
-    void                              UpdateLabelTip            (POINT point);
-
-    //  What Ctrl+Z puts back, as Explorer's undo does: a deletion to the
-    //  Recycle Bin, a rename, a new folder, and inside a disk image a
-    //  deletion (from a copy kept aside), a rename or a new folder.
-    struct UndoStep
-    {
-        enum class Kind { Recycle, HostRename, HostNewFolder, HostNewItem, ImageRename, ImageNewFolder, ImageDelete, HostCopy, HostMove, ImagePut };
-
-        Kind                       kind = Kind::Recycle;
-        Location                   location;    // where an image step was made
-        std::vector<std::wstring>  paths;       // host paths, as they are now
-        std::wstring               oldName;
-        std::wstring               newName;
-        std::wstring               savedDir;    // an image deletion's copy
-        std::vector<std::wstring>  sources;     // where moved host items were
-        std::vector<std::string>   entries;     // what a put or copy made in an image
-    };
-
-    void                              PushUndo                  (UndoStep step);
-    void                              UndoLast                  ();
-    static const wchar_t *            GetUndoLabel              (UndoStep::Kind kind);
-    static std::vector<std::wstring>  ReadExplorerTypedPaths    ();
-    void                              PasteHere                 (const std::wstring & folder);
-    void                              BeginTreeRename           (const std::wstring & id);
-    bool                              IsRenaming                () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
-    void                              ShowHostProperties        (const std::vector<std::wstring> & paths);
-    void                              PasteIntoVolume           ();
-    void                              PushPutUndo               (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner);
-    static void                       WriteExplorerTypedPath    (const std::wstring & path);
-
-    //  What an empty list says, named for the kind of thing being looked at.
-    static std::wstring  GetEmptyLocationMessage (Location::Kind kind);
-
-    //  The file list's column widths from the last run.
-    void  ApplyStoredColumnWidths ();
-    void  ApplyColumnWidths       (const std::vector<int> & widthsDip);
-    void  RememberFolderColumnWidths (int column, int widthDip);
-    void  RememberFolderColumns      ();
-
-    //  The host folders worth watching: the one the list is showing and every
-    //  one the tree has open. Cheap enough to call after anything that could
-    //  have changed either.
-    void  UpdateWatchedFolders ();
-
-    //  Re-reads whatever the watcher reported, once the burst has settled.
-    void  RefreshChangedFolders ();
-    bool  IsShownFolderIn       (const std::vector<std::wstring> & folders) const;
-    bool  RefreshOpenTreeFolders (const std::vector<std::wstring> & folders);
-    static bool  IsSameFolder   (const std::wstring & a, const std::wstring & b);
-    void  ShowHistoryMenu (bool forward, const RECT & anchor);
-
-    static std::wstring  EscapeMnemonics (const std::wstring & text);
-
-    //  The hex view's character column for a preview's bytes: the host
-    //  file's own character set, or Apple text for a file from an image.
-    static DxuiHexView::TextEncoding  GetHexEncoding (bool hostFile, HostCharset charset);
-    static BrowserModel::AddressRoot  GetProfileRoot();
-    void  SwitchToTab (size_t index);
-
-    //  A tab dragged off the strip: the card that moves with the pointer, the
-    //  other window's strip it is over, and where it goes on the drop -- into
-    //  that window, or into a window of its own.
-    void   OnTabDragMove       (int index, POINT client, bool tornOff);
-    void   OnTabDragEnd        (int index, POINT client, bool tornOff);
-    void   CancelTabDrag       ();
-    void   ShowTabDragVisual   (int index, POINT screen);
-    CassoExplorerWindow *  FindTabStripAt (POINT screen) const;
-    static HWND            FindWindowBelow (HWND above, POINT screen);
-    void   SetTabDragTarget    (CassoExplorerWindow * target, POINT screen);
-    void   TearOffTab          (int index, POINT screen);
-    RECT   GetTearOffRect      (POINT screen) const;
-
-    //  A tab closed by its button, its menu or Ctrl+W, or moved to another
-    //  window. The last tab closes the window, as File Explorer's does.
-    void   CloseTabAt          (size_t index);
-    void   FillPreview();
-    void  UpdateCommandBar();
-    void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
-    void  AddPackagedCommandsFor  (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    void  AddTreeIconRow          (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id);
-    void  AddPackagedEntry        (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
-    bool  AddWindowsCommands      (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    bool  GetSelectionKind        (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
-    void  UpdateShellPreview      (const PreviewContent & preview);
-    void  OnShellPreviewResult    ();
-    void  ShowShellPreviewBytes   ();
-    void  ExtractAll();
-    void  ReadDiskToImage   (bool blankUnreadable = false, const std::wstring & imagePath = std::wstring());
-
-    //  An image onto a linked Apple's drive: the drive is checked for the
-    //  link disk, the user confirms, and the write is queued.
-    void  StartImageWrite   (const Location & drive, const std::wstring & imagePath);
-
-    //  A drag from a node in the tree: a linked Apple's whole drive, or a
-    //  folder or disk image on the PC, which drags as Explorer's does.
-    void  BeginTreeDrag     (const Location & location);
-
-    //  The linked Apple's drive a drop would land on: a drive's node or row,
-    //  or the drive in the list.
-    bool  TryGetAppleDropDrive (int tag, POINT screen, Location & outDrive);
-
-    //  The drive of the one drive row selected while the list is on a linked
-    //  machine. The image commands run on it, and dragging it drags its disk,
-    //  as for the drive's node in the tree.
-    bool  TryGetSelectedLinkDrive (Location & outDrive) const;
-    bool  IsOnLinkedMachine       () const;
-    void  OpenSelectedLinkDrive   ();
-    void  BeginDiskDrag           (const std::wstring & driveId);
-
-    //  The first selected row's icon at the drag image's size.
-    std::shared_ptr<const DxuiIconImage>  GetRowDragImage ();
-    void  WriteImageToDisk  ();
-    void  SaveLinkToDisk    ();
-    void  FormatAppleDisk   (const Location & location);
-    void  SaveLinkDiskImage (const std::string & name);
-    void  FillStatus();
-    void  SetFocusPane (Pane pane);
-
-    FocusStop               GetFocusStop     () const;
-    void                    SetFocusStop     (const FocusStop & stop);
-    std::vector<FocusStop>  BuildFocusStops  () const;
-    bool                    RouteToolbarKey  (bool preview, const DxuiKeyEvent & ev);
-    void                    StepToolbarFocus (bool preview, bool forward);
-    void  Dispatch     (int id);
-    bool  IsEnabled    (int id) const;
-    bool  IsChecked    (int id) const;
+    bool                              IsRenaming                () const { return m_renameRow >= 0 || !m_fileOps.m_renameTreeId.empty(); }
     void  ShowAbout();
-
-    void  ShowListHeaderMenu (int x, int y, int column);
-    void  ShowListContextMenu (int x, int y, int group = -1);
-    void  ShowTextContextMenu (int x, int y);
-    void  GoToTyped (const std::wstring & text);
-    void  SetHexGrouping (int grouping);
 
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
-
-    //  The focused pane's control, where routing of a standard command such as
-    //  Copy or Select all starts.
-    IDxuiControl *  GetFocusedControl() const;
-
-    //  Whether the preview pane currently displays the hex view rather than
-    //  lines, a picture or a message. Key, copy and Tab routing in the pane
-    //  depend on it.
-    bool  IsHexPreviewShowing() const;
-    bool  IsTextPreviewShowing() const;
-
-    //  The text view's rows for a preview: a BASIC line as its number and its
-    //  statement, a detail as its label and value, anything else as one cell.
-
-    static std::vector<Word>               GetLineAddresses (const std::vector<Byte> & program, bool integerBasic);
-    void  OnSearchChanged  (const std::wstring & text);
-    void  FindNext         (bool incremental = false);
-    void  SetHexColumns    (int columns);
-    void  SetPreviewZoom   (int percent);
-    void  LayoutStatusFields ();
-
-    static std::wstring  FormatPreviewError (const std::wstring & message);
-
-    void  SetHexFormat     (const char * format);
-    void  SetHexShowValues (bool show);
-    int   GetPreviewStopIndex (int commandId) const;
-
-    static DxuiHexView::ValueFormat  ParseHexFormat (const std::string & name);
-    static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
-    bool  RouteToolbarMouse   (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
-
-    //  Which part of the window the hover tooltip belongs to.
-    enum class TipOwner { None, Toolbar, Tree, List, Status, Menu };
-
-    void  ShowHoverTip        (TipOwner owner, const RECT & anchor, const std::wstring & text,
-                               float maxWidthDip = DxuiTooltip::kDefaultMaxTextWidthDip);
-    void  HideHoverTip        (TipOwner owner);
-    void  UpdateTreeTip       (const DxuiMouseEvent & ev, POINT point);
-    void  UpdateStatusTip     (const DxuiMouseEvent & ev, POINT point);
-    void  UpdateListTip       (const DxuiMouseEvent & ev, POINT point);
-    void  RefreshListTip      ();
     void  ArmTick             ();
-    bool  TryApplyContentDetails (int row, DxuiListView::Cell & name);
-
-    //  A picture preview on its monitor, through Casso's CRT pass.
-    PicturePreview::Monitor   GetPreviewMonitor     () const;
-    const ThemeCrtDefaults *  GetPreviewCrtDefaults ();
-    void                      UpdateCrtPicture      (bool force);
-    void                      SelectMonitor         (PicturePreview::Monitor monitor);
-    void                      ShowPictureContextMenu (int x, int y);
-    void                      ShowPictureForm        (bool color);
-
-    void  RefreshContentDetails  ();
-    void  RefreshListIcons    ();
-    const std::vector<DxuiListView::Cell> &  GetListRowCells (int row);
     bool  IsTickWanted        () const;
 
     static int64_t  GetNowMs();
-    void  BeginDragOut();
-    void  OnDropFile (const std::wstring & path);
-    CassoExplorerActions::AddressFn    MakeAddressPrompt();
-    CassoExplorerActions::CollisionFn  MakeCollisionPrompt();
-    void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
-
-    //  The menu below the tree's last node, and the pane options it sets.
-    void  ShowTreeEmptyMenu   (int x, int y);
-
-    //  The CassoLink connections: added or edited through the link dialog, removed,
-    //  or disconnected, which closes the link's port. Each change is saved
-    //  at once.
-    void  EditLink            (const std::string & name);
-    void  RemoveLink          (const std::string & name);
-    void  DisconnectLink      (const std::string & name);
-    void  ConnectLink         (const std::string & name);
-    void  SearchLink          (const std::string & name);
-    void  BootstrapLink       (const std::string & name);
-    void  PlayCassetteBootstrap (const std::string & name);
-    void  SaveCassetteBootstrap (const std::string & name);
-    bool  IsSerialLink        (const std::string & name) const;
-    bool  CanBootstrapLink    (const std::string & name) const;
-    std::wstring  GetLatestActivity () const;
-    std::wstring  FormatActivity (size_t lines) const;
-    void  ShowActivityLog ();
-    void  StartAdtProServers ();
-    bool  IsLinkReplying        (const std::string & name) const;
-    bool  IsLinkRemoved         (const std::wstring & link) const;
-    void  AddLinkRows (std::vector<DxuiPopupMenuItem> & items, bool hasLocation, const Location & location);
-    bool  IsWifiModemLink        (const std::string & name) const;
-    void  ReleaseIdleLinks    ();
-    void  ApplyLinks          ();
-    void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
-    void  ApplyNavPaneOptions ();
-    bool  IsNavOptionOn       (CassoExplorerPrefs::NavOption option) const;
-
-    //  The tab strip's menu, and the pieces the menus share: one command row,
-    //  Copy as path over the selection, and Properties, which is Windows' own
-    //  sheet for a host item and the catalog details for an entry in an image.
-    void  ShowTabContextMenu     (int x, int y, int index);
-    void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"", const wchar_t * menuGlyph = nullptr);
-    void  AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
-    static const wchar_t *  GetVerbGlyph (CassoExplorerActions::Verb verb);
-    static int              GetIconOrder (CassoExplorerActions::Verb verb);
-    std::wstring  GetPasteFolder () const;
-    void  CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk);
-    bool  SelectRowNamed         (const std::wstring & name);
-    void  ShowOptions            ();
-    void  SizeListIcons          ();
-    void  ShowViewOnButton       ();
-    bool  IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
-    bool  IsToolbarEntryAvailable (int index) const;
-    bool  IsCommandBarEntryAvailable (int index) const;
-    HostFileNaming::Style  GetNamingStyle () const;
-    void  AddCopyAsMenu          (std::vector<DxuiPopupMenuItem> & items);
-    void  CopyEntriesToClipboard (HostFileNaming::Style style);
-    bool  RouteCommandBarKey      (const DxuiKeyEvent & ev);
 
     DxuiToolbar          * m_commandBar      = nullptr;
-    void  SetCommandBarDropDowns ();
-
-    //  Drag-in: the image location under a drop point, what a drop there
-    //  would do, and the drop.
-    bool  TryGetDropLocation     (int tag, POINT screen, Location & outLocation);
-    DWORD GetDropEffect          (IDataObject * data, int tag, POINT screen);
-
-    //  A host folder under the drag takes it as Explorer would: the drag goes
-    //  to the folder's own shell drop target, which copies or moves it with
-    //  Explorer's progress, conflict and undo handling.
-    bool  TryGetHostDropFolder   (int tag, POINT screen, std::wstring & outFolder);
-    DWORD ForwardHostDrag        (IDataObject * data, const std::wstring & folder, POINT screen);
-    void  LeaveHostDrop          ();
-    void  ShowDropTarget         (int tag, POINT screen, bool accepted);
-    void  ShowDropMenu           ();
-    void  RunDrop                (CassoExplorerActions::Conversion conversion);
-    void  ClearDropTarget        ();
-    void  OnDrop                 (IDataObject * data, int tag, POINT screen);
-
-    //  What a drag holds: another image's entries, or host files.
-    struct DropSource
-    {
-        bool                       fromImage = false;
-        std::string                image;
-        VolumeKind                 kind      = VolumeKind::Unknown;
-        std::vector<std::string>   catalogPaths;
-        std::vector<std::wstring>  hostPaths;
-    };
-
-    bool  ReadDropSource   (IDataObject * data, DropSource & outSource);
-    DWORD ChooseDropEffect (const DropSource & source, const Location & target) const;
-    void  DescribeDrop     (IDataObject * data, DWORD effect, const Location & target);
-    void  HoverDropTab     (POINT screen);
-
-    HRESULT  RecycleHostFiles (const std::vector<std::wstring> & paths);
-    void  RefreshAfterHostChange ();
-
-    //  The part of a pane a message wraps within.
-    RECT  GetMessageRect (const RECT & pane) const;
-    RECT  GetListMessageRect() const;
-
-    //  The list's button under its message: Connect for a link the user
-    //  disconnected, Bootstrap the Apple for a serial link whose Apple is
-    //  not replying, or Allow in Windows Firewall for a connection the
-    //  firewall blocks. On a public network the second button beside it is
-    //  Make this network private.
-    RECT         GetListActionRect    () const;
-    RECT         GetListActionAltRect () const;
-    std::string  GetBootstrapLink     () const;
-    void         FillListAction       (bool hasMessage);
-
-    //  The firewall read again on the drive poll, the views redrawn when it
-    //  changed, and the elevated helper's result once it exits.
-    void         PollFirewall         ();
-    void         FixFirewall          (bool markPrivate);
-    bool         TryGetLinkEntry      (const std::wstring & name, LinkTreeEntry & outEntry) const;
-
-
-    //  The archive files selected in the preview, by the shell's names for
-    //  them, and what happens to them.
-    std::vector<std::wstring>  GetSelectedArchiveIds () const;
-    bool                       RouteArchiveMouse     (const DxuiMouseEvent & ev, POINT point);
-    void                       OpenArchiveRow        (int row);
-    void                       CopyArchiveSelection  (bool cut);
-    void                       DeleteArchiveSelection ();
-    void                       ShowArchiveContextMenu (int x, int y);
-
-    //  Explorer's folder options read again; true when one changed.
-    bool  ReadFolderOptions ();
-
-    //  The folder the list shows, as FolderViews keys it, and its type when
-    //  asked for, which a host folder costs a read of its desktop.ini.
-    std::wstring  GetFolderViewKey (FolderViews::FolderType * outType) const;
-
-    //  The list in the view of the folder it now shows, when that folder is
-    //  not the one the view was last set for.
-    void          ApplyFolderView ();
-    void          RememberFolderSort ();
-    void  CopySelectedPaths      ();
-    void  OpenEachSelected       ();
-    void  ShowRowProperties      (int row);
-    void  ShowLocationProperties (const Location & location);
-    void  ShowHostProperties     (const std::wstring & path);
-    void  ReloadKnownFolders     ();
-    void  ReloadKnownFoldersIfChanged ();
-    void  RefreshQuickAccessIfChanged ();
-    bool  IsShellDropFile     (int row, std::wstring & outPath) const;
-    bool  TryGetSelectedShellIds  (std::vector<std::wstring> & outIds) const;
-    void  DeleteSelectionPermanently ();
-    bool  IsArchiveLocation          () const;
-
-    static bool  IsProgramPath (const std::wstring & path);
-
-    //  Files the shell runs, with what is dropped on them as arguments.
-    static constexpr const wchar_t *  kProgramExtensions[] = { L".exe", L".com", L".bat", L".cmd" };
-    static int64_t  GetQuickAccessStamp (const std::wstring & directory);
-    void  CheckDrives            ();
-    void  ChangeKnownFolder   (const std::wstring & folder, bool add);
-
-    //  Re-reads the tree, keeping what was open, highlighted and on screen.
-    void  RefreshTree();
-    void  RunVerb             (CassoExplorerActions::Verb verb);
-    bool  RunRecycleBinVerb (CassoExplorerActions::Verb verb);
-    std::wstring  GetCommandLabel (int id) const;
-    void  RunRawVerb          (CassoExplorerActions::Verb verb);
-    bool  IsRawTargetCurrent  (const std::wstring & target);
-    void  ReportOutcome       (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
-    void  BeginRename         ();
-    void  EndRename           (bool commit);
-    void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
-    void  OpenInNewCasso      (const std::wstring & imagePath);
-    void  ExtractImageFiles   (const std::wstring & imagePath);
-    void  OpenInNewWindow     (const std::wstring & path);
     void  RecordSession       ();
-    HWND  FindCassoTarget     () const;
-    int   GetDefaultMachineDriveCount();
-    void  AskCassoToDescribe  ();
     void  ShowMessage         (const std::wstring & text, UINT icon);
-    std::wstring  GetSelectedImagePath() const;
-
-    static const wchar_t *  GetVerbLabel (CassoExplorerActions::Verb verb);
-    static const wchar_t *  GetVerbMenuGlyph (CassoExplorerActions::Verb verb);
-
-    //  File Explorer's own menu icons, read from its package on this machine
-    //  for the theme in use, or null where it has none; Casso's own art for a
-    //  name that starts with "casso.". Held for the window's life.
-    static const wchar_t *  GetVerbMenuSvgName (CassoExplorerActions::Verb verb);
-
-    //  An icon-row button's tip, as Explorer words it: "Cut (Ctrl+X)".
-    static std::wstring     GetIconButtonTip   (const DxuiCommand & command);
-    void                    ApplyMenuSvgs      ();
-    const std::string *     GetMenuSvg         (const wchar_t * name);
-
-    //  The icon of the program that opens an item, for its Open row: Casso
-    //  Explorer's own for what it browses, the file's default program's for
-    //  anything else; null when there is none. Held for the window's life.
-    std::shared_ptr<const DxuiIconImage>  GetOpenMenuImage (bool browsable, const std::wstring & path);
 
     static bool  Contains (const RECT & rect, POINT point);
     static DxuiMouseEvent  ToLocal (const DxuiMouseEvent & ev, const RECT & bounds);
@@ -1021,23 +299,14 @@ private:
     bool                                         m_inSizeMove      = false;
     Context                                      m_context;
     Win32HostDialogs                             m_dialogs;
-    Win32ProcessLauncher                         m_launcher;
     Win32ShellIcons                              m_shellIcons;
-    Win32ShellIcons                              m_listIcons;
     Win32ShellIcons                              m_dragIcons;   // drawn as each drag starts, so not in the background
     Win32InfoTips                                m_infoTips;
-    Win32ContentDetails                          m_contentDetails;
     Win32ShellPreview                            m_shellPreview;
     Win32PackagedCommands                        m_packagedCommands;
     std::wstring                                 m_shellPreviewPath;
     bool                                         m_shellPicture    = false;
     RECT                                         m_previewContent  = {};
-    CrtPictureRenderer                           m_crtPicture;
-    int                                          m_crtWidth        = 0;
-    int                                          m_crtHeight       = 0;
-    std::string                                  m_crtThemeName;
-    LoadedTheme                                  m_crtTheme;
-    bool                                         m_crtThemeValid   = false;
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
 
@@ -1052,19 +321,9 @@ private:
     bool                                      m_dragArmed           = false;
     ULONGLONG                                 m_folderFirstChangeMs = 0;   // 0: no change waiting
     DWORD                                     m_driveMask           = 0;   // GetLogicalDrives at the last look
-    uint32_t                                  m_announcedChanges    = 0;   // ILinkAnnouncements::GetChangeCount at the last look
-    uint32_t                                  m_firewallVersion     = 0;   // FirewallMonitor::GetVersion the views were drawn from
-    HANDLE                                    m_firewallHelper      = nullptr;   // the elevated helper, until it exits
-    std::string                               m_knownFoldersText;          // KnownFolders.json as last read
     std::wstring                              m_quickAccessDir;            // where File Explorer keeps Quick access
     int64_t                                   m_quickAccessStamp    = 0;   // its file's last write at the last look
     int                                       m_cassoDriveCount     = 0;
-    int                                       m_defaultDriveCount   = -1;  // the default machine's, once read
-    DxuiDragDropTarget                        m_dropTarget;
-    ComPtr<IDropTarget>                       m_hostDrop;   // the host folder the drag is over, if any
-    std::wstring                              m_hostDropFolder;
-    DxuiHitTester                             m_dropHits;
-    POINT                                     m_dragStart           = {};
     CassoExplorerCommands                     m_commands;
     DxuiLightTheme                            m_lightTheme;
     DxuiDarkTheme                             m_darkTheme;
@@ -1073,67 +332,22 @@ private:
     DxuiDpiScaler                             m_scaler;
     RECT                                      m_client              = {};
     RECT                                      m_previewRect         = {};
-    Location                                  m_listLocation;
-    size_t                                    m_listTabCount        = 0;    // the tabs when FillList last saved the session
 
     //  Why each row's image is broken, as its cells are built; empty for the
     //  rest.
     std::vector<std::wstring>                 m_rowProblems;
-
-    //  A press on a drive's node in the tree, which drags the whole drive once
-    //  the pointer moves far enough.
-    struct TreeDrag
-    {
-        bool      armed    = false;
-        POINT     start    = {};
-        Location  location;
-    };
-
-    TreeDrag  m_treeDrag;
-
-    //  The text of the CassoLink line's tip, for as long as the tip is up.
-    std::wstring  m_activityTip;
-
-    //  The location's buttons on the command bar, if any.
-    CassoExplorerCommands::CommandBarExtra  m_commandBarExtra = CassoExplorerCommands::CommandBarExtra::None;
 
     //  Whether the status bar's detail has the CassoLink connections' pending operations.
     bool  m_linkJobsShown = false;
 
     //  The list's view, and the key of the folder it was chosen for: a new
     //  folder opens in its own view.
-    DxuiListView::View  m_listView          = DxuiListView::View::Details;
-    std::wstring        m_listViewKey;
-    bool                m_treeRevealPending = false;
-    Pane                m_focus             = Pane::Tree;
-    int                 m_toolbarFocus      = 0;
-    int                 m_commandBarFocus   = 0;
-
-    //  What a right-drag dropped, held between the drop and the menu's
-    //  answer: where it landed, and either the host files or the entries of
-    //  the image they came from.
-    struct PendingDrop
-    {
-        bool                       valid       = false;
-        Location                   location;
-        VolumeKind                 targetKind  = VolumeKind::Unknown;
-        std::string                inner;
-        POINT                      screen      = {};
-        std::vector<std::wstring>  hostPaths;
-        bool                       fromImage   = false;
-        std::string                sourceImage;
-        VolumeKind                 sourceKind  = VolumeKind::Unknown;
-        std::vector<std::string>   catalogPaths;
-    };
-
-    PendingDrop                                  m_pendingDrop;
-
-    int                                          m_treeDropRow       = -1;
-    ULONGLONG                                    m_treeDropSinceMs   = 0;
-    std::wstring                                 m_treeTipId;        // the broken image whose reason is in m_treeTipText
-    std::wstring                                 m_treeTipText;
-    std::vector<BrowserModel::AddressSegment>    m_addressSegments;
-    BrowserModel::AddressRoot                    m_addressRoot;
+    DxuiListView::View                         m_listView          = DxuiListView::View::Details;
+    std::wstring                               m_listViewKey;
+    bool                                       m_treeRevealPending = false;
+    ExplorerInput::Pane                        m_focus             = ExplorerInput::Pane::Tree;
+    std::vector<BrowserModel::AddressSegment>  m_addressSegments;
+    BrowserModel::AddressRoot                  m_addressRoot;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;
@@ -1144,20 +358,15 @@ private:
     //  F2 opens one. The row being renamed, or -1.
     DxuiTextInput        * m_renameBox          = nullptr;
     int                    m_renameRow          = -1;
-    std::wstring           m_renameTreeId;
     DxuiLabel            * m_listMessage        = nullptr;
     bool                   m_listMessageTop     = false;
     DxuiButton           * m_listAction         = nullptr;
     DxuiButton           * m_listActionAlt      = nullptr;
-    std::string            m_listActionLink;
-    bool                   m_listActionConnects = false;
     bool                   m_listActionFirewall = false;
     DxuiSplitter         * m_previewSplitter    = nullptr;
     DxuiListView         * m_previewList        = nullptr;
     DxuiTextView         * m_textView           = nullptr;
     DxuiHexView          * m_hexView            = nullptr;
-    PreviewBytes           m_previewBytes;
-    FileBytes              m_fileBytes;
     DxuiFramebufferView  * m_picture            = nullptr;
     DxuiSelectableText   * m_previewMessage     = nullptr;
     DxuiStatusBar        * m_status             = nullptr;
@@ -1169,63 +378,28 @@ private:
     //  preview bars.
     int                    m_previewBarMode  = CassoExplorerCommands::kPreviewBarNone;
 
-    bool                   m_previewArchive  = false;   // the preview list is an archive's files, as the file list
-    bool                   m_archiveDrag     = false;   // a left press on one of them, which may become a drag
-    bool                   m_archiveMenu     = false;   // a right press on one, whose menu opens on release
-    POINT                  m_archivePress    = {};
-    int                    m_previewBarFocus = 0;
-
-    //  The cassette bootstrap's audio, while PlaySound sends it from memory.
-    std::vector<Byte>        m_cassetteWav;
-
-    //  The last search, as typed and as the bytes it matches.
-    std::wstring             m_findTyped;
-    std::vector<Byte>        m_findBytes;
-    bool                     m_findIsText    = false;
-    DxuiToolbarEditBox       m_searchBox;
-    DxuiToolbarEditBox       m_goToBox;
-    DxuiAddressBar         * m_address       = nullptr;
+    bool                  m_previewArchive  = false;   // the preview list is an archive's files, as the file list
+    int                   m_previewBarFocus = 0;
+    std::vector<Byte>     m_findBytes;
+    DxuiToolbarEditBox    m_searchBox;
+    DxuiToolbarEditBox    m_goToBox;
+    DxuiAddressBar      * m_address         = nullptr;
 
     //  Explorer's search box, at the address bar's right: a search over the
     //  folder shown and below it.
     DxuiTextInput          * m_findBox       = nullptr;
     DxuiTooltip              m_tooltip;
     DxuiInPlaceTip           m_labelTip;   // a tree name the splitter cuts off, shown whole over its row
-    DxuiTabDragVisual        m_tabDragVisual;
-    HWND                     m_tabDragTarget = nullptr;   // the other window whose strip a dragged tab is over
 
     //  Other launches' arguments, run once the send that brought each returns.
     std::vector<std::wstring>  m_pendingLaunches;
 
-    std::vector<UndoStep>    m_undo;   // newest last
-    int                      m_restoreTicks  = 0;
-    bool                     m_caretOn       = true;   // the search caret as last drawn
-    bool                     m_tickArmed     = false;   // the animation tick is running
-    POINT                    m_listTipPoint  = {};   // where the pointer last was over the list
-    bool                     m_listTipActive = false;
-
-    //  The list's rows, built as it first asks for each; see GetListRowCells.
-    std::vector<std::vector<DxuiListView::Cell>>  m_rowCells;
-    std::vector<bool>                             m_rowBuilt;
-    Location                                      m_rowLocation;
-    bool                                          m_rowDark      = false;
-    struct RightPress
-    {
-        bool   active  = false;
-        bool   canDrag = false;   // pressed on a row
-        int    group   = -1;      // pressed on a group's header
-        POINT  start   = {};
-    };
-
-    RightPress            m_rightPress;
-    std::vector<std::wstring>  m_cutPaths;   // cut to the clipboard and not yet pasted, drawn dimmed
-    std::map<std::wstring, std::unique_ptr<std::string>>  m_menuSvgs;
-    std::map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_openMenuImages;
-    DxuiSuggestionList    m_suggest;
-    std::wstring          m_addressTyped;
-    TipOwner              m_tipOwner   = TipOwner::None;
-    bool                  m_tipMuted    = false;
-    RECT                  m_tipMuteRect = {};
+    std::vector<ExplorerFileOps::UndoStep>  m_undo;   // newest last
+    bool                                    m_caretOn      = true;   // the search caret as last drawn
+    bool                                    m_tickArmed    = false;   // the animation tick is running
+    std::vector<std::wstring>               m_cutPaths;   // cut to the clipboard and not yet pasted, drawn dimmed
+    DxuiSuggestionList                      m_suggest;
+    std::wstring                            m_addressTyped;
 
     //  The window's edges, docked. Each band is stamped with the thickness
     //  its widget needs and comes back with the rect that widget is laid
@@ -1237,4 +411,33 @@ private:
     DxuiLayoutBand         m_toolbarBand;
     DxuiLayoutBand         m_statusBand;
     DxuiLayoutBand         m_bodyBand;
+
+    //  The window's parts, each with the state it uses.
+    friend class ExplorerLayout;
+    friend class ExplorerListPane;
+    friend class ExplorerFolderSync;
+    friend class ExplorerLinks;
+    friend class ExplorerDragDrop;
+    friend class ExplorerTabStrip;
+    friend class ExplorerPreview;
+    friend class ExplorerAddressBar;
+    friend class ExplorerMenus;
+    friend class ExplorerDispatch;
+    friend class ExplorerFileOps;
+    friend class ExplorerInput;
+    friend class ExplorerTips;
+    ExplorerLayout  m_layout { *this };
+    ExplorerListPane  m_listPane { *this };
+    ExplorerFolderSync  m_folderSync { *this };
+    ExplorerLinks  m_links { *this };
+    ExplorerDragDrop  m_dragDrop { *this };
+    ExplorerTabStrip  m_tabStrip { *this };
+    ExplorerPreview  m_previewPane { *this };
+    ExplorerAddressBar  m_addressBar { *this };
+    ExplorerMenus  m_menus { *this };
+    ExplorerDispatch  m_dispatch { *this };
+    ExplorerFileOps  m_fileOps { *this };
+    ExplorerInput  m_input { *this };
+    ExplorerTips  m_tips { *this };
 };
+

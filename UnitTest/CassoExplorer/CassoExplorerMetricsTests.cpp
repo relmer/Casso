@@ -44,14 +44,14 @@ public:
 
         for (const Measured & m : s_kMeasured)
         {
-            Assert::AreEqual (m.rowPx, CassoExplorerWindow::GetListRowHeightPx (m.dpi), std::format (L"at {} dpi", m.dpi).c_str());
+            Assert::AreEqual (m.rowPx, ExplorerLayout::GetListRowHeightPx (m.dpi), std::format (L"at {} dpi", m.dpi).c_str());
         }
     }
 
 
     TEST_METHOD (FitPanes_ListGivesWayFirst_ThenPreview_ThenTree)
     {
-        using W = CassoExplorerWindow;
+        using W = ExplorerLayout;
 
         static constexpr int  s_kSashes = 2 * DxuiSplitter::kSashDip;
         static constexpr int  s_kTree   = 300;
@@ -84,7 +84,7 @@ public:
 
     TEST_METHOD (FitPanes_BelowEveryMinimum_ShrinksAllThreeTogether)
     {
-        using W = CassoExplorerWindow;
+        using W = ExplorerLayout;
 
         W::PaneWidths  p         = W::FitPanes (200, 300, 400);
         int            available = 200 - 2 * DxuiSplitter::kSashDip;
@@ -99,7 +99,7 @@ public:
 
     TEST_METHOD (ListColumnShown_NameAlways_CatalogOnlyInsideAnImage)
     {
-        using W = CassoExplorerWindow;
+        using W = ExplorerListPane;
         using C = CatalogModel::Column;
         using K = Location::Kind;
 
@@ -116,7 +116,7 @@ public:
 
     TEST_METHOD (FitPanes_HiddenPreview_TakesNothing)
     {
-        using W = CassoExplorerWindow;
+        using W = ExplorerLayout;
 
         W::PaneWidths  p = W::FitPanes (1000, 300, 0);
 

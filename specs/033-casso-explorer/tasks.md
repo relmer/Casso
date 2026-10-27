@@ -1111,7 +1111,7 @@ Staged`, the unit suite, and the CassoLink scenario suites, then one
 commit and a push. The owner's final manual passes, T214 and T256
 included, follow this phase, so none is repeated after it.
 
-- [ ] T266 Split `CassoEmuCore/CassoExplorer/CassoExplorerWindow.h/.cpp`
+- [X] T266 Split `CassoEmuCore/CassoExplorer/CassoExplorerWindow.h/.cpp`
   into components in `CassoEmuCore/CassoExplorer/Window/`: links
   (connections, bootstrap, firewall, link drives, activity log); drag and
   drop (drop target, host drops, the right-drag menu, drag out, tree and
@@ -1131,6 +1131,12 @@ included, follow this phase, so none is repeated after it.
   `IsDraggedItem`, `BuildTextRows`, `GetSourceColors`,
   `MergeUserMachineDelta`, `GetToolbarUnder`, `GetListRowHeightPx`) move
   with their area, and the tests in `UnitTest/` follow them.
+
+  Two components were added to the map: a layout component for the
+  widgets' wiring, layout, the status bar's fields and the theme, and a list
+  pane for the list, its columns and folder views, and the tree. `OnMouse`,
+  `OnKey` and `GetCursorForPoint` stay on the window as overrides that call
+  `ExplorerInput`. Record the sizes in validation.md with T280.
 - [ ] T267 Split `CassoEmuCore/CassoExplorer/CassoExplorerBrowser.h/.cpp`
   into listing loads (host, shell, Recycle Bin, roots, images, Apple drives,
   link items), preview (`UpdatePreview` and each kind of preview) and cells

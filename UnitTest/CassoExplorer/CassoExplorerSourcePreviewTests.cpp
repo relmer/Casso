@@ -44,7 +44,7 @@ public:
         colors.number   = 0xFF000003;
         colors.symbol   = 0xFF000004;
 
-        rows = CassoExplorerWindow::BuildTextRows (preview, false, colors);
+        rows = ExplorerPreview::BuildTextRows (preview, false, colors);
 
         Assert::AreEqual ((size_t) 10, rows.size());
         Assert::AreEqual (std::wstring (L" 1"), rows[0].cells[0], L"Numbers are right aligned to the widest");
@@ -61,7 +61,7 @@ public:
 
         Assert::IsTrue (mnemonic, L"The mnemonic is in its color");
         Assert::IsTrue (comment,  L"and the comment in its own");
-        Assert::IsTrue (CassoExplorerWindow::BuildTextRows (preview, false)[9].spans.empty(), L"Without colors, no spans");
+        Assert::IsTrue (ExplorerPreview::BuildTextRows (preview, false)[9].spans.empty(), L"Without colors, no spans");
     }
 
 
@@ -71,11 +71,11 @@ public:
     TEST_METHOD (SourceColors_OnADarkBackground_AreVisualStudiosDark)
     {
         MockDxuiTheme         theme;
-        SourceSyntax::Colors  colors = CassoExplorerWindow::GetSourceColors (&theme);
+        SourceSyntax::Colors  colors = ExplorerPreview::GetSourceColors (&theme);
 
         Assert::AreEqual (0xFF8CBCF0u, colors.mnemonic);
         Assert::AreEqual (0xFF57A64Au, colors.comment);
         Assert::AreEqual (theme.ForegroundMuted(), colors.address);
-        Assert::AreEqual (0u, CassoExplorerWindow::GetSourceColors (nullptr).mnemonic);
+        Assert::AreEqual (0u, ExplorerPreview::GetSourceColors (nullptr).mnemonic);
     }
 };

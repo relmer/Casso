@@ -124,7 +124,7 @@ public:
         AssertSucceeded (files.WriteAllText (store.GetUserPrefsFilePath(),
                          R"({ "global": {}, "machines": { "Apple2Plus": { "slots": [ { "slot": 6, "device": "disk-ii", "ports": ["disk-ii-drive", ""] } ] } } })"));
 
-        AssertSucceeded (CassoExplorerWindow::MergeUserMachineDelta ("Apple2Plus", files, json));
+        AssertSucceeded (ExplorerFileOps::MergeUserMachineDelta ("Apple2Plus", files, json));
         AssertSucceeded (JsonParser::Parse (json, merged, error));
 
         Assert::IsTrue (merged.HasArray ("slots", slots));
@@ -143,7 +143,7 @@ public:
         std::string         shipped  = json;
 
         AssertSucceeded (files.WriteAllText (store.GetUserPrefsFilePath(), R"({ "global": {}, "machines": { "Apple2e": { "name": "other" } } })"));
-        AssertSucceeded (CassoExplorerWindow::MergeUserMachineDelta ("Apple2Plus", files, json));
+        AssertSucceeded (ExplorerFileOps::MergeUserMachineDelta ("Apple2Plus", files, json));
 
         Assert::AreEqual (shipped, json);
     }

@@ -63,7 +63,7 @@ public:
         //  would choose.
         void  Click (POINT point)
         {
-            DxuiToolbar &  under = CassoExplorerWindow::GetToolbarUnder (barBand, point, nav, bar);
+            DxuiToolbar &  under = ExplorerInput::GetToolbarUnder (barBand, point, nav, bar);
 
             under.OnToolbarMouseMove   (point.x, point.y);
             under.OnToolbarLButtonDown (point.x, point.y);
@@ -107,8 +107,8 @@ public:
     {
         Fixture  f;
 
-        Assert::IsTrue (&CassoExplorerWindow::GetToolbarUnder (f.barBand, POINT { 400, 60 },  f.nav, f.bar) == &f.bar, L"inside the command bar's row");
-        Assert::IsTrue (&CassoExplorerWindow::GetToolbarUnder (f.barBand, POINT { 400, 20 },  f.nav, f.bar) == &f.nav, L"in the row above");
-        Assert::IsTrue (&CassoExplorerWindow::GetToolbarUnder (f.barBand, POINT { 400, 300 }, f.nav, f.bar) == &f.nav, L"below both rows");
+        Assert::IsTrue (&ExplorerInput::GetToolbarUnder (f.barBand, POINT { 400, 60 },  f.nav, f.bar) == &f.bar, L"inside the command bar's row");
+        Assert::IsTrue (&ExplorerInput::GetToolbarUnder (f.barBand, POINT { 400, 20 },  f.nav, f.bar) == &f.nav, L"in the row above");
+        Assert::IsTrue (&ExplorerInput::GetToolbarUnder (f.barBand, POINT { 400, 300 }, f.nav, f.bar) == &f.nav, L"below both rows");
     }
 };

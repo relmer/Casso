@@ -70,11 +70,11 @@ public:
     TEST_METHOD (DraggedPathsAreTheFileList)
     {
         auto  data  = MakeDrag ({ L"C:\\Disks\\a.dsk", L"C:\\Disks\\Games" });
-        auto  paths = CassoExplorerWindow::GetDraggedPaths (data.Get());
+        auto  paths = ExplorerDragDrop::GetDraggedPaths (data.Get());
 
         Assert::AreEqual ((size_t) 2, paths.size());
         Assert::AreEqual (std::wstring (L"C:\\Disks\\Games"), paths[1]);
-        Assert::IsTrue   (CassoExplorerWindow::GetDraggedPaths (nullptr).empty(), L"No drag holds no files");
+        Assert::IsTrue   (ExplorerDragDrop::GetDraggedPaths (nullptr).empty(), L"No drag holds no files");
     }
 
 
@@ -82,11 +82,11 @@ public:
     {
         auto  data = MakeDrag ({ L"C:\\Disks\\a.dsk", L"C:\\Disks\\Games" });
 
-        Assert::IsTrue  (CassoExplorerWindow::IsDraggedItem (data.Get(), L"C:\\Disks\\Games"),  L"A folder onto its own row");
-        Assert::IsTrue  (CassoExplorerWindow::IsDraggedItem (data.Get(), L"c:\\disks\\A.DSK"),  L"A disk image onto itself, in any case");
-        Assert::IsFalse (CassoExplorerWindow::IsDraggedItem (data.Get(), L"C:\\Disks\\b.dsk"),  L"Onto another image");
-        Assert::IsFalse (CassoExplorerWindow::IsDraggedItem (data.Get(), L"C:\\Disks\\Games2"), L"Onto a folder whose path only begins with one dragged");
-        Assert::IsFalse (CassoExplorerWindow::IsDraggedItem (data.Get(), L""),                  L"Onto no target");
+        Assert::IsTrue  (ExplorerDragDrop::IsDraggedItem (data.Get(), L"C:\\Disks\\Games"),  L"A folder onto its own row");
+        Assert::IsTrue  (ExplorerDragDrop::IsDraggedItem (data.Get(), L"c:\\disks\\A.DSK"),  L"A disk image onto itself, in any case");
+        Assert::IsFalse (ExplorerDragDrop::IsDraggedItem (data.Get(), L"C:\\Disks\\b.dsk"),  L"Onto another image");
+        Assert::IsFalse (ExplorerDragDrop::IsDraggedItem (data.Get(), L"C:\\Disks\\Games2"), L"Onto a folder whose path only begins with one dragged");
+        Assert::IsFalse (ExplorerDragDrop::IsDraggedItem (data.Get(), L""),                  L"Onto no target");
     }
 
 
@@ -95,7 +95,7 @@ public:
         auto  data  = MakeDrag ({ L"C:\\Disks\\a.dsk", L"C:\\Disks\\Games" });
         auto  mixed = MakeDrag ({ L"C:\\Disks\\a.dsk", L"C:\\Other\\b.dsk" });
 
-        Assert::IsTrue  (CassoExplorerWindow::IsDraggedFromFolder (data.Get(),  L"C:\\Disks"), L"Every file is already there");
-        Assert::IsFalse (CassoExplorerWindow::IsDraggedFromFolder (mixed.Get(), L"C:\\Disks"), L"One file comes from elsewhere");
+        Assert::IsTrue  (ExplorerDragDrop::IsDraggedFromFolder (data.Get(),  L"C:\\Disks"), L"Every file is already there");
+        Assert::IsFalse (ExplorerDragDrop::IsDraggedFromFolder (mixed.Get(), L"C:\\Disks"), L"One file comes from elsewhere");
     }
 };
