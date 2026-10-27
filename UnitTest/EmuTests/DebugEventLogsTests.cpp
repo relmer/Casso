@@ -250,14 +250,8 @@ namespace DebugEventLogsTests
         }
 
 
-        //  A rebuild calls Claim on the scratch machine's disk store token for
-        //  its thread and Release at the end, so a second rebuild on another
-        //  thread calls no store whose token the first thread has. The trace
-        //  history rebuilds on a pool thread while the machine runs and on the
-        //  machine's thread once it stops.
-        TEST_METHOD (AnEventReplayerReusedOnAnotherThreadTakesItsDisksWithIt)
+        static void  AssertRebuildsOnAWorkerAndThenHere (Session & session)
         {
-            Session                                            session;
             DebugEventHistory                                  history  (session.machine);
             std::vector<DebugEventBounds>                      stretches;
             DebugEventJob                                      job;
@@ -269,9 +263,6 @@ namespace DebugEventLogsTests
             HRESULT                                            hrWorker = E_FAIL;
 
 
-
-            Run (session.machine, 0, 30);
-            session.WaitForKeyframes();
 
             history.Attach (&session.controller.GetKeyframes());
             history.GetStretches (stretches);
@@ -302,6 +293,24 @@ namespace DebugEventLogsTests
 
             Assert::IsFalse  (first.empty(), L"the job has stretches");
             Assert::AreEqual (first.size(), second.size(), L"both rebuilds replay every stretch");
+        }
+
+
+        //  A rebuild calls Claim on the scratch machine's disk store token for
+        //  its thread and Release at the end, so a second rebuild on another
+        //  thread calls no store whose token the first thread has. The trace
+        //  history rebuilds on a pool thread while the machine runs and on the
+        //  machine's thread once it stops.
+        TEST_METHOD (AnEventReplayerReusedOnAnotherThreadTakesItsDisksWithIt)
+        {
+            Session  session;
+
+
+
+            Run (session.machine, 0, 30);
+            session.WaitForKeyframes();
+
+            AssertRebuildsOnAWorkerAndThenHere (session);
         }
 
 
