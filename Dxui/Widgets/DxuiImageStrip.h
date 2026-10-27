@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "DxuiToolbar.h"
 #include "DxuiStripFlyout.h"
+#include "DxuiStripPreview.h"
 #include "IDxuiImageStripSource.h"
 
 
@@ -89,7 +90,7 @@ public:
 
     int   GetCellCount     () const { return m_count; }
     int   GetHoveredCell   () const { return m_hovered; }
-    bool  IsPreviewShown   () const { return m_preview != nullptr; }
+    bool  IsPreviewShown   () const { return m_preview.IsShown(); }
 
     //  A mark's badge as the last paint placed it: its rectangle, where its
     //  line crosses the strip, its tip (every mark merged into it, one to a
@@ -112,8 +113,8 @@ public:
 
     //  Where the preview's picture sits on screen, empty with none up, and
     //  the picture it shows.
-    RECT                                  GetPreviewRectPx () const;
-    const IDxuiImageStripSource::Image &  GetShownPreview  () const { return m_previewImage; }
+    RECT                                  GetPreviewRectPx () const { return m_preview.GetRectPx(); }
+    const IDxuiImageStripSource::Image &  GetShownPreview  () const { return m_preview.GetImage(); }
 
     void  Sync             ();
     void  HidePreview      ();
@@ -168,8 +169,6 @@ private:
     Part  HitTestPart      (int x, int y) const;
     bool  IsPartClickable  (Part part) const;
     void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
-    void  ShowPreview      ();
-    void  FollowPointer    ();
     void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintMarks       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  TrackFlyout      (int x, int y);
@@ -178,9 +177,7 @@ private:
     void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
     int   GetSideLabelPx   (const std::wstring & label, bool isTrailing) const;
     void  PaintSideLabel   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, const RECT & rc, bool isTrailing);
-    void  MovePreview      ();
-    RECT  GetPreviewAnchor () const;
-    void  RenderPreview    (IDxuiPainter & painter, IDxuiTextRenderer & text);
+    RECT  GetPreviewAnchor (SIZE sizeDip) const;
     void  PaintPlayhead    (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, float offset, const std::wstring & top, const std::wstring & bottom);
     void  PaintLabel       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & label, float centerX, float top, float height);
     void  GetLastCellSpan  (float & outStart, float & outLastPixel) const;
@@ -198,10 +195,7 @@ private:
     IDxuiImageStripSource           * m_source      = nullptr;
     IDxuiTextRenderer               * m_text        = nullptr;
     DxuiHwndSource                  * m_popupHost   = nullptr;
-    DxuiPopupHost                   * m_preview     = nullptr;
-    IDxuiImageStripSource::Image      m_previewImage;
-    IDxuiImageStripSource::Image      m_previewThumb;      // the hovered cell's picture when the preview was chosen
-    SIZE                              m_previewDip  = {};   // the last full-size picture's size; a thumbnail scales to it
+
     POINT                             m_pointer     = {};   // where the pointer last moved over the strip
     float                             m_aspect      = kDefaultAspect;
     int                               m_preferredPx = 0;
@@ -229,4 +223,5 @@ private:
     std::vector<DxuiStripMark>  m_marks;   // the source's marks, read each paint
     std::vector<MarkBadge>      m_badges;  // where the last paint placed them
     DxuiStripFlyout             m_flyout;
+    DxuiStripPreview            m_preview;
 };
