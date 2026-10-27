@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "EmuTests/InlineWorkQueue.h"
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/Events/DebugEventHistory.h"
@@ -246,6 +247,61 @@ namespace DebugEventLogsTests
             Assert::IsTrue   (input > 0, L"and polled the keyboard and paddle");
             Assert::IsTrue   (sound > 0, L"and wrote the Mockingboard");
             Assert::AreEqual ((size_t) 0, video, L"and left the video mode alone");
+        }
+
+
+        //  A rebuild calls Claim on the scratch machine's disk store token for
+        //  its thread and Release at the end, so a second rebuild on another
+        //  thread calls no store whose token the first thread has. The trace
+        //  history rebuilds on a pool thread while the machine runs and on the
+        //  machine's thread once it stops.
+        TEST_METHOD (AnEventReplayerReusedOnAnotherThreadTakesItsDisksWithIt)
+        {
+            Session                                            session;
+            DebugEventHistory                                  history  (session.machine);
+            std::vector<DebugEventBounds>                      stretches;
+            DebugEventJob                                      job;
+            ScratchEventReplayer<Disk2Event>                   replayer (std::make_unique<DiskEventProbe>());
+            std::vector<DebugEventStretchResult<Disk2Event>>   first;
+            std::vector<DebugEventStretchResult<Disk2Event>>   second;
+            std::wstring                                       assertions;
+            HRESULT                                            hr       = S_OK;
+            HRESULT                                            hrWorker = E_FAIL;
+
+
+
+            Run (session.machine, 0, 30);
+            session.WaitForKeyframes();
+
+            history.Attach (&session.controller.GetKeyframes());
+            history.GetStretches (stretches);
+            std::ranges::reverse (stretches);
+
+            hr = history.BuildJob (stretches, job);
+            AssertSucceeded (hr, L"BuildJob");
+
+            replayer.SetMachine (session.machine.GetConfig(), session.machine.GetCurrentMachineName());
+
+            {
+                std::thread  worker ([&]
+                {
+                    UnitTestHelpers::WorkerThreadEhmCapture  capture;
+
+                    hrWorker   = replayer.Rebuild (job, first);
+                    assertions = capture.TakeFailures();
+                });
+
+                worker.join();
+            }
+
+            Assert::IsTrue  (assertions.empty(), assertions.c_str());
+            AssertSucceeded (hrWorker, L"Rebuild on the worker thread");
+
+            hr = replayer.Rebuild (job, second);
+            AssertSucceeded (hr, L"Rebuild on the test thread");
+
+            Assert::IsFalse  (first.empty(), L"the job has stretches");
+            Assert::AreEqual (first.size(), second.size(), L"both rebuilds replay every stretch");
         }
 
 

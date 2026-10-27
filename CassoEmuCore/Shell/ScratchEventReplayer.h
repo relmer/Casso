@@ -36,7 +36,9 @@
 //
 //  SetMachine is called on the thread that builds the running machine;
 //  Submit, TryTakeResult and Cancel on the thread that runs it; the replay
-//  on one worker at a time, or in Rebuild.
+//  on one worker at a time, or in Rebuild. Each replay calls Claim on the
+//  scratch machine's disk store token for its thread, and Release when it
+//  ends, so the next one may run on another thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,9 +225,18 @@ private:
     {
         HRESULT                     hr      = S_OK;
         bool                        isBuilt = false;
+        MachineHost               * machine = m_scratch.GetMachine();
         DebugEventStretchResult<T>  result;
 
 
+
+        //  The scratch machine's disk store token is claimed for the thread
+        //  running the rebuild. A machine built here was made on this thread,
+        //  and one built by an earlier rebuild was released when it ended.
+        if (machine != nullptr)
+        {
+            machine->ClaimDiskOwnership();
+        }
 
         hr      = m_scratch.Build();
         isBuilt = SUCCEEDED (hr);
@@ -263,6 +274,13 @@ private:
         }
 
     Error:
+        machine = m_scratch.GetMachine();
+
+        if (machine != nullptr)
+        {
+            machine->ReleaseDiskOwnership();
+        }
+
         return hr;
     }
 
