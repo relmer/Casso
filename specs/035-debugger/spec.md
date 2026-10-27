@@ -297,6 +297,16 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 - Q: A power cycle sets the CPU's cycle count back to zero; what becomes of history across it? -> A: The count is reset as before, and history spans the power cycle: the user can rewind to before it, run in reverse across it, and seek by cycle on either side. History's cycles are the CPU's count plus a base that each power cycle grows by the count at that moment, so history's cycles never go back (FR-321).
 
+### Session 2026-10-27 (owner decisions: network history, serial and network logs)
+
+- Q: Is history off while the Uthernet II has a socket open, as T1149 built it? -> A: No. Rewinding through its traffic is what debugging a network program takes. The host sockets' replies are stored in history at the host network boundary, as host serial bytes are, and a replay reads them from history and sends nothing to the real network. This replaces T1149's rule that history stops while the card is in use (FR-322, FR-323).
+- Q: What happens to a socket that is open when the user resumes from a point in the past? -> A: During a replay it is fed from history and stays valid. When the user resumes from the past, the real connection has moved on, so the socket is closed to the guest as reset by the remote end (FR-324).
+- Q: Is the serial log drawn at bit level, when the guest reads and writes the 6551 a whole byte at a time? -> A: Yes, in the signal graph. Each byte's start, data, parity and stop bits are drawn on TxD and RxD from the byte, the framing in force (for example 8N1) and the baud rate, starting at the cycle the byte started. The emulator times each character by the same framing and baud rate, so the drawn bits match the emulated timing (FR-325, FR-326).
+- Q: What words does the serial graph's tip use for the signal states? -> A: Control lines are on or off; the data lines are mark or space (FR-327).
+- Q: What does the network log draw? -> A: A lane per W5100 socket colored by state, with bars for data in and out, each lane turned on and off, and a tip with each socket's state and byte counts; a data view under it (FR-328, FR-329).
+- Q: Do the serial and network logs, and the recording they depend on, ship in 035 or later? -> A: In 035, both the emulator side (the recording and the 6551 and W5100 events the logs read) and the debugger side (FR-322 to FR-330).
+- Q: What does the memory map call $C800-$CFFF with no card's expansion ROM selected? -> A: Unused (floating bus); $CF00-$CFFF always reads it, since any access there deselects every card. Done in e16465173 (FR-331).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Break into a running program from a script (Priority: P1, delivered)
@@ -3458,6 +3468,37 @@ run something, switch back to the //e: it is where it was left.
 - **FR-321**: History MUST span a power cycle: keyframes MUST be taken after it
   as before it, and rewinding, reverse execution and seeks by cycle MUST work
   across it, while the CPU's own cycle count is reset by the power cycle.
+- **FR-322**: Every reply from the host's sockets to the Uthernet II MUST be
+  stored in history at the cycle the emulated machine takes it in: received
+  data, a connect or accept completing, an error, and a DNS reply through the
+  virtual network.
+- **FR-323**: A replay MUST read the stored replies from history and MUST
+  send nothing to the real network. History MUST be taken while the Uthernet
+  II is in use.
+- **FR-324**: A socket open when the user resumes from a point in the past
+  MUST be closed to the guest as reset by the remote end.
+- **FR-325**: The debugger MUST have a serial log for each serial port: a
+  signal graph with one colored line for each of TxD, RxD, RTS, CTS, DTR, DSR,
+  DCD and IRQ, each line turned on and off by the user, and under the graph a
+  data view with a row per byte: time, port, direction, hex and ASCII.
+- **FR-326**: The serial graph MUST draw TxD and RxD at bit level: each byte's
+  start, data, parity and stop bits from the byte, the framing in force and
+  the baud rate, from the cycle the byte started.
+- **FR-327**: A tip at the pointer on the serial graph MUST list the state of
+  every line drawn: on or off for a control line, mark or space for a data
+  line.
+- **FR-328**: The debugger MUST have a network log: a lane for each W5100
+  socket colored by its state (closed, listening, connecting, connected,
+  closing) with bars for data in and out, each lane turned on and off by the
+  user, and a tip at the pointer with each socket's state and byte counts.
+- **FR-329**: Under the network graph a data view MUST list a row per send or
+  receive: time, socket, direction, length, hex and ASCII.
+- **FR-330**: The serial and network logs MUST be rebuilt from history, as the
+  video and sound logs are, so they follow scrubbing. Reads of the 6551 status
+  register MUST NOT be logged.
+- **FR-331**: The memory map MUST list $C800-$CEFF as the selected card's ROM,
+  and as unused (floating bus) when no card's ROM is selected; $CF00-$CFFF
+  MUST read as unused (floating bus).
 
 ### Key Entities
 
