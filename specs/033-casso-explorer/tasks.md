@@ -1150,11 +1150,18 @@ included, follow this phase, so none is repeated after it.
   `BrowserStatus` and `BrowserSearchMatch` in `BrowserTypes.h`, since the
   parts use them too, and `CassoExplorerBrowser::Status` and `SearchMatch`
   are aliases of them.
-- [ ] T268 Split `CassoEmuCore/CassoExplorer/CassoExplorerActions.h/.cpp`
+- [X] T268 Split `CassoEmuCore/CassoExplorer/CassoExplorerActions.h/.cpp`
   into Apple-drive operations (puts, gets, link disks, disk images over the
   link), copies and extraction (put, copy, extract, collision names,
   capacity) and go-to and search parsing. The actions are left with verbs, plans,
   delete, rename and create.
+
+  Done as `ActionsAppleDrive`, `ActionsCopy` and `ActionsGoTo` in
+  `CassoEmuCore/CassoExplorer/Actions/`, with the public methods whose bodies
+  moved as inline calls, as for T267. The nested types the actions and their
+  parts share are in `ActionsTypes`, which `CassoExplorerActions` derives
+  from, so `CassoExplorerActions::Outcome` and the rest compile where they
+  are.
 - [ ] T269 Split `Dxui/Widgets/DxuiListView.h/.cpp` and
   `Dxui/Widgets/DxuiListViewItems.cpp` into scrollbars (both orientations,
   on `Dxui/Widgets/DxuiScrollbar.h` where it fits), groups and lines, the

@@ -630,15 +630,15 @@ public:
     {
         VolumeListing  listing;
 
-        Assert::AreEqual (std::wstring (L"Slot 6 Drive 2.dsk"), CassoExplorerActions::MakeDriveImageName (listing, VolumeKind::Unknown, 6, 2));
+        Assert::AreEqual (std::wstring (L"Slot 6 Drive 2.dsk"), ActionsAppleDrive::MakeDriveImageName (listing, VolumeKind::Unknown, 6, 2));
 
         listing.hasVolumeNumber = true;
         listing.volumeNumber    = 254;
-        Assert::AreEqual (std::wstring (L"DOS 3.3 volume 254.dsk"), CassoExplorerActions::MakeDriveImageName (listing, VolumeKind::Dos33, 6, 1));
+        Assert::AreEqual (std::wstring (L"DOS 3.3 volume 254.dsk"), ActionsAppleDrive::MakeDriveImageName (listing, VolumeKind::Dos33, 6, 1));
 
         listing.hasVolumeName = true;
         listing.volumeName    = "GAMES";
-        Assert::AreEqual (std::wstring (L"GAMES.po"), CassoExplorerActions::MakeDriveImageName (listing, VolumeKind::ProDos, 6, 1));
+        Assert::AreEqual (std::wstring (L"GAMES.po"), ActionsAppleDrive::MakeDriveImageName (listing, VolumeKind::ProDos, 6, 1));
     }
 
 

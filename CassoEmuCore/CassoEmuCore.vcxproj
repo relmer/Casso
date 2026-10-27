@@ -272,6 +272,9 @@
     <ClCompile Include="CassoExplorer\CassoExplorerShell.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerAbout.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActions.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsAppleDrive.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsCopy.cpp" />
+    <ClCompile Include="CassoExplorer\Actions\ActionsGoTo.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowser.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserCells.cpp" />
     <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
@@ -718,6 +721,10 @@
     <ClInclude Include="CassoExplorer\CassoExplorerShell.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerAbout.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerActions.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsAppleDrive.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsCopy.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsGoTo.h" />
+    <ClInclude Include="CassoExplorer\Actions\ActionsTypes.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowser.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserCells.h" />
     <ClInclude Include="CassoExplorer\Browser\BrowserTypes.h" />

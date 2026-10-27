@@ -1052,7 +1052,7 @@ void ExplorerFileOps::PasteHere (const std::wstring & folder)
     //  An image's or a linked Apple's files are written here rather than by
     //  the folder's drop target, whose name clash prompt has no Keep both and
     //  gives the files a folder they never came from.
-    if (SUCCEEDED (hr) && CassoExplorerActions::IsCassoCopy (data.Get()))
+    if (SUCCEEDED (hr) && ActionsCopy::IsCassoCopy (data.Get()))
     {
         m_window.m_dispatch.ReportOutcome (m_window.m_actions.PasteVirtualFiles (data.Get(), folder, MakeCollisionPrompt(), pasted.created), L"Copy");
         pasted.sources.assign (pasted.created.size(), std::wstring());
@@ -1200,7 +1200,7 @@ CassoExplorerActions::AddressFn ExplorerFileOps::MakeAddressPrompt()
                 return false;
             }
 
-            if (CassoExplorerActions::TryParseAddress (text, outAddress))
+            if (ActionsGoTo::TryParseAddress (text, outAddress))
             {
                 return true;
             }

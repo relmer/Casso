@@ -1491,7 +1491,7 @@ void ExplorerPreview::GoToTyped (const std::wstring & text)
         return;
     }
 
-    if (!CassoExplorerActions::TryParseGoTo (text, caret, target, last) || target < origin || last >= origin + count)
+    if (!ActionsGoTo::TryParseGoTo (text, caret, target, last) || target < origin || last >= origin + count)
     {
         m_window.m_goToBox.SetError (true);
         m_window.Invalidate();
@@ -1529,7 +1529,7 @@ void ExplorerPreview::GoToTyped (const std::wstring & text)
 
 void ExplorerPreview::OnSearchChanged (const std::wstring & text)
 {
-    if (!CassoExplorerActions::TryParseSearch (text, m_window.m_findBytes, m_findIsText))
+    if (!ActionsGoTo::TryParseSearch (text, m_window.m_findBytes, m_findIsText))
     {
         m_window.m_findBytes.clear();
         m_window.Invalidate();
@@ -1570,7 +1570,7 @@ void ExplorerPreview::FindNext (bool incremental)
     //  The search reads the whole file through the source, not just the part
     //  the view has drawn.
     start = m_window.m_hexView->HasSelection() ? m_window.m_hexView->GetSelectionFirst() + (incremental ? 0 : 1) : m_window.m_hexView->GetCaret();
-    found = CassoExplorerActions::FindInSource ([source] (uint64_t offset, std::span<uint8_t> out) { source->ReadBytes (offset, out); },
+    found = ActionsGoTo::FindInSource ([source] (uint64_t offset, std::span<uint8_t> out) { source->ReadBytes (offset, out); },
                                           source->GetByteCount(), m_window.m_findBytes, m_findIsText, start);
 
     if (found == CassoExplorerActions::kNotFoundOffset)
