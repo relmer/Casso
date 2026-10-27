@@ -748,6 +748,39 @@ namespace Disk2AddressMarkWatcherTests
         }
 
 
+        //  The saved state is one size whatever each field's progress, so the
+        //  keyframes of a turning disk are one size too and pack as
+        //  differences, not as a whole snapshot each.
+        TEST_METHOD (SavedState_isOneSizeWhateverTheFieldsProgress)
+        {
+            constexpr ptrdiff_t       kDataSplit = 100;
+            Disk2AddressMarkWatcher   idle;
+            Disk2AddressMarkWatcher   busy;
+            std::vector<uint8_t>      addr;
+            std::vector<uint8_t>      data;
+            StateWriter               idleWriter;
+            StateWriter               busyWriter;
+            HRESULT                   hr         = S_OK;
+
+
+
+            AppendAddressMark (addr, 254, 9, 4, 0, false);
+            AppendDataMark    (data, MakeSector (4));
+
+            FeedAll  (busy, addr);
+            FeedAll  (busy, { data.begin(), data.begin() + kDataSplit });
+            WriteAll (busy, { data.begin(), data.begin() + kDataSplit });
+
+            hr = idle.SaveState (idleWriter);
+            Assert::AreEqual (S_OK, hr);
+
+            hr = busy.SaveState (busyWriter);
+            Assert::AreEqual (S_OK, hr);
+
+            Assert::AreEqual (idleWriter.GetBytes().size(), busyWriter.GetBytes().size(), L"a field half read and half written saves no more bytes than idle ones");
+        }
+
+
 
         //  Feeds each nibble as read by the instruction at `instruction`.
         static void FeedBy (Disk2AddressMarkWatcher & w, const std::vector<uint8_t> & nibbles, Word instruction)
