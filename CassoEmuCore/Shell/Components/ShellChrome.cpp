@@ -556,7 +556,7 @@ void ShellChrome::SyncReplayIndicator()
 
     isShown = ReplayIndicator::IsShown (history.GetBarThumbnails().IsBehindLive(), m_shell.m_cpuManager.IsPaused(), history.IsRewinding(), m_areOverlaysHidden);
 
-    m_replayIndicator.Sync (isShown, history.GetReplayIndicatorText(), m_shell.m_viewportBoundsPx, ComputeTopOverlayEdgePx (client), m_shell.m_scaler, nowMs);
+    m_replayIndicator.Sync (isShown, history.GetReplayIndicatorText(), m_screenRectPx, ComputeTopOverlayEdgePx (client), m_shell.m_scaler, nowMs);
 }
 
 
@@ -1008,7 +1008,32 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
     }
 
     m_shell.m_viewport->Layout (viewportRect, m_shell.m_scaler);
-    m_rewindBar.Layout         (viewportRect, m_shell.m_scaler);
+
+    // The tube is curved and drawn in perspective, so the scene's hit test
+    // finds the glass the rewind bar lies along and the replay indicator is
+    // placed at the top of. The search starts from the middle of the
+    // monitor, which lands on the glass.
+    m_screenRectPx = viewportRect;
+
+    if (m_shell.CrtMonitorActive())
+    {
+        RewindBar::ScreenTestFn  isOnGlass = [this] (int x, int y) { return m_shell.m_scene->DeskSceneHit (x, y).target == SceneHitResult::Target::Glass; };
+        const RECT             & monitor   = m_shell.m_scene->GetScene().Composition().monitorRectPx;
+        POINT                    middle    = { (monitor.left + monitor.right) / 2, (monitor.top + monitor.bottom) / 2 };
+
+        if (isOnGlass (middle.x, middle.y))
+        {
+            m_screenRectPx = RewindBar::FindScreen (middle, isOnGlass);
+        }
+
+        m_rewindBar.SetScreenTest (isOnGlass);
+    }
+    else
+    {
+        m_rewindBar.SetScreenTest (nullptr);
+    }
+
+    m_rewindBar.Layout (viewportRect, m_shell.m_scaler);
 
 Error:
     return;

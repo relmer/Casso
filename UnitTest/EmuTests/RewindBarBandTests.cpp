@@ -58,6 +58,37 @@ namespace RewindBarBandTests
         }
 
 
+        TEST_METHOD (OnACurvedScreenTheBandIsTheBottomOfTheGlassUnderThePointer)
+        {
+            //  A screen whose bottom edge bows down 20 pixels in the middle.
+            RewindBar::ScreenTestFn  isOnScreen = [] (int x, int y)
+            {
+                LONG  bow = 20 - std::abs (x - kMiddleX) / 14;
+
+                return x >= kScreen.left && x < kScreen.right && y >= kScreen.top && y < kScreen.bottom + bow;
+            };
+
+
+
+            Assert::IsTrue  (RewindBar::IsInOpeningBand ({ kMiddleX, kScreen.bottom + 19 }, isOnScreen, kDpi96, false, true), L"the bottom row in the middle");
+            Assert::IsFalse (RewindBar::IsInOpeningBand ({ kMiddleX, kScreen.bottom + 11 }, isOnScreen, kDpi96, false, true), L"above the band in the middle");
+            Assert::IsTrue  (RewindBar::IsInOpeningBand ({ kScreen.left, kScreen.bottom - 1 }, isOnScreen, kDpi96, false, true), L"the bottom row at the edge, higher up");
+            Assert::IsFalse (RewindBar::IsInOpeningBand ({ kMiddleX, kScreen.bottom + 19 }, isOnScreen, kDpi96, true,  true), L"captured");
+            Assert::IsFalse (RewindBar::IsInOpeningBand ({ kMiddleX, kScreen.bottom + 19 }, isOnScreen, kDpi96, false, false), L"history off");
+        }
+
+
+        TEST_METHOD (TheScreenIsFoundAroundAPointOnIt)
+        {
+            RewindBar::ScreenTestFn  isOnScreen = [] (int x, int y) { return x >= kScreen.left && x < kScreen.right && y >= kScreen.top && y < kScreen.bottom; };
+            RECT                     found      = RewindBar::FindScreen ({ kMiddleX, kScreen.bottom - 5 }, isOnScreen);
+
+
+
+            Assert::IsTrue (EqualRect (&found, &kScreen) != FALSE, L"the screen's rectangle");
+        }
+
+
         TEST_METHOD (ACapturedPointerOrHistoryOffOpensNothing)
         {
             Assert::IsFalse (RewindBar::IsInOpeningBand ({ kMiddleX, kScreen.bottom - 1 }, kScreen, kDpi96, true,  true),  L"captured");

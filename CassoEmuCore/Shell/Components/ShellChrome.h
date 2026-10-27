@@ -360,6 +360,10 @@ private:
     ReplayIndicator                m_replayIndicator;
     bool                           m_areOverlaysHidden = false;
 
+    // The emulated screen as drawn, from the last layout: on the desk scene,
+    // the tube's bounds, which the composition's glass rectangle is not.
+    RECT                           m_screenRectPx      = {};
+
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.
     DxuiShadowedText           m_fpsReadout;

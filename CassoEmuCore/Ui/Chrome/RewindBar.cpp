@@ -82,6 +82,86 @@ bool RewindBar::IsInOpeningBand (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RewindBar::IsInOpeningBand
+//
+//  The point on the screen, and the point kOpeningBandDip below it off it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool RewindBar::IsInOpeningBand (
+    POINT                 pointer,
+    const ScreenTestFn  & isOnScreen,
+    UINT                  dpi,
+    bool                  isCaptured,
+    bool                  isHistoryOn)
+{
+    int  bandPx = (int) std::lround (kOpeningBandDip * (float) dpi / (float) USER_DEFAULT_SCREEN_DPI);
+
+
+
+    if (isCaptured || !isHistoryOn || !isOnScreen)
+    {
+        return false;
+    }
+
+    return isOnScreen (pointer.x, pointer.y) && !isOnScreen (pointer.x, pointer.y + bandPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RewindBar::FindScreen
+//
+//  The screen's rectangle around a point on it: its top and bottom straight
+//  above and below the point, and its left and right edges across its middle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT RewindBar::FindScreen (
+    POINT                 inside,
+    const ScreenTestFn  & isOnScreen)
+{
+    constexpr int  kMostSteps = 16384;
+
+    RECT  screen = { inside.x, inside.y, inside.x + 1, inside.y + 1 };
+    int   middle = 0;
+    int   step   = 0;
+
+
+
+    for (step = 0; step < kMostSteps && isOnScreen (inside.x, screen.top - 1); step++)
+    {
+        screen.top--;
+    }
+
+    for (step = 0; step < kMostSteps && isOnScreen (inside.x, screen.bottom); step++)
+    {
+        screen.bottom++;
+    }
+
+    middle = (screen.top + screen.bottom) / 2;
+
+    for (step = 0; step < kMostSteps && isOnScreen (screen.left - 1, middle); step++)
+    {
+        screen.left--;
+    }
+
+    for (step = 0; step < kMostSteps && isOnScreen (screen.right, middle); step++)
+    {
+        screen.right++;
+    }
+
+    return screen;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RewindBar::Configure
 //
 //  The strip's pictures are the bar's thumbnails of history, labeled as the
@@ -162,7 +242,9 @@ void RewindBar::Adopt (DxuiPanel & root)
 //
 //  RewindBar::Layout
 //
-//  The bar spans the screen's width at the bottom of it, as tall as its band.
+//  With a screen test, the screen is found when the bar opens, and found
+//  again around the middle of the last one while it is open; a bar whose
+//  screen has moved off that point closes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,16 +252,48 @@ void RewindBar::Layout (
     const RECT           & screen,
     const DxuiDpiScaler  & scaler)
 {
+    POINT  middle = { (m_screen.left + m_screen.right) / 2, (m_screen.top + m_screen.bottom) / 2 };
+
+
+
+    m_scaler = scaler;
+
+    if (!m_screenTest)
+    {
+        PlaceBar (screen);
+    }
+    else if (m_isOpen && m_screenTest (middle.x, middle.y))
+    {
+        PlaceBar (FindScreen (middle, m_screenTest));
+    }
+    else
+    {
+        Close();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RewindBar::PlaceBar
+//
+//  The bar spans the screen's width at the bottom of it, as tall as its band.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void RewindBar::PlaceBar (const RECT & screen)
+{
     RECT  bounds = screen;
 
 
 
-    m_screen = screen;
-    m_scaler = scaler;
+    m_screen   = screen;
+    bounds.top = std::max (screen.top, screen.bottom - m_scaler.ToPx (m_bar.GetBandDp()));
 
-    bounds.top = std::max (screen.top, screen.bottom - scaler.ToPx (m_bar.GetBandDp()));
-
-    m_bar.Layout (bounds, scaler);
+    m_bar.Layout (bounds, m_scaler);
 }
 
 
@@ -203,7 +317,7 @@ bool RewindBar::OfferMouse (
     bool                isCaptured,
     int64_t             nowMs)
 {
-    RECT             bounds  = m_bar.GetBounds();
+    RECT             bounds  = {};
     RECT             anchor  = {};
     POINT            pointer = { x, y };
     bool             isOver  = false;
@@ -217,12 +331,19 @@ bool RewindBar::OfferMouse (
         return false;
     }
 
-    if (kind == DxuiMouseEventKind::Move && !m_isOpen && IsInOpeningBand (pointer, m_screen, m_scaler.GetDpi(), isCaptured, m_history->GetSettings().isRecording))
+    if (kind == DxuiMouseEventKind::Move && !m_isOpen && m_screenTest && IsInOpeningBand (pointer, m_screenTest, m_scaler.GetDpi(), isCaptured, m_history->GetSettings().isRecording))
+    {
+        PlaceBar (FindScreen (pointer, m_screenTest));
+        Open();
+    }
+    else if (kind == DxuiMouseEventKind::Move && !m_isOpen && !m_screenTest && IsInOpeningBand (pointer, m_screen, m_scaler.GetDpi(), isCaptured, m_history->GetSettings().isRecording))
     {
         Open();
     }
 
+    bounds = m_bar.GetBounds();
     isOver = m_isOpen && PtInRect (&bounds, pointer) != FALSE;
+
 
     switch (kind)
     {
@@ -416,7 +537,7 @@ void RewindBar::Sync()
 
     if (m_strip.HasOutgrownLabelRoom())
     {
-        Layout (m_screen, m_scaler);
+        PlaceBar (m_screen);
     }
 
     if (m_scrub.IsScrubbing())

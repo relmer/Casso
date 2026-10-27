@@ -44,13 +44,24 @@ public:
     //  the screen at that DPI, with the pointer free and history on.
     static bool  IsInOpeningBand (POINT pointer, const RECT & screen, UINT dpi, bool isCaptured, bool isHistoryOn);
 
+    //  Whether a point is on the emulated screen, for a screen drawn on the
+    //  desk scene's curved tube, which no rectangle bounds exactly. With one,
+    //  the opening band is the bottom kOpeningBandDip of the glass under the
+    //  pointer, and the bar lies along the glass found around the pointer.
+    using ScreenTestFn = std::function<bool (int x, int y)>;
+
+    static bool  IsInOpeningBand (POINT pointer, const ScreenTestFn & isOnScreen, UINT dpi, bool isCaptured, bool isHistoryOn);
+    static RECT  FindScreen      (POINT inside, const ScreenTestFn & isOnScreen);
+
                  RewindBar  ();
 
     void  Configure    (ShellHistory & history, IDxuiTextRenderer * text);
     void  SetPopupHost (DxuiHwndSource * host);
+    void  SetScreenTest (ScreenTestFn isOnScreen) { m_screenTest = std::move (isOnScreen); }
     void  Adopt        (DxuiPanel & root);
 
-    //  The screen the bar lies along the bottom of.
+    //  The screen the bar lies along the bottom of. With a screen test, the
+    //  rectangle is not the screen's, and the test finds it.
     void  Layout       (const RECT & screen, const DxuiDpiScaler & scaler);
 
     //  A pointer event, true when the bar takes it. A move into the opening
@@ -74,6 +85,7 @@ public:
 
 private:
     void  Open          ();
+    void  PlaceBar      (const RECT & screen);
     void  OnSeek        (const HistoryThumbnailCell & cell);
     void  OnScrub       (uint64_t cycle, bool isFinal);
     void  ApplyScrub    (const HistoryTimelineScrubStep & step);
@@ -85,6 +97,7 @@ private:
     std::shared_ptr<DxuiCommand>    m_command;
     DxuiTooltip                     m_tooltip;
     HistoryTimelineScrub            m_scrub;
+    ScreenTestFn                    m_screenTest;
     RECT                            m_screen     = {};
     DxuiDpiScaler                   m_scaler;
     bool                            m_isOpen     = false;
