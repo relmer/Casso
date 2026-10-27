@@ -8,7 +8,6 @@
 #include "Seams/ShellVerbs/Win32ShellNamespace.h"
 #include "Seams/ShellVerbs/Win32ShellSearch.h"
 #include "Seams/ShellVerbs/Win32ShellTransfers.h"
-#include "Seams/IShellItemVerbs.h"
 #include "Seams/Win32ShellPreview.h"
 
 

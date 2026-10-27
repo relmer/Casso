@@ -2,20 +2,9 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/Browser/BrowserTypes.h"
-
 #include "CassoExplorer/CassoExplorerShellListings.h"
-#include "CassoExplorer/Model/BrowserModel.h"
-#include "CassoExplorer/Model/CatalogModel.h"
-#include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/TreeModel.h"
-#include "CassoExplorer/Model/TypedPathHistory.h"
-#include "Config/IFileSystem.h"
-#include "Core/MemoryBus.h"
-#include "Machines/Apple2/Common/VolumeImage.h"
-#include "Seams/IShellIcons.h"
-#include "Seams/IShellItemVerbs.h"
 
 class CassoLinkConnections;
 class IDiskFileIo;

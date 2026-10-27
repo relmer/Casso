@@ -2,9 +2,6 @@
 
 #include "Pch.h"
 
-#include "Seams/IShellItemVerbs.h"
-#include "Seams/Win32ShellPreview.h"
-
 
 
 

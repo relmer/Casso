@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Pch.h"
-#include "Widgets/ListView/DxuiListViewTypes.h"
 #include "Widgets/ListView/DxuiListScrollbars.h"
 #include "Widgets/ListView/DxuiListGroups.h"
 #include "Widgets/ListView/DxuiListHeader.h"
@@ -12,10 +11,7 @@
 #include "Widgets/ListView/DxuiListColumns.h"
 #include "Widgets/ListView/DxuiListMouse.h"
 #include "Widgets/ListView/DxuiListFlowLayout.h"
-#include "Core/IDxuiControl.h"
-#include "Core/DxuiIconImage.h"
-#include "Render/IDxuiTextRenderer.h"
-#include "DxuiScrollbar.h"
+#include "Theme/DxuiTheme.h"
 
 
 

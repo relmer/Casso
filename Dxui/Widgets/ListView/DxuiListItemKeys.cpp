@@ -1,14 +1,6 @@
 #include "Pch.h"
 
 #include "Widgets/ListView/DxuiListItemKeys.h"
-#include "Core/DxuiClipboard.h"
-#include "Theme/DxuiTheme.h"
-#include "Core/DxuiTextElide.h"
-#include "Theme/DxuiRowLook.h"
-#include "Theme/DxuiColor.h"
-#include "Widgets/DxuiListView.h"
-#include "Core/DxuiUnicodeSymbols.h"
-#include "Core/DxuiSystemSettings.h"
 #include "Widgets/DxuiListView.h"
 
 

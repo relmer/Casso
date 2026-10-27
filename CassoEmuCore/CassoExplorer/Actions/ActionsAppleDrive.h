@@ -3,9 +3,6 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
-#include "CassoExplorer/CassoExplorerBrowser.h"
-#include "CassoExplorer/Model/CassoLinkConnections.h"
-#include "CassoExplorer/Model/DiskOperations.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
 #include "Core/AppleSingleCodec.h"
 

@@ -2,9 +2,7 @@
 
 #include "Pch.h"
 
-#include "Seams/ShellVerbs/Win32ShellVerbsTypes.h"
 #include "Seams/IShellItemVerbs.h"
-#include "Seams/Win32ShellPreview.h"
 
 class Win32ShellItemVerbs;
 

@@ -1,16 +1,8 @@
 #include "Pch.h"
 
-#include "CassoLink/LinkProgram.h"
-#include "Core/AppleSingleCodec.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
-#include "CassoExplorer/Model/CassoLinkConnections.h"
-#include "CassoExplorer/Model/ArchiveProbe.h"
-#include "CassoExplorer/Model/HostFileNaming.h"
 #include "CassoExplorer/Model/SearchQuery.h"
-#include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
-#include "Devices/Disk/DiskImageSession.h"
-#include "Machines/Apple2/Common/NibblizationLayer.h"
 
 #pragma comment(lib, "shlwapi.lib")
 
