@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "Debugger/Reverse/DeferredHistoryEdits.h"
 #include "Debugger/Reverse/DivergenceGate.h"
 #include "Debugger/Reverse/HeldInputWatch.h"
 #include "Debugger/Reverse/HistoryThumbnails.h"
@@ -215,14 +214,12 @@ private:
     HistorySettings   & m_settings;   // the emulator's preferences have it; saved through the host
     IHistoryClient    * m_client = nullptr;
 
-    // The input deferred behind live and the lines it would change, and the
-    // debugger edits deferred until the user answers.
+    // The input deferred behind live and the lines it would change.
     DivergenceGate                m_divergenceGate;
     HeldInputWatch                m_heldInputWatch;
     std::atomic<bool>             m_isResumeOwedAfterHeldRead = false;     // a replay stopped at a deferred read was running
     size_t                        m_pasteLengthBeforeHold     = 0;         // the paste buffer before a paste deferred behind live
     bool                          m_isJoyportSyncOwed         = false;     // a players' change made behind live, for the Joyport once live
-    DeferredHistoryEdits          m_deferredEdits;
     std::mutex                    m_replayCaptionMutex;
     std::wstring                  m_replayCaption;                         // " [Replaying @ ...]" behind live, else empty
     std::wstring                  m_replayIndicatorText;                   // "Replaying" and the host's time behind live, else empty

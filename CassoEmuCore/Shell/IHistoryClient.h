@@ -50,8 +50,6 @@ public:
     virtual void                OnHistoryMoved     (ReverseCommand command)         = 0;
     virtual void                OnHistoryLanded    (const ReverseResult & result)   = 0;
 
-    //  The debugger edits deferred behind live, run live in the order made.
-    virtual void                RunDeferredEdits   (const std::vector<DebugCommand> & edits) = 0;
 
     //  Whether the machine runs a debugger step rather than a run, and the
     //  session notified that the machine was paused or resumed.

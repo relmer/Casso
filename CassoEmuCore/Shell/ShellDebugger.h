@@ -107,7 +107,6 @@ public:
     void                OnHistoryMoving    () override;
     void                OnHistoryMoved     (ReverseCommand command) override;
     void                OnHistoryLanded    (const ReverseResult & result) override;
-    void                RunDeferredEdits   (const std::vector<DebugCommand> & edits) override;
     bool                IsDebugStepRunning () override;
     void                OnPauseChanged     (bool paused) override { NotifyDebugPauseChanged (paused); }
 

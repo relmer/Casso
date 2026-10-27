@@ -967,8 +967,7 @@ bool ShellHistory::AllowCommand (
 
 void ShellHistory::Diverge()
 {
-    HRESULT                    hr    = S_OK;
-    std::vector<DebugCommand>  edits;
+    HRESULT  hr = S_OK;
 
 
 
@@ -978,14 +977,6 @@ void ShellHistory::Diverge()
     CHR (hr);
 
     UpdateReplayCaption();
-
-    //  Any debugger edits deferred run now, live, in the order made.
-    edits = m_deferredEdits.TakeAll();
-
-    if (m_client != nullptr && !edits.empty())
-    {
-        m_client->RunDeferredEdits (edits);
-    }
 
 Error:
     return;

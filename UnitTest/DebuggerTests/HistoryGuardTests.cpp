@@ -2,7 +2,6 @@
 
 #include "Debugger/DebugHandlerSet.h"
 #include "Debugger/DebugSession.h"
-#include "Debugger/Reverse/DeferredHistoryEdits.h"
 #include "HandlerTestRig.h"
 #include "MockDebugTarget.h"
 
@@ -138,35 +137,5 @@ public:
         Assert::AreEqual<size_t> (1, asked.size());
         Assert::IsTrue   (asked[0].verb == DebugVerb::PatchBytes);
         Assert::AreEqual<int> (0x0310, asked[0].a1);
-    }
-
-
-    //  Every edit deferred behind live shares one question, and each runs, in
-    //  order, on a yes.
-    TEST_METHOD (EveryDeferredEditRunsInOrderAfterOneQuestion)
-    {
-        DeferredHistoryEdits       deferred;
-        DebugCommand               first;
-        DebugCommand               second;
-        std::vector<DebugCommand>  edits;
-
-
-
-        first.a1  = 0x0300;
-        second.a1 = 0x0400;
-
-        Assert::IsTrue  (deferred.Defer (first),  L"the first edit posts the question");
-        Assert::IsFalse (deferred.Defer (second), L"the second shares its answer");
-        Assert::IsTrue  (deferred.HasAny());
-
-        edits = deferred.TakeAll();
-        Assert::AreEqual<size_t> (2, edits.size());
-        Assert::AreEqual<int> (0x0300, edits[0].a1);
-        Assert::AreEqual<int> (0x0400, edits[1].a1);
-        Assert::IsFalse (deferred.HasAny(), L"taken");
-
-        (void) deferred.Defer (first);
-        deferred.Clear();
-        Assert::IsFalse (deferred.HasAny(), L"a no drops them");
     }
 };

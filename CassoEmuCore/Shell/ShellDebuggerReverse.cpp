@@ -251,45 +251,6 @@ void ShellDebugger::OnHistoryLanded (const ReverseResult & result)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  RunDeferredEdits
-//
-//  The edits deferred behind live, run live in the order made, and any that
-//  failed listed in the console.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::RunDeferredEdits (const std::vector<DebugCommand> & edits)
-{
-    std::vector<std::string>  failures;
-    Reply                     reply;
-
-
-
-    if (m_debugController == nullptr)
-    {
-        return;
-    }
-
-    for (const DebugCommand & edit : edits)
-    {
-        reply = m_debugController->GetSession().Execute (edit);
-
-        if (reply.status != CommandStatus::Ok)
-        {
-            failures.push_back (reply.error.detail);
-        }
-    }
-
-    AddConsoleLines (failures);
-    m_isDebugViewDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  IsDebugStepRunning
 //
 ////////////////////////////////////////////////////////////////////////////////
