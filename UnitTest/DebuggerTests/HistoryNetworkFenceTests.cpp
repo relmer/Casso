@@ -9,6 +9,7 @@
 #include "Shell/EmulatorShell.h"
 #include "Shell/MachineBuilder.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -125,7 +126,7 @@ namespace HistoryNetworkFenceTests
 
             for (i = 0; i < count; i++)
             {
-                shell->GetDebugger().RecordHistoryFrame (false);
+                shell->GetHistory().RecordFrame();
                 shell->GetMachine().RunCycles (kFrameCycles);
             }
         }
@@ -166,7 +167,7 @@ namespace HistoryNetworkFenceTests
 
         bool IsRecording() const
         {
-            return shell->GetDebugger().GetReverseHost() != nullptr && shell->GetDebugger().GetReverseHost()->IsRecording();
+            return shell->GetHistory().GetReverseHost() != nullptr && shell->GetHistory().GetReverseHost()->IsRecording();
         }
     };
 
@@ -208,7 +209,7 @@ namespace HistoryNetworkFenceTests
 
             rig.RunFrames (3);
             Assert::IsTrue (rig.IsRecording(), L"recording starts again once the card is idle");
-            Assert::IsTrue (rig.shell->GetDebugger().GetReverseHost()->GetController().GetOldestPosition() >= closedAt,
+            Assert::IsTrue (rig.shell->GetHistory().GetReverseHost()->GetController().GetOldestPosition() >= closedAt,
                             L"history begins after the card was last in use");
         }
 

@@ -4,6 +4,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/MachineStateFile.h"
@@ -240,11 +241,11 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
     hr = MachineStateFile::Check (m_machine, contents, outError);
     CHR (hr);
 
-    m_debugger->StopReverseRecording();
+    m_history->StopRecording();
 
     hr = MachineStateFile::Apply (m_machine, contents, outError);
 
-    m_debugger->StartReverseRecording();
+    m_history->StartRecording();
 
     CHR (hr);
 

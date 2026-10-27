@@ -5,6 +5,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Shell/Components/ShellRenderer.h"
@@ -900,8 +901,8 @@ int EmulatorShell::RunMessageLoop()
 
     // The debug channel has to answer clients while the machine is paused,
     // when no frame runs, so it is pumped from the CPU manager's service tick.
-    m_cpuManager.SetServiceFunction ([this] { m_debugger->ServiceDebugger(); m_debugger->ServiceHistoryThumbnails(); });
-    m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_debugger->AllowCommand (id, payload); });
+    m_cpuManager.SetServiceFunction ([this] { m_debugger->ServiceDebugger(); m_history->ServiceThumbnails(); });
+    m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_history->AllowCommand (id, payload); });
 
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
@@ -1646,9 +1647,9 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
 
 
-    if (timerId == ShellDebugger::kClickReleaseTimerId)
+    if (timerId == ShellHistory::kClickReleaseTimerId)
     {
-        m_debugger->ReleaseGuestMouseAfterClick();
+        m_history->ReleaseGuestMouseAfterClick();
         return DxuiMessageResult::Handled;
     }
 
@@ -1941,37 +1942,37 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         // A controller's flush can arrive behind live, before the cut a yes
         // queued; what is held waits for the one going live posts.
-        if (m_debugger->IsBehindLiveForUi())
+        if (m_history->IsBehindLiveForUi())
         {
             return DxuiMessageResult::Handled;
         }
 
-        m_debugger->GetDivergenceGate().OnLive();
+        m_history->GetDivergenceGate().OnLive();
 
-        if (m_debugger->TakeJoyportSyncOwed())
+        if (m_history->TakeJoyportSyncOwed())
         {
             m_input->SyncJoyport();
         }
 
         // Input held behind live lands now: told yes at a read, or never
         // read before the replay reached live.
-        mouseTarget = m_debugger->GetDivergenceGate().GetMouseTarget();
-        m_debugger->GetDivergenceGate().TakeHeld (held, heldInputs);
-        m_debugger->PublishHeldInput();
+        mouseTarget = m_history->GetDivergenceGate().GetMouseTarget();
+        m_history->GetDivergenceGate().TakeHeld (held, heldInputs);
+        m_history->PublishHeldInput();
 
         for (const DxuiKeyEvent & ev : held)
         {
             (void) OnViewportKey (ev);
         }
 
-        m_debugger->ApplyHeldInputs (heldInputs);
+        m_history->ApplyHeldInputs (heldInputs);
 
         if (mouseTarget.has_value())
         {
-            m_debugger->ApplyHeldMouseTarget (*mouseTarget);
+            m_history->ApplyHeldMouseTarget (*mouseTarget);
         }
 
-        m_debugger->ResumeAfterHeldInput();
+        m_history->ResumeAfterHeldInput();
 
         return DxuiMessageResult::Handled;
     }
@@ -1979,7 +1980,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // The //c's 80/40 switch behind live waits on this question.
     if (msg == WM_APP_CONFIRM_INPUT)
     {
-        m_debugger->OnConfirmInputDiverge();
+        m_history->OnConfirmInputDiverge();
 
         return DxuiMessageResult::Handled;
     }
@@ -1987,7 +1988,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // The replay stopped where the guest reads input held behind live.
     if (msg == WM_APP_HELD_INPUT_READ)
     {
-        m_debugger->OnHeldInputRead();
+        m_history->OnHeldInputRead();
 
         return DxuiMessageResult::Handled;
     }
@@ -1995,7 +1996,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
     // A debugger edit behind live waits on this question.
     if (msg == WM_APP_CONFIRM_DIVERGE)
     {
-        m_debugger->OnConfirmDiverge();
+        m_history->OnConfirmDiverge();
 
         return DxuiMessageResult::Handled;
     }

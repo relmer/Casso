@@ -3,6 +3,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/EmulatorShellDebuggerHost.h"
 #include "Shell/EmulatorShellInputHost.h"
 #include "Shell/MachineManager.h"
@@ -153,9 +154,12 @@ EmulatorShell::EmulatorShell()
     m_renderer      = std::make_unique<ShellRenderer> (*this);
 
     m_debuggerHost = std::make_unique<DebuggerHost> (*this);
-    m_debugger     = std::make_unique<ShellDebugger> (*m_debuggerHost, m_machine, m_cpuManager, m_settings->GetPrefs().debugger);
+    m_history      = std::make_unique<ShellHistory> (*m_debuggerHost, m_machine, m_cpuManager, m_settings->GetPrefs().history);
+    m_debugger     = std::make_unique<ShellDebugger> (*m_debuggerHost, m_machine, m_cpuManager, m_settings->GetPrefs().debugger, *m_history);
     m_inputHost    = std::make_unique<InputHost> (*this);
-    m_input        = std::make_unique<ShellInput> (*m_inputHost, m_machine, *m_debugger);
+    m_input        = std::make_unique<ShellInput> (*m_inputHost, m_machine, *m_history);
+
+    m_history->SetClient (m_debugger.get());
 
     // / FR-033 / T055. //e video timing model — owned at the
     // shell level so all three machine kinds (][/][+/]e) share the same

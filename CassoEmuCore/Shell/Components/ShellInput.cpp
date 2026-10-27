@@ -3,7 +3,7 @@
 #include "Shell/Components/ShellInput.h"
 #include "Shell/MachineHost.h"
 #include "Config/GlobalUserPrefs.h"
-#include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/IInputHost.h"
 #include "Core/JsonWriter.h"
 #include "Machines/MachineDefinition.h"
@@ -30,10 +30,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ShellInput::ShellInput (IInputHost & host, MachineHost & machine, ShellDebugger & debugger) :
+ShellInput::ShellInput (IInputHost & host, MachineHost & machine, ShellHistory & history) :
     m_host     (host),
     m_machine  (machine),
-    m_debugger (debugger)
+    m_history  (history)
 {
 }
 
@@ -313,15 +313,15 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
     // where the key would change what it reads, or the machine is live; the
     // keys that follow wait with it. A key that drives the game port goes to
     // the mixer now, which holds it there the same way.
-    verdict = m_debugger.GetDivergenceGate().JudgeKey (!isGateOpen, ev);
+    verdict = m_history.GetDivergenceGate().JudgeKey (!isGateOpen, ev);
 
     if (verdict == DivergenceVerdict::Hold)
     {
         latch = GetHeldKeyLatch (ev, isMachineKey);
 
-        m_debugger.GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
+        m_history.GetDivergenceGate().HoldKey (ev, latch, isMachineKey);
         RouteKeyToGamePort (ev);
-        m_debugger.PublishHeldInput();
+        m_history.PublishHeldInput();
 
         return true;
     }
@@ -965,7 +965,7 @@ void ShellInput::SyncJoyport()
     }
     else
     {
-        m_debugger.OweJoyportSync();
+        m_history.OweJoyportSync();
     }
 
     gate.Leave();
@@ -1792,29 +1792,29 @@ void ShellInput::PasteClipboardText()
     bool    hostCapsLock   = (GetKeyState (VK_CAPITAL) & 1) != 0;
     bool    capsLockOn     = hasCapsLockKey && m_capsLock.IsOn (hostCapsLock);
     bool    raisedLetters  = false;
-    bool    isBehindLive   = m_debugger.IsBehindLiveForUi();
+    bool    isBehindLive   = m_history.IsBehindLiveForUi();
     Byte    first          = 0;
     size_t  length         = 0;
 
 
 
-    if (m_host.GetClipboard() == nullptr || !m_debugger.AllowCommand (IDM_EDIT_PASTE, std::string()))
+    if (m_host.GetClipboard() == nullptr || !m_history.AllowCommand (IDM_EDIT_PASTE, std::string()))
     {
         return;
     }
 
-    if (isBehindLive && !m_debugger.GetDivergenceGate().HasHeldPaste())
+    if (isBehindLive && !m_history.GetDivergenceGate().HasHeldPaste())
     {
-        m_debugger.SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
+        m_history.SetPasteLengthBeforeHold (m_host.GetClipboard()->GetPasteLength (first));
     }
 
     raisedLetters = m_host.GetClipboard()->PasteFromClipboard (m_host.GetMainWindow(), capsLockOn);
     length        = m_host.GetClipboard()->GetPasteLength (first);
 
-    if (isBehindLive && length > m_debugger.GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
+    if (isBehindLive && length > m_history.GetPasteLengthBeforeHold() && m_machine.GetRefs().keyboard != nullptr)
     {
-        m_debugger.GetDivergenceGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
-        m_debugger.PublishHeldInput();
+        m_history.GetDivergenceGate().HoldPaste (m_machine.GetRefs().keyboard->GetTypedLatch (first));
+        m_history.PublishHeldInput();
     }
 
     if (raisedLetters)
@@ -2194,8 +2194,8 @@ void ShellInput::UpdateGuestMouseFromHost (int xPx, int yPx)
 
     if (!isGateOpen)
     {
-        m_debugger.GetDivergenceGate().SetMouseTarget (target);
-        m_debugger.PublishHeldInput();
+        m_history.GetDivergenceGate().SetMouseTarget (target);
+        m_history.PublishHeldInput();
     }
     else if (target.has_value())
     {
@@ -2734,9 +2734,9 @@ HRESULT ShellInput::Start()
 
     // Held back, a real press or deflection is held line by line, and the
     // lines go to the watch the replay checks the guest's reads against.
-    m_gamePortSink->SetDivergenceGate (&m_debugger.GetDivergenceGate(), [this]
+    m_gamePortSink->SetDivergenceGate (&m_history.GetDivergenceGate(), [this]
     {
-        m_debugger.PublishHeldInput();
+        m_history.PublishHeldInput();
     });
 
     m_gamePortMixer.SetApplyThread (std::this_thread::get_id(), [hwnd = m_host.GetMainWindow()]
@@ -3017,7 +3017,7 @@ void ShellInput::PressGuestMouseButton (int x, int y)
 
     if (!isGateOpen)
     {
-        m_debugger.HoldInputBehindLive (HeldInput::MousePress);
+        m_history.HoldInputBehindLive (HeldInput::MousePress);
         return;
     }
 
@@ -3056,8 +3056,8 @@ void ShellInput::ReleaseGuestMouseButton()
 
     if (!isGateOpen)
     {
-        m_debugger.GetDivergenceGate().ReleaseMousePress();
-        m_debugger.PublishHeldInput();
+        m_history.GetDivergenceGate().ReleaseMousePress();
+        m_history.PublishHeldInput();
         return;
     }
 

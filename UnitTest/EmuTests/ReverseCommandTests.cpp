@@ -654,16 +654,16 @@ public:
         StepLive (machine, s_kCommandGapSteps, before);
         gapStart = before.back();
 
-        hr = controller.SetUserMaximumSpeed (true);
-        AssertSucceeded (hr, L"SetUserMaximumSpeed on");
+        hr = controller.SetRecordingPaused (true);
+        AssertSucceeded (hr, L"SetRecordingPaused on");
 
         keyframes = controller.GetKeyframes().GetCount();
         machine.RunCycles (s_kCommandGapCycles);
 
         Assert::AreEqual (keyframes, controller.GetKeyframes().GetCount(), L"no keyframe is taken while paused");
 
-        hr = controller.SetUserMaximumSpeed (false);
-        AssertSucceeded (hr, L"SetUserMaximumSpeed off");
+        hr = controller.SetRecordingPaused (false);
+        AssertSucceeded (hr, L"SetRecordingPaused off");
 
         resumed = controller.GetKeyframes().GetInfo (controller.GetKeyframes().GetCount() - 1);
 

@@ -28,6 +28,9 @@
 #include "Ui/Settings/ScreenshotsPage.h"
 #include "Ui/Settings/ControllersPage.h"
 #include "Ui/Settings/DiskPage.h"
+#include "Ui/Debugger/HistoryOptionsPage.h"
+#include "Shell/Components/ShellHistory.h"
+#include "Config/HistorySettings.h"
 
 
 
@@ -103,6 +106,7 @@ void SettingsSheet::OnBuildPages()
 {
     m_generalPage  = CreatePage<GeneralPage>  (L"General");
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
+    m_historyPage  = CreatePage<HistoryOptionsPage> (L"History");
     m_diskPage     = CreatePage<DiskPage>     (L"Storage");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
@@ -372,6 +376,10 @@ HRESULT SettingsSheet::OpenModeless (
     {
         m_emuShell->GetUpdater().StopSkippingVersion();
     });
+    // The History page edits the same settings as the debugger's Options,
+    // committed on OK.
+    m_historyPage->SetOptions (MakeHistoryOptions (prefs.history), ReverseBudget::GetRange (ReverseBudget::GetAvailableBytes()), HistoryStatus());
+
     m_generalPage->SetFolderPath   (ShellSettings::GetSettingsFolder());
     m_generalPage->SetOnOpenFolder ([this] ()
     {
@@ -895,6 +903,7 @@ void SettingsSheet::ActivateControllersPage()
 
 HRESULT SettingsSheet::OnOk()
 {
+    CommitHistoryOptions();
     m_apply.CommitApply();
     return S_OK;
 }
@@ -2430,3 +2439,64 @@ void SettingsSheet::PushDriveAudioToEngine (
                (int) std::lround (pan1 * 100.0f));
     m_emuShell->PostCommand (IDM_AUDIO_DRIVE_PAN, pan);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeHistoryOptions
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ReverseOptions SettingsSheet::MakeHistoryOptions (const HistorySettings & settings)
+{
+    ReverseOptions  options;
+
+
+
+    options.isRecording    = settings.isRecording;
+    options.budgetMb       = settings.budgetMb;
+    options.intervalFrames = settings.intervalFrames;
+
+    return options;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommitHistoryOptions
+//
+//  OK: the History page's settings, saved and applied through the shell's
+//  history when any changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::CommitHistoryOptions()
+{
+    ReverseOptions  chosen;
+    ReverseOptions  saved;
+
+
+
+    if (m_historyPage == nullptr || m_emuShell == nullptr || m_prefs == nullptr)
+    {
+        return;
+    }
+
+    chosen = m_historyPage->GetOptions();
+    saved  = MakeHistoryOptions (m_prefs->history);
+
+    if (chosen.isRecording != saved.isRecording || chosen.budgetMb != saved.budgetMb || chosen.intervalFrames != saved.intervalFrames)
+    {
+        m_emuShell->GetHistory().SaveOptions (chosen.isRecording, chosen.budgetMb, chosen.intervalFrames);
+    }
+}
+
+
+
+

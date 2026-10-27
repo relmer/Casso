@@ -484,15 +484,15 @@ namespace DebugEventLogsTests
             session.logs.Start (&session.controller);
             Run (session.machine, 0, 60);
 
-            hr = session.controller.SetUserMaximumSpeed (true);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed");
+            hr = session.controller.SetRecordingPaused (true);
+            AssertSucceeded (hr, L"SetRecordingPaused");
 
             paused = session.machine.GetPosition();
             Run (session.machine, 60, 60);
             resumed = session.machine.GetPosition();
 
-            hr = session.controller.SetUserMaximumSpeed (false);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed");
+            hr = session.controller.SetRecordingPaused (false);
+            AssertSucceeded (hr, L"SetRecordingPaused");
 
             Run (session.machine, 120, 60);
 

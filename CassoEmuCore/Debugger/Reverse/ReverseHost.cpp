@@ -89,29 +89,17 @@ void ReverseHost::StopRecording()
 //
 //  OnFrame
 //
-//  Once per CPU-thread frame, before the machine runs: recording pauses
-//  while the user has chosen Maximum speed and resumes when they leave it.
-//  A frame that runs the machine from the past makes it live again, which
-//  the gate follows.
+//  Once per CPU-thread frame, before the machine runs. Recording continues
+//  at every speed. A frame that runs the machine from the past makes it live
+//  again, which the gate follows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ReverseHost::OnFrame (bool isUserMaximumSpeed)
+HRESULT ReverseHost::OnFrame()
 {
-    HRESULT  hr = S_OK;
-
-
-
-    if (m_controller.IsRecording())
-    {
-        hr = m_controller.SetUserMaximumSpeed (isUserMaximumSpeed);
-        CHR (hr);
-    }
-
-Error:
     SyncInputGate();
 
-    return hr;
+    return S_OK;
 }
 
 

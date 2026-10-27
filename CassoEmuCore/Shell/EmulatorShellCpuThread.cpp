@@ -5,6 +5,7 @@
 
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellSettings.h"
@@ -180,8 +181,8 @@ void EmulatorShell::OnCpuThreadStart()
     // Reverse execution records from here, on the thread that runs the
     // machine, which is built and power cycled by now. The settings are read
     // once, here, and hold for every machine built after.
-    m_debugger->LoadReverseSettings();
-    m_debugger->StartReverseRecording();
+    m_history->LoadSettings();
+    m_history->StartRecording();
 
     // On the CPU thread, which is where the debugger lives from here on.
     if (m_openDebuggerAtStart)
@@ -204,7 +205,7 @@ void EmulatorShell::OnCpuThreadStart()
 void EmulatorShell::OnCpuThreadStop()
 {
     // First, so the disks' held writes reach their files at shutdown.
-    m_debugger->StopReverseRecording();
+    m_history->StopRecording();
 
     m_debugger->CloseDebugger();
     m_audio->Stop();
@@ -467,9 +468,9 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
-    // Recording pauses at a Maximum speed the user chose, and running the
-    // machine from the past makes it live again.
-    m_debugger->RecordHistoryFrame (m_cpuManager.IsUserMaximumSpeed());
+    // Recording continues at every speed, and running the machine from the past
+    // makes it live again.
+    m_history->RecordFrame();
 
     // Emulation always advances; only the publish is throttled and gated.
     ExecuteCpuSlices();
@@ -677,7 +678,7 @@ void EmulatorShell::ExecuteCpuSlices()
         // would change: the machine stops there and the user is asked.
         if (hooks.heldInputWatch->HasHit())
         {
-            m_debugger->StopForHeldInputRead();
+            m_history->StopForHeldInputRead();
             hasRunEnded = true;
             break;
         }

@@ -12,6 +12,7 @@
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/HeadlessMachineFactory.h"
 #include "Shell/MachineBuilder.h"
 #include "Ui/Debugger/Panes/CallStackPane.h"
@@ -416,13 +417,13 @@ namespace CallHistoryShellTests
 
             rig.RunTo (ShellRig::kOpenAt * 2);
             rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::Seek, landing));
-            rig.shell->GetDebugger().UpdateReplayCaption();
+            rig.shell->GetHistory().UpdateReplayCaption();
 
-            Assert::IsFalse (rig.shell->GetDebugger().GetReplayCaption().empty(), L"behind live, the caption notes the replay");
+            Assert::IsFalse (rig.shell->GetHistory().GetReplayCaption().empty(), L"behind live, the caption notes the replay");
 
             rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, ShellRig::kBudgetMb));
 
-            Assert::IsTrue (rig.shell->GetDebugger().GetReplayCaption().empty(), L"with history off, the note is gone");
+            Assert::IsTrue (rig.shell->GetHistory().GetReplayCaption().empty(), L"with history off, the note is gone");
         }
 
 

@@ -108,13 +108,15 @@ What a strip source returns from `GetMarks` (R-009).
 
 ## History settings (new: `HistorySettings` in `GlobalUserPrefs`)
 
-| Field | Type | Default | JSON key | Old key (read when the new one is absent) |
-|---|---|---|---|---|
-| `isRecording` | `bool` | `true` | `historyRecording` | `reverseRecording` |
-| `budgetMb` | `int` | 64 | `historyBudgetMb` | `reverseBudgetMb` |
-| `intervalFrames` | `int` | 10 | `historyIntervalFrames` | `reverseIntervalFrames` |
+| Field | Type | Default | JSON key |
+|---|---|---|---|
+| `isRecording` | `bool` | `true` | `reverseRecording` |
+| `budgetMb` | `int` | 64 | `reverseBudgetMb` |
+| `intervalFrames` | `int` | 10 | `reverseIntervalFrames` |
 
-Ranges are `DebuggerSettings::kMinReverseBudgetMb` to `kMaxReverseBudgetMb`, and 1 to `kMaxReverseIntervalFrames`, as today; the constants move with the fields.
+The keys are the ones the debugger's options used, so builds that share the preferences file read the same settings.
+
+Ranges are `HistorySettings::kMinBudgetMb` to `kMaxBudgetMb`, and 1 to `kMaxIntervalFrames`.
 
 ## Saved history (new: a section of `MachineStateFile` version 4)
 

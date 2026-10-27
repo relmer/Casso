@@ -91,6 +91,42 @@ public:
     }
 
 
+    TEST_METHOD (TheHistoryPageReturnsTheKeyframeInterval)
+    {
+        DebuggerOptionsSheet  sheet;
+        DebuggerOptions       current;
+        ReverseBudgetRange    range   = { 1, 1000, 99 };
+
+
+
+        current.reverse.intervalFrames = 4;
+        sheet.BuildForTest (current, range);
+
+        Assert::AreEqual (4.0f, sheet.GetHistoryPage()->GetIntervalSlider().GetValue());
+        Assert::AreEqual (4,    sheet.GetOptions().reverse.intervalFrames);
+
+        sheet.GetHistoryPage()->GetIntervalSlider().SetValue (20.0f);
+
+        Assert::AreEqual (20, sheet.GetOptions().reverse.intervalFrames, L"the slider's value once it moves");
+    }
+
+
+    TEST_METHOD (ASavedIntervalAboveTheSliderIsReturnedUnlessTheSliderMoves)
+    {
+        DebuggerOptionsSheet  sheet;
+        DebuggerOptions       current;
+        ReverseBudgetRange    range   = { 1, 1000, 99 };
+
+
+
+        current.reverse.intervalFrames = 300;
+        sheet.BuildForTest (current, range);
+
+        Assert::AreEqual (sheet.GetHistoryPage()->GetIntervalSlider().GetMax(), sheet.GetHistoryPage()->GetIntervalSlider().GetValue(), L"the slider sits at its maximum");
+        Assert::AreEqual (300, sheet.GetOptions().reverse.intervalFrames, L"the saved value is returned");
+    }
+
+
     TEST_METHOD (TheDisassemblyPageHasEveryOptionAndReturnsItsSettings)
     {
         DebuggerOptionsSheet  sheet;

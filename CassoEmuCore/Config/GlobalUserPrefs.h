@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Config/DebuggerSettings.h"
+#include "Config/HistorySettings.h"
 
 #include "Core/JsonValue.h"
 #include "Config/CrtTypes.h"
@@ -257,9 +258,9 @@ struct GlobalUserPrefs
     int          settingsWidthDip         = 0;
     int          settingsHeightDip        = 0;
 
-    bool         reverseRecording         = true;
-    int          reverseBudgetMb          = 64;
-    int          reverseIntervalFrames    = 10;
+    // The machine history's settings, under the keys the debugger's options
+    // used, so builds that share the preferences file read the same settings.
+    HistorySettings  history;
 
     // THE UPDATE CHECK. Whether the once-a-day check runs at all; when it last
     // ran (Unix seconds, 0 == never); the newest release it found, so the

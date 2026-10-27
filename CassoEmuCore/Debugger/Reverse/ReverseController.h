@@ -80,10 +80,9 @@ struct ReverseResult
 //  OnMachineEdited: in the past at once, and while live once, before the next
 //  instruction or reverse command, however many edits came first.
 //
-//  While the user has chosen Maximum speed, recording pauses, leaving a gap
-//  in history from where it paused to the keyframe taken where it resumed;
-//  SetUserMaximumSpeed carries the choice. A speed raised automatically is
-//  not the user's choice and recording goes on.
+//  Recording continues at every speed. SetRecordingPaused pauses it,
+//  leaving a gap in history from where it paused to the keyframe taken where
+//  it resumed.
 //
 //  While the machine is behind live, the disk store holds the automatic
 //  flushes (the motor stopping, a power cycle), so the image files are
@@ -146,7 +145,7 @@ public:
     void      Stop                ();
     bool      IsRecording         () const { return m_isRecording; }
     bool      IsRecordingLive     () const;
-    HRESULT   SetUserMaximumSpeed (bool isMaximum);
+    HRESULT   SetRecordingPaused  (bool isPaused);
     HRESULT   ChangeBudget        (size_t budgetBytes);
     bool      IsPaused            () const { return m_isPaused; }
 

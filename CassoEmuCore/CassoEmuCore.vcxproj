@@ -737,6 +737,7 @@
     <ClCompile Include="Shell\Components\ShellUpdater.cpp" />
     <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
     <ClCompile Include="Shell\Components\ShellSerialCard.cpp" />
+    <ClCompile Include="Shell\Components\ShellHistory.cpp" />
     <ClCompile Include="Shell\SerialCardNotice.cpp" />
     <ClCompile Include="Shell\Components\ShellSettings.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebug.cpp" />
@@ -1464,6 +1465,7 @@
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\ShellDebugger.h" />
     <ClInclude Include="Shell\IDebuggerHost.h" />
+    <ClInclude Include="Shell\IHistoryClient.h" />
     <ClInclude Include="Shell\EmulatorShellDebuggerHost.h" />
     <ClInclude Include="Config\DebuggerSettings.h" />
     <ClInclude Include="Shell\DebuggerSliceHooks.h" />
@@ -1480,6 +1482,7 @@
     <ClInclude Include="Shell\Components\ShellDisks.h" />
     <ClInclude Include="Shell\Components\ShellPrinter.h" />
     <ClInclude Include="Shell\Components\ShellSerialCard.h" />
+    <ClInclude Include="Shell\Components\ShellHistory.h" />
     <ClInclude Include="Shell\SerialCardNotice.h" />
     <ClInclude Include="Shell\Components\ShellSettings.h" />
     <ClInclude Include="Shell\Components\ShellTapeDeck.h" />
@@ -1509,6 +1512,7 @@
     <ClInclude Include="Devices\Network\IW5100Backend.h" />
     <ClInclude Include="Config\MacAddress.h" />
     <ClInclude Include="Config\NetworkCardSettings.h" />
+    <ClInclude Include="Config\HistorySettings.h" />
     <ClInclude Include="Devices\Network\IGuestPacketSink.h" />
     <ClInclude Include="Devices\Network\VirtualSubnet.h" />
     <ClInclude Include="Devices\Network\PacketCodec.h" />

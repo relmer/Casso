@@ -76,6 +76,7 @@ class ThemeManager;
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellDebugger;
+class ShellHistory;
 class ShellInput;
 struct DebuggerSliceHooks;
 
@@ -115,6 +116,7 @@ public:
 
     // The debugger the shell holds.
     ShellDebugger & GetDebugger() { return *m_debugger; }
+    ShellHistory  & GetHistory () { return *m_history; }
 
     // The CPU thread, for a debugger run that has to un-pause it and pause it
     // again from the inside.
@@ -739,15 +741,18 @@ private:
     // IsRunning() / IsPaused() / GetSpeedMode() accessors.
     CpuManager                    m_cpuManager;
 
-    // The debugger: its window and session, reverse execution and the
-    // replays of history, and the debug channel. Declared after the CPU
-    // manager it drives, so it is destroyed before it.
+    // The machine's history and the debugger, which follows it: its window
+    // and session, the replays of history its views are rebuilt from, and
+    // the debug channel. Declared after the CPU manager they drive, so they
+    // are destroyed before it, and the history before the debugger, which
+    // refers to it, so it outlives the debugger.
     class                           DebuggerHost;
-    std::unique_ptr<DebuggerHost>   m_debuggerHost;   // what the debugger asks of the shell; outlives it
+    std::unique_ptr<DebuggerHost>   m_debuggerHost;   // what the debugger and history ask of the shell; outlives both
+    std::unique_ptr<ShellHistory>   m_history;
     std::unique_ptr<ShellDebugger>  m_debugger;
 
-    // Host input to the guest. Declared after the debugger, whose gate it
-    // asks behind live, so it is destroyed first.
+    // Host input to the guest. Declared after history, whose gate it
+    // consults behind live, so it is destroyed first.
     class                           InputHost;
     std::unique_ptr<InputHost>      m_inputHost;      // what the input component asks of the shell; outlives it
     std::unique_ptr<ShellInput>     m_input;

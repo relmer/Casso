@@ -7,24 +7,18 @@
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/DebugSessionView.h"
 #include "Debugger/Project/DebugProjectStore.h"
-#include "Debugger/Reverse/DivergenceGate.h"
-#include "Debugger/Reverse/DeferredHistoryEdits.h"
-#include "Debugger/Reverse/HeldInputWatch.h"
-#include "Debugger/Reverse/HistoryThumbnails.h"
 #include "Debugger/Reverse/ReplayControl.h"
-#include "Debugger/Reverse/ReverseOutcome.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/DebugEventLogs.h"
 #include "Shell/DebuggerSliceHooks.h"
+#include "Shell/IHistoryClient.h"
 #include "Shell/ScratchCallReplayer.h"
 #include "Shell/ScratchHeatReplayer.h"
-#include "Shell/ScratchMachineRenderer.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DebuggerWindow.h"
 #include "Ui/Debugger/DebugViewPublisher.h"
 
-class Apple2eKeyboard;
 class CpuManager;
 class CpuManagerRunDriver;
 class DebuggerController;
@@ -32,11 +26,10 @@ struct DebuggerSettings;
 class DebugSession;
 struct DebugSourceFile;
 struct DebugViewInput;
-struct HistoryStatus;
 class IDebuggerHost;
 class IReverseStopTest;
 class MachineHost;
-class ReverseHost;
+class ShellHistory;
 struct SourceLookup;
 class Win32NamedPipeApi;
 class Win32PipeTransport;
@@ -49,26 +42,22 @@ class Win32PipeTransport;
 //
 //  ShellDebugger
 //
-//  The debugger the emulator holds: its window and session, reverse
-//  execution and the replays of history, the input held behind live, and
-//  the debug channel. The emulator's shell owns one and reaches it through
-//  a narrow interface; per-instruction work stays in the machine and the
-//  session's hooks.
+//  The debugger in the emulator: its window and session, the replays of
+//  history its views are rebuilt from, and the debug channel. The machine's
+//  history is ShellHistory's; the debugger follows it as its IHistoryClient.
+//  The emulator's shell constructs one and accesses it through a narrow
+//  interface; per-instruction work stays in the machine and the session's
+//  hooks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class ShellDebugger : public IDebugCommandTarget,
+                      public IHistoryClient,
                       private IDebuggerWindowHost
 {
 public:
-    ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuManager & cpuManager, DebuggerSettings & settings);
+    ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuManager & cpuManager, DebuggerSettings & settings, ShellHistory & history);
     ~ShellDebugger() override;
-
-    // A guest mouse press that asked behind live and was let go of before
-    // the machine was live is held down this long once live, so the guest
-    // sees a click rather than nothing. The timer is on the emulator's window.
-    static constexpr UINT_PTR  kClickReleaseTimerId = 0xCA56;
-    static constexpr UINT      kClickHoldMs         = 100;
 
     // Attaches the driver the slice loop reports to, or detaches it with null.
     // The caller owns it and must detach before destroying it.
@@ -99,87 +88,35 @@ public:
     void NotifyDebugReset          (bool isPowerCycle);
     void NotifyDebugMachineChanged (const std::string & machineName);
 
-    // Reverse execution. Recording starts once a machine is built and power
-    // cycled, from the settings read at start, and stops before a machine is
-    // torn down and at exit; all three run on the CPU thread, as does
-    // ApplyReverseOptions, which takes Tools > Options' settings at once.
-    // PostReverseCommand is the UI thread's way in: the command runs on the
-    // CPU thread, and its outcome is announced as a step's stop, with the
-    // StopEvent's history set. ReverseContinue stops where the stop test
-    // given to SetReverseStopTest fires; without one it fails and the machine
-    // stays where it is.
-    void  StartReverseRecording ();
-    void  StopReverseRecording  ();
-    void  PostReverseCommand    (ReverseCommand command, uint64_t argument = 0);
+    // History's commands from the command queue, run by ShellHistory: a move
+    // through history, the options' settings, and the cut a change behind
+    // live makes. ReverseContinue stops where the stop test given to
+    // SetReverseStopTest fires; without one it fails and the machine stays
+    // where it is.
     void  RunReverseCommand     (ReverseCommand command, uint64_t argument) override;
     void  ApplyReverseOptions   (bool isRecording, int budgetMb) override;
+    void  DivergeHistory        () override;
     void  SetReverseStopTest    (IReverseStopTest * stopTest) { m_reverseStopTest = stopTest; }
 
-    // CPU thread: where the machine stands in history, with the last reverse
-    // command's outcome while the machine has not moved since it landed.
-    HistoryStatus  GetHistoryStatus  ();
-
-    const ReverseHost *  GetReverseHost() const { return m_reverseHost.get(); }
-
-    // Behind live, a change to the machine first asks whether to discard the
-    // history recorded after where it stands. The command gate asks on the
-    // UI thread before a state-changing command is queued; a debugger edit is
-    // held back on the CPU thread, asked about on the UI thread, and run again
-    // on a yes. A yes queues IDM_DEBUG_DIVERGE ahead of the change. Input the
-    // guest reads asks only once the guest reads it; see below.
-    bool  AllowCommand          (WORD id, const std::string & payload);
-    bool  AskToDiverge          ();
-    void  DivergeHistory        () override;
-    bool  GuardHistoryEdit      (const DebugCommand & command);
-    void  OnConfirmDiverge      ();
+    // IHistoryClient: the debugger's views follow the machine's history.
+    void                OnHistoryRestarted (ReverseController * controller) override;
+    void                OnHistoryStopping  () override;
+    bool                HasNoCallSince     (uint64_t historyStartCycle) override;
+    void                GetCallerLinks     (std::vector<CallerLink> & outLinks) override;
+    IReverseStopTest  * GetReverseStopTest () override { return m_reverseStopTest; }
+    void                OnHistoryMoving    () override;
+    void                OnHistoryMoved     (ReverseCommand command) override;
+    void                OnHistoryLanded    (const ReverseResult & result) override;
+    void                RunDeferredEdits   (const std::vector<DebugCommand> & edits) override;
+    bool                IsDebugStepRunning () override;
+    void                OnPauseChanged     (bool paused) override { NotifyDebugPauseChanged (paused); }
 
     // UI thread: the prompt to add the last project's items to a more
     // specific project just opened.
     void  OnConfirmProjectMerge ();
-    bool  IsBehindLiveForUi     ();
 
-    // Behind live, input the guest reads -- keys, a paste, the game port, the
-    // guest mouse -- is held without a question, and the lines it would
-    // change are published to the watch the CPU thread attaches to the
-    // devices. The first read the held input would change stops the replay,
-    // puts the machine back before that read, and asks on the UI thread; a
-    // yes makes the input live there, a no drops it, and either way a replay
-    // that was running runs on. The //c's 80/40 switch asks at once.
-    void  HoldInputBehindLive           (HeldInput input);
-    void  PublishHeldInput              ();
-    void  StopForHeldInputRead          ();
-    void  OnHeldInputRead               ();
-    void  ResumeAfterHeldInput          ();
-    void  OnConfirmInputDiverge         ();
-    void  ApplyHeldInputs               (const std::vector<HeldInput> & inputs);
-    void  ApplyHeldMouseTarget          (uint32_t target);
-    void  PressGuestMouseHeldBehindLive ();
-    void  ReleaseGuestMouseAfterClick   ();
-    void  ToggleHeldEightyColumnSwitch  ();
-    void  ToggleEightyColumnSwitch      (Apple2eKeyboard * iieKbd);
-
-    // The gate input passes behind live, which the shell's input handling
-    // asks before handing input to the machine. A players' change made behind
-    // live is owed to the Joyport once live; so is the length the paste
-    // buffer had before a paste was held.
-    DivergenceGate &  GetDivergenceGate         ()                { return m_divergenceGate; }
-    void              OweJoyportSync            ()                { m_isJoyportSyncOwed = true; }
-    bool              TakeJoyportSyncOwed       ();
-    size_t            GetPasteLengthBeforeHold  () const          { return m_pasteLengthBeforeHold; }
-    void              SetPasteLengthBeforeHold  (size_t length)   { m_pasteLengthBeforeHold = length; }
-
-    // CPU thread: the caption's replay note, kept in step with the machine.
-    // Any thread may read it.
-    void          UpdateReplayCaption   ();
-    std::wstring  GetReplayCaption      ();
-
-    // CPU thread, once a frame: what the slice loop reads of the debugger,
-    // and history's turn, which pauses recording at a Maximum speed the user
-    // chose. The reverse settings are read from the preferences once, when
-    // the CPU thread starts.
+    // CPU thread, once a frame: what the slice loop reads of the debugger.
     DebuggerSliceHooks  GetSliceHooks       ();
-    void                RecordHistoryFrame  (bool isUserMaximumSpeed);
-    void                LoadReverseSettings ();
 
     // CPU thread: a step of the attached session, as a main window's step
     // key asks for; false when no session is attached. And the views built
@@ -283,9 +220,9 @@ public:
     void         SetDebuggerTheme     (const std::string & name) override;
     ReverseOptions  GetReverseOptions () override;
     void            SetReverseOptions (const ReverseOptions & options) override;
-    bool            IsReplayingHistory () override { return m_isReplayingHistory.load (memory_order_acquire); }
+    bool            IsReplayingHistory () override;
     ReplayProgress  GetReplayProgress  () override;
-    void            StopReplay         () override { m_replayControl.isStopRequested.store (true, memory_order_release); }
+    void            StopReplay         () override;
     std::string  GetDebuggerLayout    () override;
     void         SetDebuggerLayout    (const std::string & text) override;
     std::string  GetDebuggerClosedPanes () override;
@@ -295,7 +232,7 @@ public:
     std::string  GetDebuggerTimelineDock   () override;
     void         SetDebuggerTimelineDock   (const std::string & text) override;
 
-    HistoryThumbnails *  GetHistoryThumbnails () override { return &m_historyThumbnails; }
+    HistoryThumbnails *  GetHistoryThumbnails () override;
     void                 SeekHistoryCycle     (uint64_t cycle, bool isInterim) override;
     bool                 IsHistorySeekBusy    () const override;
     std::string  GetDebuggerFocusedPane () override;
@@ -329,9 +266,6 @@ public:
     SourceLookup MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
                                              const std::string & programKey, int & recordIndex) override;
     bool         DoesDebuggerFileExist      (const std::wstring & path) override;
-
-    // CPU thread, each frame: the timeline's pictures of history drawn.
-    void  ServiceHistoryThumbnails ();
 
 public:
 
@@ -373,6 +307,7 @@ private:
     MachineHost       & m_machine;
     CpuManager        & m_cpuManager;
     DebuggerSettings  & m_settings;   // the emulator's preferences hold it; saved through the host
+    ShellHistory      & m_history;    // the machine's history, which the debugger follows
 
     // The driver of a debugger run, when one is attached. Null on a machine
     // nobody is debugging, which is what keeps the slice loop's cost to a
@@ -382,35 +317,8 @@ private:
     DebugCommandHandler    m_debugCommandHandler;
     uint32_t               m_debugCommandClient  = 0;   // the client of the command being run, for the history guard
 
-    // The divergence question's state: the input deferred behind live and
-    // the lines it would change, and the debugger edits deferred until the
-    // user answers.
-    DivergenceGate                m_divergenceGate;
-    HeldInputWatch                m_heldInputWatch;                        // the held lines, published here, taken by the CPU thread
-    std::atomic<bool>             m_isResumeOwedAfterHeldRead = false;     // a replay stopped at a held read was running
-    size_t                        m_pasteLengthBeforeHold     = 0;         // the paste buffer before a paste held behind live
-    bool                          m_isJoyportSyncOwed         = false;     // a players' change made behind live, for the Joyport once live
-    DeferredHistoryEdits          m_deferredEdits;
-    std::mutex                    m_replayCaptionMutex;
-    std::wstring                  m_replayCaption;                 // " [Replaying @ ...]" behind live, else empty
-
-    // Reverse execution's history of this machine, recording while a machine
-    // is built; null until the CPU thread first starts it. The stop test is
-    // the debugger's, for reverse continue, or null. CPU thread only.
-    std::unique_ptr<ReverseHost>  m_reverseHost;
+    // Reverse continue's stop test, the debugger's, or null. CPU thread only.
     IReverseStopTest            * m_reverseStopTest       = nullptr;
-    bool                          m_isReverseOn           = false;   // the settings, read when the CPU thread starts and changed by Tools > Options
-    bool                          m_isNetworkFenced       = false;   // the Uthernet II was in use at the last check, so history is off
-    int                           m_reverseBudgetMb       = 0;
-    int                           m_reverseIntervalFrames = 0;
-    std::optional<ReverseOutcome> m_lastReverseOutcome;                // the last reverse command's, for the history band
-    uint64_t                      m_lastReversePosition   = 0;       // where it landed
-
-    // Pictures of history for the debugger's timeline, drawn on a scratch
-    // machine of the running one's configuration. The renderer is declared
-    // first, so it outlives the pictures drawing through it.
-    ScratchMachineRenderer        m_historyRenderer;
-    HistoryThumbnails             m_historyThumbnails     { m_historyRenderer };
 
     // The fading heat map's rebuilds after a move through history, replayed
     // on a scratch machine of its own. Declared before the debugger, whose
@@ -475,11 +383,9 @@ private:
     void            AddConsoleLines     (const std::vector<std::string> & lines);
     void            PublishProject      ();
 
-    bool            TryPublishHistoryPlayhead();
     void            SyncHeatHistory         (bool isAttached);
     void            ServiceCallHistory();
     void            ServiceEventLogs();
-    void            FenceHistoryForNetwork();
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.
@@ -536,10 +442,4 @@ private:
     // The debugger's mark of where the beam is, drawn over the picture
     // while the debugger has the machine stopped.
     atomic<bool>                  m_isBeamOverlayOn{false};
-    atomic<bool>                  m_isReplayingHistory{false};      // set by the CPU thread while a reverse command runs
-    atomic<uint64_t>              m_replayStartedAt{0};             // the tick count the running reverse command began at
-    ReplayControl                 m_replayControl;                  // the running command's progress, and the UI thread's request to stop it
-    atomic<uint64_t>              m_seekCyclePosted{UINT64_MAX};    // the cycle the timeline last asked a seek to
-    atomic<uint64_t>              m_seekCyclePostedAt{0};           // the tick count it asked at
-    atomic<uint64_t>              m_seekCycleLanded{UINT64_MAX};    // the cycle the last seek to a cycle the CPU thread ran asked for
 };

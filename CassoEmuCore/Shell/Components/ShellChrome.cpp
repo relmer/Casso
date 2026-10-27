@@ -4,6 +4,7 @@
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellDeskScene.h"
 #include "Ui/ThemeManager.h"
@@ -1573,7 +1574,7 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
         case Apple2cSwitchBar::Part::EightyForty:
             // The guest reads this switch, so behind live it asks first.
-            m_shell.m_debugger->ToggleEightyColumnSwitch (iieKbd);
+            m_shell.m_history->ToggleEightyColumnSwitch (iieKbd);
             break;
 
         case Apple2cSwitchBar::Part::Keyboard:

@@ -16,7 +16,7 @@ class IControllerBackend;
 class IInputHost;
 class JsonValue;
 class MachineHost;
-class ShellDebugger;
+class ShellHistory;
 
 
 
@@ -40,7 +40,7 @@ class ShellInput
 {
 public:
 
-    ShellInput (IInputHost & host, MachineHost & machine, ShellDebugger & debugger);
+    ShellInput (IInputHost & host, MachineHost & machine, ShellHistory & history);
     ~ShellInput();
 
     // The game port's sink and the controller stack, brought up once the
@@ -236,7 +236,7 @@ private:
 
     IInputHost     & m_host;
     MachineHost    & m_machine;
-    ShellDebugger  & m_debugger;
+    ShellHistory   & m_history;
 
     // How the host's arrow keys and pointer stand in for the game port, and
     // whether the players' modes were saved before this launch, which marks

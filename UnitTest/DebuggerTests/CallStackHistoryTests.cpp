@@ -1236,13 +1236,13 @@ namespace DebuggerTests
 
             RunTo (rig.base.machine, kGapStart);
 
-            hr = rig.controller.SetUserMaximumSpeed (true);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed on");
+            hr = rig.controller.SetRecordingPaused (true);
+            AssertSucceeded (hr, L"SetRecordingPaused on");
 
             RunTo (rig.base.machine, kGapEnd);
 
-            hr = rig.controller.SetUserMaximumSpeed (false);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed off");
+            hr = rig.controller.SetRecordingPaused (false);
+            AssertSucceeded (hr, L"SetRecordingPaused off");
 
             RunTo (rig.base.machine, kAttachAt);
 
@@ -1834,13 +1834,13 @@ namespace DebuggerTests
             Assert::IsFalse (rig.controller.IsInHistory(), L"live again");
             Assert::IsTrue  (rig.history.IsRebuilding(),   L"its record being rebuilt");
 
-            hr = rig.controller.SetUserMaximumSpeed (true);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed on");
+            hr = rig.controller.SetRecordingPaused (true);
+            AssertSucceeded (hr, L"SetRecordingPaused on");
 
             RunTo (rig.base.machine, kFarAhead + kGapLength);
 
-            hr = rig.controller.SetUserMaximumSpeed (false);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed off");
+            hr = rig.controller.SetRecordingPaused (false);
+            AssertSucceeded (hr, L"SetRecordingPaused off");
 
             gapEnd = rig.base.machine.GetPosition();
 
@@ -1883,13 +1883,13 @@ namespace DebuggerTests
 
             RunTo (rig.base.machine, kGapStart);
 
-            hr = rig.controller.SetUserMaximumSpeed (true);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed on");
+            hr = rig.controller.SetRecordingPaused (true);
+            AssertSucceeded (hr, L"SetRecordingPaused on");
 
             RunTo (rig.base.machine, kGapEnd);
 
-            hr = rig.controller.SetUserMaximumSpeed (false);
-            AssertSucceeded (hr, L"SetUserMaximumSpeed off");
+            hr = rig.controller.SetRecordingPaused (false);
+            AssertSucceeded (hr, L"SetRecordingPaused off");
 
             RunTo (rig.base.machine, kFarAhead);
             rig.Attach();

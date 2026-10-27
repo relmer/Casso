@@ -90,7 +90,7 @@ CassoEmuCore/
 ├── Debugger/HeatHistory.cpp, CallStackHistory.cpp       # follow PathChanged
 ├── Shell/DebugEventLogs.cpp                             # follows PathChanged
 ├── Config/GlobalUserPrefs.h/.cpp, DebuggerSettings.h    # HistorySettings, the old keys read
-├── Ui/Settings/GeneralPage*.h/.cpp                      # the History group
+├── Ui/Settings/SettingsSheet.h/.cpp                     # the History page
 ├── Ui/Debugger/HistoryOptionsPage.h/.cpp                # the same settings
 ├── Ui/Chrome/EmulatorCommands.cpp, resource.h           # the History menu
 └── Devices/Disk/DiskImageStore.h/.cpp                   # after 041 only: branch versions, pruning (R-011)

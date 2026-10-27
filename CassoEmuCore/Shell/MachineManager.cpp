@@ -6,6 +6,7 @@
 #include "Shell/AutoStatePolicy.h"
 #include "Shell/EmulatorShell.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/Components/ShellWindow.h"
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
@@ -434,7 +435,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // Reverse execution's history belongs to the machine being left, whose
     // devices are about to go; stopping it also lets the flush below write.
-    m_shell.m_debugger->StopReverseRecording();
+    m_shell.m_history->StopRecording();
 
     // Auto-flush every dirty disk before tearing down the previous
     // machine so user writes survive the machine switch.
@@ -593,7 +594,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     // The new machine's history starts here, built, power cycled and with
     // its disks in.
-    m_shell.m_debugger->StartReverseRecording();
+    m_shell.m_history->StartRecording();
 
     // Same rule as the color mode: a machine with no saved speed gets the
     // default, never the outgoing machine's.

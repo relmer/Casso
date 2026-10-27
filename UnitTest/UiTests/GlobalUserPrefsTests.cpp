@@ -214,6 +214,49 @@ public:
     }
 
 
+    //  The history settings are general preferences under the keys the
+    //  debugger's options used, so builds that share the file read the same
+    //  settings.
+    TEST_METHOD (HistorySettings_DefaultsRoundTripAndClamp)
+    {
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     defaults;
+        GlobalUserPrefs     orig;
+        GlobalUserPrefs     loaded;
+        GlobalUserPrefs     clamped;
+        HRESULT             hr       = S_OK;
+
+
+
+        Assert::IsTrue (defaults.history.isRecording, L"history is on by default");
+        Assert::AreEqual (HistorySettings::kDefaultBudgetMb, defaults.history.budgetMb);
+        Assert::AreEqual (HistorySettings::kDefaultFrames,   defaults.history.intervalFrames);
+
+        orig.history.isRecording    = false;
+        orig.history.budgetMb       = 128;
+        orig.history.intervalFrames = 4;
+
+        hr = orig.Save (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        hr = loaded.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsTrue (loaded.history == orig.history, L"the settings round trip");
+        Assert::IsTrue (loaded.unknownPassthrough.empty(), L"their keys are known keys");
+
+        hr = fs.WriteAllText (L"C:\\Casso\\UserPrefs.json", "{ \"reverseRecording\": false, \"reverseBudgetMb\": 0, \"reverseIntervalFrames\": 100000 }");
+        AssertSucceeded (hr);
+
+        hr = clamped.Load (L"C:\\Casso", fs);
+        AssertSucceeded (hr);
+
+        Assert::IsFalse  (clamped.history.isRecording, L"the debugger options' key is read");
+        Assert::AreEqual (HistorySettings::kMinBudgetMb,       clamped.history.budgetMb,       L"a budget below the least clamps up");
+        Assert::AreEqual (HistorySettings::kMaxIntervalFrames, clamped.history.intervalFrames, L"an interval past the most clamps down");
+    }
+
+
     TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
     {
         // Regression (013 #8): "Restore defaults" left a previously-picked

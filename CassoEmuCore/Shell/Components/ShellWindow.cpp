@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 
 #include "Shell/Components/ShellWindow.h"
 #include "Shell/EmulatorShell.h"
@@ -601,7 +602,7 @@ void ShellWindow::UpdateWindowTitle()
     }
 
     // Behind live, where the replay stands.
-    title += m_shell.m_debugger->GetReplayCaption();
+    title += m_shell.m_history->GetReplayCaption();
 
 #if defined (_DEBUG)
     // Dev builds stamp the exact binary identity (version, arch, compile

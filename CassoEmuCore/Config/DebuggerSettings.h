@@ -10,29 +10,16 @@
 //
 //  DebuggerSettings
 //
-//  What the debugger keeps between sessions: reverse execution's history,
-//  and the debugger window's scheme, theme, arrangement and views. The
-//  emulator's preferences hold one and load and save it with the rest, under
-//  the same keys as before; the debugger reads and changes it through a
-//  reference and asks its host to save.
+//  What the debugger saves between sessions: the debugger window's scheme,
+//  theme, arrangement and views. The emulator's preferences hold one and
+//  load and save it with the rest, under the same keys as before; the
+//  debugger reads and changes it through a reference and asks its host to
+//  save.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct DebuggerSettings
 {
-    // REVERSE EXECUTION'S HISTORY, read when the emulator starts. Recording
-    // is on unless turned off here; the budget is the memory the keyframes
-    // may hold, and the interval is how many video frames apart they are
-    // taken. A step back replays at most one interval. The budget's upper
-    // limit is the Options sheet's, from the memory available; a value above
-    // kMaxReverseBudgetMb is invalid on any machine.
-    static constexpr int  kMinReverseBudgetMb       = 1;
-    static constexpr int  kMaxReverseBudgetMb       = 1024 * 1024;
-    static constexpr int  kMaxReverseIntervalFrames = 600;
-
-    bool         reverseRecording         = true;
-    int          reverseBudgetMb          = 64;
-    int          reverseIntervalFrames    = 10;
 
     // The debugger window's keyboard scheme, by name: "VisualStudio",
     // "AppleWin" or "GSSquared". Stored as the name so a reordering of the

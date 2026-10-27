@@ -30,6 +30,9 @@ class PrintingPage;
 class DiskPage;
 class ScreenshotsPage;
 class SerialCardPage;
+class HistoryOptionsPage;
+struct HistorySettings;
+struct ReverseOptions;
 
 
 
@@ -109,6 +112,10 @@ protected:
     //  "Apply now" theme. Ordering is load-bearing -- see SettingsApplyController.
     HRESULT  OnOk     () override;
     void     OnCancel () override;
+
+    //  The History page's settings, as the page edits them, and saved on OK.
+    static ReverseOptions  MakeHistoryOptions   (const HistorySettings & settings);
+    void                   CommitHistoryOptions ();
 
     //  Re-evaluate the "OK" / "OK (reboot)" label each dialog tick so it
     //  tracks machine-dropdown + hardware edits (FR-131).
@@ -256,16 +263,17 @@ private:
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine
     // selector + CPU speed + hardware spec + device tree, GH #84).
-    GeneralPage      * m_generalPage     = nullptr;
-    HardwarePage     * m_hardwarePage    = nullptr;
-    DiskPage         * m_diskPage        = nullptr;
-    ThemePage        * m_themePage       = nullptr;
-    DisplayPage      * m_displayPage     = nullptr;
-    PrintingPage     * m_printingPage    = nullptr;
-    SerialCardPage   * m_serialPage      = nullptr;
-    NetworkPage      * m_networkPage     = nullptr;
-    ScreenshotsPage  * m_shotsPage       = nullptr;
-    ControllersPage  * m_controllersPage = nullptr;
+    GeneralPage        * m_generalPage     = nullptr;
+    HistoryOptionsPage * m_historyPage     = nullptr;
+    HardwarePage       * m_hardwarePage    = nullptr;
+    DiskPage           * m_diskPage        = nullptr;
+    ThemePage          * m_themePage       = nullptr;
+    DisplayPage        * m_displayPage     = nullptr;
+    PrintingPage       * m_printingPage    = nullptr;
+    SerialCardPage     * m_serialPage      = nullptr;
+    NetworkPage        * m_networkPage     = nullptr;
+    ScreenshotsPage    * m_shotsPage       = nullptr;
+    ControllersPage    * m_controllersPage = nullptr;
 
     // What the Controllers page edits. Held by the sheet, beside the other
     // page state, so the apply controller can commit or revert it.

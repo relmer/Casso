@@ -237,16 +237,15 @@ void ReverseController::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetUserMaximumSpeed
+//  SetRecordingPaused
 //
-//  The user chose Maximum speed, or left it. Recording pauses at Maximum:
-//  where the machine stands is the end of what history holds, until a
-//  keyframe taken where recording resumes starts the next part, marked as
-//  following a gap. A speed raised automatically must not come here.
+//  Recording pauses, or resumes. While paused, the machine's position is
+//  the end of history, until a keyframe taken where recording resumes
+//  starts the next part, marked as following a gap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ReverseController::SetUserMaximumSpeed (bool isMaximum)
+HRESULT ReverseController::SetRecordingPaused (bool isPaused)
 {
     HRESULT   hr       = S_OK;
     uint64_t  gapStart = m_pauseStart;
@@ -254,13 +253,13 @@ HRESULT ReverseController::SetUserMaximumSpeed (bool isMaximum)
 
 
 
-    BAIL_OUT_IF (isMaximum == m_isPaused, S_OK);
+    BAIL_OUT_IF (isPaused == m_isPaused, S_OK);
 
-    m_isPaused = isMaximum;
+    m_isPaused = isPaused;
 
     BAIL_OUT_IF (!m_isRecording || !m_isLive, S_OK);
 
-    if (isMaximum)
+    if (isPaused)
     {
         BecomeLive();
         BAIL_OUT_IF (true, S_OK);

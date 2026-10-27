@@ -408,7 +408,7 @@ namespace EmulatorDebugWiringTests
                             L"the run takes full speed");
             Assert::IsTrue (rig.cpuManager.GetUserSpeedMode() == SpeedMode::Double,
                             L"as an automatic change, which leaves the speed the user chose");
-            Assert::IsFalse (rig.cpuManager.IsUserMaximumSpeed(), L"so history keeps recording");
+            Assert::IsFalse (rig.cpuManager.IsUserMaximumSpeed(), L"and not as the user's Maximum");
 
             rig.driver.Pause();
             rig.driver.OnPausePointReached (0);

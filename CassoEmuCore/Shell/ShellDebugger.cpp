@@ -2,6 +2,7 @@
 
 #include "Shell/IDebuggerHost.h"
 #include "Shell/ShellDebugger.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/CpuManager.h"
 
 #include "Config/WindowPlacementProfile.h"
@@ -33,11 +34,17 @@ static constexpr uint32_t  s_kWindowClientId = 0;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ShellDebugger::ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuManager & cpuManager, DebuggerSettings & settings) :
+ShellDebugger::ShellDebugger (
+    IDebuggerHost     & host,
+    MachineHost       & machine,
+    CpuManager        & cpuManager,
+    DebuggerSettings  & settings,
+    ShellHistory      & history) :
     m_host       (host),
     m_machine    (machine),
     m_cpuManager (cpuManager),
-    m_settings   (settings)
+    m_settings   (settings),
+    m_history    (history)
 {
 }
 
@@ -51,7 +58,10 @@ ShellDebugger::ShellDebugger (IDebuggerHost & host, MachineHost & machine, CpuMa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ShellDebugger::~ShellDebugger() = default;
+ShellDebugger::~ShellDebugger()
+{
+    m_history.SetClient (nullptr);
+}
 
 
 
@@ -66,21 +76,6 @@ ShellDebugger::~ShellDebugger() = default;
 IHostDialogs & ShellDebugger::GetHostDialogs() noexcept
 {
     return m_host.GetHostDialogs();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellDebugger::IsBehindLiveForUi
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDebugger::IsBehindLiveForUi()
-{
-    return m_machine.GetHostInputGate().IsHeld();
 }
 
 
@@ -321,49 +316,6 @@ void ShellDebugger::SetDebuggerTheme (const std::string & name)
 {
     m_settings.theme = name;
     m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetReverseOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-ReverseOptions ShellDebugger::GetReverseOptions()
-{
-    ReverseOptions  options;
-
-
-
-    options.isRecording = m_settings.reverseRecording;
-    options.budgetMb    = m_settings.reverseBudgetMb;
-    return options;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetReverseOptions
-//
-//  Saved, and posted to the CPU thread, which owns the reverse host and
-//  applies them at once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetReverseOptions (const ReverseOptions & options)
-{
-    m_settings.reverseRecording = options.isRecording;
-    m_settings.reverseBudgetMb  = options.budgetMb;
-    m_host.SaveSettings();
-
-    m_host.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (options.isRecording, options.budgetMb));
 }
 
 
@@ -1902,7 +1854,7 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
     HeatLastAccess   access;
     HeatAccessState  state       = HeatAccessState::None;
     HeatAccessPlan   plan;
-    bool             isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
+    bool             isRecording = m_history.IsRecording();
     uint64_t         oldest      = 0;
 
 
@@ -1919,7 +1871,7 @@ void ShellDebugger::RunDebugHeatMapAccess (const HeatAccessRequest & request)
 
     if (isRecording)
     {
-        oldest = m_reverseHost->GetController().GetOldestPosition();
+        oldest = m_history.GetReverseHost()->GetController().GetOldestPosition();
     }
 
     plan = HeatAccessJump::Plan (request, state, access, isRecording, oldest);
@@ -2106,7 +2058,7 @@ void ShellDebugger::GatherDebugView (DebugViewInput & input, DebuggerViewSnapsho
 
 
     m_debugViewState.BuildLive (session, live, isPaused);
-    live.history     = GetHistoryStatus();
+    live.history     = m_history.GetStatus();
     live.dataBlocks  = session.GetDataBlocks().GetAll();
     live.stepFilters = session.GetStepFilter().GetEntries();
     live.isProfiling     = m_debugController->GetHandlers().GetExecution().IsProfiling();
@@ -2407,9 +2359,9 @@ void ShellDebugger::ServiceDebugger()
     }
 
     // A debugger edit can make a paused machine live again.
-    if (m_reverseHost != nullptr)
+    if (m_history.GetReverseHost() != nullptr)
     {
-        m_reverseHost->SyncInputGate();
+        m_history.GetReverseHost()->SyncInputGate();
     }
 }
 
@@ -2449,13 +2401,13 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
 
     m_debugController->GetSession().SetReverseRequester ([this] (ReverseCommand command)
     {
-        bool  isRecording = m_reverseHost != nullptr && m_reverseHost->IsRecording();
+        bool  isRecording = m_history.IsRecording();
 
 
 
         if (isRecording)
         {
-            PostReverseCommand (command);
+            m_history.PostCommand (command);
         }
 
         return isRecording;
@@ -2465,7 +2417,7 @@ void ShellDebugger::AttachDebugger (std::unique_ptr<DebuggerController> controll
     //  File menu's commands do, and run there between instructions.
     m_debugController->GetSession().SetHistoryGuard ([this] (const DebugCommand & command)
     {
-        return GuardHistoryEdit (command);
+        return m_history.GuardEdit (command);
     });
 
     m_debugController->GetSession().SetStateFileRequester ([this] (StateFileRequest request, const std::wstring & path)

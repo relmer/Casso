@@ -20,8 +20,8 @@ struct HistoryStatus;
 //
 //  Reverse execution as the running emulator holds it: one controller over
 //  the machine, recording from when a machine is built until it is torn
-//  down, paused while the user has chosen Maximum speed, and moved through
-//  history by commands. Everything here runs on the CPU thread.
+//  down, at every speed, and moved through history by commands. Everything
+//  here runs on the CPU thread.
 //
 //  While the machine is behind live, the host input gate is held, so input
 //  from the UI and controller threads cannot reach a recorded position or a
@@ -40,7 +40,7 @@ public:
 
     HRESULT  StartRecording (const ReverseSettings & settings);
     void     StopRecording  ();
-    HRESULT  OnFrame        (bool isUserMaximumSpeed);
+    HRESULT  OnFrame        ();
     void     SyncInputGate  ();
     HRESULT  Execute        (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
     HRESULT  Diverge        ();

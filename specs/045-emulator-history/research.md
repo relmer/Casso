@@ -88,7 +88,7 @@ During the `VERIFY` loop, history grew by 36.6 MB in 60 emulated seconds, about 
 
 ## R-007: Recording at Maximum speed
 
-**Decision**: recording continues at every speed (FR-008b). `ReverseHost::OnFrame` no longer passes `CpuManager::IsUserMaximumSpeed` to the controller, and `ReverseController::SetUserMaximumSpeed`, `m_isPaused` and `m_pauseStart` are removed. The gap code (`KeyframeInfo::hasGapBefore`, `MarkNewestGap`, `ReverseOutcome::AtHistoryGap`) stays, for R-010's saved history whose disks no longer match. `SpeedChooser` stays only if code other than history reads it; a task checks.
+**Decision**: recording continues at every speed (FR-008b). `ReverseHost::OnFrame` and `ShellHistory::RecordFrame` take no speed, so nothing pauses recording at Maximum. The controller's pause stays as `SetRecordingPaused`, since gaps remain (R-010) and the gap tests use it to make them. `SpeedChooser` stays: `CpuManager` and its callers read it beyond history.
 
 **Cost**: at Maximum, history grows per emulated second as at 1x; 035's test runs 4.9% slower with history on than off (R-001). R-002 is the case to watch.
 
@@ -154,7 +154,7 @@ During the `VERIFY` loop, history grew by 36.6 MB in 60 emulated seconds, about 
 
 ## R-012: Settings
 
-**Decision**: the history settings (on or off, budget, keyframe interval) move from `DebuggerSettings` to a `HistorySettings` member of `GlobalUserPrefs`, under new JSON keys `historyRecording`, `historyBudgetMb` and `historyIntervalFrames`. A preferences file with the old `reverseRecording`, `reverseBudgetMb` and `reverseIntervalFrames` keys and none of the new ones loads from the old ones. Settings > General gains a History group (FR-008), and the debugger's `HistoryOptionsPage` edits the same settings.
+**Decision**: the history settings (on or off, budget, keyframe interval) move from `DebuggerSettings` to a `HistorySettings` member of `GlobalUserPrefs` (`CassoEmuCore/Config/HistorySettings.h`), under the JSON keys they have today, `reverseRecording`, `reverseBudgetMb` and `reverseIntervalFrames`: several builds share one preferences file, and with new keys a build that reads the old ones would go on recording after another turned history off. The debugger's `HistoryOptionsPage` is the History page of the Settings sheet as well (FR-008), so both edit the same settings through one page, which gains a keyframe interval slider; a new interval applies from the next start of history, since a keyframe schedule changed partway through history would mix two.
 
 **Turning history off (FR-026)**: either page first displays a confirmation dialog whose text specifies that all of the machine's history, in memory and saved, will be deleted. On confirmation, recording stops, the store is cleared, and the next save writes no history section. After a cancel, the setting is on.
 

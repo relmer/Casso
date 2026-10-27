@@ -85,18 +85,16 @@ public:
     }
 
 
-    //  The user's Maximum speed pauses recording, so no keyframe is taken
-    //  while the machine runs there, and leaving it resumes with a keyframe
-    //  marked as following a gap. The debugger's own full-speed run is an
-    //  automatic raise and records on.
-    TEST_METHOD (OnlyAMaximumSpeedTheUserChosePausesRecording)
+    //  Recording continues at every speed: at a Maximum the user chose, as
+    //  at an automatic one, keyframes are taken and no gap is marked.
+    TEST_METHOD (RecordingContinuesAtMaximumSpeed)
     {
         TestMachine   machine ("Apple2e");
         ReverseHost   host    (machine);
         CpuManager    cpu;
         HRESULT       hr      = S_OK;
         size_t        count   = 0;
-        KeyframeInfo  resumed;
+        size_t        i       = 0;
 
 
 
@@ -107,39 +105,22 @@ public:
 
         machine.RunCycles (s_kHostWarmupCycles);
 
-        cpu.SetSpeedMode (SpeedMode::Maximum, SpeedChooser::Automatic);
-
-        hr = host.OnFrame (cpu.IsUserMaximumSpeed());
-        AssertSucceeded (hr, L"OnFrame at an automatic Maximum");
-
-        Assert::IsFalse (host.GetController().IsPaused(), L"an automatic raise keeps recording");
-
-        count = host.GetController().GetKeyframes().GetCount();
-        machine.RunCycles (s_kHostGapCycles);
-
-        Assert::IsTrue (host.GetController().GetKeyframes().GetCount() > count, L"keyframes are taken at an automatic Maximum");
-
         cpu.SetSpeedMode (SpeedMode::Maximum, SpeedChooser::User);
 
-        hr = host.OnFrame (cpu.IsUserMaximumSpeed());
+        hr = host.OnFrame();
         AssertSucceeded (hr, L"OnFrame at the user's Maximum");
 
-        Assert::IsTrue (host.GetController().IsPaused(), L"the user's Maximum pauses recording");
+        Assert::IsFalse (host.GetController().IsPaused(), L"the user's Maximum does not pause recording");
 
         count = host.GetController().GetKeyframes().GetCount();
         machine.RunCycles (s_kHostGapCycles);
 
-        Assert::AreEqual (count, host.GetController().GetKeyframes().GetCount(), L"no keyframe while paused");
+        Assert::IsTrue (host.GetController().GetKeyframes().GetCount() > count, L"keyframes are taken at the user's Maximum");
 
-        cpu.SetSpeedMode (SpeedMode::Authentic, SpeedChooser::User);
-
-        hr = host.OnFrame (cpu.IsUserMaximumSpeed());
-        AssertSucceeded (hr, L"OnFrame back at 1x");
-
-        resumed = host.GetController().GetKeyframes().GetInfo (host.GetController().GetKeyframes().GetCount() - 1);
-
-        Assert::IsFalse (host.GetController().IsPaused(), L"recording resumed");
-        Assert::IsTrue  (resumed.hasGapBefore, L"the keyframe where it resumed follows a gap");
+        for (i = 0; i < host.GetController().GetKeyframes().GetCount(); i++)
+        {
+            Assert::IsFalse (host.GetController().GetKeyframes().GetInfo (i).hasGapBefore, L"and no keyframe follows a gap");
+        }
     }
 
 
