@@ -159,6 +159,7 @@
     </ClCompile>
     <ClCompile Include="UiTests\DialogBodyContentTests.cpp" />
     <ClCompile Include="UiTests\StoragePageTests.cpp" />
+    <ClCompile Include="UiTests\DialogOwnerTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecorderTests.cpp" />
     <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
     <ClCompile Include="UiTests\TapeDeckWidgetTests.cpp" />
@@ -770,7 +771,6 @@
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
     <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
-    <ClCompile Include="UiTests\DialogBodyContentTests.cpp" />
     <ClCompile Include="UiTests\SerialCardPageTests.cpp" />
     <ClCompile Include="UiTests\SscSettingsModelTests.cpp" />
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />

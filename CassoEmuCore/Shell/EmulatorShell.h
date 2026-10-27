@@ -509,6 +509,11 @@ public:
 
     void  SetKeyOwnerFn (KeyOwnerFn fn)  { m_keyOwnerFn = std::move (fn); }
 
+    //  The window a modal goes over: the top-level window that owns the
+    //  foreground window when that is an enabled window of this thread, such
+    //  as the debugger window, else the fallback, the emulator window.
+    static HWND  ChooseDialogOwner (HWND foreground, HWND fallback);
+
 private:
 
     // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
