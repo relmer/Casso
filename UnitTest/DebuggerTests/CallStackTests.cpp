@@ -116,9 +116,12 @@ namespace DebuggerTests
         //  runs in one machine and by free runs in another, is the same.
         static void AssertFreeRunRecordsTheSame (const char * start, const std::vector<std::string> & labels)
         {
-            Rig      stepped;
-            Rig      running;
-            Program  program = Load (stepped, start);
+            //  Two rigs are more than code analysis allows a function's stack.
+            std::unique_ptr<Rig>  steppedOwner = std::make_unique<Rig>();
+            std::unique_ptr<Rig>  runningOwner = std::make_unique<Rig>();
+            Rig                 & stepped      = *steppedOwner;
+            Rig                 & running      = *runningOwner;
+            Program               program      = Load (stepped, start);
 
 
 
