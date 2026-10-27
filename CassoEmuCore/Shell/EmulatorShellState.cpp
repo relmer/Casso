@@ -366,6 +366,29 @@ std::filesystem::path EmulatorShell::GetAutoStatePath() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StopCpuThreadAndSaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::StopCpuThreadAndSaveState()
+{
+    m_cpuManager.Stop();
+
+    // The CPU thread released the disk store's token as it stopped. Where it
+    // never started, the token is this thread's already, and claiming again
+    // changes nothing.
+    m_machine.ClaimDiskOwnership();
+
+    // The machine is quiet once the CPU thread has stopped. The window is
+    // being destroyed, so a failed write is reported in a system box.
+    SaveAutoState (true);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SaveAutoState
 //
 //  The thread that owns the machine: the CPU thread on a switch, the UI

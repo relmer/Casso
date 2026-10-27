@@ -1216,11 +1216,7 @@ void EmulatorShell::OnDestroy()
     // sidecar. Loss on abnormal termination is acceptable per the spec.
     m_printer->StopAndSavePendingStrip();
 
-    m_cpuManager.Stop();
-
-    // The machine is quiet once the CPU thread has stopped. The window is
-    // being destroyed, so a failed write is reported in a system box.
-    SaveAutoState (true);
+    StopCpuThreadAndSaveState();
 
     // IDxuiHostClient::OnDestroy is notification-only — the host
     // does NOT call PostQuitMessage. EmulatorShell is the

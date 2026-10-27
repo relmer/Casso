@@ -338,6 +338,11 @@ public:
     std::filesystem::path  GetAutoStatePath         () const;
     void                   SaveAutoState            (bool isExiting = false);
     void                   ResumeAutoState          (bool isStartup);
+
+    // At exit, on the window thread: stop the CPU thread, claim the disk
+    // store's token, which OnCpuThreadStop released, and save the automatic
+    // state, which reads every drive.
+    void                   StopCpuThreadAndSaveState ();
     void                   PromptToReplaceAutoState ();
 
     // The folder of the automatic states, the user's state folder when
