@@ -29,7 +29,7 @@ Every entry was checked against the code on `045-emulator-history` at `476d7707e
 
 ## R-002: History grows fast while a disk turns
 
-**Status**: measured 2026-10-25; the cause is open, and a task investigates it.
+**Status**: measured 2026-10-25; cause found and fixed 2026-10-26 (T003, T004).
 
 During the `VERIFY` loop, history grew by 36.6 MB in 60 emulated seconds, about 600 KB per emulated second: at the 64 MB default, under two minutes of history. The other workloads grew by 0.6 MB to 1.5 MB in the same time. 035 measured 24 KB to 70 KB per second on its write and hi-res workloads (R-040, "Measured 2026-10-03" and "Measured again 2026-10-13"), so a turning disk costs about ten times the busiest of those.
 
@@ -37,7 +37,11 @@ During the `VERIFY` loop, history grew by 36.6 MB in 60 emulated seconds, about 
 
 **Likely cause, to confirm**: each keyframe packs to about 100 KB, the size of a whole snapshot, so either the group restarts on every keyframe or the differences are large. `KeyframeStore` starts a new group when a snapshot's size differs from its group's whole snapshot; a Disk II or nibble engine state whose serialized size depends on the motor or the read position would cause it.
 
-**Decision**: a task counts the whole snapshots and their sizes over the `VERIFY` loop, finds which section changes size or content, and fixes it if it is a defect. The fix lands in 045 if it is in history code, or goes to 035 if it is in a device's state.
+**Cause**: the Disk II address-mark watcher (`Disk2AddressMarkWatcher`, section `D2AM` in the Disk II's `DSK2`) saved only the nibbles of each data field read or written so far, so its saved size followed the head's progress through a field, from 82 to 421 bytes. A keyframe whose size differs from its group's whole snapshot starts a new group, so while a disk turned, 101 of 121 keyframes in 20 emulated seconds were whole snapshots of about 118 KB each.
+
+**Fix**: section version 4 saves each field's whole buffer, the nibbles so far then zeros, so the size is constant; versions 3 and older load as before the change. In the same 20 seconds, 121 keyframes are taken, 1 of them whole, in 657 KB. Over 60 seconds, history grows by 1.1 MB to 1.3 MB during the `VERIFY` loop, against 36.6 MB before: about 20 KB per emulated second. `SavedState_isOneSizeWhateverTheFieldsProgress` covers it, and fails without the fix (88 bytes saved idle against 282 with fields in progress).
+
+**Decision**: the fix is a 035 device's state, so it is a candidate for 035 too; it is in 045 now, since history depends on it.
 
 ## R-003: Where history lives
 

@@ -557,13 +557,27 @@ void Disk2AddressMarkWatcher::StepWriteState (uint8_t nibble) noexcept
 //
 //  SaveField
 //
+//  The field's state, its count, and its whole buffer: the nibbles read so
+//  far, then zeros. The saved size is the same whatever the field's
+//  progress, so successive keyframes of a turning disk keep one size and
+//  pack as differences against their group's whole snapshot.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Disk2AddressMarkWatcher::SaveField (StateWriter & writer, const DataField & field)
 {
+    uint32_t  i = 0;
+
+
+
     writer.WriteByte   ((Byte) field.state);
     writer.WriteUInt32 (field.count);
     writer.WriteBytes  (field.nibbles.data(), field.count);
+
+    for (i = field.count; i < kMaxFieldNibbles; i++)
+    {
+        writer.WriteByte (0);
+    }
 
     return S_OK;
 }
@@ -578,11 +592,12 @@ HRESULT Disk2AddressMarkWatcher::SaveField (StateWriter & writer, const DataFiel
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Disk2AddressMarkWatcher::LoadField (StateReader & reader, DataField & field)
+HRESULT Disk2AddressMarkWatcher::LoadField (StateReader & reader, DataField & field, uint16_t version)
 {
     HRESULT   hr    = S_OK;
     Byte      state = 0;
     uint32_t  count = 0;
+    uint32_t  saved = 0;
 
 
 
@@ -591,7 +606,12 @@ HRESULT Disk2AddressMarkWatcher::LoadField (StateReader & reader, DataField & fi
 
     CBREx (state <= (Byte) FieldState::Body && count <= kMaxFieldNibbles, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-    reader.ReadBytes (field.nibbles.data(), count);
+    // From version 4 the whole buffer is saved, zeros past count, so the
+    // state is the same size whatever the field's progress.
+    saved = (version >= kFixedFieldVersion) ? kMaxFieldNibbles : count;
+
+    field.nibbles.fill (0);
+    reader.ReadBytes (field.nibbles.data(), saved);
 
     field.state = (FieldState) state;
     field.count = count;
@@ -720,7 +740,7 @@ HRESULT Disk2AddressMarkWatcher::LoadState (StateReader & reader)
         reader.ReadBool   (loaded.m_isAddressPending);
         reader.ReadBool   (loaded.m_isGapSinceAddress);
 
-        hr = LoadField (reader, loaded.m_read);
+        hr = LoadField (reader, loaded.m_read, version);
         CHR (hr);
 
         reader.ReadUInt32 (readTrack);
@@ -728,7 +748,7 @@ HRESULT Disk2AddressMarkWatcher::LoadState (StateReader & reader)
         reader.ReadUInt32 (readVolume);
         reader.ReadBool   (loaded.m_isReadOrphan);
 
-        hr = LoadField (reader, loaded.m_write);
+        hr = LoadField (reader, loaded.m_write, version);
         CHR (hr);
 
         reader.ReadUInt64 (loaded.m_lastCycle);

@@ -31,8 +31,8 @@
 
 - [X] T001 Add `ScenarioTests/HistoryCostTests.cpp` to `ScenarioTests/ScenarioTests.vcxproj` and record R-001's measurement in `specs/045-emulator-history/research.md` (done 2026-10-25, `b6f6b41dd`)
 - [X] T002 Merge `origin/035-debugger` into `045-emulator-history` (merge, never rebase), resolve conflicts, build Debug and Release, run `scripts/RunTests.ps1 -Build`, and push; record the merged 035 commit here (done: `a7c88fa4d` merged at `27938b4dc`, Release suite passed)
-- [ ] T003 R-002: in a scratch test beside `ScenarioTests/HistoryCostTests.cpp`, run the `VERIFY HELLO` loop for 60 emulated seconds and log, per keyframe, `isWhole`, `stateBytes` and `storedBytes`; then diff two consecutive states section by section (`StateWriter` tags) to find which section changes size or content; record the cause and the decision in research.md R-002
-- [ ] T004 R-002 follow-up: if T003 finds a defect in history code (`CassoEmuCore/Debugger/Reverse/KeyframeStore.cpp`), fix it with a regression test in `UnitTest/EmuTests/KeyframeStoreTests.cpp`; if it is in a device's state, write the finding up for 035 in `specs/045-emulator-history/research.md` R-002 and tell the owner; then rerun `HistoryCostTests` and update R-001's table
+- [X] T003 R-002: in a scratch test beside `ScenarioTests/HistoryCostTests.cpp`, run the `VERIFY HELLO` loop for 60 emulated seconds and log, per keyframe, `isWhole`, `stateBytes` and `storedBytes`; then diff two consecutive states section by section (`StateWriter` tags) to find which section changes size or content; record the cause and the decision in research.md R-002
+- [X] T004 R-002 follow-up: if T003 finds a defect in history code (`CassoEmuCore/Debugger/Reverse/KeyframeStore.cpp`), fix it with a regression test in `UnitTest/EmuTests/KeyframeStoreTests.cpp`; if it is in a device's state, write the finding up for 035 in `specs/045-emulator-history/research.md` R-002 and tell the owner; then rerun `HistoryCostTests` and update R-001's table
 
 ---
 
