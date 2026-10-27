@@ -22,7 +22,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DeterminismSoakTests
+//  LongRunReplayTests
 //
 //  Long recorded runs of real software on every machine kind, then a replay
 //  of the whole history checked against every keyframe's checksum. Each
@@ -44,7 +44,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (DeterminismSoakTests)
+TEST_CLASS (LongRunReplayTests)
 {
 public:
 
@@ -66,7 +66,7 @@ public:
         {
             TestMachine  machine (machineId);
 
-            Soak (machine, machineId, master);
+            RecordAndReplay (machine, machineId, master);
         }
     }
 
@@ -87,7 +87,7 @@ public:
             Assert::IsNotNull (machine.GetRefs().superSerialCard, Widen (std::string (machineId) + ": the Super Serial Card is in").c_str());
             Assert::IsNotNull (machine.GetRefs().uthernet,        Widen (std::string (machineId) + ": the Uthernet II is in").c_str());
 
-            Soak (machine, std::string (machineId) + " with the cards", master);
+            RecordAndReplay (machine, std::string (machineId) + " with the cards", master);
         }
     }
 
@@ -103,7 +103,7 @@ private:
     };
 
 
-    static void Soak (TestMachine & machine, const std::string & label, const std::vector<Byte> & master)
+    static void RecordAndReplay (TestMachine & machine, const std::string & label, const std::vector<Byte> & master)
     {
         ReverseController  controller (machine);
         NeverStops         neverStops;
