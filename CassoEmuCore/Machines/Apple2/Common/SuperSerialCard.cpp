@@ -3,6 +3,8 @@
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 
 
@@ -259,4 +261,66 @@ void SuperSerialCard::SetSwitches (const SscSwitches & switches)
 {
     m_switches = switches;
     m_acia.SetIrqConnected (m_switches.IsIrqConnected());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SuperSerialCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool (m_expansionSelected);
+
+    hr = m_acia.SaveState (writer);
+    CHR (hr);
+
+    hr = writer.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SuperSerialCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (m_expansionSelected);
+
+    hr = m_acia.LoadState (reader);
+    CHR (hr);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
 }

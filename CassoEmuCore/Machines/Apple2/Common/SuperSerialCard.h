@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
 #include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/IExpansionRomCard.h"
@@ -40,7 +41,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class SuperSerialCard : public MemoryDevice, public IExpansionRomCard
+class SuperSerialCard : public MemoryDevice, public IExpansionRomCard, public IMachineState
 {
 public:
     static constexpr size_t  kFirmwareSize       = 0x800;
@@ -85,6 +86,15 @@ public:
     Acia6551     &  GetAcia     () { return m_acia; }
     SlotRomPage  &  GetSlotPage () { return m_slotPage; }
     int             GetSlot     () const { return m_slot; }
+
+    // IMachineState: the expansion-ROM latch, then the 6551's section.
+    // The firmware and the switches come from the slot's config, and the
+    // attachment is wiring.
+    HRESULT  SaveState (StateWriter & writer) const override;
+    HRESULT  LoadState (StateReader & reader) override;
+
+    static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'C', 'D');
+    static constexpr uint16_t  kStateVersion = 1;
 
     // Why the serial connector has nothing attached when its config specifies an
     // attachment (a file that could not be opened); empty when it does.
