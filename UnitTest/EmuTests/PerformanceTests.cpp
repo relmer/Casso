@@ -1,7 +1,10 @@
 #include "Pch.h"
 #include "TestMachine.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/DriveStatus.h"
+#include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Machines/Apple2/Common/NibblizationLayer.h"
+#include "Shell/DriveStatusPublisher.h"
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "FluxTestImages.h"
 #include "HResultAssert.h"
@@ -393,6 +396,94 @@ public:
         Logger::WriteMessage (msg);
 
         Assert::IsTrue (fluxMs <= bitMs * kSanityRatio, msg);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  DriveStatusPublish_IdleCostsUnderOnePercentOfAFrame
+    //
+    //  The emulation thread publishes the drive status twice a pass, and
+    //  with nothing changed each publish only compares the store's status
+    //  generation. The two idle publishes of one frame must cost under 1% of
+    //  the frame. A publish with activity due and one after a bay change are
+    //  logged.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DriveStatusPublish_IdleCostsUnderOnePercentOfAFrame)
+    {
+        TestMachine            machine          { "Apple2e" };
+        DiskImageStore       & store            = machine.GetDiskStore();
+        Disk2Controller      * controller       = machine.GetRefs().diskController;
+        DriveStatusPublisher   publisher;
+        std::vector<Byte>      image (NibblizationLayer::kImageByteSize, 0x00);
+        int64_t                freqHz           = QpcFrequencyHz();
+        double                 idleNs           = 0.0;
+        double                 activityNs       = 0.0;
+        double                 bayNs            = 0.0;
+        double                 frameNs          = kFrameCycles / kApple2ClockHz * 1'000'000'000.0;
+        double                 shareOfFrame     = 0.0;
+        wchar_t                msg[512]         = {};
+
+
+
+        Assert::IsTrue (freqHz > 0);
+        Assert::IsNotNull (controller, L"the machine has a disk controller");
+
+        AssertSucceeded (store.MountFromBytes (6, 0, "C:\\perf\\idle-publish-disk.dsk", DiskFormat::Dsk, image), L"MountFromBytes");
+        AssertSucceeded (store.MountFromBytes (6, 1, "C:\\perf\\idle-publish-disk-two.dsk", DiskFormat::Dsk, image), L"MountFromBytes");
+
+        (void) publisher.Publish (store, controller, true);
+
+        idleNs     = TimePublishes (freqHz, kPublishCalls, [&] { (void) publisher.Publish (store, controller, false); });
+        activityNs = TimePublishes (freqHz, kPublishCalls, [&] { (void) publisher.Publish (store, controller, true); });
+        bayNs      = TimePublishes (freqHz, kBayPublishCalls, [&]
+        {
+            store.SetUserWriteProtectFlag (6, 0, !store.GetBayStatus (6, 0).writeProtect.userSetting);
+            (void) publisher.Publish (store, controller, false);
+        });
+
+        shareOfFrame = (2.0 * idleNs) / frameNs;
+
+        swprintf_s (msg,
+            L"drive status publish: idle %.1f ns, activity due %.1f ns, a bay change %.1f ns; "
+            L"two idle publishes are %.5f%% of a frame",
+            idleNs, activityNs, bayNs, shareOfFrame * 100.0);
+        Logger::WriteMessage (msg);
+
+        Assert::IsTrue (shareOfFrame < 0.01, msg);
+    }
+
+
+    static constexpr int  kPublishCalls    = 1'000'000;
+    static constexpr int  kBayPublishCalls =    10'000;
+
+
+    //  The mean cost of one call of `publish`, in ns, after a warm-up pass.
+    double  TimePublishes (int64_t freqHz, int calls, const std::function<void()> & publish)
+    {
+        LARGE_INTEGER  startQpc = {};
+        LARGE_INTEGER  endQpc   = {};
+        int            i        = 0;
+
+
+
+        for (i = 0; i < calls / 10; i++)
+        {
+            publish();
+        }
+
+        QueryPerformanceCounter (&startQpc);
+
+        for (i = 0; i < calls; i++)
+        {
+            publish();
+        }
+
+        QueryPerformanceCounter (&endQpc);
+
+        return ElapsedMs (startQpc.QuadPart, endQpc.QuadPart, freqHz) * 1'000'000.0 / (double) calls;
     }
 
 #endif // NDEBUG
