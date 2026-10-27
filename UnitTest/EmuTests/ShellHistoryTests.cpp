@@ -238,6 +238,23 @@ namespace ShellHistoryTests
         }
 
 
+        TEST_METHOD (InputHeldWhilePausedBehindLiveRunsTheReplay)
+        {
+            ShellRig        rig (false);
+            ShellHistory &  history = rig.shell->GetHistory();
+
+
+
+            rig.RunFrames (kFrames);
+            rig.Reverse (ReverseCommand::StepBack);
+            rig.shell->GetCpuManager().SetPaused (true);
+
+            history.HoldInputBehindLive (HeldInput::MousePress);
+
+            Assert::IsFalse (rig.shell->GetCpuManager().IsPaused(), L"the replay runs, so the guest reads the input");
+        }
+
+
         TEST_METHOD (CancelingTurningHistoryOffKeepsItOn)
         {
             ShellRig        rig (false);

@@ -112,6 +112,7 @@ public:
     // Input the guest reads, deferred behind live until the replayed guest
     // reads it.
     void  HoldInputBehindLive           (HeldInput input);
+    void  RunForHeldInput               ();
     void  PublishHeldInput              ();
     void  StopForHeldInputRead          ();
     void  OnHeldInputRead               ();

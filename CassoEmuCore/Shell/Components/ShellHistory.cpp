@@ -1027,12 +1027,41 @@ void ShellHistory::HoldInputBehindLive (HeldInput input)
 
     PublishHeldInput();
 
+    if (verdict == DivergenceVerdict::Hold)
+    {
+        RunForHeldInput();
+    }
+
     if (verdict == DivergenceVerdict::Ask)
     {
         PostMessageW (m_host.GetMainWindow(), WM_APP_CONFIRM_INPUT, 0, 0);
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunForHeldInput
+//
+//  UI thread, for input deferred while the machine is paused behind live:
+//  the replay runs, so the replayed guest reads the input where it would,
+//  and history goes on from there. Not while the rewind key is down.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::RunForHeldInput()
+{
+    if (!m_cpuManager.IsPaused() || m_isRewindKeyDown.load (memory_order_acquire))
+    {
+        return;
+    }
+
+    m_cpuManager.SetPaused (false);
+    m_host.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
+}
 
 
 

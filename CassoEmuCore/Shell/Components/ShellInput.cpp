@@ -323,6 +323,12 @@ bool ShellInput::HandleViewportKey (const DxuiKeyEvent & ev)
         RouteKeyToGamePort (ev);
         m_history.PublishHeldInput();
 
+        // Paused, the replay runs, so the guest reads the key.
+        if (ev.kind == DxuiKeyEventKind::Down)
+        {
+            m_history.RunForHeldInput();
+        }
+
         return true;
     }
 
