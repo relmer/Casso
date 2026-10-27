@@ -47,6 +47,7 @@ public:
     HeldHostInputs        & GetHeldHostInputs   () override;
     void                    TruncatePaste       (size_t length) override;
     ITapeControl          & GetTapeControl      () override;
+    DeploySave            & GetDeploySave       () override;
 
 private:
     EmulatorShell  & m_shell;

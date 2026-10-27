@@ -11,6 +11,7 @@
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Shell/CpuManager.h"
+#include "Shell/DeploySave.h"
 #include "Shell/MachineHost.h"
 #include "Shell/MachineChromeFacts.h"
 #include "Ui/UiShell.h"
@@ -771,6 +772,10 @@ private:
     // and otherwise reads the manager's transition state through the
     // IsRunning() / IsPaused() / GetSpeedMode() accessors.
     CpuManager                    m_cpuManager;
+
+    // The update installer's save: the window thread's request to return to
+    // the live end and the CPU thread's answer.
+    DeploySave                    m_deploySave;
 
     // The debugger: its window and session, reverse execution and the
     // replays of history, and the debug channel. Declared after the CPU

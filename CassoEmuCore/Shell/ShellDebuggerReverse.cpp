@@ -4,6 +4,7 @@
 #include "Shell/ShellDebugger.h"
 #include "Config/DebuggerSettings.h"
 #include "Shell/CpuManager.h"
+#include "Shell/DeploySave.h"
 #include "Shell/HeldHostInputs.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "Debugger/DebuggerController.h"
@@ -181,6 +182,44 @@ void ShellDebugger::ApplyReverseOptions (
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GoLiveForDeploy
+//
+//  CPU thread: the update installer's return to the live end, for the request
+//  with this serial. Nothing runs once the request has stopped waiting, so a
+//  request that timed out never moves the machine. Behind live it runs the
+//  Go live ApplyReverseOptions runs and reports where it landed; otherwise,
+//  including in a shell that never started recording, it reports
+//  NotBehindLive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDebugger::GoLiveForDeploy (uint64_t serial)
+{
+    DeploySave         & deploy       = m_host.GetDeploySave();
+    bool                 isBehindLive = m_reverseHost != nullptr && m_reverseHost->IsBehindLive();
+    LiveReturnOutcome    outcome      = LiveReturnOutcome::NotBehindLive;
+
+
+
+    if (deploy.IsAwaited (serial))
+    {
+        if (isBehindLive)
+        {
+            m_lastReverseOutcome.reset();
+            RunReverseCommand (ReverseCommand::GoLive, 0);
+            outcome = DeploySave::ToLiveReturnOutcome (m_lastReverseOutcome, m_reverseHost->IsBehindLive());
+        }
+
+        deploy.CompleteLiveReturn (serial, outcome);
+    }
 }
 
 

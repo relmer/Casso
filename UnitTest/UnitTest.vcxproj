@@ -162,6 +162,7 @@
     <ClCompile Include="EmuTests\OwnerThreadStandIn.cpp" />
     <ClCompile Include="EmuTests\DiskOwnershipTests.cpp" />
     <ClCompile Include="EmuTests\DriveStatusPublisherTests.cpp" />
+    <ClCompile Include="EmuTests\DeploySaveTests.cpp" />
     <ClCompile Include="EmuTests\DriveStatusStressTests.cpp" />
     <ClCompile Include="EmuTests\SanitizerCanaryTests.cpp" />
     <ClCompile Include="EmuTests\DiskManagerDriveStatusTests.cpp" />

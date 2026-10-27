@@ -100,6 +100,10 @@ public:
     //  Behind live, the user agreed to discard the history recorded after where
     //  the machine stands, ahead of the change that asked.
     virtual void     DivergeHistory           ()                                                { }
+
+    //  The update installer's return to the live end, for the request with
+    //  this serial; nothing once the request has stopped waiting.
+    virtual void     GoLiveForDeploy          (uint64_t serial)                                 = 0;
 };
 
 

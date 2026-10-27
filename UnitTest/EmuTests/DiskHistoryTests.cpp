@@ -4,7 +4,10 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Machines/Apple2/Common/NibbleImageCodec.h"
 #include "HResultAssert.h"
+#include "Shell/CpuManager.h"
+#include "Shell/DeploySave.h"
 #include "Shell/DriveStatusPublisher.h"
+#include "resource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -14,6 +17,9 @@ static constexpr uint64_t  s_kDiskAfterCycles   = 30000;
 static constexpr uint64_t  s_kPastSpindown      = Disk2Controller::kMotorSpindownCycles + 100000;
 static constexpr size_t    s_kNibPattern        = 29;
 static constexpr Byte      s_kHighBit           = 0x80;
+static constexpr DWORD     s_kDeployWaitMs      = 5000;
+static constexpr DWORD     s_kShortDeployWaitMs = 50;
+static constexpr int       s_kDeployPollMs      = 5;
 
 
 
@@ -1016,7 +1022,293 @@ public:
     }
 
 
+    //  An update installed behind live returns to the live end first, so the
+    //  deploy flush saves the disk the live run left.
+    TEST_METHOD (ADeployBehindLiveSavesTheLiveEndsDisk)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        CpuManager         cpu;
+        DeploySave         deploy;
+        DeployFlushResult  result;
+        std::atomic<int>   goLives    = 0;
+        std::vector<Byte>  atLive;
+        LiveReturnOutcome  outcome    = LiveReturnOutcome::TimedOut;
+        bool               isSaved    = false;
+        HRESULT            hr         = S_OK;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        StepFromThePastAfterTheLiveEnd (machine, controller, atLive);
+
+        hr = StartDeployCpu (cpu, machine, controller, deploy, goLives, nullptr);
+        AssertSucceeded (hr, L"the CPU thread starts");
+
+        outcome = deploy.RequestLiveReturn (cpu, s_kDeployWaitMs);
+
+        hr = DeploySave::Flush (cpu, machine.GetDiskStore(), s_kDeployWaitMs, result);
+
+        isSaved = DeploySave::IsSavedBehindLive (deploy.GetLastOutcome(), result);
+
+        DeploySave::Resume (cpu, machine.GetDiskStore(), result);
+        cpu.Stop();
+        machine.ClaimDiskOwnership();
+
+        Assert::IsTrue (outcome == LiveReturnOutcome::ReachedLiveEnd, L"the request returns ReachedLiveEnd");
+        AssertSucceeded (hr, L"DeploySave::Flush");
+        Assert::AreEqual<size_t> (1, log.count, L"the flush wrote the disk once");
+        Assert::IsTrue  (atLive == log.last,     L"as the live run left it");
+        Assert::IsFalse (result.wasBehindLive,   L"the machine was live when frozen");
+        Assert::IsFalse (isSaved,                L"so the user is not told it was saved behind live");
+    }
+
+
+    //  When the return to live misses its deadline, the machine is behind
+    //  live, and the deploy flush saves the disk at its position. The Go live
+    //  queued behind a slow command runs after the freeze ends, when its
+    //  request no longer waits, so it does not move the machine.
+    TEST_METHOD (ADeployWhoseReturnToLiveTimesOutSavesTheDiskWhereItStands)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        CpuManager         cpu;
+        DeploySave         deploy;
+        DeployFlushResult  result;
+        std::atomic<int>   goLives    = 0;
+        std::atomic<bool>  isBlocking = false;
+        std::vector<Byte>  atLive;
+        std::vector<Byte>  afterStep;
+        LiveReturnOutcome  outcome    = LiveReturnOutcome::NotBehindLive;
+        bool               isSaved    = false;
+        bool               isReplay   = false;
+        bool               isBehind   = false;
+        HRESULT            hr         = S_OK;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        StepFromThePastAfterTheLiveEnd (machine, controller, atLive);
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (afterStep);
+        AssertSucceeded (hr, L"Serialize at the machine's position");
+
+        hr = StartDeployCpu (cpu, machine, controller, deploy, goLives, [&]
+        {
+            auto  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (s_kDeployWaitMs);
+
+            isBlocking = true;
+
+            while (!cpu.IsDeployHoldRequested() && std::chrono::steady_clock::now() < deadline)
+            {
+                std::this_thread::sleep_for (std::chrono::milliseconds (s_kDeployPollMs));
+            }
+        });
+        AssertSucceeded (hr, L"the CPU thread starts");
+
+        cpu.PostCommand (IDM_DISK_EJECT2);
+        WaitFor ([&] { return isBlocking.load(); });
+
+        outcome = deploy.RequestLiveReturn (cpu, s_kShortDeployWaitMs);
+
+        hr = DeploySave::Flush (cpu, machine.GetDiskStore(), s_kDeployWaitMs, result);
+
+        isSaved = DeploySave::IsSavedBehindLive (deploy.GetLastOutcome(), result);
+
+        DeploySave::Resume (cpu, machine.GetDiskStore(), result);
+        WaitFor ([&] { return goLives.load() > 0; });
+
+        cpu.Stop();
+        machine.ClaimDiskOwnership();
+
+        isReplay = machine.GetDiskStore().IsReplaying();
+        isBehind = controller.IsInHistory();
+
+        Assert::IsTrue  (isBlocking.load(),                     L"the slow command ran");
+        Assert::IsTrue  (outcome == LiveReturnOutcome::TimedOut, L"the return to live missed its deadline");
+        AssertSucceeded (hr, L"DeploySave::Flush");
+        Assert::AreEqual<size_t> (1, log.count,                  L"the flush wrote the disk once");
+        Assert::IsTrue  (afterStep == log.last,                  L"as it was after the step from the past");
+        Assert::IsTrue  (result.wasBehindLive,                   L"behind live when frozen");
+        Assert::IsTrue  (result.wasReplaying,                    L"with the replay flag set");
+        Assert::IsTrue  (isSaved,                                L"so the user is told");
+        Assert::AreEqual (1, goLives.load(),                     L"the queued Go live ran after the freeze");
+        Assert::IsTrue  (isReplay,                               L"the replay flag is set again");
+        Assert::IsTrue  (isBehind,                               L"and the Go live did not move the machine");
+    }
+
+
+    //  The zip update installed now, and an update left until Casso closes,
+    //  return to the live end and then save through quit: the CPU thread
+    //  stops, recording stops, and the exit flush writes the live end's disk.
+    TEST_METHOD (AReturnToLiveBeforeQuitSavesTheLiveEndsDisk)
+    {
+        TestMachine        machine    ("Apple2e");
+        ReverseController  controller (machine);
+        FlushLog           log;
+        CpuManager         cpu;
+        DeploySave         deploy;
+        std::atomic<int>   goLives    = 0;
+        std::vector<Byte>  atLive;
+        LiveReturnOutcome  outcome    = LiveReturnOutcome::TimedOut;
+        HRESULT            hr         = S_OK;
+
+
+
+        PrepareRigLoop (machine, log);
+
+        hr = controller.Start (MakeSettings());
+        AssertSucceeded (hr, L"Start");
+
+        StepFromThePastAfterTheLiveEnd (machine, controller, atLive);
+
+        hr = StartDeployCpu (cpu, machine, controller, deploy, goLives, nullptr);
+        AssertSucceeded (hr, L"the CPU thread starts");
+
+        outcome = deploy.RequestLiveReturn (cpu, s_kDeployWaitMs);
+
+        cpu.Stop();
+        machine.ClaimDiskOwnership();
+        controller.Stop();
+
+        hr = machine.GetDiskStore().FlushAllForShutdown();
+
+        Assert::IsTrue (outcome == LiveReturnOutcome::ReachedLiveEnd, L"the request returns ReachedLiveEnd");
+        AssertSucceeded (hr, L"FlushAllForShutdown");
+        Assert::AreEqual<size_t> (1, log.count, L"the exit flush wrote the disk once");
+        Assert::IsTrue (atLive == log.last,     L"as the live run left it");
+    }
+
+
 private:
+
+    //  Runs the guest until it has written to the disk and on past that,
+    //  serializes the disk at the live end into atLive, then seeks back to
+    //  where the writes were made and runs one instruction there, so the
+    //  store's replay flag is set behind live.
+    static void StepFromThePastAfterTheLiveEnd (
+        TestMachine        & machine,
+        ReverseController  & controller,
+        std::vector<Byte>  & atLive)
+    {
+        HRESULT        hr     = S_OK;
+        uint64_t       middle = 0;
+        ReverseResult  result;
+
+
+
+        machine.RunCycles (s_kDiskWarmupCycles);
+
+        middle = machine.GetPosition();
+
+        machine.RunCycles (s_kDiskAfterCycles);
+
+        hr = machine.GetDiskStore().GetImage (6, 0)->Serialize (atLive);
+        AssertSucceeded (hr, L"Serialize at the live end");
+
+        hr = controller.SeekToPosition (middle, result);
+        AssertSucceeded (hr, L"SeekToPosition back into history");
+
+        machine.StepOne();
+
+        Assert::IsTrue (controller.IsInHistory(),             L"the step left the machine behind live");
+        Assert::IsTrue (machine.GetDiskStore().IsReplaying(), L"with the store's replay flag set");
+    }
+
+
+    //  Starts a CPU thread paused, with no frame work and no service function,
+    //  and moves the disk store's token to it, so only its commands run the
+    //  machine.
+    //  IDM_DEPLOY_GO_LIVE runs as GoLiveForDeploy does, seeking to the live
+    //  end in place of the reverse command; IDM_DISK_EJECT2 runs `slow`.
+    //  Nothing here asserts, because an Assert off the test thread ends the
+    //  test host.
+    static HRESULT StartDeployCpu (
+        CpuManager                   & cpu,
+        TestMachine                  & machine,
+        ReverseController            & controller,
+        DeploySave                   & deploy,
+        std::atomic<int>             & goLives,
+        const std::function<void()>  & slow)
+    {
+        cpu.SetPaused (true);
+        cpu.SetDeployFreezeHooks ([&machine] { machine.ReleaseDiskOwnership(); },
+                                  [&machine] { machine.ClaimDiskOwnership(); });
+
+        machine.ReleaseDiskOwnership();
+
+        return cpu.Start ([&machine] { machine.ClaimDiskOwnership(); },
+                          [&, slow] (const EmulatorCommand & cmd)
+                          {
+                              if (cmd.id == IDM_DEPLOY_GO_LIVE)
+                              {
+                                  GoLiveForTest (controller, deploy, cmd.payload);
+                                  goLives++;
+                              }
+                              else if (cmd.id == IDM_DISK_EJECT2 && slow)
+                              {
+                                  slow();
+                              }
+                          },
+                          nullptr,
+                          [&machine] { machine.ReleaseDiskOwnership(); });
+    }
+
+
+    static void GoLiveForTest (
+        ReverseController  & controller,
+        DeploySave         & deploy,
+        const std::string  & payload)
+    {
+        uint64_t                       serial  = 0;
+        std::optional<ReverseOutcome>  reverse;
+        LiveReturnOutcome              outcome = LiveReturnOutcome::NotBehindLive;
+        ReverseResult                  result;
+        HRESULT                        hr      = S_OK;
+
+
+
+        if (DeploySave::TryParseSerial (payload, serial) && deploy.IsAwaited (serial))
+        {
+            if (controller.IsInHistory())
+            {
+                hr = controller.SeekToPosition (controller.GetLiveEndPosition(), result);
+
+                if (SUCCEEDED (hr))
+                {
+                    reverse = result.outcome;
+                }
+
+                outcome = DeploySave::ToLiveReturnOutcome (reverse, controller.IsInHistory());
+            }
+
+            deploy.CompleteLiveReturn (serial, outcome);
+        }
+    }
+
+
+    template <typename Predicate>
+    static void WaitFor (Predicate isDone)
+    {
+        auto  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (s_kDeployWaitMs);
+
+
+
+        while (!isDone() && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (s_kDeployPollMs));
+        }
+    }
 
     static ReverseSettings MakeSettings()
     {

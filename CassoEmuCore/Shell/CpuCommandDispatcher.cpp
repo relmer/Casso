@@ -7,6 +7,7 @@
 #include "resource.h"
 #include "Core/TextEncoding.h"
 #include "Shell/CpuManager.h"
+#include "Shell/DeploySave.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
@@ -277,6 +278,18 @@ bool CpuCommandDispatcher::DispatchDebugCommand (const EmulatorCommand & cmd, ID
         case IDM_DEBUG_DIVERGE:
             debug.DivergeHistory();
             break;
+
+        case IDM_DEPLOY_GO_LIVE:
+        {
+            uint64_t  serial = 0;
+
+            if (DeploySave::TryParseSerial (cmd.payload, serial))
+            {
+                debug.GoLiveForDeploy (serial);
+            }
+
+            break;
+        }
 
         default:
             isHandled = false;

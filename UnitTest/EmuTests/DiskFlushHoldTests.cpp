@@ -7,7 +7,11 @@
 #include "Machines/Apple2/Common/Disk2NibbleEngine.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "FluxTestImages.h"
+#include "Shell/CpuManager.h"
+#include "Shell/DeploySave.h"
 #include "Shell/DriveStatusPublisher.h"
+#include "Core/ThreadOwnership.h"
+#include "resource.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -17,6 +21,9 @@ static constexpr int     s_kHoldDrive    = 0;
 static constexpr size_t  s_kHoldPattern  = 41;
 static constexpr Byte    s_kHoldHighBit  = 0x80;
 static constexpr size_t  s_kHoldBitIndex = 100;
+static constexpr DWORD   s_kDeployWaitMs = 5000;
+static constexpr int     s_kSettleMs     = 60;
+static constexpr int     s_kPollMs       = 5;
 
 
 
@@ -511,7 +518,109 @@ public:
     }
 
 
+    //  An update installed now saves every disk with the CPU thread frozen.
+    TEST_METHOD (DeployFlushLosesNoGuestWrite)
+    {
+        RunDeployFlush (false);
+    }
+
+
+    //  The deploy flush saves as quit does, so writes the automatic flushes
+    //  skip under SetFlushHold are saved too.
+    TEST_METHOD (DeployFlushStillSavesHeldWrites)
+    {
+        RunDeployFlush (true);
+    }
+
+
 private:
+
+    //  The guest writes on every frame of a running CPU thread, and an eject
+    //  is posted after the deploy flush. The flush freezes the thread first,
+    //  so the one write it makes has every guest write, no write lands after
+    //  it, and the eject waits for the freeze to end.
+    static void RunDeployFlush (bool isFlushHeld)
+    {
+        auto                 store      = std::make_unique<DiskImageStore>();
+        ThreadOwnership    & ownership  = store->GetThreadOwnership();
+        CpuManager           cpu;
+        Files                files;
+        DeployFlushResult    result;
+        std::atomic<int>     frames     = 0;
+        std::atomic<bool>    isEjected  = false;
+        bool                 isDirty    = true;
+        bool                 isMounted  = false;
+        HRESULT              hr         = S_OK;
+
+
+
+        PrepareDirtyDisk (*store, files);
+        store->SetFlushHold (isFlushHeld);
+        ownership.Release();
+
+        cpu.SetDeployFreezeHooks ([&] { ownership.Release(); }, [&] { ownership.Claim(); });
+
+        hr = cpu.Start ([&] { ownership.Claim(); },
+                        [&] (const EmulatorCommand & cmd)
+                        {
+                            if (cmd.id == IDM_DISK_EJECT1)
+                            {
+                                store->Eject (s_kHoldSlot, s_kHoldDrive);
+                                isEjected = true;
+                            }
+                        },
+                        [&]
+                        {
+                            DiskImage  * image = store->GetImage (s_kHoldSlot, s_kHoldDrive);
+
+                            if (image != nullptr)
+                            {
+                                image->WriteBit (0, s_kHoldBitIndex, image->ReadBit (0, s_kHoldBitIndex) ^ 1);
+                            }
+
+                            frames++;
+                        },
+                        [&] { ownership.Release(); });
+        AssertSucceeded (hr, L"Start");
+
+        WaitFor ([&] { return frames.load() > 2; });
+
+        hr = DeploySave::Flush (cpu, *store, s_kDeployWaitMs, result);
+        AssertSucceeded (hr, L"DeploySave::Flush");
+        Assert::AreEqual<size_t> (1, files.writes, L"the flush wrote the disk once");
+        Assert::AreEqual (isFlushHeld, result.wasBehindLive, L"and reports SetFlushHold as behind live");
+
+        cpu.PostCommand (IDM_DISK_EJECT1);
+        std::this_thread::sleep_for (std::chrono::milliseconds (s_kSettleMs));
+
+        isDirty   = store->GetImage (s_kHoldSlot, s_kHoldDrive)->IsDirty();
+        isMounted = store->IsMounted (s_kHoldSlot, s_kHoldDrive);
+
+        DeploySave::Resume (cpu, *store, result);
+        WaitFor ([&] { return isEjected.load(); });
+
+        cpu.Stop();
+        ownership.Claim();
+
+        Assert::IsFalse (isDirty,           L"no guest write landed after the flush");
+        Assert::IsTrue  (isMounted,         L"the eject posted during the freeze did not run");
+        Assert::IsTrue  (isEjected.load(),  L"and runs once the freeze ends");
+        Assert::AreEqual<size_t> (1, files.writes, L"with nothing left to write");
+    }
+
+
+    template <typename Predicate>
+    static void WaitFor (Predicate isDone)
+    {
+        auto  deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds (s_kDeployWaitMs);
+
+
+
+        while (!isDone() && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for (std::chrono::milliseconds (s_kPollMs));
+        }
+    }
 
     static std::vector<Byte> MakeImage()
     {

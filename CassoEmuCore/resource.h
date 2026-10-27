@@ -159,6 +159,10 @@
 #define IDM_STORAGE_RECORDER        40088
 #define IDM_SSC_SWITCHES            40400  // Settings: the Super Serial Card's DIP switches
 
+// The update installer's return to the live end before it saves the disks.
+// The payload is the request's serial (DeploySave::FormatSerial).
+#define IDM_DEPLOY_GO_LIVE          40402
+
 // Apply the Uthernet II's LAN access and port forwards to the running card.
 // The payload is the card's settings as JSON.
 #define IDM_NETWORK_CONFIGURE       40300

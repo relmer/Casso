@@ -359,3 +359,18 @@ ITapeControl & EmulatorShell::DebuggerHost::GetTapeControl()
 {
     return *m_shell.m_tapeDeck;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::DebuggerHost::GetDeploySave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DeploySave & EmulatorShell::DebuggerHost::GetDeploySave()
+{
+    return m_shell.m_deploySave;
+}

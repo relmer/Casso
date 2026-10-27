@@ -2,6 +2,7 @@
 
 #include "Debugger/CommandModeNames.h"
 #include "Debugger/DebugCommandPayload.h"
+#include "Debugger/Reverse/DivergenceGate.h"
 #include "Shell/CpuCommandDispatcher.h"
 #include "Config/NetworkCardSettings.h"
 
@@ -515,6 +516,24 @@ public:
     }
 
 
+    //  The update installer's Go live passes its serial, and a payload that
+    //  is not one dispatches nothing.
+    TEST_METHOD (ADeployGoLivePassesItsSerial)
+    {
+        Notebook  target;
+
+
+
+        Dispatch (IDM_DEPLOY_GO_LIVE, "42",  target);
+        Dispatch (IDM_DEPLOY_GO_LIVE, "4x2", target);
+        Dispatch (IDM_DEPLOY_GO_LIVE, "",    target);
+
+        Assert::AreEqual ((size_t) 1, target.calls.size());
+        Assert::AreEqual (std::string ("GoLiveForDeploy 42"), target.calls[0]);
+        Assert::IsFalse  (DivergenceGate::IsStateChangingCommand (IDM_DEPLOY_GO_LIVE), L"the divergence gate passes it behind live");
+    }
+
+
     TEST_METHOD (ASeekByCycleHoldsItsCycle)
     {
         Notebook  target;
@@ -730,6 +749,11 @@ private:
         void     DivergeHistory() override
         {
             calls.push_back ("DivergeHistory");
+        }
+
+        void     GoLiveForDeploy (uint64_t serial) override
+        {
+            calls.push_back (std::format ("GoLiveForDeploy {}", serial));
         }
 
         void     ControlTape (TapeCommand command) override

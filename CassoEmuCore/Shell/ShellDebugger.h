@@ -130,6 +130,7 @@ public:
     bool  AllowCommand          (WORD id, const std::string & payload);
     bool  AskToDiverge          ();
     void  DivergeHistory        () override;
+    void  GoLiveForDeploy       (uint64_t serial) override;
     bool  GuardHistoryEdit      (const DebugCommand & command);
     void  OnConfirmDiverge      ();
 

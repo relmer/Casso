@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+class DeploySave;
 class HeldHostInputs;
 class IFileSystem;
 class IHostDialogs;
@@ -84,4 +85,8 @@ public:
 
     //  The cassette deck's keys, for TAPE. CPU thread.
     virtual ITapeControl          & GetTapeControl      ()                       = 0;
+
+    //  The update installer's save, through which the CPU thread reports a
+    //  return to live.
+    virtual DeploySave            & GetDeploySave       ()                       = 0;
 };

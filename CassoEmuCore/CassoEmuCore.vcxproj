@@ -707,6 +707,7 @@
     <ClCompile Include="Shell\CpuManager.cpp" />
     <ClCompile Include="Shell\CpuCommandDispatcher.cpp" />
     <ClCompile Include="Shell\DiskManager.cpp" />
+    <ClCompile Include="Shell\DeploySave.cpp" />
     <ClCompile Include="Shell\DriveStatusPublisher.cpp" />
     <ClCompile Include="Shell\MachineBuilder.cpp" />
     <ClCompile Include="Shell\MachineChromeFacts.cpp" />
@@ -1456,6 +1457,7 @@
     <ClInclude Include="Shell\CpuCommandDispatcher.h" />
     <ClInclude Include="Shell\CpuCommandTargets.h" />
     <ClInclude Include="Shell\DiskManager.h" />
+    <ClInclude Include="Shell\DeploySave.h" />
     <ClInclude Include="Shell\DriveStatusPublisher.h" />
     <ClInclude Include="Shell\MachineBuilder.h" />
     <ClInclude Include="Shell\MachineChromeFacts.h" />
