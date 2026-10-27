@@ -8,7 +8,8 @@
 #include "DxuiListView.h"
 
 #include "Core/DxuiUnicodeSymbols.h"
-#include "Core/DxuiSystemSettings.h"
+#include "Core/DxuiSystemSettings.h"
+#include "Widgets/DxuiListView.h"
 
 
 
@@ -28,18 +29,18 @@
 
 void DxuiListView::SetRect (const RECT & rect)
 {
-    bool  wasSticky = m_stickyTail;
+    bool  wasSticky = m_scrollbars.m_stickyTail;
     int   maxTop    = 0;
 
 
 
     SetBounds (rect);
-    maxTop = GetMaxTopRow();
+    maxTop = m_scrollbars.GetMaxTopRow();
 
     if (wasSticky || m_topRow > maxTop)
     {
         m_topRow      = maxTop;
-        m_flushBottom = CanLiftRows();
+        m_flushBottom = m_scrollbars.CanLiftRows();
     }
 
     if (m_topRow < 0)
@@ -47,7 +48,7 @@ void DxuiListView::SetRect (const RECT & rect)
         m_topRow = 0;
     }
 
-    m_stickyTail = m_stickyTailEnabled && (m_topRow >= maxTop);
+    m_scrollbars.m_stickyTail = m_scrollbars.m_stickyTailEnabled && (m_topRow >= maxTop);
 }
 
 
@@ -63,8 +64,8 @@ void DxuiListView::SetRect (const RECT & rect)
 void DxuiListView::SetColumns (std::vector<Column> cols)
 {
     m_columns = std::move (cols);
-    m_measuredWPx.clear();
-    m_overrideWPx.assign (m_columns.size(), -1);
+    m_columnSizing.m_measuredWPx.clear();
+    m_columnSizing.m_overrideWPx.assign (m_columns.size(), -1);
 
     if (m_columnOrder.size() != m_columns.size())
     {
@@ -96,7 +97,7 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
 
 void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 {
-    bool  wasSticky = m_stickyTail;
+    bool  wasSticky = m_scrollbars.m_stickyTail;
 
 
 
@@ -107,7 +108,7 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
     m_rowProvider = nullptr;
     m_rowSource   = nullptr;
 
-    m_rows = std::move (rows);
+    m_columnSizing.m_rows = std::move (rows);
 
     //  NOT RE-MEASURED HERE. Measuring walks every cell of every row through
     //  the text renderer, and a folder of a few thousand files paid that on
@@ -131,9 +132,9 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 
 void DxuiListView::SetRowIcon (int row, std::shared_ptr<const DxuiIconImage> icon)
 {
-    if (row >= 0 && row < (int) m_rows.size() && !m_rows[(size_t) row].empty())
+    if (row >= 0 && row < (int) m_columnSizing.m_rows.size() && !m_columnSizing.m_rows[(size_t) row].empty())
     {
-        m_rows[(size_t) row][0].icon = std::move (icon);
+        m_columnSizing.m_rows[(size_t) row][0].icon = std::move (icon);
     }
 }
 
@@ -155,14 +156,14 @@ void DxuiListView::SetRowIcon (int row, std::shared_ptr<const DxuiIconImage> ico
 
 void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
 {
-    int  maxTop = GetMaxTopRow();
+    int  maxTop = m_scrollbars.GetMaxTopRow();
 
 
 
     if (wasSticky || m_topRow > maxTop)
     {
         m_topRow      = maxTop;
-        m_flushBottom = CanLiftRows();
+        m_flushBottom = m_scrollbars.CanLiftRows();
         m_pageSlide   = {};
     }
 
@@ -172,8 +173,8 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
     }
 
     //  A list that now fits has no end to hold, should it grow again.
-    m_flushBottom = m_flushBottom && GetLineCount() > GetVisibleRowCapacity();
-    m_stickyTail  = m_stickyTailEnabled && (m_topRow >= maxTop);
+    m_flushBottom             = m_flushBottom && m_grouping.GetLineCount() > m_scrollbars.GetVisibleRowCapacity();
+    m_scrollbars.m_stickyTail = m_scrollbars.m_stickyTailEnabled && (m_topRow >= maxTop);
 
     PruneSelection();
 }
@@ -196,7 +197,7 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
 
 void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
 {
-    bool  wasSticky = m_stickyTail;
+    bool  wasSticky = m_scrollbars.m_stickyTail;
 
 
 
@@ -204,7 +205,7 @@ void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
     m_rowProvider  = std::move (provider);
     m_rowSource    = nullptr;
     m_virtualCount = (rowCount > 0) ? rowCount : 0;
-    m_rows.clear();
+    m_columnSizing.m_rows.clear();
 
     ClampTopAfterCountChange (wasSticky);
 }
@@ -221,7 +222,7 @@ void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
 
 void DxuiListView::SetRowSource (int rowCount, RowSource source)
 {
-    bool  wasSticky = m_stickyTail;
+    bool  wasSticky = m_scrollbars.m_stickyTail;
 
 
 
@@ -231,7 +232,7 @@ void DxuiListView::SetRowSource (int rowCount, RowSource source)
     m_rowProvider  = nullptr;
     m_rowSource    = std::move (source);
     m_virtualCount = (rowCount > 0) ? rowCount : 0;
-    m_rows.clear();
+    m_columnSizing.m_rows.clear();
 
     ClampTopAfterCountChange (wasSticky);
 }
@@ -248,7 +249,7 @@ void DxuiListView::SetRowSource (int rowCount, RowSource source)
 
 void DxuiListView::SetVirtualRowCount (int rowCount)
 {
-    bool  wasSticky = m_stickyTail;
+    bool  wasSticky = m_scrollbars.m_stickyTail;
 
 
 
@@ -288,68 +289,9 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
         return;
     }
 
-    if (r >= 0 && (size_t) r < m_rows.size())
+    if (r >= 0 && (size_t) r < m_columnSizing.m_rows.size())
     {
-        out = m_rows[(size_t) r];
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  NoteAutoFitRow
-//
-//  Tracks the widest cell seen per auto-sized column, so column widths can be
-//  fitted to real content.
-//
-//  Width is measured in CHARACTERS, not pixels, because this is called from
-//  the row-append path where no text renderer is available. It is an
-//  approximation, and a proportional font makes it a loose one, but it is
-//  computed for free on data the caller already has -- measuring every cell
-//  would cost a renderer call per cell per frame in a list that streams.
-//
-//  Columns with an explicit width or a stretch flag are skipped: their width
-//  is already decided, and tracking content for them would waste the work.
-//
-//  The header title participates in the maximum when the header is shown, so a
-//  column whose title is longer than any of its values is not truncated in its
-//  own heading.
-//
-//  Values only ever GROW -- this accumulates a high-water mark across the
-//  rows it is shown, and ResetAutoFit is what clears it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
-{
-    if (m_autoMaxChars.size() != m_columns.size())
-    {
-        m_autoMaxChars.assign (m_columns.size(), 0);
-    }
-
-    for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
-    {
-        int  chars = 0;
-
-        if (m_columns[c].widthDip != 0 || m_columns[c].stretch)
-        {
-            continue;
-        }
-
-        chars = (int) cells[c].text.size();
-
-        if (m_showHeader)
-        {
-            chars = std::max (chars, (int) m_columns[c].title.size());
-        }
-
-        if (chars > m_autoMaxChars[c])
-        {
-            m_autoMaxChars[c] = chars;
-        }
+        out = m_columnSizing.m_rows[(size_t) r];
     }
 }
 
@@ -372,7 +314,7 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
 
 void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
 {
-    bool  wasSticky = m_stickyTail;
+    bool  wasSticky = m_scrollbars.m_stickyTail;
 
 
 
@@ -386,420 +328,20 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
     m_rowSource   = nullptr;
     m_rowProvider = nullptr;
 
-    m_rows.insert (m_rows.end(),
-                   std::make_move_iterator (rows.begin()),
-                   std::make_move_iterator (rows.end()));
+    m_columnSizing.m_rows.insert (m_columnSizing.m_rows.end(),
+                                  std::make_move_iterator (rows.begin()),
+                                  std::make_move_iterator (rows.end()));
 
-    if (m_preciseAutoFit)
+    if (m_columnSizing.m_preciseAutoFit)
     {
-        m_measureDirty = true;   // grow precise widths monotonically (keep prior max)
+        m_columnSizing.m_measureDirty = true;   // grow precise widths monotonically (keep prior max)
     }
     else
     {
-        m_measuredWPx.clear();
+        m_columnSizing.m_measuredWPx.clear();
     }
 
     ClampTopAfterCountChange (wasSticky);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetColumnVisible
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetColumnVisible (size_t idx, bool visible)
-{
-    HRESULT  hr          = S_OK;
-    size_t   columnCount = 0;
-
-
-
-    columnCount = m_columns.size();
-    CBRAEx (idx < columnCount, E_INVALIDARG);
-
-    m_columns[idx].visible = visible;
-    SetLeftPx (m_leftPx);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetColumnOverrideWidthPx
-//
-//  User-resized column width (pixels). -1 means clear the override and
-//  fall back to widthDip / measured / stretch. The widget enforces a
-//  minimum of 1px.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetColumnOverrideWidthPx (size_t idx, int px)
-{
-    HRESULT  hr          = S_OK;
-    size_t   columnCount = 0;
-
-
-
-    columnCount = m_columns.size();
-    CBRAEx (idx < columnCount, E_INVALIDARG);
-
-    if (m_overrideWPx.size() < m_columns.size())
-    {
-        m_overrideWPx.assign (m_columns.size(), -1);
-    }
-
-    m_overrideWPx[idx] = (px < 1 && px != -1) ? 1 : px;
-    SetLeftPx (m_leftPx);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetColumnOverrideWidthPx
-//
-//  Returns the user-resized override width (pixels) for a column, or
-//  -1 when the column has no override or idx is out of range. The -1
-//  sentinel tells ComputeColumnLayout to fall back to widthDip /
-//  measured / stretch.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetColumnOverrideWidthPx (size_t idx) const
-{
-    HRESULT  hr            = S_OK;
-    int      result        = -1;
-    size_t   overrideCount = 0;
-
-
-
-    overrideCount = m_overrideWPx.size();
-    CBRAEx (idx < overrideCount, E_INVALIDARG);
-
-    result = m_overrideWPx[idx];
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetColumnEffectiveWidthPx
-//
-//  Current effective width of a column (override > widthDip > measured;
-//  a stretch column returns whatever ComputeColumnLayout assigned this
-//  frame).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetColumnEffectiveWidthPx (size_t idx) const
-{
-    HRESULT           hr            = S_OK;
-    int               width         = -1;
-    std::vector<int>  xs;
-    std::vector<int>  ws;
-    int               cap           = 0;
-    bool              needBar       = false;
-    int               fullW         = 0;
-    size_t            overrideCount = 0;
-
-
-
-    overrideCount = m_overrideWPx.size();
-    CBRAEx (idx < overrideCount, E_INVALIDARG);
-
-    cap     = GetVisibleRowCapacity();
-    needBar = (GetLineCount() > cap) && (cap > 0);
-    fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-
-    ComputeColumnLayout ((float) fullW, xs, ws);
-    width = ws[idx];
-
-Error:
-    return width;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetTotalMeasuredWidthPx
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetTotalMeasuredWidthPx() const
-{
-    int  sum = 0;
-
-
-
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        if (m_columns[c].widthDip > 0)
-        {
-            sum += m_scaler.ToPx (m_columns[c].widthDip);
-        }
-        else if (c < m_measuredWPx.size())
-        {
-            sum += m_measuredWPx[c];
-        }
-    }
-
-    return sum;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MeasureColumnsPx
-//
-//  Measure each column's natural width from its header + cell text.
-//  The caller invokes this once after SetColumns/SetRows to populate
-//  auto-fit widths, then reads GetTotalMeasuredWidthPx() to size the host
-//  dialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
-{
-    HRESULT  hr      = S_OK;
-    float    fontDip = (float) m_scaler.ToPxf (m_fontDip);
-    float    hdrDip  = (float) m_scaler.ToPxf (m_fontDip);
-    int      padPx   = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
-    float    w       = 0.0f;
-    float    h       = 0.0f;
-
-
-
-    if (m_measuredWPx.size() != m_columns.size())
-    {
-        m_measuredWPx.assign (m_columns.size(), 0);
-    }
-
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        int  wpx = 0;
-
-        if (m_showHeader && !m_columns[c].title.empty())
-        {
-            //  The title paints at regular weight, and the sort chevron sits
-            //  above it, so the title's own width is all a header needs.
-            hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            wpx = std::max (wpx, (int) std::ceil (w));
-        }
-
-        for (const auto & row : m_rows)
-        {
-            if (c < row.size() && !row[c].text.empty())
-            {
-                hr = text.MeasureString (row[c].text.c_str(), fontDip, GetBodyFace(), w, h);
-                IGNORE_RETURN_VALUE (hr, S_OK);
-
-                wpx = std::max (wpx, (int) std::ceil (w) + (row[c].icon ? m_scaler.ToPx (s_kCellIconDip + s_kCellIconGapDip) : 0));
-            }
-        }
-
-        m_measuredWPx[c] = std::max (m_measuredWPx[c], wpx + padPx);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ResetAutoFit
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ResetAutoFit()
-{
-    m_autoMaxChars.clear();
-    m_measuredWPx.clear();
-    m_measureDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateAutoFitFromRows
-//
-//  Grows each auto column's tracked glyph count to fit its header and
-//  widest current cell. Pure length scan (O(rows) with O(1) per cell),
-//  no DWrite; ComputeColumnLayout converts the count to pixels at the
-//  current DPI.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::UpdateAutoFitFromRows()
-{
-    if (m_autoMaxChars.size() != m_columns.size())
-    {
-        m_autoMaxChars.assign (m_columns.size(), 0);
-    }
-
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        int  maxChars = m_autoMaxChars[c];
-
-        if (m_columns[c].widthDip != 0 || m_columns[c].stretch)
-        {
-            continue;
-        }
-
-        if (m_showHeader)
-        {
-            maxChars = std::max (maxChars, (int) m_columns[c].title.size());
-        }
-
-        for (const auto & row : m_rows)
-        {
-            if (c < row.size())
-            {
-                maxChars = std::max (maxChars, (int) row[c].text.size());
-            }
-        }
-
-        m_autoMaxChars[c] = maxChars;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetVisibleColumnCount
-//
-//  Count of currently-visible columns (per m_columns[c].visible).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetVisibleColumnCount() const
-{
-    return (int) std::count_if (m_columns.begin(), m_columns.end(),
-                                [] (const Column & c)
-                                {
-                                    return c.visible;
-                                });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetNthVisibleColumnIndex
-//
-//  Absolute m_columns index of the n-th visible column, or -1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetNthVisibleColumnIndex (int n) const
-{
-    int  result = -1;
-    int  seen   = 0;
-
-
-
-    for (size_t i = 0; i < m_columns.size(); ++i)
-    {
-        size_t  c = (i < m_columnOrder.size()) ? m_columnOrder[i] : i;
-
-        if (!m_columns[c].visible)
-        {
-            continue;
-        }
-
-        if (seen == n)
-        {
-            result = (int) c;
-            break;
-        }
-
-        ++seen;
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetVisibleIndexOfColumn
-//
-//  Visible-column ordinal of the given absolute column, or -1 if the
-//  column is hidden / out of range.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetVisibleIndexOfColumn (size_t absCol) const
-{
-    HRESULT  hr          = S_OK;
-    int      result      = -1;
-    int      seen        = 0;
-    size_t   columnCount = 0;
-
-
-
-    columnCount = m_columns.size();
-    CBRAEx      (absCol < columnCount, E_INVALIDARG);
-    BAIL_OUT_IF (!m_columns[absCol].visible, S_OK);
-
-    //  In display order, as GetNthVisibleColumnIndex counts.
-    for (size_t i = 0; i < columnCount; ++i)
-    {
-        size_t  c = (i < m_columnOrder.size()) ? m_columnOrder[i] : i;
-
-        if (c == absCol)
-        {
-            result = seen;
-            break;
-        }
-
-        if (m_columns[c].visible)
-        {
-            ++seen;
-        }
-    }
-
-Error:
-    return result;
 }
 
 
@@ -828,15 +370,15 @@ void DxuiListView::SetSelectedRow (int r)
 
     if (r < 0)
     {
-        m_selectedRow = -1;
-        m_anchorRow   = -1;
+        m_selectedRow       = -1;
+        m_mouse.m_anchorRow = -1;
         m_selectedRows.clear();
         return;
     }
 
     EnsureVisible (r);
-    m_selectedRow = r;
-    m_anchorRow   = r;
+    m_selectedRow       = r;
+    m_mouse.m_anchorRow = r;
     m_selectedRows.assign (1, r);
 }
 
@@ -895,13 +437,13 @@ void DxuiListView::SetSelectedRows (std::vector<int> rows, int anchor)
 
     if (m_selectedRows.empty())
     {
-        m_selectedRow = -1;
-        m_anchorRow   = -1;
+        m_selectedRow       = -1;
+        m_mouse.m_anchorRow = -1;
         return;
     }
 
-    m_anchorRow   = IsRowSelected (anchor) ? anchor : m_selectedRows.back();
-    m_selectedRow = m_anchorRow;
+    m_mouse.m_anchorRow = IsRowSelected (anchor) ? anchor : m_selectedRows.back();
+    m_selectedRow       = m_mouse.m_anchorRow;
 
     EnsureVisible (m_selectedRow);
 }
@@ -936,7 +478,7 @@ bool DxuiListView::IsRowSelected (int row) const
 
 void DxuiListView::SelectRangeFromAnchor (int row)
 {
-    int  anchor = (m_anchorRow >= 0) ? m_anchorRow : row;
+    int  anchor = (m_mouse.m_anchorRow >= 0) ? m_mouse.m_anchorRow : row;
     int  first  = (std::min) (anchor, row);
     int  last   = (std::max) (anchor, row);
     int  r      = 0;
@@ -950,8 +492,8 @@ void DxuiListView::SelectRangeFromAnchor (int row)
         m_selectedRows.push_back (r);
     }
 
-    m_anchorRow   = anchor;
-    m_selectedRow = row;
+    m_mouse.m_anchorRow = anchor;
+    m_selectedRow       = row;
 
     EnsureVisible (row);
 }
@@ -992,8 +534,8 @@ void DxuiListView::ClickRow (int row, bool ctrl, bool shift)
             m_selectedRows.insert (at, row);
         }
 
-        m_anchorRow   = row;
-        m_selectedRow = row;
+        m_mouse.m_anchorRow = row;
+        m_selectedRow       = row;
         EnsureVisible (row);
     }
     else
@@ -1041,9 +583,9 @@ void DxuiListView::SelectAllRows()
         m_selectedRow = 0;
     }
 
-    if (m_anchorRow < 0)
+    if (m_mouse.m_anchorRow < 0)
     {
-        m_anchorRow = m_selectedRow;
+        m_mouse.m_anchorRow = m_selectedRow;
     }
 
     if (m_onSelectionChanged)
@@ -1077,9 +619,9 @@ void DxuiListView::PruneSelection()
         m_selectedRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
     }
 
-    if (m_anchorRow >= count)
+    if (m_mouse.m_anchorRow >= count)
     {
-        m_anchorRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
+        m_mouse.m_anchorRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
     }
 }
 
@@ -1104,7 +646,7 @@ void DxuiListView::PruneSelection()
 
 void DxuiListView::EnsureVisible (int row)
 {
-    int  cap   = GetVisibleRowCapacity();
+    int  cap   = m_scrollbars.GetVisibleRowCapacity();
     int  line  = 0;
     int  top   = 0;
     int  first = 0;
@@ -1114,7 +656,7 @@ void DxuiListView::EnsureVisible (int row)
 
     if (IsItemsView())
     {
-        EnsureItemVisible (row);
+        m_items.EnsureItemVisible (row);
         return;
     }
 
@@ -1125,31 +667,31 @@ void DxuiListView::EnsureVisible (int row)
 
     //  A group's first row brings its header into view with it; a row under a
     //  collapsed header has no line to scroll to.
-    line = GetLineOfRow (row);
+    line = m_grouping.GetLineOfRow (row);
 
     if (line < 0)
     {
         return;
     }
 
-    top  = (HasGroupLines() && line > 0 && GetRowOfLine (line - 1) < 0) ? line - 1 : line;
+    top  = (HasGroupLines() && line > 0 && m_grouping.GetRowOfLine (line - 1) < 0) ? line - 1 : line;
 
-    if (TryGetWholeLineSpan (first, last) && top >= first && line <= last)
+    if (m_keyboard.TryGetWholeLineSpan (first, last) && top >= first && line <= last)
     {
         return;
     }
 
-    if (top < m_topRow || (top == m_topRow && GetRowShiftPx() > 0))
+    if (top < m_topRow || (top == m_topRow && m_scrollbars.GetRowShiftPx() > 0))
     {
-        SetTopRow (top);
+        m_scrollbars.SetTopRow (top);
     }
     else if (m_flushBottom && line > last)
     {
-        ScrollLineToBottom (line);
+        m_keyboard.ScrollLineToBottom (line);
     }
     else if (line >= m_topRow + cap)
     {
-        SetTopRow (line - cap + 1);
+        m_scrollbars.SetTopRow (line - cap + 1);
     }
 }
 
@@ -1168,7 +710,7 @@ void DxuiListView::EnsureVisible (int row)
 
 void DxuiListView::CenterOnRow (int row)
 {
-    int  cap = GetVisibleRowCapacity();
+    int  cap = m_scrollbars.GetVisibleRowCapacity();
 
 
 
@@ -1177,1419 +719,7 @@ void DxuiListView::CenterOnRow (int row)
         return;
     }
 
-    SetTopRow (GetLineOfRow (row) - cap / 2);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetColumnNaturalWidthPx
-//
-//  Natural pixel width of a single column ignoring any stretch fill:
-//  the user override if set, else the fixed widthDip, else the wider of
-//  the batch-measured width and the incremental char-count auto-fit.
-//  Returns 0 for a hidden column. Shared by ComputeColumnLayout and
-//  GetContentWidthPx so both agree on a column's intrinsic size.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetColumnNaturalWidthPx (size_t c) const
-{
-    int  wpx       = 0;
-    int  padPx     = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
-    int  perCharPx = (int) std::ceil (m_scaler.ToPxf (m_fontDip) * s_kAutoCharWidthEm);
-
-
-
-    if (m_columns[c].visible)
-    {
-        if (c < m_overrideWPx.size() && m_overrideWPx[c] >= 0)
-        {
-            wpx = m_overrideWPx[c];
-        }
-        else if (m_columns[c].widthDip > 0)
-        {
-            wpx = m_scaler.ToPx (m_columns[c].widthDip);
-        }
-        else
-        {
-            int  measuredPx = (c < m_measuredWPx.size()) ? m_measuredWPx[c] : 0;
-            int  autoFitPx  = (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
-                              ? (m_autoMaxChars[c] * perCharPx + padPx)
-                              : 0;
-
-            // Prefer the WIDER of the one-time DWrite measurement (accurate:
-            // includes bold-header + sort-glyph reserve, captured once) and
-            // the per-frame glyph-count auto-fit (grows as longer cells
-            // stream in). The measurement never re-runs, so a header-dominated
-            // column keeps its arrow reserve via measuredPx, while a content-
-            // dominated column that gained wider rows later grows via
-            // autoFitPx instead of clipping.
-            wpx = m_preciseAutoFit ? measuredPx : std::max (measuredPx, autoFitPx);
-        }
-    }
-
-    return wpx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetColumnContentWidthPx
-//
-//  What the column needs to show its title and every row's value in full,
-//  measured now. It takes no account of the column's declared width, its
-//  dragged width or the measurement cache, any of which fitting replaces.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c) const
-{
-    HRESULT            hr      = S_OK;
-    float              fontPx  = (float) m_scaler.ToPxf (m_fontDip);
-    int                padPx   = m_scaler.ToPx (s_kCellPadLeftDip) + m_scaler.ToPx (s_kCellPadRightDip);
-    int                iconPx  = m_scaler.ToPx (s_kCellIconDip + s_kCellIconGapDip);
-    int                wpx     = 0;
-    float              w       = 0.0f;
-    float              h       = 0.0f;
-
-
-
-    if (c >= m_columns.size() || !m_columns[c].visible)
-    {
-        return 0;
-    }
-
-    if (m_showHeader && !m_columns[c].title.empty())
-    {
-        hr = text.MeasureString (m_columns[c].title.c_str(), fontPx, DxuiTheme::kBodyFace, w, h);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        wpx = (int) std::ceil (w);
-    }
-
-    for (int r = 0; r < GetRowCount(); r++)
-    {
-        const std::vector<Cell> &  cells = GetRowCells (r);
-
-        if (c < cells.size() && !cells[c].text.empty())
-        {
-            hr = text.MeasureString (cells[c].text.c_str(), fontPx, GetBodyFace(), w, h);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-
-            wpx = (std::max) (wpx, (int) std::ceil (w) + ((cells[c].icon || (int) c == m_iconColumn) ? iconPx : 0));
-        }
-    }
-
-    return wpx + padPx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FitColumnToContent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::FitColumnToContent (size_t idx)
-{
-    if (idx >= m_columns.size() || !m_columns[idx].visible)
-    {
-        return;
-    }
-
-    //  The content has to be measured against the current rows, and only the
-    //  paint pass holds a text renderer, so the column waits there for
-    //  ApplyPendingFit.
-    if (std::find (m_pendingFits.begin(), m_pendingFits.end(), idx) == m_pendingFits.end())
-    {
-        m_pendingFits.push_back (idx);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FitAllColumnsToContent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::FitAllColumnsToContent()
-{
-    for (size_t c = 0; c < m_columns.size(); c++)
-    {
-        FitColumnToContent (c);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyPendingFit
-//
-//  Takes the width a fit asked for, once the paint pass has measured it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ApplyPendingFit (IDxuiTextRenderer & text)
-{
-    int                  minPx     = m_scaler.ToPx (s_kMinColWidthDip);
-    int                  contentPx = 0;
-    std::vector<size_t>  pending   = std::move (m_pendingFits);
-
-
-
-    m_pendingFits.clear();
-
-    for (size_t idx : pending)
-    {
-        contentPx = GetColumnContentWidthPx (text, idx);
-
-        if (contentPx <= 0)
-        {
-            continue;
-        }
-
-        SetColumnOverrideWidthPx (idx, (std::max) (minPx, contentPx));
-
-        //  Reported here rather than at the double-click, since this is where
-        //  the width the host would store is finally known.
-        if (m_onColumnResized)
-        {
-            m_onColumnResized ((int) idx, GetColumnOverrideWidthPx (idx));
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetContentWidthPx
-//
-//  Sum of every visible column's natural width (no stretch fill). This
-//  is the width the columns want, against which the horizontal scroll
-//  range is measured.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetContentWidthPx() const
-{
-    int  total = 0;
-
-
-
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        total += GetColumnNaturalWidthPx (c);
-    }
-
-    return total;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ComputeScrollLayout
-//
-//  Resolves the mutually-dependent vertical / horizontal scrollbar
-//  state for the current rect. The horizontal bar (when enabled) steals
-//  one bar-thickness of row capacity from the bottom; the vertical bar
-//  steals one bar-thickness of viewport width from the right. Two
-//  passes settle the dependency. With horizontal scroll disabled the
-//  result is identical to the legacy vertical-only math.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
-{
-    ScrollLayout  layout;
-    int           fullW = m_boundsDip.right  - m_boundsDip.left;
-    int           fullH = m_boundsDip.bottom - m_boundsDip.top;
-    int           barW  = GetScrollbarWidthPx();
-    int           rowH  = GetRowHeightPx();
-    int           hgTop = m_showHeader ? (GetHeaderBarPx() + GetHeaderGapPx()) : 0;
-    int           rows  = GetLineCount();
-    int           pass  = 0;
-
-
-
-    if (IsItemsView())
-    {
-        return ComputeItemScrollLayout();
-    }
-
-    layout.contentW  = GetContentWidthPx();
-    layout.viewportW = fullW;
-
-    for (pass = 0; pass < 2; ++pass)
-    {
-        int  viewportW = fullW - (layout.vBar ? barW : 0);
-        int  bodyH     = 0;
-        int  cap       = 0;
-
-        layout.hBar     = m_hScrollEnabled && (viewportW > 0) && (layout.contentW > viewportW);
-        bodyH           = (fullH - hgTop) - (layout.hBar ? barW : 0);
-        cap              = (rowH > 0 && bodyH > 0) ? (bodyH / rowH) : 0;
-        layout.rowCap    = cap;
-        layout.partialPx = (rowH > 0 && bodyH > 0) ? (bodyH % rowH) : 0;
-        layout.vBar     = (cap > 0) && (rows > cap);
-        layout.viewportW = fullW - (layout.vBar ? barW : 0);
-    }
-
-    return layout;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetVisibleRowCapacity
-//
-//  Number of data rows that fit in the current body height (minus the
-//  horizontal scrollbar's reserved strip when it is showing).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetVisibleRowCapacity() const
-{
-    return ComputeScrollLayout().rowCap;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetMaxLeftPx
-//
-//  Largest valid horizontal offset: the excess of the natural content
-//  width over the viewport content width (which excludes the vertical
-//  scrollbar). Zero when the content fits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetMaxLeftPx() const
-{
-    ScrollLayout  layout = ComputeScrollLayout();
-    int           excess = layout.contentW - layout.viewportW;
-
-
-
-    return (excess > 0) ? excess : 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetLeftPx
-//
-//  Sets the horizontal scroll offset, clamped to [0, GetMaxLeftPx()].
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetLeftPx (int leftPx)
-{
-    int  maxLeft = GetMaxLeftPx();
-
-
-
-    if (leftPx < 0)
-    {
-        leftPx = 0;
-    }
-
-    if (leftPx > maxLeft)
-    {
-        leftPx = maxLeft;
-    }
-
-    m_leftPx = leftPx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ScrollByWheelDeltaHorizontal
-//
-//  Shift-wheel horizontal scroll: a positive wheelDelta scrolls left
-//  (toward the start), mirroring the vertical wheel's up-scrolls-up.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch)
-{
-    HRESULT  hr        = S_OK;
-    float    pixels    = 0.0f;
-    int      wholePx   = 0;
-
-
-
-    BAIL_OUT_IF (wheelDelta == 0, S_OK);
-
-    // Horizontal scroll is pixel-granular, so scroll pixels in direct
-    // proportion to the delta (one full notch == pxPerNotch) and bank the
-    // fractional remainder. This makes a touchpad's stream of small deltas
-    // glide smoothly instead of snapping a whole pxPerNotch step per event.
-    pixels          = (float) wheelDelta * (float) pxPerNotch / (float) WHEEL_DELTA;
-    m_wheelAccumH  += pixels;
-    wholePx         = (int) m_wheelAccumH;      // truncates toward zero
-    BAIL_OUT_IF (wholePx == 0, S_OK);
-
-    m_wheelAccumH  -= (float) wholePx;
-    SetLeftPx (m_leftPx - wholePx);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetMaxTopRow
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetMaxTopRow() const
-{
-    int       cap  = GetVisibleRowCapacity();
-    int       rows = GetLineCount();
-    ItemGrid  grid;
-
-
-
-    if (UsesItemLayout())
-    {
-        return GetMaxItemTopLine (GetItemLayout());
-    }
-
-    //  An item view scrolls by whole rows of items; List does not scroll down.
-    if (IsItemsView())
-    {
-        grid = GetItemGrid();
-
-        if (GetItemMetrics (m_view).columns || grid.lines <= grid.visible)
-        {
-            return 0;
-        }
-
-        return (grid.lines - grid.visible) * grid.perLine;
-    }
-
-    //  A body that shows part of one more row scrolls one further, the last
-    //  row then whole at the bottom and the top one cut off.
-    if (rows <= cap)
-    {
-        return 0;
-    }
-
-    return rows - cap - ((ComputeScrollLayout().partialPx > 0) ? 1 : 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetRowShiftPx
-//
-//  How far Details draws its rows above their places. A body that ends
-//  partway through a row lifts them only while the view holds its bottom
-//  edge, after a page down or at the very end of the list, so the last row
-//  in sight ends flush with the bottom and the top one is cut off. Anywhere
-//  else, the top row included, the top row shows whole.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetRowShiftPx() const
-{
-    if (!m_flushBottom || !CanLiftRows())
-    {
-        return 0;
-    }
-
-    return GetRowHeightPx() - ComputeScrollLayout().partialPx;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CanLiftRows
-//
-//  Whether Details' body ends partway through a row and the list has more
-//  lines than the whole rows that fit, so lifting the rows can show its last
-//  line whole.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::CanLiftRows() const
-{
-    ScrollLayout  layout;
-
-
-
-    if (IsItemsView())
-    {
-        return false;
-    }
-
-    layout = ComputeScrollLayout();
-
-    return layout.partialPx > 0 && GetLineCount() > layout.rowCap;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetShownRowCount
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetShownRowCount() const
-{
-    ScrollLayout  layout = ComputeScrollLayout();
-
-
-
-    return layout.rowCap + ((layout.partialPx > 0) ? 1 : 0);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetTopRow
-//
-//  Every scroll but a page's comes through here, so a page's hold on the
-//  bottom of Details or on an item line's edge ends here too, and so does a
-//  page still sliding into view. The row asked for shows whole at the top;
-//  a row past the last that can be the top asks for the very end, where
-//  Details lifts its rows so the last one shows whole.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetTopRow (int topRow)
-{
-    int  maxTop = GetMaxTopRow();
-
-
-
-    m_flushBottom    = false;
-    m_itemAnchorLine = -1;
-    m_pageSlide      = {};
-
-    if (topRow < 0)
-    {
-        topRow = 0;
-    }
-
-    if (topRow > maxTop)
-    {
-        topRow        = maxTop;
-        m_flushBottom = CanLiftRows();
-    }
-
-    //  An item view's top is the first item of a row; grouped, it is a line.
-    if (IsItemsView() && !UsesItemLayout())
-    {
-        topRow -= topRow % (std::max) (1, GetItemGrid().perLine);
-    }
-
-    m_topRow = topRow;
-    m_stickyTail = m_stickyTailEnabled && (m_topRow >= maxTop);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MoveTopRow
-//
-//  Moves the view by whole rows to `topRow`, for a host putting the view
-//  back after the rows under it change. Rows that a page down or the list's
-//  end lifted stay lifted, so nothing on screen moves by part of a row. The
-//  top row the view already has leaves it exactly as it is, a page's hold
-//  on an item line's edge and a page still sliding included.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::MoveTopRow (int topRow)
-{
-    bool  lifted = m_flushBottom;
-
-
-
-    if (topRow == m_topRow)
-    {
-        return;
-    }
-
-    SetTopRow (topRow);
-
-    m_flushBottom = m_flushBottom || (lifted && CanLiftRows());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ScrollByWheelDelta
-//
-//  Converts raw wheel deltas into row scrolling, banking the remainder.
-//
-//  Accumulating rather than scrolling per event is what makes a TOUCHPAD feel
-//  right. A precision touchpad sends many sub-notch deltas; treating each as a
-//  scroll event advanced a whole linesPerNotch block per message, which read
-//  as a chunky jump. Banking the delta and moving ONE row per accumulated step
-//  turns the same input into smooth single-row motion.
-//
-//  A real mouse notch is unchanged: a full WHEEL_DELTA banks linesPerNotch
-//  steps at once, so it still advances exactly linesPerNotch rows.
-//
-//  The remainder is CARRIED rather than discarded, so a slow drag accumulates
-//  to a row instead of being rounded away to nothing.
-//
-//  The sign is inverted because a positive wheel delta means scrolling up,
-//  which is a decrease in row index.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ScrollByWheelDelta (int wheelDelta, int linesPerNotch)
-{
-    HRESULT  hr      = S_OK;
-    int      notches = 0;
-
-
-
-    BAIL_OUT_IF (wheelDelta == 0, S_OK);
-
-    // Bank the raw delta and scroll ONE row per accumulated step, carrying
-    // the remainder. A full mouse notch (WHEEL_DELTA) still advances
-    // linesPerNotch rows -- unchanged feel -- because a notch banks
-    // linesPerNotch steps at once; but a touchpad's sub-notch deltas now
-    // advance a single row at a time as they accumulate, instead of snapping
-    // a whole linesPerNotch block per event (which read as a chunky jump).
-    {
-        int  unitPerRow = (linesPerNotch > 0) ? (WHEEL_DELTA / linesPerNotch) : WHEEL_DELTA;
-
-        if (unitPerRow < 1)
-        {
-            unitPerRow = 1;
-        }
-
-        m_wheelAccumV += wheelDelta;
-        notches        = m_wheelAccumV / unitPerRow;      // whole rows to move
-        BAIL_OUT_IF (notches == 0, S_OK);
-
-        m_wheelAccumV -= notches * unitPerRow;
-
-        //  An item view moves a row of items per step, or a column in List.
-        if (IsItemsView() && GetItemMetrics (m_view).columns)
-        {
-            SetLeftPx (m_leftPx - notches * GetItemGrid().cellW);
-        }
-        else
-        {
-            ScrollByRows (-notches * ((IsItemsView() && !UsesItemLayout()) ? GetItemGrid().perLine : 1));
-        }
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsScrollbarVisible
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::IsScrollbarVisible() const
-{
-    int  cap = GetVisibleRowCapacity();
-
-
-
-    return (cap > 0) && (GetLineCount() > cap);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncVertScroll
-//
-//  Pushes the current rect, row count, capacity, and top-row position into
-//  the owned vertical DxuiScrollbar so geometry / paint / drag all read
-//  from the one component. Track is widget-relative; the bar sits to the
-//  right of the body, between the header and any horizontal bar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SyncVertScroll() const
-{
-    ScrollLayout    layout  = ComputeScrollLayout();
-    int             fullW   = m_boundsDip.right - m_boundsDip.left;
-    int             barW    = GetScrollbarWidthPx();
-    int             hBarH   = layout.hBar ? barW : 0;
-    int             headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int             hdrGap  = m_showHeader ? GetHeaderGapPx()    : 0;
-    int             by      = headerH + hdrGap;
-    int             bh      = (m_boundsDip.bottom - m_boundsDip.top) - by - hBarH;
-    DxuiScrollInfo  info;
-
-
-
-    m_vertScroll.Configure (DxuiScrollbar::Orientation::Vertical, barW, s_kMinThumbPx, 1);
-    m_vertScroll.SetTrack (RECT{ fullW - barW, by, fullW, by + bh });
-
-    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-    info.nMin  = 0;
-    info.nMax  = GetLineCount();
-    info.nPage = layout.rowCap;
-    info.nPos  = m_topRow;
-    m_vertScroll.SetScrollInfo (info);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetScrollbarGeometry
-//
-//  Computes the geometry of every interactive scrollbar region in
-//  coordinates relative to the widget rect's top-left. Up/down arrow
-//  buttons bracket the track; the thumb travels within the track only.
-//  arrowH == 0 means the bar is too short for arrow buttons and the
-//  track spans the full bar height.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiListView::ScrollbarMetrics DxuiListView::GetScrollbarGeometry() const
-{
-    HRESULT                 hr = S_OK;
-    ScrollbarMetrics        m;
-    DxuiScrollbar::Metrics  g;
-
-
-
-    SyncVertScroll();
-    g = m_vertScroll.GetMetrics();
-
-    BAIL_OUT_IF (!g.visible, S_OK);
-
-    m.visible      = true;
-    m.barX         = g.bar.left;
-    m.barW         = g.bar.right - g.bar.left;
-    m.arrowH       = g.arrowLess.bottom - g.arrowLess.top;
-    m.upArrowTop   = g.arrowLess.top;
-    m.downArrowTop = g.arrowMore.top;
-    m.trackTop     = g.track.top;
-    m.trackH       = g.track.bottom - g.track.top;
-    m.thumbTop     = g.thumbStart;
-    m.thumbH       = g.thumbLength;
-
-Error:
-    return m;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestScrollbarThumb
-//
-//  True if (xPx, yPx), relative to the widget rect, lies on the thumb.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestScrollbarThumb (int xPx, int yPx) const
-{
-    HRESULT           hr     = S_OK;
-    bool              result = false;
-    ScrollbarMetrics  m      = GetScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible, S_OK);
-    BAIL_OUT_IF (xPx < m.barX || xPx >= m.barX + m.barW, S_OK);
-
-    result = (float) yPx >= m.thumbTop && (float) yPx < m.thumbTop + m.thumbH;
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestScrollbarTrack
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestScrollbarTrack (int xPx, int yPx) const
-{
-    HRESULT           hr     = S_OK;
-    bool              result = false;
-    ScrollbarMetrics  m      = GetScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible, S_OK);
-    BAIL_OUT_IF (xPx < m.barX || xPx >= m.barX + m.barW, S_OK);
-
-    result = (yPx >= m.trackTop && yPx < m.trackTop + m.trackH);
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestScrollbarArrowUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestScrollbarArrowUp (int xPx, int yPx) const
-{
-    HRESULT           hr     = S_OK;
-    bool              result = false;
-    ScrollbarMetrics  m      = GetScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible || m.arrowH <= 0, S_OK);
-    BAIL_OUT_IF (xPx < m.barX || xPx >= m.barX + m.barW, S_OK);
-
-    result = (yPx >= m.upArrowTop && yPx < m.upArrowTop + m.arrowH);
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestScrollbarArrowDown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestScrollbarArrowDown (int xPx, int yPx) const
-{
-    HRESULT           hr     = S_OK;
-    bool              result = false;
-    ScrollbarMetrics  m      = GetScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible || m.arrowH <= 0, S_OK);
-    BAIL_OUT_IF (xPx < m.barX || xPx >= m.barX + m.barW, S_OK);
-
-    result = (yPx >= m.downArrowTop && yPx < m.downArrowTop + m.arrowH);
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetPageFromTrackClick
-//
-//  Pages the view by one visible-row capacity toward a track click
-//  above (page up) or below (page down) the thumb.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::GetPageFromTrackClick (int yPx)
-{
-    HRESULT           hr      = S_OK;
-    ScrollbarMetrics  m       = GetScrollbarGeometry();
-    int               cap     = GetVisibleRowCapacity();
-    PageSlide         running = m_pageSlide;
-    int               shownPx = 0;
-    int               restPx  = 0;
-
-
-
-    BAIL_OUT_IF (!m.visible || cap <= 0, S_OK);
-
-    shownPx = GetShownScrollPx();
-    restPx  = GetRestScrollPx();
-
-    if ((float) yPx < m.thumbTop)
-    {
-        SetTopRow (m_topRow - cap);
-    }
-    else
-    {
-        SetTopRow (m_topRow + cap);
-    }
-
-    BeginPageSlide (running, shownPx, restPx);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BeginThumbDrag
-//
-//  grabYPx is the y inside the widget where the user grabbed the thumb;
-//  we remember the offset between the click and the thumb's current top
-//  so the thumb doesn't jump on the first move.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::BeginThumbDrag (int grabYPx)
-{
-    ScrollbarMetrics  m = GetScrollbarGeometry();
-
-
-
-    m_vertDragging   = true;
-    m_vertDragGrab = (float) grabYPx - m.thumbTop;
-    m_vertScroll.SetDragOffset (m.thumbTop - (float) m.trackTop);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateThumbDrag
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::UpdateThumbDrag (int yPx)
-{
-    HRESULT           hr       = S_OK;
-    ScrollbarMetrics  m        = GetScrollbarGeometry();
-    int               maxTop   = GetMaxTopRow();
-    float             travel   = 0.0f;
-    float             thumbTop = 0.0f;
-    float             ratio    = 0.0f;
-
-
-
-    BAIL_OUT_IF (!m_vertDragging || !m.visible, S_OK);
-
-    //  The puck follows the pointer by the pixel; the rows follow in whole
-    //  rows as the puck reaches each one. At the bottom of its travel, the
-    //  view goes to the very end, past the last top row.
-    travel   = (std::max) ((float) m.trackH - m.thumbH, 0.0f);
-    thumbTop = std::clamp ((float) yPx - m_vertDragGrab - (float) m.trackTop, 0.0f, travel);
-    ratio    = (travel > 0.0f) ? (thumbTop / travel) : 0.0f;
-
-    m_vertScroll.SetDragOffset (thumbTop);
-    SetTopRow ((travel > 0.0f && thumbTop >= travel) ? maxTop + 1 : (int) std::lround (ratio * (float) maxTop));
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsHorzScrollbarVisible
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::IsHorzScrollbarVisible() const
-{
-    return ComputeScrollLayout().hBar;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetHorzScrollbarGeometry
-//
-//  Horizontal counterpart to GetScrollbarGeometry: the bar runs along
-//  the bottom of the list, spanning the viewport content width (full
-//  width minus the vertical scrollbar). Left/right arrow buttons bracket
-//  the track; the thumb travels within the track only. arrowW == 0 means
-//  the bar is too short for arrow buttons.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncHorzScroll
-//
-//  Pushes the current viewport / content width and left-offset into the
-//  owned horizontal DxuiScrollbar. nMax is zeroed when the bar is not
-//  enabled or content fits, so the bar reports hidden in that case.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SyncHorzScroll() const
-{
-    ScrollLayout    layout = ComputeScrollLayout();
-    int             fullH  = m_boundsDip.bottom - m_boundsDip.top;
-    int             barH   = GetScrollbarWidthPx();
-    int             viewW  = layout.viewportW;
-    DxuiScrollInfo  info;
-
-
-
-    m_horzScroll.Configure (DxuiScrollbar::Orientation::Horizontal, barH, s_kMinThumbPx, m_scaler.ToPx (s_kHScrollStepDip));
-    m_horzScroll.SetTrack (RECT{ 0, fullH - barH, viewW, fullH });
-
-    info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-    info.nMin  = 0;
-    info.nMax  = layout.hBar ? layout.contentW : 0;
-    info.nPage = viewW;
-    info.nPos  = m_leftPx;
-    m_horzScroll.SetScrollInfo (info);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetHorzScrollbarGeometry
-//
-//  Horizontal counterpart to GetScrollbarGeometry, derived from the owned
-//  horizontal DxuiScrollbar.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiListView::HorzScrollbarMetrics DxuiListView::GetHorzScrollbarGeometry() const
-{
-    HRESULT                 hr = S_OK;
-    HorzScrollbarMetrics    m;
-    DxuiScrollbar::Metrics  g;
-
-
-
-    SyncHorzScroll();
-    g = m_horzScroll.GetMetrics();
-
-    BAIL_OUT_IF (!g.visible, S_OK);
-
-    m.visible     = true;
-    m.barY        = g.bar.top;
-    m.barH        = g.bar.bottom - g.bar.top;
-    m.arrowW      = g.arrowLess.right - g.arrowLess.left;
-    m.leftArrowX  = g.arrowLess.left;
-    m.rightArrowX = g.arrowMore.left;
-    m.trackLeft   = g.track.left;
-    m.trackW      = g.track.right - g.track.left;
-    m.thumbLeft   = g.thumbStart;
-    m.thumbW      = g.thumbLength;
-
-Error:
-    return m;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestHorzScrollbarThumb
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestHorzScrollbarThumb (int xPx, int yPx) const
-{
-    HRESULT               hr     = S_OK;
-    bool                  result = false;
-    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible, S_OK);
-    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
-
-    result = (float) xPx >= m.thumbLeft && (float) xPx < m.thumbLeft + m.thumbW;
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestHorzScrollbarTrack
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestHorzScrollbarTrack (int xPx, int yPx) const
-{
-    HRESULT               hr     = S_OK;
-    bool                  result = false;
-    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible, S_OK);
-    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
-
-    result = (xPx >= m.trackLeft && xPx < m.trackLeft + m.trackW);
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestHorzScrollbarArrowLeft
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestHorzScrollbarArrowLeft (int xPx, int yPx) const
-{
-    HRESULT               hr     = S_OK;
-    bool                  result = false;
-    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible || m.arrowW <= 0, S_OK);
-    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
-
-    result = (xPx >= m.leftArrowX && xPx < m.leftArrowX + m.arrowW);
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestHorzScrollbarArrowRight
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestHorzScrollbarArrowRight (int xPx, int yPx) const
-{
-    HRESULT               hr     = S_OK;
-    bool                  result = false;
-    HorzScrollbarMetrics  m      = GetHorzScrollbarGeometry();
-
-
-
-    BAIL_OUT_IF (!m.visible || m.arrowW <= 0, S_OK);
-    BAIL_OUT_IF (yPx < m.barY || yPx >= m.barY + m.barH, S_OK);
-
-    result = (xPx >= m.rightArrowX && xPx < m.rightArrowX + m.arrowW);
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetPageFromHorzTrackClick
-//
-//  Pages the view by one viewport width toward a horizontal track click
-//  left (page left) or right (page right) of the thumb.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::GetPageFromHorzTrackClick (int xPx)
-{
-    HRESULT               hr    = S_OK;
-    HorzScrollbarMetrics  m     = GetHorzScrollbarGeometry();
-    int                   viewW = ComputeScrollLayout().viewportW;
-
-
-
-    BAIL_OUT_IF (!m.visible || viewW <= 0, S_OK);
-
-    if ((float) xPx < m.thumbLeft)
-    {
-        SetLeftPx (m_leftPx - viewW);
-    }
-    else
-    {
-        SetLeftPx (m_leftPx + viewW);
-    }
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BeginHorzThumbDrag
-//
-//  grabXPx is the x inside the widget where the user grabbed the thumb;
-//  we remember the offset between the click and the thumb's current left
-//  so the thumb doesn't jump on the first move.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::BeginHorzThumbDrag (int grabXPx)
-{
-    HorzScrollbarMetrics  m = GetHorzScrollbarGeometry();
-
-
-
-    m_horzDragging   = true;
-    m_horzDragGrab = (float) grabXPx - m.thumbLeft;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateHorzThumbDrag
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::UpdateHorzThumbDrag (int xPx)
-{
-    HRESULT               hr        = S_OK;
-    HorzScrollbarMetrics  m         = GetHorzScrollbarGeometry();
-    int                   maxLeft   = GetMaxLeftPx();
-    float                 travel    = 0.0f;
-    float                 thumbLeft = 0.0f;
-    float                 ratio     = 0.0f;
-
-
-
-    BAIL_OUT_IF (!m_horzDragging || !m.visible, S_OK);
-
-    travel    = (float) m.trackW - m.thumbW;
-    thumbLeft = (float) xPx - m_horzDragGrab;
-    ratio     = (travel > 0.0f) ? ((thumbLeft - (float) m.trackLeft) / travel) : 0.0f;
-
-    SetLeftPx ((int) std::lround (ratio * (float) maxLeft));
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetRequiredRowsForHeightPx
-//
-//  Number of data rows that fit within the given pixel height
-//  (subtracting header + header gap). The caller uses this for manual
-//  tail-virtualization: push only the most recent N rows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetRequiredRowsForHeightPx (int heightPx) const
-{
-    HRESULT  hr      = S_OK;
-    int      result  = 0;
-    int      rowH    = GetRowHeightPx();
-    int      headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int      hdrGap  = m_showHeader ? GetHeaderGapPx()    : 0;
-    int      body    = heightPx - headerH - hdrGap;
-
-
-
-    BAIL_OUT_IF (rowH <= 0 || body <= 0, S_OK);
-
-    result = body / rowH;
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetRequiredHeightPx
-//
-//  Body height required to host the current header + rows at the
-//  current DPI. The caller uses this to size customBodyMinSizePx.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetRequiredHeightPx() const
-{
-    int  rows    = GetLineCount();
-    int  rowH    = GetRowHeightPx();
-    int  headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int  hdrGap  = m_showHeader ? GetHeaderGapPx()    : 0;
-
-
-
-    return headerH + hdrGap + rows * rowH;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestColumnResize
-//
-//  Returns the index of a column whose right-edge separator the point
-//  is hovering, suitable for starting a column-resize drag, or -1 if
-//  the point is outside the header strip or not near a resize handle.
-//  tolerancePx is the half-width of the hit zone straddling the
-//  separator. The last visible column has no right separator and is
-//  excluded.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
-{
-    HRESULT           hr      = S_OK;
-    int               result  = -1;
-    int               headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int               cap     = GetVisibleRowCapacity();
-    bool              needBar = (GetLineCount() > cap) && (cap > 0);
-    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    int               xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
-    std::vector<int>  colXPx;
-    std::vector<int>  colWPx;
-
-
-
-    BAIL_OUT_IF (!m_showHeader || headerH <= 0, S_OK);
-    BAIL_OUT_IF (yPx < 0 || yPx >= headerH, S_OK);
-    BAIL_OUT_IF (xPx < 0 || xPx >= fullW, S_OK);
-
-    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
-
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        int  rightEdge = 0;
-
-        if (!m_columns[c].visible || colWPx[c] <= 0)
-        {
-            continue;
-        }
-
-        //  EVERY COLUMN'S EDGE CAN BE GRABBED, a stretch column's included. A
-        //  stretch column absorbs the spare width by default, but that is no
-        //  reason it cannot be given a width of its own: the layout keeps a
-        //  width dragged onto one. Excluding it made the file browser's Name
-        //  column, the one most wanted wider, impossible to resize.
-        rightEdge = colXPx[c] + colWPx[c];
-
-        if (xAdj >= rightEdge - tolerancePx && xAdj <= rightEdge + tolerancePx)
-        {
-            result = (int) c;
-            break;
-        }
-    }
-
-Error:
-    return result;
+    m_scrollbars.SetTopRow (m_grouping.GetLineOfRow (row) - cap / 2);
 }
 
 
@@ -2614,135 +744,12 @@ LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
 
 
 
-    if (HitTestColumnResize (localPx.x, localPx.y, grabTol) >= 0)
+    if (m_header.HitTestColumnResize (localPx.x, localPx.y, grabTol) >= 0)
     {
         cursor = IDC_SIZEWE;
     }
 
     return cursor;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestHeaderColumn
-//
-//  xPx/yPx are relative to the list's rect.left/top. Returns the column
-//  index of the header cell under the point (visible columns only), or
-//  -1 if the point is not inside the header strip. Use this to
-//  implement per-column sort on click.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::HitTestHeaderColumn (int xPx, int yPx) const
-{
-    HRESULT          hr      = S_OK;
-    int              result  = -1;
-    int              headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int              cap     = GetVisibleRowCapacity();
-    bool             needBar = (GetLineCount() > cap) && (cap > 0);
-    int              fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    int              xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
-    std::vector<int> colXPx;
-    std::vector<int> colWPx;
-
-
-
-    BAIL_OUT_IF (!m_showHeader || headerH <= 0, S_OK);
-    BAIL_OUT_IF (yPx < 0 || yPx >= headerH, S_OK);
-    BAIL_OUT_IF (xPx < 0 || xPx >= fullW, S_OK);
-
-    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
-
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        if (!m_columns[c].visible || colWPx[c] <= 0)
-        {
-            continue;
-        }
-
-        if (xAdj >= colXPx[c] && xAdj < colXPx[c] + colWPx[c])
-        {
-            result = (int) c;
-            break;
-        }
-    }
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetCellTextRectPx
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::GetCellTextRectPx (int row, size_t column, RECT & outRect) const
-{
-    RECT  cell = {};
-
-
-
-    //  An item's name is its label, wherever the view puts it.
-    if (IsItemsView())
-    {
-        if (column != 0 || !GetItemRectPx (row, cell))
-        {
-            return false;
-        }
-
-        outRect = GetItemLabelRectPx (cell);
-
-        return true;
-    }
-
-    int               rowH    = GetRowHeightPx();
-    int               headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int               hdrGap  = m_showHeader ? GetHeaderGapPx()    : 0;
-    int               cap     = GetVisibleRowCapacity();
-    bool              needBar = (GetLineCount() > cap) && (cap > 0);
-    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    int               colOff  = m_hScrollEnabled ? -m_leftPx : 0;
-    int               left    = 0;
-    std::vector<int>  colXPx;
-    std::vector<int>  colWPx;
-
-
-
-    if (row < 0 || row >= GetRowCount() || GetLineOfRow (row) < m_topRow || GetLineOfRow (row) >= m_topRow + GetShownRowCount() ||
-        column >= m_columns.size() || !m_columns[column].visible)
-    {
-        return false;
-    }
-
-    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
-
-    if (colWPx[column] <= 0)
-    {
-        return false;
-    }
-
-    left = colXPx[column] + colOff + GetCellPadLeftPx (column);
-
-    if (column < GetRowCells (row).size() && GetRowCells (row)[column].icon)
-    {
-        left += m_scaler.ToPx (s_kCellIconDip) + GetCellIconGapPx();
-    }
-
-    outRect.left   = left;
-    outRect.top    = headerH + hdrGap + (GetLineOfRow (row) - m_topRow) * rowH - GetRowShiftPx();
-    outRect.right  = colXPx[column] + colOff + colWPx[column];
-    outRect.bottom = outRect.top + rowH;
-
-    return true;
 }
 
 
@@ -2767,814 +774,19 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
 
     if (IsItemsView())
     {
-        return HitTestItem (xPx, yPx);
+        return m_items.HitTestItem (xPx, yPx);
     }
 
-    line = HitTestLine (xPx, yPx);
+    line = m_grouping.HitTestLine (xPx, yPx);
 
     //  Past the last column is empty space, as in Explorer's Details view: a
     //  click there selects nothing and gives the folder's own menu.
-    if (m_showHeader && !m_columns.empty() && xPx + m_leftPx >= GetContentWidthPx())
+    if (m_showHeader && !m_columns.empty() && xPx + m_leftPx >= m_columnSizing.GetContentWidthPx())
     {
         return -1;
     }
 
-    return (line < 0) ? -1 : GetRowOfLine (line);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestGroupHeader
-//
-//  The group whose header is drawn under a point, a sliding page's offset
-//  included, or -1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::HitTestGroupHeader (int xPx, int yPx) const
-{
-    if (HasListGroups())
-    {
-        const ListLayout  & layout = GetListLayout();
-        int                 at     = (yPx >= 0 && yPx < layout.headerH) ? FindListBlock (layout, xPx + m_leftPx) : -1;
-
-        return (at >= 0) ? layout.blocks[(size_t) at].group : -1;
-    }
-
-    if (UsesItemLayout())
-    {
-        const ItemLayout  & layout = GetItemLayout();
-        int                 at     = (xPx >= 0 && yPx >= 0) ? FindItemLine (layout, yPx + GetShownScrollPx()) : -1;
-
-        return (at >= 0) ? layout.lines[(size_t) at].group : -1;
-    }
-
-    int  line = HasGroupLines() ? HitTestLine (xPx, yPx) : -1;
-
-
-
-    return (line < 0) ? -1 : GetGroupOfLine (line);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestLine
-//
-//  The line under a point relative to the list's rect, or -1 outside every
-//  shown line. The line is the one drawn there: past the scroll, the rows'
-//  lift, and a sliding page's offset, which can put a line above the top
-//  row under the point.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::HitTestLine (int xPx, int yPx) const
-{
-    HRESULT  hr      = S_OK;
-    int      result  = -1;
-    int      rowH    = GetRowHeightPx();
-    int      headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int      hdrGap  = m_showHeader ? GetHeaderGapPx()    : 0;
-    int      body    = yPx - headerH - hdrGap;
-    int      shifted = body + GetRowShiftPx();
-    int      visIdx  = (body < 0 || rowH <= 0) ? -1 : (shifted / rowH);
-    int      drawnPx = shifted - GetPageSlidePx();
-    int      drawn   = (rowH <= 0) ? 0 : (drawnPx >= 0) ? drawnPx / rowH : -((rowH - 1 - drawnPx) / rowH);
-    int      cap     = GetVisibleRowCapacity();
-    int      abs     = (visIdx < 0) ? -1 : (m_topRow + drawn);
-    int      rowW    = (m_boundsDip.right - m_boundsDip.left) - (GetLineCount() > cap ? GetScrollbarWidthPx() : 0);
-
-
-
-    BAIL_OUT_IF (xPx < 0 || xPx >= rowW, S_OK);
-    BAIL_OUT_IF (visIdx < 0 || visIdx >= GetShownRowCount(), S_OK);
-    BAIL_OUT_IF (abs < 0 || abs >= GetLineCount(), S_OK);
-
-    result = abs;
-
-Error:
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BuildLines
-//
-//  A header for each group, then its rows unless it is collapsed. Rows ahead
-//  of the first group, which a host should not leave, still get lines.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::BuildLines() const
-{
-    int  rows  = GetRowCount();
-    int  first = m_groups.empty() ? rows : (std::min) (m_groups[0].firstRow, rows);
-
-
-
-    if (!m_linesDirty && m_linesRowCount == rows)
-    {
-        return;
-    }
-
-    m_lines.clear();
-    m_rowLines.assign ((size_t) (std::max) (rows, 0), -1);
-
-    for (int r = 0; r < first; r++)
-    {
-        m_rowLines[(size_t) r] = (int) m_lines.size();
-        m_lines.push_back (r);
-    }
-
-    for (size_t g = 0; g < m_groups.size(); g++)
-    {
-        int  start = std::clamp (m_groups[g].firstRow, 0, rows);
-        int  end   = (g + 1 < m_groups.size()) ? std::clamp (m_groups[g + 1].firstRow, start, rows) : rows;
-
-        m_lines.push_back (-((int) g + 1));
-
-        for (int r = start; r < end && !m_groups[g].collapsed; r++)
-        {
-            m_rowLines[(size_t) r] = (int) m_lines.size();
-            m_lines.push_back (r);
-        }
-    }
-
-    m_linesDirty    = false;
-    m_linesRowCount = rows;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetLineCount
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetLineCount() const
-{
-    if (UsesItemLayout())
-    {
-        return (int) GetItemLayout().lines.size();
-    }
-
-    if (!HasGroupLines())
-    {
-        return GetRowCount();
-    }
-
-    BuildLines();
-
-    return (int) m_lines.size();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetLineOfRow
-//
-//  -1 for a row under a collapsed header, which has no line.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetLineOfRow (int row) const
-{
-    if (!HasGroupLines())
-    {
-        return row;
-    }
-
-    BuildLines();
-
-    return (row >= 0 && row < (int) m_rowLines.size()) ? m_rowLines[(size_t) row] : -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetRowOfLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetRowOfLine (int line) const
-{
-    if (!HasGroupLines())
-    {
-        return line;
-    }
-
-    BuildLines();
-
-    return (line >= 0 && line < (int) m_lines.size() && m_lines[(size_t) line] >= 0) ? m_lines[(size_t) line] : -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetGroupOfLine
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetGroupOfLine (int line) const
-{
-    if (!HasGroupLines())
-    {
-        return -1;
-    }
-
-    BuildLines();
-
-    return (line >= 0 && line < (int) m_lines.size() && m_lines[(size_t) line] < 0) ? -m_lines[(size_t) line] - 1 : -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetLineOfGroup
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetLineOfGroup (int group) const
-{
-    if (!HasGroupLines() || group < 0 || group >= (int) m_groups.size())
-    {
-        return -1;
-    }
-
-    BuildLines();
-
-    for (size_t line = 0; line < m_lines.size(); line++)
-    {
-        if (m_lines[line] == -(group + 1))
-        {
-            return (int) line;
-        }
-    }
-
-    return -1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetGroups
-//
-//  Groups that change move every line, so a page's hold on a line's edge is
-//  let go; the same groups set again, as a refresh does, keep it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetGroups (std::vector<Group> groups)
-{
-    bool  same = false;
-
-
-
-    for (Group & group : groups)
-    {
-        for (const Group & old : m_groups)
-        {
-            if (old.label == group.label)
-            {
-                group.collapsed = old.collapsed;
-                break;
-            }
-        }
-    }
-
-    same = std::equal (groups.begin(), groups.end(), m_groups.begin(), m_groups.end(), [] (const Group & a, const Group & b)
-    {
-        return a.label == b.label && a.firstRow == b.firstRow && a.collapsed == b.collapsed;
-    });
-
-    if (!same)
-    {
-        m_flushBottom    = false;
-        m_itemAnchorLine = -1;
-    }
-
-    m_groups     = std::move (groups);
-    m_linesDirty = true;
-    m_hoverGroup = -1;
-    m_groupSlide = {};
-
-    if (m_focusGroup >= (int) m_groups.size())
-    {
-        m_focusGroup = -1;
-    }
-
-    //  Fewer lines than before can put the top past the end.
-    if (m_topRow > GetMaxTopRow())
-    {
-        SetTopRow (m_topRow);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetGroupCollapsed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetGroupCollapsed (int group, bool collapsed)
-{
-    if (group < 0 || group >= (int) m_groups.size() || m_groups[(size_t) group].collapsed == collapsed)
-    {
-        return;
-    }
-
-    m_groups[(size_t) group].collapsed = collapsed;
-    m_linesDirty                       = true;
-    m_groupSlide                       = { group, GetClockMs() };
-
-    SetTopRow (m_topRow);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetAllGroupsCollapsed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetAllGroupsCollapsed (bool collapsed)
-{
-    for (Group & group : m_groups)
-    {
-        group.collapsed = collapsed;
-    }
-
-    m_linesDirty = true;
-    m_groupSlide = {};
-
-    SetTopRow (m_topRow);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsGroupCollapsed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::IsGroupCollapsed (int group) const
-{
-    return group >= 0 && group < (int) m_groups.size() && m_groups[(size_t) group].collapsed;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsGroupSliding
-//
-//  Whether a group opened or closed one at a time, or a page, is still
-//  sliding, so the host keeps painting. The slide ends itself here, and this
-//  returns true once more after it settles, so the frame after its last one
-//  is drawn with the group, or the page, where it rests.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::IsGroupSliding()
-{
-    if (m_pageSlide.active)
-    {
-        if (GetClockMs() - m_pageSlide.startMs >= s_kPageSlideMs)
-        {
-            m_pageSlide = {};
-        }
-
-        return true;
-    }
-
-    if (m_groupSlide.group < 0)
-    {
-        return false;
-    }
-
-    if (GetClockMs() - m_groupSlide.startMs >= s_kGroupSlideMs)
-    {
-        m_groupSlide = {};
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EaseGroupSlide
-//
-//  The CSS ease-in-out curve, cubic Bezier (0.42, 0) (0.58, 1), which
-//  Explorer's group slide follows: x solved for the time by halving, then
-//  its y.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiListView::EaseGroupSlide (float t)
-{
-    constexpr float  kX1    = 0.42f;
-    constexpr float  kX2    = 0.58f;
-    constexpr int    kSteps = 24;
-    float            lo     = 0.0f;
-    float            hi     = 1.0f;
-    float            s      = 0.0f;
-    float            bx     = 0.0f;
-
-
-
-    t = std::clamp (t, 0.0f, 1.0f);
-
-    for (int step = 0; step < kSteps; step++)
-    {
-        s  = (lo + hi) * 0.5f;
-        bx = 3.0f * (1.0f - s) * (1.0f - s) * s * kX1 + 3.0f * (1.0f - s) * s * s * kX2 + s * s * s;
-
-        if (bx < t)
-        {
-            lo = s;
-        }
-        else
-        {
-            hi = s;
-        }
-    }
-
-    s = (lo + hi) * 0.5f;
-
-    return 3.0f * (1.0f - s) * s * s + s * s * s;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetGroupSlideShown
-//
-//  How much of the sliding group's rows is in sight, from 0 to 1; -1 when
-//  no group slides.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiListView::GetGroupSlideShown() const
-{
-    int64_t  elapsed = GetClockMs() - m_groupSlide.startMs;
-    float    eased   = 0.0f;
-
-
-
-    if (m_groupSlide.group < 0 || m_groupSlide.group >= (int) m_groups.size() || elapsed >= s_kGroupSlideMs)
-    {
-        return -1.0f;
-    }
-
-    eased = EaseGroupSlide ((float) elapsed / (float) s_kGroupSlideMs);
-
-    return m_groups[(size_t) m_groupSlide.group].collapsed ? 1.0f - eased : eased;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetGroupRowSpan
-//
-//  The rows a group holds, [start, end).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::GetGroupRowSpan (int group, int & start, int & end) const
-{
-    int  rows = GetRowCount();
-
-
-
-    start = std::clamp (m_groups[(size_t) group].firstRow, 0, rows);
-    end   = (group + 1 < (int) m_groups.size()) ? std::clamp (m_groups[(size_t) group + 1].firstRow, start, rows) : rows;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlaceDataLines
-//
-//  Where Details draws each line in sight. While a group slides, its rows
-//  are drawn from just under its header, lifted by however much of them is
-//  still out of sight and clipped to [clipTop, clipTop + clipH); the lines
-//  under the group follow the slide's edge. The slid rows come last, so the
-//  clip is pushed once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::vector<DxuiListView::LineSpot> DxuiListView::PlaceDataLines (
-    float    top,
-    int      firstLine,
-    int      lastLine,
-    float  & clipTop,
-    float  & clipH) const
-{
-    std::vector<LineSpot>  spots;
-    std::vector<LineSpot>  slid;
-    float                  rowH   = (float) GetRowHeightPx();
-    float                  bottom = (float) m_boundsDip.bottom;
-    float                  shown  = HasGroupLines() ? GetGroupSlideShown() : -1.0f;
-    int                    group  = m_groupSlide.group;
-    int                    start  = 0;
-    int                    end    = 0;
-    float                  fullH  = 0.0f;
-    float                  extra  = 0.0f;
-    int                    count  = GetLineCount();
-
-
-
-    clipTop = 0.0f;
-    clipH   = 0.0f;
-
-    if (shown >= 0.0f)
-    {
-        GetGroupRowSpan (group, start, end);
-        fullH    = (float) (end - start) * rowH;
-        lastLine = count;
-    }
-
-    for (int line = (std::max) (firstLine, 0); line < (std::min) (lastLine, count); ++line)
-    {
-        LineSpot  spot;
-
-        spot.row   = GetRowOfLine (line);
-        spot.group = spot.row < 0 ? GetGroupOfLine (line) : -1;
-        spot.y     = top + (float) (line - firstLine) * rowH + extra;
-
-        //  The slide draws the group's own rows.
-        if (shown >= 0.0f && spot.row >= start && spot.row < end)
-        {
-            continue;
-        }
-
-        if (spot.y >= bottom)
-        {
-            break;
-        }
-
-        spots.push_back (spot);
-
-        if (shown < 0.0f || spot.group != group)
-        {
-            continue;
-        }
-
-        clipTop = spot.y + rowH;
-        clipH   = fullH * shown;
-        extra   = clipH - (m_groups[(size_t) group].collapsed ? 0.0f : fullH);
-
-        for (int r = start; r < end; r++)
-        {
-            float  ry = clipTop + (float) (r - start) * rowH - (fullH - clipH);
-
-            if (ry + rowH > clipTop && ry < clipTop + clipH && ry < bottom)
-            {
-                slid.push_back (LineSpot { r, -1, ry, true });
-            }
-        }
-    }
-
-    spots.insert (spots.end(), slid.begin(), slid.end());
-
-    return spots;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EnsureLineVisible
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::EnsureLineVisible (int line)
-{
-    int  cap   = GetVisibleRowCapacity();
-    int  first = 0;
-    int  last  = 0;
-
-
-
-    if (line < 0 || cap <= 0)
-    {
-        return;
-    }
-
-    //  As EnsureVisible: a line whole in sight leaves a page down's hold alone.
-    if (TryGetWholeLineSpan (first, last) && line >= first && line <= last)
-    {
-        return;
-    }
-
-    if (line < m_topRow || (line == m_topRow && GetRowShiftPx() > 0))
-    {
-        SetTopRow (line);
-    }
-    else if (m_flushBottom && line > last)
-    {
-        ScrollLineToBottom (line);
-    }
-    else if (line >= m_topRow + cap)
-    {
-        SetTopRow (line - cap + 1);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HitTestGroupChevron
-//
-//  The chevron's box at the header's start, where a click toggles the group.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HitTestGroupChevron (int xPx, int group) const
-{
-    int  colOff = m_hScrollEnabled ? -m_leftPx : 0;
-
-
-
-    //  In List, the chevron starts its own group's block.
-    if (HasListGroups() && group >= 0)
-    {
-        const ListLayout & layout = GetListLayout();
-
-        colOff = (group < (int) layout.blocks.size()) ? layout.blocks[(size_t) group].left - m_leftPx : colOff;
-    }
-
-    return group >= 0 && xPx >= colOff && xPx < colOff + m_scaler.ToPx (s_kGroupLabelDip);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SelectGroup
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SelectGroup (int group)
-{
-    std::vector<int>  rows;
-    int               first = 0;
-    int               end   = 0;
-
-
-
-    if (group < 0 || group >= (int) m_groups.size())
-    {
-        return;
-    }
-
-    first = m_groups[(size_t) group].firstRow;
-    end   = (group + 1 < (int) m_groups.size()) ? m_groups[(size_t) group + 1].firstRow : GetRowCount();
-
-    for (int r = first; r < end; r++)
-    {
-        rows.push_back (r);
-    }
-
-    SetSelectedRows (std::move (rows), first);
-    m_focusGroup = group;
-
-    if (m_onSelectionChanged)
-    {
-        m_onSelectionChanged (first);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintGroupHeader
-//
-//  The group's label where a row's name starts, as Explorer draws it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer & text, const Palette & pal, int group, float x, float rowX, float ry, float layoutW) const
-{
-    HRESULT      hr      = S_OK;
-    float        rowH    = (float) GetRowHeightPx();
-    float        labelX  = x + m_scaler.ToPxf ((float) (HasListGroups() ? s_kListGroupLabelDip : s_kGroupLabelDip));
-    float        armHalf = m_scaler.ToPxf (s_kGroupChevronArmDip);
-    float        thick   = (std::max) (std::floor (m_scaler.ToPxf (1.0f)), 1.0f);
-    float        cx      = x + m_scaler.ToPxf ((float) s_kGroupChevronCenterDip);
-    float        cy      = ry + rowH * 0.5f;
-    int          steps   = (int) (armHalf - thick * 0.5f);
-    uint32_t     ink     = m_theme->ForegroundMuted();
-    bool         focused = m_listFocused && group == m_focusGroup;
-    DxuiRowLook  look    = DxuiRowLook::Resolve (*m_theme, false, focused, group == m_hoverGroup, m_listFocused);
-
-
-
-    if (group < 0 || group >= (int) m_groups.size())
-    {
-        return;
-    }
-
-    //  The whole pane's width, not the columns': a header is not a row.
-    if (look.fill != 0)
-    {
-        painter.FillRect (rowX, ry, layoutW, rowH, look.fill);
-    }
-
-    if (focused)
-    {
-        painter.OutlineRect (rowX, ry, layoutW, rowH, DxuiRowLook::GetOutlinePx (m_scaler.ToPxf (1.0f)), m_theme->Foreground());
-    }
-
-    //  Down while the group is open, right while it is collapsed, as a tree
-    //  node's; two strokes stepped toward each other, as the tree draws them.
-    //  List's headers have none: its groups do not collapse.
-    for (int s = 0; s <= steps && !HasListGroups(); ++s)
-    {
-        if (m_groups[(size_t) group].collapsed)
-        {
-            float  dx = cx - armHalf * 0.5f + (float) s;
-
-            painter.FillRect (dx, cy - armHalf + (float) s,         thick, thick, ink);
-            painter.FillRect (dx, cy + armHalf - (float) s - thick, thick, thick, ink);
-        }
-        else
-        {
-            float  dy = cy - armHalf * 0.5f + (float) s;
-
-            painter.FillRect (cx - armHalf + (float) s,         dy, thick, thick, ink);
-            painter.FillRect (cx + armHalf - (float) s - thick, dy, thick, thick, ink);
-        }
-    }
-
-    hr = text.DrawString (m_groups[(size_t) group].label.c_str(), labelX, ry, layoutW - (labelX - x), rowH,
-                          pal.fg, m_scaler.ToPxf (m_fontDip), GetBodyFace(),
-                          DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+    return (line < 0) ? -1 : m_grouping.GetRowOfLine (line);
 }
 
 
@@ -3594,17 +806,17 @@ void DxuiListView::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer &
 void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     HRESULT          hr         = S_OK;
-    ScrollLayout     layout     = ComputeScrollLayout();
+    ScrollLayout     layout     = m_scrollbars.ComputeScrollLayout();
     float            x          = (float) m_boundsDip.left;
     float            y          = (float) m_boundsDip.top;
     float            fullW      = (float) (m_boundsDip.right - m_boundsDip.left);
     float            fullH      = (float) (m_boundsDip.bottom - m_boundsDip.top);
     int              visibleCap = layout.rowCap;
-    int              totalRows  = GetLineCount();
+    int              totalRows  = m_grouping.GetLineCount();
     int              firstRow   = m_topRow;
-    int              lastRow    = std::min (totalRows, m_topRow + (visibleCap > 0 ? GetShownRowCount() : totalRows));
+    int              lastRow    = std::min (totalRows, m_topRow + (visibleCap > 0 ? m_scrollbars.GetShownRowCount() : totalRows));
     int              rowH       = GetRowHeightPx();
-    int              slidePx    = IsItemsView() ? 0 : GetPageSlidePx();
+    int              slidePx    = IsItemsView() ? 0 : m_items.GetPageSlidePx();
     float            barW       = layout.vBar ? (float) GetScrollbarWidthPx() : 0.0f;
     float            hBarH      = layout.hBar ? (float) GetScrollbarWidthPx() : 0.0f;
     float            layoutW    = fullW - barW;
@@ -3626,15 +838,15 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     //  columns are sized and its names cut by the same measure.
     gdiText = text.SetGdiClassicText (true);
 
-    pal = MakePalette();
+    pal = m_painter.MakePalette();
 
-    if (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty))
+    if (m_columnSizing.m_measuredWPx.size() != m_columns.size() || (m_columnSizing.m_preciseAutoFit && m_columnSizing.m_measureDirty))
     {
-        MeasureColumnsPx (text);
-        m_measureDirty = false;
+        m_columnSizing.MeasureColumnsPx (text);
+        m_columnSizing.m_measureDirty = false;
     }
 
-    ComputeColumnLayout (layoutW, colXPx, colWPx);
+    m_columnSizing.ComputeColumnLayout (layoutW, colXPx, colWPx);
 
     //  A sliding page draws the rows it is leaving as well as those it rests
     //  on: above them while it slides down, below them while it slides up.
@@ -3664,7 +876,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     //  content is hidden, no rows are drawn.
     if (!m_contentHidden && IsItemsView())
     {
-        PaintItems (painter, text, pal, x, y);
+        m_painter.PaintItems (painter, text, pal, x, y);
     }
     else if (!m_contentHidden)
     {
@@ -3678,8 +890,8 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
             painter.PushClipRect (x, y + bodyTop, layoutW, contentH - bodyTop);
         }
 
-        PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
-        PaintSelectionBand (painter, pal, x, y);
+        m_painter.PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
+        m_painter.PaintSelectionBand (painter, pal, x, y);
 
         if (bodyTop > 0.0f)
         {
@@ -3692,8 +904,8 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     if (m_showHeader)
     {
         painter.FillRect (x, y, layoutW, (float) (GetHeaderBarPx() + GetHeaderGapPx()), pal.bgRow);
-        PaintHeader (painter, text, pal, x, y, layoutW, colXPx, colWPx);
-        PaintHeaderFocusMarkers (painter, pal, x, y, colXPx, colWPx);
+        m_header.PaintHeader (painter, text, pal, x, y, layoutW, colXPx, colWPx);
+        m_header.PaintHeaderFocusMarkers (painter, pal, x, y, colXPx, colWPx);
     }
 
     if (clip)
@@ -3705,8 +917,8 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     if (!m_contentHidden)
     {
-        PaintScrollbar  (painter, pal, x, y);
-        PaintHScrollbar (painter, pal, x, y);
+        m_scrollbars.PaintScrollbar  (painter, pal, x, y);
+        m_scrollbars.PaintHScrollbar (painter, pal, x, y);
     }
 
     if (layout.vBar && layout.hBar)
@@ -3728,383 +940,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MakePalette
-//
-//  Derives the per-element ARGB colors from the active theme. Called
-//  once per paint; assumes the theme has already been null-checked.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiListView::Palette DxuiListView::MakePalette() const
-{
-    Palette  pal = {};
-
-
-
-    pal.fg       = m_theme->Foreground();
-    pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
-    pal.hdrFg    = m_theme->HeadingForeground();
-    pal.bgRow    = m_theme->ContentBackground();
-    pal.bgHover  = m_theme->ContentHover();
-    pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
-    pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();
-    pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
-    pal.border   = m_theme->ContentHeaderDivider();
-    pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
-
-    return pal;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintHeader
-//
-//  Paints the header background, the column titles, the active sort
-//  glyph, the bottom border, and the faint vertical column separators.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintHeader (
-    IDxuiPainter           & painter,
-    IDxuiTextRenderer    & text,
-    const Palette          & pal,
-    float                    x,
-    float                    y,
-    float                    layoutW,
-    const std::vector<int> & colXPx,
-    const std::vector<int> & colWPx) const
-{
-    HRESULT  hr        = S_OK;
-    float    headerH   = (float) GetHeaderBarPx();
-    float    cellPadR  = (float) m_scaler.ToPx (s_kCellPadRightDip);
-    float    hdrFontPx = (float) m_scaler.ToPxf (m_fontDip);
-    float    colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
-    //  Explorer sets its titles and dividers in a band shorter than the bar.
-    float    titleH    = m_explorerDetails ? (std::min) (headerH, m_scaler.ToPxf (s_kExplorerTitleBandDip)) : headerH;
-
-
-
-    painter.FillRect (x, y, layoutW, headerH, pal.bgHeader);
-
-    //  The dragged header goes last, over the others; it follows the pointer
-    //  along the header row and nowhere else.
-    for (size_t n = 0; n <= m_columns.size(); ++n)
-    {
-        bool     dragged     = n == m_columns.size();
-        size_t   c           = dragged ? (size_t) (std::max) (m_headerPressCol, 0) : n;
-        bool     hasSort     = ((int) c == m_sortColumn) && m_columns[c].visible && (colWPx[c] > 0);
-        float    sortReserve = 0.0f;
-        float    titlePad    = (float) GetHeaderTitlePadPx (c);
-        float    titleW      = (float) colWPx[c] - titlePad - cellPadR - sortReserve;
-        float    shift       = 0.0f;
-
-        if (dragged && !(m_headerDragging && m_headerPressCol >= 0))
-        {
-            continue;
-        }
-
-        if (!dragged && m_headerDragging && (int) c == m_headerPressCol)
-        {
-            continue;
-        }
-
-        if (!m_columns[c].visible || colWPx[c] <= 0)
-        {
-            continue;
-        }
-
-        if (dragged)
-        {
-            shift = std::clamp ((float) (m_headerDragXPx - m_headerPressXPx), -(float) colXPx[c], layoutW - (float) (colXPx[c] + colWPx[c]) - colOff);
-
-            painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], headerH, pal.bgHover);
-        }
-        else
-        {
-            shift = GetHeaderSlidePx (c, GetClockMs());
-        }
-
-        if (titleW < 0.0f)
-        {
-            titleW = 0.0f;
-        }
-
-        hr = text.DrawString (m_columns[c].title.c_str(),
-                              x + colOff + (float) colXPx[c] + shift + titlePad,
-                              y,
-                              titleW,
-                              titleH,
-                              pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
-                              m_explorerDetails ? DxuiTextHAlign::Left : m_columns[c].align,
-                              DxuiTextVAlign::Center,
-                              DxuiFontWeight::Normal,
-                              false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        //  File Explorer's sort indicator: a small chevron centered over the
-        //  column title, pointing up for ascending and down for descending.
-        if (hasSort)
-        {
-            float  halfW = (float) m_scaler.ToPxf (3.0f);
-            float  halfH = (float) m_scaler.ToPxf (1.5f);
-            float  thick = (float) m_scaler.ToPxf (0.75f);
-            float  cx    = x + colOff + (float) colXPx[c] + shift + (float) colWPx[c] / 2.0f;
-            float  cy    = y + (float) m_scaler.ToPxf (6.0f);
-            float  tipY  = m_sortDescending ? (cy + halfH) : (cy - halfH);
-            float  endY  = m_sortDescending ? (cy - halfH) : (cy + halfH);
-
-            painter.DrawLine (cx - halfW, endY, cx, tipY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
-            painter.DrawLine (cx, tipY, cx + halfW, endY, thick, DxuiColor::ScaleAlpha (pal.hdrFg, 0.7f));
-        }
-    }
-
-    // Faint vertical separators between header columns so the user
-    // can see where each column ends (and where the resize handle
-    // lives). The separators scroll with the columns, so CPU-clip any
-    // that fall outside the content viewport (IDxuiPainter has no clip).
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        float  sepX = 0.0f;
-
-        if (!m_columns[c].visible || colWPx[c] <= 0)
-        {
-            continue;
-        }
-
-        sepX = x + colOff + (float) colXPx[c] + (float) colWPx[c] - 1.0f + GetHeaderSlidePx (c, GetClockMs());
-
-        if (m_headerDragging && (int) c == m_headerPressCol)
-        {
-            continue;
-        }
-
-        if (sepX < x || sepX >= x + layoutW)
-        {
-            continue;
-        }
-
-        if (m_explorerDetails)
-        {
-            painter.FillRect (sepX, y, 1.0f, titleH, DxuiColor::ScaleAlpha (pal.fg, s_kExplorerDividerAlpha));
-        }
-        else
-        {
-            painter.FillRect (sepX, y + 2.0f, 1.0f, headerH - 4.0f, pal.border);
-        }
-    }
-
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateHeaderSlides
-//
-//  Where each column would sit if the dragged one landed at the pointer: the
-//  ones between where it was and where it would go move over by its width.
-//  A column whose place changes starts easing toward it from where it is now.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::UpdateHeaderSlides()
-{
-    int               pos     = GetColumnDropPosition (m_headerDragXPx);
-    int64_t           now     = GetClockMs();
-    int               cap     = GetVisibleRowCapacity();
-    bool              needBar = (GetLineCount() > cap) && (cap > 0);
-    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    size_t            from    = 0;
-    float             width   = 0.0f;
-    std::vector<int>  colXPx;
-    std::vector<int>  colWPx;
-
-
-
-    if (pos == m_headerDropPos || m_headerPressCol < 0)
-    {
-        return;
-    }
-
-    m_headerDropPos = pos;
-    m_headerSlides.resize (m_columns.size());
-
-    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
-
-    from  = (size_t) (std::find (m_columnOrder.begin(), m_columnOrder.end(), (size_t) m_headerPressCol) - m_columnOrder.begin());
-    width = (float) colWPx[(size_t) m_headerPressCol];
-
-    for (size_t n = 0; n < m_columnOrder.size(); n++)
-    {
-        size_t  c      = m_columnOrder[n];
-        float   target = 0.0f;
-
-        if ((int) c == m_headerPressCol)
-        {
-            continue;
-        }
-
-        if ((size_t) pos > from + 1 && n > from && n < (size_t) pos)
-        {
-            target = -width;
-        }
-        else if ((size_t) pos < from && n >= (size_t) pos && n < from)
-        {
-            target = width;
-        }
-
-        if (target != m_headerSlides[c].toPx)
-        {
-            m_headerSlides[c].fromPx  = GetHeaderSlidePx (c, now);
-            m_headerSlides[c].toPx    = target;
-            m_headerSlides[c].startMs = now;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetHeaderSlidePx
-//
-//  How far a column's header has slid at this moment, eased out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiListView::GetHeaderSlidePx (size_t column, int64_t nowMs) const
-{
-    float  t = 0.0f;
-
-
-
-    if (!m_headerDragging || column >= m_headerSlides.size())
-    {
-        return 0.0f;
-    }
-
-    const HeaderSlide & slide = m_headerSlides[column];
-
-    t = std::clamp ((float) (nowMs - slide.startMs) / (float) s_kHeaderSlideMs, 0.0f, 1.0f);
-    t = 1.0f - (1.0f - t) * (1.0f - t);
-
-    return slide.fromPx + (slide.toPx - slide.fromPx) * t;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsHeaderSliding
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::IsHeaderSliding (int64_t nowMs) const
-{
-    if (!m_headerDragging)
-    {
-        return false;
-    }
-
-    return std::any_of (m_headerSlides.begin(), m_headerSlides.end(), [nowMs] (const HeaderSlide & slide)
-    {
-        return slide.fromPx != slide.toPx && nowMs - slide.startMs < s_kHeaderSlideMs;
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  GetClockMs
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int64_t DxuiListView::GetClockMs() const
 {
-    return m_clock ? m_clock() : (int64_t) GetTickCount64();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintHeaderFocusMarkers
-//
-//  Overlays the keyboard-focus markers: a 1px rectangle around the
-//  header that Space will sort on, and a brighter 2px bar on the
-//  column divider that Left/Right will resize.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintHeaderFocusMarkers (
-    IDxuiPainter           & painter,
-    const Palette          & pal,
-    float                    x,
-    float                    y,
-    const std::vector<int> & colXPx,
-    const std::vector<int> & colWPx) const
-{
-    float     headerH   = (float) GetHeaderBarPx();
-    uint32_t  focusArgb = (pal.fg & 0x00FFFFFFu) | 0xC0000000u;
-    float     colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
-    float     clipR     = x + (float) ComputeScrollLayout().viewportW;
-
-
-
-    if (m_focusedHeaderCol >= 0 
-        && (size_t) m_focusedHeaderCol < m_columns.size()
-        && m_columns[(size_t) m_focusedHeaderCol].visible
-        && colWPx[(size_t) m_focusedHeaderCol] > 0)
-    {
-        float  fx    = x + colOff + (float) colXPx[(size_t) m_focusedHeaderCol];
-        float  fw    = (float) colWPx[(size_t) m_focusedHeaderCol];
-        float  left  = std::max (fx, x);
-        float  right = std::min (fx + fw, clipR);
-
-        if (right > left)
-        {
-            painter.FillRect (left, y,               right - left, 1.0f,    focusArgb);
-            painter.FillRect (left, y + headerH - 1, right - left, 1.0f,    focusArgb);
-
-            if (fx >= x && fx < clipR)
-            {
-                painter.FillRect (fx, y, 1.0f, headerH, focusArgb);
-            }
-
-            if (fx + fw - 1.0f >= x && fx + fw - 1.0f < clipR)
-            {
-                painter.FillRect (fx + fw - 1.0f, y, 1.0f, headerH, focusArgb);
-            }
-        }
-    }
-
-    if (m_focusedDividerCol >= 0 && (size_t) m_focusedDividerCol < m_columns.size()
-        && m_columns[(size_t) m_focusedDividerCol].visible
-        && colWPx[(size_t) m_focusedDividerCol] > 0)
-    {
-        float  dx = x + colOff + (float) colXPx[(size_t) m_focusedDividerCol]
-                      + (float) colWPx[(size_t) m_focusedDividerCol] - 2.0f;
-
-        if (dx >= x && dx < clipR)
-        {
-            painter.FillRect (dx, y + 1.0f, 2.0f, headerH - 2.0f, focusArgb);
-        }
-    }
+    return m_keyboard.m_clock ? m_keyboard.m_clock() : (int64_t) GetTickCount64();
 }
 
 
@@ -4123,7 +965,7 @@ void DxuiListView::PaintHeaderFocusMarkers (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<DxuiListView::Cell> & DxuiListView::GetRowCells (int r) const
+const std::vector<DxuiListViewTypes::Cell> & DxuiListView::GetRowCells (int r) const
 {
     const std::vector<Cell> *  cells = nullptr;
 
@@ -4138,650 +980,20 @@ const std::vector<DxuiListView::Cell> & DxuiListView::GetRowCells (int r) const
         }
 
         cells = &m_rowSource (r);
-        NoteAutoFitRow (*cells);
+        m_columnSizing.NoteAutoFitRow (*cells);
     }
     else if (m_virtual)
     {
         ProvideRow (r, m_providerScratch);
-        NoteAutoFitRow (m_providerScratch);
+        m_columnSizing.NoteAutoFitRow (m_providerScratch);
         cells = &m_providerScratch;
     }
     else
     {
-        cells = &m_rows[(size_t) r];
+        cells = &m_columnSizing.m_rows[(size_t) r];
     }
 
     return *cells;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintDataRows
-//
-//  Paints the visible data rows in [firstRow, lastRow): selection and
-//  hover backgrounds followed by each cell's text.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintDataRows (
-    IDxuiPainter           & painter,
-    IDxuiTextRenderer    & text,
-    const Palette          & pal,
-    float                    x,
-    float                    y,
-    float                    layoutW,
-    int                      firstRow,
-    int                      lastRow,
-    const std::vector<int> & colXPx,
-    const std::vector<int> & colWPx) const
-{
-    HRESULT                hr        = S_OK;
-    float                  rowH      = (float) GetRowHeightPx();
-    float                  headerH   = (float) (m_showHeader ? GetHeaderBarPx() : 0);
-    float                  hdrGap    = (float) (m_showHeader ? GetHeaderGapPx()    : 0);
-    float                  cellPadR  = (float) m_scaler.ToPx (s_kCellPadRightDip);
-    float                  fontPx    = (float) m_scaler.ToPxf (m_fontDip);
-    float                  colOff    = m_hScrollEnabled ? -(float) m_leftPx : 0.0f;
-    float                  boxInsetY = m_textSelectionColors ? 0.0f : (float) m_scaler.ToPx (s_kRowBoxInsetYDip);
-    float                  boxW      = layoutW;
-    float                  boxL      = (float) GetDetailsLeftPx();
-    float                  lastRight = 0.0f;
-    float                  clipTop   = 0.0f;
-    float                  clipH     = 0.0f;
-    float                  top       = 0.0f;
-    bool                   clipped   = false;
-    std::vector<LineSpot>  spots;
-
-
-
-    //  A row's highlight ends where its columns do, less Explorer's margin,
-    //  rather than running on across the empty width past them.
-    for (size_t c = 0; c < m_columns.size() && c < colXPx.size() && c < colWPx.size(); ++c)
-    {
-        if (m_columns[c].visible && colWPx[c] > 0)
-        {
-            lastRight = (std::max) (lastRight, colOff + (float) (colXPx[c] + colWPx[c]));
-        }
-    }
-
-    if (!m_textSelectionColors && lastRight > 0.0f)
-    {
-        boxW = std::clamp (lastRight - (float) m_scaler.ToPx (s_kRowBoxEndInsetDip), 0.0f, layoutW);
-    }
-
-    //  Where firstRow is drawn: the rows lifted at the end of the list or
-    //  after a page down, and moved with a sliding page.
-    top   = y + headerH + hdrGap - (float) GetRowShiftPx() + (float) GetPageSlidePx() - (float) (m_topRow - firstRow) * rowH;
-    spots = PlaceDataLines (top, firstRow, lastRow, clipTop, clipH);
-
-    for (const LineSpot & spot : spots)
-    {
-        int                        r     = spot.row;
-        float                      ry    = spot.y;
-
-        if (spot.slid && !clipped)
-        {
-            hr = text.PushClipRect (x, clipTop, layoutW, clipH);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-            painter.PushClipRect (x, clipTop, layoutW, clipH);
-            clipped = true;
-        }
-
-        if (r < 0)
-        {
-            PaintGroupHeader (painter, text, pal, spot.group, x + colOff, x, ry, layoutW);
-            continue;
-        }
-
-        const std::vector<Cell> &  cells = GetRowCells (r);
-        bool                       isHov = (r == m_hovered);
-        bool                       isSel = ((m_listFocused || m_alwaysShowSelection) &&
-                                            (m_multiSelect ? IsRowSelected (r) : r == m_selectedRow));
-        DxuiRowLook                look  = DxuiRowLook::Resolve (*m_theme, isSel, r == m_selectedRow && m_focusGroup < 0, isHov, m_listFocused);
-
-        //  A text-like list (a hex dump) selects as text does: the text
-        //  selection color, no outline.
-        if (m_textSelectionColors)
-        {
-            look.fill = isSel ? pal.bgSel : (isHov ? pal.bgHover : 0u);
-            look.edge = 0;
-        }
-
-        //  Square, as Explorer's are, and like Explorer's a little shorter
-        //  than the row and ending short of the last column's edge.
-        //  A drop target is drawn as a selected row other than the keyboard's:
-        //  its fill, and the accent outline.
-        if (r == m_dropRow)
-        {
-            look.fill = m_theme->ContentSelectionMulti();
-            look.edge = m_theme->ContentSelectionMultiEdge();
-        }
-
-        if (look.fill != 0)
-        {
-            painter.FillRect (x + boxL, ry + boxInsetY, boxW - boxL, rowH - boxInsetY * 2.0f, look.fill);
-        }
-
-        if (look.edge != 0)
-        {
-            painter.OutlineRect (x + boxL, ry + boxInsetY, boxW - boxL, rowH - boxInsetY * 2.0f, DxuiRowLook::GetOutlinePx (m_scaler.ToPxf (1.0f)), look.edge);
-        }
-
-        for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
-        {
-            uint32_t      argb      = cells[c].dim ? pal.fgDim : (cells[c].argb != 0 ? cells[c].argb : pal.fg);
-            float         padL      = (float) GetCellPadLeftPx (c);
-            float         iconShift = 0.0f;
-            float         alpha     = text.GetGlobalAlpha();
-            std::wstring  shown;
-
-            //  Explorer draws the columns after the name a step dimmer than it.
-            if (m_explorerDetails && c > 0 && !cells[c].dim && cells[c].argb == 0)
-            {
-                argb = (pal.fg & 0x00FFFFFFu) | s_kSecondaryColumnAlpha;
-            }
-
-            if (!m_columns[c].visible || colWPx[c] <= 0)
-            {
-                continue;
-            }
-
-            if (cells[c].icon && !cells[c].icon->bgraPremul.empty())
-            {
-                float  iconPx = m_scaler.ToPxf ((float) s_kCellIconDip);
-
-                if (cells[c].iconGhosted)
-                {
-                    text.SetGlobalAlpha (alpha * s_kGhostedIconAlpha);
-                }
-
-                hr = text.DrawIconBitmap (cells[c].icon->bgraPremul.data(), cells[c].icon->width, cells[c].icon->height,
-                                          x + colOff + (float) colXPx[c] + padL,
-                                          ry + (rowH - iconPx) * 0.5f,
-                                          iconPx, iconPx);
-                IGNORE_RETURN_VALUE (hr, S_OK);
-
-                text.SetGlobalAlpha (alpha);
-
-                if (cells[c].iconBroken)
-                {
-                    PaintBrokenBadge (text, x + colOff + (float) colXPx[c] + padL, ry + (rowH - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (s_kBrokenBadgeMinDip));
-                }
-
-                iconShift = iconPx + (float) GetCellIconGapPx();
-            }
-            else if ((int) c == m_iconColumn)
-            {
-                //  Its name still lines up with the others' names.
-                iconShift = (float) (m_scaler.ToPx (s_kCellIconDip) + GetCellIconGapPx());
-            }
-
-            // Search-match highlight: an accent band behind each matched
-            // character range, painted before the text. Left-aligned columns
-            // only -- the offset math measures prefixes from the cell's left.
-            if (!cells[c].matches.empty() && m_columns[c].align == DxuiTextHAlign::Left)
-            {
-                const std::wstring &  cellText  = cells[c].text;
-                float                 cellX     = x + colOff + (float) colXPx[c] + padL + iconShift;
-                float                 cellMaxW  = (float) colWPx[c] - padL - cellPadR - iconShift;
-                float                 bandInset = rowH * 0.14f;
-
-                for (const std::pair<int, int> & mr : cells[c].matches)
-                {
-                    int      s       = std::clamp (mr.first,  0, (int) cellText.size());
-                    int      e       = std::clamp (mr.second, s, (int) cellText.size());
-                    float    wS      = 0.0f;
-                    float    wE      = 0.0f;
-                    float    hIgnore = 0.0f;
-                    HRESULT  hrM     = S_OK;
-                    float    hx      = 0.0f;
-                    float    hw      = 0.0f;
-
-                    if (s > 0)
-                    {
-                        hrM = text.MeasureString (cellText.substr (0, (size_t) s).c_str(),
-                                                  fontPx, GetBodyFace(), wS, hIgnore);
-                        IGNORE_RETURN_VALUE (hrM, S_OK);
-                    }
-
-                    hrM = text.MeasureString (cellText.substr (0, (size_t) e).c_str(),
-                                              fontPx, GetBodyFace(), wE, hIgnore);
-                    IGNORE_RETURN_VALUE (hrM, S_OK);
-
-                    hx = cellX + wS;
-                    hw = wE - wS;
-
-                    if (hx < cellX)                 { hw -= (cellX - hx); hx = cellX; }
-                    if (hx + hw > cellX + cellMaxW) { hw  = cellX + cellMaxW - hx;    }
-
-                    if (hw > 0.0f)
-                    {
-                        painter.FillRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, pal.matchBg);
-                    }
-                }
-            }
-
-            // Muted ranges: the text is drawn a run at a time, each run placed
-            // by measuring the text before it, the way a match band is placed.
-            if (!cells[c].dimRanges.empty() && m_columns[c].align == DxuiTextHAlign::Left)
-            {
-                const std::wstring &  cellText = cells[c].text;
-                float                 cellX    = x + colOff + (float) colXPx[c] + padL + iconShift;
-                float                 cellMaxW = (float) colWPx[c] - padL - cellPadR - iconShift;
-                int                   pos      = 0;
-                size_t                next     = 0;
-
-                while (pos < (int) cellText.size())
-                {
-                    bool      inRange = next < cells[c].dimRanges.size() && pos >= cells[c].dimRanges[next].first;
-                    int       end     = inRange ? cells[c].dimRanges[next].second
-                                                : (next < cells[c].dimRanges.size() ? cells[c].dimRanges[next].first : (int) cellText.size());
-                    float     offset  = 0.0f;
-                    float     hIgnore = 0.0f;
-                    HRESULT   hrM     = S_OK;
-
-                    end = std::clamp (end, pos + 1, (int) cellText.size());
-
-                    if (pos > 0)
-                    {
-                        hrM = text.MeasureString (cellText.substr (0, (size_t) pos).c_str(), fontPx, GetBodyFace(), offset, hIgnore);
-                        IGNORE_RETURN_VALUE (hrM, S_OK);
-                    }
-
-                    if (offset >= cellMaxW)
-                    {
-                        break;
-                    }
-
-                    hr = text.DrawString (cellText.substr ((size_t) pos, (size_t) (end - pos)).c_str(),
-                                          cellX + offset,
-                                          ry,
-                                          cellMaxW - offset,
-                                          rowH,
-                                          inRange ? pal.fgDim : argb,
-                                          fontPx,
-                                          GetBodyFace(),
-                                          DxuiTextHAlign::Left,
-                                          DxuiTextVAlign::CenterOnCapHeight,
-                                          DxuiFontWeight::Normal,
-                                          false);
-                    IGNORE_RETURN_VALUE (hr, S_OK);
-
-                    next += inRange ? 1 : 0;
-                    pos   = end;
-                }
-
-                continue;
-            }
-
-            //  Text wider than its column ends in an ellipsis, as Explorer's does,
-            //  rather than being cut through a letter.
-            shown = DxuiTextElide::ToWidth (text, cells[c].text, fontPx, GetBodyFace(),
-                                            (float) colWPx[c] - padL - cellPadR - iconShift, DxuiElide::Tail);
-
-            hr = text.DrawString (shown.c_str(),
-                                  x + colOff + (float) colXPx[c] + padL + iconShift,
-                                  ry,
-                                  (float) colWPx[c] - padL - cellPadR - iconShift,
-                                  rowH,
-                                  argb,
-                                  fontPx,
-                                  GetBodyFace(),
-                                  m_columns[c].align,
-                                  DxuiTextVAlign::CenterOnCapHeight,
-                                  DxuiFontWeight::Normal,
-                                  false);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-    }
-
-    if (clipped)
-    {
-        hr = text.PopClipRect();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        painter.PopClipRect();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintScrollbar
-//
-//  Paints the scrollbar track, thumb, and (when the bar is tall
-//  enough) the up/down arrow buttons. No-op when the bar is hidden.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintScrollbar (
-    IDxuiPainter  & painter,
-    const Palette & pal,
-    float           x,
-    float           y) const
-{
-    HRESULT           hr      = S_OK;
-    ScrollbarMetrics  m       = GetScrollbarGeometry();
-    int               headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int               hdrGap  = m_showHeader ? GetHeaderGapPx()    : 0;
-    int               hBarH   = ComputeScrollLayout().hBar ? GetScrollbarWidthPx() : 0;
-    int               by      = headerH + hdrGap;
-    int               bh      = (m_boundsDip.bottom - m_boundsDip.top) - by - hBarH;
-
-
-
-    BAIL_OUT_IF (!m.visible, S_OK);
-
-    m_vertScroll.SetTrack (RECT{ (int) x + m.barX, (int) y + by, (int) x + m.barX + m.barW, (int) y + by + bh });
-    m_vertScroll.Paint (painter, pal.fg);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintHScrollbar
-//
-//  Paints the horizontal scrollbar track, thumb, and (when the bar is
-//  wide enough) the left/right arrow buttons along the bottom of the
-//  list. No-op when the bar is hidden.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::PaintHScrollbar (
-    IDxuiPainter  & painter,
-    const Palette & pal,
-    float           x,
-    float           y) const
-{
-    HRESULT               hr    = S_OK;
-    HorzScrollbarMetrics  m     = GetHorzScrollbarGeometry();
-    int                   viewW = ComputeScrollLayout().viewportW;
-
-
-
-    BAIL_OUT_IF (!m.visible, S_OK);
-
-    m_horzScroll.SetTrack (RECT{ (int) x, (int) y + m.barY, (int) x + viewW, (int) y + m.barY + m.barH });
-    m_horzScroll.Paint (painter, pal.fg);
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetColumnOrder
-//
-//  Taken only when it names every column once, so a stored order from a
-//  build with other columns falls back to their own order.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::SetColumnOrder (const std::vector<size_t> & order)
-{
-    std::vector<bool>  seen (m_columns.size(), false);
-
-
-
-    if (order.size() != m_columns.size())
-    {
-        return;
-    }
-
-    for (size_t c : order)
-    {
-        if (c >= seen.size() || seen[c])
-        {
-            return;
-        }
-
-        seen[c] = true;
-    }
-
-    m_columnOrder = order;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetColumnDropPosition
-//
-//  The position in the order before the first shown column whose middle is
-//  right of the point, or the end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetColumnDropPosition (int xPx) const
-{
-    int               cap     = GetVisibleRowCapacity();
-    bool              needBar = (GetLineCount() > cap) && (cap > 0);
-    int               fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    int               xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
-    std::vector<int>  colXPx;
-    std::vector<int>  colWPx;
-
-
-
-    ComputeColumnLayout ((float) fullW, colXPx, colWPx);
-
-    for (size_t n = 0; n < m_columnOrder.size(); n++)
-    {
-        size_t  c = m_columnOrder[n];
-
-        if (m_columns[c].visible && colWPx[c] > 0 && xAdj < colXPx[c] + colWPx[c] / 2)
-        {
-            return (int) n;
-        }
-    }
-
-    return (int) m_columnOrder.size();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EndHeaderPress
-//
-//  A release on the header pressed sorts by it; a release after a drag
-//  moves the pressed column to where it was dropped.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::EndHeaderPress (int lx, int ly)
-{
-    int     pressed = m_headerPressCol;
-    bool    dragged = m_headerDragging;
-    int     target  = 0;
-    size_t  from    = 0;
-
-
-
-    m_headerPressCol = -1;
-    m_headerDragging = false;
-    m_headerDropPos  = -1;
-    m_headerSlides.clear();
-
-    if (!dragged)
-    {
-        if (HitTestHeaderColumn (lx, ly) == pressed && m_onSortColumn)
-        {
-            m_onSortColumn (pressed);
-        }
-
-        return;
-    }
-
-    target = GetColumnDropPosition (lx);
-    from   = (size_t) (std::find (m_columnOrder.begin(), m_columnOrder.end(), (size_t) pressed) - m_columnOrder.begin());
-
-    if (from >= m_columnOrder.size())
-    {
-        return;
-    }
-
-    //  Dropped on either side of itself, it stays where it is.
-    if ((size_t) target == from || (size_t) target == from + 1)
-    {
-        return;
-    }
-
-    m_columnOrder.erase (m_columnOrder.begin() + (ptrdiff_t) from);
-
-    if ((size_t) target > from)
-    {
-        target--;
-    }
-
-    m_columnOrder.insert (m_columnOrder.begin() + target, (size_t) pressed);
-
-    if (m_onColumnsReordered)
-    {
-        m_onColumnsReordered (m_columnOrder);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetCellPadLeftPx
-//
-//  How far into its column a cell's text, or its icon, starts.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetCellPadLeftPx (size_t column) const
-{
-    if (!m_explorerDetails)
-    {
-        return m_scaler.ToPx (s_kCellPadLeftDip);
-    }
-
-    return (int) std::lround (m_scaler.ToPxf (((int) column == m_iconColumn) ? s_kExplorerIconPadDip : s_kExplorerCellPadDip));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetHeaderTitlePadPx
-//
-//  How far into its column a header's title starts: with the cells, but for
-//  Explorer's name column, whose title sits past where the icons are.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetHeaderTitlePadPx (size_t column) const
-{
-    if (m_explorerDetails && (int) column == m_iconColumn)
-    {
-        return (int) std::lround (m_scaler.ToPxf (s_kExplorerNameTitleDip));
-    }
-
-    return GetCellPadLeftPx (column);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ComputeColumnLayout
-//
-//  Assigns each column an x-offset and width for the given content
-//  width. Fixed/auto columns take their override / widthDip / measured
-//  width; the first stretch column absorbs whatever space remains, down to
-//  its own declared width and no further.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const
-{
-    int  fixedTotal = 0;
-    int  stretchIdx = -1;
-    int  x          = GetDetailsLeftPx();
-
-
-
-    xs.assign (m_columns.size(), 0);
-    ws.assign (m_columns.size(), 0);
-
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
-        int  wpx = 0;
-
-        if (!m_columns[c].visible)
-        {
-            ws[c] = 0;
-            continue;
-        }
-
-        //  A stretch column the user has dragged keeps the width they gave
-        //  it: absorbing the remainder is the DEFAULT, not a refusal to be
-        //  resized, and a column whose drags did nothing reads as stuck.
-        if (m_columns[c].stretch && stretchIdx == -1
-                                 && !(c < m_overrideWPx.size() && m_overrideWPx[c] >= 0))
-        {
-            stretchIdx = (int) c;
-            continue;
-        }
-
-        wpx = GetColumnNaturalWidthPx (c);
-
-        ws[c]       = wpx;
-        fixedTotal += wpx;
-    }
-
-    //  The stretch column gets the remaining width, but never less than its
-    //  declared width. A narrow pane used to leave it zero width while
-    //  GetContentWidthPx included the declared width, so the scroll range
-    //  included a column that was never drawn. A stretch column declared at
-    //  zero still shrinks to fit.
-    if (stretchIdx >= 0)
-    {
-        int  rem     = (int) fullW - fixedTotal;
-        int  floorPx = (m_columns[(size_t) stretchIdx].widthDip > 0)
-                     ? m_scaler.ToPx (m_columns[(size_t) stretchIdx].widthDip)
-                     : 0;
-
-        ws[(size_t) stretchIdx] = (std::max) (rem, floorPx);
-    }
-
-    //  Left to right in the shown order, which a header drag changes.
-    for (size_t n = 0; n < m_columns.size(); ++n)
-    {
-        size_t  c = (n < m_columnOrder.size()) ? m_columnOrder[n] : n;
-
-        xs[c]  = x;
-        x     += ws[c];
-    }
 }
 
 
@@ -4869,7 +1081,7 @@ void DxuiListView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     SetBounds (boundsDip);
     SetDpi    (scaler.GetDpi());
     SetRect   (boundsDip);
-    SetLeftPx (m_leftPx);
+    m_scrollbars.SetLeftPx (m_leftPx);
 }
 
 
@@ -4899,7 +1111,7 @@ void DxuiListView::SetDpi (UINT dpi)
         return;
     }
 
-    for (int & width : m_overrideWPx)
+    for (int & width : m_columnSizing.m_overrideWPx)
     {
         if (width > 0)
         {
@@ -4929,13 +1141,13 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     //  Before the pass below, so the frame draws the width a fit asked for.
     //  Here rather than inside that pass because a width is real state, and
     //  measuring needs the renderer only the paint holds.
-    ApplyPendingFit (text);
+    m_columnSizing.ApplyPendingFit (text);
 
     //  Small icons and List size their columns to the names, so the names
     //  are measured before the pass lays anything out.
     if (m_view == View::SmallIcons || m_view == View::List)
     {
-        MeasureItemNames (text);
+        m_items.MeasureItemNames (text);
     }
 
     static_cast<const DxuiListView *> (this)->Paint (painter, text);
@@ -4969,509 +1181,16 @@ bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
 
     switch (ev.kind)
     {
-        case DxuiMouseEventKind::Down:  handled = DispatchMouseDown  (ev, lx, ly, inside);  break;
+        case DxuiMouseEventKind::Down:  handled = m_mouse.DispatchMouseDown  (ev, lx, ly, inside);  break;
         case DxuiMouseEventKind::Move:  handled = (ev.button != DxuiMouseButton::Left && IsInteracting())
-                                                  ? DispatchMouseUp   (lx, ly, inside)
-                                                  : DispatchMouseMove (lx, ly, inside);     break;
-        case DxuiMouseEventKind::Up:    handled = DispatchMouseUp    (lx, ly, inside);      break;
-        case DxuiMouseEventKind::Wheel: handled = DispatchMouseWheel (ev, inside);          break;
+                                                  ? m_mouse.DispatchMouseUp   (lx, ly, inside)
+                                                  : m_mouse.DispatchMouseMove (lx, ly, inside);     break;
+        case DxuiMouseEventKind::Up:    handled = m_mouse.DispatchMouseUp    (lx, ly, inside);      break;
+        case DxuiMouseEventKind::Wheel: handled = m_mouse.DispatchMouseWheel (ev, inside);          break;
         case DxuiMouseEventKind::Leave: SetHoveredRow (-1); m_hoverGroup = -1;              break;
         default:                                                                            break;
     }
 
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::DispatchMouseDown
-//
-//  Left-press priority chain: the scrollbars, then a column-resize
-//  divider, then a header (sort), then a data row (select). A left-press
-//  anywhere inside the list is consumed so the host can claim focus.
-//  (Right-click stays with the host: its menu content is host-specific.)
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::DispatchMouseDown (const DxuiMouseEvent & ev, int lx, int ly, bool inside)
-{
-    HRESULT  hr        = S_OK;
-    bool     handled   = false;
-    int      grabTol   = m_scaler.ToPx (s_kResizeGrabDip);
-    int      resizeCol = -1;
-    int      headerCol = -1;
-    int      row       = -1;
-    int      group     = -1;
-
-
-
-    BAIL_OUT_IF (ev.button != DxuiMouseButton::Left || !inside, S_OK);
-
-    handled = DispatchScrollbarPress (lx, ly);
-    BAIL_OUT_IF (handled, S_OK);
-
-    resizeCol = HitTestColumnResize (lx, ly, grabTol);
-
-    //  A second press on the same divider inside the double-click time fits
-    //  the column to its content, as it does in Explorer, instead of starting
-    //  another drag. The pair is consumed so a third press counts afresh.
-    if (resizeCol >= 0)
-    {
-        int64_t  nowMs = (int64_t) GetTickCount64();
-        bool     fit   = (resizeCol == m_lastDividerCol)
-                         && (nowMs - m_lastDividerMs) <= (int64_t) GetDoubleClickTime();
-
-        m_lastDividerCol = fit ? -1 : resizeCol;
-        m_lastDividerMs  = nowMs;
-
-        if (fit)
-        {
-            FitColumnToContent ((size_t) resizeCol);
-            handled = true;
-            BAIL_OUT_IF (true, S_OK);
-        }
-    }
-
-    if (resizeCol >= 0)
-    {
-        m_resizeColumn   = resizeCol;
-        m_resizeStartXPx = lx;
-        m_resizeStartWPx = GetColumnEffectiveWidthPx ((size_t) resizeCol);
-        handled          = true;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    headerCol = HitTestHeaderColumn (lx, ly);
-
-    //  Sorted on the release rather than here, since the press may instead
-    //  start a drag that moves the column.
-    if (headerCol >= 0)
-    {
-        m_headerPressCol = headerCol;
-        m_headerPressXPx = lx;
-        m_headerDragXPx  = lx;
-        m_headerDragging = false;
-        handled          = true;
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    row   = HitTestRow (lx, ly);
-    group = HitTestGroupHeader (lx, ly);
-
-    if (group >= 0)
-    {
-        int64_t  nowMs  = (int64_t) GetTickCount64();
-        bool     twice  = group == m_lastHeaderGroup && (nowMs - m_lastHeaderMs) <= (int64_t) GetDoubleClickTime();
-
-        //  The chevron, or a second click on the header, opens or closes the
-        //  group; a click on the header otherwise selects its rows.
-        m_lastHeaderGroup = twice ? -1 : group;
-        m_lastHeaderMs    = nowMs;
-
-        //  List's headers are labels only, as Explorer's are: they select.
-        if (!HasListGroups() && (twice || HitTestGroupChevron (lx, group)))
-        {
-            SetGroupCollapsed (group, !IsGroupCollapsed (group));
-            m_focusGroup = group;
-        }
-        else
-        {
-            SelectGroup (group);
-        }
-    }
-    else if (row >= 0 && !ev.ctrl && !ev.shift && m_selectedRows.size() > 1 && IsRowSelected (row))
-    {
-        //  A plain press on one of several selected rows leaves the selection
-        //  whole, so a drag that follows takes all of it, as Explorer's does.
-        //  The release collapses it to the row if no drag began.
-        m_focusGroup    = -1;
-        m_pressModified = false;
-        m_dragSelecting = false;
-        m_anchorRow     = row;
-        m_selectedRow   = row;
-    }
-    else if (row >= 0)
-    {
-        m_focusGroup    = -1;
-        m_pressModified = ev.ctrl || ev.shift;
-        ClickRow (row, ev.ctrl, ev.shift);
-        m_dragSelecting = m_multiSelect;
-    }
-    else if (m_multiSelect && (IsItemsView() || ly >= GetHeaderHeightPx() + (m_showHeader ? GetHeaderGapPx() : 0)))
-    {
-        //  A press on empty space starts a rubber band, as in Explorer: between
-        //  items, below the last row, or past the last column.
-        BeginSelectionBand (lx, ly, ev.ctrl);
-    }
-    else if (!ev.ctrl && !ev.shift && !m_selectedRows.empty())
-    {
-        //  A plain click on the empty space below the rows selects nothing.
-        ClearSelection();
-    }
-
-    handled = true;
-
-Error:
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::DispatchScrollbarPress
-//
-//  Tries the horizontal then vertical scrollbar regions (arrows, thumb,
-//  track) at the press point, acting on the first hit: arrows step, the
-//  thumb starts a drag, the track pages. Returns true when one was hit.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::DispatchScrollbarPress (int lx, int ly)
-{
-    bool  handled = true;
-    int   hStep   = m_scaler.ToPx (s_kHScrollStepDip);
-
-
-
-    // A press on an arrow or the track does its one-shot scroll now and
-    // arms auto-repeat (Tick fires the rest while the button is held);
-    // grabbing the thumb starts a drag and does not repeat.
-    m_scrollRepeat       = ScrollRepeat::None;
-    m_scrollRepeatXPx    = lx;
-    m_scrollRepeatYPx    = ly;
-    m_scrollRepeatNextMs = 0;
-
-    if      (HitTestHorzScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_leftPx - hStep);       m_scrollRepeat = ScrollRepeat::HorzArrowLeft;  }
-    else if (HitTestHorzScrollbarArrowRight (lx, ly)) { SetLeftPx (m_leftPx + hStep);       m_scrollRepeat = ScrollRepeat::HorzArrowRight; }
-    else if (HitTestHorzScrollbarThumb      (lx, ly)) { BeginHorzThumbDrag (lx); }
-    else if (HitTestHorzScrollbarTrack      (lx, ly)) { GetPageFromHorzTrackClick (lx);        m_scrollRepeat = ScrollRepeat::HorzTrack;      }
-    else if (HitTestScrollbarArrowUp     (lx, ly)) { ScrollByRows (-1);                     m_scrollRepeat = ScrollRepeat::VertArrowUp;    }
-    else if (HitTestScrollbarArrowDown   (lx, ly)) { ScrollByRows (1);                      m_scrollRepeat = ScrollRepeat::VertArrowDown;  }
-    else if (HitTestScrollbarThumb       (lx, ly)) { BeginThumbDrag (ly); }
-    else if (HitTestScrollbarTrack       (lx, ly)) { GetPageFromTrackClick (ly);               m_scrollRepeat = ScrollRepeat::VertTrack;      }
-    else                                           { handled = false; }
-
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::DispatchMouseMove
-//
-//  Drives an in-progress column-resize or thumb drag; otherwise tracks
-//  the hovered row while the pointer is inside. Returns true while
-//  dragging or hovering inside the list.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::DispatchMouseMove (int lx, int ly, bool inside)
-{
-    bool  handled = true;
-    int   minColW = m_scaler.ToPx (s_kMinColWidthDip);
-    int   newColW = 0;
-
-
-
-    if (m_resizeColumn >= 0)
-    {
-        newColW = std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx));
-        SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newColW);
-    }
-    else if (m_headerPressCol >= 0)
-    {
-        m_headerDragXPx  = lx;
-        m_headerDragging = m_headerDragging || std::abs (lx - m_headerPressXPx) >= m_scaler.ToPx (s_kHeaderDragDip);
-
-        if (m_headerDragging)
-        {
-            UpdateHeaderSlides();
-        }
-    }
-    else if (m_vertDragging)
-    {
-        UpdateThumbDrag (ly);
-    }
-    else if (m_horzDragging)
-    {
-        UpdateHorzThumbDrag (lx);
-    }
-    else if (m_bandActive)
-    {
-        UpdateSelectionBand (lx, ly);
-    }
-    else if (m_dragSelecting)
-    {
-        DragSelectTo (ly);
-    }
-    else if (inside)
-    {
-        SetHoveredRow (HitTestRow (lx, ly));
-        m_hoverGroup = HitTestGroupHeader (lx, ly);
-    }
-    else
-    {
-        SetHoveredRow (-1);
-        m_hoverGroup = -1;
-        handled      = false;
-    }
-
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::DragSelectTo
-//
-//  Extends the selection from the row the drag began on to the row under the
-//  pointer, scrolling one row at a time when the pointer is past either edge.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::DragSelectTo (int ly)
-{
-    int  rowH    = GetRowHeightPx();
-    int  headerH = m_showHeader ? GetHeaderBarPx() : 0;
-    int  hdrGap  = m_showHeader ? GetHeaderGapPx()    : 0;
-    int  body    = ly - headerH - hdrGap;
-    int  row     = 0;
-    int  line    = 0;
-
-
-
-    //  A drag in an item view selects nothing more than the press did: rows
-    //  of items have no single top-to-bottom order to extend along.
-    if (rowH <= 0 || m_anchorRow < 0 || GetRowCount() == 0 || IsItemsView())
-    {
-        return;
-    }
-
-    line = (body < 0) ? m_topRow - 1 : m_topRow + (body + GetRowShiftPx()) / rowH;
-    line = (std::max) (0, (std::min) (line, GetLineCount() - 1));
-    row  = GetRowOfLine (line);
-
-    //  On a header, the group's first row; on a collapsed one, nothing more.
-    if (row < 0)
-    {
-        row = (std::min) (GetRowOfLine (line + 1), GetRowCount() - 1);
-    }
-
-    if (row < 0)
-    {
-        return;
-    }
-
-    if (row != m_selectedRow)
-    {
-        SelectRangeFromAnchor (row);
-        m_selectedRow = row;
-        EnsureVisible (row);
-
-        if (m_onSelectionChanged)
-        {
-            m_onSelectionChanged (row);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::DispatchMouseUp
-//
-//  Ends an in-progress column-resize or thumb drag; otherwise a release
-//  over a data row selects it and raises onActivateRow. Returns true
-//  when a drag ended or a row was activated.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
-{
-    bool  handled = true;
-    int   row     = inside ? HitTestRow (lx, ly) : -1;
-    bool  ranged  = m_dragSelecting && (m_selectedRows.size() > 1 || m_pressModified);
-
-
-
-    //  A drag, or a Shift or Ctrl click, keeps what it left selected, even a
-    //  single row; only a plain click collapses the selection to its row.
-    m_dragSelecting = false;
-    m_pressModified = false;
-
-    if (m_bandActive)
-    {
-        m_bandActive = false;
-        m_bandBase.clear();
-        handled = true;
-    }
-    else if (ranged)
-    {
-        handled = true;
-    }
-    else if (m_scrollRepeat != ScrollRepeat::None)
-    {
-        m_scrollRepeat = ScrollRepeat::None;
-    }
-    else if (m_headerPressCol >= 0)
-    {
-        EndHeaderPress (lx, ly);
-    }
-    else if (m_resizeColumn >= 0)
-    {
-        int  resizedCol   = m_resizeColumn;
-        int  resizedWidth = GetColumnEffectiveWidthPx ((size_t) resizedCol);
-
-        m_resizeColumn = -1;
-
-        if (m_onColumnResized)
-        {
-            m_onColumnResized (resizedCol, resizedWidth);
-        }
-    }
-    else if (m_vertDragging)
-    {
-        EndThumbDrag();
-    }
-    else if (m_horzDragging)
-    {
-        EndHorzThumbDrag();
-    }
-    else if (row >= 0)
-    {
-        bool  activate  = true;
-        bool  collapsed = m_selectedRows.size() > 1;
-
-        SetSelectedRow (row);
-
-        //  A press on one row of several does not change the selection; the
-        //  release that collapses it to the one row is the change.
-        if (collapsed && m_onSelectionChanged)
-        {
-            m_onSelectionChanged (row);
-        }
-
-        if (m_activateOnDoubleClick)
-        {
-            int64_t  nowMs = (int64_t) GetTickCount64();
-
-            activate = (row == m_lastClickRow) &&
-                       (nowMs - m_lastClickMs) <= (int64_t) GetDoubleClickTime();
-
-            // A completed double-click consumes the pair so a third click
-            // starts a fresh count instead of chaining activations.
-            m_lastClickRow = activate ? -1 : row;
-            m_lastClickMs  = nowMs;
-        }
-
-        if (activate && m_onActivateRow)
-        {
-            m_onActivateRow (row);
-        }
-    }
-    else
-    {
-        handled = false;
-    }
-
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::GetWheelLinesPerNotch
-//
-//  How many rows one wheel notch moves, from the user's mouse settings.
-//
-//  "One screen at a time" does not report a line count -- it reports
-//  WHEEL_PAGESCROLL, which is UINT_MAX and would scroll four billion rows if
-//  it were taken at face value. It is resolved here against the list's own
-//  visible capacity, which is what a screen means for THIS list, and it can
-//  change with every resize, so it is asked for per notch rather than cached.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetWheelLinesPerNotch() const
-{
-    int  lines = DxuiSystemSettings::Instance().GetWheelLinesPerNotch();
-    int  cap   = 0;
-
-
-
-    if (lines != DxuiSystemSettings::kWheelPageScroll)
-    {
-        return lines;
-    }
-
-    cap = GetVisibleRowCapacity();
-
-    return (cap > 0) ? cap : 1;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::DispatchMouseWheel
-//
-//  Scrolls the list when the pointer is inside: Shift+wheel scrolls
-//  horizontally, otherwise vertically. ev.wheelDelta is in notches and
-//  is converted to the raw WHEEL_DELTA units the scroll helpers expect.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::DispatchMouseWheel (const DxuiMouseEvent & ev, bool inside)
-{
-    HRESULT  hr       = S_OK;
-    bool     handled  = false;
-    int      hStep    = m_scaler.ToPx (s_kHScrollStepDip);
-    int      rawDelta = (int) (ev.wheelDelta * (float) WHEEL_DELTA);
-
-
-
-    BAIL_OUT_IF (!inside, S_OK);
-
-    if (ev.wheelHorizontal)
-    {
-        // Trackpad / tilt-wheel horizontal (WM_MOUSEHWHEEL): a positive
-        // delta means "scroll right", the opposite of the Shift+wheel
-        // convention below (positive = toward the start), so negate.
-        ScrollByWheelDeltaHorizontal (-rawDelta, hStep);
-    }
-    else if (ev.shift)
-    {
-        ScrollByWheelDeltaHorizontal (rawDelta, hStep);
-    }
-    else
-    {
-        ScrollByWheelDelta (rawDelta, GetWheelLinesPerNotch());
-    }
-
-    handled = true;
-
-Error:
     return handled;
 }
 
@@ -5502,12 +1221,12 @@ void DxuiListView::Tick (int64_t nowMs)
     {
         // Nothing held. The common case, so it is the first test.
     }
-    else if (m_scrollRepeatNextMs == 0)
+    else if (m_scrollbars.m_scrollRepeatNextMs == 0)
     {
         // Arm the initial delay on the first tick after the press.
-        m_scrollRepeatNextMs = nowMs + s_kScrollRepeatDelayMs;
+        m_scrollbars.m_scrollRepeatNextMs = nowMs + s_kScrollRepeatDelayMs;
     }
-    else if (nowMs >= m_scrollRepeatNextMs)
+    else if (nowMs >= m_scrollbars.m_scrollRepeatNextMs)
     {
         hStep = m_scaler.ToPx (s_kHScrollStepDip);
 
@@ -5515,33 +1234,33 @@ void DxuiListView::Tick (int64_t nowMs)
         {
             case ScrollRepeat::VertArrowUp:    ScrollByRows (-1);            break;
             case ScrollRepeat::VertArrowDown:  ScrollByRows (1);             break;
-            case ScrollRepeat::HorzArrowLeft:  SetLeftPx (m_leftPx - hStep); break;
-            case ScrollRepeat::HorzArrowRight: SetLeftPx (m_leftPx + hStep); break;
+            case ScrollRepeat::HorzArrowLeft:  m_scrollbars.SetLeftPx (m_leftPx - hStep); break;
+            case ScrollRepeat::HorzArrowRight: m_scrollbars.SetLeftPx (m_leftPx + hStep); break;
 
             // Track paging stops once the thumb reaches the held point --
             // the repeat ends outright, so there is nothing to reschedule.
             case ScrollRepeat::VertTrack:
-                if (HitTestScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+                if (m_scrollbars.HitTestScrollbarThumb (m_scrollbars.m_scrollRepeatXPx, m_scrollbars.m_scrollRepeatYPx))
                 {
                     m_scrollRepeat = ScrollRepeat::None;
                     reschedule     = false;
                 }
                 else
                 {
-                    GetPageFromTrackClick (m_scrollRepeatYPx);
+                    m_scrollbars.GetPageFromTrackClick (m_scrollbars.m_scrollRepeatYPx);
                 }
 
                 break;
 
             case ScrollRepeat::HorzTrack:
-                if (HitTestHorzScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+                if (m_scrollbars.HitTestHorzScrollbarThumb (m_scrollbars.m_scrollRepeatXPx, m_scrollbars.m_scrollRepeatYPx))
                 {
                     m_scrollRepeat = ScrollRepeat::None;
                     reschedule     = false;
                 }
                 else
                 {
-                    GetPageFromHorzTrackClick (m_scrollRepeatXPx);
+                    m_scrollbars.GetPageFromHorzTrackClick (m_scrollbars.m_scrollRepeatXPx);
                 }
 
                 break;
@@ -5552,7 +1271,7 @@ void DxuiListView::Tick (int64_t nowMs)
 
         if (reschedule)
         {
-            m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
+            m_scrollbars.m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
         }
     }
 }
@@ -5581,7 +1300,7 @@ void DxuiListView::OnFocusChanged (bool focused)
 
     if (!focused)
     {
-        ReleaseKeyboardColumnFocus();
+        m_header.ReleaseKeyboardColumnFocus();
     }
     else if (m_kbColNavEnabled && !m_kbColResize)
     {
@@ -5594,8 +1313,8 @@ void DxuiListView::OnFocusChanged (bool focused)
         // The row selected is the top VISIBLE one, not row 0: a click on a
         // scrolled list gives it focus before the press is hit-tested, so
         // scrolling back to row 0 here would land the click on the wrong row.
-        m_kbColFocus = 0;
-        ClearColumnFocusMarkers();
+        m_header.m_kbColFocus = 0;
+        m_header.ClearColumnFocusMarkers();
 
         //  THE ROW IN VIEW, NOT ROW ZERO. Seeding the first row scrolls a list
         //  the user had scrolled elsewhere, and a host that gives the list
@@ -5606,984 +1325,11 @@ void DxuiListView::OnFocusChanged (bool focused)
         //  group's first row is the one below it.
         if (m_seedRowOnFocus && GetSelectedRow() < 0 && GetRowCount() > 0)
         {
-            row = IsItemsView() ? m_topRow : GetRowOfLine (m_topRow);
-            row = (row >= 0) ? row : GetRowOfLine (m_topRow + 1);
+            row = IsItemsView() ? m_topRow : m_grouping.GetRowOfLine (m_topRow);
+            row = (row >= 0) ? row : m_grouping.GetRowOfLine (m_topRow + 1);
             SetSelectedRow ((std::max) (0, (std::min) (row, GetRowCount() - 1)));
         }
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::ClearColumnFocusMarkers
-//
-//  Drops the header and divider focus markers without disturbing which
-//  sub-stop the keyboard is on. Used where the sub-stop is the list body,
-//  which has no marker of its own -- the selected row is its focus cue.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ClearColumnFocusMarkers()
-{
-    SetFocusedHeaderColumn (-1);
-    SetFocusedDividerColumn (-1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::ReleaseKeyboardColumnFocus
-//
-//  Leaves keyboard column navigation entirely: no sub-stop, no markers.
-//  Called when focus leaves the list and when Tab walks off either end of
-//  the sub-stop ring. The two must move together, or a marker keeps
-//  painting a focus cue for a control that no longer has focus.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ReleaseKeyboardColumnFocus()
-{
-    m_kbColFocus = -1;
-    ClearColumnFocusMarkers();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::ApplyKeyboardColumnFocus
-//
-//  Reflects the current keyboard sub-stop (m_kbColFocus) into the header /
-//  divider focus markers the widget paints. Even sub-stops select a
-//  header column, odd sub-stops select the divider trailing a column, and
-//  the final sub-stop is the list body (no header / divider marker).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ApplyKeyboardColumnFocus()
-{
-    int  n    = GetVisibleColumnCount();
-    int  body = (2 * n) - 1;
-    int  col  = -1;
-
-
-
-    if (m_kbColFocus < 0 || m_kbColFocus == body)
-    {
-        // No sub-stop, or the body -- neither paints a header or divider cue.
-        ClearColumnFocusMarkers();
-    }
-    else if ((m_kbColFocus % 2) == 0)
-    {
-        col = GetNthVisibleColumnIndex (m_kbColFocus / 2);
-        SetFocusedHeaderColumn (col);
-        SetFocusedDividerColumn (-1);
-    }
-    else
-    {
-        col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
-        SetFocusedDividerColumn (col);
-        SetFocusedHeaderColumn (-1);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::HandleKeyboardColumnKey
-//
-//  Acts on a header or divider keyboard sub-stop. A header sub-stop sorts
-//  its column on Enter / Space; a divider sub-stop nudges the width of the
-//  column it trails left / right by a fixed step, clamped to the minimum
-//  column width, and reports the new width through m_onColumnResized.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HandleKeyboardColumnKey (WPARAM vk)
-{
-    bool  isHeaderStop = ((m_kbColFocus % 2) == 0);
-    bool  handled      = false;
-    int   col          = -1;
-    int   stepPx       = 0;
-    int   minPx        = 0;
-    int   cur          = 0;
-    int   next         = 0;
-
-
-
-    if (isHeaderStop && (vk == VK_RETURN || vk == VK_SPACE))
-    {
-        col = GetNthVisibleColumnIndex (m_kbColFocus / 2);
-
-        if (col >= 0 && m_onSortColumn)
-        {
-            m_onSortColumn (col);
-        }
-
-        // Claimed even with no column or no callback: the sub-stop is a
-        // header, and Enter on a header is a header's key to eat.
-        handled = true;
-    }
-    else if (!isHeaderStop && (vk == VK_LEFT || vk == VK_RIGHT))
-    {
-        col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
-
-        // Unlike the header stop, a divider with no column has nothing to
-        // resize, so the key falls through instead.
-        if (col >= 0)
-        {
-            stepPx = m_scaler.ToPx (s_kKbResizeStepDip);
-            minPx  = m_scaler.ToPx (s_kMinColWidthDip);
-            cur    = GetColumnEffectiveWidthPx ((size_t) col);
-            next   = cur + ((vk == VK_LEFT) ? -stepPx : stepPx);
-
-            if (next < minPx)
-            {
-                next = minPx;
-            }
-
-            SetColumnOverrideWidthPx ((size_t) col, next);
-
-            if (m_onColumnResized)
-            {
-                m_onColumnResized (col, next);
-            }
-
-            handled = true;
-        }
-    }
-
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::HandleKeyboardBodyRowNav
-//
-//  Moves the selected row from the list-body keyboard sub-stop. Arrows
-//  step one row and Home / End jump to the ends, the target clamped to a
-//  valid row; PageUp / PageDown go to HandleKeyboardPage. A page that
-//  scrolled slides into view, as Explorer's does; any other key that
-//  scrolls ends a slide under way, and the view jumps.
-//
-//  A page's move, and Home's or End's wherever the view is placed after the
-//  move, is reported last, with the view where the key leaves it and any
-//  slide begun. A host that draws a frame from the report, as one that fills
-//  a preview does, would otherwise show the move with the view still on its
-//  way: a frame at the page's end before the slide back from its start.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk, bool shift, bool ctrl)
-{
-    bool       paging  = (vk == VK_PRIOR || vk == VK_NEXT);
-    int        shownPx = paging ? GetShownScrollPx() : 0;
-    int        restPx  = paging ? GetRestScrollPx()  : 0;
-    PageSlide  running = m_pageSlide;
-    bool       handled = false;
-
-
-
-    if (m_multiSelect && vk == VK_SPACE)
-    {
-        return SelectFocused (ctrl);
-    }
-
-    if (IsItemsView())
-    {
-        handled = HandleKeyboardItemNav (vk, shift, ctrl);
-    }
-    else if (paging)
-    {
-        handled = HandleKeyboardPage (vk, shift, ctrl);
-    }
-    else if (HasGroupLines())
-    {
-        handled = HandleKeyboardGroupedNav (vk, shift, ctrl);
-    }
-    else
-    {
-        handled = HandleKeyboardRowNav (vk, shift, ctrl);
-    }
-
-    if (paging)
-    {
-        BeginPageSlide (running, shownPx, restPx);
-    }
-
-    if (m_keyMovePending)
-    {
-        m_keyMovePending = false;
-
-        if (m_onSelectionChanged)
-        {
-            m_onSelectionChanged (m_keyMoveRow);
-        }
-    }
-
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::HandleKeyboardRowNav
-//
-//  Details without groups: the arrows, Home and End over the rows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HandleKeyboardRowNav (WPARAM vk, bool shift, bool ctrl)
-{
-    int   rows  = GetRowCount();
-    int   cur   = GetSelectedRow();
-    int   next  = cur;
-    bool  moved = (rows > 0);
-
-
-
-    switch (vk)
-    {
-        case VK_UP:    next = cur - 1;    break;
-        case VK_DOWN:  next = cur + 1;    break;
-        case VK_HOME:  next = 0;          break;
-        case VK_END:   next = rows - 1;   break;
-        default:       moved = false;     break;
-    }
-
-    // An empty list has nowhere to move, so even a navigation key goes
-    // unhandled and the host gets a chance at it.
-    if (moved)
-    {
-        if (next < 0)
-        {
-            next = 0;
-        }
-
-        if (next > rows - 1)
-        {
-            next = rows - 1;
-        }
-
-        //  Ctrl moves the focus alone, leaving the selection for Space.
-        if (m_multiSelect && ctrl && !shift)
-        {
-            m_selectedRow = next;
-            EnsureVisible (next);
-            return true;
-        }
-
-        if (m_multiSelect && shift)
-        {
-            SelectRangeFromAnchor (next);
-        }
-        else
-        {
-            SetSelectedRow (next);
-        }
-
-        //  Reported only with multiple selection on, where a keyboard move is
-        //  a selection change like any click; a single-select list has always
-        //  left keyboard moves unreported.
-        if (m_multiSelect && m_onSelectionChanged)
-        {
-            m_onSelectionChanged (next);
-        }
-    }
-
-    return moved;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::HandleKeyboardGroupedNav
-//
-//  With groups, the arrows step over lines, and a header is a stop like a
-//  row: reaching one selects its rows and gives it the focus. On a header,
-//  Left collapses the group and Right opens it. Home and End go to the first
-//  and last rows, past the headers.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HandleKeyboardGroupedNav (WPARAM vk, bool shift, bool ctrl)
-{
-    int   lines = GetLineCount();
-    int   cur   = (m_focusGroup >= 0) ? GetLineOfGroup (m_focusGroup) : GetLineOfRow (GetSelectedRow());
-    int   next  = cur;
-    int   row   = -1;
-
-
-
-    if (lines <= 0)
-    {
-        return false;
-    }
-
-    if (m_focusGroup >= 0 && (vk == VK_LEFT || vk == VK_RIGHT))
-    {
-        SetGroupCollapsed (m_focusGroup, vk == VK_LEFT);
-        return true;
-    }
-
-    if (vk == VK_HOME || vk == VK_END)
-    {
-        return HandleKeyboardDetailsJump (vk, shift, ctrl);
-    }
-
-    switch (vk)
-    {
-        case VK_UP:    next = (cur < 0) ? 0 : cur - 1; break;
-        case VK_DOWN:  next = (cur < 0) ? 0 : cur + 1; break;
-        default:       return false;
-    }
-
-    next = std::clamp (next, 0, lines - 1);
-    row  = GetRowOfLine (next);
-
-    //  Ctrl moves the focus alone, over headers and rows alike.
-    if (m_multiSelect && ctrl && !shift)
-    {
-        m_focusGroup  = (row < 0) ? GetGroupOfLine (next) : -1;
-        m_selectedRow = (row < 0) ? m_selectedRow : row;
-        EnsureLineVisible (next);
-        return true;
-    }
-
-    if (row < 0)
-    {
-        SelectGroup (GetGroupOfLine (next));
-    }
-    else
-    {
-        m_focusGroup = -1;
-
-        if (m_multiSelect && shift)
-        {
-            SelectRangeFromAnchor (row);
-        }
-        else
-        {
-            SetSelectedRow (row);
-        }
-
-        if (m_multiSelect && m_onSelectionChanged)
-        {
-            m_onSelectionChanged (row);
-        }
-    }
-
-    EnsureLineVisible (next);
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::HandleKeyboardDetailsJump
-//
-//  Home and End in grouped Details: the first or the last row, past the
-//  headers, with the view at its very top or its very end. With every group
-//  collapsed there is no row, and the first or last header takes the focus
-//  instead.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HandleKeyboardDetailsJump (WPARAM vk, bool shift, bool ctrl)
-{
-    bool  home   = (vk == VK_HOME);
-    int   lines  = GetLineCount();
-    int   target = GetEdgeRowLine (!home);
-
-
-
-    if (lines <= 0)
-    {
-        return false;
-    }
-
-    if (target < 0)
-    {
-        target = home ? 0 : lines - 1;
-
-        if (m_multiSelect && ctrl && !shift)
-        {
-            m_focusGroup = GetGroupOfLine (target);
-        }
-        else
-        {
-            SelectGroup (GetGroupOfLine (target));
-        }
-
-        EnsureLineVisible (target);
-        return true;
-    }
-
-    ApplyKeyboardMove (GetRowOfLine (target), shift, ctrl);
-
-    if (home)
-    {
-        SetTopRow (0);
-    }
-    else
-    {
-        ScrollLineToBottom (target);
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::HandleKeyboardPage
-//
-//  Page Up and Page Down in Details, as Explorer's, measured at 150%. With
-//  the focus short of the edge the key is toward, or on no row, it goes to
-//  the whole row at that edge and nothing scrolls. On that edge, or past it
-//  out of sight, it goes a page on, headers not counted, and the view puts
-//  that row flush with the edge, so the row it left is the first or last
-//  whole one at the other side. A focused header pages from its line, as a
-//  row under a collapsed header does from its group's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HandleKeyboardPage (WPARAM vk, bool shift, bool ctrl)
-{
-    bool  down       = (vk == VK_NEXT);
-    int   rows       = GetRowCount();
-    int   page       = GetPageLines();
-    int   cur        = -1;
-    int   first      = -1;
-    int   last       = -1;
-    int   target     = -1;
-    int   savedTop   = m_topRow;
-    bool  savedFlush = m_flushBottom;
-    bool  scroll     = false;
-
-
-
-    if (!TryGetWholeRowLineSpan (first, last))
-    {
-        return false;
-    }
-
-    if (m_focusGroup >= 0)
-    {
-        cur = GetLineOfGroup (m_focusGroup);
-    }
-    else if (m_selectedRow >= 0 && m_selectedRow < rows)
-    {
-        cur = GetLineOfRow (m_selectedRow);
-        cur = (cur >= 0) ? cur : GetLineOfGroup (GetGroupOfRow (m_selectedRow));
-    }
-
-    target = IsAtPageEdge (cur, down ? last : first, down) ? StepRowLines (cur, down ? page : -page)
-                                                            : (down ? last : first);
-
-    //  A header with no row past it in the key's direction.
-    if (target < 0)
-    {
-        return true;
-    }
-
-    scroll = !IsLineWhollyShown (target);
-
-    ApplyKeyboardMove (GetRowOfLine (target), shift, ctrl);
-
-    //  Selecting a group's first row scrolls its header into sight, which a
-    //  move that stays in sight undoes.
-    if (!scroll)
-    {
-        SetTopRow (savedTop);
-        m_flushBottom = savedFlush;
-    }
-    else if (down)
-    {
-        ScrollLineToBottom (target);
-    }
-    else
-    {
-        ScrollLineToTop (target);
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::ApplyKeyboardMove
-//
-//  A key's move to a row, as the arrows make it: alone, the row becomes the
-//  selection; Shift selects from the anchor to it; Ctrl moves the focus
-//  alone, leaving the selection for Space. Selecting scrolls the row into
-//  sight, so a caller that places the view itself does it afterward, and the
-//  move is reported once it has: see HandleKeyboardBodyRowNav.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ApplyKeyboardMove (int row, bool shift, bool ctrl)
-{
-    m_focusGroup = -1;
-
-    if (m_multiSelect && ctrl && !shift)
-    {
-        m_selectedRow = row;
-        return;
-    }
-
-    if (m_multiSelect && shift)
-    {
-        SelectRangeFromAnchor (row);
-    }
-    else
-    {
-        SetSelectedRow (row);
-    }
-
-    //  Reported only with multiple selection on, where a keyboard move is a
-    //  selection change like any click; a single-select list has always left
-    //  keyboard moves unreported.
-    if (m_multiSelect && m_onSelectionChanged)
-    {
-        m_keyMoveRow     = row;
-        m_keyMovePending = true;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::GetPageLines
-//
-//  How many lines a page moves: the lines of the base height the view holds
-//  whole, less one, and at least one. A row taller than the base, as a
-//  wrapped name makes one, still counts as one line, so after a page the row
-//  left behind can end partly out of sight, as Explorer's does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetPageLines() const
-{
-    int  whole = UsesItemLayout() ? GetItemGrid().visible : GetVisibleRowCapacity();
-
-
-
-    return (std::max) (1, whole - 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::GetGroupOfRow
-//
-//  The group a row belongs to, or -1 for a row ahead of the first group.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetGroupOfRow (int row) const
-{
-    int  group = -1;
-
-
-
-    for (size_t g = 0; g < m_groups.size() && m_groups[g].firstRow <= row; g++)
-    {
-        group = (int) g;
-    }
-
-    return group;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::TryGetWholeLineSpan
-//
-//  The lines Details shows whole, headers included: from the top one, or the
-//  one under it while the rows are lifted, for as many as the body holds.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::TryGetWholeLineSpan (int & first, int & last) const
-{
-    int  cap   = GetVisibleRowCapacity();
-    int  lines = GetLineCount();
-
-
-
-    first = m_topRow + ((GetRowShiftPx() > 0) ? 1 : 0);
-    last  = (std::min) (first + cap - 1, lines - 1);
-
-    return cap > 0 && first <= last;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::TryGetWholeRowLineSpan
-//
-//  The first and last rows Details shows whole, as lines, past any header at
-//  either end. With no row whole in sight, the row nearest the top stands for
-//  both. False only when there is no row to show at all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::TryGetWholeRowLineSpan (int & first, int & last) const
-{
-    int  lines   = GetLineCount();
-    int  nearest = -1;
-
-
-
-    if (lines <= 0)
-    {
-        return false;
-    }
-
-    if (TryGetWholeLineSpan (first, last))
-    {
-        while (first <= last && GetRowOfLine (first) < 0)
-        {
-            first++;
-        }
-
-        while (last >= first && GetRowOfLine (last) < 0)
-        {
-            last--;
-        }
-
-        if (first <= last)
-        {
-            return true;
-        }
-    }
-
-    nearest = (std::min) (m_topRow, lines - 1);
-    nearest = (GetRowOfLine (nearest) >= 0) ? nearest : StepRowLines (nearest, 1);
-    nearest = (nearest >= 0) ? nearest : StepRowLines ((std::min) (m_topRow, lines - 1), -1);
-    first   = nearest;
-    last    = nearest;
-
-    return nearest >= 0;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::IsLineWhollyShown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::IsLineWhollyShown (int line) const
-{
-    int  first = 0;
-    int  last  = 0;
-
-
-
-    return TryGetWholeLineSpan (first, last) && line >= first && line <= last;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::StepRowLines
-//
-//  The row `steps` rows on from a line, as a line, down for a positive count:
-//  only rows are counted, and the count stops at the first or the last. A row
-//  with none past it gives itself; a header with none past it gives -1.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::StepRowLines (int line, int steps) const
-{
-    int  lines  = GetLineCount();
-    int  dir    = (steps < 0) ? -1 : 1;
-    int  left   = (steps < 0) ? -steps : steps;
-    int  result = (line >= 0 && line < lines && GetRowOfLine (line) >= 0) ? line : -1;
-    int  at     = line;
-
-
-
-    while (left > 0)
-    {
-        at += dir;
-
-        if (at < 0 || at >= lines)
-        {
-            break;
-        }
-
-        if (GetRowOfLine (at) >= 0)
-        {
-            result = at;
-            left--;
-        }
-    }
-
-    return result;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::GetEdgeRowLine
-//
-//  The first or the last row's line, past the headers; -1 with no row shown.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DxuiListView::GetEdgeRowLine (bool last) const
-{
-    int  lines = GetLineCount();
-    int  edge  = last ? lines - 1 : 0;
-
-
-
-    if (lines <= 0)
-    {
-        return -1;
-    }
-
-    return (GetRowOfLine (edge) >= 0) ? edge : StepRowLines (edge, last ? -1 : 1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::ScrollLineToBottom
-//
-//  Scrolls Details so a line ends flush with the body's bottom: when the body
-//  ends partway through a row, the rows are lifted for it and the top one is
-//  cut off. The last row goes to the very end, so the headers of collapsed
-//  groups under it come into sight with it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ScrollLineToBottom (int line)
-{
-    ScrollLayout  layout = ComputeScrollLayout();
-    int           cap    = layout.rowCap;
-
-
-
-    if (cap <= 0)
-    {
-        SetTopRow (line);
-        return;
-    }
-
-    //  Past the last top row is the very end.
-    if (line == GetEdgeRowLine (true))
-    {
-        SetTopRow (GetMaxTopRow() + 1);
-
-        if (IsLineWhollyShown (line))
-        {
-            return;
-        }
-    }
-
-    if (layout.partialPx <= 0 || line < cap)
-    {
-        SetTopRow (line - cap + 1);
-        return;
-    }
-
-    SetTopRow (line - cap);
-    m_flushBottom = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::ScrollLineToTop
-//
-//  Scrolls Details so a line is the top one; for the first row, to the very
-//  top, so the header above it shows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ScrollLineToTop (int line)
-{
-    SetTopRow ((line == GetEdgeRowLine (false)) ? 0 : line);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::SelectFocused
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::SelectFocused (bool ctrl)
-{
-    int  row = m_selectedRow;
-
-
-
-    if (m_focusGroup >= 0)
-    {
-        SelectGroup (m_focusGroup);
-        return true;
-    }
-
-    if (row < 0 || row >= GetRowCount())
-    {
-        return false;
-    }
-
-    if (ctrl)
-    {
-        ClickRow (row, true, false);
-    }
-    else
-    {
-        SetSelectedRow (row);
-    }
-
-    if (m_onSelectionChanged)
-    {
-        m_onSelectionChanged (row);
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::HandleTypeAhead
-//
-//  Characters typed close together build a prefix, so "te" finds Temp ahead
-//  of Tools. The same character typed again steps to the next row starting
-//  with it instead, as Explorer's does. A new search begins below the current
-//  row; a growing prefix starts at the current row, so it stays put while the
-//  row still matches. Either way the search wraps around the end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::HandleTypeAhead (wchar_t ch)
-{
-    int64_t            now    = m_clock ? m_clock() : (int64_t) GetTickCount64();
-    int                rows   = GetRowCount();
-    int                cur    = GetSelectedRow();
-    bool               repeat = false;
-    int                from   = 0;
-    int                step   = 0;
-    std::wstring       prefix;
-
-
-
-    if (rows <= 0)
-    {
-        return false;
-    }
-
-    if (now - m_typeAheadMs > s_kTypeAheadResetMs)
-    {
-        m_typeAhead.clear();
-    }
-
-    m_typeAheadMs = now;
-    m_typeAhead  += ch;
-
-    //  "aaa" steps through the rows starting with a; "abc" looks for abc.
-    repeat = m_typeAhead.size() > 1
-             && std::all_of (m_typeAhead.begin(), m_typeAhead.end(),
-                             [&] (wchar_t c) { return towlower (c) == towlower (m_typeAhead[0]); });
-    prefix = repeat ? m_typeAhead.substr (0, 1) : m_typeAhead;
-    from   = (m_typeAhead.size() == 1 || repeat) ? cur + 1 : (std::max) (cur, 0);
-
-    for (step = 0; step < rows; step++)
-    {
-        int                        row   = ((from + step) % rows + rows) % rows;
-        const std::vector<Cell> &  cells = GetRowCells (row);
-
-        if (!cells.empty() && cells[0].text.size() >= prefix.size()
-            && _wcsnicmp (cells[0].text.c_str(), prefix.c_str(), prefix.size()) == 0)
-        {
-            SetSelectedRow (row);
-
-            if (m_multiSelect && m_onSelectionChanged)
-            {
-                m_onSelectionChanged (row);
-            }
-
-            break;
-        }
-    }
-
-    //  Taken whether or not a row matched: a character typed at a list is a
-    //  search, not something to hand on.
-    return true;
 }
 
 
@@ -6613,244 +1359,15 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
     if (m_kbColNavEnabled && ev.kind == DxuiKeyEventKind::Char && !ev.ctrl && !ev.alt
         && ev.vk >= 0x20 && ev.vk != 0x7F)
     {
-        return HandleTypeAhead ((wchar_t) ev.vk);
+        return m_keyboard.HandleTypeAhead ((wchar_t) ev.vk);
     }
 
     if (dispatches)
     {
-        handled = m_kbColResize ? OnKeyColumnResizeNav (ev) : OnKeyBodyHeaderNav (ev);
+        handled = m_kbColResize ? m_header.OnKeyColumnResizeNav (ev) : m_header.OnKeyBodyHeaderNav (ev);
     }
 
     return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::OnKeyColumnResizeNav
-//
-//  Column/divider model (opt-in via SetKeyboardColumnResize). Tab walks 2N
-//  sub-stops for N visible columns -- header0, divider0, header1, divider1,
-//  ..., header(N-1), body -- and Shift+Tab walks back. Tabbing past either end
-//  releases the sub-focus and returns false so the host focus manager advances.
-//  At a sub-stop, keys act on it: sort a header, resize a divider, or move rows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::OnKeyColumnResizeNav (const DxuiKeyEvent & ev)
-{
-    int   n       = GetVisibleColumnCount();
-    int   stops   = 2 * n;
-    int   body    = stops - 1;
-    bool  handled = false;
-
-
-
-    if (n <= 0)
-    {
-        // No visible columns means no sub-stops to walk.
-    }
-    else if (ev.vk == VK_TAB)
-    {
-        // -1 is the neutral entry: the first Tab picks a direction into the
-        // ring rather than resuming wherever the sub-focus last was.
-        m_kbColFocus = ev.shift ? ((m_kbColFocus == -1) ? body : (m_kbColFocus - 1))
-                                : ((m_kbColFocus == -1) ? 0    : (m_kbColFocus + 1));
-
-        // Walking off either end releases the sub-focus and leaves the key
-        // unhandled, so the host focus manager moves to the next control.
-        if (m_kbColFocus < 0 || m_kbColFocus >= stops)
-        {
-            ReleaseKeyboardColumnFocus();
-        }
-        else
-        {
-            ApplyKeyboardColumnFocus();
-            handled = true;
-        }
-    }
-    else if (m_kbColFocus == body)
-    {
-        handled = HandleKeyboardBodyRowNav (ev.vk, ev.shift, ev.ctrl);
-    }
-    else if (m_kbColFocus != -1)
-    {
-        handled = HandleKeyboardColumnKey (ev.vk);
-    }
-
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::OnKeyBodyHeaderNav
-//
-//  Default model (File-Explorer details view). Two sub-stops: body then
-//  header. Tab: body -> header -> release; Shift+Tab reverses. Body: arrows /
-//  Home / End / Page move the selection, Space/Enter activate the selected row.
-//  Header: Left/Right cycle the focused column, Space/Enter sort it. No
-//  column-resize sub-stops (see OnKeyColumnResizeNav).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiListView::OnKeyBodyHeaderNav (const DxuiKeyEvent & ev)
-{
-    static constexpr int  kBody   = 0;
-    static constexpr int  kHeader = 1;
-    static constexpr int  kStops  = 2;
-
-
-
-    //  Space selects in a list that selects several, as Explorer's does;
-    //  Enter opens.
-    bool  isActivate = (ev.vk == VK_RETURN || (ev.vk == VK_SPACE && !m_multiSelect));
-    bool  handled    = false;
-
-    if (ev.vk == VK_TAB)
-    {
-        m_kbColFocus = ev.shift ? ((m_kbColFocus < 0) ? (kStops - 1) : (m_kbColFocus - 1))
-                                : ((m_kbColFocus < 0) ? kBody        : (m_kbColFocus + 1));
-
-        // Off either end: release and let the host focus manager take over.
-        if (m_kbColFocus < 0 || m_kbColFocus >= kStops)
-        {
-            ReleaseKeyboardColumnFocus();
-        }
-        else
-        {
-            ApplyBodyHeaderFocus();
-            handled = true;
-        }
-    }
-    else if (m_kbColFocus == kBody)
-    {
-        if (isActivate)
-        {
-            // Only claim Enter/Space when there is a row AND somewhere to
-            // report it; otherwise the dialog's default button should get it.
-            handled = (GetSelectedRow() >= 0 && m_onActivateRow);
-
-            if (handled)
-            {
-                m_onActivateRow (GetSelectedRow());
-            }
-        }
-        else if (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift) != DxuiStandardCommand::None)
-        {
-            handled = InvokeCommand (DxuiCommandRouter::TranslateKey (ev.vk, ev.ctrl, ev.alt, ev.shift));
-        }
-        else
-        {
-            handled = HandleKeyboardBodyRowNav (ev.vk, ev.shift, ev.ctrl);
-        }
-    }
-    else if (m_kbColFocus == kHeader)
-    {
-        if (ev.vk == VK_LEFT || ev.vk == VK_RIGHT)
-        {
-            MoveHeaderFocus ((ev.vk == VK_RIGHT) ? 1 : -1);
-            handled = true;
-        }
-        else if (isActivate && m_focusedHeaderCol >= 0 && m_onSortColumn)
-        {
-            m_onSortColumn (m_focusedHeaderCol);
-            handled = true;
-        }
-    }
-
-    return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::ApplyBodyHeaderFocus
-//
-//  Reflects the body/header sub-stop into the paint markers. Body clears the
-//  header marker (the selected row is the focus cue) and selects a row if none
-//  is; header selects the focused column, defaulting to the first visible one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::ApplyBodyHeaderFocus()
-{
-    SetFocusedDividerColumn (-1);
-
-    if (m_kbColFocus == 1)          // header
-    {
-        bool  valid = (m_focusedHeaderCol >= 0)
-                      && (GetVisibleIndexOfColumn ((size_t) m_focusedHeaderCol) >= 0);
-
-        if (!valid)
-        {
-            SetFocusedHeaderColumn (GetNthVisibleColumnIndex (0));
-        }
-
-        return;
-    }
-
-    SetFocusedHeaderColumn (-1);    // body
-
-    if (GetSelectedRow() < 0 && GetRowCount() > 0)
-    {
-        SetSelectedRow (0);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListView::MoveHeaderFocus
-//
-//  Steps the focused header column one visible column left / right, clamped to
-//  the ends (no wrap).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListView::MoveHeaderFocus (int dir)
-{
-    int  n    = GetVisibleColumnCount();
-    int  ord  = 0;
-    int  next = 0;
-
-
-
-    if (n <= 0)
-    {
-        return;
-    }
-
-    ord = (m_focusedHeaderCol >= 0) ? GetVisibleIndexOfColumn ((size_t) m_focusedHeaderCol) : 0;
-    if (ord < 0)
-    {
-        ord = 0;
-    }
-
-    next = ord + dir;
-    if (next < 0)
-    {
-        next = 0;
-    }
-
-    if (next > n - 1)
-    {
-        next = n - 1;
-    }
-
-    SetFocusedHeaderColumn (GetNthVisibleColumnIndex (next));
 }
 
 
@@ -6910,23 +1427,64 @@ std::vector<DxuiPopupMenuItem> DxuiListView::GetScrollbarMenu (POINT pt)
 
 
 
-    SyncVertScroll();
-    SyncHorzScroll();
+    m_scrollbars.SyncVertScroll();
+    m_scrollbars.SyncHorzScroll();
 
-    m_vertScroll.SetOnScroll ([this] (int, int pos) { SetTopRow (pos); });
-    m_horzScroll.SetOnScroll ([this] (int, int pos) { SetLeftPx (pos); });
+    m_scrollbars.m_vertScroll.SetOnScroll ([this] (int, int pos) { m_scrollbars.SetTopRow (pos); });
+    m_scrollbars.m_horzScroll.SetOnScroll ([this] (int, int pos) { m_scrollbars.SetLeftPx (pos); });
 
-    if (m_vertScroll.GetMetrics().visible && IsOverBar (m_vertScroll, pt))
+    if (m_scrollbars.m_vertScroll.GetMetrics().visible && IsOverBar (m_scrollbars.m_vertScroll, pt))
     {
-        barPt = GetBarPoint (m_vertScroll, pt);
-        return m_vertScroll.BuildContextMenu (barPt.x, barPt.y);
+        barPt = GetBarPoint (m_scrollbars.m_vertScroll, pt);
+        return m_scrollbars.m_vertScroll.BuildContextMenu (barPt.x, barPt.y);
     }
 
-    if (IsHorzScrollbarVisible() && IsOverBar (m_horzScroll, pt))
+    if (m_scrollbars.IsHorzScrollbarVisible() && IsOverBar (m_scrollbars.m_horzScroll, pt))
     {
-        barPt = GetBarPoint (m_horzScroll, pt);
-        return m_horzScroll.BuildContextMenu (barPt.x, barPt.y);
+        barPt = GetBarPoint (m_scrollbars.m_horzScroll, pt);
+        return m_scrollbars.m_horzScroll.BuildContextMenu (barPt.x, barPt.y);
     }
 
     return {};
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::SetView
+//
+//  The header belongs to Details alone, so it is put away while another view
+//  shows and comes back with Details. The view opens at its start, with the
+//  selected entry scrolled into sight.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetView (View view)
+{
+    if (view == m_view)
+    {
+        return;
+    }
+
+    if (m_view == View::Details)
+    {
+        m_detailsHeader = m_showHeader;
+        m_showHeader    = false;
+    }
+    else if (view == View::Details)
+    {
+        m_showHeader = m_detailsHeader;
+    }
+
+    m_view           = view;
+    m_topRow         = 0;
+    m_leftPx         = 0;
+    m_pageSlide      = {};
+    m_flushBottom    = false;
+    m_itemAnchorLine = -1;
+
+    EnsureVisible (m_selectedRow);
 }

@@ -765,7 +765,7 @@ void ExplorerListPane::SizeListIcons()
 
     m_listIcons.SetDpi    (dpi);
     m_listIcons.SetSizePx ((m_window.m_listView == DxuiListView::View::Details) ? MulDiv (DxuiTreeView::s_kIconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi)
-                                                                        : DxuiListView::GetItemIconPx (m_window.m_listView, dpi));
+                                                                        : DxuiListItemLayout::GetItemIconPx (m_window.m_listView, dpi));
 
     m_window.m_dragIcons.SetDpi    (dpi);
     m_window.m_dragIcons.SetSizePx (MulDiv (kDragImageDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi));

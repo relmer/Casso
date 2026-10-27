@@ -1350,7 +1350,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
             if (node->iconBroken)
             {
-                DxuiListView::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
+                DxuiListPainter::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
             }
 
             //  At the icon's lower left, where the broken badge goes, and as

@@ -79,7 +79,7 @@ public:
     //  Items to a row for a view that runs along rows.
     static int  PerRow (View view)
     {
-        DxuiListView::ItemMetrics  m = DxuiListView::GetItemMetrics (view);
+        DxuiListView::ItemMetrics  m = DxuiListItemLayout::GetItemMetrics (view);
 
         return (m.cellWDip > 0) ? (std::max) (1, (s_kWidth - s_kBarPx - Left (view)) / m.cellWDip) : 1;
     }
@@ -141,7 +141,7 @@ public:
     TEST_METHOD (List_RunsItemsDownColumns)
     {
         Fixture                    f (View::List);
-        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::List);
+        DxuiListView::ItemMetrics  m      = DxuiListItemLayout::GetItemMetrics (View::List);
         int                        perCol = (s_kHeight - s_kBarPx) / m.cellHDip;
 
         Assert::AreEqual (1,      f.list.HitTestRow (m.cellWDip / 2, m.cellHDip + m.cellHDip / 2), L"Under the first item is the second");
@@ -174,7 +174,7 @@ public:
     TEST_METHOD (ListArrows_MoveDownAndAcrossColumns)
     {
         Fixture                    f (View::List);
-        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::List);
+        DxuiListView::ItemMetrics  m      = DxuiListItemLayout::GetItemMetrics (View::List);
         int                        perCol = (s_kHeight - s_kBarPx) / m.cellHDip;
 
         f.Key (VK_DOWN);
@@ -189,7 +189,7 @@ public:
     TEST_METHOD (MovingPastTheBottom_ScrollsARowOfItems)
     {
         Fixture                    f (View::LargeIcons);
-        DxuiListView::ItemMetrics  m       = DxuiListView::GetItemMetrics (View::LargeIcons);
+        DxuiListView::ItemMetrics  m       = DxuiListItemLayout::GetItemMetrics (View::LargeIcons);
         int                        perRow  = PerRow (View::LargeIcons);
         int                        visible = s_kHeight / m.cellHDip;
         int                        i       = 0;
@@ -296,7 +296,7 @@ public:
     TEST_METHOD (ACtrlRubberBand_AddsToTheSelection)
     {
         Fixture                    f (View::MediumIcons);
-        DxuiListView::ItemMetrics  m      = DxuiListView::GetItemMetrics (View::MediumIcons);
+        DxuiListView::ItemMetrics  m      = DxuiListItemLayout::GetItemMetrics (View::MediumIcons);
         int                        perRow = PerRow (View::MediumIcons);
         int                        empty  = Left (View::MediumIcons) + perRow * m.cellWDip + 5;
         int                        third  = 2 * perRow;   // first item of the third row
@@ -313,7 +313,7 @@ public:
     TEST_METHOD (CtrlAndShiftClicks_WorkInAnItemView)
     {
         Fixture                    f (View::LargeIcons);
-        DxuiListView::ItemMetrics  m = DxuiListView::GetItemMetrics (View::LargeIcons);
+        DxuiListView::ItemMetrics  m = DxuiListItemLayout::GetItemMetrics (View::LargeIcons);
         DxuiMouseEvent             ev;
 
         ev.button = DxuiMouseButton::Left;

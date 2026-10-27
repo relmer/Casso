@@ -1162,13 +1162,20 @@ included, follow this phase, so none is repeated after it.
   parts share are in `ActionsTypes`, which `CassoExplorerActions` derives
   from, so `CassoExplorerActions::Outcome` and the rest compile where they
   are.
-- [ ] T269 Split `Dxui/Widgets/DxuiListView.h/.cpp` and
+- [X] T269 Split `Dxui/Widgets/DxuiListView.h/.cpp` and
   `Dxui/Widgets/DxuiListViewItems.cpp` into scrollbars (both orientations,
   on `Dxui/Widgets/DxuiScrollbar.h` where it fits), groups and lines, the
   header (paint, press, column order, slides), keyboard navigation, and
   item layouts (icons, tiles, list). The list is left with rows, columns,
   selection, the details rows' paint and mouse dispatch. The Dxui tests
   in `UnitTest/Dxui/` pass as they are.
+
+  Done in `Dxui/Widgets/ListView/`, with `DxuiListViewItems.cpp` folded in
+  and removed. Parts added to the plan's: the details
+  view's columns (`DxuiListColumns`), pointer dispatch (`DxuiListMouse`)
+  and the List view's column flow (`DxuiListFlowLayout`); the painting of
+  rows and items is `DxuiListPainter`. The public nested types are in
+  `DxuiListViewTypes`, which `DxuiListView` derives from.
 - [ ] T270 Split `CassoEmuCore/Seams/Win32ShellItemVerbs.h/.cpp` into menus
   and Open with, the Recycle Bin, the namespace (shell folders, navigation
   roots, desktop, pinned), search (index and walks) and transfers
