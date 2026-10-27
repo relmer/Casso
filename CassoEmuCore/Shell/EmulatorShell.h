@@ -762,11 +762,13 @@ private:
     // Automatic machine states: whether this launch's command line mounted a
     // disk or a tape (true until the user switches away from its machine), the
     // user's choice in the prompt that protects the earlier automatic state,
-    // whether the switch in progress is loading a state file, and the folder
-    // and exit report a test sets.
+    // whether the switch in progress is loading a state file, the history
+    // section taken for the state saved at exit before recording stops, and
+    // the folder and exit report a test sets.
     bool                m_isCommandLineMediaSession = false;
     std::atomic<bool>   m_isAutoStateReplaceApproved { false };
     bool                   m_isLoadingStateSwitch = false;
+    std::vector<Byte>      m_exitHistory;
     std::filesystem::path  m_stateFolder;
     ExitReport             m_exitReport;
 

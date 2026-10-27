@@ -57,18 +57,50 @@ Error:
 //
 //  MachineStateFile::Build
 //
-//  The machine as a file's bytes. Run on the thread that owns the machine.
-//  Each mounted disk is written whole from memory, so writes the guest made
-//  that are not yet saved to the image file are in the state, and no image
-//  file is read or written. The current time and thumbnailPng, which may be
-//  empty, are written after the machine's state, and the payload is stored
-//  compressed.
+//  A state with no history section.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineStateFile::Build (
     MachineHost              & machine,
     const std::vector<Byte>  & thumbnailPng,
+    std::vector<Byte>        & outBytes,
+    MachineStateError        & outError)
+{
+    HRESULT            hr = S_OK;
+    std::vector<Byte>  noHistory;
+
+
+
+    hr = Build (machine, thumbnailPng, noHistory, outBytes, outError);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineStateFile::Build
+//
+//  The machine as a file's bytes. Run on the thread that owns the machine.
+//  Each mounted disk is written whole from memory, so writes the guest made
+//  that are not yet saved to the image file are in the state, and no image
+//  file is read or written. The current time and thumbnailPng, which may be
+//  empty, are written after the machine's state, and the payload is stored
+//  compressed. historySection, which may be empty, follows the payload as
+//  it is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineStateFile::Build (
+    MachineHost              & machine,
+    const std::vector<Byte>  & thumbnailPng,
+    const std::vector<Byte>  & historySection,
     std::vector<Byte>        & outBytes,
     MachineStateError        & outError)
 {
@@ -157,6 +189,8 @@ HRESULT MachineStateFile::Build (
 
     WriteHeader (packed, outBytes);
 
+    outBytes.insert (outBytes.end(), historySection.begin(), historySection.end());
+
 Error:
     return hr;
 }
@@ -174,6 +208,7 @@ Error:
 //  with ERROR_INVALID_DATA, and a file a newer Casso wrote with
 //  ERROR_REVISION_MISMATCH, whether the header or the payload section has
 //  the newer version. A compressed payload is unpacked after those checks.
+//  The bytes after the payload are the history section, unchecked here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -193,11 +228,12 @@ HRESULT MachineStateFile::Parse (
 
     outContents = MachineStateContents();
 
-    hr = CheckHeader (bytes, version, outError);
+    hr = CheckHeader (bytes, version, size, outError);
     CHR (hr);
 
     data = bytes.data() + kHeaderSize;
-    size = bytes.size() - kHeaderSize;
+
+    outContents.historySection.assign (bytes.begin() + (ptrdiff_t) (kHeaderSize + size), bytes.end());
 
     if (version >= kFirstCompressedVersion)
     {
@@ -428,6 +464,7 @@ void MachineStateFile::WriteHeader (
 HRESULT MachineStateFile::CheckHeader (
     const std::vector<Byte>  & bytes,
     uint16_t                 & outVersion,
+    size_t                   & outPayloadSize,
     MachineStateError        & outError)
 {
     constexpr size_t  kVersionOffset = kMagicSize;
@@ -459,11 +496,14 @@ HRESULT MachineStateFile::CheckHeader (
     payloadSize = ReadLittleEndian (bytes.data() + kSizeOffset, sizeof (uint64_t));
     hash        = ReadLittleEndian (bytes.data() + kHashOffset, sizeof (uint64_t));
 
-    isWholeFile = payloadSize == bytes.size() - kHeaderSize;
+    //  From version 4 a history section may follow the payload.
+    isWholeFile = (version >= kFirstVersionWithHistory) ? payloadSize <= bytes.size() - kHeaderSize : payloadSize == bytes.size() - kHeaderSize;
     CBRFEx (isWholeFile, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file is incomplete or was modified."));
 
-    isIntact = hash == StateHash::Hash (bytes.data() + kHeaderSize, bytes.size() - kHeaderSize);
+    isIntact = hash == StateHash::Hash (bytes.data() + kHeaderSize, static_cast<size_t> (payloadSize));
     CBRFEx (isIntact, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA), outError = MakeError ("damaged state file", "The state file was modified after it was saved."));
+
+    outPayloadSize = static_cast<size_t> (payloadSize);
 
 Error:
     return hr;

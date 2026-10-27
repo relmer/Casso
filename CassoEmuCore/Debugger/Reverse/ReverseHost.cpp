@@ -66,6 +66,43 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StartRecordingFromSaved
+//
+//  As StartRecording, from history a state file saved; when it cannot be
+//  taken up, nothing is recording, and the caller starts afresh.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseHost::StartRecordingFromSaved (
+    const ReverseSettings  & settings,
+    const SavedKeyframes   & saved)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    StopRecording();
+
+    hr = m_controller.StartFromSaved (settings, saved);
+    CHR (hr);
+
+Error:
+    if (FAILED (hr))
+    {
+        m_controller.Stop();
+    }
+
+    SyncInputGate();
+
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StopRecording
 //
 //  Drops history and lets the host's input through again. Call it before a

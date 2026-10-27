@@ -148,6 +148,53 @@ struct KeyframeBranch
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SavedKeyframeSegment
+//
+//  A stretch of history as a saved file has it: the active path, or a
+//  branch left behind. Each keyframe is at an offset into the saved arena,
+//  and the input journal's entries along the stretch start at
+//  firstJournalIndex.
+//  The active path's branch fields are zero but its live end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct SavedKeyframeSegment
+{
+    KeyframeBranch             info;
+    size_t                     firstJournalIndex = 0;
+    std::vector<KeyframeInfo>  infos;
+    std::vector<size_t>        offsets;
+    std::vector<InputRecord>   records;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SavedKeyframes
+//
+//  A whole history laid out for a file: the settings it was taken with, the
+//  active path and then the branches left behind, oldest first, and the
+//  stored bytes of every keyframe, end to end in that order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct SavedKeyframes
+{
+    KeyframeSettings                   settings;
+    std::vector<SavedKeyframeSegment>  segments;
+    std::vector<Byte>                  arena;
+    uint32_t                           nextBranchId = 1;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  KeyframeStore
 //
 //  Whole-machine snapshots taken at fixed cycle boundaries: the whole of
@@ -266,6 +313,13 @@ public:
     size_t    GetBranchCount    () const { return m_branches.size(); }
     uint64_t  GetPathChangePosition () const { return m_pathChangePosition; }
 
+    //  Saved history: the store and the input journal's entries laid out
+    //  for a file, and the store and the journal rebuilt from them. Import
+    //  uses every saved setting but the budget, and drops the oldest groups,
+    //  branches first, until the history fits the budget.
+    HRESULT   Export            (const InputJournal & journal, SavedKeyframes & outSaved);
+    HRESULT   Import            (const SavedKeyframes & saved, InputJournal & journal);
+
     size_t                    GetCount        () const { return m_count; }
     size_t                    GetPendingCount () const { return m_pendingCount; }
     const KeyframeInfo      & GetInfo         (size_t index) const { return GetEntry (index).info; }
@@ -365,6 +419,9 @@ private:
     size_t    FindOldestLeaf    () const;
     size_t    FindBranch        (uint32_t id) const;
     void      ResetGroup        ();
+    void      ExportEntry       (const Entry & entry, SavedKeyframeSegment & segment, std::vector<Byte> & arena) const;
+
+    static bool  IsValidSaved   (const SavedKeyframes & saved);
     void      ScheduleAfter     (uint64_t cycle);
 
     static uint64_t  ReadWallClock ();

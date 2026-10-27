@@ -97,19 +97,23 @@ void ShellHistory::LoadSettings()
 //  was behind live to the UI thread, which writes it and releases the keys
 //  and mouse button let go of in the meantime. Step back out consults the
 //  client's call record, while one is attached, on whether any call in
-//  history entered the code now running.
+//  history entered the code now running. A loaded state's history section,
+//  when there is one, is started from instead, unless it cannot be loaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellHistory::StartRecording()
 {
-    HRESULT              hr         = S_OK;
-    ReverseController  * controller = nullptr;
+    HRESULT              hr          = S_OK;
+    ReverseController  * controller  = nullptr;
+    bool                 isFromSaved = false;
 
 
 
     if (!m_isOn)
     {
+        m_pendingHistory.clear();
+
         StopRecording();
 
         if (m_client != nullptr)
@@ -146,7 +150,16 @@ void ShellHistory::StartRecording()
         });
     }
 
-    hr = m_reverseHost->StartRecording (ReverseHost::MakeSettings (m_budgetMb, m_intervalFrames));
+    if (!m_pendingHistory.empty())
+    {
+        hr          = StartFromSaved();
+        isFromSaved = SUCCEEDED (hr);
+    }
+
+    if (!isFromSaved)
+    {
+        hr = m_reverseHost->StartRecording (ReverseHost::MakeSettings (m_budgetMb, m_intervalFrames));
+    }
 
     if (FAILED (hr))
     {

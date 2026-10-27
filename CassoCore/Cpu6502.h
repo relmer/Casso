@@ -44,9 +44,12 @@ public:
 
     // History's cycles: the cycle count plus a base that each power cycle
     // grows by the count at that moment, so they never go back. The base is
-    // saved with the CPU's state.
-    uint64_t                      GetHistoryCycleCount () const { return m_cycleBase + m_totalCycles; }
-    const uint64_t *              GetCycleBasePtr      () const { return &m_cycleBase; }
+    // saved with the CPU's state. A state loaded into history counts from
+    // the power-on before its save, so the base is raised to bring history's
+    // cycles up to atLeast when they fall short of it.
+    uint64_t                      GetHistoryCycleCount     () const { return m_cycleBase + m_totalCycles; }
+    const uint64_t *              GetCycleBasePtr          () const { return &m_cycleBase; }
+    void                          AdvanceHistoryCycleCount (uint64_t atLeast) { m_cycleBase = (GetHistoryCycleCount() < atLeast) ? atLeast - m_totalCycles : m_cycleBase; }
 
     // Issue #67: sub-instruction bus-cycle estimate. Unlike m_totalCycles
     // (which only advances at the post-StepOne rollup), this is current to

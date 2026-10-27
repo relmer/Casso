@@ -135,6 +135,14 @@ public:
     ReverseController & operator= (const ReverseController &) = delete;
 
     HRESULT   Start               (const ReverseSettings & settings);
+
+    //  Saved history: the store and the journal laid out for a file, the
+    //  machine's position and history cycle as the active path's live end,
+    //  taken live; and recording started from saved history, in place of
+    //  Start, on a machine loaded with the state at that live end.
+    HRESULT   SaveHistory         (SavedKeyframes & outSaved);
+    HRESULT   StartFromSaved      (const ReverseSettings & settings, const SavedKeyframes & saved);
+
     void      SetWorkQueue        (IWorkQueue * queue) { m_workQueueOverride = queue; }
     void      SetReplayControl    (ReplayControl * control) { m_control = control; }
     void      SetCallerProbe      (CallerProbe probe) { m_callerProbe = std::move (probe); }

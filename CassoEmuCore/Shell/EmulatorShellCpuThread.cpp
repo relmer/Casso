@@ -204,6 +204,20 @@ void EmulatorShell::OnCpuThreadStart()
 
 void EmulatorShell::OnCpuThreadStop()
 {
+    HRESULT   hr       = S_OK;
+    uint64_t  resumeAt = 0;
+
+
+
+    // The state saved at exit has the history, which goes when recording
+    // stops; behind live, the machine goes to the live end, whose disks the
+    // stop then writes.
+    if (m_settings->GetPrefs().autoSaveMachineState)
+    {
+        hr = m_history->BuildSavedHistory (m_exitHistory, resumeAt);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
     // First, so the disks' held writes reach their files at shutdown.
     m_history->StopRecording();
 

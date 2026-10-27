@@ -262,6 +262,11 @@ public:
     uint64_t         GetImageId          () const { return m_imageId; }
     uint64_t         GetTrackGeneration  (int track) const;
 
+    // Saved history refers to media by id: a medium loaded with a state's
+    // history is given back the id it had when saved, and later ids start
+    // past it.
+    void             SetImageId          (uint64_t id);
+
     // IMachineState: the guest-visible media, that is every track's bits and
     // length or its flux, and the image and user write-protect flags. The
     // file path, format, metadata and quarter-track map come from the file and

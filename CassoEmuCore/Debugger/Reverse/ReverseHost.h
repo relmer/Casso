@@ -39,6 +39,7 @@ public:
     ReverseHost & operator= (const ReverseHost &) = delete;
 
     HRESULT  StartRecording (const ReverseSettings & settings);
+    HRESULT  StartRecordingFromSaved (const ReverseSettings & settings, const SavedKeyframes & saved);
     void     StopRecording  ();
     HRESULT  OnFrame        ();
     void     SyncInputGate  ();

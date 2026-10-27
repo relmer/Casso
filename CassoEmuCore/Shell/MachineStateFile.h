@@ -41,8 +41,9 @@ struct SavedDisk
 //  A machine state file, read: which machine and ROM set saved it, the disks
 //  in it, the machine's own state blob (MachineHost::SaveState), and from
 //  version 2 the time it was saved (a UTC FILETIME as one 64-bit value) and
-//  a PNG thumbnail of the screen. A version-1 state has a zero time and no
-//  thumbnail.
+//  a PNG thumbnail of the screen, and from version 4 the bytes of the
+//  history section, empty when the file has none (SavedHistory). A
+//  version-1 state has a zero time and no thumbnail.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +55,7 @@ struct MachineStateContents
     std::vector<Byte>       machineState;
     uint64_t                savedAtUtc  = 0;
     std::vector<Byte>       thumbnailPng;
+    std::vector<Byte>       historySection;
 };
 
 
@@ -103,6 +105,9 @@ struct MachineStateError
 //  compression (8 bytes), then the section packed with the Windows
 //  Compression API's MSZIP algorithm (deflate) in buffer mode.
 //
+//  From version 4 a history section may follow the payload, which the
+//  payload size and hash do not cover; SavedHistory checks it.
+//
 //  All values are little-endian. The size and hash are checked before
 //  anything is read, so a damaged or cut-short file fails to load before the
 //  machine is touched.
@@ -113,13 +118,14 @@ class MachineStateFile
 {
 public:
     static constexpr const wchar_t *  kExtension      = L"cassostate";
-    static constexpr uint16_t         kFormatVersion  = 3;
+    static constexpr uint16_t         kFormatVersion  = 4;
     static constexpr size_t           kHeaderSize     = 28;
     static constexpr uint32_t         kPayloadTag     = IMachineState::MakeTag ('S', 'F', 'I', 'L');
     static constexpr uint16_t         kPayloadVersion = 2;
 
     static HRESULT  Build (MachineHost & machine, std::vector<Byte> & outBytes, MachineStateError & outError);
     static HRESULT  Build (MachineHost & machine, const std::vector<Byte> & thumbnailPng, std::vector<Byte> & outBytes, MachineStateError & outError);
+    static HRESULT  Build (MachineHost & machine, const std::vector<Byte> & thumbnailPng, const std::vector<Byte> & historySection, std::vector<Byte> & outBytes, MachineStateError & outError);
     static HRESULT  Parse (const std::vector<Byte> & bytes, MachineStateContents & outContents, MachineStateError & outError);
     static HRESULT  Check (const MachineHost & machine, const MachineStateContents & contents, MachineStateError & outError);
     static HRESULT  Apply (MachineHost & machine, const MachineStateContents & contents, MachineStateError & outError);
@@ -138,11 +144,12 @@ private:
     static constexpr size_t    kMagicSize                  = 8;
     static constexpr uint16_t  kFirstVersionWithThumbnail  = 2;
     static constexpr uint16_t  kFirstCompressedVersion     = 3;
+    static constexpr uint16_t  kFirstVersionWithHistory    = 4;
     static constexpr size_t    kMaxUnpackedPayloadBytes    = 512ull * 1024 * 1024;
     static constexpr DWORD     kCompressionAlgorithm       = COMPRESS_ALGORITHM_MSZIP;
 
     static void      WriteHeader        (const std::vector<Byte> & payload, std::vector<Byte> & outBytes);
-    static HRESULT   CheckHeader        (const std::vector<Byte> & bytes, uint16_t & outVersion, MachineStateError & outError);
+    static HRESULT   CheckHeader        (const std::vector<Byte> & bytes, uint16_t & outVersion, size_t & outPayloadSize, MachineStateError & outError);
     static HRESULT   PackPayload        (const std::vector<Byte> & section, std::vector<Byte> & outPayload);
     static HRESULT   UnpackPayload      (const Byte * data, size_t size, std::vector<Byte> & outSection);
     static HRESULT   ReadPayload        (const Byte * data, size_t size, MachineStateContents & outContents);

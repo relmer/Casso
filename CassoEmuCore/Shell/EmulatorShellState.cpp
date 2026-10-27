@@ -112,17 +112,20 @@ Error:
 //  SaveMachineState
 //
 //  CPU thread. Writes the whole machine, its disks included as the machine
-//  has them in memory, to path. No disk image file is written. The file is
-//  written whole to a temporary file and renamed over path, so after a write
-//  that fails partway any earlier file at path is intact.
+//  has them in memory, and its history, to path. No disk image file is
+//  written. The file is written whole to a temporary file and renamed over
+//  path, so after a write that fails partway any earlier file at path is
+//  intact.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SaveMachineState (const std::filesystem::path & path)
 {
     HRESULT            hr        = S_OK;
+    uint64_t           resumeAt  = 0;
     std::vector<Byte>  bytes;
     std::vector<Byte>  thumbnail;
+    std::vector<Byte>  history;
     MachineStateError  error;
 
 
@@ -136,7 +139,15 @@ void EmulatorShell::SaveMachineState (const std::filesystem::path & path)
         thumbnail.clear();
     }
 
-    hr = MachineStateFile::Build (m_machine, thumbnail, bytes, error);
+    // A history that cannot be saved is left out, and the state saved
+    // without it.
+    hr = m_history->BuildSavedHistory (history, resumeAt);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = MachineStateFile::Build (m_machine, thumbnail, history, bytes, error);
+
+    m_history->ReturnFromSave (resumeAt);
+
     CHR (hr);
 
     hr = DiskImageStore::WriteFileAtomically (path.string(), bytes);
@@ -197,9 +208,12 @@ Error:
 //
 //  CPU thread. Parses the state and checks its disk images before anything
 //  changes; a state another machine kind saved opens that machine first, as
-//  opening a machine does, and the rest is checked on it. History is dropped
-//  and starts again at the loaded point, and the debugger is notified of a
-//  machine replaced.
+//  opening a machine does, and the rest is checked on it. A state with
+//  history replaces the history recording with the state's history when
+//  this build can load it, and history starts again at the loaded point
+//  when it cannot. A
+//  state with no history is a marked point in the history recording, which
+//  forks there behind live. The debugger is notified of a machine replaced.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +226,7 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
     AppleSpeaker         * speaker        = nullptr;
     bool                   isOtherMachine = false;
     bool                   isSwitched     = false;
+    bool                   hasHistory     = false;
 
 
 
@@ -241,11 +256,29 @@ HRESULT EmulatorShell::LoadMachineStateBytes (
     hr = MachineStateFile::Check (m_machine, contents, outError);
     CHR (hr);
 
-    m_history->StopRecording();
+    hasHistory = !contents.historySection.empty();
 
-    hr = MachineStateFile::Apply (m_machine, contents, outError);
+    if (hasHistory)
+    {
+        m_history->StopRecording();
 
-    m_history->StartRecording();
+        hr = MachineStateFile::Apply (m_machine, contents, outError);
+
+        if (SUCCEEDED (hr))
+        {
+            m_history->SetPendingHistory (std::move (contents.historySection));
+        }
+
+        m_history->StartRecording();
+    }
+    else
+    {
+        m_history->PrepareStateLoad();
+
+        hr = MachineStateFile::Apply (m_machine, contents, outError);
+
+        m_history->FinishStateLoad (SUCCEEDED (hr));
+    }
 
     CHR (hr);
 
@@ -385,11 +418,19 @@ void EmulatorShell::SaveAutoState (bool isExiting)
     AutoStateSave          action     = AutoStatePolicy::GetSaveAction (m_settings->GetPrefs().autoSaveMachineState,
                                                                         m_isCommandLineMediaSession,
                                                                         hasState);
+    uint64_t               resumeAt   = 0;
     std::vector<Byte>      thumbnail;
+    std::vector<Byte>      history;
     std::vector<Byte>      bytes;
     MachineStateError      error;
 
 
+
+    // At exit, the history was taken before recording stopped.
+    if (isExiting)
+    {
+        history.swap (m_exitHistory);
+    }
 
     BAIL_OUT_IF (action == AutoStateSave::Skip, S_OK);
     BAIL_OUT_IF (action == AutoStateSave::PromptFirst && !isApproved, S_OK);
@@ -403,7 +444,15 @@ void EmulatorShell::SaveAutoState (bool isExiting)
         thumbnail.clear();
     }
 
-    hr = MachineStateFile::Build (m_machine, thumbnail, bytes, error);
+    // On a switch the machine is left at history's live end, as it is about
+    // to go.
+    if (!isExiting)
+    {
+        hr = m_history->BuildSavedHistory (history, resumeAt);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    hr = MachineStateFile::Build (m_machine, thumbnail, history, bytes, error);
     CHR (hr);
 
     hr = DiskImageStore::WriteFileAtomically (path.string(), bytes);
@@ -471,6 +520,9 @@ void EmulatorShell::ResumeAutoState (bool isStartup)
 
     hr = MachineStateFile::Apply (m_machine, contents, error);
     CHR (hr);
+
+    // History starts from the state's history once the machine is ready.
+    m_history->SetPendingHistory (std::move (contents.historySection));
 
     speaker = m_machine.GetRefs().speaker;
 

@@ -569,6 +569,46 @@ public:
     }
 
 
+    //  From format version 4 the bytes after the payload are the history
+    //  section. A file in version 3 has none, and bytes there make it
+    //  damaged.
+    TEST_METHOD (AVersionFourStateHasItsHistorySectionAfterThePayload)
+    {
+        constexpr uint16_t     kVersionThree = 3;
+        TestMachine            machine ("Apple2e");
+        FileLog                log;
+        std::vector<Byte>      history       = { 'H', 'I', 'S', 'T', 1, 2, 3 };
+        std::vector<Byte>      bytes;
+        std::vector<Byte>      versionThree;
+        MachineStateContents   contents;
+        MachineStateError      error;
+        HRESULT                hr            = S_OK;
+
+
+
+        Prepare (machine, log, true);
+
+        hr = MachineStateFile::Build (machine, std::vector<Byte>(), history, bytes, error);
+        AssertSucceeded (hr, L"Build");
+
+        hr = MachineStateFile::Parse (bytes, contents, error);
+        AssertSucceeded (hr, L"Parse");
+        Assert::IsTrue (contents.historySection == history, L"the section after the payload");
+
+        versionThree = Assemble (kVersionThree, MachineStateFile::kPayloadVersion, contents);
+
+        hr = MachineStateFile::Parse (versionThree, contents, error);
+        AssertSucceeded (hr, L"format version 3 parses");
+        Assert::IsTrue (contents.historySection.empty(), L"with no history");
+
+        versionThree.insert (versionThree.end(), history.begin(), history.end());
+
+        hr = MachineStateFile::Parse (versionThree, contents, error);
+        Assert::IsTrue   (FAILED (hr), L"a version 3 file with bytes after its payload");
+        Assert::AreEqual (std::string ("damaged state file"), error.label);
+    }
+
+
     TEST_METHOD (AStateFileIsStoredCompressed)
     {
         constexpr uint16_t     kVersionTwo = 2;

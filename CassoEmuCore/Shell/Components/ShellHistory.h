@@ -9,6 +9,7 @@
 #include "Debugger/Reverse/ReplayControl.h"
 #include "Debugger/Reverse/ReverseCommand.h"
 #include "Debugger/Reverse/ReverseOutcome.h"
+#include "Shell/SavedHistory.h"
 #include "Shell/ScratchMachineRenderer.h"
 
 class Apple2eKeyboard;
@@ -65,6 +66,21 @@ public:
     void  StartRecording ();
     void  StopRecording  ();
     void  ApplyOptions   (bool isRecording, int budgetMb);
+
+    // Saved history, on the thread that owns the machine. A save's history
+    // section is empty with history off, and while a disk that left a bay is
+    // retained for history's keyframes; behind live, the machine first goes to
+    // the live end, and ReturnFromSave brings it back. A loaded state's
+    // section waits for the next StartRecording, which starts from it when
+    // this build can load it. A state loaded with no history is marked in
+    // the history recording: PrepareStateLoad forks it behind live, and
+    // FinishStateLoad marks the load, its history cycles going on from those
+    // before it.
+    HRESULT  BuildSavedHistory (std::vector<Byte> & outSection, uint64_t & outResumePosition);
+    void     ReturnFromSave    (uint64_t resumePosition);
+    void     SetPendingHistory (std::vector<Byte> section) { m_pendingHistory = std::move (section); }
+    void     PrepareStateLoad  ();
+    void     FinishStateLoad   (bool isLoaded);
 
     // UI thread: the settings as saved, and a change from an options page or
     // the menu, saved and posted to the CPU thread, which applies the
@@ -185,11 +201,13 @@ public:
     const ReverseHost  *  GetReverseHost () const { return m_reverseHost.get(); }
 
 private:
-    void  FenceForNetwork    ();
-    bool  TryPublishPlayhead ();
-    void  PublishMarks       ();
-    bool  ConfirmTurnOff     ();
-    void  FinishRewind       ();
+    void     FenceForNetwork    ();
+    bool     TryPublishPlayhead ();
+    void     PublishMarks       ();
+    bool     ConfirmTurnOff     ();
+    void     FinishRewind       ();
+    HRESULT  StartFromSaved     ();
+    HRESULT  RestoreMediaIds    (const std::vector<SavedBayMedium> & media);
 
     IDebuggerHost     & m_host;
     MachineHost       & m_machine;
@@ -223,6 +241,8 @@ private:
     std::atomic<uint32_t>         m_hoveredBranch     = 0;       // the branch whose fork row is under the pointer
     std::atomic<bool>             m_isAtOldestForUi   = false;   // the machine is at the oldest point, as last published
     ConfirmFn                     m_confirmTurnOff;              // a test's answer to turning history off; null shows the dialog
+    std::vector<Byte>             m_pendingHistory;              // a loaded state's history section, for the next StartRecording
+    uint64_t                      m_cyclesBeforeLoad  = 0;       // the history cycles before a state with no history was loaded
 
     // Pictures of history for each timeline, drawn on a scratch machine of
     // the running one's configuration, and the marks drawn on both. Each

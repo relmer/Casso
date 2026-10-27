@@ -64,6 +64,7 @@ public:
     uint64_t *       GetCycleCounterPtr  ()        { return m_cpu6502->GetCycleCounterPtr (); }
     uint64_t         GetHistoryCycles    () const  { return m_cpu6502->GetHistoryCycleCount(); }
     const uint64_t * GetCycleBasePtr     () const  { return m_cpu6502->GetCycleBasePtr(); }
+    void             AdvanceHistoryCycles (uint64_t atLeast) { m_cpu6502->AdvanceHistoryCycleCount (atLeast); }
     uint64_t *       GetBusCyclePtr      ()        { return m_cpu6502->GetBusCyclePtr (); }
     void             AddCycles           (Byte n);
 

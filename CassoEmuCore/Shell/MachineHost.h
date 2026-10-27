@@ -295,6 +295,11 @@ public:
     HRESULT  SaveHostInputState (StateWriter & writer) const;
     HRESULT  LoadHostInputState (std::string_view blob);
 
+    //  A checksum over the tag and version of each section a save of this
+    //  machine writes, part by part, which changes when a build saves the
+    //  machine differently.
+    HRESULT  ComputeStateFingerprint (uint64_t & outFingerprint);
+
     //  Whether the host may write its input into the devices; held while
     //  reverse execution has the machine behind live (see HostInputGate).
     HostInputGate  &  GetHostInputGate() noexcept { return m_hostInputGate; }

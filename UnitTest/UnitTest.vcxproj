@@ -985,6 +985,8 @@
     <ClCompile Include="EmuTests\KeyframeStoreBranchTests.cpp" />
     <ClCompile Include="EmuTests\InputJournalBranchTests.cpp" />
     <ClCompile Include="EmuTests\ReverseForkTests.cpp" />
+    <ClCompile Include="EmuTests\SavedHistoryTests.cpp" />
+    <ClCompile Include="EmuTests\StateLoadHistoryTests.cpp" />
     <ClCompile Include="EmuTests\RewindBarBandTests.cpp" />
     <ClCompile Include="EmuTests\ReplayIndicatorTests.cpp" />
     <ClCompile Include="EmuTests\ImageShrinkTests.cpp" />
@@ -1090,6 +1092,7 @@
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\ReverseSessionRig.h" />
+    <ClInclude Include="EmuTests\ShellHistoryRig.h" />
     <ClInclude Include="EmuTests\ThreadAllocationCounter.h" />
     <ClInclude Include="EmuTests\InlineWorkQueue.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />

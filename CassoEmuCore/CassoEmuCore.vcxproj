@@ -333,6 +333,8 @@
     <ClCompile Include="Debugger\TraceLookahead.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeStore.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeStoreBranches.cpp" />
+    <ClCompile Include="Debugger\Reverse\KeyframeStoreSaved.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseControllerSaved.cpp" />
     <ClCompile Include="Debugger\Reverse\KeyframeUnpacker.cpp" />
     <ClCompile Include="Debugger\Reverse\HistoryImageCache.cpp" />
     <ClCompile Include="Debugger\Reverse\ArenaExtents.cpp" />
@@ -715,6 +717,8 @@
     <ClCompile Include="Shell\MachineBuilder.cpp" />
     <ClCompile Include="Shell\MachineHost.cpp" />
     <ClCompile Include="Shell\MachineStateFile.cpp" />
+    <ClCompile Include="Shell\MachineHostFingerprint.cpp" />
+    <ClCompile Include="Shell\SavedHistory.cpp" />
     <ClCompile Include="Shell\MachineManager.cpp" />
     <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
@@ -745,6 +749,7 @@
     <ClCompile Include="Shell\Components\ShellPrinter.cpp" />
     <ClCompile Include="Shell\Components\ShellSerialCard.cpp" />
     <ClCompile Include="Shell\Components\ShellHistory.cpp" />
+    <ClCompile Include="Shell\Components\ShellHistorySaved.cpp" />
     <ClCompile Include="Shell\SerialCardNotice.cpp" />
     <ClCompile Include="Shell\Components\ShellSettings.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebug.cpp" />
@@ -1465,6 +1470,7 @@
     <ClInclude Include="Shell\MachineBuilder.h" />
     <ClInclude Include="Shell\MachineHost.h" />
     <ClInclude Include="Shell\MachineStateFile.h" />
+    <ClInclude Include="Shell\SavedHistory.h" />
     <ClInclude Include="Shell\MachineRefs.h" />
     <ClInclude Include="Shell\MachineManager.h" />
     <ClInclude Include="Shell\ModernPrintDialog.h" />
