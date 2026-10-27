@@ -6,6 +6,7 @@
 #include "Core/TextEncoding.h"
 #include "Machines/Apple2/Common/Dos33Volume.h"
 #include "Machines/Apple2/Common/ProDosVolume.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
 
 
 

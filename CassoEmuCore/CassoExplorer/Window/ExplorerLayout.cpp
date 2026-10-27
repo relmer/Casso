@@ -5,10 +5,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
-
-
-
-
+#include "CassoExplorer/Model/FolderWatch.h"
 
 //  The Theme menu's rows, in order, by the theme each one selects: Casso's
 //  themes in Casso's order, then Windows' dark and light and Follow system.

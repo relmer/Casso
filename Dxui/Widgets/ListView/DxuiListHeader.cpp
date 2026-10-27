@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Widgets/ListView/DxuiListHeader.h"
-#include "Theme/DxuiTheme.h"
 #include "Theme/DxuiColor.h"
 #include "Widgets/DxuiListView.h"
 

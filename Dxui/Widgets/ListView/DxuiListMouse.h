@@ -2,9 +2,8 @@
 
 #include "Pch.h"
 
-#include "Widgets/DxuiScrollbar.h"
-
 class DxuiListView;
+struct DxuiMouseEvent;
 
 
 

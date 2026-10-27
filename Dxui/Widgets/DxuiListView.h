@@ -13,6 +13,8 @@
 #include "Widgets/ListView/DxuiListFlowLayout.h"
 #include "Theme/DxuiTheme.h"
 
+struct DxuiIconImage;
+
 
 
 

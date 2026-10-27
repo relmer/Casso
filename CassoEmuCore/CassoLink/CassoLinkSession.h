@@ -5,6 +5,8 @@
 #include "CassoLink/Session/CassoLinkConnector.h"
 #include "CassoLink/Session/CassoLinkDiskTransfer.h"
 #include "CassoLink/CassoLinkHost.h"
+#include "Seams/ByteStreamSettings.h"
+#include "CassoLink/CassoLinkSettings.h"
 
 class IByteStream;
 class IByteStreamFactory;

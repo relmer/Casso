@@ -4,6 +4,7 @@
 
 #include "CassoLink/Host/CassoLinkAdtProServer.h"
 #include "CassoLink/LinkProgram.h"
+#include "CassoLink/CassoLinkCodec.h"
 
 class IByteStream;
 

@@ -4,9 +4,11 @@
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
-#include "Core/AppleSingleCodec.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
+#include "CassoExplorer/Model/CassoLinkConnections.h"
 
 class CassoExplorerActions;
+struct AppleSingleFile;
 
 
 

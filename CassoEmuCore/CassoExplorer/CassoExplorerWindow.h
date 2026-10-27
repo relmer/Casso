@@ -20,13 +20,14 @@
 #include "Seams/Win32InfoTips.h"
 #include "Seams/Win32ShellItemVerbs.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "CassoExplorer/Model/FolderWatch.h"
 
 class CassoLinkConnections;
 class FirewallMonitor;
 class RunningCassoRegistry;
 class ILinkAnnouncements;
 struct CassoExplorerSessionWindow;
+class FolderWatch;
+class IFolderWatcher;
 
 
 

@@ -3,13 +3,13 @@
 #include "Pch.h"
 
 #include "CassoLink/Host/CassoLinkHostTypes.h"
-#include "CassoLink/CassoLinkCodec.h"
 
 class IByteStream;
 class ICassoLinkFolder;
 struct CassoLinkClient;
 struct CassoLinkStatus;
 class CassoLinkHost;
+struct CassoLinkPacket;
 
 
 

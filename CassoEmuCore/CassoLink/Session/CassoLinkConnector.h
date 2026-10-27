@@ -3,13 +3,13 @@
 #include "Pch.h"
 
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
-#include "CassoLink/CassoLinkSettings.h"
 #include "CassoLink/LinkBootstrap.h"
 
 class IByteStream;
 class IByteStreamFactory;
 class IDiskFileIo;
 class CassoLinkSession;
+struct CassoLinkSettings;
 
 
 

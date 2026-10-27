@@ -3,9 +3,9 @@
 #include "Pch.h"
 
 #include "Widgets/ListView/DxuiListViewTypes.h"
-#include "Widgets/DxuiScrollbar.h"
 
 class DxuiListView;
+struct DxuiKeyEvent;
 
 
 

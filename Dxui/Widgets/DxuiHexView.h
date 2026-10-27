@@ -3,6 +3,7 @@
 #include "Pch.h"
 #include "Widgets/HexView/DxuiHexLayout.h"
 #include "Widgets/HexView/DxuiHexPainter.h"
+#include "Widgets/DxuiScrollbar.h"
 
 
 

@@ -8,6 +8,8 @@
 #include "Core/TextEncoding.h"
 #include "resource.h"
 #include "CassoExplorer/CassoExplorerNamedControl.h"
+#include "CassoExplorer/Model/IFolderWatcher.h"
+#include "CassoExplorer/Model/FolderWatch.h"
 
 #pragma comment(lib, "winmm.lib")
 

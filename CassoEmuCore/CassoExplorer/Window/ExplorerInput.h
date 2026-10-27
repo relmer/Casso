@@ -2,7 +2,6 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/Model/FocusRing.h"
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 
 class CassoLinkConnections;
@@ -11,6 +10,7 @@ class RunningCassoRegistry;
 class ILinkAnnouncements;
 struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
+struct FocusStop;
 
 
 

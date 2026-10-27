@@ -4,6 +4,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/KnownFolderStore.h"
 #include "CassoExplorer/Model/RefreshAnchor.h"
+#include "CassoExplorer/Model/FolderWatch.h"
 
 
 

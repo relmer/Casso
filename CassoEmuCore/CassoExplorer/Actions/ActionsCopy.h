@@ -4,8 +4,10 @@
 
 #include "CassoExplorer/Actions/ActionsTypes.h"
 #include "CassoExplorer/Model/HostFileNaming.h"
+#include "Machines/Apple2/Common/VolumeImage.h"
 
 class CassoExplorerActions;
+struct FileSystemEntry;
 
 
 

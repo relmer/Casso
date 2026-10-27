@@ -2,14 +2,14 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/CassoExplorerBrowser.h"
-
 class CassoLinkConnections;
 class FirewallMonitor;
 class RunningCassoRegistry;
 class ILinkAnnouncements;
 struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
+struct LinkTreeEntry;
+struct Location;
 
 
 

@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/Model/CassoLinkConnections.h"
 #include "CassoExplorer/Model/DiskOperations.h"
+
+struct LinkOperation;
 
 
 

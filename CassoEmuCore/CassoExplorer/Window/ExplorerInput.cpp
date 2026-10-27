@@ -3,6 +3,7 @@
 #include "CassoExplorer/Window/ExplorerInput.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
+#include "CassoExplorer/Model/FocusRing.h"
 
 
 

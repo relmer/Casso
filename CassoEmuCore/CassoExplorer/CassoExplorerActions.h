@@ -5,7 +5,9 @@
 #include "CassoExplorer/Actions/ActionsAppleDrive.h"
 #include "CassoExplorer/Actions/ActionsCopy.h"
 #include "CassoExplorer/Actions/ActionsGoTo.h"
-#include "CassoExplorer/CassoExplorerBrowser.h"
+
+struct AppleSingleFile;
+class CassoExplorerBrowser;
 
 
 

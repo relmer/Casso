@@ -4,13 +4,13 @@
 
 #include "CassoExplorer/Browser/BrowserTypes.h"
 
-#include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Seams/IShellIcons.h"
 
 class CassoLinkConnections;
 class IDiskFileIo;
 class CassoExplorerBrowser;
+struct CatalogRow;
 
 
 
