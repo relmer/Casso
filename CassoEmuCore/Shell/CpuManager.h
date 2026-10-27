@@ -139,11 +139,14 @@ public:
     static double  ComputeTickFraction (TimePoint tickStart, TimePoint requestedAt);
 
 private:
-    void ThreadProc ();
-    void WaitWhilePaused();
-    void DrainCommandQueue ();
-    bool TryPark ();
-    void ParkForExit ();
+    void            ThreadProc        ();
+    HRESULT         SetUpThread       (bool & outComInitialized, HANDLE & outTimer, LARGE_INTEGER & outQpcFreq);
+    void            TearDownThread    (HANDLE hTimer, bool isComInitialized);
+    static HRESULT  ArmFrameTimer     (HANDLE hTimer, const LARGE_INTEGER & qpcFreq, LONGLONG & inOutDeadline);
+    void            WaitWhilePaused   ();
+    void            DrainCommandQueue ();
+    bool            TryPark           ();
+    void            ParkForExit       ();
 
 
     std::thread                   m_thread;

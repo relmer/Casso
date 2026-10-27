@@ -631,91 +631,26 @@ void CpuManager::WaitWhilePaused()
 //
 //  ThreadProc
 //
-//  CPU-thread entry point. Owns COM init/uninit on this thread, the
-//  high-resolution waitable timer for 60 Hz frame pacing, the pause
-//  wait (WaitWhilePaused), the park that acknowledges a pause, and the
-//  per-frame callback fan-out.
+//  CPU-thread entry point. Sets the thread up, then on each pass runs the
+//  pause wait (WaitWhilePaused), the command drain, the service pass, the
+//  park that acknowledges a pause, the paced frame and the per-frame callback
+//  fan-out, and tears the thread down on the way out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CpuManager::ThreadProc()
 {
-    //  kFramePeriod100Ns is one frame in 100 ns units. The pacing below
-    //  advances an ABSOLUTE deadline by exactly that much per pass, so a late
-    //  wake-up is repaid by the next frame running short. Re-arming a RELATIVE
-    //  timer after each wait, as this did, restarts the interval from whenever
-    //  the thread happens to get scheduled, so lateness is never repaid.
-    //
-    //  What that costs is JITTER, not drift. Measured over 2341 frames, the
-    //  wake is late by a mean of 329 us with a standard deviation of 244 and a
-    //  tail to 5.4 ms -- a distribution as wide as its own mean, not a constant
-    //  offset. The long-run rate barely moves either way (99.62% of real time
-    //  before, 99.82% after), which is why a rate measurement alone does not
-    //  find this.
-    //
-    //  It reaches the speaker through the audio queue. A frame hands over its
-    //  whole slice of samples at once while the endpoint drains continuously,
-    //  so what matters is the SPACING of those handovers, not their average.
-    //  Under the relative timer a run of late frames emptied the queue and
-    //  WasapiAudio::DrainFrames spliced in its decaying filler; at the endpoint
-    //  that was 1.76% amplitude modulation at 41 Hz, audible as a rhythmic
-    //  beating under every sound the machine made. With the deadline absolute
-    //  a late frame is followed by an early one, the queue level stays put, and
-    //  the same measurement reads 0.03%.
-    //
-    //  kRebaseSlack100Ns is how far behind the deadline may fall before it is
-    //  re-based rather than chased, so a pause, a breakpoint or a long stall
-    //  is not repaid as a burst of frames at full tilt.
-    //
-    //  THE DEADLINE IS KEPT ON THE PERFORMANCE COUNTER AND THE WAIT IS ASKED
-    //  FOR AS AN INTERVAL. Both halves matter. QueryPerformanceCounter is
-    //  monotonic, where GetSystemTimeAsFileTime follows the wall clock, and a
-    //  waitable timer armed with an absolute time follows the wall clock too.
-    //  Holding the deadline in wall-clock terms meant a backward step -- an
-    //  NTP correction, a resumed VM, a changed time zone -- left it in the
-    //  future by the size of the step while the rebase guard, which only looks
-    //  for a deadline that has fallen BEHIND, saw nothing wrong. The thread
-    //  then waited out the whole jump with the machine frozen.
-    constexpr LONGLONG  kHundredNsPerSecond = 10000000LL;
-    constexpr LONGLONG  kFramePeriod100Ns   = kHundredNsPerSecond *
-                                              kAppleCyclesPerFrame / kAppleCpuClock;
-    constexpr LONGLONG  kRebaseSlack100Ns   = kFramePeriod100Ns * 4;
-
-
-
     HRESULT        hr              = S_OK;
     HANDLE         hTimer          = nullptr;
-    LARGE_INTEGER  dueTime         = {};
     LARGE_INTEGER  qpcFreq         = {};
-    LARGE_INTEGER  qpcNow          = {};
     SpeedMode      speed           = SpeedMode::Authentic;
     bool           fComInitialized = false;
-    BOOL           fSuccess        = FALSE;
-    LONGLONG       nowNs           = 0;
     LONGLONG       deadline        = 0;
-    LONGLONG       wait100Ns       = 0;
 
 
-    ThreadName::Set (L"Casso machine");
 
-    hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-    CHRA (hr);
-
-    fComInitialized = true;
-
-    if (m_onThreadEnter)
-    {
-        m_onThreadEnter();
-    }
-
-    hTimer = CreateWaitableTimerEx (nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-    CWRA (hTimer);
-
-    //  Fixed at boot and never zero on any machine this runs on, but it is a
-    //  divisor, so it is checked rather than assumed.
-    fSuccess = QueryPerformanceFrequency (&qpcFreq);
-    CWRA (fSuccess);
-    CBRA (qpcFreq.QuadPart > 0);
+    hr = SetUpThread (fComInitialized, hTimer, qpcFreq);
+    CHR (hr);
 
     while (m_running.load (std::memory_order_acquire))
     {
@@ -737,46 +672,8 @@ void CpuManager::ThreadProc()
             continue;
         }
 
-        QueryPerformanceCounter (&qpcNow);
-
-        //  Whole seconds first, then the remainder, rather than scaling the
-        //  raw count. The counter runs from boot, and Windows reports 10 MHz
-        //  on current hardware, so a single multiply by kHundredNsPerSecond
-        //  passes LLONG_MAX after 25.6 hours of uptime and wraps. nowNs then
-        //  steps backward, the clamp below bounds the wait, and that frame
-        //  hands its samples over out of step -- the jitter the absolute
-        //  deadline exists to remove. Split this way the seconds term stays
-        //  small and the remainder is below the frequency, so neither term
-        //  can overflow.
-        nowNs = (qpcNow.QuadPart / qpcFreq.QuadPart) * kHundredNsPerSecond +
-                (qpcNow.QuadPart % qpcFreq.QuadPart) * kHundredNsPerSecond / qpcFreq.QuadPart;
-
-        deadline += kFramePeriod100Ns;
-
-        //  Behind by more than the slack: a pause, a breakpoint or a long
-        //  stall, which is not repaid.
-        if (deadline < nowNs - kRebaseSlack100Ns)
-        {
-            deadline = nowNs + kFramePeriod100Ns;
-        }
-
-        //  Ahead by more than one frame cannot happen from pacing alone and
-        //  means the counter and the deadline have lost each other. Clamping
-        //  bounds the wait at a frame however that came about, so no single
-        //  wait can freeze the machine.
-        wait100Ns = deadline - nowNs;
-
-        if (wait100Ns > kFramePeriod100Ns)
-        {
-            wait100Ns = kFramePeriod100Ns;
-            deadline  = nowNs + kFramePeriod100Ns;
-        }
-
-        //  Negative is a relative interval, positive an absolute wall-clock
-        //  FILETIME. Relative, so that a wall-clock step cannot reach the wait.
-        dueTime.QuadPart = (wait100Ns > 0) ? -wait100Ns : -1;
-        fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
-        CWRA (fSuccess);
+        hr = ArmFrameTimer (hTimer, qpcFreq, deadline);
+        CHR (hr);
 
         MarkTickStart();
 
@@ -810,6 +707,76 @@ void CpuManager::ThreadProc()
     }
 
 Error:
+    TearDownThread (hTimer, fComInitialized);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetUpThread
+//
+//  CPU thread, first: its name, COM, the thread-enter callback, the
+//  high-resolution waitable timer that paces frames, and the performance
+//  counter's frequency. outComInitialized is set once COM is up, so
+//  TearDownThread undoes it whatever failed after.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CpuManager::SetUpThread (
+    bool           & outComInitialized,
+    HANDLE         & outTimer,
+    LARGE_INTEGER  & outQpcFreq)
+{
+    HRESULT  hr       = S_OK;
+    BOOL     fSuccess = FALSE;
+
+
+
+    ThreadName::Set (L"Casso machine");
+
+    hr = CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+    CHRA (hr);
+
+    outComInitialized = true;
+
+    if (m_onThreadEnter)
+    {
+        m_onThreadEnter();
+    }
+
+    outTimer = CreateWaitableTimerEx (nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    CWRA (outTimer);
+
+    //  Fixed at boot and never zero on any machine this runs on, but it is a
+    //  divisor, so it is checked rather than assumed.
+    fSuccess = QueryPerformanceFrequency (&outQpcFreq);
+    CWRA (fSuccess);
+    CBRA (outQpcFreq.QuadPart > 0);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TearDownThread
+//
+//  CPU thread, last: closes the timer, runs the thread-exit callback, undoes
+//  COM, and parks for exit. Runs however the loop was left.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuManager::TearDownThread (
+    HANDLE  hTimer,
+    bool    isComInitialized)
+{
     if (hTimer != nullptr)
     {
         CloseHandle (hTimer);
@@ -820,10 +787,124 @@ Error:
         m_onThreadExit();
     }
 
-    if (fComInitialized)
+    if (isComInitialized)
     {
         CoUninitialize();
     }
 
     ParkForExit();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArmFrameTimer
+//
+//  Advances the frame deadline by one frame and arms the timer for the wait
+//  until it.
+//
+//  kFramePeriod100Ns is one frame in 100 ns units. The pacing advances an
+//  ABSOLUTE deadline by exactly that much per pass, so a late wake-up is
+//  repaid by the next frame running short. Re-arming a RELATIVE timer after
+//  each wait, as this did, restarts the interval from whenever the thread
+//  happens to get scheduled, so lateness is never repaid.
+//
+//  What that costs is JITTER, not drift. Measured over 2341 frames, the wake
+//  is late by a mean of 329 us with a standard deviation of 244 and a tail to
+//  5.4 ms -- a distribution as wide as its own mean, not a constant offset.
+//  The long-run rate barely moves either way (99.62% of real time before,
+//  99.82% after), which is why a rate measurement alone does not find this.
+//
+//  It reaches the speaker through the audio queue. A frame hands over its
+//  whole slice of samples at once while the endpoint drains continuously, so
+//  what matters is the SPACING of those handovers, not their average. Under
+//  the relative timer a run of late frames emptied the queue and
+//  WasapiAudio::DrainFrames spliced in its decaying filler; at the endpoint
+//  that was 1.76% amplitude modulation at 41 Hz, audible as a rhythmic beating
+//  under every sound the machine made. With the deadline absolute a late frame
+//  is followed by an early one, the queue level stays put, and the same
+//  measurement reads 0.03%.
+//
+//  kRebaseSlack100Ns is how far behind the deadline may fall before it is
+//  re-based rather than chased, so a pause, a breakpoint or a long stall is
+//  not repaid as a burst of frames at full tilt.
+//
+//  THE DEADLINE IS KEPT ON THE PERFORMANCE COUNTER AND THE WAIT IS ASKED FOR
+//  AS AN INTERVAL. Both halves matter. QueryPerformanceCounter is monotonic,
+//  where GetSystemTimeAsFileTime follows the wall clock, and a waitable timer
+//  armed with an absolute time follows the wall clock too. Holding the
+//  deadline in wall-clock terms meant a backward step -- an NTP correction, a
+//  resumed VM, a changed time zone -- left it in the future by the size of the
+//  step while the rebase guard, which only looks for a deadline that has
+//  fallen BEHIND, saw nothing wrong. The thread then waited out the whole jump
+//  with the machine frozen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT CpuManager::ArmFrameTimer (
+    HANDLE                hTimer,
+    const LARGE_INTEGER & qpcFreq,
+    LONGLONG            & inOutDeadline)
+{
+    constexpr LONGLONG  kHundredNsPerSecond = 10000000LL;
+    constexpr LONGLONG  kFramePeriod100Ns   = kHundredNsPerSecond *
+                                              kAppleCyclesPerFrame / kAppleCpuClock;
+    constexpr LONGLONG  kRebaseSlack100Ns   = kFramePeriod100Ns * 4;
+
+
+
+    HRESULT        hr        = S_OK;
+    LARGE_INTEGER  dueTime   = {};
+    LARGE_INTEGER  qpcNow    = {};
+    BOOL           fSuccess  = FALSE;
+    LONGLONG       nowNs     = 0;
+    LONGLONG       wait100Ns = 0;
+
+
+
+    QueryPerformanceCounter (&qpcNow);
+
+    //  Whole seconds first, then the remainder, rather than scaling the raw
+    //  count. The counter runs from boot, and Windows reports 10 MHz on
+    //  current hardware, so a single multiply by kHundredNsPerSecond passes
+    //  LLONG_MAX after 25.6 hours of uptime and wraps. nowNs then steps
+    //  backward, the clamp below bounds the wait, and that frame hands its
+    //  samples over out of step -- the jitter the absolute deadline exists to
+    //  remove. Split this way the seconds term stays small and the remainder
+    //  is below the frequency, so neither term can overflow.
+    nowNs = (qpcNow.QuadPart / qpcFreq.QuadPart) * kHundredNsPerSecond +
+            (qpcNow.QuadPart % qpcFreq.QuadPart) * kHundredNsPerSecond / qpcFreq.QuadPart;
+
+    inOutDeadline += kFramePeriod100Ns;
+
+    //  Behind by more than the slack: a pause, a breakpoint or a long stall,
+    //  which is not repaid.
+    if (inOutDeadline < nowNs - kRebaseSlack100Ns)
+    {
+        inOutDeadline = nowNs + kFramePeriod100Ns;
+    }
+
+    //  Ahead by more than one frame cannot happen from pacing alone and means
+    //  the counter and the deadline have lost each other. Clamping bounds the
+    //  wait at a frame however that came about, so no single wait can freeze
+    //  the machine.
+    wait100Ns = inOutDeadline - nowNs;
+
+    if (wait100Ns > kFramePeriod100Ns)
+    {
+        wait100Ns     = kFramePeriod100Ns;
+        inOutDeadline = nowNs + kFramePeriod100Ns;
+    }
+
+    //  Negative is a relative interval, positive an absolute wall-clock
+    //  FILETIME. Relative, so that a wall-clock step cannot reach the wait.
+    dueTime.QuadPart = (wait100Ns > 0) ? -wait100Ns : -1;
+    fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
+    CWRA (fSuccess);
+
+Error:
+    return hr;
 }
