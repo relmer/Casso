@@ -6,6 +6,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/ChromeBand.h"
 #include "Ui/Chrome/MainMenu.h"
+#include "Ui/Chrome/ReplayIndicator.h"
 #include "Ui/Chrome/RewindBar.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 
@@ -212,6 +213,7 @@ public:
     // both driven from the per-frame UI upkeep.
     void    SyncStandInBanner    ();
     void    SyncFrameRateReadout ();
+    void    SyncReplayIndicator  ();
 
     void    TickFullscreenTopChrome();
 
@@ -352,6 +354,11 @@ private:
     // History's timeline over the bottom of the emulated screen, open while
     // the pointer is on it.
     RewindBar                      m_rewindBar;
+
+    // "Replaying" over the top of the screen while the machine runs behind
+    // live, and whether a capture paint has the overlays hidden.
+    ReplayIndicator                m_replayIndicator;
+    bool                           m_areOverlaysHidden = false;
 
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.

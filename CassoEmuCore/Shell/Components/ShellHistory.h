@@ -146,9 +146,14 @@ public:
     // history made from the timeline.
     void  PauseMachine   ();
 
-    // The caption's replay note: updated on the CPU thread, read on any.
-    void          UpdateReplayCaption ();
-    std::wstring  GetReplayCaption    ();
+    // The caption's replay note and the replay indicator's text: updated on
+    // the CPU thread, read on any.
+    void          UpdateReplayCaption       ();
+    std::wstring  GetReplayCaption          ();
+    std::wstring  GetReplayIndicatorText    ();
+
+    // UI thread: whether the rewind key is down.
+    bool          IsRewinding               () const { return m_isRewindKeyDown.load (std::memory_order_acquire); }
 
     // The timelines, the debugger's and the emulator window's rewind bar: a
     // seek to a cycle from the UI thread, whether it has yet to land, and the
@@ -197,6 +202,7 @@ private:
     DeferredHistoryEdits          m_deferredEdits;
     std::mutex                    m_replayCaptionMutex;
     std::wstring                  m_replayCaption;                         // " [Replaying @ ...]" behind live, else empty
+    std::wstring                  m_replayIndicatorText;                   // "Replaying" and the host's time behind live, else empty
 
     // The history of this machine, recording while a machine is built; null
     // until the CPU thread first starts it. CPU thread only.

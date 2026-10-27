@@ -532,6 +532,38 @@ void ShellChrome::SyncFrameRateReadout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellChrome::SyncReplayIndicator
+//
+//  Once a frame. Its opacity pulses on the animation tick, which runs while
+//  it is drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::SyncReplayIndicator()
+{
+    ShellHistory  & history = *m_shell.m_history;
+    RECT            client  = {};
+    bool            isShown = false;
+    int64_t         nowMs   = (int64_t) GetTickCount64();
+
+
+
+    if (m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
+    {
+        m_replayIndicator.Hide();
+        return;
+    }
+
+    isShown = ReplayIndicator::IsShown (history.GetBarThumbnails().IsBehindLive(), m_shell.m_cpuManager.IsPaused(), history.IsRewinding(), m_areOverlaysHidden);
+
+    m_replayIndicator.Sync (isShown, history.GetReplayIndicatorText(), m_shell.m_viewportBoundsPx, ComputeTopOverlayEdgePx (client), m_shell.m_scaler, nowMs);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MirroredSlideStart
 //
 //  A slide start time that PRESERVES the current position when the direction
@@ -1966,10 +1998,16 @@ void ShellChrome::SetStandInOverlaysHidden (bool hidden)
         m_notices.SetVisible (false);
 
         m_rewindBar.SetHidden (true);
+        m_replayIndicator.Hide();
+
+        m_areOverlaysHidden = true;
     }
     else
     {
+        m_areOverlaysHidden = false;
+
         m_rewindBar.SetHidden (false);
+        SyncReplayIndicator();
 
         //  Restored by the layout pass that owns each one, rather than by
         //  remembering four booleans here -- the pose readout and the frame
@@ -2452,8 +2490,10 @@ void ShellChrome::AdoptBanners (DxuiPanel & root)
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.
-    //  The rewind bar over the picture, under the banners and the notices.
-    m_rewindBar.Adopt (root);
+    //  The rewind bar and the replay indicator over the picture, under the
+    //  banners and the notices.
+    m_rewindBar.Adopt       (root);
+    m_replayIndicator.Adopt (root);
 
     m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
     root.Adopt (m_standInBarSurface);
@@ -2727,6 +2767,7 @@ bool ShellChrome::WantsAnimationTick() const
            m_driveTooltip.WantsTick()     ||
            m_captionTooltip.WantsTick()   ||
            m_rewindBar.WantsTick()        ||
+           m_replayIndicator.IsVisible()  ||
            m_mainMenu.WantsTick()         ||
            m_toolbar.WantsTick();
 }

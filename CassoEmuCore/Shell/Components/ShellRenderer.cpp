@@ -594,6 +594,7 @@ bool ShellRenderer::TryPresentUiFrame()
     m_shell.m_chrome->SyncNotice();
     m_shell.m_chrome->SyncFrameRateReadout();
     m_shell.m_chrome->GetRewindBar().Sync();
+    m_shell.m_chrome->SyncReplayIndicator();
     m_shell.m_scene->SyncSceneViewReadout();
 
 

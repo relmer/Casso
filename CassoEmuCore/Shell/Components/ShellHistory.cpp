@@ -1474,14 +1474,26 @@ void ShellHistory::UpdateReplayCaption()
     bool            isBehind  = cpu != nullptr && IsBehindLive();
     uint64_t        cycle     = 0;
     std::wstring    caption;
+    std::wstring    indicator;
+    std::wstring    time;
+    uint64_t        wallTime  = 0;
     bool            isChanged = false;
 
 
 
     if (isBehind)
     {
-        cycle   = cpu->GetHistoryCycles();
-        caption = DebuggerStatusText::GetReplayCaption (m_reverseHost->GetController().GetWallTimeAt (cycle), cycle, LOCALE_NAME_USER_DEFAULT);
+        cycle    = cpu->GetHistoryCycles();
+        wallTime = m_reverseHost->GetController().GetWallTimeAt (cycle);
+        caption  = DebuggerStatusText::GetReplayCaption (wallTime, cycle, LOCALE_NAME_USER_DEFAULT);
+        time     = DebuggerStatusText::FormatWallClock (wallTime, LOCALE_NAME_USER_DEFAULT);
+
+        if (time.empty())
+        {
+            time = DebuggerStatusText::GetPowerText (cycle, LOCALE_NAME_USER_DEFAULT);
+        }
+
+        indicator = L"Replaying  " + time;
     }
 
     {
@@ -1493,6 +1505,8 @@ void ShellHistory::UpdateReplayCaption()
         {
             m_replayCaption = std::move (caption);
         }
+
+        m_replayIndicatorText = std::move (indicator);
     }
 
     if (isChanged)
@@ -1520,6 +1534,28 @@ std::wstring ShellHistory::GetReplayCaption()
 
 
     return m_replayCaption;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetReplayIndicatorText
+//
+//  Any thread. "Replaying" and the host's time of the machine's position,
+//  or the time since power-on when the host's time is unknown; empty live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ShellHistory::GetReplayIndicatorText()
+{
+    std::lock_guard<std::mutex>  held (m_replayCaptionMutex);
+
+
+
+    return m_replayIndicatorText;
 }
 
 
