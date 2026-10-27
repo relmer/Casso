@@ -674,6 +674,7 @@ void ShellHistory::PauseMachine()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StopRewind
@@ -1062,6 +1063,7 @@ void ShellHistory::RunForHeldInput()
     m_cpuManager.SetPaused (false);
     m_host.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
 }
+
 
 
 

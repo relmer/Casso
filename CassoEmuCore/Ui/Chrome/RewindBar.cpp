@@ -24,6 +24,8 @@ RewindBar::RewindBar()
     constexpr int  kStripId    = 1;
     constexpr int  kStripGroup = 1;
 
+
+
     DxuiToolbar::Entry  entry;
 
 
@@ -126,6 +128,8 @@ RECT RewindBar::FindScreen (
 {
     constexpr int  kMostSteps = 16384;
 
+
+
     RECT  screen = { inside.x, inside.y, inside.x + 1, inside.y + 1 };
     int   middle = 0;
     int   step   = 0;
@@ -156,6 +160,7 @@ RECT RewindBar::FindScreen (
 
     return screen;
 }
+
 
 
 
@@ -381,6 +386,7 @@ bool RewindBar::OfferMouse (
                 m_isPressed = true;
                 isTaken     = true;
             }
+
             break;
 
         case DxuiMouseEventKind::Up:
@@ -397,6 +403,7 @@ bool RewindBar::OfferMouse (
 
                 isTaken = true;
             }
+
             break;
 
         case DxuiMouseEventKind::Leave:
@@ -404,6 +411,7 @@ bool RewindBar::OfferMouse (
             {
                 Close();
             }
+
             break;
 
         default:
