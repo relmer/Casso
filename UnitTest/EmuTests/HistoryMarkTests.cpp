@@ -102,7 +102,7 @@ public:
     }
 
 
-    bool Update ()
+    bool Update()
     {
         uint64_t  endPosition = (store.GetCount() > 0) ? store.GetInfo (store.GetCount() - 1).position : 0;
         uint64_t  endCycle    = (store.GetCount() > 0) ? store.GetInfo (store.GetCount() - 1).cycle    : 0;

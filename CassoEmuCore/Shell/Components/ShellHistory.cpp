@@ -628,8 +628,8 @@ void ShellHistory::FinishRewind()
     result.position = m_machine.GetPosition();
     result.cycle    = (cpu != nullptr) ? cpu->GetHistoryCycles() : 0;
 
-    //  Each frame moved as a drag of the timeline does; the end of the rewind
-    //  is the drag's release, which rebuilds what waited for it.
+    //  Each frame moved as a drag of the timeline does, and the end of the
+    //  rewind is the drag's release, after which the heat map is rebuilt.
     if (m_client != nullptr)
     {
         m_client->OnHistoryMoving();
@@ -637,6 +637,7 @@ void ShellHistory::FinishRewind()
         m_client->OnHistoryLanded (result);
     }
 }
+
 
 
 
