@@ -1364,7 +1364,7 @@ Comparing generations alone is safe even after a reverse restore, because the ge
 ### Risks
 
 1. **CPU-thread hitch.** A spin-down commit now adds one `FlushFileBuffers` (`threading-035.md:90-94`). That is milliseconds on an SSD, but tens to hundreds of milliseconds on a hard disk, USB stick or share. A current recovery copy skips its write, which helps.
-   - Measure it before the decline design depends on it: tasks.md T062 runs right after the durable commit lands and before FR-016 and the mount restructure, and records the numbers and the decision here. Measured: not yet.
+   - Measure it before the decline design depends on it: tasks.md T062 runs right after the durable commit lands and before FR-016 and the mount restructure, and records the numbers and the decision here. Measured 2026-10-26 (tasks.md T062): a commit takes 2 to 5 ms on the SSDs here, 11 ms on a loopback SMB share and 34 ms at worst there, so commits stay synchronous. A USB stick and a share on another machine are not measured.
    - If the hitch is too long, the fix is a worker that commits immutable bytes and posts the result back, which keeps FR-001. Dropping the flush is not the fix.
 
 2. **The rename's durability rests on the documented `MOVEFILE_WRITE_THROUGH` contract.** If NTFS lazily logs a same-volume rename in practice, a power cut seconds later rolls it back. That leaves the old file whole and the new bytes in a durable `.casso-*.tmp` sibling, which the next commit steps past. The file is never torn or zero-filled, so scenario 4 holds, but "durable once reported" would not. A hard power-off in a VM can confirm which happens; adding a flush of the target is the fallback.
