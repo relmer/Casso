@@ -5,6 +5,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Shell/HostInputGate.h"
 
@@ -1352,4 +1353,70 @@ HRESULT Acia6551::LoadState (StateReader & reader)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiagnostics
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    AddDiagnostics (snapshot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddDiagnostics
+//
+//  The three registers as a guest read returns them, without the side
+//  effects of the read, decoded bit by bit and into the format they set; then the
+//  modem lines, what is waiting and what is on the connector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AddDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup  registers { "6551", {} };
+    DiagnosticsGroup  lines     { "Modem lines", {} };
+    DiagnosticsGroup  traffic   { "Traffic", {} };
+    std::string       attached  = "none";
+
+
+
+    if (m_endpoint != nullptr)
+    {
+        attached = m_endpoint->IsLoopback() ? "loopback plug" : "attached";
+    }
+
+    registers.rows.push_back (MakeByteRow ("Status",  m_status,  { "IRQ", "DSR", "DCD", "TX EMPTY", "RX FULL", "OVERRUN", "FRAMING", "PARITY" }));
+    registers.rows.push_back (MakeByteRow ("Command", m_command, { "PMC1", "PMC0", "PME", "ECHO", "TIC1", "TIC0", "IRD", "DTR" }));
+    registers.rows.push_back (MakeByteRow ("Control", m_control, { "SBN", "WL1", "WL0", "RCS", "SBR3", "SBR2", "SBR1", "SBR0" }));
+    registers.rows.push_back (MakeTextRow ("Baud",        std::format ("{:g}", GetBaudRate (m_control & kControlBaudMask))));
+    registers.rows.push_back (MakeTextRow ("Word length", std::format ("{}", GetWordLengthBits())));
+    registers.rows.push_back (MakeTextRow ("Stop bits",   (m_control & kControlStopBits) ? "2" : "1"));
+    registers.rows.push_back (MakeHexRow  ("Received",    m_rxData, kByteDigits));
+
+    lines.rows.push_back (MakeFlagRow ("DTR", IsDtrOn()));
+    lines.rows.push_back (MakeFlagRow ("RTS", IsRtsOn()));
+    lines.rows.push_back (MakeFlagRow ("CTS", m_cts));
+    lines.rows.push_back (MakeFlagRow ("DSR", m_dsr));
+    lines.rows.push_back (MakeFlagRow ("DCD", m_dcd));
+
+    traffic.rows.push_back (MakeFlagRow ("Sending",       m_tsrBusy || m_tdrFull));
+    traffic.rows.push_back (MakeTextRow ("Bytes waiting", std::format ("{}", GetQueuedReceiveCount())));
+    traffic.rows.push_back (MakeTextRow ("Attachment",    attached));
+
+    snapshot.groups.push_back (std::move (registers));
+    snapshot.groups.push_back (std::move (lines));
+    snapshot.groups.push_back (std::move (traffic));
 }

@@ -1566,7 +1566,8 @@ character wider, so a box's edge does not crowd the addresses or the text.
 
 **View > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
 and its memory map, the video switches, the keyboard, the Mockingboard, the
-printer card, the cassette deck and the clock. Each opens as a pane showing its registers and
+printer card, the Super Serial Card, the //c's two serial ports, the Uthernet II,
+the cassette deck and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the
 device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same

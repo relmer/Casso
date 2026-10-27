@@ -4,6 +4,7 @@
 
 #include "Core/IInterruptController.h"
 #include "Core/MemoryDevice.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Network/VirtualNetwork.h"
 #include "Devices/Network/W5100.h"
 #include "Devices/Network/W5100SocketBridge.h"
@@ -36,7 +37,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class UthernetCard : public MemoryDevice
+class UthernetCard : public MemoryDevice, public IDiagnosticsProvider
 {
 public:
 
@@ -84,9 +85,17 @@ public:
 
     // A guest socket or a host flow is open.
     bool                 IsActive  () const { return m_bridge.IsActive(); }
+
+    // IDiagnosticsProvider: the slot and whether the card is in use, the
+    // W5100's mode, addresses and interrupt register, and each socket.
+    std::string  GetDiagnosticsId    () const override { return "uthernet"; }
+    std::string  GetDiagnosticsTitle () const override { return "Uthernet II"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
     uint64_t             GetCycles () const { return m_cycles; }
 
 private:
+    std::string  FormatIp     (Word address) const;
+    std::string  FormatSocket (int socket) const;
 
     void  OnPumpInterval ();
     void  UpdateIrq      ();

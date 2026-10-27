@@ -628,7 +628,8 @@ HRESULT MachineBuilder::CreateMemoryDevices (const MachineConfig & config)
             hrIc = acia->AttachInterruptController (&m_host.GetInterruptController());
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
-            acia->SetCpuClockHz (m_host.GetConfig().clockSpeed);
+            acia->SetCpuClockHz      (m_host.GetConfig().clockSpeed);
+            acia->SetDiagnosticsName (std::format ("serial-port-{}", slot), std::format ("Serial port {}", slot));
 
             loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
             acia->SetEndpoint (loopback.get());

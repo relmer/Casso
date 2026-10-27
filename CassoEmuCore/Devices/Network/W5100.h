@@ -42,6 +42,10 @@ public:
     bool  IsInterruptPending () const;
     Word  GetAddressPointer  () const { return m_pointer; }
 
+    // A common register as a read returns it, for the debugger: the pointer
+    // does not move and nothing is cleared.
+    Byte  PeekCommon         (Word address) const { return ReadCommon (address); }
+
     // Internal space, with the register side effects of an IDM_DR access.
     Byte  ReadInternal       (Word address);
     void  WriteInternal      (Word address, Byte value);

@@ -5,6 +5,7 @@
 #include "Core/MemoryBus.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 
@@ -323,4 +324,39 @@ HRESULT SuperSerialCard::LoadState (StateReader & reader)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiagnostics
+//
+//  The switch bytes as the guest reads them, with the floating bus as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SuperSerialCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup  group { "Card", {} };
+
+
+
+    group.rows.push_back (MakeTextRow ("Slot",          std::format ("{}", m_slot)));
+    group.rows.push_back (MakeHexRow  ("SW1",           m_switches.GetDipSwitch1Byte (0), kByteDigits));
+    group.rows.push_back (MakeHexRow  ("SW2",           m_switches.GetDipSwitch2Byte (m_acia.IsCtsTrue(), 0), kByteDigits));
+    group.rows.push_back (MakeFlagRow ("IRQ connected", m_switches.IsIrqConnected()));
+    group.rows.push_back (MakeFlagRow ("Expansion ROM", m_expansionSelected, "the firmware is at $C800-$CEFF"));
+    group.rows.push_back (MakeFlagRow ("Firmware",      HasFirmware()));
+
+    if (!m_attachmentProblem.empty())
+    {
+        group.rows.push_back (MakeTextRow ("Problem", m_attachmentProblem));
+    }
+
+    snapshot.groups.push_back (std::move (group));
+
+    m_acia.AddDiagnostics (snapshot);
 }

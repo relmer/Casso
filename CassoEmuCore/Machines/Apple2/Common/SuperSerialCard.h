@@ -4,6 +4,7 @@
 
 #include "Core/IMachineState.h"
 #include "Core/MemoryDevice.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/IExpansionRomCard.h"
 #include "Machines/Apple2/Common/SlotRomPage.h"
@@ -41,7 +42,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class SuperSerialCard : public MemoryDevice, public IExpansionRomCard, public IMachineState
+class SuperSerialCard : public MemoryDevice, public IExpansionRomCard, public IMachineState, public IDiagnosticsProvider
 {
 public:
     static constexpr size_t  kFirmwareSize       = 0x800;
@@ -95,6 +96,12 @@ public:
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('S', 'S', 'C', 'D');
     static constexpr uint16_t  kStateVersion = 1;
+
+    // IDiagnosticsProvider: the slot, the switches, the expansion-ROM latch
+    // and the firmware, then the 6551.
+    std::string  GetDiagnosticsId    () const override { return "serial-card"; }
+    std::string  GetDiagnosticsTitle () const override { return "Super Serial Card"; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
 
     // Why the serial connector has nothing attached when its config specifies an
     // attachment (a file that could not be opened); empty when it does.

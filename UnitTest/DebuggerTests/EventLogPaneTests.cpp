@@ -680,6 +680,24 @@ namespace EventLogPaneTests
         }
 
 
+        TEST_METHOD (ASerialByteShowsThePortAndTheByte)
+        {
+            DxuiListView   list;
+            InputLogPane   pane (&list, [] (const std::string &) {});
+            std::wstring   address;
+            std::wstring   value;
+            std::wstring   meaning;
+            InputEvent     event = MakeInputRow (10, InputEventType::HostSerialByte, 1, 'A').event;
+
+
+
+            pane.FormatEvent (event, address, value, meaning);
+
+            Assert::AreEqual (std::wstring (L"Serial 2"), address);
+            Assert::AreEqual (L"HOST serial byte " + value, meaning);
+        }
+
+
         TEST_METHOD (ThePaddleStrobeShowsUnderEitherGamePortFilter)
         {
             DxuiListView   list;
