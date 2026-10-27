@@ -7,6 +7,10 @@
 #include "Machines/Apple2/Common/NibblizationLayer.h"
 #include "Machines/Apple2/Common/WozLoader.h"
 #include "Shell/InspectorStatusPublisher.h"
+#include "Ui/DiskInspector/PlatterView.h"
+#include "Ui/DiskInspector/TrackStripView.h"
+#include "../Dxui/MockDxuiPainter.h"
+#include "../Dxui/MockDxuiTextRenderer.h"
 #include "TestMachine.h"
 #include "ComparisonTestImages.h"
 #include "FileMapTestImages.h"
@@ -302,6 +306,95 @@ public:
 
         Logger::WriteMessage (std::format (L"frame {:.1f} us, publish {:.2f} us, {:.2f}% of a frame", frameMs * 1000.0, publishMs * 1000.0, share * 100.0).c_str());
         Assert::IsTrue (share < 0.02);
+#endif
+    }
+
+
+    //  SC-004: over a zoom from fit to the maximum and back, and a pan
+    //  across the zoomed disk and the whole track, painting the platter's
+    //  overlays and the strip takes well under a frame. Each call is stored in
+    //  the mock painter's list, so this overstates the cost.
+    TEST_METHOD (PaintingThePlatterAndStripFitsAFrameAtEveryZoom)
+    {
+#ifdef _DEBUG
+        Logger::WriteMessage (L"SC-004 is measured in Release only");
+#else
+        static constexpr double  kFrameMs = 1000.0 / 60.0;
+        static constexpr int     kSteps   = 40;
+
+        vector<Byte>          sectors   = Images::MakeDos33();
+        DiskAnalysis          analysis;
+        InspectorViewModel    model;
+        InspectorViewContext  context;
+        DxuiTheme             theme     = DxuiTheme::Dark();
+        DxuiDpiScaler         scaler;
+        MockDxuiTextRenderer  text;
+        LARGE_INTEGER         start     = {};
+        vector<double>        frames;
+        double                zoomStep  = std::pow (InspectorViewModel::kMaxZoom, 1.0 / kSteps);
+        double                ms        = 0;
+        double                median    = 0;
+        double                worst     = 0;
+        size_t                calls     = 0;
+
+
+
+        Images::Analyze (sectors, false, analysis);
+        model.SetDisk (1);
+        model.SetAnalysis (&analysis);
+        model.SelectSector (17 * 4, 3);
+
+        context.analysis = &analysis;
+        context.model    = &model;
+        context.hasDisk  = true;
+
+        PlatterView     platter (context);
+        TrackStripView  strip   (context);
+
+        platter.Layout ({ 0, 0, 1000, 1000 }, scaler);
+        strip.Layout   ({ 0, 1000, 1900, 1100 }, scaler);
+        platter.SetAlignmentShown (true);
+
+        auto  paintFrame = [&] ()
+        {
+            MockDxuiPainter  painter;
+
+            QueryPerformanceCounter (&start);
+            platter.Paint (painter, text, theme);
+            strip.Paint   (painter, text, theme);
+            frames.push_back (GetElapsedMs (start));
+            calls = std::max (calls, painter.Calls().size());
+        };
+
+        for (int i = 0; i < kSteps; i++)
+        {
+            platter.ZoomAboutCenter (zoomStep);
+            strip.ZoomAboutCenter (zoomStep);
+            paintFrame();
+        }
+
+        for (int i = 0; i < kSteps; i++)
+        {
+            model.PanBy ({ 0.05, 0.02 });
+            strip.PanBy (0.25);
+            paintFrame();
+        }
+
+        for (int i = 0; i < kSteps; i++)
+        {
+            platter.ZoomAboutCenter (1.0 / zoomStep);
+            strip.ZoomAboutCenter (1.0 / zoomStep);
+            paintFrame();
+        }
+
+        std::sort (frames.begin(), frames.end());
+        median = frames[frames.size() / 2];
+        worst  = frames.back();
+
+        Logger::WriteMessage (std::format (L"paint over {} frames: median {:.2f} ms, slowest {:.2f} ms, at most {} calls a frame", frames.size(), median, worst, calls).c_str());
+        Assert::IsTrue (calls > 1000, L"the views drew their overlays");
+        Assert::IsTrue (median < kFrameMs);
+        Assert::IsTrue (worst < 33.0);
 #endif
     }
 };
