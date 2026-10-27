@@ -80,7 +80,10 @@ image) and dropped META.
 `ForceFlush` and `FlushEntry`'s `force` parameter are gone. There is no way to
 ask for a flush past the dirty and write-protect gates.
 
-`DiskImage::Flush` no longer falls back to writing the file's pre-session bytes returning `S_OK`, and goes through `WriteFileAtomically`, which commits `DurableCommit`. The emulator no longer calls it: an eject and a //e reset save through the store.
+`DiskImage::Flush` no longer falls back to writing the file's pre-session bytes
+and returning `S_OK`. It goes through `WriteFileAtomically`, which commits
+through `DurableCommit`. The emulator no longer calls it: an eject and a //e
+reset save through the store.
 
 `SetImageReader` mirrors the existing `SetFlushSink`, so a read-modify-write is
 testable without the filesystem. `Mount` shares that read path.
