@@ -108,4 +108,39 @@ public:
         Assert::IsTrue (registry.IsRegistered ("language-card"));
         Assert::IsTrue (registry.IsRegistered ("disk-ii"));
     }
+
+
+    //  Every machine build registers the built-in devices again, and a scratch
+    //  replay machine is built on a worker thread while the window thread builds
+    //  another, so registrations and lookups run on two threads at once.
+    TEST_METHOD (RegisteringOnTwoThreadsAtOnceLeavesTheRegistryIntact)
+    {
+        static constexpr int  s_kRounds = 2000;
+
+        std::atomic<int>  misses = 0;
+        std::thread       other;
+
+        auto  work = [&misses]
+        {
+            ComponentRegistry  registry;
+
+            for (int round = 0; round < s_kRounds; round++)
+            {
+                ComponentRegistry::RegisterBuiltinDevices (registry);
+
+                if (!registry.IsRegistered ("apple2e-family-softswitches") || registry.GetRegisteredTypes().empty())
+                {
+                    misses++;
+                }
+            }
+        };
+
+
+
+        other = std::thread (work);
+        work();
+        other.join();
+
+        Assert::AreEqual (0, misses.load(), L"every lookup finds the built-in devices");
+    }
 };
