@@ -270,7 +270,7 @@ bool ExplorerDispatch::IsChecked (int id) const
         return model.HasTabs() && (int) model.GetActiveTab().groupBy == id - CassoExplorerCommands::kGroupByField;
     }
 
-    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) CassoExplorerBrowser::GetColumns().size())
+    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) BrowserCells::GetColumns().size())
     {
         return model.HasTabs() && (int) model.GetActiveTab().sortColumn == id - CassoExplorerCommands::kSortByColumn;
     }
@@ -374,7 +374,7 @@ void ExplorerDispatch::Dispatch (int id)
         return;
     }
 
-    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) CassoExplorerBrowser::GetColumns().size())
+    if (id >= CassoExplorerCommands::kSortByColumn && id < CassoExplorerCommands::kSortByColumn + (int) BrowserCells::GetColumns().size())
     {
         //  A new column sorts ascending; the column already in use keeps its
         //  direction.

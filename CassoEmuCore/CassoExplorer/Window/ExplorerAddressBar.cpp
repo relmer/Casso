@@ -139,7 +139,7 @@ std::wstring ExplorerAddressBar::GetNavLabel (const Location & location)
 
 
 
-    return segments.back().label.empty() ? CassoExplorerBrowser::GetLocationLabel (location) : segments.back().label;
+    return segments.back().label.empty() ? BrowserCells::GetLocationLabel (location) : segments.back().label;
 }
 
 
@@ -948,7 +948,7 @@ void ExplorerAddressBar::ShowHistoryMenu (bool forward, const RECT & anchor)
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
         size_t                        steps   = i + 1;
 
-        command->label    = EscapeMnemonics (CassoExplorerBrowser::GetLocationLabel (stack[stack.size() - 1 - i]));
+        command->label    = EscapeMnemonics (BrowserCells::GetLocationLabel (stack[stack.size() - 1 - i]));
         command->dispatch = [this, forward, steps]()
         {
             if (forward ? m_window.m_browser.GoForwardBy (steps) : m_window.m_browser.GoBackBy (steps))

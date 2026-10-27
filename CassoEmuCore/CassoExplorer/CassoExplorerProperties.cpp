@@ -56,7 +56,7 @@ std::vector<CassoExplorerProperties::Row> CassoExplorerProperties::DescribeEntry
 
     if (entry.hasModified)
     {
-        rows.push_back (Row { L"Modified:", CassoExplorerBrowser::FormatModified (entry.modifiedUnix, true), true });
+        rows.push_back (Row { L"Modified:", BrowserCells::FormatModified (entry.modifiedUnix, true), true });
     }
 
     rows.push_back (Row { L"Attributes:", entry.isLocked ? L"Locked" : L"Not locked", true });
@@ -92,7 +92,7 @@ std::wstring CassoExplorerProperties::FormatBytes (uint64_t bytes)
         grouped += digits[i];
     }
 
-    return CassoExplorerBrowser::FormatSize (bytes) + L" (" + grouped + ((bytes == 1) ? L" byte)" : L" bytes)");
+    return BrowserCells::FormatSize (bytes) + L" (" + grouped + ((bytes == 1) ? L" byte)" : L" bytes)");
 }
 
 

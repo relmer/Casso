@@ -366,7 +366,7 @@ void ExplorerListPane::FillList()
         {
             Location  lead = m_window.m_addressBar.GetAddressSegmentsFor (m_listLocation).front().location;
 
-            m_window.m_address->SetLeadIcon  (CassoExplorerBrowser::GetLocationIcon (lead, m_window.m_shellIcons));
+            m_window.m_address->SetLeadIcon  (BrowserCells::GetLocationIcon (lead, m_window.m_shellIcons));
             m_window.m_address->SetLeadGlyph ((lead.kind == Location::Kind::Root && lead.path == TreeModel::kThisPcRootId) ? s_kpszMdl2ThisPc : nullptr);
         }
 
@@ -493,8 +493,8 @@ const std::vector<DxuiListView::Cell> & ExplorerListPane::GetListRowCells (int r
     {
         std::vector<DxuiListView::Cell> & cells = m_rowCells[(size_t) row];
 
-        cells         = CassoExplorerBrowser::ToCells (rows[(size_t) row], m_rowLocation, &m_listIcons);
-        cells[0].argb = CassoExplorerBrowser::GetNameArgb (rows[(size_t) row], m_window.m_browser.GetFolderOptions(), m_rowDark);
+        cells         = BrowserCells::ToCells (rows[(size_t) row], m_rowLocation, &m_listIcons);
+        cells[0].argb = BrowserCells::GetNameArgb (rows[(size_t) row], m_window.m_browser.GetFolderOptions(), m_rowDark);
 
         //  Cut and not yet pasted, it draws dimmed, as Explorer's does.
         if (!m_window.m_cutPaths.empty() && m_window.m_browser.TryGetRowPath (row, path) &&
@@ -556,11 +556,11 @@ bool ExplorerListPane::TryApplyContentDetails (int row, DxuiListView::Cell & nam
         return false;
     }
 
-    name.contentLeft   = { CassoExplorerBrowser::MakeContentLine (slots[0].label, slots[0].value) };
-    name.contentMiddle = { CassoExplorerBrowser::MakeContentLine (slots[1].label, slots[1].value),
-                           CassoExplorerBrowser::MakeContentLine (slots[2].label, slots[2].value) };
-    name.contentRight  = { CassoExplorerBrowser::MakeContentLine (slots[3].label, slots[3].value),
-                           CassoExplorerBrowser::MakeContentLine (slots[4].label, slots[4].value) };
+    name.contentLeft   = { BrowserCells::MakeContentLine (slots[0].label, slots[0].value) };
+    name.contentMiddle = { BrowserCells::MakeContentLine (slots[1].label, slots[1].value),
+                           BrowserCells::MakeContentLine (slots[2].label, slots[2].value) };
+    name.contentRight  = { BrowserCells::MakeContentLine (slots[3].label, slots[3].value),
+                           BrowserCells::MakeContentLine (slots[4].label, slots[4].value) };
 
     return true;
 }
@@ -613,7 +613,7 @@ void ExplorerListPane::RefreshListIcons()
     {
         if (m_rowBuilt[at] && !m_rowCells[at].empty())
         {
-            m_rowCells[at][0].icon = CassoExplorerBrowser::GetRowIcon (rows[at], m_rowLocation, m_listIcons);
+            m_rowCells[at][0].icon = BrowserCells::GetRowIcon (rows[at], m_rowLocation, m_listIcons);
         }
     }
 
@@ -710,7 +710,7 @@ void ExplorerListPane::ApplyColumnOrder()
     using Column = CatalogModel::Column;
 
     std::vector<size_t>  order;
-    size_t               count = CassoExplorerBrowser::GetColumns().size();
+    size_t               count = BrowserCells::GetColumns().size();
 
 
 
@@ -923,7 +923,7 @@ void ExplorerListPane::ApplyFolderView()
 
     //  Its own column order and choice of columns, or the latest ones.
     m_window.m_folderColumnOrder = entry.columnOrder.empty() ? m_window.m_prefs.columnOrder : entry.columnOrder;
-    m_window.m_listColumnChosen.assign (CassoExplorerBrowser::GetColumns().size(), true);
+    m_window.m_listColumnChosen.assign (BrowserCells::GetColumns().size(), true);
 
     for (int hidden : (entry.columnsChosen ? entry.hiddenColumns : m_window.m_prefs.hiddenColumns))
     {

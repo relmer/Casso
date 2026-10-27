@@ -196,18 +196,18 @@ public:
     {
         using Kind = IShellIcons::Kind;
 
-        Assert::IsTrue  (CassoExplorerBrowser::IsBasicListingName (L"Joyport.bas.txt"), L"A BASIC listing kept as text");
-        Assert::IsTrue  (CassoExplorerBrowser::IsBasicListingName (L"HELLO.BAS"));
-        Assert::IsFalse (CassoExplorerBrowser::IsBasicListingName (L"notes.txt"));
-        Assert::IsFalse (CassoExplorerBrowser::IsBasicListingName (L".bas"), L"a name that is only the suffix is no listing");
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"A")   == Kind::AppleApplesoft);
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"BAS") == Kind::AppleApplesoft);
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"I")   == Kind::AppleInteger);
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"T")   == Kind::AppleText);
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"BIN") == Kind::AppleBinary);
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"SYS") == Kind::AppleSystem);
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"REL") == Kind::AppleRelocatable);
-        Assert::IsTrue (CassoExplorerBrowser::GetAppleTypeIconKind (L"$F5") == Kind::File, L"Any other type is a plain file");
+        Assert::IsTrue  (BrowserCells::IsBasicListingName (L"Joyport.bas.txt"), L"A BASIC listing kept as text");
+        Assert::IsTrue  (BrowserCells::IsBasicListingName (L"HELLO.BAS"));
+        Assert::IsFalse (BrowserCells::IsBasicListingName (L"notes.txt"));
+        Assert::IsFalse (BrowserCells::IsBasicListingName (L".bas"), L"a name that is only the suffix is no listing");
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"A")   == Kind::AppleApplesoft);
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"BAS") == Kind::AppleApplesoft);
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"I")   == Kind::AppleInteger);
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"T")   == Kind::AppleText);
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"BIN") == Kind::AppleBinary);
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"SYS") == Kind::AppleSystem);
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"REL") == Kind::AppleRelocatable);
+        Assert::IsTrue (BrowserCells::GetAppleTypeIconKind (L"$F5") == Kind::File, L"Any other type is a plain file");
     }
 
 
@@ -246,11 +246,11 @@ public:
 
         row = FindRow (host.browser, L"notes.txt");
 
-        std::vector<DxuiListView::Cell>  cells = CassoExplorerBrowser::ToCells (host.browser.GetRows()[(size_t) row], host.browser.GetLocation());
+        std::vector<DxuiListView::Cell>  cells = BrowserCells::ToCells (host.browser.GetRows()[(size_t) row], host.browser.GetLocation());
 
         Assert::AreEqual (std::wstring (L"C:\\Docs"), cells[(size_t) CatalogModel::Column::OriginalLocation].text);
         Assert::IsFalse  (cells[(size_t) CatalogModel::Column::DateDeleted].text.empty());
-        Assert::AreEqual (std::wstring (L"Recycle Bin"), CassoExplorerBrowser::GetLocationLabel (host.browser.GetLocation()));
+        Assert::AreEqual (std::wstring (L"Recycle Bin"), BrowserCells::GetLocationLabel (host.browser.GetLocation()));
 
         host.browser.SetSelectedRows ({ row });
 
@@ -666,7 +666,7 @@ public:
 
         row = host.browser.GetRows()[(size_t) FindRow (host.browser, L"hidden.txt")];
         Assert::IsTrue (row.isHidden);
-        Assert::IsTrue (CassoExplorerBrowser::ToCells (row)[0].iconGhosted, L"and drawn faded");
+        Assert::IsTrue (BrowserCells::ToCells (row)[0].iconGhosted, L"and drawn faded");
 
         options.showProtected = true;
         host.browser.SetFolderOptions (options);
@@ -675,12 +675,12 @@ public:
 
         //  A compressed name is colored only when Explorer colors them.
         row = host.browser.GetRows()[(size_t) FindRow (host.browser, L"packed.txt")];
-        Assert::AreEqual (0u, CassoExplorerBrowser::GetNameArgb (row, options, true));
+        Assert::AreEqual (0u, BrowserCells::GetNameArgb (row, options, true));
 
         options.colorCompressed = true;
-        Assert::AreEqual (CassoExplorerBrowser::kCompressedDarkArgb,  CassoExplorerBrowser::GetNameArgb (row, options, true));
-        Assert::AreEqual (CassoExplorerBrowser::kCompressedLightArgb, CassoExplorerBrowser::GetNameArgb (row, options, false));
-        Assert::AreEqual (0u, CassoExplorerBrowser::GetNameArgb (host.browser.GetRows()[(size_t) FindRow (host.browser, L"system.txt")], options, true));
+        Assert::AreEqual (CassoExplorerBrowser::kCompressedDarkArgb,  BrowserCells::GetNameArgb (row, options, true));
+        Assert::AreEqual (CassoExplorerBrowser::kCompressedLightArgb, BrowserCells::GetNameArgb (row, options, false));
+        Assert::AreEqual (0u, BrowserCells::GetNameArgb (host.browser.GetRows()[(size_t) FindRow (host.browser, L"system.txt")], options, true));
     }
 
 
@@ -696,17 +696,17 @@ public:
         drive.sizeBytes   = 4000ull * 1024 * 1024 * 1024;
         drive.freeBytes   = 1000ull * 1024 * 1024 * 1024;
 
-        cells = CassoExplorerBrowser::ToCells (drive);
+        cells = BrowserCells::ToCells (drive);
 
         Assert::AreEqual ((size_t) 2, cells[0].tileLines.size());
         Assert::AreEqual (0.75f, cells[0].tileLines[0].meter, 0.001f);
-        Assert::AreEqual (CassoExplorerBrowser::FormatSize (drive.freeBytes) + L" free of " + CassoExplorerBrowser::FormatSize (drive.sizeBytes),
+        Assert::AreEqual (BrowserCells::FormatSize (drive.freeBytes) + L" free of " + BrowserCells::FormatSize (drive.sizeBytes),
                           cells[0].tileLines[1].text);
 
         folder.name        = L"Games";
         folder.isDirectory = true;
 
-        Assert::IsTrue (CassoExplorerBrowser::ToCells (folder)[0].tileLines.empty(), L"A folder's tile shows its columns");
+        Assert::IsTrue (BrowserCells::ToCells (folder)[0].tileLines.empty(), L"A folder's tile shows its columns");
     }
 
 
@@ -912,13 +912,13 @@ public:
         using Mode    = PicturePreview::Mode;
         using Monitor = PicturePreview::Monitor;
 
-        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Green,  Mode::DoubleHiRes)     == Monitor::Color);
-        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Color,  Mode::DoubleHiRes)     == Monitor::Color);
-        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Amber,  Mode::DoubleHiResMono) == Monitor::Amber);
-        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Custom, Mode::DoubleHiResMono) == Monitor::Custom);
-        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Color,  Mode::DoubleHiResMono) == Monitor::White);
-        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Green,  Mode::HiRes)           == Monitor::Green);
-        Assert::IsTrue (CassoExplorerBrowser::ChooseMonitor (Monitor::Color,  Mode::LoRes)           == Monitor::Color);
+        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Green,  Mode::DoubleHiRes)     == Monitor::Color);
+        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Color,  Mode::DoubleHiRes)     == Monitor::Color);
+        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Amber,  Mode::DoubleHiResMono) == Monitor::Amber);
+        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Custom, Mode::DoubleHiResMono) == Monitor::Custom);
+        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Color,  Mode::DoubleHiResMono) == Monitor::White);
+        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Green,  Mode::HiRes)           == Monitor::Green);
+        Assert::IsTrue (BrowserPreviewer::ChooseMonitor (Monitor::Color,  Mode::LoRes)           == Monitor::Color);
     }
 
 
@@ -1112,34 +1112,34 @@ public:
     TEST_METHOD (ImageError_NamesTheFileNotItsPath)
     {
         Assert::AreEqual (std::wstring (L"a.po is empty."),
-                          CassoExplorerBrowser::FormatImageError (L"C:\\Disks\\a.po", "C:\\Disks\\a.po: is empty\n"));
+                          BrowserCells::FormatImageError (L"C:\\Disks\\a.po", "C:\\Disks\\a.po: is empty\n"));
         Assert::AreEqual (std::wstring (L"Something else."),
-                          CassoExplorerBrowser::FormatImageError (L"C:\\Disks\\a.po", "Something else"), L"A message of another form is kept");
+                          BrowserCells::FormatImageError (L"C:\\Disks\\a.po", "Something else"), L"A message of another form is kept");
     }
 
 
     TEST_METHOD (LinkError_DiffersForAnUnrecognizedDiskAndAnUnreadableOne)
     {
         Assert::AreEqual (std::wstring (L"The disk in this drive can't be previewed because it doesn't have a recognized file system."),
-                          CassoExplorerBrowser::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), std::string()));
+                          BrowserCells::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_UNRECOGNIZED_VOLUME), std::string()));
         Assert::AreEqual (std::wstring (L"This drive could not be read."),
-                          CassoExplorerBrowser::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_CRC), std::string()));
+                          BrowserCells::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_CRC), std::string()));
         Assert::AreEqual (std::wstring (L"The connection is disconnected."),
-                          CassoExplorerBrowser::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_NOT_CONNECTED), "The connection is disconnected."), L"A message is shown as it is");
+                          BrowserCells::FormatLinkError (HRESULT_FROM_WIN32 (ERROR_NOT_CONNECTED), "The connection is disconnected."), L"A message is shown as it is");
     }
 
 
     TEST_METHOD (ShortenPaths_CutsEachPathToItsName)
     {
         Assert::AreEqual (std::wstring (L"broken.dsk: is 26 bytes but should be 143,360 bytes"),
-                          CassoExplorerBrowser::ShortenPaths (L"C:\\Users\\me\\Temp\\t077\\ui\\broken.dsk: is 26 bytes but should be 143,360 bytes"));
+                          BrowserCells::ShortenPaths (L"C:\\Users\\me\\Temp\\t077\\ui\\broken.dsk: is 26 bytes but should be 143,360 bytes"));
         Assert::AreEqual (std::wstring (L"a.po: HELLO: wrote out.bin."),
-                          CassoExplorerBrowser::ShortenPaths (L"C:\\My Disks\\a.po: HELLO: wrote D:\\Out Dir\\out.bin."),
+                          BrowserCells::ShortenPaths (L"C:\\My Disks\\a.po: HELLO: wrote D:\\Out Dir\\out.bin."),
                           L"Paths with spaces, mid-sentence, and before a period");
         Assert::AreEqual (std::wstring (L"one\nDisks\ntwo.dsk"),
-                          CassoExplorerBrowser::ShortenPaths (L"one\nC:\\Disks\\\nE:\\x\\two.dsk"), L"A folder keeps its own name");
+                          BrowserCells::ShortenPaths (L"one\nC:\\Disks\\\nE:\\x\\two.dsk"), L"A folder keeps its own name");
         Assert::AreEqual (std::wstring (L"No path at all, just a colon: see."),
-                          CassoExplorerBrowser::ShortenPaths (L"No path at all, just a colon: see."));
+                          BrowserCells::ShortenPaths (L"No path at all, just a colon: see."));
     }
 
 
@@ -1153,9 +1153,9 @@ public:
         row.isDirectory = true;
         row.hasModified = false;
 
-        cells = CassoExplorerBrowser::ToCells (row);
+        cells = BrowserCells::ToCells (row);
 
-        Assert::AreEqual (CassoExplorerBrowser::GetColumns().size(), cells.size());
+        Assert::AreEqual (BrowserCells::GetColumns().size(), cells.size());
         Assert::IsTrue   (cells[(size_t) CatalogModel::Column::Size].text.empty(),     L"a folder has no size");
         Assert::IsTrue   (cells[(size_t) CatalogModel::Column::Modified].text.empty(), L"and no date was recorded");
     }
@@ -1240,7 +1240,7 @@ public:
         missing = _wcsicmp (host.browser.GetRows()[0].hostPath.c_str(), L"H:\\Games") == 0 ? 0 : 1;
 
         Assert::IsTrue   (host.browser.GetRows()[(size_t) missing].isMissing);
-        Assert::IsTrue   (CassoExplorerBrowser::ToCells (host.browser.GetRows()[(size_t) missing])[0].dim);
+        Assert::IsTrue   (BrowserCells::ToCells (host.browser.GetRows()[(size_t) missing])[0].dim);
         Assert::IsFalse  (host.browser.GetRows()[(size_t) (1 - missing)].isMissing);
         Assert::IsFalse  (host.browser.OpenRow (missing));
         Assert::IsTrue   (host.browser.GetLocation() == Location::MakeRoot (TreeModel::kCassoRootId));
@@ -1298,7 +1298,7 @@ public:
         row.typeText  = L"A";
         row.sizeBytes = 512;
 
-        Assert::AreEqual (CassoExplorerBrowser::GetCatalogPreviewColumns().size(), CassoExplorerBrowser::ToCatalogPreviewCells (row).size());
+        Assert::AreEqual (BrowserCells::GetCatalogPreviewColumns().size(), BrowserCells::ToCatalogPreviewCells (row).size());
     }
 
 
@@ -1545,9 +1545,9 @@ public:
         folder.name        = L"Games";
         folder.isDirectory = true;
 
-        hostCells   = CassoExplorerBrowser::ToCells (file,   Location::MakeHostFolder (L"C:\\Disks"));
-        appleCells  = CassoExplorerBrowser::ToCells (apple,  Location::MakeDiskImage (L"C:\\Disks\\a.dsk"));
-        folderCells = CassoExplorerBrowser::ToCells (folder, Location::MakeHostFolder (L"C:\\Disks"));
+        hostCells   = BrowserCells::ToCells (file,   Location::MakeHostFolder (L"C:\\Disks"));
+        appleCells  = BrowserCells::ToCells (apple,  Location::MakeDiskImage (L"C:\\Disks\\a.dsk"));
+        folderCells = BrowserCells::ToCells (folder, Location::MakeHostFolder (L"C:\\Disks"));
 
         Assert::IsTrue   (hostCells[0].contentLeft.empty(), L"No type under a host file's name");
         Assert::AreEqual ((size_t) 2, hostCells[0].contentRight.size());
@@ -1573,24 +1573,24 @@ public:
         const Byte  cutOff[]  = { 'a', 0xE2, 0x80 };
         const Byte  binary[]  = { 'M', 'Z', 0x90, 0x00, 0x03 };
 
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (ascii)   == HostCharset::Ascii,   L"Tabs, line breaks, form feeds and DOS's end mark are text");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (dos)     == HostCharset::Dos,     L"Mostly box drawing is DOS text");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (windows) == HostCharset::Windows, L"Accented letters are Windows text");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (utf8)    == HostCharset::Utf8,    L"Well-formed UTF-8 is UTF-8");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (cutOff)  == HostCharset::Utf8,    L"A sequence cut off at the end of the sample is UTF-8");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (binary)  == HostCharset::None,    L"A control code other than those is binary");
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset ({})      == HostCharset::None,    L"An empty file is no text");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (ascii)   == HostCharset::Ascii,   L"Tabs, line breaks, form feeds and DOS's end mark are text");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (dos)     == HostCharset::Dos,     L"Mostly box drawing is DOS text");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (windows) == HostCharset::Windows, L"Accented letters are Windows text");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (utf8)    == HostCharset::Utf8,    L"Well-formed UTF-8 is UTF-8");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (cutOff)  == HostCharset::Utf8,    L"A sequence cut off at the end of the sample is UTF-8");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (binary)  == HostCharset::None,    L"A control code other than those is binary");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset ({})      == HostCharset::None,    L"An empty file is no text");
 
         //  DOS text draws a control code now and then as a symbol, such as a
         //  menu's pointer; more than one byte in a hundred is no text.
         std::vector<Byte>  pointer (200, 'a');
 
         pointer[50] = 0x10;
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (pointer) == HostCharset::Dos,     L"A DOS symbol among text is DOS text");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (pointer) == HostCharset::Dos,     L"A DOS symbol among text is DOS text");
 
         pointer[51] = 0x10;
         pointer[52] = 0x11;
-        Assert::IsTrue (CassoExplorerBrowser::GetHostCharset (pointer) == HostCharset::None,    L"but too many are binary");
+        Assert::IsTrue (BrowserPreviewer::GetHostCharset (pointer) == HostCharset::None,    L"but too many are binary");
     }
 
 
@@ -1626,7 +1626,7 @@ public:
 
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII text draws in the hex view");
-        Assert::IsTrue (CassoExplorerBrowser::IsSourceName (L"STAGE2.S") && !CassoExplorerBrowser::IsSourceName (L"readme.txt"));
+        Assert::IsTrue (BrowserPreviewer::IsSourceName (L"STAGE2.S") && !BrowserPreviewer::IsSourceName (L"readme.txt"));
     }
 
 
@@ -1646,9 +1646,9 @@ public:
         host.browser.SetSelectedRows ({ FindRow (host.browser, L"readme.txt") });
         Assert::IsTrue (host.browser.GetPreview().kind == PreviewContent::Kind::Hex, L"ASCII without an export suffix opens in the hex view");
 
-        Assert::IsTrue  (CassoExplorerBrowser::IsAppleExportName (L"GAME.Integer BASIC.txt"));
-        Assert::IsTrue  (CassoExplorerBrowser::IsAppleExportName (L"NOTES.Text.txt"));
-        Assert::IsFalse (CassoExplorerBrowser::IsAppleExportName (L"readme.txt"));
+        Assert::IsTrue  (BrowserPreviewer::IsAppleExportName (L"GAME.Integer BASIC.txt"));
+        Assert::IsTrue  (BrowserPreviewer::IsAppleExportName (L"NOTES.Text.txt"));
+        Assert::IsFalse (BrowserPreviewer::IsAppleExportName (L"readme.txt"));
     }
 
 
@@ -1673,27 +1673,27 @@ public:
 
     TEST_METHOD (LocationLabels)
     {
-        Assert::AreEqual (std::wstring (L"C:\\"),    CassoExplorerBrowser::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));
-        Assert::AreEqual (std::wstring (L"Disks"),   CassoExplorerBrowser::GetLocationLabel (Location::MakeHostFolder (L"C:\\Disks\\")));
-        Assert::AreEqual (std::wstring (L"SUB"),     CassoExplorerBrowser::GetLocationLabel (Location::MakeDiskDirectory (L"C:\\a.po", "/CASSQUE/SUB")));
+        Assert::AreEqual (std::wstring (L"C:\\"),    BrowserCells::GetLocationLabel (Location::MakeHostFolder (L"C:\\")));
+        Assert::AreEqual (std::wstring (L"Disks"),   BrowserCells::GetLocationLabel (Location::MakeHostFolder (L"C:\\Disks\\")));
+        Assert::AreEqual (std::wstring (L"SUB"),     BrowserCells::GetLocationLabel (Location::MakeDiskDirectory (L"C:\\a.po", "/CASSQUE/SUB")));
     }
 
 
     TEST_METHOD (Formatting)
     {
-        Assert::AreEqual (std::wstring (L"777 bytes"), CassoExplorerBrowser::FormatSize (777));
-        Assert::AreEqual (std::wstring (L"8.00 KB"),   CassoExplorerBrowser::FormatSize (8192));
+        Assert::AreEqual (std::wstring (L"777 bytes"), BrowserCells::FormatSize (777));
+        Assert::AreEqual (std::wstring (L"8.00 KB"),   BrowserCells::FormatSize (8192));
 
         //  The Size column, as Explorer's: whole kilobytes, rounded up.
-        Assert::AreEqual (std::wstring (L"0 KB"),   CassoExplorerBrowser::FormatSizeColumn (0));
-        Assert::AreEqual (std::wstring (L"1 KB"),   CassoExplorerBrowser::FormatSizeColumn (187));
-        Assert::AreEqual (std::wstring (L"110 KB"), CassoExplorerBrowser::FormatSizeColumn (112537));
-        Assert::AreEqual (std::wstring (L"1 item"),    CassoExplorerBrowser::FormatSelection (0, 1));
-        Assert::AreEqual (std::wstring (L"7 items, 3 selected"), CassoExplorerBrowser::FormatSelection (3, 7));
+        Assert::AreEqual (std::wstring (L"0 KB"),   BrowserCells::FormatSizeColumn (0));
+        Assert::AreEqual (std::wstring (L"1 KB"),   BrowserCells::FormatSizeColumn (187));
+        Assert::AreEqual (std::wstring (L"110 KB"), BrowserCells::FormatSizeColumn (112537));
+        Assert::AreEqual (std::wstring (L"1 item"),    BrowserCells::FormatSelection (0, 1));
+        Assert::AreEqual (std::wstring (L"7 items, 3 selected"), BrowserCells::FormatSelection (3, 7));
 
         //  Explorer's selection field, the size after two spaces.
-        Assert::AreEqual (std::wstring (L"1 item selected"),           CassoExplorerBrowser::FormatSelected (1, 0, false));
-        Assert::AreEqual (std::wstring (L"4 items selected  777 bytes"), CassoExplorerBrowser::FormatSelected (4, 777, true));
+        Assert::AreEqual (std::wstring (L"1 item selected"),           BrowserCells::FormatSelected (1, 0, false));
+        Assert::AreEqual (std::wstring (L"4 items selected  777 bytes"), BrowserCells::FormatSelected (4, 777, true));
 
         //  1984-08-17 12:34, as the scratch ProDOS volume records it.
         //  In the user's own short date and time, whatever they are set to.
@@ -1705,7 +1705,7 @@ public:
             int         timeLen  = GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, time, 80);
 
             Assert::IsTrue   (dateLen > 0 && timeLen > 0);
-            Assert::AreEqual (std::wstring (date) + L" " + time, CassoExplorerBrowser::FormatModified (461594040, true));
+            Assert::AreEqual (std::wstring (date) + L" " + time, BrowserCells::FormatModified (461594040, true));
         }
     }
 };

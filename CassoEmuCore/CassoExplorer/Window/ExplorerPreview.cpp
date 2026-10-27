@@ -269,12 +269,12 @@ void ExplorerPreview::FillPreview()
         m_window.m_previewList->SetFontDip         (preview.archive ? CassoExplorerWindow::kProseFontDip : 0.0f);
         m_window.m_previewList->SetRowHeightDip    (CassoExplorerWindow::kPreviewRowHeightDip);
         m_window.m_previewList->SetRowHeightPxFn   (preview.archive ? std::function<int (UINT)> (&ExplorerLayout::GetListRowHeightPx) : nullptr);
-        m_window.m_previewList->SetColumns         (preview.archive ? CassoExplorerBrowser::GetArchivePreviewColumns() : CassoExplorerBrowser::GetCatalogPreviewColumns());
+        m_window.m_previewList->SetColumns         (preview.archive ? BrowserPreviewer::GetArchivePreviewColumns() : BrowserCells::GetCatalogPreviewColumns());
         m_window.m_previewList->SetTextSelectionColors (!preview.archive);
 
         for (const CatalogRow & row : preview.rows)
         {
-            rows.push_back (preview.archive ? m_window.m_browser.GetArchivePreviewCells (row) : CassoExplorerBrowser::ToCatalogPreviewCells (row));
+            rows.push_back (preview.archive ? m_window.m_browser.GetArchivePreviewCells (row) : BrowserCells::ToCatalogPreviewCells (row));
         }
     }
 
@@ -590,7 +590,7 @@ HostCharset ExplorerPreview::FileBytes::GetCharset() const
 
     ReadAt (0, sample);
 
-    return CassoExplorerBrowser::GetHostCharset (sample);
+    return BrowserPreviewer::GetHostCharset (sample);
 }
 
 

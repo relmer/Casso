@@ -147,7 +147,7 @@ std::shared_ptr<const DxuiIconImage> ExplorerDragDrop::GetRowDragImage()
 
 
 
-    return found ? CassoExplorerBrowser::GetRowIcon (m_window.m_browser.GetRows()[(size_t) selected[0]], m_window.m_browser.GetLocation(), m_window.m_dragIcons) : nullptr;
+    return found ? BrowserCells::GetRowIcon (m_window.m_browser.GetRows()[(size_t) selected[0]], m_window.m_browser.GetLocation(), m_window.m_dragIcons) : nullptr;
 }
 
 

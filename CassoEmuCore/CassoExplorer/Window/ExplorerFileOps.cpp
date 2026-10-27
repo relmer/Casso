@@ -694,7 +694,7 @@ void ExplorerFileOps::OpenEachSelected()
 void ExplorerFileOps::ShowRowProperties (int row)
 {
     Location                           location = m_window.m_browser.GetLocation();
-    std::vector<DxuiListView::Column>  columns  = CassoExplorerBrowser::GetColumns();
+    std::vector<DxuiListView::Column>  columns  = BrowserCells::GetColumns();
     std::vector<DxuiListView::Cell>    cells;
     std::wstring                       path;
     std::wstring                       text;
@@ -735,7 +735,7 @@ void ExplorerFileOps::ShowRowProperties (int row)
         return;
     }
 
-    cells = CassoExplorerBrowser::ToCells (m_window.m_browser.GetRows()[(size_t) row], location);
+    cells = BrowserCells::ToCells (m_window.m_browser.GetRows()[(size_t) row], location);
     text  = path + L"\n\n";
 
     for (i = 0; i < columns.size() && i < cells.size(); i++)

@@ -164,8 +164,8 @@ void ExplorerLayout::ConfigureWidgets()
     m_window.m_list->SetExplorerDetails (true);
     m_window.m_list->SetFontDip (CassoExplorerWindow::kProseFontDip);
     m_window.m_list->SetRowHeightPxFn (&ExplorerLayout::GetListRowHeightPx);
-    m_window.m_list->SetColumns (CassoExplorerBrowser::GetColumns());
-    m_window.m_listColumnChosen.assign (CassoExplorerBrowser::GetColumns().size(), true);
+    m_window.m_list->SetColumns (BrowserCells::GetColumns());
+    m_window.m_listColumnChosen.assign (BrowserCells::GetColumns().size(), true);
 
     //  A header dragged into a new place stays there for the next run.
     m_window.m_listPane.ApplyColumnOrder();

@@ -730,7 +730,7 @@ void CassoExplorerActions::Append (Outcome & inOutOutcome, const DiskOperations:
             inOutOutcome.message += L"\n";
         }
 
-        inOutOutcome.message += CassoExplorerBrowser::ShortenPaths (TextEncoding::NarrowToWide (result.message));
+        inOutOutcome.message += BrowserCells::ShortenPaths (TextEncoding::NarrowToWide (result.message));
     }
 
     if (!result.Succeeded())
@@ -746,7 +746,7 @@ void CassoExplorerActions::Append (Outcome & inOutOutcome, const DiskOperations:
     //  it could not decode does: the complaint is shown as a warning.
     if (result.Succeeded() && result.exitStatus == DiskCommandResult::kWithComplaints && !result.message.empty())
     {
-        AppendWarning (inOutOutcome, CassoExplorerBrowser::ShortenPaths (TextEncoding::NarrowToWide (result.message)));
+        AppendWarning (inOutOutcome, BrowserCells::ShortenPaths (TextEncoding::NarrowToWide (result.message)));
     }
 }
 

@@ -1137,11 +1137,19 @@ included, follow this phase, so none is repeated after it.
   pane for the list, its columns and folder views, and the tree. `OnMouse`,
   `OnKey` and `GetCursorForPoint` stay on the window as overrides that call
   `ExplorerInput`. Record the sizes in validation.md with T280.
-- [ ] T267 Split `CassoEmuCore/CassoExplorer/CassoExplorerBrowser.h/.cpp`
+- [X] T267 Split `CassoEmuCore/CassoExplorer/CassoExplorerBrowser.h/.cpp`
   into listing loads (host, shell, Recycle Bin, roots, images, Apple drives,
   link items), preview (`UpdatePreview` and each kind of preview) and cells
   (columns, cells, icons, formatting). The browser is left with navigation,
   selection, sorting and grouping, and tabs.
+
+  Done as `BrowserLoader`, `BrowserPreviewer` and `BrowserCells` in
+  `CassoEmuCore/CassoExplorer/Browser/`. The window and the tests call the
+  browser's public methods, so each one whose body moved stays on the
+  browser as an inline call. `Status` and `SearchMatch` are
+  `BrowserStatus` and `BrowserSearchMatch` in `BrowserTypes.h`, since the
+  parts use them too, and `CassoExplorerBrowser::Status` and `SearchMatch`
+  are aliases of them.
 - [ ] T268 Split `CassoEmuCore/CassoExplorer/CassoExplorerActions.h/.cpp`
   into Apple-drive operations (puts, gets, link disks, disk images over the
   link), copies and extraction (put, copy, extract, collision names,

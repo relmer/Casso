@@ -297,12 +297,12 @@ void ExplorerTips::RefreshListTip()
 
             if (!row0.isDirectory)
             {
-                details += L"\nSize: " + CassoExplorerBrowser::FormatSize (row0.sizeBytes);
+                details += L"\nSize: " + BrowserCells::FormatSize (row0.sizeBytes);
             }
 
             if (row0.hasModified)
             {
-                details += L"\nDate modified: " + CassoExplorerBrowser::FormatModified (row0.modifiedUnix, row0.modifiedIsWallClock);
+                details += L"\nDate modified: " + BrowserCells::FormatModified (row0.modifiedUnix, row0.modifiedIsWallClock);
             }
         }
 

@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Pch.h"
+#include "CassoExplorer/Browser/BrowserTypes.h"
+#include "CassoExplorer/Browser/BrowserLoader.h"
+#include "CassoExplorer/Browser/BrowserPreviewer.h"
+#include "CassoExplorer/Browser/BrowserCells.h"
 #include "CassoExplorer/CassoExplorerShellListings.h"
 
 #include "CassoExplorer/Model/BrowserModel.h"
@@ -45,14 +49,7 @@ class IDiskFileIo;
 class CassoExplorerBrowser
 {
 public:
-    struct Status
-    {
-        std::wstring  selection;   // how many items: "22 items"
-        std::wstring  selected;    // what is selected, empty when nothing is
-        std::wstring  detail;
-        std::wstring  freeSpace;      // "112 KB free of 140 KB" for a disk image
-        std::wstring  freeSpaceTip;   // which disk: the image's name and its volume
-    };
+    using Status = BrowserStatus;
 
     CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & fileIo);
 
@@ -108,53 +105,12 @@ public:
     //  A tab arriving from another window goes in at `index`, history and view
     //  included, and becomes the active tab.
     size_t        InsertTab   (size_t index, BrowserModel::Tab tab);
-
-    //  How much of a file with no file of its own, such as one inside a zip,
-    //  is read for its preview.
-    static constexpr size_t  s_kShellPreviewMaxBytes = 16 * 1024 * 1024;
-
-    //  An archive's preview as the file list would show it opened: the list's
-    //  first columns, with its icons.
-    static constexpr size_t                    s_kArchivePreviewColumns = 4;
-    static std::vector<DxuiListView::Column>   GetArchivePreviewColumns ();
-    std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const;
-
-    //  Which character set a file's first bytes are text in, if any, and how
-    //  many are looked at.
-    static constexpr size_t  s_kTextSampleBytes      = 64 * 1024;
-    static constexpr Byte    s_kFormFeed             = 0x0C;
-    static constexpr Byte    s_kDosEndOfFile         = 0x1A;
-    static constexpr Byte    s_kDosDrawingFirst      = 0xB0;    // code page 437's shades and box drawing
-    static constexpr Byte    s_kDosDrawingLast       = 0xDF;
-    static constexpr size_t  s_kTextControlRatio     = 100;     // at most one byte in this many a DOS symbol
-    static HostCharset       GetHostCharset (std::span<const Byte> sample);
-    static bool              IsUtf8         (std::span<const Byte> sample);
-
-    //  Whether a file is an assembler's source by its extension, which
-    //  previews as text with its line numbers.
-    static bool              IsSourceName   (const std::wstring & name);
-
-    //  Whether a file is a BASIC listing or text Casso Explorer exported, by
-    //  its suffix, which previews as lines of text even in plain ASCII.
-    static bool              IsAppleExportName (const std::wstring & name);
-
-    //  The largest host file that previews as text rather than in the hex view.
-    static constexpr size_t  s_kTextPreviewMaxBytes = 1024 * 1024;
+    std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const { return m_previewer.GetArchivePreviewCells (row); }
 
 private:
-    void  PreviewShellItem   (const CatalogRow & row);
-    void  PreviewArchive     (const std::wstring & path);
-    bool  IsLocalArchivePath (const std::wstring & id) const;
-
-    //  Why an archive the shell lists nothing in is empty, by its name;
-    //  empty when it has nothing in it.
-    std::wstring  DescribeEmptyArchive (const std::wstring & path) const;
-
-    //  The largest archive read whole for the reason it lists nothing.
-    static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
 
 public:
-    std::wstring  GetTabLabel (size_t index) const;
+    std::wstring  GetTabLabel (size_t index) const { return m_cells.GetTabLabel (index); }
 
     //  Opens a location in a new tab and switches to it. The tab menu's other
     //  commands: a copy of a tab where it is, and closing every tab but one or
@@ -163,8 +119,6 @@ public:
     size_t        DuplicateTab     (size_t index);
     bool          CloseOtherTabs   (size_t index);
     bool          CloseTabsToRight (size_t index);
-
-    static std::wstring  GetLocationLabel (const Location & location);
 
     //  Opens a folder or disk image row in place, as a double-click does.
     //  False, with nothing changed, for a row that is neither.
@@ -191,7 +145,7 @@ public:
     //  moves to the nearest folder above it that is still there, as Explorer
     //  does when the folder it shows is deleted. False, with nothing
     //  changed, when the location still exists or is not on the host.
-    bool  LeaveMissingLocation ();
+    bool  LeaveMissingLocation () { return m_loader.LeaveMissingLocation(); }
     bool  NavigateToAddress  (const std::wstring & text);
 
     //  The paths typed into the address bar. Held here because this is where a
@@ -220,37 +174,33 @@ public:
     void  SetSelectedRows  (const std::vector<int> & rows);
 
     //  The preview made again for the selection, as when a slow read arrives.
-    void  RefreshPreview   () { UpdatePreview(); }
+    void  RefreshPreview   () { m_previewer.UpdatePreview(); }
 
     //  A shell preview that failed or took too long is replaced by the file's
     //  bytes.
-    void  ShowShellPreviewBytes ();
-    void  SetDisassemble   (bool disassemble);
+    void  ShowShellPreviewBytes () { m_previewer.ShowShellPreviewBytes(); }
+    void  SetDisassemble   (bool disassemble) { m_previewer.SetDisassemble (disassemble); }
 
     const std::vector<CatalogRow> &  GetRows       () const { return m_rows;      }
-    const PreviewContent &           GetPreview    () const { return m_preview;   }
+    const PreviewContent &           GetPreview    () const { return m_previewer.m_preview;   }
 
     //  The monitor a picture preview is drawn for, with the custom monitor's
     //  color; a change draws the current picture again.
-    void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
-    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewMonitor; }
+    void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb) { m_previewer.SetPreviewMonitor (monitor, customArgb); }
+    PicturePreview::Monitor  GetPreviewMonitor () const { return m_previewer.m_previewMonitor; }
 
     //  The monitor the current picture is drawn on: the chosen one, except
     //  for a double hi-res picture, whose monitor follows its form. Its color
     //  form is drawn on the color monitor, and its monochrome form on the
     //  chosen monochrome monitor, or the white one when the color monitor is
     //  chosen.
-    PicturePreview::Monitor  GetPictureMonitor () const;
-
-    //  The monitor a picture drawn in `mode` is drawn on, with `chosen` the
-    //  monitor chosen: the rule above, for any picture.
-    static PicturePreview::Monitor  ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode);
+    PicturePreview::Monitor  GetPictureMonitor () const { return m_previewer.GetPictureMonitor(); }
 
     //  A double hi-res picture drawn in color or as its bits, whichever the
     //  automatic choice was not; again to go back. False for any other preview.
-    bool  TogglePictureColor ();
-    bool  CanTogglePictureColor () const;
-    const std::wstring &             GetListError  () const { return m_listError; }
+    bool  TogglePictureColor () { return m_previewer.TogglePictureColor(); }
+    bool  CanTogglePictureColor () const { return m_previewer.CanTogglePictureColor(); }
+    const std::wstring &             GetListError  () const { return m_loader.m_listError; }
     const Status &                   GetStatus     () const { return m_status;    }
     const std::vector<int> &         GetSelectedRows () const { return m_selectedRows; }
     Location                         GetLocation   () const;
@@ -271,7 +221,7 @@ public:
     //  Whether the image shown is write-protected, read once when it loads:
     //  the commands that would write to it ask on every repaint, which is too
     //  often to hit the file system.
-    bool                             IsWriteProtected () const { return m_writeProtected; }
+    bool                             IsWriteProtected () const { return m_loader.m_writeProtected; }
     const VolumeListing &            GetListing    () const { return m_listing; }
 
     //  The catalog entries behind the selected rows, in row order, when the
@@ -288,40 +238,25 @@ public:
 
     //  The selected CassoLink items written to their files, so they open and
     //  drag as files; false when any could not be written.
-    bool  PrepareCassoLinkItems ();
+    bool  PrepareCassoLinkItems () { return m_loader.PrepareCassoLinkItems(); }
 
     //  The paths of the selection when every row is a CassoLink item.
-    bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const;
+    bool  TryGetSelectedCassoLinkPaths (std::vector<std::wstring> & outPaths) const { return m_loader.TryGetSelectedCassoLinkPaths (outPaths); }
 
     //  The next list of a linked machine or drive reads its disks again, as
     //  a refresh does.
-    void  ForgetLinkVisit () { m_linkVisit = Location(); }
-
-    //  CassoLink's help, as the What's CassoLink item has it.
-    static const wchar_t *  GetCassoLinkHelp ();
-
-    //  An ADTPro-compatible server's help, its virtual item's text.
-    static const wchar_t *  GetAdtProHelp ();
-
-    //  The help text a CassoLink root's or an ADTPro server's help item has.
-    static const wchar_t *  GetHelpText   (CatalogRow::CassoLinkItem item);
+    void  ForgetLinkVisit () { m_loader.m_linkVisit = Location(); }
 
     //  The archive Extract all applies to, selected or open; empty for none.
-    std::wstring  GetExtractTarget () const;
+    std::wstring  GetExtractTarget () const { return m_previewer.GetExtractTarget(); }
 
     //  The files the selected rows are when they are a search's matches inside
     //  disk images, each with its image, found again in that image's catalog.
-    struct SearchMatch
-    {
-        std::wstring  imagePath;
-        VolumeKind    kind = VolumeKind::Unknown;
-        std::string   directory;   // inside the image, or empty for the volume's
-        FileEntry     entry;
-    };
+    using SearchMatch = BrowserSearchMatch;
 
-    void  GetSelectedSearchMatches (std::vector<SearchMatch> & outMatches);
-    bool  AreSelectedRowsSearchMatches () const;
-    bool  TryFindSearchMatch       (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError);
+    void  GetSelectedSearchMatches (std::vector<SearchMatch> & outMatches) { m_previewer.GetSelectedSearchMatches (outMatches); }
+    bool  AreSelectedRowsSearchMatches () const { return m_previewer.AreSelectedRowsSearchMatches(); }
+    bool  TryFindSearchMatch       (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError) { return m_previewer.TryFindSearchMatch (row, outMatch, outError); }
 
     //  Whether the selected rows are all disk images in a host folder.
     bool  AreSelectedRowsImages() const;
@@ -330,10 +265,6 @@ public:
     //  its occurrence among rows with that name. What a refresh matches rows
     //  by, since an index moves whenever a row is added or removed above it.
     void  GetRowKeys (std::vector<std::wstring> & outKeys) const;
-
-    //  The list widget's columns, in CatalogModel::Column order, and one
-    //  row's cells.
-    static std::vector<DxuiListView::Column>  GetColumns();
     //  The shell's icons for the tree and the list. None set, none drawn.
     void  SetShellIcons (IShellIcons * icons) { m_shellIcons = icons; }
 
@@ -365,7 +296,7 @@ public:
     //  set, every host folder is read through the file system at once.
     static constexpr const wchar_t *  s_kHostListKey = L"hostlist:";
     static constexpr const wchar_t *  s_kHostTreeKey = L"hosttree:";
-    CassoExplorerHostListings &  GetHostListings  () { return m_hostListings; }
+    CassoExplorerHostListings &  GetHostListings  () { return m_loader.m_hostListings; }
 
 
     //  Quick access as the shell keeps it, read again after a pin changes.
@@ -373,127 +304,34 @@ public:
     void  RefreshShellRoots     ()                                  { m_tree.RefreshShellRoots(); }
 
     //  The shell's ids for the Recycle Bin items selected.
-    void  GetSelectedRecycledIds (std::vector<std::wstring> & outIds) const;
-    void  GetAllRecycledIds      (std::vector<std::wstring> & outIds) const;
+    void  GetSelectedRecycledIds (std::vector<std::wstring> & outIds) const { m_loader.GetSelectedRecycledIds (outIds); }
+    void  GetAllRecycledIds      (std::vector<std::wstring> & outIds) const { m_loader.GetAllRecycledIds (outIds); }
 
     //  The catalog entry a row inside an image stands for.
-    bool  TryGetRowEntry (int row, FileEntry & outEntry) const;
+    bool  TryGetRowEntry (int row, FileEntry & outEntry) const { return m_loader.TryGetRowEntry (row, outEntry); }
 
     //  Which hidden items the tree and the list show, and whether compressed
     //  items are colored. The next listing follows them.
-    void                   SetFolderOptions (const FolderOptions & options) { m_folderOptions = options; m_tree.SetFolderOptions (options); }
-    const FolderOptions &  GetFolderOptions () const                        { return m_folderOptions; }
-
-    static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row, const Location & at = Location(), IShellIcons * icons = nullptr);
-    static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
-    static IShellIcons::Kind                     GetAppleTypeIconKind (const std::wstring & typeText);
-    static bool                                  IsBasicListingName   (const std::wstring & name);
-    static std::shared_ptr<const DxuiIconImage>  GetLocationIcon      (const Location & at, IShellIcons & icons);
-
-    //  The color a row's name is drawn in, or zero for the theme's.
-    static uint32_t  GetNameArgb (const CatalogRow & row, const FolderOptions & options, bool dark);
+    void                   SetFolderOptions (const FolderOptions & options) { m_loader.m_folderOptions = options; m_tree.SetFolderOptions (options); }
+    const FolderOptions &  GetFolderOptions () const                        { return m_loader.m_folderOptions; }
 
     static constexpr uint32_t  kCompressedDarkArgb  = 0xFF3A99E8u;
-    static constexpr uint32_t  kEncryptedDarkArgb   = 0xFF4EB54Eu;
     static constexpr uint32_t  kCompressedLightArgb = 0xFF0000FFu;
-    static constexpr uint32_t  kEncryptedLightArgb  = 0xFF008000u;
-
-    //  The narrower set a disk image's catalog uses in the preview pane.
-    static std::vector<DxuiListView::Column>  GetCatalogPreviewColumns();
-    static std::vector<DxuiListView::Cell>    ToCatalogPreviewCells (const CatalogRow & row);
-
-    static DxuiTreeNode  ToTreeNode (const TreeNode & node, IShellIcons * icons = nullptr);
-
-    //  File Explorer's default column widths at 100%, and the two catalog
-    //  columns sized for what they hold.
-    static constexpr int  kNameColumnDip     = 250;
-    static constexpr int  kModifiedColumnDip = 144;
-    static constexpr int  kTypeColumnDip     = 120;
-    static constexpr int  kSizeColumnDip     = 80;
-    static constexpr int  kAddressColumnDip  = 72;
-    static constexpr int  kLockedColumnDip   = 64;
-    static constexpr int  kOriginalColumnDip = 230;
-    static constexpr int  kDeletedColumnDip  = 144;
-
-    //  Explorer's selection field: "1 item selected" or "4 items selected",
-    //  then two spaces and the files' total size when any file is selected.
-    static std::wstring  FormatSelected  (size_t selected, uint64_t bytes, bool anyFile);
-
-    //  An image's refusal as the list shows it: the file's name, then why.
-    static std::wstring  FormatImageError (const std::wstring & imagePath, const std::string & message);
-
-    //  The list's and the preview's text for a linked Apple's drive whose
-    //  listing failed: the operation's message when there is one.
-    static std::wstring  FormatLinkError (HRESULT result, const std::string & message);
-
-    //  What the disk runner says of a whole disk it finds no file system on.
-    static constexpr const char *  s_kNoFileSystem = "does not have a DOS or ProDOS file system";
 
     //  Why an image cannot be read as a disk at all, as the list's message
     //  says it; empty for one that can, a whole disk with no file system to
     //  list included, since that is a disk and not a broken file.
-    std::wstring  GetImageProblem (const std::wstring & imagePath);
-
-    //  A message with each full path in it cut to the name at its end.
-    static std::wstring  ShortenPaths     (const std::wstring & message);
+    std::wstring  GetImageProblem (const std::wstring & imagePath) { return m_loader.GetImageProblem (imagePath); }
 
     //  A typed path with a root and no drive, put on the system drive.
     static std::wstring  RootOnSystemDrive (const std::wstring & text);
 
-    static std::wstring  FormatSize      (uint64_t bytes);
-
-    //  A Content view line: the property's name, drawn muted, then its value.
-    static DxuiListView::Cell  MakeContentLine (const std::wstring & label, const std::wstring & value);
-    static std::wstring  FormatSizeColumn (uint64_t bytes);
-    static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);
-    static std::wstring  FormatSelection (size_t selected, size_t total);
-
 private:
-    //  Refresh for a navigation, whose failure is already in the list error.
-    void     ReloadAfterNavigation();
-    bool     IsOnMissingDrive (const Location & location) const;
-    HRESULT  LoadHostFolder (const std::wstring & path);
-    HRESULT  LoadRoot       (const std::wstring & id);
-    HRESULT  LoadRecycleBin ();
-    HRESULT  LoadShellFolder (const std::wstring & id);
-
-    //  Where Up goes from the shell folder listed; none at the top.
-    Location  m_shellParent;
 
     CassoExplorerShellListings  m_shellListings;
-    CassoExplorerHostListings   m_hostListings;
-    HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
-    HRESULT  LoadAppleDrive (const Location & location);
-    void     PreviewAppleEntry (const std::string & entryPath, const FileEntry & entry);
-    bool     PreviewAppleDrive (const CatalogRow & row);
-    void     PreviewCassoLinkItem (const CatalogRow & row);
-    void     AddCassoLinkItems ();
-    void     AddAdtProHelpItem ();
-    bool     IsAdtProServer    (const std::string & name) const;
-    void     RevisitLink       (const Location & location);
-    bool     CanListImage   (const std::wstring & imagePath);
-
-    bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
-    void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
-    bool     TryGetImageLocation   (int row, Location & outLocation) const;
-    bool     TryPreviewText        (const std::wstring & name, std::span<const Byte> bytes);
-
-    static constexpr const wchar_t *  s_kpszSourceExtensions[] = { L".a65", L".asm", L".s", L".inc", L".a", L".src", L".mac", L".ca65" };
-    static constexpr unsigned         s_kDosCodePage           = 437;
-    static constexpr unsigned         s_kWindowsCodePage       = 1252;
-    static constexpr wchar_t          s_kByteOrderMark         = 0xFEFF;
-    static constexpr size_t           s_kTabStop               = 8;
-    void     PreviewEntry          (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
-    void     PreviewSearchMatch    (const CatalogRow & row);
     void     SortRows();
     void     GroupRows();
     void     ResortKeepingSelection();
-    void     UpdatePreview();
-    void     UpdateStatus();
-
-    //  An image's free and total space in the status, and what the volume is
-    //  in its tip.
-    static void  DescribeVolumeSpace (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind, Status & outStatus);
     bool     TryGetSelectedEntry (const FileEntry *& outEntry) const;
 
     //  The key a selection stores for a row: its name and its occurrence among
@@ -503,33 +341,29 @@ private:
     //  Selects the rows whose keys are in `names`, in one pass over the rows.
     void  SelectRowsByKeys (const std::vector<std::wstring> & names);
 
-    static std::shared_ptr<const DxuiIconImage>  GetNodeIcon (const TreeNode & node, IShellIcons & icons);
-
     IFileSystem                       & m_fs;
     TreeModel                           m_tree;
     BrowserModel                        m_model;
     DiskOperations                      m_operations;
-    Location                            m_linkVisit;  // the linked machine or drive last listed
     TypedPathHistory                    m_typedPaths;
-    MemoryBus                           m_bus;
-    PicturePreview::Monitor             m_previewMonitor = PicturePreview::Monitor::Color;
-    uint32_t                            m_customArgb     = PicturePreview::kDefaultCustomArgb;
-    std::map<std::wstring, TreeNode>    m_nodes;
     std::vector<CatalogRow>             m_rows;
     std::vector<RowGrouping::Group>     m_rowGroups;       // each row's group, when grouped
-    std::vector<FileSystemEntry>        m_hostEntries;
-    FolderOptions                       m_folderOptions;
-    std::vector<TreeNode>               m_rootChildren;
     VolumeListing                       m_listing;
     VolumeKind                          m_kind           = VolumeKind::Unknown;
     bool                                m_isImage        = false;
-    bool                                m_writeProtected = false;
     bool                                m_isAppleDrive   = false;
     CassoLinkConnections              * m_links          = nullptr;
     std::vector<int>                    m_selectedRows;
-    PreviewContent                      m_preview;
-    std::wstring                        m_listError;
     Status                              m_status;
     IShellIcons                       * m_shellIcons     = nullptr;
     IShellItemVerbs                   * m_shellVerbs     = nullptr;
+
+    //  The browser's parts, each with the state it uses.
+    friend class BrowserLoader;
+    friend class BrowserPreviewer;
+    friend class BrowserCells;
+    BrowserLoader  m_loader { *this };
+    BrowserPreviewer  m_previewer { *this };
+    BrowserCells  m_cells { *this };
 };
+

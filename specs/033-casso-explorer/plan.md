@@ -390,9 +390,11 @@ tasks.md, whose phases 10 to 15 are gap-fixing passes over sections A to G:
 
 Each component is built as Shell/Components are: a class with a
 reference to the class it comes from, which declares it a friend and has
-it as a member. A component has the state it uses, and the owner forwards
-nothing; a caller calls a component's method through the owner's member,
-as `m_links.EditLink (name)`. A function a component shares with another
+it as a member. A component has the state it uses, and inside the class a
+caller calls a component's method through the owner's member, as
+`m_links.EditLink (name)`. A public method that other classes call stays
+declared on the owner as an inline call to the component its body moved
+to, so its callers do not change. A function a component shares with another
 stays where most of its callers are. Statics that tests call move with
 their area, and the tests follow them.
 

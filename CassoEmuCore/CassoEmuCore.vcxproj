@@ -273,6 +273,9 @@
     <ClCompile Include="CassoExplorer\CassoExplorerAbout.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerActions.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerBrowser.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserCells.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserLoader.cpp" />
+    <ClCompile Include="CassoExplorer\Browser\BrowserPreviewer.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerCommands.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerDragOut.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerNewDiskDialog.cpp" />
@@ -716,6 +719,10 @@
     <ClInclude Include="CassoExplorer\CassoExplorerAbout.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerActions.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerBrowser.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserCells.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserTypes.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserLoader.h" />
+    <ClInclude Include="CassoExplorer\Browser\BrowserPreviewer.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerCommands.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerDragOut.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerNamedControl.h" />

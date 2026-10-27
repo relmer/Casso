@@ -69,7 +69,7 @@ public:
 
 
         row.name = L"GAMES.DSK";
-        cells    = CassoExplorerBrowser::ToCells (row, Location::MakeHostFolder (L"C:\\Disks"), &icons);
+        cells    = BrowserCells::ToCells (row, Location::MakeHostFolder (L"C:\\Disks"), &icons);
 
         Assert::AreEqual ((size_t) 1, icons.paths.size(), L"One question for one row");
         Assert::AreEqual (CassoExplorerBrowser::JoinPath (L"C:\\Disks", L"GAMES.DSK"), icons.paths[0],
@@ -109,8 +109,8 @@ public:
         folder.isDirectory = true;
         file.name          = L"GAMES.DSK";
 
-        Assert::IsFalse (CassoExplorerBrowser::ToCells (folder, at, &icons).empty());
-        Assert::IsFalse (CassoExplorerBrowser::ToCells (file,   at, &icons).empty());
+        Assert::IsFalse (BrowserCells::ToCells (folder, at, &icons).empty());
+        Assert::IsFalse (BrowserCells::ToCells (file,   at, &icons).empty());
 
         //  Told, so the icons never have to ask the file system which it is.
         Assert::AreEqual ((size_t) 2, icons.directoryFlags.size());
@@ -130,8 +130,8 @@ public:
         folder.isDirectory = true;
         file.name          = L"HELLO";
 
-        Assert::IsFalse (CassoExplorerBrowser::ToCells (folder, Location::MakeDiskImage (L"C:\\Disks\\A.po"), &icons).empty());
-        Assert::IsFalse (CassoExplorerBrowser::ToCells (file,   Location::MakeDiskImage (L"C:\\Disks\\A.po"), &icons).empty());
+        Assert::IsFalse (BrowserCells::ToCells (folder, Location::MakeDiskImage (L"C:\\Disks\\A.po"), &icons).empty());
+        Assert::IsFalse (BrowserCells::ToCells (file,   Location::MakeDiskImage (L"C:\\Disks\\A.po"), &icons).empty());
 
         Assert::IsTrue (icons.paths.empty(), L"An entry inside an image has no path to ask about");
         Assert::AreEqual ((size_t) 2, icons.kinds.size());
@@ -156,10 +156,10 @@ public:
         drive.kind     = TreeNode::Kind::Drive;
         drive.location = Location::MakeHostFolder (L"C:\\");
 
-        out = CassoExplorerBrowser::ToTreeNode (casso,  &icons);
-        out = CassoExplorerBrowser::ToTreeNode (thisPc, &icons);
-        out = CassoExplorerBrowser::ToTreeNode (inner,  &icons);
-        out = CassoExplorerBrowser::ToTreeNode (drive,  &icons);
+        out = BrowserCells::ToTreeNode (casso,  &icons);
+        out = BrowserCells::ToTreeNode (thisPc, &icons);
+        out = BrowserCells::ToTreeNode (inner,  &icons);
+        out = BrowserCells::ToTreeNode (drive,  &icons);
 
         Assert::AreEqual ((size_t) 3, icons.kinds.size());
         Assert::IsTrue (icons.kinds[0] == IShellIcons::Kind::Casso,  L"Casso's node gets the emulator's own icon");
@@ -181,8 +181,8 @@ public:
         row.name  = L"GAMES.DSK";
         node.kind = TreeNode::Kind::CassoRoot;
 
-        Assert::IsFalse ((bool) CassoExplorerBrowser::ToCells (row)[0].icon,
+        Assert::IsFalse ((bool) BrowserCells::ToCells (row)[0].icon,
             L"A caller that asks for no icons, as every existing one does, gets none");
-        Assert::IsFalse ((bool) CassoExplorerBrowser::ToTreeNode (node).icon);
+        Assert::IsFalse ((bool) BrowserCells::ToTreeNode (node).icon);
     }
 };

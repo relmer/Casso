@@ -506,7 +506,7 @@ int ExplorerMenus::GetIconOrder (CassoExplorerActions::Verb verb)
 void ExplorerMenus::ShowListHeaderMenu (int x, int y, int column)
 {
     std::vector<DxuiPopupMenuItem>     items;
-    std::vector<DxuiListView::Column>  columns = CassoExplorerBrowser::GetColumns();
+    std::vector<DxuiListView::Column>  columns = BrowserCells::GetColumns();
 
 
 
@@ -1090,7 +1090,7 @@ std::vector<DxuiPopupMenuItem> ExplorerMenus::GetSortChoices()
 
 
 
-    for (column = 0; column < CassoExplorerBrowser::GetColumns().size(); column++)
+    for (column = 0; column < BrowserCells::GetColumns().size(); column++)
     {
         bool  chosen = column >= m_window.m_listColumnChosen.size() || m_window.m_listColumnChosen[column];
 
