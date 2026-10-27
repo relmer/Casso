@@ -7,26 +7,17 @@ The rewind bar and the debugger timeline are both a `DxuiImageStrip` over a `His
 ## `IDxuiImageStripSource` additions
 
 ```cpp
-//  A mark along the strip.
-enum class DxuiStripMarkKind
-{
-    Gap,
-    Reset,
-    PowerCycle,
-    DiskChange,
-    WriteProtect,
-    StateLoad,
-    Fork,
-};
-
+//  A mark along the strip. The source picks the glyph, since Dxui has no
+//  reference to history's kinds; hasRows marks a fork, whose flyout replaces
+//  the tip.
 struct DxuiStripMark
 {
-    float              offset = 0.0f;     // in cells from the leading edge
-    DxuiStripMarkKind  kind   = DxuiStripMarkKind::Reset;
-    int                count  = 1;        // branches at a fork mark
-    wchar_t            glyph  = 0;        // drawn at the offset; the source picks it per kind
-    uint64_t           id     = 0;        // the source's key for it
-    std::wstring       tip;
+    float         offset  = 0.0f;     // in cells from the leading edge
+    wchar_t       glyph   = 0;        // drawn at the offset
+    int           count   = 1;        // drawn beside the glyph when above 1
+    std::wstring  tip;
+    uint64_t      id      = 0;        // the source's key for it
+    bool          hasRows = false;    // a fork: resting on it opens the flyout
 };
 
 //  One row of a fork mark's flyout.
@@ -63,7 +54,7 @@ The flyout is a popup from the strip's popup host, as the preview is, and takes 
 
 | Member | Behavior |
 |---|---|
-| `GetMarks` | Built on the machine thread in `Service` from the journal records, keyframe gaps and segment tree on the active path, and published under the lock with the cells |
+| `GetMarks` | Built on the machine thread by `HistoryMarks` (`ShellHistory::PublishMarks`) from the journal records, keyframe gaps and segment tree on the active path, published with `SetMarks` under the lock, and placed at their cycles' offsets along the cells |
 | `GetForkRows` | The branches that begin at the mark's fork position; each row's picture is the branch's live-end keyframe, drawn by the worker as a preview is |
 | `OnForkRowClicked` | Calls the switch function the host set, with the branch's leaf segment |
 | `KeyframeDrop::PathChanged` | `ForgetPictures` from the fork position, and the marks rebuilt |
@@ -72,7 +63,7 @@ The flyout is a popup from the strip's popup host, as the preview is, and takes 
 
 | Event | Result |
 |---|---|
-| Pointer enters the bottom 8 DIPs of the viewport, scaled for the monitor's DPI | The bar opens over the bottom of the viewport within 150 ms (SC-008) |
+| Pointer enters the bottom 8 DIPs of the emulated screen, scaled for the monitor's DPI (on the desk scene, of the glass under the pointer, found by the scene's hit test) | The bar opens over the bottom of the screen within 150 ms (SC-008) |
 | Pointer moves off the bar | The bar closes |
 | Pointer captured (paddle mode), or history off | The bar does not open |
 | Click or drag on the bar | The strip's, never the guest mouse's |
