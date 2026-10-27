@@ -145,6 +145,12 @@ public:
     // history made from the timeline.
     void  PauseMachine   ();
 
+    // UI thread: a switch to a branch of history, and the picture of the
+    // branch whose fork row is under the pointer, drawn over the screen.
+    void                      SwitchBranch            (uint32_t branchId);
+    HistoryThumbnails::Image  GetHoveredBranchPicture ();
+    static void               LabelBranch             (const KeyframeBranch & branch, std::wstring & outRanFor, std::wstring & outLeftAt);
+
     // The caption's replay note and the replay indicator's text: updated on
     // the CPU thread, read on any.
     void          UpdateReplayCaption       ();
@@ -214,6 +220,7 @@ private:
     uint64_t                      m_lastPosition      = 0;       // where it landed
     std::atomic<bool>             m_isRewindKeyDown   = false;   // the UI thread's: the rewind key is down
     bool                          m_isRewinding       = false;   // a rewind is under way, on the CPU thread
+    std::atomic<uint32_t>         m_hoveredBranch     = 0;       // the branch whose fork row is under the pointer
     std::atomic<bool>             m_isAtOldestForUi   = false;   // the machine is at the oldest point, as last published
     ConfirmFn                     m_confirmTurnOff;              // a test's answer to turning history off; null shows the dialog
 

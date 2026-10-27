@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "DxuiToolbar.h"
+#include "DxuiStripFlyout.h"
 #include "IDxuiImageStripSource.h"
 
 
@@ -51,7 +52,7 @@ public:
     ~DxuiImageStrip() override;
 
     void  SetSource        (IDxuiImageStripSource * source) { m_source = source; }
-    void  SetAspect        (float widthOverHeight)          { m_aspect = widthOverHeight; }
+    void  SetAspect        (float widthOverHeight)          { m_aspect = widthOverHeight; m_flyout.SetAspect (widthOverHeight); }
     void  SetPopupHost     (DxuiHwndSource * host);
 
     //  The length the entry asks for, in pixels; 0 asks for kDefaultLengthDp.
@@ -104,6 +105,10 @@ public:
 
     const std::vector<MarkBadge> &  GetMarkBadges () const { return m_badges; }
     bool  TryGetBadgeAt    (int x, int y, size_t & outIndex) const;
+
+    //  The flyout a mark with rows opens.
+    DxuiStripFlyout       &  GetFlyout ()       { return m_flyout; }
+    const DxuiStripFlyout &  GetFlyout () const { return m_flyout; }
 
     //  Where the preview's picture sits on screen, empty with none up, and
     //  the picture it shows.
@@ -167,6 +172,7 @@ private:
     void  FollowPointer    ();
     void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintMarks       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  TrackFlyout      (int x, int y);
     void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
     void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
     void  HideOverlap      (IDxuiTextRenderer & text, std::wstring & label, float centerX, const std::wstring & other, float otherX) const;
@@ -222,4 +228,5 @@ private:
 
     std::vector<DxuiStripMark>  m_marks;   // the source's marks, read each paint
     std::vector<MarkBadge>      m_badges;  // where the last paint placed them
+    DxuiStripFlyout             m_flyout;
 };

@@ -136,6 +136,7 @@ bool HistoryMarks::Update (
     isChanged |= ScanJournal      (journal);
     isChanged |= DropOutside      (keyframes, journal);
     isChanged |= HasKeyframeMoved (keyframes);
+    isChanged |= HaveBranchesMoved (keyframes);
 
     if (!isChanged)
     {
@@ -173,6 +174,8 @@ bool HistoryMarks::Update (
         outMarks.push_back (mark);
     }
 
+    AddForks (outMarks);
+
     std::stable_sort (outMarks.begin(), outMarks.end(), [] (const HistoryMark & a, const HistoryMark & b) { return a.position < b.position; });
 
     return true;
@@ -198,6 +201,8 @@ void HistoryMarks::Clear()
     m_keyframeCount = 0;
     m_oldest        = 0;
     m_newest        = 0;
+
+    m_branches.clear();
 }
 
 
@@ -325,4 +330,84 @@ bool HistoryMarks::HasKeyframeMoved (const KeyframeStore & keyframes)
     m_newest        = newest;
 
     return isMoved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HaveBranchesMoved
+//
+//  Whether a branch has come or gone since the last call, which adds or
+//  removes a fork mark.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool HistoryMarks::HaveBranchesMoved (const KeyframeStore & keyframes)
+{
+    std::vector<KeyframeBranch>  branches;
+    bool                         isMoved = false;
+
+
+
+    keyframes.GetBranches (branches);
+
+    isMoved = branches.size() != m_branches.size();
+
+    for (size_t i = 0; i < branches.size() && !isMoved; i++)
+    {
+        isMoved = branches[i].id != m_branches[i].id || branches[i].parent != m_branches[i].parent;
+    }
+
+    m_branches.swap (branches);
+
+    return isMoved;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddForks
+//
+//  A fork mark at each position on the active path where branches left
+//  behind begin, with how many begin there. A branch forked from another
+//  branch is not on the active path, and makes none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryMarks::AddForks (std::vector<HistoryMark> & outMarks) const
+{
+    HistoryMark  mark;
+
+
+
+    for (const KeyframeBranch & branch : m_branches)
+    {
+        auto  same = std::find_if (outMarks.begin(), outMarks.end(), [&branch] (const HistoryMark & each) { return each.kind == HistoryMarkKind::Fork && each.position == branch.forkPosition; });
+
+
+
+        if (branch.parent != 0)
+        {
+            continue;
+        }
+
+        if (same != outMarks.end())
+        {
+            same->count++;
+            continue;
+        }
+
+        mark.kind     = HistoryMarkKind::Fork;
+        mark.position = branch.forkPosition;
+        mark.cycle    = branch.forkCycle;
+        mark.count    = 1;
+
+        outMarks.push_back (mark);
+    }
 }

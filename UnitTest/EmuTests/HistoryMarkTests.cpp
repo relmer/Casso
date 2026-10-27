@@ -65,7 +65,8 @@ public:
     InputJournal              journal;
     HistoryMarks              marks;
     std::vector<HistoryMark>  list;
-    uint64_t                  position = 0;
+    uint64_t                  position     = 0;
+    bool                      isConfigured = false;
 
 
 
@@ -85,7 +86,12 @@ public:
 
 
         settings.intervalCycles = s_kMarkInterval;
-        store.Configure (settings);
+
+        if (!isConfigured)
+        {
+            store.Configure (settings);
+            isConfigured = true;
+        }
 
         for (size_t i = first; i < first + count; i++)
         {
@@ -101,6 +107,24 @@ public:
         journal.Record (0, kind, 0, 0, std::string_view());
     }
 
+
+    //  A fork at position: the keyframes from there on and the records
+    //  made from there on go to a branch.
+    void Fork (uint64_t at)
+    {
+        size_t   index = journal.GetBeginIndex();
+        HRESULT  hr    = S_OK;
+
+
+
+        while (index < journal.GetEndIndex() && journal.GetRecord (index).position < at)
+        {
+            index++;
+        }
+
+        hr = store.Fork (at, at / s_kMarkStride * s_kMarkInterval, journal, index);
+        AssertSucceeded (hr, L"Fork");
+    }
 
     bool Update()
     {
@@ -245,6 +269,86 @@ public:
         Assert::AreEqual<uint64_t> (250, rig.list[0].position, L"the one at 250");
     }
 
+
+    TEST_METHOD (AForkMarksWhereABranchBeginsWithTheCountThere)
+    {
+        MarkRig  rig;
+
+
+
+        rig.Fill (10);
+        rig.Fork (500);
+        rig.Fill (5, 5);
+        rig.Fork (500);
+        rig.Fill (5, 5);
+        rig.Fork (700);
+        rig.Fill (3, 7);
+
+        Assert::IsTrue (rig.Update(), L"the marks");
+
+        Assert::AreEqual<size_t>   (2,    rig.list.size(), L"a mark at each fork position");
+        Assert::IsTrue             (HistoryMarkKind::Fork == rig.list[0].kind, L"a fork");
+        Assert::AreEqual<uint64_t> (500,  rig.list[0].position, L"at 500");
+        Assert::AreEqual<int>      (2,    rig.list[0].count, L"where two branches begin");
+        Assert::AreEqual<uint64_t> (5000, rig.list[0].cycle, L"at the cycle there");
+        Assert::AreEqual<uint64_t> (700,  rig.list[1].position, L"and one at 700");
+        Assert::AreEqual<int>      (1,    rig.list[1].count, L"where one begins");
+    }
+
+
+    TEST_METHOD (ABranchOfABranchMakesNoMark)
+    {
+        MarkRig  rig;
+
+
+
+        rig.Fill (10);
+        rig.Fork (700);
+        rig.Fill (3, 7);
+        rig.Fork (400);
+        rig.Fill (6, 4);
+
+        Assert::IsTrue (rig.Update(), L"the marks");
+
+        Assert::AreEqual<size_t>   (1,   rig.list.size(), L"only the fork on the active path");
+        Assert::AreEqual<uint64_t> (400, rig.list[0].position, L"at 400");
+    }
+
+
+    TEST_METHOD (AForkMarksRowsAreItsBranches)
+    {
+        MarkRig                        rig;
+        BlankFrameRenderer             renderer;
+        HistoryThumbnails              thumbnails (renderer);
+        std::vector<KeyframeBranch>    branches;
+        std::vector<DxuiStripForkRow>  rows;
+
+
+
+        rig.Fill (10);
+        rig.Fork (500);
+        rig.Fill (5, 5);
+
+        rig.store.GetBranches (branches);
+
+        thumbnails.SetBranches   (branches);
+        thumbnails.SetRowLabeler ([] (const KeyframeBranch & branch, std::wstring & outRanFor, std::wstring & outLeftAt)
+        {
+            outRanFor = std::to_wstring (branch.liveEndCycle - branch.forkCycle);
+            outLeftAt = std::to_wstring (branch.id);
+        });
+
+        thumbnails.GetForkRows (500, rows);
+
+        Assert::AreEqual<size_t>   (1, rows.size(), L"a row for the branch");
+        Assert::AreEqual<uint64_t> (branches[0].id, rows[0].id, L"keyed by the branch");
+        Assert::AreEqual           (std::wstring (L"4000"), rows[0].ranFor, L"labeled by the labeler");
+        Assert::IsNull             (rows[0].picture.get(), L"with no picture until one is drawn");
+
+        thumbnails.GetForkRows (600, rows);
+
+        Assert::IsTrue (rows.empty(), L"no rows at a position with no fork");
+    }
 
     TEST_METHOD (TheStripGetsEachMarksGlyphOffsetAndTip)
     {

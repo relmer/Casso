@@ -12,11 +12,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace DxuiImageStripMarkTests
 {
-    static constexpr float    kAspect     = 560.0f / 384.0f;
-    static constexpr float    kLabelRoom  = 20.0f;
-    static constexpr RECT     kStripRect  = { 0, 0, 600, 82 };
-    static constexpr wchar_t  kResetGlyph = L'\xE72C';
-    static constexpr wchar_t  kForkGlyph  = L'\xE8B1';
+    static constexpr float     kAspect     = 560.0f / 384.0f;
+    static constexpr float     kLabelRoom  = 20.0f;
+    static constexpr RECT      kStripRect  = { 0, 0, 600, 82 };
+    static constexpr wchar_t   kResetGlyph = L'\xE72C';
+    static constexpr wchar_t   kForkGlyph  = L'\xE8B1';
+    static constexpr uint64_t  kForkMark   = 4500;
 
 
 
@@ -40,6 +41,14 @@ namespace DxuiImageStripMarkTests
 
         void   GetMarks (std::vector<DxuiStripMark> & outMarks) override { outMarks = marks; }
 
+        void   GetForkRows (uint64_t markId, std::vector<DxuiStripForkRow> & outRows) override
+        {
+            outRows = (markId == forkMark) ? rows : std::vector<DxuiStripForkRow>();
+        }
+
+        void   OnForkRowHovered (uint64_t rowId) override { hovered = rowId; hovers++; }
+        void   OnForkRowClicked (uint64_t rowId) override { clicked = rowId; }
+
         static DxuiStripMark  MakeMark (float offset, wchar_t glyph, const wchar_t * tip, int count = 1)
         {
             DxuiStripMark  mark;
@@ -53,9 +62,14 @@ namespace DxuiImageStripMarkTests
             return mark;
         }
 
-        int                          cells = 0;
-        SIZE                         size  = {};
-        std::vector<DxuiStripMark>   marks;
+        int                             cells    = 0;
+        SIZE                            size     = {};
+        std::vector<DxuiStripMark>      marks;
+        std::vector<DxuiStripForkRow>   rows;
+        uint64_t                        forkMark = 0;
+        uint64_t                        hovered  = 0;
+        uint64_t                        clicked  = 0;
+        int                             hovers   = 0;
     };
 
 
@@ -208,6 +222,118 @@ namespace DxuiImageStripMarkTests
             Assert::IsNotNull (tip, L"the badge has a tip");
             Assert::AreEqual  (std::wstring (L"Reset at 10:15:03"), std::wstring (tip));
             Assert::IsTrue    (EqualRect (&anchor, &badge) != FALSE, L"anchored on the badge");
+        }
+
+
+        //  Two rows for the fork mark kForkMark.
+        static void AddForkRows (MarkingSource & source)
+        {
+            DxuiStripForkRow  row;
+
+
+
+            source.forkMark = kForkMark;
+
+            row.id     = 11;
+            row.ranFor = L"Ran 0:05 past the fork";
+            row.leftAt = L"Left at 10:15:03 PM";
+            source.rows.push_back (row);
+
+            row.id = 12;
+            source.rows.push_back (row);
+        }
+
+
+        TEST_METHOD (AFlyoutOpensAfterTheDelayWithARowPerBranch)
+        {
+            MarkingSource    source;
+            DxuiStripFlyout  flyout;
+
+
+
+            AddForkRows (source);
+
+            flyout.Track (&source, true, kForkMark, RECT {}, 0);
+            flyout.Sync  (DxuiStripFlyout::kOpenDelayMs - 1);
+
+            Assert::IsFalse (flyout.IsOpen(), L"not before the delay");
+
+            flyout.Sync (DxuiStripFlyout::kOpenDelayMs);
+
+            Assert::IsTrue           (flyout.IsOpen(), L"open once the pointer has rested");
+            Assert::AreEqual<size_t> (2, flyout.GetRows().size(), L"a row per branch");
+        }
+
+
+        TEST_METHOD (AHoverGoesToTheSourceAndAClickSwitchesAndCloses)
+        {
+            MarkingSource    source;
+            DxuiStripFlyout  flyout;
+            int              rowPx = (int) (DxuiStripFlyout::kPictureDip + 2.0f * DxuiStripFlyout::kPadDip);
+
+
+
+            AddForkRows (source);
+
+            flyout.Track (&source, true, kForkMark, RECT {}, 0);
+            flyout.Sync  (DxuiStripFlyout::kOpenDelayMs);
+
+            flyout.HoverAt (POINT { 10, rowPx + 1 });
+
+            Assert::AreEqual<uint64_t> (12, source.hovered, L"the second row is hovered");
+
+            flyout.ClickAt (POINT { 10, rowPx + 1 });
+
+            Assert::AreEqual<uint64_t> (12, source.clicked, L"a click goes to the source");
+            Assert::AreEqual<uint64_t> (0,  source.hovered, L"and the hover ends");
+            Assert::IsFalse            (flyout.IsOpen(), L"the flyout closes");
+        }
+
+
+        TEST_METHOD (MovingOffTheMarkClosesTheFlyout)
+        {
+            MarkingSource    source;
+            DxuiStripFlyout  flyout;
+
+
+
+            AddForkRows (source);
+
+            flyout.Track (&source, true, kForkMark, RECT {}, 0);
+            flyout.Sync  (DxuiStripFlyout::kOpenDelayMs);
+            flyout.Track (&source, false, 0, RECT {}, DxuiStripFlyout::kOpenDelayMs);
+
+            Assert::IsFalse (flyout.IsOpen(), L"closed");
+        }
+
+
+        TEST_METHOD (RowsAreHitByHeight)
+        {
+            Assert::AreEqual (0,  DxuiStripFlyout::HitTestRow (0,   76, 2), L"the first row's top");
+            Assert::AreEqual (1,  DxuiStripFlyout::HitTestRow (76,  76, 2), L"the second row's top");
+            Assert::AreEqual (-1, DxuiStripFlyout::HitTestRow (152, 76, 2), L"below the rows");
+            Assert::AreEqual (-1, DxuiStripFlyout::HitTestRow (-1,  76, 2), L"above them");
+        }
+
+
+        TEST_METHOD (AMarkWithRowsHasNoTip)
+        {
+            StripRig       rig;
+            RECT           anchor = {};
+            DxuiStripMark  mark   = MarkingSource::MakeMark (2.0f, kForkGlyph, L"Other branches");
+            RECT           badge  = {};
+
+
+
+            mark.hasRows     = true;
+            rig.source.marks = { mark };
+            rig.Paint();
+
+            Assert::AreEqual<size_t> (1, rig.strip.GetMarkBadges().size(), L"a badge for the mark");
+
+            badge = rig.strip.GetMarkBadges()[0].rect;
+
+            Assert::IsNull (rig.strip.GetTooltipAt ((badge.left + badge.right) / 2, (badge.top + badge.bottom) / 2, anchor), L"its flyout opens in place of a tip");
         }
 
 

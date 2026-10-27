@@ -81,7 +81,7 @@ public:
     bool           IsOpen     () const { return m_isOpen; }
     RECT           GetBounds  () const { return m_bar.GetBounds(); }
     DxuiTooltip &  GetTooltip ()       { return m_tooltip; }
-    bool           WantsTick  () const { return m_tooltip.WantsTick(); }
+    bool           WantsTick  () const { return m_tooltip.WantsTick() || m_strip.GetFlyout().WantsTick(); }
 
 private:
     void  Open          ();

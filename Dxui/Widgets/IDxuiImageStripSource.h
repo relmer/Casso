@@ -35,6 +35,27 @@ struct DxuiStripMark
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiStripForkRow
+//
+//  One row of the flyout a mark with rows opens: the source's key for it,
+//  its picture (null until drawn), and two lines of text.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct DxuiStripForkRow
+{
+    uint64_t                               id      = 0;
+    std::shared_ptr<const DxuiIconImage>   picture;
+    std::wstring                           ranFor;
+    std::wstring                           leftAt;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IDxuiImageStripSource
 //
 //  What a DxuiImageStrip shows. The strip says how many cells it has room
@@ -107,4 +128,10 @@ public:
 
     //  The marks along the strip, in offset order; none by default.
     virtual void          GetMarks                 (std::vector<DxuiStripMark> & outMarks) { outMarks.clear(); }
+
+    //  The rows of the mark with the key markId; the row under the pointer
+    //  in its flyout, or 0 once none is; and a click on a row.
+    virtual void          GetForkRows              (uint64_t markId, std::vector<DxuiStripForkRow> & outRows) { (void) markId; outRows.clear(); }
+    virtual void          OnForkRowHovered         (uint64_t rowId) { (void) rowId; }
+    virtual void          OnForkRowClicked         (uint64_t rowId) { (void) rowId; }
 };

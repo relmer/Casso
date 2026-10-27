@@ -104,10 +104,12 @@ struct HistoryThumbnailCell
 class HistoryThumbnails : public IDxuiImageStripSource
 {
 public:
-    using SeekFn  = std::function<void (const HistoryThumbnailCell & cell)>;
-    using ClockFn = std::function<double()>;
-    using LabelFn = std::function<void (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)>;
-    using ScrubFn = std::function<void (uint64_t cycle, bool isFinal)>;
+    using  SeekFn   = std::function<void (const HistoryThumbnailCell & cell)>;
+    using  ClockFn  = std::function<double()>;
+    using  LabelFn  = std::function<void (uint64_t cycle, uint64_t wallTime, std::wstring & outTop, std::wstring & outBottom)>;
+    using  ScrubFn  = std::function<void (uint64_t cycle, bool isFinal)>;
+    using  RowFn    = std::function<void (const KeyframeBranch & branch, std::wstring & outRanFor, std::wstring & outLeftAt)>;
+    using  BranchFn = std::function<void (uint32_t branchId)>;
 
     static constexpr int     kWorkShare               = 4;
     static constexpr size_t  kPreviewCount            = 16;
@@ -129,6 +131,12 @@ public:
     void               SetOnSeek    (SeekFn onSeek)  { m_onSeek = std::move (onSeek); }
     void               SetLabeler   (LabelFn labeler) { m_labeler = std::move (labeler); }
     void               SetOnScrub   (ScrubFn onScrub) { m_onScrub = std::move (onScrub); }
+
+    //  A fork mark's rows: their text, the row under the pointer (0 once
+    //  none is), and a click on one, which switches to that branch.
+    void               SetRowLabeler      (RowFn labeler)     { m_rowLabeler = std::move (labeler); }
+    void               SetOnBranchHover   (BranchFn onHover)  { m_onBranchHover = std::move (onHover); }
+    void               SetOnBranchSwitch  (BranchFn onSwitch) { m_onBranchSwitch = std::move (onSwitch); }
 
     //  UI thread.
     void               SetVisible   (bool visible)   { m_isVisible.store (visible, std::memory_order_release); }
@@ -156,6 +164,12 @@ public:
     std::wstring       GetTrailingTip           () override;
     void               OnTrailingLabelClicked   () override;
     void               GetMarks                 (std::vector<DxuiStripMark> & outMarks) override;
+    void               GetForkRows              (uint64_t markId, std::vector<DxuiStripForkRow> & outRows) override;
+    void               OnForkRowHovered         (uint64_t rowId) override { if (m_onBranchHover) { m_onBranchHover (static_cast<uint32_t> (rowId)); } }
+    void               OnForkRowClicked         (uint64_t rowId) override { if (m_onBranchSwitch) { m_onBranchSwitch (static_cast<uint32_t> (rowId)); } }
+
+    //  UI thread: the picture of a branch's live end, null until drawn.
+    Image              GetBranchPicture         (uint32_t branchId);
     bool               IsBehindLive    () const      { return m_isBehindLive.load (std::memory_order_acquire); }
 
     //  Machine thread.
@@ -170,8 +184,10 @@ public:
     //  already gives where it landed.
     void               NoteSeekLanded  (uint64_t cycle);
 
-    //  The marks on the active path, published with the cells.
+    //  The marks on the active path, and the branches left behind, published
+    //  with the cells.
     void               SetMarks        (std::vector<HistoryMark> marks);
+    void               SetBranches     (std::vector<KeyframeBranch> branches);
     HRESULT            Service      (KeyframeStore & keyframes);
     void               Clear        ();
 
@@ -241,14 +257,19 @@ private:
         SIZE                     thumbPx   = {};
         uint64_t                 layoutId  = 0;
         uint64_t                 cutCount  = 0;       // m_cutCount when it went; a picture of a dropped keyframe is discarded
+        uint32_t                 branchId  = 0;       // a branch's live end, not a point on the active path
         bool                     isPreview = false;   // asked for at full size, not only as a thumbnail
     };
 
     static void        RunJob        (void * context);
     void               Draw          (Job & job);
+    void               PutPoint      (const Job & job, const Image & full);
+    bool               HasBranch     (uint32_t id) const;
     void               LayOutCells   (const KeyframeStore & keyframes);
     bool               TryPickWanted (uint64_t & outPosition, bool & outIsPreview);
     bool               TryPickFull   (uint64_t & outPosition);
+    HRESULT            TrySubmitBranch (KeyframeStore & keyframes, bool & outIsSubmitted);
+    HRESULT            Submit        ();
     bool               HasPicture    (uint64_t position) const;
     bool               IsWanted      (uint64_t position) const;
     Image              ScaleBase     (uint64_t position);
@@ -283,6 +304,9 @@ private:
     LabelFn                           m_labeler;
     HistoryWallTimes                  m_wallTimes;           // the host's clock at any cycle, for the labels under the pointer
     ScrubFn                           m_onScrub;
+    RowFn                             m_rowLabeler;
+    BranchFn                          m_onBranchHover;
+    BranchFn                          m_onBranchSwitch;
     std::atomic<uint64_t>             m_landedCycle  = 0;     // the cycle the last seek that ran asked for
     std::atomic<uint64_t>             m_landings     = 0;     // how many seeks have run
 
@@ -294,13 +318,16 @@ private:
     double                            m_heldAtMs     = 0.0;
 
     //  Shared between the threads, under the lock.
-    mutable std::mutex                m_lock;
-    int                               m_count        = 0;
-    SIZE                              m_cellPx       = {};
-    uint64_t                          m_layoutId     = 0;     // changes with the cell size, which outdates the thumbnails
-    uint64_t                          m_cutCount     = 0;     // changes with each drop at the new end, which outdates the picture in flight
-    std::vector<HistoryThumbnailCell> m_cells;
-    std::vector<HistoryMark>          m_marks;
+    mutable std::mutex                   m_lock;
+    int                                  m_count          = 0;
+    SIZE                                 m_cellPx         = {};
+    uint64_t                             m_layoutId       = 0;   // changes with the cell size, which outdates the thumbnails
+    uint64_t                             m_cutCount       = 0;   // changes with each drop at the new end, which outdates the picture in flight
+    std::vector<HistoryThumbnailCell>    m_cells;
+    std::vector<HistoryMark>             m_marks;
+    std::vector<KeyframeBranch>          m_branches;
+    std::unordered_map<uint32_t, Image>  m_branchPictures;   // each branch's live end, drawn
+    std::set<uint32_t>                   m_wantedBranches;   // listed by a flyout and not drawn yet
     HistoryImageCache                 m_thumbs       { kMinThumbCount };
     HistoryImageCache                 m_bases        { kMinThumbCount };
     HistoryImageCache                 m_previews     { kPreviewCount };

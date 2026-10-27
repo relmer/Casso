@@ -27,6 +27,9 @@
 //
 //  ShellHistory
 //
+//  Both timelines' fork rows are labeled alike, a click on one switches to
+//  its branch, and the row under the pointer is drawn over the screen.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ShellHistory::ShellHistory (
@@ -39,6 +42,12 @@ ShellHistory::ShellHistory (
     m_cpuManager (cpuManager),
     m_settings   (settings)
 {
+    for (HistoryThumbnails * timeline : { &m_thumbnails, &m_barThumbnails })
+    {
+        timeline->SetRowLabeler     (&LabelBranch);
+        timeline->SetOnBranchSwitch ([this] (uint32_t id) { SwitchBranch (id); });
+        timeline->SetOnBranchHover  ([this] (uint32_t id) { m_hoveredBranch.store (id, memory_order_release); });
+    }
 }
 
 
@@ -636,6 +645,83 @@ void ShellHistory::StartRewind()
         m_cpuManager.SetPaused (false);
         m_host.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SwitchBranch
+//
+//  UI thread, a click on a fork mark's row: the machine pauses, and lands
+//  at the branch's live end, paused there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::SwitchBranch (uint32_t branchId)
+{
+    m_hoveredBranch.store (0, memory_order_release);
+
+    PauseMachine();
+    PostCommand (ReverseCommand::SwitchBranch, branchId);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetHoveredBranchPicture
+//
+//  UI thread: the live end of the branch whose row is under the pointer,
+//  from whichever timeline drew it, or null with none.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HistoryThumbnails::Image ShellHistory::GetHoveredBranchPicture()
+{
+    uint32_t                  id      = m_hoveredBranch.load (memory_order_acquire);
+    HistoryThumbnails::Image  picture;
+
+
+
+    if (id == 0)
+    {
+        return nullptr;
+    }
+
+    picture = m_barThumbnails.GetBranchPicture (id);
+
+    return (picture != nullptr) ? picture : m_thumbnails.GetBranchPicture (id);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LabelBranch
+//
+//  A fork row's lines: how long the branch ran past the fork, and when the
+//  user left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::LabelBranch (
+    const KeyframeBranch  & branch,
+    std::wstring          & outRanFor,
+    std::wstring          & outLeftAt)
+{
+    uint64_t  ran = (branch.liveEndCycle > branch.forkCycle) ? branch.liveEndCycle - branch.forkCycle : 0;
+
+
+
+    outRanFor = L"Ran " + DebuggerStatusText::FormatTime (ran) + L" past the fork";
+    outLeftAt = L"Left at " + DebuggerStatusText::FormatWallClock (branch.leftAtWallTime, LOCALE_NAME_USER_DEFAULT);
 }
 
 
@@ -1655,7 +1741,8 @@ bool ShellHistory::TryPublishPlayhead()
 //
 //  CPU thread, after TryPublishPlayhead: the marks on the active path, read
 //  from the journal records made since the last turn, go to both timelines
-//  when any has come or gone or a keyframe has moved them. History ends at
+//  when any has come or gone or a keyframe has moved them, with the branches
+//  left behind for the fork marks' rows. History ends at
 //  the live end behind live and at the machine's position live.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1668,6 +1755,7 @@ void ShellHistory::PublishMarks()
     uint64_t                    endPosition = isBehind ? controller.GetLiveEndPosition() : m_machine.GetPosition();
     uint64_t                    endCycle    = isBehind ? controller.GetLiveEndCycle()    : cpu->GetHistoryCycles();
     std::vector<HistoryMark>    marks;
+    std::vector<KeyframeBranch> branches;
 
 
 
@@ -1676,8 +1764,12 @@ void ShellHistory::PublishMarks()
         return;
     }
 
-    m_thumbnails.SetMarks    (marks);
-    m_barThumbnails.SetMarks (std::move (marks));
+    controller.GetKeyframes().GetBranches (branches);
+
+    m_thumbnails.SetMarks       (marks);
+    m_barThumbnails.SetMarks    (std::move (marks));
+    m_thumbnails.SetBranches    (branches);
+    m_barThumbnails.SetBranches (std::move (branches));
 }
 
 

@@ -41,6 +41,8 @@ void DxuiImageStrip::SetPopupHost (DxuiHwndSource * host)
     }
 
     m_popupHost = host;
+
+    m_flyout.SetPopupHost (host);
 }
 
 
@@ -460,6 +462,12 @@ const wchar_t * DxuiImageStrip::GetTooltipAt (
 
 
 
+    //  A mark with rows opens its flyout in place of a tip.
+    if (TryGetBadgeAt (x, y, badge) && m_badges[badge].hasRows)
+    {
+        return nullptr;
+    }
+
     if (TryGetBadgeAt (x, y, badge))
     {
         m_tip  = m_badges[badge].tip;
@@ -663,6 +671,8 @@ bool DxuiImageStrip::OnMouseMove (
     m_pointer   = POINT { x, y };
     m_hoverPart = HitTestPart (x, y);
 
+    TrackFlyout (x, y);
+
     if (index != m_hovered)
     {
         SetHovered (index);
@@ -774,6 +784,8 @@ void DxuiImageStrip::OnMouseLeave()
 
     SetHovered (-1);
     HidePreview();
+
+    m_flyout.Track (m_source, false, 0, RECT {}, (int64_t) GetTickCount64());
 }
 
 
@@ -803,6 +815,8 @@ void DxuiImageStrip::Sync()
     bool                          isSame = false;
 
 
+
+    m_flyout.Sync ((int64_t) GetTickCount64());
 
     if (m_hovered < 0 || m_source == nullptr)
     {
@@ -1169,6 +1183,41 @@ void DxuiImageStrip::PaintMarks (
 
         m_badges.push_back (placed);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::TrackFlyout
+//
+//  The pointer over a mark with rows, or not, for the flyout, with the
+//  mark's badge on screen as where it opens.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::TrackFlyout (
+    int  x,
+    int  y)
+{
+    size_t  badge    = 0;
+    bool    isOver   = TryGetBadgeAt (x, y, badge) && m_badges[badge].hasRows;
+    RECT    anchor   = isOver ? m_badges[badge].rect : RECT {};
+    POINT   topLeft  = { anchor.left,  anchor.top };
+    POINT   botRight = { anchor.right, anchor.bottom };
+    HWND    owner    = (m_popupHost != nullptr) ? m_popupHost->GetHwnd() : nullptr;
+
+
+
+    if (isOver && owner != nullptr)
+    {
+        ClientToScreen (owner, &topLeft);
+        ClientToScreen (owner, &botRight);
+    }
+
+    m_flyout.Track (m_source, isOver, isOver ? m_badges[badge].id : 0, RECT { topLeft.x, topLeft.y, botRight.x, botRight.y }, (int64_t) GetTickCount64());
 }
 
 

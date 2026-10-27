@@ -2,8 +2,9 @@
 
 #include "Pch.h"
 
+#include "Debugger/Reverse/KeyframeStore.h"
+
 class InputJournal;
-class KeyframeStore;
 enum class InputKind : uint8_t;
 
 
@@ -61,8 +62,8 @@ struct HistoryMark
 //  The marks on the active path of history, built from the input journal's
 //  records and the keyframes: a reset, a power cycle, a disk mounted,
 //  ejected or swapped, a write-protect change and a state file loaded, each
-//  at its position; and a gap where recording paused, at the keyframe that
-//  follows it.
+//  at its position; a gap where recording paused, at the keyframe that
+//  follows it; and a fork where branches left behind begin.
 //
 //  Update reads only the records added since the last call, so a journal
 //  of many thousands of keystrokes and paddle moves is read once. A cut at
@@ -96,15 +97,18 @@ private:
         size_t           index    = 0;
     };
 
-    bool  ScanJournal      (const InputJournal & journal);
-    bool  DropOutside      (const KeyframeStore & keyframes, const InputJournal & journal);
-    bool  HasKeyframeMoved (const KeyframeStore & keyframes);
+    bool  ScanJournal       (const InputJournal & journal);
+    bool  DropOutside       (const KeyframeStore & keyframes, const InputJournal & journal);
+    bool  HasKeyframeMoved  (const KeyframeStore & keyframes);
+    bool  HaveBranchesMoved (const KeyframeStore & keyframes);
+    void  AddForks          (std::vector<HistoryMark> & outMarks) const;
 
-    std::deque<RecordMark>  m_records;
-    size_t                  m_scanned       = 0;
-    uint64_t                m_cutCount      = 0;
-    bool                    m_hasScanned    = false;
-    size_t                  m_keyframeCount = 0;
-    uint64_t                m_oldest        = 0;
-    uint64_t                m_newest        = 0;
+    std::deque<RecordMark>       m_records;
+    size_t                       m_scanned       = 0;
+    uint64_t                     m_cutCount      = 0;
+    bool                         m_hasScanned    = false;
+    size_t                       m_keyframeCount = 0;
+    uint64_t                     m_oldest        = 0;
+    uint64_t                     m_newest        = 0;
+    std::vector<KeyframeBranch>  m_branches;                 // as of the last call
 };

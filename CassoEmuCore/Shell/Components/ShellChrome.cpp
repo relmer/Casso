@@ -565,6 +565,31 @@ void ShellChrome::SyncReplayIndicator()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShellChrome::SyncBranchPreview
+//
+//  Once a frame: the hovered fork row's picture over the screen, drawn
+//  again on request when it changes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::SyncBranchPreview()
+{
+    BranchPreview::Picture  picture = m_areOverlaysHidden ? nullptr : m_shell.m_history->GetHoveredBranchPicture();
+
+
+
+    if (m_branchPreview.SetPicture (std::move (picture)))
+    {
+        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MirroredSlideStart
 //
 //  A slide start time that PRESERVES the current position when the direction
@@ -1034,7 +1059,8 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
         m_rewindBar.SetScreenTest (nullptr);
     }
 
-    m_rewindBar.Layout (viewportRect, m_shell.m_scaler);
+    m_rewindBar.Layout     (viewportRect,   m_shell.m_scaler);
+    m_branchPreview.Layout (m_screenRectPx, m_shell.m_scaler);
 
 Error:
     return;
@@ -2025,6 +2051,7 @@ void ShellChrome::SetStandInOverlaysHidden (bool hidden)
 
         m_rewindBar.SetHidden (true);
         m_replayIndicator.Hide();
+        (void) m_branchPreview.SetPicture (nullptr);
 
         m_areOverlaysHidden = true;
     }
@@ -2034,6 +2061,7 @@ void ShellChrome::SetStandInOverlaysHidden (bool hidden)
 
         m_rewindBar.SetHidden (false);
         SyncReplayIndicator();
+        SyncBranchPreview();
 
         //  Restored by the layout pass that owns each one, rather than by
         //  remembering four booleans here -- the pose readout and the frame
@@ -2518,6 +2546,8 @@ void ShellChrome::AdoptBanners (DxuiPanel & root)
     //  them.
     //  The rewind bar and the replay indicator over the picture, under the
     //  banners and the notices.
+    root.Adopt (m_branchPreview);
+
     m_rewindBar.Adopt       (root);
     m_replayIndicator.Adopt (root);
 

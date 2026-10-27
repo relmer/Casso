@@ -6,6 +6,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/ChromeBand.h"
 #include "Ui/Chrome/MainMenu.h"
+#include "Ui/Chrome/BranchPreview.h"
 #include "Ui/Chrome/ReplayIndicator.h"
 #include "Ui/Chrome/RewindBar.h"
 #include "Ui/Chrome/VolumeFlyout.h"
@@ -214,6 +215,7 @@ public:
     void    SyncStandInBanner    ();
     void    SyncFrameRateReadout ();
     void    SyncReplayIndicator  ();
+    void    SyncBranchPreview    ();
 
     void    TickFullscreenTopChrome();
 
@@ -358,6 +360,10 @@ private:
     // "Replaying" over the top of the screen while the machine runs behind
     // live, and whether a capture paint has the overlays hidden.
     ReplayIndicator                m_replayIndicator;
+
+    // The last frame of the branch whose fork row is under the pointer,
+    // over the screen.
+    BranchPreview                  m_branchPreview;
     bool                           m_areOverlaysHidden = false;
 
     // The emulated screen as drawn, from the last layout: on the desk scene,

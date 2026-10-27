@@ -210,6 +210,7 @@
     <ClCompile Include="Widgets\DxuiTextView.cpp" />
     <ClCompile Include="Widgets\DxuiToolbarEditBox.cpp" />
     <ClCompile Include="Widgets\DxuiImageStrip.cpp" />
+    <ClCompile Include="Widgets\DxuiStripFlyout.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
@@ -335,6 +336,7 @@
     <ClInclude Include="Widgets\DxuiTextView.h" />
     <ClInclude Include="Widgets\DxuiToolbarEditBox.h" />
     <ClInclude Include="Widgets\DxuiImageStrip.h" />
+    <ClInclude Include="Widgets\DxuiStripFlyout.h" />
     <ClInclude Include="Widgets\IDxuiImageStripSource.h" />
     <ClInclude Include="Widgets\DxuiShimmer.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />

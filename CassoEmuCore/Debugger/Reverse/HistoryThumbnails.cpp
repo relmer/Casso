@@ -398,16 +398,17 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 
 
 
-    HRESULT       hr        = S_OK;
-    uint64_t      position  = 0;
-    size_t        index     = 0;
-    KeyframeCopy  copy      = KeyframeCopy::Gone;
-    bool          isPicked  = false;
-    bool          isIdle    = false;
-    bool          isPreview = false;
-    bool          isDue     = false;
-    bool          isHeld    = false;
-    int           attempt   = 0;
+    HRESULT       hr          = S_OK;
+    uint64_t      position    = 0;
+    size_t        index       = 0;
+    KeyframeCopy  copy        = KeyframeCopy::Gone;
+    bool          isPicked    = false;
+    bool          isIdle      = false;
+    bool          isPreview   = false;
+    bool          isDue       = false;
+    bool          isHeld      = false;
+    bool          isSubmitted = false;
+    int           attempt     = 0;
 
 
 
@@ -415,6 +416,11 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
 
     isIdle = IsVisible() && !m_isInFlight.load (std::memory_order_acquire);
     BAIL_OUT_IF (!isIdle, S_OK);
+
+    //  A flyout's pictures of branches go first: the pointer rests on them.
+    hr = TrySubmitBranch (keyframes, isSubmitted);
+    CHR (hr);
+    BAIL_OUT_IF (isSubmitted, S_OK);
 
     m_pendingPick.reset();
 
@@ -460,6 +466,36 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
     m_job.point.cycle    = keyframes.GetInfo (index).cycle;
     m_job.point.wallTime = keyframes.GetInfo (index).wallTime;
 
+    m_job.position  = position;
+    m_job.isPreview = isPreview;
+    m_job.branchId  = 0;
+
+    hr = Submit();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::Submit
+//
+//  The job copied out goes to the worker, on the thumbnails' pool thread
+//  unless a test set a queue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HistoryThumbnails::Submit()
+{
+    HRESULT  hr = S_OK;
+
+
+
     if (m_queue == nullptr)
     {
         hr = m_ownQueue.Create (1, L"Casso history thumbnails");
@@ -475,9 +511,6 @@ HRESULT HistoryThumbnails::Service (KeyframeStore & keyframes)
         m_job.layoutId = m_layoutId;
         m_job.cutCount = m_cutCount;
     }
-
-    m_job.position  = position;
-    m_job.isPreview = isPreview;
 
     m_isInFlight.store (true, std::memory_order_release);
     m_lastSubmitMs = GetNowMs();
@@ -561,6 +594,9 @@ void HistoryThumbnails::Clear()
 
         m_cells.clear();
         m_marks.clear();
+        m_branches.clear();
+        m_branchPictures.clear();
+        m_wantedBranches.clear();
         m_shown.clear();
         m_thumbs.Clear();
         m_bases.Clear();
@@ -950,8 +986,6 @@ void HistoryThumbnails::Draw (Job & job)
 {
     HRESULT                         hr    = S_OK;
     std::shared_ptr<DxuiIconImage>  full  = std::make_shared<DxuiIconImage>();
-    std::shared_ptr<DxuiIconImage>  thumb = std::make_shared<DxuiIconImage>();
-    Image                           base;
     double                          start = GetNowMs();
 
 
@@ -970,38 +1004,16 @@ void HistoryThumbnails::Draw (Job & job)
         full->bgraPremul.clear();
     }
 
-    base = MakeBase (full);
-
-    ImageShrink::Shrink (*base, (base->width > 0) ? job.thumbPx.cx : 0, (base->height > 0) ? job.thumbPx.cy : 0, *thumb);
-
+    if (job.branchId != 0)
     {
         std::lock_guard<std::mutex>  held (m_lock);
 
-        if (job.cutCount == m_cutCount)
-        {
-            if (job.layoutId == m_layoutId)
-            {
-                m_thumbs.Put (job.position, thumb);
-            }
-
-            m_bases.Put (job.position, base);
-            m_points[job.position] = job.point;
-            PrunePoints();
-
-            if (job.isPreview)
-            {
-                m_previews.Put (job.position, full);
-            }
-            else
-            {
-                m_previews.PutSpare (job.position, full);
-            }
-
-            if (m_wantedPreview == job.position)
-            {
-                m_wantedPreview.reset();
-            }
-        }
+        m_branchPictures[job.branchId] = full;
+        m_wantedBranches.erase (job.branchId);
+    }
+    else
+    {
+        PutPoint (job, full);
     }
 
     m_lastRenderMs.store (GetNowMs() - start, std::memory_order_relaxed);
@@ -1009,6 +1021,64 @@ void HistoryThumbnails::Draw (Job & job)
     m_isInFlight.store (false, std::memory_order_release);
 
     Bump();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::PutPoint
+//
+//  A point's picture into the caches: its base copy, its thumbnail at the
+//  cell size it was drawn for, and the full picture, unless history was cut
+//  at the new end while it was drawn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::PutPoint (
+    const Job    & job,
+    const Image  & full)
+{
+    std::shared_ptr<DxuiIconImage>  thumb = std::make_shared<DxuiIconImage>();
+    Image                           base  = MakeBase (full);
+
+
+
+    ImageShrink::Shrink (*base, (base->width > 0) ? job.thumbPx.cx : 0, (base->height > 0) ? job.thumbPx.cy : 0, *thumb);
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        if (job.cutCount != m_cutCount)
+        {
+            return;
+        }
+
+        if (job.layoutId == m_layoutId)
+        {
+            m_thumbs.Put (job.position, thumb);
+        }
+
+        m_bases.Put (job.position, base);
+        m_points[job.position] = job.point;
+        PrunePoints();
+
+        if (job.isPreview)
+        {
+            m_previews.Put (job.position, full);
+        }
+        else
+        {
+            m_previews.PutSpare (job.position, full);
+        }
+
+        if (m_wantedPreview == job.position)
+        {
+            m_wantedPreview.reset();
+        }
+    }
 }
 
 
@@ -1766,147 +1836,6 @@ PCWSTR HistoryThumbnails::GetModeText (bool isBehindLive)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HistoryThumbnails::SetMarks
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::SetMarks (std::vector<HistoryMark> marks)
-{
-    {
-        std::lock_guard<std::mutex>  held (m_lock);
-
-        m_marks = std::move (marks);
-    }
-
-    Bump();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetMarks
-//
-//  Each mark at its cycle's offset along the cells, with its glyph and a tip
-//  of its text and the labeler's top line there, the host's clock when the
-//  machine has one. A mark outside the cells is left out.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HistoryThumbnails::GetMarks (std::vector<DxuiStripMark> & outMarks)
-{
-    std::vector<HistoryMark>  marks;
-    DxuiStripMark             strip;
-    std::wstring              top;
-    std::wstring              bottom;
-    uint64_t                  endCycle = m_endCycle.load (std::memory_order_acquire);
-
-
-
-    outMarks.clear();
-
-    {
-        std::lock_guard<std::mutex>  held (m_lock);
-
-        for (const HistoryMark & mark : m_marks)
-        {
-            strip.offset = GetPlayheadOffset (m_cells, mark.cycle, endCycle);
-
-            if (strip.offset < 0.0f)
-            {
-                continue;
-            }
-
-            strip.glyph   = GetMarkGlyph (mark.kind);
-            strip.count   = mark.count;
-            strip.id      = mark.position;
-            strip.hasRows = mark.kind == HistoryMarkKind::Fork;
-            strip.tip     = GetMarkText (mark.kind);
-
-            outMarks.push_back (strip);
-            marks.push_back    (mark);
-        }
-    }
-
-    for (size_t i = 0; i < marks.size() && m_labeler; i++)
-    {
-        m_labeler (marks[i].cycle, m_wallTimes.GetWallTimeAt (marks[i].cycle), top, bottom);
-
-        if (!top.empty())
-        {
-            outMarks[i].tip += L" at " + top;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetMarkGlyph
-//
-////////////////////////////////////////////////////////////////////////////////
-
-wchar_t HistoryThumbnails::GetMarkGlyph (HistoryMarkKind kind)
-{
-    PCWSTR  glyph = s_kpszMdl2Refresh;
-
-
-
-    switch (kind)
-    {
-        case HistoryMarkKind::Gap:           glyph = s_kpszMdl2Remove;   break;
-        case HistoryMarkKind::Reset:         glyph = s_kpszMdl2Refresh;  break;
-        case HistoryMarkKind::PowerCycle:    glyph = s_kpszMdl2Power;    break;
-        case HistoryMarkKind::DiskChange:    glyph = s_kpszMdl2Save;     break;
-        case HistoryMarkKind::WriteProtect:  glyph = s_kpszMdl2Lock;     break;
-        case HistoryMarkKind::StateLoad:     glyph = s_kpszMdl2OpenFile; break;
-        case HistoryMarkKind::Fork:          glyph = s_kpszMdl2Shuffle;  break;
-    }
-
-    return glyph[0];
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HistoryThumbnails::GetMarkText
-//
-////////////////////////////////////////////////////////////////////////////////
-
-PCWSTR HistoryThumbnails::GetMarkText (HistoryMarkKind kind)
-{
-    PCWSTR  text = L"Reset";
-
-
-
-    switch (kind)
-    {
-        case HistoryMarkKind::Gap:           text = L"Recording paused";         break;
-        case HistoryMarkKind::Reset:         text = L"Reset";                    break;
-        case HistoryMarkKind::PowerCycle:    text = L"Power cycle";              break;
-        case HistoryMarkKind::DiskChange:    text = L"Disk changed";             break;
-        case HistoryMarkKind::WriteProtect:  text = L"Write protection changed"; break;
-        case HistoryMarkKind::StateLoad:     text = L"State loaded";             break;
-        case HistoryMarkKind::Fork:          text = L"Other branches";           break;
-    }
-
-    return text;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  HistoryThumbnails::SetHoveredCell
 //
 //  The cells around the one under the pointer are drawn at full size next,
@@ -2084,8 +2013,3 @@ bool HistoryThumbnails::TryGetPointAt (
 
     return true;
 }
-
-
-
-
-

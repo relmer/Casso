@@ -245,6 +245,7 @@ public:
     HRESULT   Restore           (size_t index, std::vector<Byte> & outState);
     HRESULT   RestoreAtPosition (uint64_t position, std::vector<Byte> & outState, bool & outIsFound);
     HRESULT   CopyPacked        (uint64_t position, const KeyframeUnpacker & unpacker, PackedKeyframe & outPacked, KeyframeCopy & outCopy);
+    HRESULT   CopyBranchEnd     (uint32_t branchId, const KeyframeUnpacker & unpacker, PackedKeyframe & outPacked, KeyframeCopy & outCopy);
     bool      TryFindAtOrBefore (uint64_t cycle, size_t & outIndex) const;
     bool      TryFindByPosition (uint64_t position, size_t & outIndex) const;
     bool      DoesStateMatch    (size_t index, const std::vector<Byte> & state);
