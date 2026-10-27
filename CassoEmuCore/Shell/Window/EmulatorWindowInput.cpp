@@ -303,6 +303,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     POINT              pointer      = { x, y };
     bool               leftDown     = (wParam & MK_LBUTTON) != 0;
     bool               shellHandled = false;
+    bool               wasBarOpen   = false;
     DriveWidget *      wpDrive      = nullptr;
     DriveWidget *      infoDrive    = nullptr;
     std::wstring       tip;
@@ -338,6 +339,22 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     }
 
     BAIL_OUT_IF (m_input->IsPaddleCaptured(), S_OK);
+
+    // The rewind bar opens over the bottom of the screen. A move over it goes
+    // to the bar and not to the guest mouse; a move off it closes it, and a
+    // static screen is redrawn only on request.
+    wasBarOpen = m_chrome->GetRewindBar().IsOpen();
+
+    if (m_chrome->GetRewindBar().OfferMouse (DxuiMouseEventKind::Move, x, y, false, nowMs))
+    {
+        m_renderer->GetD3D().MarkRedrawNeeded();
+        return DxuiMessageResult::Handled;
+    }
+
+    if (wasBarOpen)
+    {
+        m_renderer->GetD3D().MarkRedrawNeeded();
+    }
 
     // //c Mouse mode (non-capturing): a move over the emulator viewport
     // drives the guest mouse via absolute mapping. Deliberately falls
@@ -464,6 +481,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
     m_renderer->GetD3D().MarkRedrawNeeded();
 
     m_chrome->OnMouseLeave (nowMs);
+    (void) m_chrome->GetRewindBar().OfferMouse (DxuiMouseEventKind::Leave, 0, 0, false, nowMs);
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).
@@ -674,6 +692,14 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
+    //  A press on the rewind bar, and the drag and release that follow, go to
+    //  the bar and never to the guest mouse.
+    if (m_chrome->GetRewindBar().OfferMouse (DxuiMouseEventKind::Down, x, y, false, GetTickCount64()))
+    {
+        m_renderer->GetD3D().MarkRedrawNeeded();
+        return DxuiMessageResult::Handled;
+    }
+
     // The command toolbar and the //c switch bar.
     chromeTook = m_chrome->OnLButtonDown (x, y);
 
@@ -792,6 +818,12 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_disks->OfferMouseToChangeBanner (DxuiMouseEventKind::Up, x, y) ||
         m_serialCard->OfferMouseToBanner  (DxuiMouseEventKind::Up, x, y))
     {
+        return DxuiMessageResult::Handled;
+    }
+
+    if (!m_input->IsPaddleCaptured() && m_chrome->GetRewindBar().OfferMouse (DxuiMouseEventKind::Up, x, y, false, GetTickCount64()))
+    {
+        m_renderer->GetD3D().MarkRedrawNeeded();
         return DxuiMessageResult::Handled;
     }
 

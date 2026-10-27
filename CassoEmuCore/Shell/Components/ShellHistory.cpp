@@ -502,6 +502,38 @@ void ShellHistory::StartRewind()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PauseMachine
+//
+//  The wait is bounded: the CPU thread may first be busy with a long
+//  command, and the UI waits a moment for it rather than hanging.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::PauseMachine()
+{
+    constexpr std::chrono::milliseconds  kParkWait { 100 };
+    bool                                 isParked  = false;
+
+
+
+    if (m_cpuManager.IsPaused())
+    {
+        return;
+    }
+
+    m_cpuManager.SetPaused (true);
+
+    isParked = m_cpuManager.TryWaitUntilParked (kParkWait);
+    IGNORE_RETURN_VALUE (isParked, false);
+
+    m_host.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "1");
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  StopRewind
 //
 //  UI thread, on the rewind key's release. The CPU thread's next frame

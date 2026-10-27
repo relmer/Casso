@@ -124,6 +124,11 @@ public:
     void  StopRewind     ();
     bool  RunRewindFrame ();
 
+    // UI thread: pauses a running machine and waits a moment for the CPU
+    // thread to stop it, as the Pause command does, for a move through
+    // history made from the timeline.
+    void  PauseMachine   ();
+
     // The caption's replay note: updated on the CPU thread, read on any.
     void          UpdateReplayCaption ();
     std::wstring  GetReplayCaption    ();

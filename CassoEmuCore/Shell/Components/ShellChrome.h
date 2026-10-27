@@ -6,6 +6,7 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/ChromeBand.h"
 #include "Ui/Chrome/MainMenu.h"
+#include "Ui/Chrome/RewindBar.h"
 #include "Ui/Chrome/VolumeFlyout.h"
 
 
@@ -47,6 +48,10 @@ public:
     // focus ring and command wiring.
     MainMenu     &  GetMainMenu () { return m_mainMenu; }
     DxuiToolbar  &  GetToolbar  () { return m_toolbar; }
+
+    // The rewind bar over the bottom of the emulated screen, for the shell's
+    // pointer routing and per-frame upkeep.
+    RewindBar    &  GetRewindBar () { return m_rewindBar; }
 
     // Registers the chrome bands and the center with the dock layout, once.
     void  RegisterDock ();
@@ -343,6 +348,10 @@ private:
     // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. The stack hangs under whatever
     // docked chrome is at the top and covers a little of the picture instead.
     DxuiNoticeStack                m_notices;
+
+    // History's timeline over the bottom of the emulated screen, open while
+    // the pointer is on it.
+    RewindBar                      m_rewindBar;
 
     // The frames-per-second readout. Shadowed rather than a notice: it
     // wants a corner, not the centered band a notification takes.

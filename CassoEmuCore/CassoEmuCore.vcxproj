@@ -632,6 +632,7 @@
     <ClCompile Include="Print\PrinterWorker.cpp" />
     <ClCompile Include="Print\PrintJobStore.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
+    <ClCompile Include="Ui\Chrome\RewindBar.cpp" />
     <ClCompile Include="Ui\Chrome\UpdateIndicatorButton.cpp" />
     <ClCompile Include="Ui\Chrome\UpdateIndicatorModel.cpp" />
     <ClCompile Include="Ui\CreateDiskBodyPanel.cpp" />
@@ -1386,6 +1387,7 @@
     <ClInclude Include="Ui\Dialogs\DownloadDialog.h" />
     <ClInclude Include="Ui\Dialogs\StartupDownloadDialog.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
+    <ClInclude Include="Ui\Chrome\RewindBar.h" />
     <ClInclude Include="Ui\Chrome\UpdateIndicatorButton.h" />
     <ClInclude Include="Ui\Chrome\UpdateIndicatorModel.h" />
     <ClInclude Include="Ui\CreateDiskBodyPanel.h" />

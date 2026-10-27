@@ -976,6 +976,7 @@ void ShellChrome::UpdateViewportLayout (int widthPx, int heightPx)
     }
 
     m_shell.m_viewport->Layout (viewportRect, m_shell.m_scaler);
+    m_rewindBar.Layout         (viewportRect, m_shell.m_scaler);
 
 Error:
     return;
@@ -1963,9 +1964,13 @@ void ShellChrome::SetStandInOverlaysHidden (bool hidden)
         //  Including the notices. Two captures inside a notice's few seconds
         //  would otherwise photograph the first one's filename.
         m_notices.SetVisible (false);
+
+        m_rewindBar.SetHidden (true);
     }
     else
     {
+        m_rewindBar.SetHidden (false);
+
         //  Restored by the layout pass that owns each one, rather than by
         //  remembering four booleans here -- the pose readout and the frame
         //  rate are driven by prefs, the compass by whether a scene is up,
@@ -2312,6 +2317,7 @@ void ShellChrome::HideTooltipsNow()
     m_toolbarTooltip.HideImmediate();
     m_driveTooltip.HideImmediate();
     m_switchBarTooltip.HideImmediate();
+    m_rewindBar.GetTooltip().HideImmediate();
 }
 
 
@@ -2446,6 +2452,9 @@ void ShellChrome::AdoptBanners (DxuiPanel & root)
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.
+    //  The rewind bar over the picture, under the banners and the notices.
+    m_rewindBar.Adopt (root);
+
     m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
     root.Adopt (m_standInBarSurface);
     root.Adopt (m_standInBar);
@@ -2484,9 +2493,10 @@ void ShellChrome::AdoptBanners (DxuiPanel & root)
 
 void ShellChrome::AttachPopupHost (DxuiHwndSource & host)
 {
-    m_mainMenu.SetPopupHost (&host);
+    m_mainMenu.SetPopupHost  (&host);
+    m_rewindBar.SetPopupHost (&host);
 
-    for (DxuiTooltip * tooltip : { &m_toolbarTooltip, &m_switchBarTooltip, &m_driveTooltip, &m_captionTooltip })
+    for (DxuiTooltip * tooltip : { &m_toolbarTooltip, &m_switchBarTooltip, &m_driveTooltip, &m_captionTooltip, &m_rewindBar.GetTooltip() })
     {
         tooltip->SetPopupHost (&host);
         tooltip->SetTheme     (m_chromeTheme);
@@ -2516,6 +2526,8 @@ void ShellChrome::SetTextRendererForMeasure (IDxuiTextRenderer * text)
     m_mainMenu.SetTextRendererForMeasure (text);
     m_switchBar.SetTextRenderer (text);
     m_toolbar.SetTextRenderer (text);
+
+    m_rewindBar.Configure (*m_shell.m_history, text);
 }
 
 
@@ -2695,6 +2707,8 @@ void ShellChrome::TickTooltips (int64_t nowMs)
     m_switchBarTooltip.Tick (nowMs);
     m_driveTooltip.Tick     (nowMs);
     m_captionTooltip.Tick   (nowMs);
+
+    m_rewindBar.GetTooltip().Tick (nowMs);
 }
 
 
@@ -2712,6 +2726,7 @@ bool ShellChrome::WantsAnimationTick() const
     return m_switchBarTooltip.WantsTick() ||
            m_driveTooltip.WantsTick()     ||
            m_captionTooltip.WantsTick()   ||
+           m_rewindBar.WantsTick()        ||
            m_mainMenu.WantsTick()         ||
            m_toolbar.WantsTick();
 }
