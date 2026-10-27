@@ -830,7 +830,7 @@ public:
         vector<Byte>     captured;
         bool             flushed    = false;
         const size_t     flippedBit = 200;
-        DiskImageStore   store2;
+        auto             store2     = std::make_unique<DiskImageStore>();
 
         store.SetFlushSink ([&] (const string &, const vector<Byte> & b)
         {
@@ -852,8 +852,8 @@ public:
         Assert::IsTrue (flushed, L"motor spin-down must persist dirty images via the store");
 
         // The write must have made it into the persisted bytes.
-        AssertSucceeded (store2.MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
-        Assert::AreEqual (Byte (0), store2.GetImage (6, 0)->ReadBit (0, flippedBit),
+        AssertSucceeded (store2->MountFromBytes (6, 0, "m.woz", DiskFormat::Woz, captured));
+        Assert::AreEqual (Byte (0), store2->GetImage (6, 0)->ReadBit (0, flippedBit),
             L"the write persisted at motor-off must survive reload");
     }
 

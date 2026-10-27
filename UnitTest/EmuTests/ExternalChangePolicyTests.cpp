@@ -6,6 +6,9 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
+static constexpr HRESULT  s_kDiskFull = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+
+
 
 
 
@@ -984,7 +987,7 @@ public:
 
     TEST_METHOD (ComposeSaveFailure_Unwritable_OffersSaveAsAndEjectAndDiscard)
     {
-        HRESULT       reason   = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+        HRESULT       reason   = s_kDiskFull;
         ChangePrompt  prompt   = ChangePrompt::ComposeSaveFailure ("C:\\work\\Loader.dsk", 1, "C:\\work\\Loader.dsk",
                                                                    reason, SaveFailureCause::Unwritable);
         std::wstring  expected = L"Your changes to Loader.dsk could not be saved to\n\nC:\\work\\Loader.dsk\n\nError: "
@@ -1002,7 +1005,7 @@ public:
 
     TEST_METHOD (ComposeSaveFailure_Unserializable_OffersAWozCopy)
     {
-        HRESULT       reason   = HRESULT_FROM_WIN32 (ERROR_DISK_FULL);
+        HRESULT       reason   = s_kDiskFull;
         ChangePrompt  prompt   = ChangePrompt::ComposeSaveFailure ("C:\\work\\Loader.dsk", 0,
                                                                    "C:\\work\\Loader.recovered.woz",
                                                                    reason, SaveFailureCause::Unserializable);

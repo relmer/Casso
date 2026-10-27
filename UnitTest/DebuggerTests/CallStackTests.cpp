@@ -117,12 +117,12 @@ namespace DebuggerTests
         static void AssertFreeRunRecordsTheSame (const char * start, const std::vector<std::string> & labels)
         {
             Rig      stepped;
-            Rig      running;
+            auto     running = std::make_unique<Rig>();
             Program  program = Load (stepped, start);
 
 
 
-            Load (running, start);
+            Load (*running, start);
 
             for (const std::string & label : labels)
             {
@@ -131,9 +131,9 @@ namespace DebuggerTests
 
 
                 RunTo     (stepped, address);
-                FreeRunTo (running, address);
+                FreeRunTo (*running, address);
 
-                Assert::IsTrue (stepped.RunOk ("CALLS").text == running.RunOk ("CALLS").text, L"the free run recorded the same chain");
+                Assert::IsTrue (stepped.RunOk ("CALLS").text == running->RunOk ("CALLS").text, L"the free run recorded the same chain");
             }
         }
 
