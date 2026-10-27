@@ -188,3 +188,118 @@ public:
                  });
     }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RewindCostTests
+//
+//  What the rewind key's frames cost: a //e booted from the DOS 3.3 master
+//  runs a program with history on, then steps back one frame's cycles at a
+//  time for kRewindSeconds, as each frame does while the key is down. The
+//  first step, the average and the worst are logged against the 16.7 ms a
+//  frame has at 60 frames a second. Logged rather than asserted, and
+//  measured in Release.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (RewindCostTests)
+{
+public:
+
+    static constexpr uint64_t  kRecordSeconds = 30;
+    static constexpr uint64_t  kRewindSeconds = 5;
+    static constexpr double    kUsPerMs       = 1000.0;
+    static constexpr double    kFrameBudgetMs = 1000.0 / 60.0;
+
+
+    static void Measure (const char * label, const std::vector<std::string> & lines)
+    {
+        TestMachine        machine    ("Apple2eEnhanced");
+        ReverseController  controller (machine);
+        ReverseResult      result;
+        LARGE_INTEGER      frequency  = {};
+        LARGE_INTEGER      start      = {};
+        LARGE_INTEGER      stop       = {};
+        HRESULT            hr         = S_OK;
+        double             stepMs     = 0;
+        double             firstMs    = 0;
+        double             worstMs    = 0;
+        double             totalMs    = 0;
+        uint64_t           frames     = kRewindSeconds * HistoryCostTests::kFramesPerSecond;
+        uint64_t           frame      = 0;
+        uint64_t           over       = 0;
+
+
+
+        HistoryCostTests::BootToPrompt (machine);
+
+        hr = controller.Start (ReverseSettings());
+        AssertSucceeded (hr, L"Start");
+
+        for (const std::string & line : lines)
+        {
+            KeystrokeInjector::InjectLine (machine, line);
+        }
+
+        HistoryCostTests::RunSeconds (machine, kRecordSeconds);
+
+        hr = controller.GetKeyframes().WaitForPending();
+        AssertSucceeded (hr, L"WaitForPending");
+
+        QueryPerformanceFrequency (&frequency);
+
+        for (frame = 0; frame < frames; frame++)
+        {
+            QueryPerformanceCounter (&start);
+
+            hr = controller.StepBackCycles (ReverseController::kFrameCycles, result);
+            AssertSucceeded (hr, L"StepBackCycles");
+
+            QueryPerformanceCounter (&stop);
+
+            stepMs   = static_cast<double> (stop.QuadPart - start.QuadPart) * kUsPerMs / static_cast<double> (frequency.QuadPart);
+            firstMs  = (frame == 0) ? stepMs : firstMs;
+            worstMs  = std::max (worstMs, stepMs);
+            totalMs += stepMs;
+            over    += (stepMs > kFrameBudgetMs) ? 1 : 0;
+        }
+
+        Logger::WriteMessage (std::format ("{}: rewinding {} frames, first step {:.2f} ms, average {:.2f} ms, worst {:.2f} ms, {} over {:.1f} ms; {} keyframes\n",
+                                           label,
+                                           frames,
+                                           firstMs,
+                                           totalMs / static_cast<double> (frames),
+                                           worstMs,
+                                           over,
+                                           kFrameBudgetMs,
+                                           controller.GetKeyframes().GetCount()).c_str());
+    }
+
+
+    TEST_METHOD (RewindingAnApplesoftLoResGameLoop)
+    {
+        Measure ("Applesoft lo-res game loop",
+                 {
+                     "10 GR : X = 5 : Y = 9 : DX = 1 : DY = 1",
+                     "20 COLOR= 0 : PLOT X,Y : X = X + DX : Y = Y + DY",
+                     "30 IF X < 1 OR X > 38 THEN DX = - DX",
+                     "40 IF Y < 1 OR Y > 38 THEN DY = - DY",
+                     "50 COLOR= 15 : PLOT X,Y : K = PEEK (- 16384) : GOTO 20",
+                     "RUN",
+                 });
+    }
+
+
+    TEST_METHOD (RewindingAnApplesoftLoopReadingTheDisk)
+    {
+        Measure ("Applesoft VERIFY loop",
+                 {
+                     "10 PRINT CHR$ (4);\"VERIFY HELLO\" : GOTO 10",
+                     "RUN",
+                 });
+    }
+};
