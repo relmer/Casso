@@ -9,6 +9,7 @@
 
 #include "CppUnitTest.h"
 #include "Ui/Debugger/Panes/DisassemblyGutter.h"
+#include "Ui/Debugger/Panes/DisassemblyViews.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -115,6 +116,22 @@ namespace DisassemblyViewingTests
     TEST_CLASS (DisassemblyViewingTests)
     {
     public:
+        //  An operand at a card's register with no symbol has a tip with the
+        //  register's description; an address with no register doesn't get
+        //  a tip.
+        TEST_METHOD (ACardRegisterOperandHasItsDescriptionInATip)
+        {
+            std::vector<DiagnosticsIoRegister>  registers = { { 0xC0A9, "Super Serial Card, slot 2: 6551 status register" } };
+            std::wstring                        text;
+
+
+
+            Assert::IsTrue   (DisassemblyGroup::TryGetIoRegisterTip (registers, 0xC0A9, text));
+            Assert::AreEqual (std::wstring (L"$C0A9\nSuper Serial Card, slot 2: 6551 status register"), text);
+            Assert::IsFalse  (DisassemblyGroup::TryGetIoRegisterTip (registers, 0xC0A8, text));
+        }
+
+
         //  LDA #$41 at $0300 holding the PC, RTS at $0302 and a data byte at
         //  $0303.
         static std::shared_ptr<const DebuggerViewSnapshot> MakeSnapshot()

@@ -577,6 +577,46 @@ namespace DebuggerTests
         }
 
 
+        //  Each card's bus registers at its slot's addresses, with the panel's
+        //  labels for them, and the //c's two ports at theirs.
+        TEST_METHOD (TheCardsDescribeTheirRegistersForTips)
+        {
+            TestMachine         cards ("Apple2e", [] (MachineConfig & config)
+            {
+                EnableSlotDevice (config, kpszSuperSerialCardDevice);
+                EnableSlotDevice (config, "uthernet2");
+            });
+            TestMachine         iic   ("Apple2c");
+            MachineDebugTarget  cardTarget (cards);
+            MachineDebugTarget  iicTarget  (iic);
+            DebugMachineInfo    cardInfo   = cardTarget.GetMachineInfo();
+            DebugMachineInfo    iicInfo    = iicTarget.GetMachineInfo();
+
+
+
+            Assert::AreEqual (std::string ("Super Serial Card, slot 2: SW1, the first block of DIP switches"), Describe (cardInfo, 0xC0A1));
+            Assert::AreEqual (std::string ("Super Serial Card, slot 2: 6551 status register; a write resets the chip"), Describe (cardInfo, 0xC0A9));
+            Assert::AreEqual (std::string ("Uthernet II, slot 3: W5100 mode register"), Describe (cardInfo, 0xC0B4));
+            Assert::AreEqual (std::string(), Describe (cardInfo, 0xC0A4), L"no register there");
+            Assert::AreEqual (std::string ("Serial port 1: 6551 data register; read the received byte, write a byte to send"), Describe (iicInfo, 0xC098));
+            Assert::AreEqual (std::string ("Serial port 2: 6551 control register: baud rate, word length and stop bits"), Describe (iicInfo, 0xC0AB));
+        }
+
+
+        static std::string Describe (const DebugMachineInfo & info, Word address)
+        {
+            for (const DiagnosticsIoRegister & each : info.ioRegisters)
+            {
+                if (each.address == address)
+                {
+                    return each.description;
+                }
+            }
+
+            return {};
+        }
+
+
         //  The W5100's mode, addresses and sockets, as the guest set them.
         TEST_METHOD (TheUthernetPanelShowsTheChipAndItsSockets)
         {

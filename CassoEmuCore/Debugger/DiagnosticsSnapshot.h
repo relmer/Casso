@@ -62,6 +62,14 @@ enum class MemorySource
     Count,
 };
 
+//  One of a device's bus registers and what it is, for the debugger's tips:
+//  "Super Serial Card, slot 2: 6551 status register".
+struct DiagnosticsIoRegister
+{
+    Word         address = 0;
+    std::string  description;
+};
+
 struct DiagnosticsMemoryMap
 {
     static constexpr size_t  kPageCount = 256;

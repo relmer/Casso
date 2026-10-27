@@ -360,3 +360,26 @@ void SuperSerialCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 
     m_acia.AddDiagnostics (snapshot);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SuperSerialCard::AddIoRegisters
+//
+//  The two switch blocks and the 6551, under the card's name and slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SuperSerialCard::AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const
+{
+    std::string  owner = std::format ("{}, slot {}", GetDiagnosticsTitle(), m_slot);
+
+
+
+    registers.push_back ({ (Word) (m_ioStart + kDipSwitch1Offset), owner + ": SW1, the first block of DIP switches" });
+    registers.push_back ({ (Word) (m_ioStart + kDipSwitch2Offset), owner + ": SW2, the second block of DIP switches and the CTS line" });
+    m_acia.AddRegisterDescriptions (registers, owner);
+}

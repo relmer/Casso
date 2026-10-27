@@ -245,6 +245,11 @@ Symbol tables give addresses names in disassembly and in expressions. Casso
 builds the Monitor, Applesoft, DOS 3.3 and ProDOS tables in, adding the
 //e and //c memory soft switches on those machines.
 
+The registers of the Super Serial Card, the Uthernet II and the //c's serial
+ports have no symbols. Hover over an operand at one of them in the
+disassembly for a tip with the register's description, under the card's name
+and slot: "Super Serial Card, slot 2: 6551 status register".
+
 ```
 SYM LOAD "game.dbg"       load into the User table
 SYMUSER2 LOAD "lib.sym",4000   load another table, with a hex offset

@@ -1376,6 +1376,45 @@ void Acia6551::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Acia6551::AddIoRegisters
+//
+//  A port that is a device by itself, as each of the //c's, under its
+//  title.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const
+{
+    AddRegisterDescriptions (registers, m_diagnosticsTitle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::AddRegisterDescriptions
+//
+//  The panel's labels for the registers. A write to the status register
+//  resets the chip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const
+{
+    registers.push_back ({ (Word) (m_baseAddress + kRegData),    owner + ": 6551 data register; read the received byte, write a byte to send" });
+    registers.push_back ({ (Word) (m_baseAddress + kRegStatus),  owner + ": 6551 status register; a write resets the chip" });
+    registers.push_back ({ (Word) (m_baseAddress + kRegCommand), owner + ": 6551 command register: parity, echo, transmit interrupt and DTR" });
+    registers.push_back ({ (Word) (m_baseAddress + kRegControl), owner + ": 6551 control register: baud rate, word length and stop bits" });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AddDiagnostics
 //
 //  The three registers as a guest read returns them, without the side

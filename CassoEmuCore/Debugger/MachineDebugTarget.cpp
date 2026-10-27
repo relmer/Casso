@@ -1108,8 +1108,9 @@ const Microcode * MachineDebugTarget::GetInstructionSet() const
 //
 //  MachineDebugTarget::GetMachineInfo
 //
-//  The machine's name and slot 6's two drives, with an empty entry for an
-//  empty drive. A machine with no Disk II controller has no drives.
+//  The machine's name, its devices' bus registers, and slot 6's two drives,
+//  with an empty entry for an empty drive. A machine with no Disk II
+//  controller has no drives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1123,6 +1124,11 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
 
 
     info.name = TextEncoding::WideToNarrow (name);
+
+    for (const IDiagnosticsProvider * provider : GetDiagnosticsProviders())
+    {
+        provider->AddIoRegisters (info.ioRegisters);
+    }
 
     if (m_host.GetRefs().diskController == nullptr)
     {

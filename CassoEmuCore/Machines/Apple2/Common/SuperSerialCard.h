@@ -102,6 +102,7 @@ public:
     std::string  GetDiagnosticsId    () const override { return "serial-card"; }
     std::string  GetDiagnosticsTitle () const override { return "Super Serial Card"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+    void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
 
     // Why the serial connector has nothing attached when its config specifies an
     // attachment (a file that could not be opened); empty when it does.

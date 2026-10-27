@@ -91,6 +91,7 @@ public:
     std::string  GetDiagnosticsId    () const override { return "uthernet"; }
     std::string  GetDiagnosticsTitle () const override { return "Uthernet II"; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+    void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
     uint64_t             GetCycles () const { return m_cycles; }
 
 private:

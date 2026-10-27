@@ -195,6 +195,11 @@ public:
     std::string  GetDiagnosticsId    () const override { return m_diagnosticsId; }
     std::string  GetDiagnosticsTitle () const override { return m_diagnosticsTitle; }
     void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+    void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
+
+    // The four registers, each description after owner: a card's name and
+    // slot, or a port's title.
+    void         AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const;
     void         AddDiagnostics      (DiagnosticsSnapshot & snapshot) const;
 
 private:

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/DebugMemoryImage.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/HeatTypes.h"
 #include "Debugger/Reply.h"
 
@@ -46,6 +47,9 @@ struct DebugMachineInfo
     std::string               name;
     std::string               title;
     std::vector<std::string>  disks;
+
+    //  The cards' and ports' bus registers, for the operand tips.
+    std::vector<DiagnosticsIoRegister>  ioRegisters;
 };
 
 //  The Disk II controller's state, read from its getters, never through the

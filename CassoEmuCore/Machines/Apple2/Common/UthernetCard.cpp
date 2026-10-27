@@ -332,6 +332,31 @@ void UthernetCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UthernetCard::AddIoRegisters
+//
+//  The W5100's four indirect-mode registers, under the card's name and
+//  slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const
+{
+    std::string  owner = std::format ("{}, slot {}", GetDiagnosticsTitle(), m_slot);
+
+
+
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectMode),        owner + ": W5100 mode register" });
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectAddressHigh), owner + ": W5100 address register, high byte" });
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectAddressLow),  owner + ": W5100 address register, low byte" });
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectData),        owner + ": W5100 data register: the byte at the address register's address" });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UthernetCard::FormatIp
 //
 ////////////////////////////////////////////////////////////////////////////////
