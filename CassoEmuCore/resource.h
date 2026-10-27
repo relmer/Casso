@@ -159,6 +159,15 @@
 // The payload is the card's settings as JSON.
 #define IDM_NETWORK_CONFIGURE       40300
 
+// The History menu: rewind, which F2 does while it is down; step back one
+// instruction; go live; and history on or off. Contiguous, since the window's
+// command routing is by range. Above every branch's ids at the time they
+// were chosen.
+#define IDM_HISTORY_REWIND          40410
+#define IDM_HISTORY_STEP_BACK       40411
+#define IDM_HISTORY_GO_LIVE         40412
+#define IDM_HISTORY_TOGGLE          40413
+
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).
 #define IDM_PRINTER_DISCARD         40061

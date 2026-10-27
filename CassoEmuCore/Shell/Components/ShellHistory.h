@@ -66,11 +66,28 @@ public:
     void  StopRecording  ();
     void  ApplyOptions   (bool isRecording, int budgetMb);
 
-    // UI thread: the settings as saved, and a change from an options page,
-    // saved and posted to the CPU thread, which applies the recording and
-    // budget at once; the interval applies from the next start of history.
-    const HistorySettings &  GetSettings () const { return m_settings; }
-    void                     SaveOptions (bool isRecording, int budgetMb, int intervalFrames);
+    // UI thread: the settings as saved, and a change from an options page or
+    // the menu, saved and posted to the CPU thread, which applies the
+    // recording and budget at once; the interval applies from the next start
+    // of history. Turning history off deletes all of the machine's history,
+    // in memory and saved, so it is confirmed first; SaveOptions returns false
+    // when the user cancels, and history stays on. A test sets the answer.
+    using ConfirmFn = std::function<bool()>;
+
+    static constexpr const wchar_t *  kpszTurnOffText   = L"Turning history off deletes all of this machine's history, in memory and saved.";
+    static constexpr const wchar_t *  kpszTurnOffTitle  = L"Turn history off";
+    static constexpr const wchar_t *  kpszTurnOffButton = L"&Turn off";
+
+    const HistorySettings &  GetSettings       () const { return m_settings; }
+    bool                     SaveOptions       (bool isRecording, int budgetMb, int intervalFrames);
+    void                     SetConfirmTurnOff (ConfirmFn confirm) { m_confirmTurnOff = std::move (confirm); }
+
+    // UI thread: the History menu's commands, and whether each is enabled:
+    // rewind and step back while history is on and the machine is past the
+    // oldest point, go live behind live, and history on always.
+    void         RunMenuCommand       (WORD id);
+    bool         IsMenuCommandEnabled (WORD id) const;
+    static bool  IsMenuItemEnabled    (WORD id, bool isOn, bool isBehindLive, bool isAtOldest);
 
     // CPU thread, ahead of each frame: the network fence, and the machine run
     // from the past made live again.
@@ -161,6 +178,7 @@ private:
     void  FenceForNetwork    ();
     bool  TryPublishPlayhead ();
     void  PublishMarks       ();
+    bool  ConfirmTurnOff     ();
     void  FinishRewind       ();
 
     IDebuggerHost     & m_host;
@@ -191,6 +209,8 @@ private:
     uint64_t                      m_lastPosition      = 0;       // where it landed
     std::atomic<bool>             m_isRewindKeyDown   = false;   // the UI thread's: the rewind key is down
     bool                          m_isRewinding       = false;   // a rewind is under way, on the CPU thread
+    std::atomic<bool>             m_isAtOldestForUi   = false;   // the machine is at the oldest point, as last published
+    ConfirmFn                     m_confirmTurnOff;              // a test's answer to turning history off; null shows the dialog
 
     // Pictures of history for each timeline, drawn on a scratch machine of
     // the running one's configuration, and the marks drawn on both. Each

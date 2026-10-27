@@ -63,6 +63,11 @@ static constexpr EmulatorMenuEntry  s_kMenuEntries[] =
     { IDM_VIEW_SCENE_VIEW,          MainMenuId::View,    L"Scene &pose",            nullptr,          true   },
     { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
     { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
+    { IDM_HISTORY_REWIND,           MainMenuId::History, L"&Rewind",                L"F2"            },
+    { IDM_HISTORY_STEP_BACK,        MainMenuId::History, L"&Step back",             L"Ctrl+F11"      },
+    { IDM_HISTORY_GO_LIVE,          MainMenuId::History, L"&Go live",               L"Ctrl+F2"       },
+    { 0,                            MainMenuId::History, nullptr,                   nullptr          },
+    { IDM_HISTORY_TOGGLE,           MainMenuId::History, L"&History on",            nullptr,          true   },
     { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },
     { IDM_HELP_CHECK_UPDATES,       MainMenuId::Help,    L"&Check for updates...",  nullptr          },
     { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
@@ -286,6 +291,7 @@ const wchar_t * EmulatorCommands::GetMenuName (MainMenuId menu)
     case MainMenuId::Machine: name = L"&Machine"; break;
     case MainMenuId::Disk:    name = L"&Storage"; break;
     case MainMenuId::View:    name = L"&View";    break;
+    case MainMenuId::History: name = L"H&istory"; break;
     case MainMenuId::Help:    name = L"&Help";    break;
     case MainMenuId::Debug:   name = L"&Debug";   break;
     }

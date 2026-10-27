@@ -25,6 +25,7 @@ enum class WindowCommandRoute
     PrinterModernSent,
     PrinterModernFailed,
     Help,
+    History,
     ExternalDrive,
     MouseConnect,
 };

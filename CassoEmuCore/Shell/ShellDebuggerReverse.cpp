@@ -451,7 +451,12 @@ ReverseOptions ShellDebugger::GetReverseOptions()
 
 void ShellDebugger::SetReverseOptions (const ReverseOptions & options)
 {
-    m_history.SaveOptions (options.isRecording, options.budgetMb, options.intervalFrames);
+    bool  isSaved = false;
+
+
+
+    isSaved = m_history.SaveOptions (options.isRecording, options.budgetMb, options.intervalFrames);
+    IGNORE_RETURN_VALUE (isSaved, false);
 }
 
 

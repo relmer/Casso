@@ -266,17 +266,159 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ShellHistory::SaveOptions (
+bool ShellHistory::SaveOptions (
     bool  isRecording,
     int   budgetMb,
     int   intervalFrames)
 {
-    m_settings.isRecording    = isRecording;
+    bool  isCanceled = m_settings.isRecording && !isRecording && !ConfirmTurnOff();
+
+
+
+    m_settings.isRecording    = isRecording || isCanceled;
     m_settings.budgetMb       = budgetMb;
     m_settings.intervalFrames = std::clamp (intervalFrames, 1, HistorySettings::kMaxIntervalFrames);
     m_host.SaveSettings();
 
-    m_host.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (isRecording, budgetMb));
+    m_host.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (m_settings.isRecording, budgetMb));
+
+    return !isCanceled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ConfirmTurnOff
+//
+//  UI thread: whether the user agrees to delete the machine's history, with
+//  Cancel the default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellHistory::ConfirmTurnOff()
+{
+    std::vector<DxuiMessageBoxButton>  buttons = { { kpszTurnOffButton, IDOK }, { L"Cancel", IDCANCEL } };
+    int                                choice  = IDCANCEL;
+
+
+
+    if (m_confirmTurnOff)
+    {
+        return m_confirmTurnOff();
+    }
+
+    choice = DxuiMessageBox (m_host.GetMainWindow(), &m_host.GetChromeTheme(), kpszTurnOffText, kpszTurnOffTitle, MB_ICONWARNING, buttons, IDCANCEL);
+
+    return choice == IDOK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunMenuCommand
+//
+//  UI thread. A command not enabled now, as an accelerator can send, does
+//  nothing. Rewind from the menu steps back one frame, the stretch F2 steps
+//  each frame it is down; it and Step back pause a running machine first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::RunMenuCommand (WORD id)
+{
+    bool  isSaved = false;
+
+
+
+    if (!IsMenuCommandEnabled (id))
+    {
+        return;
+    }
+
+    switch (id)
+    {
+        case IDM_HISTORY_REWIND:
+            PauseMachine();
+            PostCommand (ReverseCommand::RewindFrame);
+            break;
+
+        case IDM_HISTORY_STEP_BACK:
+            PauseMachine();
+            PostCommand (ReverseCommand::StepBack);
+            break;
+
+        case IDM_HISTORY_GO_LIVE:
+            PostCommand (ReverseCommand::GoLive);
+            break;
+
+        case IDM_HISTORY_TOGGLE:
+            isSaved = SaveOptions (!m_settings.isRecording, m_settings.budgetMb, m_settings.intervalFrames);
+            IGNORE_RETURN_VALUE (isSaved, false);
+            break;
+
+        default:
+            break;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsMenuCommandEnabled
+//
+//  UI thread, from what the CPU thread last published.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellHistory::IsMenuCommandEnabled (WORD id) const
+{
+    return IsMenuItemEnabled (id, m_settings.isRecording, m_barThumbnails.IsBehindLive(), m_isAtOldestForUi.load (memory_order_acquire));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsMenuItemEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellHistory::IsMenuItemEnabled (
+    WORD  id,
+    bool  isOn,
+    bool  isBehindLive,
+    bool  isAtOldest)
+{
+    bool  isEnabled = true;
+
+
+
+    switch (id)
+    {
+        case IDM_HISTORY_REWIND:
+        case IDM_HISTORY_STEP_BACK:
+            isEnabled = isOn && !isAtOldest;
+            break;
+
+        case IDM_HISTORY_GO_LIVE:
+            isEnabled = isOn && isBehindLive;
+            break;
+
+        default:
+            break;
+    }
+
+    return isEnabled;
 }
 
 
@@ -1505,6 +1647,8 @@ bool ShellHistory::TryPublishPlayhead()
     cycle     = cpu->GetHistoryCycles();
     isBehind  = m_reverseHost->IsBehindLive();
     keyframes = &m_reverseHost->GetController().GetKeyframes();
+
+    m_isAtOldestForUi.store (keyframes->GetCount() == 0 || m_machine.GetPosition() <= keyframes->GetInfo (0).position, memory_order_release);
 
     for (HistoryThumbnails * timeline : { &m_thumbnails, &m_barThumbnails })
     {

@@ -174,6 +174,10 @@ public:
         { L"IDM_HELP_KEYMAP",              IDM_HELP_KEYMAP               },
         { L"IDM_HELP_CHECK_UPDATES",       IDM_HELP_CHECK_UPDATES        },
         { L"IDM_HELP_ABOUT",                IDM_HELP_ABOUT                },
+        { L"IDM_HISTORY_REWIND",            IDM_HISTORY_REWIND            },
+        { L"IDM_HISTORY_STEP_BACK",         IDM_HISTORY_STEP_BACK         },
+        { L"IDM_HISTORY_GO_LIVE",           IDM_HISTORY_GO_LIVE           },
+        { L"IDM_HISTORY_TOGGLE",            IDM_HISTORY_TOGGLE            },
     };
 
     TEST_METHOD (Every_IDM_Value_Is_Unique)

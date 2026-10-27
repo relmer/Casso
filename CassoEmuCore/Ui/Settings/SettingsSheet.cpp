@@ -2480,6 +2480,7 @@ void SettingsSheet::CommitHistoryOptions()
 {
     ReverseOptions  chosen;
     ReverseOptions  saved;
+    bool            isSaved = false;
 
 
 
@@ -2493,7 +2494,8 @@ void SettingsSheet::CommitHistoryOptions()
 
     if (chosen.isRecording != saved.isRecording || chosen.budgetMb != saved.budgetMb || chosen.intervalFrames != saved.intervalFrames)
     {
-        m_emuShell->GetHistory().SaveOptions (chosen.isRecording, chosen.budgetMb, chosen.intervalFrames);
+        isSaved = m_emuShell->GetHistory().SaveOptions (chosen.isRecording, chosen.budgetMb, chosen.intervalFrames);
+        IGNORE_RETURN_VALUE (isSaved, false);
     }
 }
 

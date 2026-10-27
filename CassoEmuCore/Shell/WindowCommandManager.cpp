@@ -20,6 +20,7 @@
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellUpdater.h"
 #include "../resource.h"
@@ -469,6 +470,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_PRINTER_MODERN_FAILED)                              { route = WindowCommandRoute::PrinterModernFailed; }
     else if (id == IDM_PRINTER_PREVIEW)                                    { route = WindowCommandRoute::PrinterPreview; }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { route = WindowCommandRoute::Help; }
+    else if (id >= IDM_HISTORY_REWIND && id <= IDM_HISTORY_TOGGLE)          { route = WindowCommandRoute::History; }
     else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { route = WindowCommandRoute::ExternalDrive; }
     else if (id == IDM_MOUSE_CONNECT ||
@@ -510,6 +512,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
         case WindowCommandRoute::PrinterModernSent:   OnModernPrintResult (true);  break;
         case WindowCommandRoute::PrinterModernFailed: OnModernPrintResult (false); break;
         case WindowCommandRoute::Help:                OnHelpCommand (id);          break;
+        case WindowCommandRoute::History:             m_shell.m_history->RunMenuCommand (id); break;
         case WindowCommandRoute::ExternalDrive:       OnExternalDriveCommand (id); break;
         case WindowCommandRoute::MouseConnect:        OnMouseConnectCommand (id);  break;
         case WindowCommandRoute::None:                                             break;

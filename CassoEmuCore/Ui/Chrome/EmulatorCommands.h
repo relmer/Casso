@@ -23,8 +23,9 @@ enum class MainMenuId
     Machine = 2,
     Disk    = 3,
     View    = 4,
-    Debug   = 5,
-    Help    = 6,
+    History = 5,
+    Debug   = 6,
+    Help    = 7,
 };
 
 
@@ -93,7 +94,7 @@ public:
     static constexpr int  kIdPaddle  = 5;
     static constexpr int  kIdMouse   = 6;
 
-    static constexpr int  kMenuCount = 7;
+    static constexpr int  kMenuCount = 8;
 
     EmulatorCommands ();
 

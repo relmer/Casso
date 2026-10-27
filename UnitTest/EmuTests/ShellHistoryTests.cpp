@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Config/HistorySettings.h"
 #include "Core/MachineConfig.h"
 #include "Debugger/Reverse/ReverseHost.h"
 #include "EmuTests/TestMachine.h"
@@ -213,6 +214,70 @@ namespace ShellHistoryTests
             Assert::IsFalse (rig.shell->GetHistory().IsRecording(), L"recording stops");
             Assert::IsFalse (rig.shell->GetHistory().IsBehindLive(), L"the machine is live");
             Assert::IsTrue  (rig.shell->GetHistory().GetReplayCaption().empty(), L"the caption note is gone");
+        }
+
+
+        TEST_METHOD (TheHistoryMenuItemsAreEnabledByTheirRules)
+        {
+            //  Rewind and step back: on, and past the oldest point.
+            Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_REWIND,    true,  false, false), L"rewind, live");
+            Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_REWIND,    true,  true,  false), L"rewind, behind live");
+            Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_REWIND,    true,  true,  true),  L"rewind, at the oldest point");
+            Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_REWIND,    false, false, false), L"rewind, history off");
+            Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_STEP_BACK, true,  false, false), L"step back, live");
+            Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_STEP_BACK, true,  true,  true),  L"step back, at the oldest point");
+            Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_STEP_BACK, false, false, false), L"step back, history off");
+
+            //  Go live: behind live.
+            Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_GO_LIVE,   true,  true,  false), L"go live, behind live");
+            Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_GO_LIVE,   true,  false, false), L"go live, live");
+
+            //  History on: always.
+            Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_TOGGLE,    true,  false, false), L"history on, on");
+            Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_TOGGLE,    false, false, false), L"history on, off");
+        }
+
+
+        TEST_METHOD (CancelingTurningHistoryOffKeepsItOn)
+        {
+            ShellRig        rig (false);
+            ShellHistory &  history = rig.shell->GetHistory();
+            int             asked   = 0;
+            bool            isSaved = false;
+
+
+
+            history.SetConfirmTurnOff ([&asked] { asked++; return false; });
+
+            isSaved = history.SaveOptions (false, kBudgetMb, HistorySettings::kDefaultFrames);
+
+            Assert::AreEqual (1, asked, L"the confirmation is shown");
+            Assert::IsFalse  (isSaved, L"the change is canceled");
+            Assert::IsTrue   (history.GetSettings().isRecording, L"and history stays on");
+        }
+
+
+        TEST_METHOD (ConfirmingTurnsHistoryOffAndOnAsksNothing)
+        {
+            ShellRig        rig (false);
+            ShellHistory &  history = rig.shell->GetHistory();
+            int             asked   = 0;
+            bool            isSaved = false;
+
+
+
+            history.SetConfirmTurnOff ([&asked] { asked++; return true; });
+
+            isSaved = history.SaveOptions (false, kBudgetMb, HistorySettings::kDefaultFrames);
+
+            Assert::AreEqual (1, asked, L"the confirmation is shown");
+            Assert::IsTrue   (isSaved, L"the change is made");
+            Assert::IsFalse  (history.GetSettings().isRecording, L"history is off");
+
+            isSaved = history.SaveOptions (true, kBudgetMb, HistorySettings::kDefaultFrames);
+
+            Assert::AreEqual (1, asked, L"turning it on shows no confirmation");
+            Assert::IsTrue   (isSaved && history.GetSettings().isRecording, L"history is on");
         }
     };
 
