@@ -1190,13 +1190,20 @@ included, follow this phase, so none is repeated after it.
 
   Done in `Dxui/Widgets/HexView/` as `DxuiHexLayout` and `DxuiHexPainter`.
   The value and text formatting went to the painter with the drawing.
-- [ ] T272 Factor the ADTPro server (requests, directory, get, put, virtual
+- [X] T272 Factor the ADTPro server (requests, directory, get, put, virtual
   drive) out of `CassoEmuCore/CassoLink/CassoLinkHost.h/.cpp`. The host
   is left with Casso's protocol.
-- [ ] T273 Factor the connector (bootstrap, connect, open stream, await
+
+  Done in `CassoEmuCore/CassoLink/Host/` as `CassoLinkAdtProServer`.
+- [X] T273 Factor the connector (bootstrap, connect, open stream, await
   program) and whole-disk transfers (read, write, format timing, the
   unreadable list) out of `CassoEmuCore/CassoLink/CassoLinkSession.h/.cpp`.
   The session is left with the queue, the run loop and the operations.
+
+  Done in `CassoEmuCore/CassoLink/Session/` as `CassoLinkConnector` and
+  `CassoLinkDiskTransfer`. `LinkState`, `LinkOperation`,
+  `ICassoLinkSessionSink` and `DriveSource` moved to
+  `CassoLinkSessionTypes.h`, which the parts' headers include.
 - [ ] T274 Factor a writer for writes and deletions out of
   `CassoEmuCore/Machines/Apple2/Common/ProDosVolume.h/.cpp`, which is left with
   reading and the integrity report.

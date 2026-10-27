@@ -505,7 +505,7 @@ void BrowserLoader::RevisitLink (const Location & location)
         return;
     }
 
-    for (int each = 1; each <= CassoLinkSession::kDriveCount; each++)
+    for (int each = 1; each <= CassoLinkSessionTypes::kDriveCount; each++)
     {
         if ((drive == 0 || drive == each) && !m_browser.m_links->IsWritingDisk (name, each))
         {

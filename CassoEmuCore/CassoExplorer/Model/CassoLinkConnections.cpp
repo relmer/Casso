@@ -668,7 +668,7 @@ std::vector<LinkTreeEntry> CassoLinkConnections::BuildTreeEntries() const
 
         Byte  map = (*found)->session->GetDriveMap();
 
-        for (int drive = 1; entry.replying && drive <= CassoLinkSession::kDriveCount; drive++)
+        for (int drive = 1; entry.replying && drive <= CassoLinkSessionTypes::kDriveCount; drive++)
         {
             LinkTreeEntry::Drive  row;
             auto                  catalog = (*found)->requests.find (MakeKey (drive, std::string(), false));
@@ -766,7 +766,7 @@ void CassoLinkConnections::ProbeDrives()
             continue;
         }
 
-        for (int drive = 1; drive <= CassoLinkSession::kDriveCount; drive++)
+        for (int drive = 1; drive <= CassoLinkSessionTypes::kDriveCount; drive++)
         {
             std::string  key = MakeKey (drive, std::string(), false);
 

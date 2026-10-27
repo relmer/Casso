@@ -86,7 +86,7 @@ public:
     }
 
     //  The image in an ADTPro packet stream's image data, in block order; see
-    //  CassoLinkHost::ToFileOrder for the .dsk file.
+    //  CassoLinkAdtProServer::ToFileOrder for the .dsk file.
     static std::vector<Byte>  RebuildImage (const std::string & fixture, char direction, size_t blocks)
     {
         std::vector<Byte>  stream = LoadDirection (fixture, direction);

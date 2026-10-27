@@ -297,12 +297,12 @@ public:
         std::vector<Byte>     image;
         std::string           saved;
 
-        CassoLinkHost::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), vdrive);
+        CassoLinkAdtProServer::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), vdrive);
         AssertSucceeded (fixtures.OpenFixture ("CassoLink/ADTPRO-2.1.0.DSK", client));
 
         Rig  rig (true, vdrive, model, port, configure);
 
-        CassoLinkHost::ToBlockOrder ("CLIENT.DSK", std::vector<Byte> (client.begin(), client.end()), rig.folder.files["Virtual.po"]);
+        CassoLinkAdtProServer::ToBlockOrder ("CLIENT.DSK", std::vector<Byte> (client.begin(), client.end()), rig.folder.files["Virtual.po"]);
 
         Assert::IsTrue (rig.RunUntil ("CAT,S1", 60'000'000), TextEncoding::NarrowToWide ("the virtual drive disk boots to its instructions, not:\n" + rig.Screen()).c_str());
 
@@ -427,7 +427,7 @@ public:
         std::vector<Byte>  written;
 
         rig.AddFiles ("A", 19);
-        CassoLinkHost::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), rig.folder.files["VDRIVE-2.1.0.DSK"]);
+        CassoLinkAdtProServer::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), rig.folder.files["VDRIVE-2.1.0.DSK"]);
 
         rig.Start ('R');
         rig.Type ("\r");

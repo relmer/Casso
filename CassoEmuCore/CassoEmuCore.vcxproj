@@ -223,9 +223,12 @@
     <ClCompile Include="CassoLink\CassoLinkCodec.cpp" />
     <ClCompile Include="CassoLink\CassoLinkFolder.cpp" />
     <ClCompile Include="CassoLink\CassoLinkHost.cpp" />
+    <ClCompile Include="CassoLink\Host\CassoLinkAdtProServer.cpp" />
     <ClCompile Include="CassoLink\LinkProgram.cpp" />
     <ClCompile Include="CassoLink\LinkedDisk.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSession.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkConnector.cpp" />
+    <ClCompile Include="CassoLink\Session\CassoLinkDiskTransfer.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSettings.cpp" />
     <ClCompile Include="CassoLink\CassoLinkSearch.cpp" />
     <ClCompile Include="CassoLink\RunningCassoRegistry.cpp" />
@@ -910,9 +913,14 @@
     <ClInclude Include="CassoLink\CassoLinkCodec.h" />
     <ClInclude Include="CassoLink\CassoLinkFolder.h" />
     <ClInclude Include="CassoLink\CassoLinkHost.h" />
+    <ClInclude Include="CassoLink\Host\CassoLinkAdtProServer.h" />
+    <ClInclude Include="CassoLink\Host\CassoLinkHostTypes.h" />
     <ClInclude Include="CassoLink\LinkProgram.h" />
     <ClInclude Include="CassoLink\LinkedDisk.h" />
     <ClInclude Include="CassoLink\CassoLinkSession.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkConnector.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkDiskTransfer.h" />
+    <ClInclude Include="CassoLink\Session\CassoLinkSessionTypes.h" />
     <ClInclude Include="CassoLink\CassoLinkSettings.h" />
     <ClInclude Include="CassoLink\CassoLinkSearch.h" />
     <ClInclude Include="CassoLink\RunningCassoRegistry.h" />

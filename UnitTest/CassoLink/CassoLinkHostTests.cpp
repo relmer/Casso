@@ -163,7 +163,7 @@ public:
         Assert::AreEqual (1, folder.writes);
         std::vector<Byte>  dosOrder;
 
-        CassoLinkHost::ToFileOrder ("CASSOCAP.DSK", CassoLinkCaptures::RebuildImage ("adtpro-send-disk.txt", '>', 280), dosOrder);
+        CassoLinkAdtProServer::ToFileOrder ("CASSOCAP.DSK", CassoLinkCaptures::RebuildImage ("adtpro-send-disk.txt", '>', 280), dosOrder);
         Assert::IsTrue (folder.files["CASSOCAP.DSK"] == dosOrder, L"the .dsk is written in DOS 3.3 order");
     }
 
@@ -172,7 +172,7 @@ public:
     {
         InMemoryCassoLinkFolder  folder;
 
-        CassoLinkHost::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), folder.files["VDRIVE-2.1.0.DSK"]);
+        CassoLinkAdtProServer::ToFileOrder ("VDRIVE-2.1.0.DSK", CassoLinkCaptures::RebuildImage ("adtpro-receive-disk.txt", '<', 280), folder.files["VDRIVE-2.1.0.DSK"]);
 
         Replay ("adtpro-receive-disk.txt", folder);
 
@@ -259,7 +259,7 @@ public:
             Assert::AreEqual ((size_t) 5, session.Receive (5).size(), L"the write is acknowledged");
         }
 
-        CassoLinkHost::ToBlockOrder ("Virtual.dsk", folder.files["Virtual.dsk"], blocks);
+        CassoLinkAdtProServer::ToBlockOrder ("Virtual.dsk", folder.files["Virtual.dsk"], blocks);
 
         Assert::IsTrue   (std::equal (data.begin(), data.end(), blocks.begin() + (ptrdiff_t) (kBlock * 512)));
         Assert::AreEqual (2, folder.blockWrites, L"one write for each sector");
@@ -391,8 +391,8 @@ public:
 
         for (int i = 0; i < 20; i++) { names.push_back (std::format ("DISK{:02}.DSK", i)); }
 
-        std::vector<Byte>  first   = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", names, 0);
-        std::vector<Byte>  second  = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", names, 1);
+        std::vector<Byte>  first   = CassoLinkAdtProServer::BuildDirectoryPage ("C:\\X\\", names, 0);
+        std::vector<Byte>  second  = CassoLinkAdtProServer::BuildDirectoryPage ("C:\\X\\", names, 1);
         std::string        text    (first.begin(), std::find (first.begin(), first.end(), (Byte) 0));
         std::string        later   (second.begin(), std::find (second.begin(), second.end(), (Byte) 0));
 
@@ -408,8 +408,8 @@ public:
     TEST_METHOD (DirectoryPages_ShortenLongNames_AndListNoFiles)
     {
         std::string        longName (45, 'A');
-        std::vector<Byte>  page  = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", { longName }, 0);
-        std::vector<Byte>  empty = CassoLinkHost::BuildDirectoryPage ("C:\\X\\", {}, 0);
+        std::vector<Byte>  page  = CassoLinkAdtProServer::BuildDirectoryPage ("C:\\X\\", { longName }, 0);
+        std::vector<Byte>  empty = CassoLinkAdtProServer::BuildDirectoryPage ("C:\\X\\", {}, 0);
         std::string        text  (page.begin(), std::find (page.begin(), page.end(), (Byte) 0));
         std::string        none  (empty.begin(), std::find (empty.begin(), empty.end(), (Byte) 0));
 
@@ -421,14 +421,14 @@ public:
 
     TEST_METHOD (Filespec_MatchesStarAndQuestionMarkWithoutCase)
     {
-        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", ""));
-        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "*.dsk"));
-        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "G?MES*"));
-        Assert::IsFalse (CassoLinkHost::MatchesFilespec ("GAMES.PO",  "*.DSK"));
-        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "*A*.D*K"));
-        Assert::IsTrue  (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "**"));
-        Assert::IsFalse (CassoLinkHost::MatchesFilespec ("GAMES.DSK", "*S"));
-        Assert::IsFalse (CassoLinkHost::MatchesFilespec ("GAMES",     "GAMES?"));
+        Assert::IsTrue  (CassoLinkAdtProServer::MatchesFilespec ("GAMES.DSK", ""));
+        Assert::IsTrue  (CassoLinkAdtProServer::MatchesFilespec ("GAMES.DSK", "*.dsk"));
+        Assert::IsTrue  (CassoLinkAdtProServer::MatchesFilespec ("GAMES.DSK", "G?MES*"));
+        Assert::IsFalse (CassoLinkAdtProServer::MatchesFilespec ("GAMES.PO",  "*.DSK"));
+        Assert::IsTrue  (CassoLinkAdtProServer::MatchesFilespec ("GAMES.DSK", "*A*.D*K"));
+        Assert::IsTrue  (CassoLinkAdtProServer::MatchesFilespec ("GAMES.DSK", "**"));
+        Assert::IsFalse (CassoLinkAdtProServer::MatchesFilespec ("GAMES.DSK", "*S"));
+        Assert::IsFalse (CassoLinkAdtProServer::MatchesFilespec ("GAMES",     "GAMES?"));
     }
 
 
@@ -447,7 +447,7 @@ public:
 
         filespec += "B";
 
-        Assert::IsFalse (CassoLinkHost::MatchesFilespec (name, filespec));
+        Assert::IsFalse (CassoLinkAdtProServer::MatchesFilespec (name, filespec));
     }
 
 
@@ -511,7 +511,7 @@ public:
         time.wMinute = 46;
 
         //  As ADTPro's server sent it in the virtual-drive capture.
-        Assert::IsTrue (CassoLinkHost::GetProDosDateTime (time) == std::array<Byte, 4> { 0x2E, 0x13, 0x4F, 0x35 });
+        Assert::IsTrue (CassoLinkAdtProServer::GetProDosDateTime (time) == std::array<Byte, 4> { 0x2E, 0x13, 0x4F, 0x35 });
     }
 
 
@@ -916,19 +916,19 @@ public:
 
         for (size_t i = 0; i < file.size(); i++) { file[i] = (Byte) (i / 256); }
 
-        CassoLinkHost::ToBlockOrder ("GAME.DSK", file, blocks);
+        CassoLinkAdtProServer::ToBlockOrder ("GAME.DSK", file, blocks);
         Assert::AreEqual<Byte> (0,  blocks[0]);
         Assert::AreEqual<Byte> (14, blocks[256]);
         Assert::AreEqual<Byte> (13, blocks[512]);
         Assert::AreEqual<Byte> (12, blocks[768]);
         Assert::AreEqual<Byte> (16 + 15, blocks[(8 * 2 - 1) * 256 + 16 * 256], L"track 1's last block ends with its sector 15");
 
-        CassoLinkHost::ToFileOrder ("GAME.DSK", blocks, back);
+        CassoLinkAdtProServer::ToFileOrder ("GAME.DSK", blocks, back);
         Assert::IsTrue (back == file);
 
-        CassoLinkHost::ToBlockOrder ("GAME.PO", file, blocks);
+        CassoLinkAdtProServer::ToBlockOrder ("GAME.PO", file, blocks);
         Assert::IsTrue (blocks == file);
-        Assert::IsFalse (CassoLinkHost::IsDosOrder ("BIG.DSK", 819200));
+        Assert::IsFalse (CassoLinkAdtProServer::IsDosOrder ("BIG.DSK", 819200));
     }
 
 

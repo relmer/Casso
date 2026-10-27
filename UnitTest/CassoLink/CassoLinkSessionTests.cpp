@@ -589,7 +589,7 @@ public:
 
         const std::vector<Byte> &  list = rig.fileIo.files["blank.dsk.unreadable.txt"];
 
-        Assert::AreEqual (CassoLinkSession::FormatUnreadableList (blank->unreadable), std::string (list.begin(), list.end()),
+        Assert::AreEqual (CassoLinkDiskTransfer::FormatUnreadableList (blank->unreadable), std::string (list.begin(), list.end()),
                           L"the sectors written as zeros, listed beside the image");
     }
 
@@ -598,9 +598,9 @@ public:
 
     TEST_METHOD (UnreadableList_IsATrackAndDos33SectorALine_AfterComments)
     {
-        std::string  text = CassoLinkSession::FormatUnreadableList ({ { 3, 7 }, { 20, 0 } });
+        std::string  text = CassoLinkDiskTransfer::FormatUnreadableList ({ { 3, 7 }, { 20, 0 } });
 
-        Assert::AreEqual (std::string ("blank.dsk.unreadable.txt"), CassoLinkSession::GetUnreadableListPath ("blank.dsk"));
+        Assert::AreEqual (std::string ("blank.dsk.unreadable.txt"), CassoLinkDiskTransfer::GetUnreadableListPath ("blank.dsk"));
         Assert::AreEqual (std::string ("# Sectors that could not be read when this image was made, written as zeros.\r\n"
                                        "# Each line is a sector's track and DOS 3.3 sector, in decimal.\r\n"
                                        "3 7\r\n"
@@ -775,9 +775,9 @@ public:
     TEST_METHOD (DescribeDriveSpeed_GivesRpmAndTheDeviation)
     {
         Assert::AreEqual (std::string ("D1 turns at 293.1 rpm, 2.3% slow; drives are usually set within 1.5% of 300 rpm"),
-                          CassoLinkSession::DescribeDriveSpeed (1, 204.68));
-        Assert::AreEqual (std::string ("D2 turns at 301.5 rpm, 0.5% fast"), CassoLinkSession::DescribeDriveSpeed (2, 199.0));
-        Assert::AreEqual (std::string ("D1 turns at 300.0 rpm"), CassoLinkSession::DescribeDriveSpeed (1, 200.0));
+                          CassoLinkDiskTransfer::DescribeDriveSpeed (1, 204.68));
+        Assert::AreEqual (std::string ("D2 turns at 301.5 rpm, 0.5% fast"), CassoLinkDiskTransfer::DescribeDriveSpeed (2, 199.0));
+        Assert::AreEqual (std::string ("D1 turns at 300.0 rpm"), CassoLinkDiskTransfer::DescribeDriveSpeed (1, 200.0));
     }
 
 

@@ -147,7 +147,7 @@ void ExplorerLinks::ReadDiskToImage (bool blankUnreadable, const std::wstring & 
     //  whatever drive the window has open by the time the first one fails.
     outcome = m_window.m_actions.ReadDiskToImage (picked.wstring(), blankUnreadable, [this, picked] (const LinkOperation & operation, const std::string & link, int drive)
     {
-        std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkSession::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
+        std::wstring                   list    = TextEncoding::NarrowToWide (CassoLinkDiskTransfer::GetUnreadableListPath (TextEncoding::WideToNarrow (picked.filename().wstring())));
         std::wstring                   message = TextEncoding::NarrowToWide (operation.message) + L"\n\nRead the disk again, writing those sectors as zeros? Their list is saved beside the image as " + list + L".";
         CassoExplorerActions::Outcome  again;
 
