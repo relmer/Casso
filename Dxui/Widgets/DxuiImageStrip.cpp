@@ -818,7 +818,8 @@ void DxuiImageStrip::Sync()
 
     m_flyout.Sync ((int64_t) GetTickCount64());
 
-    if (m_hovered < 0 || m_source == nullptr)
+    //  An open flyout replaces the preview of the cell under the mark.
+    if (m_hovered < 0 || m_source == nullptr || m_flyout.IsOpen())
     {
         HidePreview();
         return;
