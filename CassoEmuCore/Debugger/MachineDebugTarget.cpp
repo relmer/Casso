@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/ExpansionRomBus.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
@@ -620,6 +621,38 @@ void MachineDebugTarget::GetSoftSwitches (std::vector<SoftSwitch> & switches) co
         switches.push_back ({ "LCWRITE", lc->IsWriteRam() });
         switches.push_back ({ "LCBANK2", lc->IsBank2() });
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDebugTarget::TryGetExpansionRomSlot
+//
+//  From the cards' shared expansion space. On a machine with slots the slot
+//  is 0 when no card's expansion ROM is selected, or no card has one. A
+//  machine with no slots returns false.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineDebugTarget::TryGetExpansionRomSlot (int & slot) const
+{
+    const Apple2eMmu       * mmu = m_host.GetMmu();
+    const ExpansionRomBus  * bus = m_host.GetRefs().expansionRomBus;
+
+
+
+    slot = 0;
+
+    if (mmu != nullptr && !mmu->GetCxxxRouter()->HasExternalSlots())
+    {
+        return false;
+    }
+
+    slot = (bus != nullptr) ? bus->GetSelectedSlot() : 0;
+    return true;
 }
 
 

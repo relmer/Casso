@@ -220,6 +220,36 @@ namespace DebuggerTests
         }
 
 
+        //  The selected card's expansion ROM is a run apart from the slots'
+        //  pages, with the slot in its tip.
+        TEST_METHOD (TheExpansionRomRunHasItsSlot)
+        {
+            constexpr LONG        kRead = MemoryMapBar::kBoundsDip;
+            DiagnosticsMemoryMap  map   = MakeMap();
+            MemoryMapBar          bar;
+            std::wstring          tip;
+
+
+
+            for (size_t page = 0xC1; page <= 0xCE; page++)
+            {
+                map.pages[page] = { MemorySource::SlotRom, MemorySource::None };
+            }
+
+            map.pages[0xCF]   = { MemorySource::None, MemorySource::None };
+            map.expansionSlot = 2;
+
+            bar.SetMap (map);
+            bar.Layout (RECT { 0, 0, MemoryMapBar::GetPreferredWidthPx (Scaler96()), MemoryMapBar::kHeadingDip + 512 }, Scaler96());
+
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, (LONG) bar.GetPageY (0xC1, false) + 1 }, tip));
+            Assert::AreEqual (std::wstring (L"Slot ROM  $C100-$C7FF"), tip);
+
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, (LONG) bar.GetPageY (0xC8, false) + 1 }, tip));
+            Assert::AreEqual (std::wstring (L"Slot 2 ROM  $C800-$CEFF"), tip);
+        }
+
+
         TEST_METHOD (EveryMemoryMapSourceHasAColorNameOfItsOwn)
         {
             std::set<std::wstring>  names;

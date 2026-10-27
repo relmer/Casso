@@ -73,6 +73,7 @@ public:
     bool    IsExpansionRomSelected () const override { return m_expansionSelected; }
     Byte    ReadExpansionRom       (Word address) override;
     void    DeselectExpansionRom   () override { m_expansionSelected = false; }
+    int     GetSlot                () const override { return m_slot; }
 
     // Firmware of exactly kFirmwareSize bytes, or empty for none. Any other
     // size fails, and the card then has no firmware.
@@ -86,7 +87,6 @@ public:
 
     Acia6551     &  GetAcia     () { return m_acia; }
     SlotRomPage  &  GetSlotPage () { return m_slotPage; }
-    int             GetSlot     () const { return m_slot; }
 
     // IMachineState: the expansion-ROM latch, then the 6551's section.
     // The firmware and the switches come from the slot's config, and the

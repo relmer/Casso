@@ -875,11 +875,19 @@ void MemoryHandlers::ShowSwitches (DebugSession & session, Reply & reply)
 void MemoryHandlers::ShowMap (DebugSession & session, Reply & reply)
 {
     std::vector<SoftSwitch>  switches;
+    std::optional<int>       expansionSlot;
+    int                      slot = 0;
 
 
 
     session.GetTarget().GetSoftSwitches (switches);
-    reply.data = MessageData { MemoryMap::Format (MemoryMap::Build (switches)) };
+
+    if (session.GetTarget().TryGetExpansionRomSlot (slot))
+    {
+        expansionSlot = slot;
+    }
+
+    reply.data = MessageData { MemoryMap::Format (MemoryMap::Build (switches, expansionSlot)) };
 }
 
 

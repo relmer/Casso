@@ -72,7 +72,8 @@ struct DiagnosticsMemoryMap
         MemorySource  write = MemorySource::None;
     };
 
-    std::array<Page, kPageCount>  pages = {};
+    std::array<Page, kPageCount>  pages         = {};
+    int                           expansionSlot = 0;     // the card's slot at $C800-$CEFF, 0 for none
 };
 
 struct DiagnosticsDiskHead

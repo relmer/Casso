@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/IDiagnosticsProvider.h"
+#include "Debugger/MachineDebugTarget.h"
 #include "EmuTests/TestMachine.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/CassetteDiagnostics.h"
@@ -236,6 +237,52 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("off"), FindRow (off, "ALTZP").value);
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (off.visual).pages[0x00].read == MemorySource::Main);
+        }
+
+
+        //  $C800-$CEFF is the ROM of the card that an access to its $Cs00
+        //  page selected, and nothing once $CFFF deselects it.
+        TEST_METHOD (TheMemoryMapHasTheSlotWhoseRomIsAtC800)
+        {
+            TestMachine           machine ("Apple2e", [] (MachineConfig & config) { EnableSlotDevice (config, kpszSuperSerialCardDevice); });
+            MachineDebugTarget    target  (machine);
+            DiagnosticsMemoryMap  map;
+            int                   slot    = -1;
+
+
+
+            machine.GetMemoryBus().ReadByte (0xC200);
+            map = std::get<DiagnosticsMemoryMap> (Snapshot (*machine.GetMmu()).visual);
+
+            Assert::AreEqual (2, map.expansionSlot);
+            Assert::IsTrue   (map.pages[0xC8].read == MemorySource::SlotRom);
+            Assert::IsTrue   (map.pages[0xCE].read == MemorySource::SlotRom);
+            Assert::IsTrue   (map.pages[0xCF].read == MemorySource::None, L"$CF00-$CFFF deselects the card");
+            Assert::IsTrue   (target.TryGetExpansionRomSlot (slot));
+            Assert::AreEqual (2, slot);
+
+            machine.GetMemoryBus().ReadByte (0xCFFF);
+            map = std::get<DiagnosticsMemoryMap> (Snapshot (*machine.GetMmu()).visual);
+
+            Assert::AreEqual (0, map.expansionSlot);
+            Assert::IsTrue   (map.pages[0xC8].read == MemorySource::None, L"no card drives $C800");
+            Assert::IsTrue   (target.TryGetExpansionRomSlot (slot));
+            Assert::AreEqual (0, slot);
+        }
+
+
+        //  The //c has no slots, so its whole $C100-$CFFF is internal ROM.
+        TEST_METHOD (TheIIcMapsItsCxxxSpaceToItsRom)
+        {
+            TestMachine           machine ("Apple2c");
+            DiagnosticsMemoryMap  map     = std::get<DiagnosticsMemoryMap> (Snapshot (*machine.GetMmu()).visual);
+
+
+
+            for (size_t page : { 0xC1, 0xC3, 0xC8, 0xCF })
+            {
+                Assert::IsTrue (map.pages[page].read == MemorySource::Rom, std::format (L"page ${:02X}", page).c_str());
+            }
         }
 
 
