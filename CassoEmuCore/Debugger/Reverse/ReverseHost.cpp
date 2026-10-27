@@ -192,15 +192,15 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Diverge
+//  Fork
 //
-//  The user agreed to discard the recorded history after where the machine
-//  stands, so a change can be made there: the future is dropped and the
-//  machine is live where it is. Live, there is nothing to drop.
+//  A change is made behind live: the recorded future becomes a branch left
+//  behind, and the machine is live where it is. Live, there is no recorded
+//  future.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ReverseHost::Diverge()
+HRESULT ReverseHost::Fork()
 {
     HRESULT  hr = S_OK;
 
@@ -275,6 +275,10 @@ HRESULT ReverseHost::Move (
 
         case ReverseCommand::RewindFrame:
             hr = m_controller.StepBackCycles (ReverseController::kFrameCycles, result);
+            break;
+
+        case ReverseCommand::SwitchBranch:
+            hr = m_controller.SwitchBranch (static_cast<uint32_t> (argument), result);
             break;
 
         default:

@@ -161,6 +161,7 @@ public:
     HRESULT   ReverseContinue     (IReverseStopTest & stopTest, ReverseResult & result);
     HRESULT   SeekToCycle         (uint64_t cycle, ReverseResult & result);
     HRESULT   SeekToPosition      (uint64_t position, ReverseResult & result);
+    HRESULT   SwitchBranch        (uint32_t branchId, ReverseResult & result);
 
     bool      IsInHistory         () const;
     uint64_t  GetOldestPosition   () const;

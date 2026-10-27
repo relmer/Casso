@@ -30,6 +30,7 @@ static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
     { ReverseCommand::ScrubCycle,      "scrub-cycle" },
     { ReverseCommand::GoLive,          "live"       },
     { ReverseCommand::RewindFrame,     "rewind"     },
+    { ReverseCommand::SwitchBranch,    "switch"     },
 };
 
 
@@ -813,6 +814,24 @@ void CpuCommandDispatcher::DispatchDebugView (const std::string & payload, IDebu
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HasReverseArgument
+//
+//  Whether a reverse command's word is followed by a decimal argument: a
+//  seek's position or cycle, or a branch switch's branch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CpuCommandDispatcher::HasReverseArgument (ReverseCommand command)
+{
+    return command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle || command == ReverseCommand::SwitchBranch;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormatReversePayload
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -833,7 +852,7 @@ std::string CpuCommandDispatcher::FormatReversePayload (
         }
     }
 
-    if (command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle)
+    if (HasReverseArgument (command))
     {
         payload += std::format (" {}", argument);
     }
@@ -884,7 +903,7 @@ bool CpuCommandDispatcher::TryParseReversePayload (
         return false;
     }
 
-    isSeek = command == ReverseCommand::Seek || command == ReverseCommand::SeekCycle || command == ReverseCommand::ScrubCycle;
+    isSeek = HasReverseArgument (command);
 
     if (isSeek != !rest.empty())
     {

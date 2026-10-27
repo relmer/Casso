@@ -317,10 +317,10 @@ Error:
 //  OnMachineChanged
 //
 //  Something outside the recorded inputs changed the machine: the recorded
-//  future no longer follows from it, so it is dropped, and the changed state
-//  becomes a boundary keyframe, which a replay reaching it loads, since no
-//  replay from an earlier one would reproduce the change. The machine is live
-//  again where it stands.
+//  future no longer follows from it, so it becomes a branch left behind, and
+//  the changed state becomes a boundary keyframe, which a replay reaching it
+//  loads, since no replay from an earlier one would reproduce the change.
+//  The machine is live again where it stands.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -339,14 +339,17 @@ HRESULT ReverseController::OnMachineChanged()
 
     isAfterGap = m_isLive && m_isPaused && position > gapStart;
 
+    // Behind live, the recorded future moves into a branch left behind, as
+    // do the journal's records from the replay's cursor on.
     if (!m_isLive)
     {
-        m_machine.GetInputJournal().Truncate (m_replayer.GetJournalCursor());
+        hr = m_keyframes.Fork (position, cpu->GetHistoryCycles(), m_machine.GetInputJournal(), m_replayer.GetJournalCursor());
+        CHR (hr);
     }
 
     // By position: a power cycle restarts the cycle counter, and every
     // keyframe from before it would look newer than the machine.
-    if (position == 0)
+    else if (position == 0)
     {
         m_keyframes.Clear();
     }
@@ -777,6 +780,51 @@ HRESULT ReverseController::SeekToPosition (
     target.position = position;
 
     return Seek (target, false, nullptr, report, result);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SwitchBranch
+//
+//  The branch of history becomes the active path, and the machine loads its
+//  live end, exactly as it was there, and is live. Live, a keyframe is taken
+//  at the live end first, so a switch back loads it too.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::SwitchBranch (
+    uint32_t         branchId,
+    ReverseResult  & result)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    CBREx (m_isRecording, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE));
+
+    if (m_isLive)
+    {
+        hr = CaptureLiveEnd();
+        CHR (hr);
+    }
+
+    hr = m_keyframes.SwitchTo (branchId, m_machine.GetInputJournal());
+    CHR (hr);
+
+    hr = m_replayer.RestoreKeyframe (m_keyframes.GetCount() - 1);
+    CHR (hr);
+
+    BecomeLive();
+
+    FillResult (result);
+    result.outcome = ReverseOutcome::Moved;
+
+Error:
+    return hr;
 }
 
 

@@ -296,11 +296,10 @@ public:
     }
 
 
-    //  Diverging is the yes to the question asked before a change behind
-    //  live: the recorded future is dropped where the machine stands, which
-    //  is live from then on, with the gate released and the callback told.
-    //  Live, there is nothing to drop.
-    TEST_METHOD (DivergingBehindLiveDropsTheFutureAndGoesLive)
+    //  A fork behind live: the recorded future becomes a branch left behind
+    //  where the machine stands, which is live from then on, with the gate
+    //  released and the callback run. Live, there is no recorded future.
+    TEST_METHOD (AForkBehindLiveKeepsTheFutureAsABranchAndGoesLive)
     {
         TestMachine    machine ("Apple2e");
         ReverseHost    host    (machine);
@@ -319,10 +318,11 @@ public:
 
         count = host.GetController().GetKeyframes().GetCount();
 
-        hr = host.Diverge();
-        AssertSucceeded (hr, L"Diverge while live");
+        hr = host.Fork();
+        AssertSucceeded (hr, L"Fork while live");
 
         Assert::AreEqual (count, host.GetController().GetKeyframes().GetCount(), L"live, nothing is dropped or kept");
+        Assert::AreEqual<size_t> (0, host.GetController().GetKeyframes().GetBranchCount(), L"and no branch is made");
 
         liveEnd = machine.GetPosition();
         target  = liveEnd - 100;
@@ -330,12 +330,13 @@ public:
         hr = host.Execute (ReverseCommand::Seek, target, nullptr, result);
         AssertSucceeded (hr, L"Seek");
 
-        hr = host.Diverge();
-        AssertSucceeded (hr, L"Diverge behind live");
+        hr = host.Fork();
+        AssertSucceeded (hr, L"Fork behind live");
 
         Assert::IsFalse (host.IsBehindLive(), L"live where it stood");
         Assert::AreEqual<uint64_t> (target, machine.GetPosition(), L"the machine did not move");
-        Assert::AreEqual<uint64_t> (target, host.GetController().GetLiveEndPosition(), L"the future is gone");
+        Assert::AreEqual<uint64_t> (target, host.GetController().GetLiveEndPosition(), L"the future is off the active path");
+        Assert::AreEqual<size_t>   (1, host.GetController().GetKeyframes().GetBranchCount(), L"and moved into a branch");
         Assert::IsFalse (machine.GetHostInputGate().IsHeld(), L"host input flows again");
         Assert::AreEqual (1, lives, L"the live callback ran once");
     }

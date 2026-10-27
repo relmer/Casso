@@ -149,6 +149,7 @@ public:
     static void  SetHeatMapIgnore    (const std::string & where, IDebugCommandTarget & target);
 
     //  The payload of an IDM_DEBUG_REVERSE command, and back.
+    static bool         HasReverseArgument     (ReverseCommand command);
     static std::string  FormatReversePayload   (ReverseCommand command, uint64_t argument);
     static bool         TryParseReversePayload (const std::string & payload, ReverseCommand & command, uint64_t & argument);
 

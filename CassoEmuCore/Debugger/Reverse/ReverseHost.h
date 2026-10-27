@@ -43,7 +43,7 @@ public:
     HRESULT  OnFrame        ();
     void     SyncInputGate  ();
     HRESULT  Execute        (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
-    HRESULT  Diverge        ();
+    HRESULT  Fork           ();
 
     void     SetLiveCallback (std::function<void()> onLive) { m_onLive = std::move (onLive); }
 

@@ -904,7 +904,7 @@ void ShellHistory::Diverge()
 
     BAIL_OUT_IF (m_reverseHost == nullptr, S_OK);
 
-    hr = m_reverseHost->Diverge();
+    hr = m_reverseHost->Fork();
     CHR (hr);
 
     UpdateReplayCaption();

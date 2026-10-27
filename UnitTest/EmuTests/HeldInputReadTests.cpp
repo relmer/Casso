@@ -439,8 +439,8 @@ public:
 
             if (isYes)
             {
-                hr = host.Diverge();
-                AssertSucceeded (hr, L"Diverge");
+                hr = host.Fork();
+                AssertSucceeded (hr, L"Fork");
 
                 machine.GetRefs().keyboard->PressKey ('Q');
             }

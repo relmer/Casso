@@ -984,6 +984,7 @@
     <ClCompile Include="EmuTests\ArenaExtentsTests.cpp" />
     <ClCompile Include="EmuTests\KeyframeStoreBranchTests.cpp" />
     <ClCompile Include="EmuTests\InputJournalBranchTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseForkTests.cpp" />
     <ClCompile Include="EmuTests\RewindBarBandTests.cpp" />
     <ClCompile Include="EmuTests\ReplayIndicatorTests.cpp" />
     <ClCompile Include="EmuTests\ImageShrinkTests.cpp" />

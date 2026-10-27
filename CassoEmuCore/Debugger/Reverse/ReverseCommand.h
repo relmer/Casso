@@ -15,7 +15,8 @@
 //  end of history; StepForward replays the recorded future one instruction.
 //  ReverseContinue goes back to the latest position a stop test fires at.
 //  RewindFrame goes back one video frame's cycles, as a held rewind key does
-//  each frame.
+//  each frame. SwitchBranch makes the branch of history given with it the
+//  active path, and lands at its live end.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,4 +32,5 @@ enum class ReverseCommand
     ScrubCycle,
     GoLive,
     RewindFrame,
+    SwitchBranch,
 };
