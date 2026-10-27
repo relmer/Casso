@@ -39,7 +39,7 @@ struct MemoryMapRange
 //  has the hardware. Adjacent ranges with the same targets are merged.
 //
 //  With the slot whose expansion ROM is selected known, 0 for none,
-//  $C800-$CEFF is that slot's ROM and $CF00-$CFFF reads nothing.
+//  $C800-$CEFF is that slot's ROM and $CF00-$CFFF reads the floating bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,6 +56,7 @@ public:
     static constexpr const char *  kSlotRom     = "slot ROM";
     static constexpr const char *  kIo          = "I/O";
     static constexpr const char *  kNothing     = "nothing";
+    static constexpr const char *  kFloatingBus = "unused (floating bus)";
 
 private:
     static bool  TryGetSwitch (const std::vector<SoftSwitch> & switches, const char * name, bool & value);

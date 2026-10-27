@@ -552,7 +552,7 @@ bool MemoryMapBar::TryGetTipAt (POINT point, std::wstring & text) const
 
     source = GetSourceOf (run->first, isWrite);
     text   = std::format (L"{}  ${:04X}-${:04X}",
-                          (source == MemorySource::None) ? std::wstring (isWrite ? L"Not written" : L"Not read") : GetRunDescription (run->first, isWrite),
+                          (source == MemorySource::None) ? std::wstring (isWrite ? L"Not written" : L"Unused (floating bus)") : GetRunDescription (run->first, isWrite),
                           run->first * 0x100, run->end * 0x100 - 1);
     return true;
 }
@@ -645,7 +645,7 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
         MemorySource     source = GetSourceOf (first, isWrite);
         int              end    = first + 1;
         uint32_t         color  = (source == MemorySource::None) ? theme.Divider() : GetColorOf (source);
-        std::wstring     label  = (source == MemorySource::None) ? (isWrite ? L"Not written" : L"Not mapped") : GetRunLabel (first, isWrite);
+        std::wstring     label  = (source == MemorySource::None) ? (isWrite ? L"Not written" : L"Floating bus") : GetRunLabel (first, isWrite);
         uint32_t         ink    = (source == MemorySource::None) ? theme.ForegroundMuted() : DxuiColor::ChooseInkFor (color, 0xFF000000u, 0xFFFFFFFFu);
         float            fitted = size;
         float            y      = GetPageY (first, isWrite);

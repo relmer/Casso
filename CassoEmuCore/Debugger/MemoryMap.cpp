@@ -194,6 +194,6 @@ void MemoryMap::AddExpansion (std::vector<MemoryMapRange> & ranges, std::optiona
         return;
     }
 
-    Add (ranges, 0xC800, 0xCEFF, *expansionSlot != 0 ? std::format ("slot {} ROM", *expansionSlot) : std::string (kNothing), kNothing);
-    Add (ranges, 0xCF00, 0xCFFF, kNothing, kNothing);
+    Add (ranges, 0xC800, 0xCEFF, *expansionSlot != 0 ? std::format ("slot {} ROM", *expansionSlot) : std::string (kFloatingBus), kNothing);
+    Add (ranges, 0xCF00, 0xCFFF, kFloatingBus, kNothing);
 }

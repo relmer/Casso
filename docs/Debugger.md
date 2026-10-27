@@ -187,7 +187,7 @@ These are Casso's own additions to AppleWin's set:
 | `PAUSE` | stops a running machine |
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
 | `SWITCHES` | lists the soft switches and whether each is on |
-| `MAP` | shows, for each address range, where reads and writes go now -- main or auxiliary RAM, ROM, language card bank 1 or 2, slot or internal ROM -- as the language card, auxiliary memory and ROM switches set them. $C800-$CEFF is the ROM of the slot whose card is selected there, or nothing when no card is |
+| `MAP` | shows, for each address range, where reads and writes go now -- main or auxiliary RAM, ROM, language card bank 1 or 2, slot or internal ROM -- as the language card, auxiliary memory and ROM switches set them. $C800-$CEFF is the ROM of the slot whose card is selected there, or unused (floating bus) when no card is |
 | `STACK` | shows the stack pointer and the stack page above it |
 | `PATCH addr value...` | writes bytes the way a memory window edit does: into RAM, or into ROM so the machine runs the patched code; it will not write an I/O address, which is what `OUT` is for |
 

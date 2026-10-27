@@ -247,6 +247,9 @@ namespace DebuggerTests
 
             Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, (LONG) bar.GetPageY (0xC8, false) + 1 }, tip));
             Assert::AreEqual (std::wstring (L"Slot 2 ROM  $C800-$CEFF"), tip);
+
+            Assert::IsTrue   (bar.TryGetTipAt (POINT { kRead + 1, (LONG) bar.GetPageY (0xCF, false) + 1 }, tip));
+            Assert::AreEqual (std::wstring (L"Unused (floating bus)  $CF00-$CFFF"), tip);
         }
 
 
