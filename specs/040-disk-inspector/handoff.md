@@ -94,6 +94,47 @@ Release, pinned to one core of the cache CCD where it matters:
   track/sector list, and the VTOC marks tracks 3 to 33 used. So 496 of the
   504 findings are "marked used but no file uses it", one per sector.
 
+## Checked 2026-10-27 on RELMER-SLS2
+
+Debug x64, 1600x1067 screen, the inspector filling it.
+
+- **Shift+Tab (SC-011).** Passes. Fourteen stops were walked forward with Tab
+  and back with Shift+Tab, with real keys, and each backward frame was
+  compared against its forward counterpart pixel by pixel with the platter and
+  the strip masked. Every pair matches; the residue is 16 to 18 pixels at a
+  mask edge. The order is Drive 2, Structure, Follow head, Go to head, Go to,
+  Find, Compare with, two clipped toolbar buttons, the tab strip, Edit sector,
+  then the views. `DxuiFocusManager::MoveFocus` walks one index list in both
+  directions, so the reverse holds by construction as well.
+- **Tooltips open for the real cursor.** Seen on the platter ("Track 36.5 /
+  Nothing recorded / The drive reads random bits here"), on the tilt knob, and
+  on the emulator's tape transport. The Find hit tooltips, the Legend entry for
+  hits and "Slot 6 drives only" are still unchecked; see the note on input
+  below.
+
+### Found while checking
+
+- **The Find bar swallows Tab and Shift+Tab.** With Find open and its field
+  focused the focus walk cannot leave the bar. `DiskInspectorWindow::OnKey`
+  gives the find bar first refusal on every key but the window zoom, Ctrl+F and
+  Ctrl+G, and the text input claims the rest, so the Tab branch below it never
+  runs. The File map tab is therefore unreachable by keyboard while a search is
+  open.
+- **The Tab walk passes through controls that cannot be seen.** At this window
+  size the toolbar is clipped: two stops after "Compare with" are partly or
+  wholly off the right edge, so the focus ring is invisible and there is no way
+  to tell what is focused. The summary chips and the clipped toolbar are the
+  case the menu bar proposal is meant to answer.
+
+### A note on driving the screen from here
+
+This machine swallows injected mouse input: `SendInput` reports success and
+nothing moves, while `SetCursorPos` and injected keystrokes both work. So
+hover, and every tooltip that depends on it, is genuine, and so is every key
+in the walk above. Clicks are not available, and posted `WM_LBUTTONDOWN`
+does not activate a control either, so the checks that need a click wait for
+the owner.
+
 ## Waiting on the owner
 
 - **Tooltips by mouse.** Tooltips open only for the real cursor, and the
