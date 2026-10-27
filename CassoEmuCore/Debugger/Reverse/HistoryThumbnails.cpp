@@ -4,6 +4,7 @@
 #include "Video/ImageShrink.h"
 #include "Debugger/Reverse/IHistoryFrameRenderer.h"
 #include "Debugger/Reverse/KeyframeStore.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -559,6 +560,7 @@ void HistoryThumbnails::Clear()
         std::lock_guard<std::mutex>  held (m_lock);
 
         m_cells.clear();
+        m_marks.clear();
         m_shown.clear();
         m_thumbs.Clear();
         m_bases.Clear();
@@ -1751,6 +1753,147 @@ uint64_t HistoryThumbnails::GetCycleAtOffset (
 PCWSTR HistoryThumbnails::GetModeText (bool isBehindLive)
 {
     return isBehindLive ? L"Replay" : L"Live";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::SetMarks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::SetMarks (std::vector<HistoryMark> marks)
+{
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        m_marks = std::move (marks);
+    }
+
+    Bump();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetMarks
+//
+//  Each mark at its cycle's offset along the cells, with its glyph and a tip
+//  of its text and the labeler's top line there, the host's clock when the
+//  machine has one. A mark outside the cells is left out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HistoryThumbnails::GetMarks (std::vector<DxuiStripMark> & outMarks)
+{
+    std::vector<HistoryMark>  marks;
+    DxuiStripMark             strip;
+    std::wstring              top;
+    std::wstring              bottom;
+    uint64_t                  endCycle = m_endCycle.load (std::memory_order_acquire);
+
+
+
+    outMarks.clear();
+
+    {
+        std::lock_guard<std::mutex>  held (m_lock);
+
+        for (const HistoryMark & mark : m_marks)
+        {
+            strip.offset = GetPlayheadOffset (m_cells, mark.cycle, endCycle);
+
+            if (strip.offset < 0.0f)
+            {
+                continue;
+            }
+
+            strip.glyph   = GetMarkGlyph (mark.kind);
+            strip.count   = mark.count;
+            strip.id      = mark.position;
+            strip.hasRows = mark.kind == HistoryMarkKind::Fork;
+            strip.tip     = GetMarkText (mark.kind);
+
+            outMarks.push_back (strip);
+            marks.push_back    (mark);
+        }
+    }
+
+    for (size_t i = 0; i < marks.size() && m_labeler; i++)
+    {
+        m_labeler (marks[i].cycle, m_wallTimes.GetWallTimeAt (marks[i].cycle), top, bottom);
+
+        if (!top.empty())
+        {
+            outMarks[i].tip += L" at " + top;
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetMarkGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wchar_t HistoryThumbnails::GetMarkGlyph (HistoryMarkKind kind)
+{
+    PCWSTR  glyph = s_kpszMdl2Refresh;
+
+
+
+    switch (kind)
+    {
+        case HistoryMarkKind::Gap:           glyph = s_kpszMdl2Remove;   break;
+        case HistoryMarkKind::Reset:         glyph = s_kpszMdl2Refresh;  break;
+        case HistoryMarkKind::PowerCycle:    glyph = s_kpszMdl2Power;    break;
+        case HistoryMarkKind::DiskChange:    glyph = s_kpszMdl2Save;     break;
+        case HistoryMarkKind::WriteProtect:  glyph = s_kpszMdl2Lock;     break;
+        case HistoryMarkKind::StateLoad:     glyph = s_kpszMdl2OpenFile; break;
+        case HistoryMarkKind::Fork:          glyph = s_kpszMdl2Shuffle;  break;
+    }
+
+    return glyph[0];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HistoryThumbnails::GetMarkText
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PCWSTR HistoryThumbnails::GetMarkText (HistoryMarkKind kind)
+{
+    PCWSTR  text = L"Reset";
+
+
+
+    switch (kind)
+    {
+        case HistoryMarkKind::Gap:           text = L"Recording paused";         break;
+        case HistoryMarkKind::Reset:         text = L"Reset";                    break;
+        case HistoryMarkKind::PowerCycle:    text = L"Power cycle";              break;
+        case HistoryMarkKind::DiskChange:    text = L"Disk changed";             break;
+        case HistoryMarkKind::WriteProtect:  text = L"Write protection changed"; break;
+        case HistoryMarkKind::StateLoad:     text = L"State loaded";             break;
+        case HistoryMarkKind::Fork:          text = L"Other branches";           break;
+    }
+
+    return text;
 }
 
 

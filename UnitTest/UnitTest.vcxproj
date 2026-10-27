@@ -980,6 +980,7 @@
     <ClCompile Include="EmuTests\KeyframeSideTests.cpp" />
     <ClCompile Include="EmuTests\HeatHistoryTests.cpp" />
     <ClCompile Include="EmuTests\HistoryThumbnailModelTests.cpp" />
+    <ClCompile Include="EmuTests\HistoryMarkTests.cpp" />
     <ClCompile Include="EmuTests\ImageShrinkTests.cpp" />
     <ClCompile Include="EmuTests\AutoStatePolicyTests.cpp" />
     <ClCompile Include="EmuTests\StateThumbnailTests.cpp" />

@@ -16,6 +16,10 @@
 //  yet; a replay crossing that point loads the same values, so it reaches the
 //  snapshot's state exactly.
 //
+//  StateLoad marks where a state file without history was loaded. The
+//  boundary keyframe taken after it contains the loaded state, so a replay
+//  does nothing for it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 enum class InputKind : uint8_t
@@ -39,6 +43,7 @@ enum class InputKind : uint8_t
     MouseTarget,
     JoyportJack,
     HostState,
+    StateLoad,
 };
 
 
@@ -161,6 +166,10 @@ public:
     size_t               GetEndIndex   () const { return m_firstIndex + m_count; }
     const InputRecord  & GetRecord     (size_t index) const;
 
+    //  How many times records at the end have been dropped or replaced. A
+    //  scan that has read up to an index starts over when it changes.
+    uint64_t             GetCutCount   () const { return m_cutCount; }
+
     void  Truncate      (size_t endIndex);
     void  DiscardBefore (size_t beginIndex);
     void  Clear         ();
@@ -180,6 +189,7 @@ private:
     size_t                     m_head           = 0;
     size_t                     m_count          = 0;
     size_t                     m_firstIndex     = 0;
+    uint64_t                   m_cutCount       = 0;
     const uint64_t           * m_positionSource = nullptr;
     const uint64_t           * m_cycleSource    = nullptr;
     bool                       m_isOn           = false;

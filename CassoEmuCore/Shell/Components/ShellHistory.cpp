@@ -152,6 +152,12 @@ void ShellHistory::StartRecording()
     m_thumbnails.Attach (controller != nullptr ? &controller->GetKeyframes() : nullptr);
     m_renderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
 
+    m_barThumbnails.Clear();
+    m_barThumbnails.Attach (controller != nullptr ? &controller->GetKeyframes() : nullptr);
+    m_barRenderer.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+
+    m_marks.Clear();
+
     if (m_client != nullptr)
     {
         m_client->OnHistoryRestarted (controller);
@@ -176,6 +182,7 @@ void ShellHistory::StopRecording()
     }
 
     m_thumbnails.Attach (nullptr);
+    m_barThumbnails.Attach (nullptr);
 
     if (m_reverseHost != nullptr)
     {
@@ -450,7 +457,8 @@ Error:
         isPublished = TryPublishPlayhead();
         IGNORE_RETURN_VALUE (isPublished, false);
 
-        m_thumbnails.NoteSeekLanded (argument);
+        m_thumbnails.NoteSeekLanded    (argument);
+        m_barThumbnails.NoteSeekLanded (argument);
     }
 
     if (FAILED (hr))
@@ -1254,8 +1262,12 @@ void ShellHistory::ServiceThumbnails()
     }
 
     UpdateReplayCaption();
+    PublishMarks();
 
     hr = m_thumbnails.Service (m_reverseHost->GetController().GetKeyframes());
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    hr = m_barThumbnails.Service (m_reverseHost->GetController().GetKeyframes());
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -1291,15 +1303,53 @@ bool ShellHistory::TryPublishPlayhead()
     isBehind  = m_reverseHost->IsBehindLive();
     keyframes = &m_reverseHost->GetController().GetKeyframes();
 
-    m_thumbnails.SetPlayhead     (m_machine.GetPosition(), isBehind);
-    m_thumbnails.SetPlayheadTime (cycle, m_reverseHost->GetController().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetLiveEndCycle() : cycle);
-
-    if (keyframes->GetCount() > 0)
+    for (HistoryThumbnails * timeline : { &m_thumbnails, &m_barThumbnails })
     {
-        m_thumbnails.SetBegin (keyframes->GetInfo (0).cycle, keyframes->GetInfo (0).wallTime);
+        timeline->SetPlayhead     (m_machine.GetPosition(), isBehind);
+        timeline->SetPlayheadTime (cycle, m_reverseHost->GetController().GetWallTimeAt (cycle), isBehind ? m_reverseHost->GetController().GetLiveEndCycle() : cycle);
+
+        if (keyframes->GetCount() > 0)
+        {
+            timeline->SetBegin (keyframes->GetInfo (0).cycle, keyframes->GetInfo (0).wallTime);
+        }
     }
 
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PublishMarks
+//
+//  CPU thread, after TryPublishPlayhead: the marks on the active path, read
+//  from the journal records made since the last turn, go to both timelines
+//  when any has come or gone or a keyframe has moved them. History ends at
+//  the live end behind live and at the machine's position live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::PublishMarks()
+{
+    ReverseController         & controller  = m_reverseHost->GetController();
+    EmuCpu                    * cpu         = m_machine.GetCpu();
+    bool                        isBehind    = m_reverseHost->IsBehindLive();
+    uint64_t                    endPosition = isBehind ? controller.GetLiveEndPosition() : m_machine.GetPosition();
+    uint64_t                    endCycle    = isBehind ? controller.GetLiveEndCycle()    : cpu->GetHistoryCycles();
+    std::vector<HistoryMark>    marks;
+
+
+
+    if (!m_marks.Update (controller.GetKeyframes(), m_machine.GetInputJournal(), endPosition, endCycle, marks))
+    {
+        return;
+    }
+
+    m_thumbnails.SetMarks    (marks);
+    m_barThumbnails.SetMarks (std::move (marks));
 }
 
 

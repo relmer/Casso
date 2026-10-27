@@ -96,6 +96,11 @@ static constexpr LPCWSTR s_kpszMdl2Export      = L"\xEDE1";   // U+EDE1 Segoe MD
 static constexpr LPCWSTR s_kpszMdl2Import      = L"\xE8B5";   // U+E8B5 Segoe MDL2 Import (arrow into a bar)
 static constexpr LPCWSTR s_kpszMdl2ZoomIn      = L"\xE8A3";   // U+E8A3 Segoe MDL2 ZoomIn (magnifier with a plus)
 static constexpr LPCWSTR s_kpszMdl2ZoomOut     = L"\xE71F";   // U+E71F Segoe MDL2 ZoomOut (magnifier with a minus)
+static constexpr LPCWSTR s_kpszMdl2Power       = L"\xE7E8";   // U+E7E8 Segoe MDL2 PowerButton
+static constexpr LPCWSTR s_kpszMdl2Lock        = L"\xE72E";   // U+E72E Segoe MDL2 Lock (a padlock)
+static constexpr LPCWSTR s_kpszMdl2OpenFile    = L"\xE8E5";   // U+E8E5 Segoe MDL2 OpenFile (a page with an arrow)
+static constexpr LPCWSTR s_kpszMdl2Remove      = L"\xE738";   // U+E738 Segoe MDL2 Remove (a minus)
+static constexpr LPCWSTR s_kpszMdl2Shuffle     = L"\xE8B1";   // U+E8B1 Segoe MDL2 Shuffle (crossed arrows)
 
 // Casso's own symbol font (Resources/Fonts/CassoSymbols.ttf, embedded and
 // registered by AssetBootstrap::RegisterSymbolFont). These need no family at

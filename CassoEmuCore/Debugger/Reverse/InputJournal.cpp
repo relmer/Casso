@@ -163,7 +163,8 @@ const InputRecord & InputJournal::GetRecord (size_t index) const
 //  Truncate
 //
 //  Drops every record at or after endIndex: the recorded future that a change
-//  made in the past has made wrong. Their slots stay for reuse.
+//  made in the past has made wrong. Their slots stay for reuse, and the cut
+//  count goes up when any record is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,7 +179,11 @@ void InputJournal::Truncate (size_t endIndex)
         keep = endIndex - m_firstIndex;
     }
 
-    m_count = std::min (m_count, keep);
+    if (keep < m_count)
+    {
+        m_count = keep;
+        m_cutCount++;
+    }
 }
 
 
@@ -247,6 +252,7 @@ void InputJournal::Clear()
 //
 //  The slots already held are written over, payloads and all, so a journal
 //  loaded again and again stops allocating once it has held its largest.
+//  The loaded records replace the journal's contents, so the cut count goes up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,6 +277,7 @@ void InputJournal::LoadRecords (
     m_head       = 0;
     m_count      = records.size();
     m_firstIndex = firstIndex;
+    m_cutCount++;
 }
 
 

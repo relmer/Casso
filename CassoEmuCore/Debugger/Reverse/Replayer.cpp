@@ -487,9 +487,9 @@ Error:
 //  cycle draws the same memory as it did live, since every keyframe holds
 //  the Prng, and leaves the drives on the disks in their bays. A drive's
 //  write-protect switch is set on its disk. A mount, an eject or a change to
-//  an image's write protection is not redone from the file: the boundary
-//  keyframe taken just after it has the disks as they were, and
-//  LoadBoundaryIfDue loads it. A mount or an eject is reported to the disk
+//  an image's write protection is not redone from the file, nor a state file
+//  loaded: the boundary keyframe taken just after it has the machine as it
+//  was, and LoadBoundaryIfDue loads it. A mount or an eject is reported to the disk
 //  breakpoint listener in the controller's slot, the stop test's during a
 //  replay and the debugger's when running forward from history, as the
 //  controller reports one live.
@@ -505,13 +505,14 @@ HRESULT Replayer::ApplyInput (const InputRecord & record)
     bool         isHostState  = record.kind == InputKind::HostState;
     bool         isDriveWp    = record.kind == InputKind::DriveWriteProtect;
     bool         isMedia      = record.kind == InputKind::DiskMount || record.kind == InputKind::DiskEject || record.kind == InputKind::ImageWriteProtect;
+    bool         isStateLoad  = record.kind == InputKind::StateLoad;
     DiskImage  * image        = nullptr;
 
 
 
     ReportMedia (record);
 
-    BAIL_OUT_IF (isApplied || isMedia, S_OK);
+    BAIL_OUT_IF (isApplied || isMedia || isStateLoad, S_OK);
 
     CBREx (isReset || isPowerCycle || isHostState || isDriveWp, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 

@@ -5,6 +5,7 @@
 #include "Core/IWorkQueue.h"
 #include "Core/ThreadPoolWorkQueue.h"
 #include "Debugger/Reverse/HistoryImageCache.h"
+#include "Debugger/Reverse/HistoryMarks.h"
 #include "Debugger/Reverse/HistoryWallTimes.h"
 #include "Debugger/Reverse/KeyframeUnpacker.h"
 
@@ -94,6 +95,10 @@ struct HistoryThumbnailCell
 //  Where the machine stands, live or replaying history, is told to it by
 //  the machine thread every turn, so the strip can mark that cell.
 //
+//  The marks along the strip, a reset or a gap in recording, are published
+//  by the machine thread with SetMarks, each at a history cycle, and drawn
+//  at that cycle's offset along the cells.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class HistoryThumbnails : public IDxuiImageStripSource
@@ -150,6 +155,7 @@ public:
     bool               IsTrailingLabelClickable () override { return IsBehindLive(); }
     std::wstring       GetTrailingTip           () override;
     void               OnTrailingLabelClicked   () override;
+    void               GetMarks                 (std::vector<DxuiStripMark> & outMarks) override;
     bool               IsBehindLive    () const      { return m_isBehindLive.load (std::memory_order_acquire); }
 
     //  Machine thread.
@@ -163,6 +169,9 @@ public:
     //  A seek to `cycle` the timeline asked for has run, and SetPlayheadTime
     //  already gives where it landed.
     void               NoteSeekLanded  (uint64_t cycle);
+
+    //  The marks on the active path, published with the cells.
+    void               SetMarks        (std::vector<HistoryMark> marks);
     HRESULT            Service      (KeyframeStore & keyframes);
     void               Clear        ();
 
@@ -194,6 +203,10 @@ public:
     //  calls the state it is in.
     static int         FindPlayheadCell (const std::vector<HistoryThumbnailCell> & cells, uint64_t position, bool isBehindLive);
     static PCWSTR      GetModeText      (bool isBehindLive);
+
+    //  The glyph drawn for a mark, and the text its tip begins with.
+    static wchar_t     GetMarkGlyph     (HistoryMarkKind kind);
+    static PCWSTR      GetMarkText      (HistoryMarkKind kind);
 
     //  Where the playhead line stands along the strip, in cells from the
     //  leading edge, for the machine at cycle with history ending at endCycle,
@@ -287,6 +300,7 @@ private:
     uint64_t                          m_layoutId     = 0;     // changes with the cell size, which outdates the thumbnails
     uint64_t                          m_cutCount     = 0;     // changes with each drop at the new end, which outdates the picture in flight
     std::vector<HistoryThumbnailCell> m_cells;
+    std::vector<HistoryMark>          m_marks;
     HistoryImageCache                 m_thumbs       { kMinThumbCount };
     HistoryImageCache                 m_bases        { kMinThumbCount };
     HistoryImageCache                 m_previews     { kPreviewCount };

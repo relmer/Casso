@@ -118,12 +118,14 @@ public:
     void          UpdateReplayCaption ();
     std::wstring  GetReplayCaption    ();
 
-    // The timeline: a seek to a cycle from the UI thread, whether it has yet
-    // to land, and the pictures, serviced on the CPU thread between frames.
+    // The timelines, the debugger's and the emulator window's rewind bar: a
+    // seek to a cycle from the UI thread, whether it has yet to land, and the
+    // pictures and marks, serviced on the CPU thread between frames.
     void                 SeekCycle         (uint64_t cycle, bool isInterim);
     bool                 IsSeekBusy        () const;
     void                 ServiceThumbnails ();
     HistoryThumbnails &  GetThumbnails     () { return m_thumbnails; }
+    HistoryThumbnails &  GetBarThumbnails  () { return m_barThumbnails; }
 
     // A reverse command under way, for the debugger's status bar. Any thread.
     bool            IsReplaying       () const { return m_isReplaying.load (std::memory_order_acquire); }
@@ -141,8 +143,9 @@ public:
     const ReverseHost  *  GetReverseHost () const { return m_reverseHost.get(); }
 
 private:
-    void  FenceForNetwork ();
+    void  FenceForNetwork    ();
     bool  TryPublishPlayhead ();
+    void  PublishMarks       ();
 
     IDebuggerHost     & m_host;
     MachineHost       & m_machine;
@@ -171,11 +174,15 @@ private:
     std::optional<ReverseOutcome> m_lastOutcome;                 // the last reverse command's, for the history band
     uint64_t                      m_lastPosition      = 0;       // where it landed
 
-    // Pictures of history for the timeline, drawn on a scratch machine of
-    // the running one's configuration. The renderer is declared first, so it
-    // outlives the pictures drawn through it.
+    // Pictures of history for each timeline, drawn on a scratch machine of
+    // the running one's configuration, and the marks drawn on both. Each
+    // renderer is declared ahead of its pictures, so it outlives the pictures
+    // drawn through it.
     ScratchMachineRenderer        m_renderer;
     HistoryThumbnails             m_thumbnails        { m_renderer };
+    ScratchMachineRenderer        m_barRenderer;
+    HistoryThumbnails             m_barThumbnails     { m_barRenderer };
+    HistoryMarks                  m_marks;
 
     std::atomic<bool>             m_isReplaying       { false };      // set by the CPU thread while a reverse command runs
     std::atomic<uint64_t>         m_replayStartedAt   { 0 };          // the tick count the running reverse command began at
