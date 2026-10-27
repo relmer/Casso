@@ -8,7 +8,7 @@
 #include "Theme/DxuiColor.h"
 #include "Widgets/DxuiListView.h"
 #include "Core/DxuiUnicodeSymbols.h"
-#include "Core/DxuiSystemSettings.h"
+#include "Core/DxuiSystemSettings.h"
 #include "Widgets/DxuiListView.h"
 
 
