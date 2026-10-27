@@ -144,9 +144,10 @@ public:
     // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
     // moment the motor spins down (the true->false transition in Tick) --
     // i.e. right after a disk operation completes and ~1 second after the
-    // last access, a naturally debounced point to persist dirty images, on
-    // the thread holding the disk store. The shell wires it to
-    // DiskImageStore::FlushAll so guest writes survive a crash / kill before
+    // last access, a naturally debounced point, with no guest write in
+    // progress, to persist dirty images on the thread that has the disk
+    // store's token. The shell wires it to DiskImageStore::FlushAllUnlessHeld,
+    // then ApplyPendingReload, so guest writes survive a crash / kill before
     // the next eject / exit. Caller-owned; null = no-op (tests, headless).
     void          SetMotorOffFlushCallback (std::function<void ()> cb) { ASSERT_THREAD_OWNERSHIP (*m_ownership); m_motorOffFlushCallback = std::move (cb); }
     // Idle hook. Invoked on the CPU thread when no disk operation is in

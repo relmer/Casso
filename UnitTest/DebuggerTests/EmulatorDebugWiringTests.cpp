@@ -1827,6 +1827,27 @@ namespace EmulatorDebugWiringTests
 
 
 
+        //  With no debugger attached the step is posted the same way, so the
+        //  machine's ticks, and the disk callbacks inside them, stay on the CPU
+        //  thread.
+        TEST_METHOD (StepWithoutTheDebuggerIsPostedToTheCpuThread)
+        {
+            auto      shell    = std::make_unique<EmulatorShell>();
+            uint64_t  position = 0;
+
+
+
+            shell->GetCpuManager().SetPaused (true);
+            position = shell->GetMachine().GetPosition();
+
+            shell->HandleCommand (IDM_MACHINE_STEP);
+
+            Assert::IsTrue   (shell->GetCpuManager().HasPendingCommands(), L"the step waits for the CPU thread");
+            Assert::AreEqual (position, shell->GetMachine().GetPosition(), L"nothing ran on the UI thread");
+        }
+
+
+
         //  On the CPU thread the step is the debugger's own step into, so the
         //  session starts it, the frame loop runs it, and it stops after one
         //  instruction.

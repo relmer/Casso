@@ -1722,10 +1722,10 @@ HRESULT MachineBuilder::CreateCpu (const MachineConfig & config)
 
         // Motor-idle auto-flush: when the drive spins down (operation done),
         // persist dirty images so writes survive a crash / kill before the
-        // next eject or exit. The callback fires on the CPU thread inside
-        // Tick, which owns the disk writes, so it races nothing. It skips clean
-        // images, does nothing while reverse execution holds the disks or a
-        // replay runs, and the flush-error reporter surfaces failures.
+        // next eject or exit. The callback fires inside Tick, on the CPU thread
+        // that makes the guest's disk writes, so no guest write is in progress.
+        // It skips clean images, does nothing behind live or while a replay
+        // runs, and the flush-error reporter surfaces failures.
         m_host.GetRefs().diskController->SetMotorOffFlushCallback ([this] ()
         {
             m_host.GetDiskStore().FlushAllUnlessHeld();

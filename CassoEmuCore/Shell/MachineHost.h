@@ -338,7 +338,8 @@ public:
     void  ClaimDiskOwnership   ();
     void  ReleaseDiskOwnership ();
 
-    //  Ctrl+Reset. User RAM survives; every device takes its reset line.
+    //  Ctrl+Reset. Dirty disks are flushed first, except behind live or during
+    //  a replay. User RAM survives; every device takes its reset line.
     void  SoftReset();
 
     //  Power off and on. Dirty disks are flushed first -- the mounts

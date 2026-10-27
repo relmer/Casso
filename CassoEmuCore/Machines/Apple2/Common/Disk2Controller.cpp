@@ -824,9 +824,9 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
                 m_eventSinks.ForEach ([&] (IDisk2EventSink & sink) { sink.OnMotorDisengaged(); });
             }
 
-            // Motor-idle auto-flush: the operation is complete and this is
-            // the CPU thread that owns the disk writes, so it's a race-free
-            // moment to persist any dirty images (see
+            // Motor-idle auto-flush: the operation is complete, and Tick runs
+            // on the thread that runs the machine and makes the guest's disk
+            // writes, so no guest write is in progress here (see
             // SetMotorOffFlushCallback). Fires after the sinks so a
             // debug-panel observer still records MotorDisengaged first.
             if (m_motorOffFlushCallback)
