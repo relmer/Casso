@@ -1300,7 +1300,8 @@ private:
     int                        m_keyMoveRow        = -1;      // a key's move, reported once the key is handled
     bool                       m_keyMovePending    = false;
     mutable bool               m_linesDirty        = true;
-    mutable int                m_linesRowCount     = -1;    int                        m_focusedHeaderCol  = -1;
+    mutable int                m_linesRowCount     = -1;
+    int                        m_focusedHeaderCol  = -1;
     int                        m_focusedDividerCol = -1;
     bool                       m_kbColNavEnabled   = false;
     bool                       m_kbColResize       = false;
