@@ -64,4 +64,43 @@ namespace UnitTestHelpers
     private:
         int   m_count = 0;
     };
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  WorkerThreadEhmCapture
+    //
+    //  An EHM assertion on a thread the test started cannot fail the test
+    //  there. Assert::Fail raises SEH exception 0xE3530001, which nothing on
+    //  that thread catches, so the test host ends and no test is reported
+    //  as the failure.
+    //
+    //  While one of these is open on a thread, an assertion on that thread is
+    //  appended to the capture instead of failing, and the thread goes on as
+    //  a Release build would. The test thread reads the text with
+    //  TakeFailures and fails the test with it. Open it on the worker thread
+    //  itself; scopes on one thread do not nest.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    class WorkerThreadEhmCapture
+    {
+    public:
+        WorkerThreadEhmCapture  ();
+        ~WorkerThreadEhmCapture ();
+
+        WorkerThreadEhmCapture  (const WorkerThreadEhmCapture &) = delete;
+        WorkerThreadEhmCapture & operator= (const WorkerThreadEhmCapture &) = delete;
+
+        // Every assertion since the last call, one per line, and empties the
+        // capture. Callable from any thread.
+        std::wstring  TakeFailures ();
+
+        // Called by the EHM breakpoint handler on the capturing thread.
+        void          Add          (const wchar_t * message);
+
+    private:
+        std::mutex    m_lock;
+        std::wstring  m_failures;
+    };
 }

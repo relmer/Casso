@@ -27,6 +27,10 @@ namespace UnitTestHelpers
     static ExpectedEhmAssert  * s_pExpecting    = nullptr;
     static int                  s_expectedCount = 0;
 
+    // Non-null on a worker thread while a WorkerThreadEhmCapture is open
+    // there. Assertions on that thread go to the capture.
+    static thread_local WorkerThreadEhmCapture  * t_pCapture = nullptr;
+
 
     static void EhmBreakpointHandler (const wchar_t * message)
     {
@@ -35,6 +39,12 @@ namespace UnitTestHelpers
         if (s_pExpecting != nullptr)
         {
             s_expectedCount++;
+            return;
+        }
+
+        if (t_pCapture != nullptr)
+        {
+            t_pCapture->Add (message);
             return;
         }
 
@@ -158,5 +168,61 @@ namespace UnitTestHelpers
                 L"for is gone or no longer asserts");
         }
 #endif
+    }
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  WorkerThreadEhmCapture
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    WorkerThreadEhmCapture::WorkerThreadEhmCapture()
+    {
+        ASSERT (t_pCapture == nullptr);
+
+        t_pCapture = this;
+    }
+
+
+    WorkerThreadEhmCapture::~WorkerThreadEhmCapture()
+    {
+        if (t_pCapture == this)
+        {
+            t_pCapture = nullptr;
+        }
+    }
+
+
+    std::wstring WorkerThreadEhmCapture::TakeFailures()
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+        std::wstring                 failures;
+
+
+
+        failures.swap (m_failures);
+
+        return failures;
+    }
+
+
+    void WorkerThreadEhmCapture::Add (const wchar_t * message)
+    {
+        std::lock_guard<std::mutex>  lock (m_lock);
+
+
+
+        m_failures += L"EHM assertion failure on a worker thread";
+
+        if (message != nullptr && message[0] != L'\0')
+        {
+            m_failures += L": ";
+            m_failures += message;
+        }
+
+        m_failures += L"\n";
     }
 }

@@ -276,6 +276,39 @@ public:
     }
 
 
+    //  An EHM assertion in work on the stand-in comes back from RunOnOwner as
+    //  an exception with the assertion's text, so the test fails with that text
+    //  rather than the test host ending.
+    TEST_METHOD (AnAssertionOnTheStandInComesBackToTheCaller)
+    {
+        ThreadOwnership     ownership;
+        OwnerThreadStandIn  standIn;
+        std::string         text;
+        HRESULT             hr       = S_OK;
+
+
+
+        hr = standIn.Take (ownership);
+        AssertSucceeded (hr, L"Take");
+
+        try
+        {
+            hr = standIn.RunOnOwner ([&] { ASSERT (!ownership.IsHeldByCurrentThread()); });
+        }
+        catch (const std::runtime_error & error)
+        {
+            text = error.what();
+        }
+
+        AssertSucceeded (hr, L"RunOnOwner");
+
+        hr = standIn.GiveBack();
+        AssertSucceeded (hr, L"GiveBack");
+
+        Assert::AreEqual (s_kAreAssertsCounted, text.find ("Assertion failed") != std::string::npos, L"the assertion's text, where assertions are compiled in");
+    }
+
+
 private:
 
     //  What a machine switch does to the devices, on the calling thread: every

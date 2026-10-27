@@ -127,6 +127,8 @@ public:
         std::exception_ptr                     driverFailure;
         std::wstring                           ownerFailure;
         std::wstring                           readFailure;
+        std::wstring                           driverAssertions;
+        std::wstring                           watcherAssertions;
         StateCounts                            seen          {};
         std::thread                            driver;
         std::thread                            watcher;
@@ -152,16 +154,22 @@ public:
 
         watcher = std::thread ([&]
         {
+            UnitTestHelpers::WorkerThreadEhmCapture  capture;
+
             while (!isWatcherDone.load())
             {
                 rig.store->NoteExternalChange (s_kPathA, ExternalChangeIntent::Unstated);
                 notes++;
                 std::this_thread::yield();
             }
+
+            watcherAssertions = capture.TakeFailures();
         });
 
         driver = std::thread ([&]
         {
+            UnitTestHelpers::WorkerThreadEhmCapture  capture;
+
             try
             {
                 RunCycles (rig, standIn, reads, operations, ownerFailure);
@@ -171,7 +179,8 @@ public:
                 driverFailure = std::current_exception();
             }
 
-            isDriverDone = true;
+            driverAssertions = capture.TakeFailures();
+            isDriverDone     = true;
         });
 
         while (!isDriverDone.load())
@@ -194,6 +203,8 @@ public:
             std::rethrow_exception (driverFailure);
         }
 
+        Assert::IsTrue  (driverAssertions.empty(), driverAssertions.c_str());
+        Assert::IsTrue  (watcherAssertions.empty(), watcherAssertions.c_str());
         Assert::IsTrue  (ownerFailure.empty(), ownerFailure.c_str());
         Assert::IsTrue  (readFailure.empty(), readFailure.c_str());
         Assert::AreEqual (s_kCycleCount * s_kOperationsPerCycle, operations.load(), L"every operation ran");

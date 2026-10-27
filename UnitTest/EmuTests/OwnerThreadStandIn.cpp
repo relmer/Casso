@@ -2,6 +2,9 @@
 
 #include "EmuTests/OwnerThreadStandIn.h"
 
+#include "../EhmTestHelper.h"
+#include "Core/TextEncoding.h"
+
 
 
 
@@ -80,8 +83,8 @@ Error:
 //
 //  OwnerThreadStandIn::RunOnOwner
 //
-//  Runs work on the stand-in and waits for it. An exception the work throws
-//  is rethrown here, on the test thread.
+//  Runs work on the stand-in and waits for it. An exception the work throws,
+//  or an EHM assertion it raises, is rethrown here on the calling thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,12 +190,17 @@ Error:
 //  given, and releases the token when told to stop. It waits without a limit
 //  of its own, because every caller that wakes it waits with one.
 //
+//  An EHM assertion in the work is captured rather than raised here, where it
+//  would end the test host, and becomes a std::runtime_error with its text.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void OwnerThreadStandIn::Run()
 {
-    std::unique_lock<std::mutex>  held (m_lock);
-    std::exception_ptr            failure;
+    std::unique_lock<std::mutex>              held (m_lock);
+    std::exception_ptr                        failure;
+    UnitTestHelpers::WorkerThreadEhmCapture   capture;
+    std::wstring                              assertions;
 
 
 
@@ -217,6 +225,13 @@ void OwnerThreadStandIn::Run()
             catch (...)
             {
                 failure = std::current_exception();
+            }
+
+            assertions = capture.TakeFailures();
+
+            if (!failure && !assertions.empty())
+            {
+                failure = std::make_exception_ptr (std::runtime_error (TextEncoding::WideToNarrow (assertions)));
             }
 
             held.lock();
