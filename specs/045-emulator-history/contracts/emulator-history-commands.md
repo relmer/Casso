@@ -4,7 +4,7 @@
 
 ## Keys and menu
 
-The History menu of the emulator window's main menu, from the command table in `EmulatorCommands.cpp`. The keys are proposals for the owner's approval (R-014).
+The History menu of the emulator window's main menu, from the command table in `EmulatorCommands.cpp`. The keys were approved with the plan on 2026-10-26 (R-014).
 
 | Item | Key | Command | Enabled |
 |---|---|---|---|

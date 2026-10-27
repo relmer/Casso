@@ -40,6 +40,7 @@ This feature adds history to the emulator window, makes it non-destructive (a ch
 - Q: What does an eject behind live write? -> A: The eject is a change, so it forks history at the frame on screen, and the disk is written as it is there, the new active branch's version. The live-end rule covers the forced writes that do not fork: a machine switch and exit.
 - Q: How is the disk rule coordinated with 041-disk-integrity? -> A: 041 merges to master before 045. 045 builds its other stories first, merges master in before the disk rule, and builds the rule on 041's disk store.
 - Q: Which marks does the debugger timeline add to the rewind bar's? -> A: None. Both bars draw the same marks: gaps, resets, power cycles, disk mounts, ejects and swaps, write-protect changes, loaded saved states, and forks. Breakpoint stops are not marked, since a debugging session would fill the strip with them.
+- Q: Which keys do step back and go live use in the emulator window? -> A: Ctrl+F11 and Ctrl+F2, approved with the plan. Apple II software cannot read the Control key alone, so pressing them changes nothing in the guest.
 - Q: What does loading a state file do to the current history? -> A: A file saved with history replaces the current history with the file's history, and the current history is discarded. A file without history is a change: the load becomes a marked point in the current history, forking it when the machine is behind live, so the user can rewind to before the load.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -150,8 +151,10 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - A branch switch while the debugger is stopped at a breakpoint: the switch is a seek; the debugger displays the new position as it does after any seek.
 - The pointer near the bottom edge while the guest uses the mouse (an Apple mouse card): the rewind bar opens only while the host pointer is over the bottom band, and the guest never receives a click on the bar.
 - The rewind key pressed while a modal dialog is open: ignored, as other emulator keys are.
-- A disk image file changed outside Casso while history has versions of it: the existing "Disk modified outside Casso" prompt runs as today; inserting the changed disk is a disk change in the active branch at the live end.
-- History saved in an earlier session whose disks no longer match the files at launch: the stretch captured with other disks is drawn past a gap mark, as 035 draws history saved with other disks, and can be viewed.
+- A disk image file changed outside Casso while history has versions of it: the existing "Disk modified outside Casso" prompt runs; inserting the changed disk is a disk change, which forks history at the position on screen when the machine is behind live, as an eject does.
+- History saved in an earlier session whose disks no longer match the files at launch: the stretch captured with other disks is drawn past a gap mark and can be viewed and replayed. A change made in that stretch is ignored with a notice instead of forking, so no fork can write a disk version from before the file changed outside Casso.
+- Exit while behind live: the disks are written at the live end of the active branch, and the next launch returns to the position on screen, paused.
+- The Uthernet II in use (a socket or connection open): its connections are host state no replay can open again, so history is dropped and recording is off until the card is idle, then starts again there. This is not the user's setting: no confirmation is displayed, and the setting is not changed.
 - A machine switch: the outgoing machine's history is saved with its automatic state; the incoming machine's saved history is loaded.
 - History turned off: after the confirmation, recording stops, the rewind bar and key are disabled, the machine's history is discarded, and the next save contains none.
 - History turned off while state files saved earlier with File > Save state contain history: those files are not altered; loading one while history is off restores the machine without its history.
@@ -168,14 +171,14 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **FR-004**: The rewind bar MUST display thumbnails across the active path, the current position, and marks for gaps, resets, power cycles, disk mounts, ejects and swaps, write-protect changes and loaded saved states.
 - **FR-005**: Dragging along the rewind bar MUST preview the frame under the pointer on the main screen; after the release, pressing Run MUST replay from that frame, and a key the guest reads MUST fork there (FR-009).
 - **FR-006**: Audio MUST be silent while rewinding and while scrubbing.
-- **FR-007**: The emulator window MUST offer the history commands (go live, step back, rewind, history on or off) in its menus with their keys.
+- **FR-007**: The emulator window MUST offer the history commands in its menus with their keys: rewind (F2, while it is down), step back (Ctrl+F11), go live (Ctrl+F2), and history on or off.
 - **FR-008**: The history settings (on or off, memory budget, keyframe interval) MUST be in the general preferences.
 - **FR-008a**: While the machine replays history, the emulator window MUST display a prominent, pulsing "Replaying" indicator with the time of the position, over the screen, until the machine is at the live end, forks or pauses.
 - **FR-008b**: Recording MUST continue at every speed, Maximum included.
 
 **Forking**
 
-- **FR-009**: Run from a point in the past MUST replay the recorded future, inputs included, in the emulator window and the debugger alike. The first change made behind live (a key or other input the guest reads, a disk change, a reset or power cycle, a debugger edit) MUST NOT prompt and MUST NOT discard history: it forks history at that point, makes the new timeline the active branch, and makes the future left behind a branch.
+- **FR-009**: Run from a point in the past MUST replay the recorded future, inputs included, in the emulator window and the debugger alike. The first change made behind live (a key or other input the guest reads, a disk change, a reset or power cycle, a debugger edit) MUST NOT prompt and MUST NOT discard history: it forks history at that point, makes the new timeline the active branch, and makes the future left behind a branch. The one exception is a change made before a gap where saved history's disks no longer match their files, which is ignored with a notice (see Edge Cases).
 - **FR-010**: The timeline MUST display one path, from the oldest point in history to the live end of the active branch. Every other branch MUST appear only as a fork mark at the point where it split from that path, with a count when several branches split there.
 - **FR-011**: Resting the pointer on a fork mark MUST open a flyout with one row per branch: the branch's last frame, how long it ran past the fork, and when the user left it. Resting on a row MUST preview that last frame on the main screen.
 - **FR-012**: Clicking a branch row MUST make that branch active and pause the machine at its live end, in the exact machine state it had there. The timeline MUST then display that branch's path, and the branch left MUST appear as a fork mark at the same point.
@@ -197,7 +200,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **FR-022**: At exit and at a machine switch, history MUST be saved with the machine's automatic state, with every branch and the disks in it.
 - **FR-023**: At launch into a machine, its saved history MUST be loaded, and the timeline MUST span it, branches included.
 - **FR-024**: Saved history from a build whose machine state format differs, or saved history that does not read, MUST be discarded silently, and history MUST start fresh.
-- **FR-025**: While history is on, every save of the machine MUST include its history, with no option: the automatic save at exit and at a machine switch, and File > Save state. Loading a state file with history MUST replace the current history with the file's. Loading a state file without history MUST be a change in the current history: a marked point, forking it when the machine is behind live. While history is off, a save MUST contain no history.
+- **FR-025**: While history is on, File > Save state MUST include the history too, with no option, as the automatic save does (FR-022). Loading a state file with history MUST replace the current history with the file's. Loading a state file without history MUST be a change in the current history: a marked point, forking it when the machine is behind live. While history is off, a save MUST contain no history.
 - **FR-026**: Turning history off MUST first display a confirmation dialog whose text specifies that all of the machine's history, in memory and saved, will be deleted. On confirmation, recording MUST stop, the rewind bar and key MUST be disabled, the history in memory MUST be discarded, and the next save MUST contain no history. A cancel MUST NOT turn history off.
 
 **One history**
