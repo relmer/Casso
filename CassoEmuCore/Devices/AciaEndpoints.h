@@ -14,8 +14,9 @@ class Acia6551;
 //
 //  AciaLoopbackEndpoint
 //
-//  Feeds every transmitted byte straight back into the ACIA's receiver. Used
-//  for comms self-test: the guest sees what it sends. The ACIA is caller-owned.
+//  A loopback plug: every transmitted byte is queued back to the ACIA's
+//  receiver, RTS is wired to CTS, and DTR to DSR and DCD. Used for comms
+//  self-test: the guest reads what it sends. The ACIA is caller-owned.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +25,9 @@ class AciaLoopbackEndpoint : public IAciaEndpoint
 public:
     explicit    AciaLoopbackEndpoint (Acia6551 * acia) : m_acia (acia) {}
 
-    void        OnByteTransmitted (Byte value) override;
+    void        OnByteTransmitted     (Byte value) override;
+    void        OnModemControlChanged (bool dtr, bool rts) override;
+    bool        IsLoopback            () const override { return true; }
 
 private:
     Acia6551 *    m_acia = nullptr;

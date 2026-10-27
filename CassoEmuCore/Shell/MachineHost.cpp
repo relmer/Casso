@@ -26,6 +26,8 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
+#include "Devices/Acia6551.h"
 
 
 
@@ -120,7 +122,9 @@ void MachineHost::SetOutputMuted (bool isMuted)
 //
 //  The speaker and the printer card hold their own flag. The Disk II's
 //  drive sounds go out through its audio sink, which is held here and
-//  detached while muted. Muting twice, or unmuting twice, changes nothing.
+//  detached while muted. The serial chips are muted with the printer, since
+//  what they send goes to a file or another machine. Muting twice, or
+//  unmuting twice, changes nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,6 +136,11 @@ void MachineHost::SetOutputMuted (bool isSoundMuted, bool isPrinterMuted)
     }
 
     m_isPrinterMuted = isPrinterMuted;
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->SetOutputMuted (isPrinterMuted);
+    }
 
     if (isSoundMuted == m_isSoundMuted)
     {
@@ -519,13 +528,16 @@ void MachineHost::SetInputJournalOn (bool isOn)
 //
 //  Hands the journal to every device that records the host input its reads
 //  see, or null when the journal is off. A machine switch builds new
-//  devices, so the builder calls this again once they are wired.
+//  devices, so the builder calls this again once they are wired. The serial
+//  chips also get the host input gate, checked before an attachment's bytes
+//  are taken, so that behind live they wait.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::AttachInputJournal()
 {
     InputJournal  * journal = m_inputJournal.IsOn() ? &m_inputJournal : nullptr;
+    size_t          i       = 0;
 
 
 
@@ -555,6 +567,12 @@ void MachineHost::AttachInputJournal()
     if (m_joyport != nullptr)
     {
         m_joyport->SetInputJournal (journal);
+    }
+
+    for (i = 0; i < m_refs.serialChips.size(); i++)
+    {
+        m_refs.serialChips[i]->SetInputJournal  (journal, (uint16_t) i);
+        m_refs.serialChips[i]->SetHostInputGate (&m_hostInputGate);
     }
 }
 
@@ -603,6 +621,11 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
     if (!isApplied && m_joyport != nullptr)
     {
         isApplied = m_joyport->ApplyInput (record);
+    }
+
+    if (!isApplied && record.kind == InputKind::AciaByte && record.detail < m_refs.serialChips.size())
+    {
+        isApplied = m_refs.serialChips[record.detail]->ApplyInput (record);
     }
 
     return isApplied;
@@ -863,6 +886,16 @@ Byte MachineHost::FinishStep()
     if (m_refs.mockingboard != nullptr)
     {
         m_refs.mockingboard->Tick (cycles);
+    }
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->Tick (cycles);
+    }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->Tick (cycles);
     }
 
     m_position++;

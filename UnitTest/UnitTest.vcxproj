@@ -283,6 +283,7 @@
     <ClCompile Include="DebuggerTests\SourceStepTests.cpp" />
     <ClCompile Include="DebuggerTests\StepFilterTests.cpp" />
     <ClCompile Include="DebuggerTests\CallHistoryShellTests.cpp" />
+    <ClCompile Include="DebuggerTests\HistoryNetworkFenceTests.cpp" />
     <ClCompile Include="DebuggerTests\ShellDebuggerViewStateTests.cpp" />
     <ClCompile Include="DebuggerTests\DialogOkTests.cpp" />
     <ClCompile Include="EmuTests\AutoStateShellTests.cpp" />
@@ -610,6 +611,11 @@
     <ClCompile Include="EmuTests\CpuCommandDispatcherTests.cpp" />
     <ClCompile Include="EmuTests\GuestSession.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
+    <ClCompile Include="EmuTests\SerialByteQueueTests.cpp" />
+    <ClCompile Include="EmuTests\ExpansionRomBusTests.cpp" />
+    <ClCompile Include="EmuTests\SscSwitchesTests.cpp" />
+    <ClCompile Include="EmuTests\SuperSerialCardTests.cpp" />
+    <ClCompile Include="EmuTests\SuperSerialCardMachineTests.cpp" />
     <ClCompile Include="EmuTests\Cpu65C02Tests.cpp" />
     <ClCompile Include="EmuTests\Via6522Tests.cpp" />
     <ClCompile Include="EmuTests\Ay8910Tests.cpp" />
@@ -625,6 +631,7 @@
     <ClCompile Include="EmuTests\VideoTimingTests.cpp" />
     <ClCompile Include="EmuTests\BeamOverlayDrawTests.cpp" />
     <ClCompile Include="EmuTests\TextScreenScraper.cpp" />
+    <ClCompile Include="EmuTests\TextScreenScraperTests.cpp" />
     <ClCompile Include="EmuTests\KeystrokeInjector.cpp" />
     <ClCompile Include="EmuTests\MachineIdle.cpp" />
     <ClCompile Include="EmuTests\MemoryProbeHelpers.cpp" />
@@ -727,6 +734,7 @@
     <ClCompile Include="Dxui\DxuiRadioGroupTests.cpp" />
     <ClCompile Include="Dxui\DxuiSearchBoxTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputCaretTests.cpp" />
+    <ClCompile Include="Dxui\DxuiShimmerTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputDegenerateTests.cpp" />
     <ClCompile Include="Dxui\DxuiTextInputWordSelectionTests.cpp" />
     <ClCompile Include="Dxui\DxuiOrbitControlTests.cpp" />
@@ -761,6 +769,10 @@
     <ClCompile Include="UiTests\MainMenuDropdownTests.cpp" />
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
+    <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
+    <ClCompile Include="UiTests\DialogBodyContentTests.cpp" />
+    <ClCompile Include="UiTests\SerialCardPageTests.cpp" />
+    <ClCompile Include="UiTests\SscSettingsModelTests.cpp" />
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="EmuTests\CreateDiskChoicesTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
@@ -1015,6 +1027,7 @@
     <ClCompile Include="EmuTests\ReverseCommandPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseOptionsPayloadTests.cpp" />
     <ClCompile Include="EmuTests\ReverseReplayTests.cpp" />
+    <ClCompile Include="EmuTests\ReverseSerialTests.cpp" />
     <ClCompile Include="EmuTests\SharedCheckpointTests.cpp" />
     <ClCompile Include="EmuTests\StateWriterReuseTests.cpp" />
     <ClCompile Include="EmuTests\RecordingBufferTests.cpp" />
@@ -1029,11 +1042,33 @@
     <ClCompile Include="EmuTests\ShellKeyRoutingTests.cpp" />
     <ClCompile Include="EmuTests\ShellKeyWiringTests.cpp" />
     <ClCompile Include="EmuTests\DriveRowLayoutTests.cpp" />
+    <ClCompile Include="NetworkTests\FakeHostSocket.cpp" />
+    <ClCompile Include="NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="NetworkTests\W5100Driver.cpp" />
+    <ClCompile Include="NetworkTests\W5100RegisterTests.cpp" />
+    <ClCompile Include="NetworkTests\W5100BufferTests.cpp" />
+    <ClCompile Include="EmuTests\UthernetCardTests.cpp" />
+    <ClCompile Include="NetworkTests\UthernetRig.cpp" />
+    <ClCompile Include="NetworkTests\DhcpTestPackets.cpp" />
+    <ClCompile Include="NetworkTests\W5100SocketBridgeTests.cpp" />
+    <ClCompile Include="NetworkTests\RecordingPacketSink.cpp" />
+    <ClCompile Include="NetworkTests\PacketCodecTests.cpp" />
+    <ClCompile Include="NetworkTests\DhcpServerTests.cpp" />
+    <ClCompile Include="NetworkTests\UdpNatTests.cpp" />
+    <ClCompile Include="NetworkTests\TcpNatTests.cpp" />
+    <ClCompile Include="NetworkTests\VirtualNetworkTests.cpp" />
+    <ClCompile Include="NetworkTests\PortForwarderTests.cpp" />
+    <ClCompile Include="EmuTests\UthernetGuestTests.cpp" />
+    <ClCompile Include="UiTests\NetworkSettingsTests.cpp" />
+    <ClCompile Include="NetworkTests\MacAddressTests.cpp" />
+    <ClCompile Include="NetworkTests\NetworkCardSettingsTests.cpp" />
+    <ClCompile Include="UiTests\NetworkPageTests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="EmuTests\FakeTapeAudioDecoder.h" />
     <ClInclude Include="EmuTests\TapeTestEncoder.h" />
     <ClInclude Include="EmuTests\DamagedDisk.h" />
+    <ClInclude Include="EmuTests\FakeExpansionRomCard.h" />
     <ClInclude Include="EmuTests\DemoAssets.h" />
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
@@ -1078,6 +1113,12 @@
     <ClInclude Include="Dxui\MockDxuiTextRenderer.h" />
     <ClInclude Include="Dxui\MockDxuiTheme.h" />
     <ClInclude Include="EmuTests\WarpRenderHarness.h" />
+    <ClInclude Include="NetworkTests\FakeHostSocket.h" />
+    <ClInclude Include="NetworkTests\FakeHostNetwork.h" />
+    <ClInclude Include="NetworkTests\W5100Driver.h" />
+    <ClInclude Include="NetworkTests\UthernetRig.h" />
+    <ClInclude Include="NetworkTests\DhcpTestPackets.h" />
+    <ClInclude Include="NetworkTests\RecordingPacketSink.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ehm\Ehm.vcxproj">

@@ -10,6 +10,7 @@
 #include "Config/UserConfigStore.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellSerialCard.h"
 #include "Shell/DiskManager.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
@@ -1014,7 +1015,8 @@ void ShellChrome::SyncChromeBands()
     // Measured against the CLIENT width, which is what the band will be given.
     // Measuring against the viewport is what put the text off the edge: the
     // picture keeps its own aspect and can be wider than the window.
-    inputs.changeBandPx        = m_shell.m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx);
+    inputs.changeBandPx        = m_shell.m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx)
+                               + m_shell.m_serialCard->GetBandThicknessPx (m_lastClientWidthPx);
     inputs.captureBandPx       = GetCaptureBandThicknessPx (m_lastClientWidthPx);
 
     px = ChromeBandLayout::Compute (inputs, m_shell.m_scaler);
@@ -1115,9 +1117,20 @@ RECT ShellChrome::ComputeViewportRect (int widthPx, int heightPx)
         m_toolbar.Layout (m_toolbarBand.GetBounds(), m_shell.m_scaler);
     }
 
-    //  The notice rides its band the way the toolbar rides its own, so a
-    //  resize or a DPI change reflows it with everything else.
-    m_shell.m_disks->LayoutChangeBanner (m_changeBand.GetBounds());
+    //  The notices ride their band the way the toolbar rides its own, so a
+    //  resize or a DPI change reflows them with everything else. The band
+    //  stacks the disk-change notice over the serial card's.
+    {
+        RECT  band       = m_changeBand.GetBounds();
+        RECT  diskBand   = band;
+        RECT  serialBand = band;
+
+        diskBand.bottom = band.top + m_shell.m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx);
+        serialBand.top  = diskBand.bottom;
+
+        m_shell.m_disks->LayoutChangeBanner (diskBand);
+        m_shell.m_serialCard->LayoutBanner (serialBand);
+    }
 
     //  AND SO DOES THE INPUT-MODE BAR. It was laid out only from the present
     //  path, which runs on the frame's cadence rather than the resize's, so
@@ -1888,6 +1901,7 @@ LONG ShellChrome::ComputeTopOverlayEdgePx (const RECT & client) const
     const IDxuiControl * const  bands[] = { &m_mainMenu,
                                             &m_toolbar,
                                             &m_shell.m_disks->GetChangeBanner(),
+                                            &m_shell.m_serialCard->GetBanner(),
                                             &m_standInBarSurface,
                                             &m_standInBar };
     LONG                        top     = client.top;

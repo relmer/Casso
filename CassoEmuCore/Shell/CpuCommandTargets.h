@@ -5,6 +5,9 @@
 class IDebugCommandTarget;
 
 
+class NetworkCardSettings;
+
+
 
 
 
@@ -61,6 +64,13 @@ public:
     //  Saves the whole machine to a state file, or loads one.
     virtual void     SaveMachineState          (const std::filesystem::path & path) = 0;
     virtual void     LoadMachineState          (const std::filesystem::path & path) = 0;
+
+    // The Super Serial Card's DIP switches, as "on off ..." text per bank.
+    virtual void     SetSerialCardSwitches     (const std::string & sw1,
+                                                const std::string & sw2)           = 0;
+
+    // The network card's host interface, protocol and link settings.
+    virtual void     ConfigureNetworkCard      (const NetworkCardSettings & settings) = 0;
 };
 
 

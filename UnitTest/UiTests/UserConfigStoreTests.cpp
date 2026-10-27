@@ -425,6 +425,39 @@ public:
     }
 
 
+    //  The Super Serial Card's switches and its connector, with the file on
+    //  it, are saved as a difference from the shipped slot and read back.
+    TEST_METHOD (Diff_And_Merge_Keep_A_Serial_Cards_Switches_And_Connector)
+    {
+        JsonValue          d        = ParseOrFail (R"({"slots":[{"slot":2,"device":"super-serial-card","firmware":"SSC.rom","enabled":false}]})");
+        JsonValue          c        = ParseOrFail (R"({"slots":[{"slot":2,"device":"super-serial-card","firmware":"SSC.rom","enabled":true,)"
+                                                   R"("ports":[{"device":"serial-file-out","path":"C:\\out.txt"}],)"
+                                                   R"("switches":{"sw1":"off off off on off on on","sw2":"on on on on off off off"}}]})");
+        JsonValue          diff     = UserConfigStore::DiffJson (c, d);
+        JsonValue          merged   = UserConfigStore::MergeJson (d, diff);
+        const JsonValue  * slots    = nullptr;
+        const JsonValue  * ports    = nullptr;
+        const JsonValue  * switches = nullptr;
+        const JsonValue  * expected = nullptr;
+        HRESULT            hr       = S_OK;
+
+
+
+        hr = merged.GetArray ("slots", slots);
+        AssertSucceeded (hr, L"slots");
+        Assert::AreEqual (size_t (1), slots->GetArraySize());
+
+        hr = slots->GetArrayElement (0).GetArray ("ports", ports);
+        AssertSucceeded (hr, L"the connector is read back");
+
+        hr = c.GetObjectEntries()[0].second.GetArrayElement (0).GetArray ("ports", expected);
+        AssertSucceeded (hr, L"fixture");
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (*ports, *expected), L"with its file");
+
+        hr = slots->GetArrayElement (0).GetObject ("switches", switches);
+        AssertSucceeded (hr, L"the switches are read back");
+    }
+
     TEST_METHOD (Diff_Deep_Object_Only_Inner_Diff)
     {
         JsonValue  diff;
@@ -796,6 +829,99 @@ public:
         Assert::IsTrue (UserConfigStore::AreJsonEqual (expected, m));
     }
 
+
+    // The Uthernet II's settings are saved and come back over the shipped
+    // entry, which has none.
+    TEST_METHOD (NetworkSettingsSurviveSaveAndLoad)
+    {
+        const JsonValue  * slots   = nullptr;
+        const JsonValue  * network = nullptr;
+        JsonValue          diff;
+        JsonValue          merged;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false }
+            ]
+        })JSON");
+
+        JsonValue c = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": true,
+                  "network": { "mac": "02:00:00:00:00:01", "lanAccess": false,
+                               "portForwards": [ { "protocol": "tcp", "hostPort": 8080, "guestPort": 80 } ] } }
+            ]
+        })JSON");
+
+        diff = UserConfigStore::DiffJson (c, d);
+
+        AssertSucceeded (diff.GetArray ("slots", slots));
+        Assert::AreEqual<size_t> (1u, slots->GetArraySize());
+        Assert::IsTrue (slots->GetArrayElement (0).HasObject ("network", network));
+
+        merged = UserConfigStore::MergeJson (d, diff);
+
+        Assert::IsTrue (UserConfigStore::AreJsonEqual (c, merged));
+    }
+
+
+    // A card moved to a slot with no shipped entry is saved whole and
+    // loads in its new slot only.
+    TEST_METHOD (MovedCardSurvivesSaveAndLoad)
+    {
+        const JsonValue  * slots     = nullptr;
+        JsonValue          diff;
+        JsonValue          merged;
+        size_t             i         = 0;
+        int                cards     = 0;
+        int                cardSlot  = 0;
+        bool               enabled   = false;
+
+
+
+        JsonValue d = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 3, "device": "uthernet2", "capabilityFlag": "optional", "enabled": false },
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+            ]
+        })JSON");
+
+        JsonValue c = ParseOrFail (R"JSON({
+            "$cassoMachineVersion": 3,
+            "slots": [
+                { "slot": 4, "device": "uthernet2", "capabilityFlag": "optional", "enabled": true,
+                  "network": { "mac": "02:00:00:00:00:01" } },
+                { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+            ]
+        })JSON");
+
+        diff   = UserConfigStore::DiffJson (c, d);
+        merged = UserConfigStore::MergeJson (d, diff);
+
+        AssertSucceeded (merged.GetArray ("slots", slots));
+
+        for (i = 0; i < slots->GetArraySize(); i++)
+        {
+            const JsonValue &  entry = slots->GetArrayElement (i);
+            std::string        device;
+
+            if (entry.HasString ("device", device) && device == "uthernet2")
+            {
+                cards++;
+                Assert::IsTrue (entry.HasInt  ("slot",    cardSlot));
+                Assert::IsTrue (entry.HasBool ("enabled", enabled));
+            }
+        }
+
+        Assert::AreEqual (1, cards, L"the shipped slot-3 entry is replaced, not kept beside it");
+        Assert::AreEqual (4, cardSlot);
+        Assert::IsTrue (enabled);
+    }
 
     // A user file that says nothing about connectors leaves the card
     // describing the two drives it shipped with.

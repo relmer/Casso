@@ -17,7 +17,27 @@ void AciaLoopbackEndpoint::OnByteTransmitted (Byte value)
 {
     if (m_acia != nullptr)
     {
-        m_acia->ReceiveByte (value);
+        m_acia->EnqueueLoopedBackByte (value);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AciaLoopbackEndpoint::OnModemControlChanged
+//
+//  A loopback plug ties RTS to CTS and DTR to DSR and DCD.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AciaLoopbackEndpoint::OnModemControlChanged (bool dtr, bool rts)
+{
+    if (m_acia != nullptr)
+    {
+        m_acia->SetModemInputs (rts, dtr, dtr);
     }
 }
 

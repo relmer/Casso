@@ -4,6 +4,7 @@
 #include "Core/MemoryDevice.h"
 
 class Apple2eMmu;
+class ExpansionRomBus;
 
 
 
@@ -95,9 +96,16 @@ public:
     // ROM or the floating bus, under the current MMU switches.
     bool IsInternalRomSelected (Word address) const;
 
+    // The machine's $C800-$CFFF expansion bus. Reads and writes of that
+    // range are passed to it only while INTCXROM and INTC8ROM are both reset,
+    // which is when the motherboard asserts I/O STROBE'. Caller-owned; with
+    // null, the range reads as the floating bus.
+    void SetExpansionRomBus (ExpansionRomBus * bus) { m_expansionRomBus = bus; }
+
 private:
     Byte           ResolveByte            (Word address) const;
     MemoryDevice * GetSlotIoDevice        (Word address) const;
+    bool           IsIoStrobeAsserted     (Word address) const;
     void           ApplyAccessSideEffects (Word address);
 
     Apple2eMmu &   m_mmu;
@@ -110,4 +118,7 @@ private:
     // Lets the //c read fast path assert "no slot delegation possible" with a
     // single bool test instead of scanning m_slotIoDevice on every access.
     bool           m_hasSlotIoDevice = false;
+
+    // The cards' shared expansion space; see SetExpansionRomBus.
+    ExpansionRomBus *  m_expansionRomBus = nullptr;
 };

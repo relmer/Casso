@@ -616,10 +616,11 @@ Two specific practices fall out of this:
   (`-Filter Merlin`); anything containing filter grammar passes through to
   vstest's `/TestCaseFilter:` verbatim. A filtered run prints a loud banner
   saying it is not the suite; never report a filtered pass as a suite pass.
-- Debug and Release differ enormously: the Debug suite runs ~15 minutes, Release
-  ~2. They also run **different test sets**, assertion-behavior tests verify
-  nothing in Release, so Release is not a drop-in substitute for the pre-merge
-  gate.
+- Debug and Release differ: the Debug unit suite runs about 1:40, Release about
+  0:20, and the scenario suite about 1:00 and 0:12 (measured 2026-10-17; the
+  AddressSanitizer timings are in `docs/testing.md`). They also run **different
+  test sets**, assertion-behavior tests verify nothing in Release, so Release is
+  not a drop-in substitute for the pre-merge gate.
 - **Restoring a file from a backup copy defeats the incremental build.**
   `Copy-Item` stamps the restored file with the *backup's* mtime, which is older
   than the object built from the version you are replacing, so MSBuild skips the
@@ -743,6 +744,11 @@ branch to `master`** (and re-run after resolving merge conflicts).
 - Every commit that lands on `master` must leave the codebase compilable and tests-passing
 - **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -Target Rebuild -RunCodeAnalysis` to verify.
   It compiles on the x86-hosted compiler, as CI does; the x64-hosted one misses C6011s CI reports
+- **The AddressSanitizer scenario run MUST pass** before pushing to master:
+  `scripts\RunTests.ps1 -Build -Sanitize -Configuration Release -Scenario`,
+  under a minute once built. CI does not run it. A use-after-free that reads
+  plausible stale memory passes every plain build and is reported here; see
+  `docs/testing.md`
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
 - **NEVER** add a changelog entry for a `docs` commit. The changelog records
   code changes -- what the software now does differently. Checking in a spec,
@@ -793,7 +799,8 @@ the pre-merge gate.
 - **The disks it needs are fetched for you.** `-Scenario` runs
   `scripts/FetchStockDisks.ps1` first, which downloads the DOS 3.3 System
   Master and ProDOS Users Disk only when this machine has neither a copy under
-  `Disks/Apple/` nor one in the emulator's cache. Both are gitignored. A fetch
+  `Disks/Apple/` nor one in the emulator's cache, and the Kermit-65 disk into
+  `Disks/ThirdParty/` when it is not there. All are gitignored. A fetch
   that cannot supply a missing disk stops the run rather than letting it
   proceed half-armed.
 - **If a required suite could not run, state that in the summary rather than
@@ -916,9 +923,11 @@ in conversation.
 - **Do NOT add stray-file patterns to `.gitignore`.** The user
   prefers stray files to surface in `git status` as a visible
   reminder. Silencing them with `.gitignore` defeats that signal.
-- The only `.gitignore`d disk images are the two Apple-owned masters the
-  scenario suite reads, `Disks/Apple/dos33-master.dsk` and
-  `Disks/Apple/prodos-users.dsk`. Disks we author belong in the repo.
+- The only `.gitignore`d disk images are the ones the scenario suite fetches
+  because they contain Apple's software: the two Apple masters,
+  `Disks/Apple/dos33-master.dsk` and `Disks/Apple/prodos-users.dsk`, and the
+  Kermit-65 ProDOS disk, `Disks/ThirdParty/kermit-65.dsk`. Disks we author
+  are committed.
 - **Launch Casso in the background unless the user asked for it.** Any run
   the user did not directly request -- screenshot capture, render
   validation, reproducing a bug, checking that a change took -- must not

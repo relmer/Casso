@@ -559,8 +559,12 @@ public:
 
         Assert::AreEqual (size_t (5), config.internalDevices.size(),
             L"Apple2.json internalDevices count must remain exactly 5");
-        Assert::AreEqual (size_t (2), config.slots.size(),
-            L"Apple2.json declares two slots: parallel printer (slot 1), Disk II (slot 6)");
+        Assert::AreEqual (size_t (4), config.slots.size(),
+            L"Apple2.json declares four slots: parallel printer (slot 1), Super Serial Card (slot 2), Uthernet II (slot 3, disabled), Disk II (slot 6)");
+        Assert::IsTrue (HasSlotDevice (config, 2, "super-serial-card"),
+            L"Apple2.json must list the Super Serial Card in slot 2");
+        Assert::IsTrue (HasSlotDevice (config, 3, "uthernet2"),
+            L"Apple2.json must list the Uthernet II in slot 3");
     }
 
 
@@ -615,8 +619,12 @@ public:
 
         Assert::AreEqual (size_t (5), config.internalDevices.size(),
             L"Apple2Plus.json internalDevices count must remain exactly 5");
-        Assert::AreEqual (size_t (3), config.slots.size(),
-            L"Apple2Plus.json declares three slots: parallel printer (slot 1), Mockingboard (slot 4), Disk II (slot 6)");
+        Assert::AreEqual (size_t (5), config.slots.size(),
+            L"Apple2Plus.json declares five slots: parallel printer (slot 1), Super Serial Card (slot 2), Uthernet II (slot 3, disabled), Mockingboard (slot 4), Disk II (slot 6)");
+        Assert::IsTrue (HasSlotDevice (config, 2, "super-serial-card"),
+            L"Apple2Plus.json must list the Super Serial Card in slot 2");
+        Assert::IsTrue (HasSlotDevice (config, 3, "uthernet2"),
+            L"Apple2Plus.json must list the Uthernet II in slot 3");
         Assert::IsTrue (HasSlotDevice (config, 1, "parallel-printer"),
             L"Apple2Plus.json must install the parallel printer in slot 1");
         Assert::IsTrue (HasSlotDevice (config, 4, "mockingboard-c"),

@@ -5,11 +5,15 @@
 #include "Core/MemoryDevice.h"
 #include "Core/IInterruptController.h"
 #include "Core/IMachineState.h"
+#include "Devices/SerialByteQueue.h"
 
 class MemoryBus;
 class IAciaEndpoint;
+class InputJournal;
+class HostInputGate;
 
 struct DeviceConfig;
+struct InputRecord;
 
 
 
@@ -24,18 +28,34 @@ struct DeviceConfig;
 //  occupy a slot's I/O page at $C088 + slot*16:
 //
 //      +0  Data     read = receiver data (RDR), write = transmit data (TDR)
-//      +1  Status   read = status, write = programmed reset
-//      +2  Command  DTR, receiver-IRQ enable, transmitter-IRQ control, parity
-//      +3  Control  baud rate, word length, stop bits
+//      +1  Status   read = status, write = program reset
+//      +2  Command  DTR, receiver-IRQ enable, transmitter control, parity
+//      +3  Control  baud rate, receiver clock, word length, stop bits
 //
-//  Transmit is modeled as instantaneous: a byte written to the data register
-//  is handed to the attached endpoint immediately and TDRE stays set. The IRQ
-//  status bit (bit 7) is an event latch — set when a byte is received or the
-//  transmitter empties (subject to the command-register enables) and cleared
-//  by reading the status register.
+//  Transmit and receive both take one character time per byte, measured in
+//  CPU cycles against the 1.8432 MHz crystal both the //c and the SSC use.
+//  Transmit is double-buffered as on the part: a data write fills the
+//  transmit data register, which moves into an idle shift register at once,
+//  so TDRE sets again until a second byte is written while the first is
+//  shifting. Each byte is passed to the attachment when its shift ends.
 //
-//  This is the single ACIA implementation in the tree; the printer feature
-//  (spec 015) consumes the same device rather than building its own.
+//  Received bytes wait in a queue any thread may fill, and land in the
+//  single receive data register one character time apart; a byte landing
+//  over an unread one sets overrun, as on the part. The queue is not a FIFO
+//  the guest can see.
+//
+//  A host attachment's bytes arrive from outside the machine, so the
+//  emulation thread takes them into the receive queue at an instruction
+//  boundary and, while the input journal is attached, journals each one
+//  there; in a replay they come from the journal. Behind live, while
+//  HostInputGate::IsHeld returns true, the bytes wait. A byte a loopback plug
+//  returns follows from what the chip sent, so a replay sends it again; it
+//  goes straight into the queue.
+//
+//  The IRQ status bit (bit 7) is a latch: set when an enabled interrupt
+//  condition occurs, cleared by reading the status register. Whether the
+//  latch drives the CPU's IRQ line depends on the board's wiring (the SSC's
+//  SW2-6), set through SetIrqConnected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,15 +88,25 @@ public:
     static constexpr Byte    kCommandDtr           = 0x01;
     static constexpr Byte    kCommandRxIrqDisable  = 0x02;
     static constexpr Byte    kCommandTicMask       = 0x0C;
+    static constexpr Byte    kCommandTicOff        = 0x00;
     static constexpr Byte    kCommandTicTxIrqOn    = 0x04;
+    static constexpr Byte    kCommandTicTxIrqOff   = 0x08;
+    static constexpr Byte    kCommandTicBreak      = 0x0C;
     static constexpr Byte    kCommandEcho          = 0x10;
+    static constexpr Byte    kCommandParityEnable  = 0x20;
     static constexpr Byte    kCommandParityMask    = 0xE0;
 
     // Control register bits.
     static constexpr Byte    kControlBaudMask     = 0x0F;
+    static constexpr Byte    kControlRxClockBaud  = 0x10;
     static constexpr Byte    kControlWordLenMask  = 0x60;
     static constexpr Byte    kControlWordLenShift = 5;
     static constexpr Byte    kControlStopBits     = 0x80;
+
+    // Timing bases. The CPU clock defaults to the NTSC Apple II's and is set
+    // from the machine config by the builder.
+    static constexpr uint32_t  kCrystalHz         = 1843200;
+    static constexpr uint32_t  kDefaultCpuClockHz = 1022727;
 
     explicit                 Acia6551 (Word baseAddress);
 
@@ -94,39 +124,93 @@ public:
     // controller is caller-owned and outlives the device.
     HRESULT AttachInterruptController (IInterruptController * ic);
 
-    // Route transmitted bytes. Caller-owned; pass nullptr to detach.
-    void    SetEndpoint (IAciaEndpoint * endpoint) { m_endpoint = endpoint; }
+    // Whether the IRQ latch drives the CPU's IRQ line. Defaults to true.
+    void    SetIrqConnected (bool connected);
 
-    // Push one received byte into the ACIA (called by an endpoint).
-    void    ReceiveByte (Byte value);
+    // Timing. Tick advances the shift register and receive delivery; the
+    // machine calls it once per instruction with the cycles it took.
+    void    SetCpuClockHz (uint32_t hz);
+    void    Tick          (uint32_t cycles);
 
-    // Inspectors for tests / firmware wiring.
+    // Route transmitted bytes. Caller-owned; pass nullptr to detach. Any
+    // change empties the receive queue and restores CTS, DSR and DCD to true.
+    // Emulation thread only.
+    void    SetEndpoint (IAciaEndpoint * endpoint);
+
+    // While muted, as in a replay of what was sent live, transmitted bytes
+    // go to a loopback plug only. Emulation thread.
+    void    SetOutputMuted (bool isMuted) { m_isOutputMuted = isMuted; }
+
+    // Called by an attachment, from any thread.
+    void    EnqueueReceivedBytes  (const Byte * bytes, size_t count);
+    void    SetModemInputs        (bool cts, bool dsr, bool dcd);
+    size_t  GetQueuedReceiveCount () const { return m_rxInbox.GetCount() + m_rxQueue.GetCount(); }
+
+    // Called by a loopback plug, on the emulation thread, with a byte the
+    // chip itself sent.
+    void    EnqueueLoopedBackByte (Byte value);
+
+    // Reverse execution: the journal for the bytes taken from an attachment,
+    // or null, with this chip's index among the machine's serial chips; the
+    // gate checked before they are taken; and, in a replay, a journaled byte
+    // put back into the receive queue. Emulation thread.
+    void    SetInputJournal  (InputJournal * journal, uint16_t chipIndex);
+    void    SetHostInputGate (const HostInputGate * gate) { m_inputGate = gate; }
+    bool    ApplyInput       (const InputRecord & record);
+
+    // Inspectors for tests and board wiring.
     Byte    GetStatus  () const { return m_status; }
     Byte    GetCommand () const { return m_command; }
     Byte    GetControl () const { return m_control; }
     int     GetWordLengthBits () const;
+    bool    IsCtsTrue  () const { return m_cts; }
+    bool    IsDtrOn    () const { return (m_command & kCommandDtr) != 0; }
+    bool    IsRtsOn    () const;
+
+    // Character time in CPU cycles for the transmitter's current format.
+    double  GetTransmitCharacterCycles () const;
+
+    // Bits per second for a control-register baud code, 0 being crystal / 16.
+    static double  GetBaudRate (int code);
 
     static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
-    // IMachineState: the four registers. The endpoint and the IRQ source are
-    // wiring, bytes already handed to the endpoint are output and are not taken
-    // back, and the interrupt controller saves whether the line is held.
+    // IMachineState: the registers, the transmitter and receiver in flight,
+    // the bytes waiting to be received, the modem lines and the modem control
+    // already reported. The endpoint, the IRQ source and the clock are
+    // wiring, bytes already handed to the endpoint are output and are not
+    // taken back, and the interrupt controller saves whether the line is held.
+    // Version 1 has the four registers only.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', 'C', 'I', 'A');
-    static constexpr uint16_t  kStateVersion = 1;
+    static constexpr uint16_t  kStateVersion = 2;
 
 private:
-    void    ResetState           (bool hardware);
-    void    ApplyProgrammedReset ();
-    Byte    ReadData             ();
-    Byte    ReadStatus           ();
-    void    WriteData            (Byte value);
-    void    RaiseIrq             ();
-    void    LowerIrq             ();
-    bool    IsRxIrqEnabled       () const;
-    bool    IsTxIrqEnabled       () const;
+    // Fixed point: cycle counts are stored scaled by 2^16 so pacing never
+    // accumulates rounding.
+    static constexpr int     kFixedShift = 16;
+
+    void    ResetState             (bool hardware);
+    Byte    ReadData               ();
+    Byte    ReadStatus             ();
+    void    WriteData              (Byte value);
+    void    WriteCommand           (Byte value);
+    void    RaiseIrq               ();
+    void    LowerIrq               ();
+    bool    IsRxIrqEnabled         () const;
+    bool    IsTxIrqEnabled         () const;
+    bool    CanLoadTransmitter     () const;
+    void    TryLoadTransmitter     ();
+    void    AdvanceTransmitter     (int64_t fixedCycles);
+    void    TakeHostBytes          (uint32_t cycles);
+    void    AdvanceReceiver        (int64_t fixedCycles);
+    void    LandReceivedByte       (Byte value);
+    void    ApplyPendingModemInputs();
+    void    NotifyModemControl     ();
+    int64_t GetCharacterFixedCycles (double baud) const;
+    double  GetReceiveBaud         () const;
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;
@@ -138,9 +222,40 @@ protected:
     Byte                     m_rxData  = 0;
 
 private:
-    IInterruptController *    m_ic        = nullptr;
-    IrqSourceId               m_irqSource = 0;
-    bool                      m_irqBound  = false;
+    Byte                     m_tdr         = 0;
+    bool                     m_tdrFull     = false;
+    Byte                     m_tsr         = 0;
+    bool                     m_tsrBusy     = false;
+    int64_t                  m_txRemaining = 0;
 
-    IAciaEndpoint *           m_endpoint = nullptr;
+    SerialByteQueue          m_rxInbox;                // an attachment's bytes, until the emulation thread takes them
+    SerialByteQueue          m_rxQueue;
+    bool                     m_rxActive    = false;
+    int64_t                  m_rxRemaining = 0;
+
+    bool          m_cts             = true;
+    bool          m_dsr             = true;
+    bool          m_dcd             = true;
+    atomic<bool>  m_pendingCts      = true;
+    atomic<bool>  m_pendingDsr      = true;
+    atomic<bool>  m_pendingDcd      = true;
+    atomic<bool>  m_modemInputDirty = false;
+
+    bool                     m_notifiedDtr   = false;
+    bool                     m_notifiedRts   = false;
+    bool                     m_notifiedBreak = false;
+
+    uint32_t                 m_cpuClockHz = kDefaultCpuClockHz;
+
+    IInterruptController *    m_ic           = nullptr;
+    IrqSourceId               m_irqSource    = 0;
+    bool                      m_irqBound     = false;
+    bool                      m_irqConnected = true;
+
+    IAciaEndpoint *           m_endpoint      = nullptr;
+    bool                      m_isOutputMuted = false;
+
+    InputJournal         *    m_inputJournal = nullptr;
+    uint16_t                  m_chipIndex    = 0;
+    const HostInputGate  *    m_inputGate    = nullptr;
 };

@@ -8,6 +8,34 @@
 class DxuiButton;
 class DxuiPanel;
 class DxuiDpiScaler;
+class IDxuiTextRenderer;
+class IDxuiTheme;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IDxuiMeasuredContent
+//
+//  A dialog's content that measures its own height at a given width, with
+//  the window's renderer and theme. DxuiDialogWindow sets its window's
+//  height from that measurement before the window appears, rather than from
+//  an estimate made before there was a renderer to measure with. Content
+//  with any text that wraps implements it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IDxuiMeasuredContent
+{
+public:
+    virtual ~IDxuiMeasuredContent() = default;
+
+    // The content's height in pixels at `widthPx`. On false the window's
+    // size is left as created.
+    virtual bool  TryMeasureHeightPx (IDxuiTextRenderer & text, const IDxuiTheme & theme, int widthPx, int & heightPx) = 0;
+};
 
 
 
@@ -84,8 +112,17 @@ protected:
     //
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 
+    //
+    //  Fits the window's height to content that implements
+    //  IDxuiMeasuredContent; for other content the window's size is left
+    //  as created.
+    //
+    void  OnDialogShowing () override;
+
 
 private:
+    HRESULT  FitHeightToContent ();
+
     struct ButtonEntry
     {
         DxuiButton *           button    = nullptr;

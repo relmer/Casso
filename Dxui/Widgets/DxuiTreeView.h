@@ -158,11 +158,12 @@ public:
     const DxuiTreeNode *  GetNodeAt (int flatIndex) const;
     DxuiTreeNode       *  GetNodeAtMutable (int flatIndex);
 
-    // Hit-test maps a (x, y) to either the row's checkbox or the
-    // row's twisty toggle. Returns -1 when nothing was hit.
+    // HitTestRow maps (x, y) to a row, or -1 past the last one. Within a
+    // row, HitTestTwisty finds the twisty, and HitTestToggle the checkbox
+    // or the label after it, as far as the label last painted.
     int   HitTestRow      (int x, int y) const;
     bool  HitTestTwisty   (int x, int y, int flatRow) const;
-    bool  HitTestCheckbox (int x, int y, int flatRow) const;
+    bool  HitTestToggle   (int x, int y, int flatRow) const;
 
     void  SetMouseHover   (int x, int y);
     bool  OnLButtonDown   (int x, int y);
@@ -256,6 +257,7 @@ private:
     bool                       m_focused        = false;
     std::vector<DxuiTreeNode>  m_nodes;
     std::vector<FlatRow>       m_flatRows;
+    std::vector<int>           m_labelRightPx;   // where each row's label ended when last painted
     ToggleFn                   m_toggle;
     DxuiDpiScaler              m_scaler;
     int                        m_topRow         = 0;

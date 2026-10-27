@@ -3,6 +3,7 @@
 #include "Machines/Apple2/Common/CxxxRomRouter.h"
 #include "Machines/Apple2/Apple2e/Apple2eMmu.h"
 #include "Devices/RomGeneration.h"
+#include "Machines/Apple2/Common/ExpansionRomBus.h"
 
 
 
@@ -351,7 +352,22 @@ Byte CxxxRomRouter::Read (Word address)
     else
     {
         MemoryDevice *  io = GetSlotIoDevice (address);
-        value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
+
+        //  The expansion space is the cards' while I/O STROBE' is asserted;
+        //  ResolveByte leaves it the floating bus, since reading the bus
+        //  deselects cards and ResolveByte also serves TryPeek.
+        if (io != nullptr)
+        {
+            value = io->Read (address);
+        }
+        else if (IsIoStrobeAsserted (address))
+        {
+            value = m_expansionRomBus->Read (address);
+        }
+        else
+        {
+            value = ResolveByte (address);
+        }
     }
 
     ApplyAccessSideEffects (address);
@@ -367,7 +383,9 @@ Byte CxxxRomRouter::Read (Word address)
 //
 //  Write
 //
-//  Writes are ignored (ROM); a slot I/O page is delegated to its device.
+//  Writes are ignored (ROM); a slot I/O page is delegated to its device, and
+//  the expansion space to the expansion bus while I/O STROBE' is asserted,
+//  since a write to $CFxx deselects the cards there just as a read does.
 //  The INTC8ROM side effects are an address decode, so a write applies
 //  them just as a read does. No address both delegates and switches
 //  INTC8ROM: slot 3 delegates only with SLOTC3ROM set, and $CFFF is never a
@@ -377,7 +395,8 @@ Byte CxxxRomRouter::Read (Word address)
 
 void CxxxRomRouter::Write (Word address, Byte value)
 {
-    MemoryDevice *  io = GetSlotIoDevice (address);
+    MemoryDevice *  io     = GetSlotIoDevice (address);
+    bool            strobe = IsIoStrobeAsserted (address);
 
 
 
@@ -385,8 +404,37 @@ void CxxxRomRouter::Write (Word address, Byte value)
     {
         io->Write (address, value);
     }
+    else if (strobe)
+    {
+        m_expansionRomBus->Write (address, value);
+    }
 
     ApplyAccessSideEffects (address);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsIoStrobeAsserted
+//
+//  The motherboard asserts I/O STROBE' for $C800-$CFFF only while INTCXROM
+//  and INTC8ROM are both reset (Sather, Understanding the Apple IIe, ch. 5).
+//  Evaluated before the access's own INTC8ROM side effects, so a $CFFF
+//  access while INTC8ROM is set clears INTC8ROM without the cards seeing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CxxxRomRouter::IsIoStrobeAsserted (Word address) const
+{
+    bool  inExp = (address >= kExpansionRomStart && address <= kExpansionRomLast);
+
+
+
+    return inExp && m_expansionRomBus != nullptr && !m_noExternalSlots &&
+           !m_mmu.GetIntCxRom() && !m_mmu.GetIntC8Rom();
 }
 
 
@@ -481,6 +529,11 @@ bool CxxxRomRouter::TryPeek (Word address, Byte & value) const
 
     value = kFloatingBusByte;
 
+    if (!isDevicePage && IsIoStrobeAsserted (address))
+    {
+        return m_expansionRomBus->TryPeekIo (address, value);
+    }
+
     if (!isDevicePage)
     {
         value = ResolveByte (address);
@@ -510,6 +563,11 @@ bool CxxxRomRouter::TryPeekIo (Word address, Byte & value)
     if (io != nullptr)
     {
         return io->TryPeekIo (address, value);
+    }
+
+    if (IsIoStrobeAsserted (address))
+    {
+        return m_expansionRomBus->TryPeekIo (address, value);
     }
 
     value = ResolveByte (address);

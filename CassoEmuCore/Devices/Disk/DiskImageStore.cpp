@@ -305,11 +305,14 @@ HRESULT DiskImageStore::LoadIntoBay (
 
         wasMounted = entry.mounted;
 
+        //  The watch is keyed by the old image's directory, so it is dropped
+        //  before the path changes; Mount watches the new one on success.
         if (wasMounted)
         {
             hr = FlushEntry (entry, FlushMoment::Running);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
+            EndWatching (slot, drive);
             RetireBay (entry);
         }
 
@@ -333,6 +336,7 @@ HRESULT DiskImageStore::LoadIntoBay (
 
             if (wasMounted)
             {
+                entry.sharedState.Eject();
                 EmitBayChange (slot, drive, BayChange::Ejected);
             }
         }
