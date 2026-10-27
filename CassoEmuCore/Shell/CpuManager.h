@@ -123,6 +123,11 @@ public:
     void       SetMaximumOverride    (bool isOn) noexcept { m_maximumOverride.store (isOn, std::memory_order_release); }
     bool       IsMaximumOverride     () const noexcept   { return m_maximumOverride.load (std::memory_order_acquire); }
 
+    //  Frames paced at the video rate whatever the speed, as a rewind draws
+    //  them.
+    void       SetPaceForced         (bool isOn) noexcept { m_isPaceForced.store (isOn, std::memory_order_release); }
+    bool       IsPaceForced          () const noexcept   { return m_isPaceForced.load (std::memory_order_acquire); }
+
     // Shared storage exposed for ClipboardManager wiring. The paste
     // buffer is guarded by the same mutex as the command queue so
     // both UI-thread enqueue paths can take a single lock.
@@ -154,6 +159,7 @@ private:
     std::atomic<SpeedMode>        m_speedMode  { SpeedMode::Authentic };
     std::atomic<SpeedMode>        m_userSpeed  { SpeedMode::Authentic };     // the last speed the user chose
     std::atomic<bool>             m_maximumOverride { false };
+    std::atomic<bool>             m_isPaceForced    { false };
 
     std::mutex                    m_pauseMutex;
     std::condition_variable       m_pauseCV;

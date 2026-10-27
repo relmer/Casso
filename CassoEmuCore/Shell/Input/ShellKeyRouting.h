@@ -21,6 +21,7 @@ enum class ShellKeyOwner
 {
     Guest,
     PaddleExit,     // Esc, which returns the pointer mapping to Off
+    Rewind,         // F2, which runs the machine backward while it is down
     Toolbar,        // an open picker, or a flyout opened by keyboard
     Chrome          // the keyboard-focus ring, or an open menu
 };

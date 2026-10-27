@@ -129,6 +129,40 @@ public:
     }
 
 
+    TEST_METHOD (F2IsTheRewindKeysInEveryState)
+    {
+        constexpr InputMappingMode  kModes[] = { InputMappingMode::Off,
+                                                 InputMappingMode::Joystick,
+                                                 InputMappingMode::Paddle,
+                                                 InputMappingMode::Mouse };
+        int                         visited  = 0;
+
+
+        for (InputMappingMode mode : kModes)
+        {
+            for (int bits = 0; bits < 8; bits++)
+            {
+                ShellKeyRouting::State  state;
+                ShellKeyOwner           owner = ShellKeyOwner::Guest;
+
+
+                state.pointerMode         = mode;
+                state.toolbarOwnsKeyboard = (bits & 1) != 0;
+                state.isChromeFocused     = (bits & 2) != 0;
+                state.isMenuOpen          = (bits & 4) != 0;
+
+                owner = ShellKeyRouting::GetKeyOwner (state, VK_F2);
+                visited++;
+
+                Assert::IsTrue (ShellKeyOwner::Rewind == owner, L"F2 is the rewind key's");
+                Assert::IsTrue (ShellKeyRouting::DoesOwnerSwallowChar (owner), L"and its character never reaches the guest");
+            }
+        }
+
+        Assert::AreEqual (32, visited);
+    }
+
+
     TEST_METHOD (ThePickerBeatsTheRing)
     {
         ShellKeyRouting::State  state = MakeIdle();

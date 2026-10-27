@@ -611,7 +611,8 @@ Error:
 //  StepBackCycles
 //
 //  Back by a cycle count, a scanline or a frame, to the first instruction
-//  boundary at or after the target cycle.
+//  boundary at or after the target cycle. A target at or before the oldest
+//  keyframe lands on it, at history's start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -633,7 +634,7 @@ HRESULT ReverseController::StepBackCycles (
     now         = cpu->GetHistoryCycles();
     oldestCycle = (m_keyframes.GetCount() > 0) ? m_keyframes.GetInfo (0).cycle : now;
     target      = (now > cycles) ? now - cycles : 0;
-    isBeforeAll = target < oldestCycle;
+    isBeforeAll = target <= oldestCycle;
 
     hr = SeekToCycle (isBeforeAll ? oldestCycle : target, result);
     CHR (hr);

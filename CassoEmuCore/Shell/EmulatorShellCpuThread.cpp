@@ -468,6 +468,12 @@ void EmulatorShell::RunOneFrame()
 
 void EmulatorShell::RunCpuThreadFrame()
 {
+    // A held rewind key steps the machine back a frame in place of this one.
+    if (m_history->RunRewindFrame())
+    {
+        return;
+    }
+
     // Recording continues at every speed, and running the machine from the past
     // makes it live again.
     m_history->RecordFrame();

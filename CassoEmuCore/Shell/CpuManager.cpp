@@ -797,7 +797,7 @@ void CpuManager::ThreadProc()
 
         speed = GetEffectiveSpeedMode();
 
-        if (speed != SpeedMode::Maximum)
+        if (speed != SpeedMode::Maximum || IsPaceForced())
         {
             WaitForSingleObject (hTimer, INFINITE);
         }

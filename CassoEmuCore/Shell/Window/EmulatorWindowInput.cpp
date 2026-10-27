@@ -10,6 +10,7 @@
 #include "Shell/Components/ShellDeskScene.h"
 #include "Shell/Components/ShellSettings.h"
 #include "Shell/Components/ShellDisks.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Shell/Components/ShellTapeDeck.h"
 #include "Shell/Components/ShellAudio.h"
@@ -1162,6 +1163,11 @@ void EmulatorShell::DispatchShellKey (
 {
     switch (owner)
     {
+    case ShellKeyOwner::Rewind:
+        // The release is OnKeyUp's.
+        m_history->StartRewind();
+        break;
+
     case ShellKeyOwner::PaddleExit:
         // The pointer is captured and hidden, so Esc is the only way out and
         // has to work whatever else is up.
@@ -1298,6 +1304,10 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         // added later cannot deliver its character by forgetting.
         m_swallowMetaChar = ShellKeyRouting::DoesOwnerSwallowChar (owner);
 
+        // A held rewind key repeats, and only its first press starts a
+        // rewind; one that landed on the oldest point stays stopped there.
+        BAIL_OUT_IF (owner == ShellKeyOwner::Rewind && isRepeat, S_OK);
+
         DispatchShellKey (owner, vk);
         BAIL_OUT_IF (true, S_OK);
     }
@@ -1355,6 +1365,13 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
     if (m_chrome->GetMainMenu().TrackAltTap (DxuiKeyEventKind::Up, vk))
     {
         InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+
+    // F2 is the rewind key's, and its release never goes to the guest.
+    if (vk == VK_F2)
+    {
+        m_history->StopRewind();
+        return DxuiMessageResult::Handled;
     }
 
     // Caps Lock is not part of the //e keyboard matrix, and OnKeyDown kept

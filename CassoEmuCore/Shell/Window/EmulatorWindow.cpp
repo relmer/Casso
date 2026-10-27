@@ -1273,6 +1273,9 @@ DxuiMessageResult EmulatorShell::OnKillFocus()
     // across a focus change (Enter while a window pops up, Alt-Tab mid-key)
     // can never leave the emulated key repeating forever.
     m_input->ReleaseGuestKeys();
+
+    // The rewind key's release goes to that window too.
+    m_history->StopRewind();
     return DxuiMessageResult::NotHandled;
 }
 

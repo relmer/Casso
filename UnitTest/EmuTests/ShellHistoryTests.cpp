@@ -215,4 +215,135 @@ namespace ShellHistoryTests
             Assert::IsTrue  (rig.shell->GetHistory().GetReplayCaption().empty(), L"the caption note is gone");
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  RewindLoopTests
+    //
+    //  The rewind key held: each frame steps the machine back a frame's cycles
+    //  in place of running one, paced at the video rate; the first frame after
+    //  the release pauses the machine where it is; and a rewind that lands on
+    //  the oldest point pauses there.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (RewindLoopTests)
+    {
+    public:
+
+        TEST_METHOD (EachFrameStepsBackAFramesCycles)
+        {
+            ShellRig       rig (false);
+            ShellHistory & history = rig.shell->GetHistory();
+            uint64_t       before  = 0;
+            uint64_t       after   = 0;
+
+
+
+            rig.RunFrames (kFrames);
+            before = rig.shell->GetMachine().GetCpu()->GetHistoryCycles();
+
+            history.StartRewind();
+
+            Assert::IsTrue (history.RunRewindFrame(), L"the frame is a rewind frame");
+
+            after = rig.shell->GetMachine().GetCpu()->GetHistoryCycles();
+
+            Assert::IsTrue (history.IsBehindLive(), L"the machine is behind live");
+            Assert::IsTrue (after >= before - kFrameCycles && after < before - kFrameCycles + 8, L"one frame's cycles back, to an instruction boundary");
+            Assert::IsTrue (rig.shell->GetCpuManager().IsPaceForced(), L"paced at the video rate");
+            Assert::IsFalse (rig.shell->GetCpuManager().IsPaused(), L"and running");
+        }
+
+
+        TEST_METHOD (TheFrameAfterTheReleasePausesWhereTheMachineStands)
+        {
+            ShellRig       rig (false);
+            ShellHistory & history = rig.shell->GetHistory();
+            uint64_t       landed  = 0;
+
+
+
+            rig.RunFrames (kFrames);
+
+            history.StartRewind();
+            Assert::IsTrue (history.RunRewindFrame(), L"a first frame back");
+            Assert::IsTrue (history.RunRewindFrame(), L"a second");
+
+            landed = rig.shell->GetMachine().GetPosition();
+            history.StopRewind();
+
+            Assert::IsTrue   (history.RunRewindFrame(), L"the frame after the release finishes the rewind");
+            Assert::AreEqual (landed, rig.shell->GetMachine().GetPosition(), L"without stepping back again");
+            Assert::IsTrue   (rig.shell->GetCpuManager().IsPaused(), L"paused");
+            Assert::IsFalse  (rig.shell->GetCpuManager().IsPaceForced(), L"paced as the speed sets again");
+            Assert::IsFalse  (history.RunRewindFrame(), L"and the next frame runs as usual");
+        }
+
+
+        TEST_METHOD (ARewindStopsPausedAtTheOldestPoint)
+        {
+            constexpr int  kMostFrames = 1000;
+
+            ShellRig       rig (false);
+            ShellHistory & history = rig.shell->GetHistory();
+            uint64_t       oldest  = 0;
+            int            frames  = 0;
+
+
+
+            rig.RunFrames (kFrames);
+            oldest = history.GetReverseHost()->GetController().GetKeyframes().GetInfo (0).position;
+
+            history.StartRewind();
+
+            while (frames < kMostFrames && history.RunRewindFrame() && !rig.shell->GetCpuManager().IsPaused())
+            {
+                frames++;
+            }
+
+            Assert::IsTrue   (frames < kMostFrames, L"the rewind ends");
+            Assert::IsTrue   (rig.shell->GetCpuManager().IsPaused(), L"paused");
+            Assert::AreEqual (oldest, rig.shell->GetMachine().GetPosition(), L"at the oldest point");
+            Assert::IsFalse  (history.RunRewindFrame(), L"the key held down rewinds no further");
+        }
+
+
+        TEST_METHOD (APausedMachineRunsWhileRewinding)
+        {
+            ShellRig       rig (false);
+            ShellHistory & history = rig.shell->GetHistory();
+
+
+
+            rig.RunFrames (kFrames);
+            rig.shell->GetCpuManager().SetPaused (true);
+
+            history.StartRewind();
+
+            Assert::IsFalse (rig.shell->GetCpuManager().IsPaused(), L"the machine runs");
+            Assert::IsTrue  (history.RunRewindFrame(), L"and steps back");
+        }
+
+
+        TEST_METHOD (NoRewindWithHistoryOff)
+        {
+            ShellRig       rig (false);
+            ShellHistory & history = rig.shell->GetHistory();
+
+
+
+            rig.RunFrames (kFrames);
+            rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (false, kBudgetMb));
+
+            history.StartRewind();
+
+            Assert::IsFalse (history.RunRewindFrame(), L"the frame runs as usual");
+            Assert::IsFalse (history.IsBehindLive(), L"live");
+        }
+    };
 }

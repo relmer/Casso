@@ -14,6 +14,8 @@
 //  timeline goes on, which a later seek will follow. GoLive returns to the
 //  end of history; StepForward replays the recorded future one instruction.
 //  ReverseContinue goes back to the latest position a stop test fires at.
+//  RewindFrame goes back one video frame's cycles, as a held rewind key does
+//  each frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,4 +30,5 @@ enum class ReverseCommand
     SeekCycle,
     ScrubCycle,
     GoLive,
+    RewindFrame,
 };

@@ -173,6 +173,10 @@ HRESULT ReverseHost::Execute (
     hr = Move (command, argument, stopTest, result);
     CHR (hr);
 
+    //  A rewind moves every frame, and the trace pane is made ready once it
+    //  stops.
+    BAIL_OUT_IF (command == ReverseCommand::RewindFrame, S_OK);
+
     hr = m_controller.PrepareRecentSteps (result);
     CHR (hr);
 
@@ -267,6 +271,10 @@ HRESULT ReverseHost::Move (
 
         case ReverseCommand::GoLive:
             hr = m_controller.SeekToPosition (m_controller.GetLiveEndPosition(), result);
+            break;
+
+        case ReverseCommand::RewindFrame:
+            hr = m_controller.StepBackCycles (ReverseController::kFrameCycles, result);
             break;
 
         default:

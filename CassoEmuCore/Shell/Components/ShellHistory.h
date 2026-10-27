@@ -114,6 +114,16 @@ public:
     size_t            GetPasteLengthBeforeHold () const         { return m_pasteLengthBeforeHold; }
     void              SetPasteLengthBeforeHold (size_t length)  { m_pasteLengthBeforeHold = length; }
 
+    // The rewind key. StartRewind and StopRewind are the UI thread's, on its
+    // press and release; a paused machine is run, so frames go on. Each CPU-
+    // thread frame while the key is down steps the machine back one frame in
+    // place of running one, at the video rate whatever the speed, and once
+    // the key is up or the machine lands on the oldest point it pauses on the
+    // frame on screen.
+    void  StartRewind    ();
+    void  StopRewind     ();
+    bool  RunRewindFrame ();
+
     // The caption's replay note: updated on the CPU thread, read on any.
     void          UpdateReplayCaption ();
     std::wstring  GetReplayCaption    ();
@@ -146,6 +156,7 @@ private:
     void  FenceForNetwork    ();
     bool  TryPublishPlayhead ();
     void  PublishMarks       ();
+    void  FinishRewind       ();
 
     IDebuggerHost     & m_host;
     MachineHost       & m_machine;
@@ -173,6 +184,8 @@ private:
     int                           m_intervalFrames    = 0;
     std::optional<ReverseOutcome> m_lastOutcome;                 // the last reverse command's, for the history band
     uint64_t                      m_lastPosition      = 0;       // where it landed
+    std::atomic<bool>             m_isRewindKeyDown   = false;   // the UI thread's: the rewind key is down
+    bool                          m_isRewinding       = false;   // a rewind is under way, on the CPU thread
 
     // Pictures of history for each timeline, drawn on a scratch machine of
     // the running one's configuration, and the marks drawn on both. Each

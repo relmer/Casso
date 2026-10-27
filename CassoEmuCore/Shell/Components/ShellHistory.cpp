@@ -473,6 +473,176 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  StartRewind
+//
+//  UI thread, on the rewind key's press. A paused machine is run, so the
+//  CPU thread's frames go on and step it back, and the debugger is sent the
+//  resume as the Pause command sends it. A key held down repeats, and only
+//  the first press counts.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::StartRewind()
+{
+    if (!m_settings.isRecording || m_isRewindKeyDown.exchange (true, memory_order_acq_rel))
+    {
+        return;
+    }
+
+    if (m_cpuManager.IsPaused())
+    {
+        m_cpuManager.SetPaused (false);
+        m_host.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "0");
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StopRewind
+//
+//  UI thread, on the rewind key's release. The CPU thread's next frame
+//  pauses the machine where the last one left it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::StopRewind()
+{
+    m_isRewindKeyDown.store (false, memory_order_release);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunRewindFrame
+//
+//  CPU thread, at the start of each frame. While the rewind key is down, the
+//  machine steps back one frame's cycles and the screen is drawn from where
+//  it landed; the frame runs nothing forward, so no sound is made, and the
+//  replay's speaker clicks are dropped. The frames are paced at the video
+//  rate at Maximum speed too. The first frame after the release, or the
+//  frame that lands on the oldest point, pauses the machine there. False when
+//  no rewind is under way, so the frame runs as usual.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ShellHistory::RunRewindFrame()
+{
+    HRESULT          hr      = S_OK;
+    bool             isDown  = m_isRewindKeyDown.load (memory_order_acquire);
+    AppleSpeaker   * speaker = m_machine.GetRefs().speaker;
+    ReverseResult    result;
+
+
+
+    if (!m_isRewinding)
+    {
+        if (!isDown)
+        {
+            return false;
+        }
+
+        FenceForNetwork();
+
+        if (!IsRecording() || m_machine.GetCpu() == nullptr)
+        {
+            m_isRewindKeyDown.store (false, memory_order_release);
+            return false;
+        }
+
+        m_isRewinding = true;
+        m_cpuManager.SetPaceForced (true);
+    }
+
+    if (!isDown)
+    {
+        FinishRewind();
+        return true;
+    }
+
+    if (m_client != nullptr)
+    {
+        m_client->OnHistoryMoving();
+    }
+
+    hr = m_reverseHost->Execute (ReverseCommand::RewindFrame, 0, nullptr, result);
+
+    if (m_client != nullptr)
+    {
+        m_client->OnHistoryMoved (ReverseCommand::RewindFrame);
+    }
+
+    if (speaker != nullptr)
+    {
+        speaker->ClearTimestamps();
+        speaker->BeginFrame();
+    }
+
+    m_lastOutcome  = result.outcome;
+    m_lastPosition = m_machine.GetPosition();
+
+    m_host.DrawFrame();
+
+    if (FAILED (hr) || result.outcome == ReverseOutcome::AtHistoryStart)
+    {
+        m_isRewindKeyDown.store (false, memory_order_release);
+        FinishRewind();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FinishRewind
+//
+//  CPU thread: the machine pauses on the frame on screen. The debugger is
+//  sent the pause, and the landing as a step's stop.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellHistory::FinishRewind()
+{
+    EmuCpu         * cpu = m_machine.GetCpu();
+    ReverseResult    result;
+
+
+
+    m_isRewinding = false;
+
+    m_cpuManager.SetPaceForced (false);
+    m_cpuManager.SetPaused     (true);
+    m_host.PostCommand (IDM_DEBUG_PAUSE_CHANGED, "1");
+
+    result.outcome  = m_lastOutcome.value_or (ReverseOutcome::Moved);
+    result.position = m_machine.GetPosition();
+    result.cycle    = (cpu != nullptr) ? cpu->GetHistoryCycles() : 0;
+
+    //  Each frame moved as a drag of the timeline does; the end of the rewind
+    //  is the drag's release, which rebuilds what waited for it.
+    if (m_client != nullptr)
+    {
+        m_client->OnHistoryMoving();
+        m_client->OnHistoryMoved  (ReverseCommand::Seek);
+        m_client->OnHistoryLanded (result);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AllowCommand
 //
 //  The command queue's gate, on the posting thread. A command that changes

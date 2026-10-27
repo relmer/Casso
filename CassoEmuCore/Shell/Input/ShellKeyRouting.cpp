@@ -12,10 +12,12 @@
 //
 //  The ladder, in the order the shell's pre-checks run it.
 //
-//  Paddle leads because Esc is the documented way out of a captured pointer
-//  and has to work whatever the chrome is doing. It is the only arm that turns
-//  on WHICH key was pressed; the rest claim every key while they are up, which
-//  is what keeps a letter typed at a focused menu title out of the //e.
+//  The rewind key leads: F2 is never the guest's, whatever the chrome is
+//  doing. Paddle is next because Esc is the documented way out of a captured
+//  pointer and has to work whatever the chrome is doing. Those two are the
+//  arms that turn on WHICH key was pressed; the rest take every key while
+//  they are up, so a letter typed at a focused menu title does not go to the
+//  //e.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +29,11 @@ ShellKeyOwner ShellKeyRouting::GetKeyOwner (
 
 
 
-    if (state.pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
+    if (vk == VK_F2)
+    {
+        owner = ShellKeyOwner::Rewind;
+    }
+    else if (state.pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
         owner = ShellKeyOwner::PaddleExit;
     }

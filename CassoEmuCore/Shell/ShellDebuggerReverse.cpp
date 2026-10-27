@@ -178,14 +178,14 @@ void ShellDebugger::OnHistoryMoving()
 //  OnHistoryMoved
 //
 //  Landed or not, the machine may have moved; the heat map follows it,
-//  rebuilding its heat once a drag of the timeline is let go, and so does
-//  the call record.
+//  rebuilding its heat once a drag of the timeline is let go or a rewind
+//  ends, and so does the call record.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDebugger::OnHistoryMoved (ReverseCommand command)
 {
-    bool  isScrub = command == ReverseCommand::ScrubCycle;
+    bool  isScrub = command == ReverseCommand::ScrubCycle || command == ReverseCommand::RewindFrame;
 
 
 
