@@ -177,6 +177,7 @@
     <ClCompile Include="GuestVisibleFluxTests.cpp" />
     <ClCompile Include="IdleHistoryRateTests.cpp" />
     <ClCompile Include="HistoryRateTests.cpp" />
+    <ClCompile Include="DeterminismSoakTests.cpp" />
     <ClCompile Include="DebugEventReplayRateTests.cpp" />
     <ClCompile Include="Disk2SectorEventTests.cpp" />
     <ClCompile Include="DiskReadProbeTests.cpp" />
