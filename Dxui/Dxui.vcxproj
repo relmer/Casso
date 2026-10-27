@@ -226,6 +226,8 @@
     <ClCompile Include="Widgets\DxuiStatusBar.cpp" />
     <ClCompile Include="Widgets\DxuiFramebufferView.cpp" />
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexLayout.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexPainter.cpp" />
     <ClCompile Include="Core\DxuiClipboard.cpp" />
     <ClCompile Include="Core\DxuiStandardCommand.cpp" />
     <ClCompile Include="Core\DxuiIconImage.cpp" />
@@ -346,6 +348,9 @@
     <ClInclude Include="Widgets\DxuiStatusBar.h" />
     <ClInclude Include="Widgets\DxuiFramebufferView.h" />
     <ClInclude Include="Widgets\DxuiHexView.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexLayout.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexPainter.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexViewTypes.h" />
     <ClInclude Include="Core\DxuiClipboard.h" />
     <ClInclude Include="Core\DxuiStandardCommand.h" />
     <ClInclude Include="Core\DxuiIconImage.h" />

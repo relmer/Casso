@@ -1184,9 +1184,12 @@ included, follow this phase, so none is repeated after it.
 
   Done in `CassoEmuCore/Seams/ShellVerbs/`. The nested `CenterDialogsOver`
   and `OperationRecorder` went with the recycle bin and the transfers.
-- [ ] T271 Split `Dxui/Widgets/DxuiHexView.h/.cpp` into row layout (line
+- [X] T271 Split `Dxui/Widgets/DxuiHexView.h/.cpp` into row layout (line
   index, offsets, cells) and formatting (values, text, code pages). The
   view is left with selection, input and paint.
+
+  Done in `Dxui/Widgets/HexView/` as `DxuiHexLayout` and `DxuiHexPainter`.
+  The value and text formatting went to the painter with the drawing.
 - [ ] T272 Factor the ADTPro server (requests, directory, get, put, virtual
   drive) out of `CassoEmuCore/CassoLink/CassoLinkHost.h/.cpp`. The host
   is left with Casso's protocol.
