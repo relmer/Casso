@@ -23,6 +23,26 @@ namespace ReverseForkTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  NeverStops
+    //
+    //  A stop test that never fires, so a reverse continue replays every
+    //  stretch of the active path to its start.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class NeverStops : public IReverseStopTest
+    {
+    public:
+        bool          ShouldStopBefore (MachineHost &, Word) override { return false; }
+        bool          TakePendingStop  () override                    { return false; }
+        IWatchSink *  GetWatchSink     () override                    { return nullptr; }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  ReverseForkTests
     //
     //  A change behind live moves the recorded future into a branch, and a
@@ -162,6 +182,36 @@ namespace ReverseForkTests
             Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"and going live returns to the branch's live end");
         }
 
+
+        TEST_METHOD (AReverseContinueAfterASwitchCrossesTheFork)
+        {
+            TestMachine                  machine ("Apple2e");
+            ReverseHost                  host    (machine);
+            std::vector<KeyframeBranch>  branches;
+            NeverStops                   neverStops;
+            ReverseResult                result;
+            HRESULT                      hr = S_OK;
+
+
+
+            Record (machine, host);
+
+            Execute (host, ReverseCommand::Seek, machine.GetPosition() - kBack);
+
+            hr = host.Fork();
+            AssertSucceeded (hr, L"Fork");
+
+            Run (machine, kBranchCycles);
+
+            host.GetController().GetKeyframes().GetBranches (branches);
+            Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
+
+            hr = host.Execute (ReverseCommand::ReverseContinue, 0, &neverStops, result);
+            AssertSucceeded (hr, L"ReverseContinue over the whole active path");
+
+            Assert::IsTrue             (result.outcome == ReverseOutcome::AtHistoryStart, L"it reached the start, every keyframe matched");
+            Assert::AreEqual<uint64_t> (host.GetController().GetOldestPosition(), machine.GetPosition(), L"at the oldest position");
+        }
 
         TEST_METHOD (MovesStayOnTheActivePath)
         {

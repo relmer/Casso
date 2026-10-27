@@ -1747,6 +1747,45 @@ namespace DebuggerTests
         }
 
 
+        //  A switch to a branch changes the path the copies were made along:
+        //  every copy afterward is at a keyframe of the new path.
+        TEST_METHOD (ASwitchToABranchKeepsCopiesOnlyAtItsKeyframes)
+        {
+            HistoryRig                   rig;
+            std::vector<KeyframeBranch>  branches;
+            ReverseResult                result;
+            uint64_t                     forkAt = 0;
+            HRESULT                      hr     = S_OK;
+
+
+
+            RunTo (rig.base.machine, kAttachAt);
+            rig.Attach();
+            rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles * 60);
+            rig.Drain();
+
+            forkAt = (rig.controller.GetOldestPosition() + rig.base.machine.GetPosition()) / 2;
+
+            hr = rig.controller.SeekToPosition (forkAt, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            hr = rig.controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged forks");
+
+            rig.base.machine.RunCycles (KeyframeSettings::kFrameCycles * 30);
+            rig.Drain();
+
+            rig.controller.GetKeyframes().GetBranches (branches);
+            Assert::AreEqual<size_t> (1, branches.size(), L"a branch left behind");
+
+            hr = rig.controller.SwitchBranch (branches[0].id, result);
+            AssertSucceeded (hr, L"SwitchBranch");
+
+            rig.Drain();
+
+            Assert::IsTrue (AreCopiesAtKeyframes (rig), L"no copy off the new path");
+        }
+
         //  What the copies of the record cost: the bytes each uses, for the
         //  program's record of three to five calls and a TXS, and those for
         //  every keyframe the default budget's table holds, which must fit

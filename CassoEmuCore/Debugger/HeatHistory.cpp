@@ -611,9 +611,11 @@ Error:
 //
 //  History is about to drop a keyframe: when it is the anchor, the anchor
 //  moves to the neighbor that stays, by the counts of the stretch between,
-//  which are still there to read. Dropping everything drops the anchor, as
-//  a switch to another branch does, with the map's records from the switch's
-//  fork position forgotten.
+//  which are there to read. Dropping everything drops the anchor. On
+//  a switch to another branch, the map's access entries from the switch's
+//  fork position are dropped, and so is the anchor unless the drops of the
+//  keyframes from the fork on moved it to a keyframe before the fork, which
+//  is on both paths.
 //  Dropping the newest drops a future, and the map's records from it, from
 //  the keyframe before it or the machine, whichever is earlier, are
 //  forgotten. Dropping the oldest keeps the written bits at the keyframe
@@ -626,6 +628,7 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
     size_t    count     = m_keyframes->GetCount();
     size_t    index     = (drop == KeyframeDrop::Oldest) ? 0 : count - 1;
     bool      isApplied = false;
+    bool      isShared  = false;
     uint64_t  cut       = m_machine.GetPosition();
 
 
@@ -657,7 +660,19 @@ void HeatHistory::OnKeyframeDrop (KeyframeDrop drop)
         m_lookups.clear();
     }
 
-    if (!m_hasAnchor || drop == KeyframeDrop::All || drop == KeyframeDrop::PathChanged)
+    if (drop == KeyframeDrop::PathChanged)
+    {
+        isShared = m_hasAnchor && m_anchorPosition < m_keyframes->GetPathChangePosition() && TryFindKeyframe (m_anchorPosition, index);
+
+        if (!isShared)
+        {
+            DropAnchor();
+        }
+
+        return;
+    }
+
+    if (!m_hasAnchor || drop == KeyframeDrop::All)
     {
         DropAnchor();
         return;

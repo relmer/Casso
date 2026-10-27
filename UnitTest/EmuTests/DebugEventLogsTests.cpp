@@ -467,6 +467,50 @@ namespace DebugEventLogsTests
         }
 
 
+        //  A switch to the branch a fork left behind changes the path from
+        //  the fork on: the cache drops its entries from there, and the next
+        //  delta drops an open pane's rows from there.
+        TEST_METHOD (ASwitchDropsTheCacheFromTheForkOn)
+        {
+            Session                              session;
+            const DebugEventCache<InputEvent>  & cache    = session.logs.GetInputCache();
+            uint64_t                             forkAt   = 0;
+            HRESULT                              hr       = S_OK;
+            std::vector<KeyframeBranch>          branches;
+            ReverseResult                        result;
+            InputLogDelta                        delta;
+
+
+
+            session.logs.Start (&session.controller);
+            session.logs.SetOpen (DebugLogKind::Input, true);
+            Run (session.machine, 0, 200);
+            session.WaitForKeyframes();
+            session.logs.TakeDelta (delta);
+
+            forkAt = cache.GetAt (cache.GetCount() / 2).position;
+
+            hr = session.controller.SeekToPosition (forkAt, result);
+            AssertSucceeded (hr, L"SeekToPosition");
+
+            hr = session.controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged forks");
+
+            Run (session.machine, 200, 100);
+            session.WaitForKeyframes();
+            session.logs.TakeDelta (delta);
+
+            session.controller.GetKeyframes().GetBranches (branches);
+
+            hr = session.controller.SwitchBranch (branches[0].id, result);
+            AssertSucceeded (hr, L"SwitchBranch");
+
+            Assert::IsTrue (cache.GetCount() == 0 || cache.GetAt (cache.GetCount() - 1).position < forkAt, L"nothing cached from the fork on");
+
+            session.logs.TakeDelta (delta);
+            Assert::AreEqual (forkAt, delta.cutFrom, L"the pane drops its rows from the fork on");
+        }
+
         //  At Maximum speed recording pauses: nothing is cached until it
         //  resumes, where a gap entry is.
         TEST_METHOD (AGapIsMarkedWhereRecordingResumes)

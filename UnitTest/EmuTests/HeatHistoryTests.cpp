@@ -515,6 +515,55 @@ public:
     }
 
 
+    //  A switch to the branch a fork left behind puts the machine at the
+    //  branch's live end: the totals there, and at a seek back along the
+    //  branch past the fork, are a straight run's.
+    TEST_METHOD (CumulativeTotalsFollowASwitchToABranch)
+    {
+        Rig                                        rig      (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+        std::vector<uint64_t>                      spread;
+        std::vector<KeyframeBranch>                branches;
+        std::map<uint64_t, std::vector<int64_t>>   straight;
+        ReverseResult                              result;
+        uint64_t                                   firstEnd = 0;
+        uint64_t                                   forkAt   = 0;
+        uint64_t                                   onBranch = 0;
+        HRESULT                                    hr       = S_OK;
+
+
+
+        rig.script.RunTo (rig.machine, UINT64_MAX);
+
+        firstEnd = rig.machine.GetPosition();
+        spread   = SpreadPositions (rig.controller, firstEnd);
+        forkAt   = spread[spread.size() / 2];
+        onBranch = spread[spread.size() - 2];
+        straight = CountStraight ({ firstEnd, onBranch });
+
+        rig.Seek (forkAt);
+
+        hr = rig.controller.OnMachineChanged();
+        AssertSucceeded (hr, L"OnMachineChanged forks");
+
+        while (rig.machine.GetPosition() < forkAt + s_kHeatRunOn)
+        {
+            rig.machine.StepOne();
+        }
+
+        rig.controller.GetKeyframes().GetBranches (branches);
+        Assert::AreEqual<size_t> (1, branches.size(), L"a branch left behind");
+
+        hr = rig.controller.SwitchBranch (branches[0].id, result);
+        AssertSucceeded (hr, L"SwitchBranch");
+        rig.target.NoteHistoryMoved (false);
+
+        Assert::AreEqual<uint64_t> (firstEnd, rig.machine.GetPosition(), L"at the branch's live end");
+        AssertSameTotals (straight[firstEnd], GetShown (rig.GetMap()), L"at the branch's live end");
+
+        rig.Seek (onBranch);
+        AssertSameTotals (straight[onBranch], GetShown (rig.GetMap()), L"a seek back along the branch");
+    }
+
     //  The instruction that last wrote and last read an address, in every
     //  space, follows the machine as the totals do: after any seek, step or
     //  run on, it is the one a straight run to the same position saw, the

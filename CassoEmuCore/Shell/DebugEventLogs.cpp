@@ -470,6 +470,15 @@ void DebugEventLogs::OnDrop (KeyframeDrop drop)
         return;
     }
 
+    //  The entries from the fork on are from the path left behind.
+    if (drop == KeyframeDrop::PathChanged)
+    {
+        CutBack (m_disk,  position);
+        CutBack (m_input, position);
+        CutBack (m_video, position);
+        CutBack (m_sound, position);
+    }
+
     m_disk.replayer.OnHistoryCut  (position);
     m_input.replayer.OnHistoryCut (position);
     m_video.replayer.OnHistoryCut (position);
