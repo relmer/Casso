@@ -74,35 +74,44 @@ Release, pinned to one core of the cache CCD where it matters:
 | SC-021, two 140 KB disks under 1 s | 0.8 ms |
 | SC-021, two flux WOZ images under 5 s | 12.3 ms |
 | SC-004, platter GPU time | median 0.020 ms over 240 frames |
+| SC-004, platter overlays and strip paint over a zoom and pan | median 0.06 ms, at most 0.45 ms |
+
+## Checked 2026-10-26 evening
+
+- **Keyboard walk (SC-011).** Tab did nothing in the inspector: Dxui moves
+  focus on Tab only in dialog mode. The inspector now walks its controls with
+  Tab, each with a focus ring, routes Enter, Space and arrows to the focused
+  control first, and returns the keys to the views on Escape, F6 or a click.
+- **Bandits (SC-012).** Taken from GH #159's attachment into the scratchpad.
+  34 tracks with data, 19 flux. Zoomed in, its flux tracks were noise
+  rather than bands until Timing mode averaged each cell over 32 cells.
+- **Machine change confirmation.** Seen on screen after turning off slot 6's
+  Disk II in Settings with an edit pending. Settings saves the change before
+  the confirmation, so after Cancel the saved change applies at the next
+  launch.
+- **The Print Shop.** It boots from a custom loader, not DOS files. Its one catalog sector has the
+  title banner as 7 fake entries, all pointing at the same bogus
+  track/sector list, and the VTOC marks tracks 3 to 33 used. So 496 of the
+  504 findings are "marked used but no file uses it", one per sector.
 
 ## Waiting on the owner
 
-- **The keyboard walk (T142, SC-011).** Dxui moves focus on a posted Tab only
-  while the inspector is the active window, and activating it would take the
-  keyboard from you. Someone at the keyboard has to walk it.
-- **Tooltips by mouse.** Posted mouse input does not open Casso's tooltips,
-  so the Find hit tooltips and "Slot 6 drives only" were checked in code
+- **Tooltips by mouse.** Tooltips open only for the real cursor, and the
+  screen was locked. The Find hit tooltips and "Slot 6 drives only" are checked in code
   only.
-- **The machine change confirmation on screen.** To see it, turn off slot 6's
-  Disk II in Settings with an edit pending.
-- **SC-004's zoom and pan frame times and SC-005's whole-program runs.** Both are run with
-  real input: five alternating runs at Maximum
-  speed with the window open and closed, and five 60 s runs at normal speed
-  for audio underruns and dropped frames.
-- **Bandits (SC-012).** The image is not on this machine.
-- **The Print Shop.** Its VTOC passes the DOS 3.3 check and its catalog chain
-  runs through 72 sectors, so the File system category lists 504 findings.
-  DOS would read the same chain. Should the map stop treating such a disk as
-  DOS 3.3? See research.md R4.
-- **Menu bar: yes or no.** Nothing is built.
+- **SC-005's whole-program runs.** Casso has no readout of its achieved
+  speed or audio underruns, so the open and closed runs cannot be compared.
+  Adding an opt-in speed log is your call.
+- **The Print Shop's findings.** Accept them as they are, or group "marked used but no
+  file uses it" into one finding per track or per run of tracks.
+- **Menu bar: yes or no.** A mock-up was sent in chat.
 - **The walkthrough's text.** Plain wording for someone new to disk internals
   is a judgment call; it is in `CEC/Ui/DiskInspector/InspectorWalkthrough.cpp`.
-
 ## Open work
 
 - T143, T145: the Explorer halves wait for 033. Casso's theme captures
   (all three themes, every tab, a damaged NIB, grayscale) and SC-007 are done.
-- T147: all gates passed 2026-10-26 (Debug 7001, Release 7000, scenarios 55,
+- T147: all gates passed 2026-10-26 (Debug 7003, Release 7001, scenarios 55,
   ARM64 Release, analysis clean); run again before the merge.
 - Blocked until 033 merges to master: T129 to T141 and T161.
 - Blocked on 035's machine state: the state-restore parts of T094 and T114.
