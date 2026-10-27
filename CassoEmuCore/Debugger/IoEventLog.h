@@ -43,6 +43,8 @@ struct IoEvent
     Byte         chip         = 0;
     Byte         reg          = 0;
     Byte         value        = 0;
+
+    bool  operator== (const IoEvent & other) const = default;
 };
 
 
