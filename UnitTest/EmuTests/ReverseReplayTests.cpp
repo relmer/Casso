@@ -115,7 +115,7 @@ public:
         AssertSucceeded (hr, L"SeekToCycle live");
 
         Assert::IsTrue (result.outcome == ReverseOutcome::Moved, L"no keyframe may diverge");
-        Assert::AreEqual (keyframes, controller.GetKeyframes().GetCount(), L"every keyframe survives the replay");
+        Assert::AreEqual (keyframes + 1, controller.GetKeyframes().GetCount(), L"every keyframe survives the replay, with the live end kept");
         Assert::IsFalse (controller.IsInHistory());
     }
 

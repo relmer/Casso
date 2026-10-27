@@ -268,17 +268,23 @@ public:
         hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
         AssertSucceeded (hr, L"SeekToPosition back to the start");
 
-        hr = controller.SeekToPosition (liveEnd, result);
+        //  The live end is a keyframe, so the replay stops one instruction
+        //  short of it and steps onto it.
+        hr = controller.SeekToPosition (liveEnd - 1, result);
         AssertSucceeded (hr, L"SeekToPosition forward past the reset");
 
-        isFound = controller.GetKeyframes().TryFindByPosition (liveEnd, keyframe);
+        isFound = controller.GetKeyframes().TryFindByPosition (liveEnd - 1, keyframe);
 
-        Assert::IsTrue             (isFound && controller.GetKeyframes().GetInfo (keyframe).position < resetAt, L"the replay to the live end starts before the reset");
+        Assert::IsTrue             (isFound && controller.GetKeyframes().GetInfo (keyframe).position < resetAt, L"the replay starts before the reset");
         Assert::AreEqual<size_t>   (1, liveCount, L"the live reset wrote once, through the store");
         Assert::IsTrue             (isSaved, L"and the live disk has nothing left unsaved");
         Assert::AreEqual<size_t>   (liveCount, log.count, L"the replayed reset wrote nothing through the store");
         Assert::IsTrue             (machine.GetDiskStore().GetImage (6, 0)->IsDirty(), L"nor around it: the replayed writes are still unsaved");
         Assert::IsTrue             (result.outcome == ReverseOutcome::Moved, L"the replay matched every keyframe");
+
+        hr = controller.StepForward (result);
+        AssertSucceeded (hr, L"StepForward onto the live end");
+
         Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"back at the live end");
         Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
     }

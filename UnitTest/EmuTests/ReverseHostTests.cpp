@@ -212,14 +212,14 @@ public:
         AssertSucceeded (hr, L"GoLive");
 
         Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"live again from the old live end");
-        Assert::AreEqual (count, store.GetCount(), L"no history was dropped");
+        Assert::AreEqual (count + 1, store.GetCount(), L"no history was dropped, and the live end was kept");
 
         machine.RunCycles (s_kHostGapCycles);
 
-        Assert::IsTrue (store.GetCount() > count, L"keyframes taken after going live");
+        Assert::IsTrue (store.GetCount() > count + 1, L"keyframes taken after going live");
 
-        before  = store.GetInfo (count - 1);
-        after   = store.GetInfo (count);
+        before  = store.GetInfo (count);
+        after   = store.GetInfo (count + 1);
         wallGap = after.wallTime - before.wallTime;
 
         Assert::IsTrue (wallGap >= kMinuteTicks, L"the wall time stamped after going live jumps by the minute");

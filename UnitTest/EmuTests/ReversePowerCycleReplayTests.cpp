@@ -102,7 +102,7 @@ public:
         Assert::IsTrue (result.outcome != ReverseOutcome::HistoryCut, L"the replay matched every keyframe after the power cycle");
         Assert::IsTrue (result.outcome == ReverseOutcome::AtHistoryStart, L"nothing stopped it, so it reached the start");
         Assert::AreEqual<uint64_t> (oldest, machine.GetPosition(), L"at the oldest position");
-        Assert::AreEqual<size_t>   (keyframes, controller.GetKeyframes().GetCount(), L"no keyframe was dropped");
+        Assert::AreEqual<size_t>   (keyframes + 1, controller.GetKeyframes().GetCount(), L"no keyframe was dropped, and the live end was kept");
     }
 
 

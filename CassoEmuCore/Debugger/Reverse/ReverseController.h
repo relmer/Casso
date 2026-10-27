@@ -210,6 +210,7 @@ private:
     void      OnArrived          () override;
     HRESULT   ReplayHere         (bool isStarting);
     HRESULT   LeaveLive          ();
+    HRESULT   CaptureLiveEnd     ();
     bool      IsStopDue          (uint64_t from, uint64_t reached);
     void      BecomeLive         ();
     void      ScheduleCaptures   ();

@@ -2107,9 +2107,11 @@ void ReverseController::OnArrived()
 //
 //  LeaveLive
 //
-//  Remembers where history ends before the machine moves into it. While
-//  paused, the position the machine reached is kept first as a keyframe
-//  after the gap, so stepping back from it, and coming back to it, work.
+//  Remembers where history ends before the machine moves into it, and keeps
+//  the live end as a keyframe, so a switch back to this branch from another
+//  loads it exactly. While paused, the position the machine reached is kept
+//  first as a keyframe after the gap, so stepping back from it, and coming
+//  back to it, work.
 //  From here every instruction start reaches OnCaptureDue, which is how a
 //  machine run from the past without a seek is noticed.
 //
@@ -2140,6 +2142,9 @@ HRESULT ReverseController::LeaveLive()
 
     if (m_isLive)
     {
+        hr = CaptureLiveEnd();
+        CHR (hr);
+
         m_liveEndPosition = position;
         m_liveEndCycle    = m_machine.GetCpu()->GetHistoryCycles();
         m_isLive          = false;
@@ -2149,6 +2154,41 @@ HRESULT ReverseController::LeaveLive()
 
     m_nextDueCycle = 0;
     m_isArrivalDue = true;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CaptureLiveEnd
+//
+//  A keyframe at the live end, marked as one: the newest, when it was taken
+//  at this position already, as after a gap or a boundary.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseController::CaptureLiveEnd()
+{
+    HRESULT  hr      = S_OK;
+    size_t   count   = m_keyframes.GetCount();
+    bool     isThere = count > 0 && m_keyframes.GetInfo (count - 1).position == m_machine.GetPosition();
+
+
+
+    if (!isThere)
+    {
+        hr = CaptureNow();
+        CHR (hr);
+    }
+
+    BAIL_OUT_IF (m_keyframes.GetCount() == 0, S_OK);
+
+    m_keyframes.MarkNewestLiveEnd();
 
 Error:
     return hr;
