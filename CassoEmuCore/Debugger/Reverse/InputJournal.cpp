@@ -166,6 +166,11 @@ const InputRecord & InputJournal::GetRecord (size_t index) const
 //  made in the past has made wrong. Their slots stay for reuse, and the cut
 //  count goes up when any record is dropped.
 //
+//  An endIndex before the journal's first index empties the journal, which
+//  then ends there. A branch switch can cut back that far: when the fork is
+//  at the active path's oldest keyframe, the entries from the fork's journal
+//  index to that keyframe's were dropped as older than every keyframe.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputJournal::Truncate (size_t endIndex)
@@ -174,7 +179,14 @@ void InputJournal::Truncate (size_t endIndex)
 
 
 
-    if (endIndex > m_firstIndex)
+    if (endIndex < m_firstIndex)
+    {
+        m_firstIndex = endIndex;
+        m_head       = 0;
+        m_count      = 0;
+        m_cutCount++;
+    }
+    else
     {
         keep = endIndex - m_firstIndex;
     }

@@ -153,7 +153,9 @@ void KeyframeStore::GetBranches (std::vector<KeyframeBranch> & outBranches) cons
 //  branch, newest first, each sent to the listeners as the newest dropped,
 //  and the journal's records from journalIndex with them. Branches forked
 //  from the active path after position now fork from the new branch. The
-//  newest group left is reloaded, as after a cut.
+//  newest group left is reloaded, as after a cut. The branch's journal
+//  entries start at the journal's first index when that is after
+//  journalIndex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -209,7 +211,7 @@ HRESULT KeyframeStore::MoveTailToBranch (
     branch.info.liveEndPosition = branch.entries.back().info.position;
     branch.info.liveEndCycle    = branch.entries.back().info.cycle;
     branch.info.leftAtWallTime  = m_wallClock();
-    branch.firstJournalIndex    = journalIndex;
+    branch.firstJournalIndex    = std::max (journalIndex, journal.GetBeginIndex());
 
     journal.MoveAfter (journalIndex, branch.records);
 

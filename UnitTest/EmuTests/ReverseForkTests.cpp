@@ -183,6 +183,47 @@ namespace ReverseForkTests
         }
 
 
+        //  A fork at the oldest keyframe, where the journal's entries before
+        //  it were dropped: a switch back lands exactly at the live end, and
+        //  a switch to the path left lands at its end.
+        TEST_METHOD (AForkAtTheOldestKeyframeSwitchesBothWays)
+        {
+            TestMachine                  machine ("Apple2e");
+            ReverseHost                  host    (machine);
+            std::vector<KeyframeBranch>  branches;
+            uint64_t                     liveEnd  = 0;
+            uint64_t                     checksum = 0;
+            uint64_t                     newEnd   = 0;
+            HRESULT                      hr       = S_OK;
+
+
+
+            Record (machine, host);
+
+            liveEnd  = machine.GetPosition();
+            checksum = ReverseSessionRig::Checksum (machine);
+
+            Execute (host, ReverseCommand::Seek, host.GetController().GetOldestPosition());
+
+            hr = host.Fork();
+            AssertSucceeded (hr, L"Fork");
+
+            Run (machine, kBranchCycles);
+            newEnd = machine.GetPosition();
+
+            host.GetController().GetKeyframes().GetBranches (branches);
+            Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
+
+            Assert::AreEqual<uint64_t> (liveEnd,  machine.GetPosition(),                L"at the old live end");
+            Assert::AreEqual<uint64_t> (checksum, ReverseSessionRig::Checksum (machine), L"with the whole machine as it was there");
+
+            host.GetController().GetKeyframes().GetBranches (branches);
+            Execute (host, ReverseCommand::SwitchBranch, branches[0].id);
+
+            Assert::AreEqual<uint64_t> (newEnd, machine.GetPosition(), L"back at the end of the path left");
+        }
+
+
         TEST_METHOD (AReverseContinueAfterASwitchCrossesTheFork)
         {
             TestMachine                  machine ("Apple2e");
