@@ -30,7 +30,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static unordered_map<string, FactoryFunc> s_factories;
+//  Every machine build registers the built-in devices again, on whichever
+//  thread builds it: the window thread, the CPU thread, or the worker that
+//  builds a scratch replay machine. The lock lets those registrations and the
+//  lookups run at once.
+static unordered_map<string, FactoryFunc>  s_factories;
+static std::shared_mutex                   s_factoriesLock;
 
 
 
@@ -44,6 +49,10 @@ static unordered_map<string, FactoryFunc> s_factories;
 
 void ComponentRegistry::Register (const string & typeName, FactoryFunc factory)
 {
+    std::unique_lock  lock (s_factoriesLock);
+
+
+
     s_factories[typeName] = move (factory);
 }
 
@@ -62,14 +71,25 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
     const DeviceConfig & config,
     MemoryBus & bus) const
 {
-    auto  it = s_factories.find (typeName);
+    FactoryFunc  factory;
 
 
+
+    // The factory is copied under the lock and called after it, so a device's
+    // construction runs with no lock taken.
+    {
+        std::shared_lock  lock (s_factoriesLock);
+        auto              it   = s_factories.find (typeName);
+
+        if (it != s_factories.end())
+        {
+            factory = it->second;
+        }
+    }
 
     // Null for an unregistered type name; the caller reports it against the
     // machine config that named it.
-    return (it != s_factories.end()) ? it->second (config, bus)
-                                     : nullptr;
+    return factory ? factory (config, bus) : nullptr;
 }
 
 
@@ -84,6 +104,10 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
 
 bool ComponentRegistry::IsRegistered (const string & typeName) const
 {
+    std::shared_lock  lock (s_factoriesLock);
+
+
+
     return s_factories.find (typeName) != s_factories.end();
 }
 
@@ -99,7 +123,8 @@ bool ComponentRegistry::IsRegistered (const string & typeName) const
 
 vector<string> ComponentRegistry::GetRegisteredTypes() const
 {
-    vector<string> types;
+    vector<string>     types;
+    std::shared_lock   lock (s_factoriesLock);
 
 
 
