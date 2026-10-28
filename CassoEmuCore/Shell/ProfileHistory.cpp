@@ -423,6 +423,7 @@ HRESULT ProfileHistory::Build (
     m_doneSpan   = 0;
     m_reused     = 0;
     m_isBuilding = true;
+    m_range      = { fromCycle, endCycle };
 
     for (size_t i = 0; i < m_blocks.size(); i++)
     {
@@ -601,6 +602,7 @@ bool ProfileHistory::Pump (ProfileCountsPtr & outCounts)
 
     sum = std::make_shared<ProfileCounts>();
     sum->routines.SetFramesCoverAll (true);
+    sum->historyRange = m_range;
 
     for (const ProfileCountsPtr & counts : m_blockCounts)
     {

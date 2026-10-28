@@ -44,6 +44,9 @@ public:
     void     SetView     (int64_t fromCycle, int64_t toCycle);
     void     ResetView   () { m_view.reset(); }
     bool     IsZoomed    () const { return m_view.has_value(); }
+
+    //  A range of cycles selected, drawn over the bars, or none.
+    void     SetSelection (std::optional<Range> selection) { m_selection = selection; }
     Range    GetDataSpan () const;
     int64_t  GetCycleAt  (int x) const;
     float    GetCycleX   (int64_t cycle) const;
@@ -79,4 +82,5 @@ private:
     uint32_t                          m_otherArgb = 0xFF808080;   // the theme's divider color, as last painted
     std::optional<int>                m_pointerX;
     std::optional<Range>              m_view;
+    std::optional<Range>              m_selection;
 };

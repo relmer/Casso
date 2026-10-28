@@ -125,6 +125,7 @@ private:
     bool                                    m_isBuilding     = false;
     uint64_t                                m_totalSpan      = 0;
     uint64_t                                m_doneSpan       = 0;
+    CycleRange                              m_range;                     // the cycles of the build under way
     uint64_t                                m_blockPositions = kBlockPositions;
     IsStoppedFn                             m_isStopped;
 };

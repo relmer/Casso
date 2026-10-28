@@ -135,6 +135,8 @@ private:
     HistoryProfiler                    m_historyProfiler;
     CycleStopwatch                     m_stopwatch;
     std::optional<PendingInstruction>  m_profilePending;
+    std::optional<CycleRange>          m_historyRange;                    // the installed profile's, from history
+    uint64_t                           m_historyBuilds  = 0;              // the builds from history installed
     std::deque<Byte>                   m_keys;
     uint64_t                           m_lastRunCycles  = 0;
 };

@@ -1154,7 +1154,15 @@ menu also opens these, which stay closed until first opened:
   over the list. A timeline of the period runs across the top, each bar a
   frame, or several frames joined when the period has more than fit, with its
   cycles by routine, the eight hottest in color and the rest in
-  gray; resting the pointer on a bar lists its routines. The flame graph
+  gray; resting the pointer on a bar lists its routines. The wheel over the
+  timeline zooms it around the pointer, with or without Ctrl, and a
+  horizontal wheel or Shift+wheel pans it; once the wheel stops, the
+  zoomed span is profiled from history, so its bars are single frames. A
+  drag across the timeline selects whole frames, and the list and the flame
+  graph then cover only the selection; a click on the timeline clears it.
+  Each zoom, selection and flame graph zoom is a step that the mouse's back
+  and forward buttons, or Alt+Left and Alt+Right, move through, as in a
+  browser, without profiling again. The flame graph
   draws Top level across the top and each routine under its caller, as wide as
   its total: a click selects a routine, outlining its bar, moves the
   disassembly to it and selects its row the next time you switch to the

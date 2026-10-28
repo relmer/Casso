@@ -628,6 +628,8 @@ void ExecutionHandlers::BuildProfile (DebugSession & session, ProfileList list, 
 
     data.isOn         = m_profile.IsOn();
     data.list         = list;
+    data.historyRange = m_historyRange;
+    data.historyBuild = m_historyBuilds;
     data.instructions = m_profile.GetInstructionCount();
     data.cycles       = m_profile.GetTotalCycles();
     data.pageCross    = m_profile.GetPenalties().pageCross;
@@ -931,6 +933,7 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
     if (verb == "ON" && argument.empty())
     {
         m_profile.SetOn (true);
+        m_historyRange.reset();
         session.OnStopConditionsChanged();
         reply.data = MessageData { { "Profiling on." } };
     }
@@ -946,6 +949,7 @@ void ExecutionHandlers::Profile (DebugSession & session, const DebugCommand & co
         m_profile.Reset();
         m_routines.Reset();
         m_profilePending.reset();
+        m_historyRange.reset();
         reply.data = MessageData { { "Profile reset." } };
     }
     else if (verb == "HISTORY")
@@ -1063,8 +1067,10 @@ void ExecutionHandlers::InstallProfile (const ProfileCounts & counts)
 
 
 
-    m_profile  = counts.table;
-    m_routines = counts.routines;
+    m_profile      = counts.table;
+    m_routines     = counts.routines;
+    m_historyRange = counts.historyRange;
+    m_historyBuilds++;
     m_profile.SetOn (isOn);
     m_profilePending.reset();
 }

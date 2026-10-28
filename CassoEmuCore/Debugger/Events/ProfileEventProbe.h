@@ -5,6 +5,7 @@
 #include "Cpu.h"
 #include "Debugger/Events/DebugEventJob.h"
 #include "Debugger/ProfileTable.h"
+#include "Debugger/Reply.h"
 #include "Debugger/RoutineProfile.h"
 
 class MachineHost;
@@ -24,8 +25,9 @@ class MachineHost;
 
 struct ProfileCounts
 {
-    ProfileTable    table;
-    RoutineProfile  routines;
+    ProfileTable               table;
+    RoutineProfile             routines;
+    std::optional<CycleRange>  historyRange;   // the cycles requested of a build from history
 };
 
 using ProfileCountsPtr = std::shared_ptr<const ProfileCounts>;

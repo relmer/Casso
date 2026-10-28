@@ -7,6 +7,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "Ui/Debugger/DebuggerWindow.h"
+#include "Debugger/RoutineProfile.h"
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 #include "Ui/Debugger/Panes/ProfileTimeline.h"
 #include "../Dxui/MockDxuiPainter.h"
@@ -359,6 +360,112 @@ namespace DebuggerToolPanesTests
 
             window.GetProfilerPane().SetView (ProfilerPane::View::Tree);
             Assert::AreEqual (std::wstring (L"Call tree"), view->labelText());
+        }
+
+
+        //  The wheel over the timeline zooms it, and once the wheel stops the
+        //  view's profile is built from history; a drag selects frames, whose
+        //  profile is the list's. Back and forward move through the states
+        //  with no build, and a profile already taken goes nowhere.
+        TEST_METHOD (TheProfilerZoomsAndSelectsWithinAProfileFromHistory)
+        {
+            constexpr int64_t   kFrame   = (int64_t) RoutineProfile::kCyclesPerFrame;
+            CassoTheme          theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost   host;
+            ToolWindow          window   (theme, host);
+            DxuiDpiScaler       scaler;
+            auto                snapshot = std::make_shared<DebuggerViewSnapshot>();
+            IDxuiControl      * timeline = nullptr;
+            DxuiMouseEvent      ev;
+            RECT                bounds   = {};
+            std::string         command;
+            uint64_t            from     = 0;
+            uint64_t            to       = 0;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+            window.ShowPane (DebuggerLayout::kProfiler);
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            ProfilerPane & pane = window.GetProfilerPane();
+
+            for (IDxuiControl * control : pane.GetControls())
+            {
+                if (control != nullptr && control->GetAccessibleName() == L"Profile timeline")
+                {
+                    timeline = control;
+                }
+            }
+
+            Assert::IsNotNull (timeline);
+            bounds = timeline->GetBounds();
+
+            //  The period's profile, from history.
+            snapshot->isPaused                   = true;
+            snapshot->history.hasHistory         = true;
+            snapshot->history.cycle              = 600 * kFrame;
+            snapshot->profile                    = ProfileData();
+            snapshot->profile->historyRange      = CycleRange (0, 600 * kFrame);
+            snapshot->profile->historyBuild      = 1;
+            window.TakeSnapshot (snapshot);
+            host.commands.clear();
+
+            ev.kind        = DxuiMouseEventKind::Wheel;
+            ev.positionDip = POINT { (bounds.left + bounds.right) / 2, (bounds.top + bounds.bottom) / 2 };
+            ev.wheelDelta  = 1.0f;
+            Assert::IsTrue  (pane.RouteEarlyMouse (ev), L"the wheel over the timeline, not the text size");
+            Assert::IsTrue  (pane.GetZoom().GetState().view.has_value(), L"zoomed in");
+            Assert::IsTrue  (host.commands.empty(), L"no build while the wheel turns");
+            Assert::IsFalse (pane.Tick ((int64_t) GetTickCount64() + 1000));
+
+            Assert::AreEqual ((size_t) 1, host.commands.size(), L"the view's profile, once the wheel stopped");
+            command = host.commands[0];
+            Assert::IsTrue (sscanf_s (command.c_str(), "PROFILE HISTORY CYCLES %llu %llu", &from, &to) == 2, TextEncoding::NarrowToWide (command).c_str());
+            Assert::IsTrue (CycleRange (from, to) == CycleRange (pane.GetZoom().GetState().view->first, pane.GetZoom().GetState().view->second));
+
+            snapshot                        = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            snapshot->profile->historyRange = CycleRange (from, to);
+            snapshot->profile->historyBuild = 2;
+            window.TakeSnapshot (snapshot);
+            Assert::IsTrue (pane.GetProfile()->historyRange == CycleRange (from, to), L"the zoomed view's profile is the list's");
+
+            //  A drag selects frames.
+            ev             = DxuiMouseEvent();
+            ev.kind        = DxuiMouseEventKind::Down;
+            ev.button      = DxuiMouseButton::Left;
+            ev.positionDip = POINT { bounds.left + 20, bounds.top + 2 };
+            Assert::IsTrue (pane.RouteContentMouse (ev));
+            ev.kind          = DxuiMouseEventKind::Move;
+            ev.positionDip.x = bounds.left + 120;
+            Assert::IsTrue (pane.RouteContentMouse (ev));
+            ev.kind = DxuiMouseEventKind::Up;
+            Assert::IsTrue (pane.RouteContentMouse (ev));
+            Assert::IsTrue (pane.GetZoom().GetState().selection.has_value(), L"the drag's frames are selected");
+            Assert::AreEqual ((size_t) 2, host.commands.size(), L"the selection's profile is built");
+
+            snapshot                        = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            snapshot->profile->historyRange = CycleRange (pane.GetZoom().GetState().selection->first, pane.GetZoom().GetState().selection->second);
+            snapshot->profile->historyBuild = 3;
+            window.TakeSnapshot (snapshot);
+            Assert::IsTrue (pane.GetProfile()->historyRange == snapshot->profile->historyRange, L"the selection's profile is the list's");
+
+            //  A move back or forward doesn't start a build.
+            Assert::IsTrue (pane.GoBack());
+            Assert::IsFalse (pane.GetZoom().GetState().selection.has_value());
+            Assert::IsTrue (pane.GetProfile()->historyRange == CycleRange (from, to), L"the view's profile, as it was built");
+            Assert::IsTrue (pane.GoBack());
+            Assert::IsTrue (pane.GetProfile()->historyRange == CycleRange (0, 600 * kFrame), L"the whole profile");
+            Assert::IsTrue (pane.GoForward() && pane.GoForward());
+            Assert::IsTrue (pane.GetZoom().GetState().selection.has_value());
+            Assert::AreEqual ((size_t) 2, host.commands.size(), L"no build to move back and forward");
+
+            //  The selection's build, in the next snapshot, is taken once.
+            snapshot = std::make_shared<DebuggerViewSnapshot> (*snapshot);
+            window.TakeSnapshot (snapshot);
+            Assert::IsTrue (pane.GetZoom().CanGoBack(), L"the stack is the same after the same build again");
         }
 
 

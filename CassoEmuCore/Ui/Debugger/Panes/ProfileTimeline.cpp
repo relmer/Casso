@@ -380,6 +380,20 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         }
     }
 
+    //  The selection, in the theme's focus color, see-through over the bars,
+    //  with its edges solid.
+    if (m_selection.has_value())
+    {
+        constexpr uint32_t  kSeeThrough = 0x50000000;
+        uint32_t            accent      = theme.FocusAccent();
+        float               from        = std::clamp (GetCycleX (m_selection->first),  left, right);
+        float               to          = std::clamp (GetCycleX (m_selection->second), left, right);
+
+        painter.FillRect (from, (float) m_boundsDip.top, std::max (1.0f, to - from), height, (accent & 0x00FFFFFF) | kSeeThrough);
+        painter.FillRect (from, (float) m_boundsDip.top, 1.0f, height, accent);
+        painter.FillRect (std::max (from, to - 1.0f), (float) m_boundsDip.top, 1.0f, height, accent);
+    }
+
     if (m_pointerX.has_value())
     {
         painter.FillRect ((float) *m_pointerX, (float) m_boundsDip.top, std::max (1.0f, (float) std::lround (m_scaler.ToPxf (1.0f))), height,

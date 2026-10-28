@@ -171,6 +171,7 @@ namespace ProfileHistoryTests
             rig.logs.GetProfileHistory().SetBlockPositions (100'000);
 
             counts = rig.BuildFrom (from, to);
+            Assert::IsTrue (counts->historyRange == CycleRange { from, to }, L"the counts have the range asked for");
             Assert::IsTrue (counts->table.GetTotalCycles() + 8 >= to - from && counts->table.GetTotalCycles() <= to - from + 8,
                             std::format (L"{} cycles counted of {}", counts->table.GetTotalCycles(), to - from).c_str());
 
