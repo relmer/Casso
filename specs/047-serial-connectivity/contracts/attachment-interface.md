@@ -6,6 +6,10 @@
 // The format the guest set; called on attach and whenever it changes.
 virtual void OnFormatChanged (const SerialLineFormat & format) {}
 
+// The chip finished attaching the endpoint; a host link sets its starting
+// lines and opens its connection here.
+virtual void OnAttached () {}
+
 // An attachment that brings input from outside the machine, polled by the
 // chip on the emulation thread while live.
 virtual bool IsHostLink () const { return false; }
@@ -20,9 +24,10 @@ virtual bool Poll (uint64_t cycles) { return false; }
 virtual void DropConnection () {}
 ```
 
-A host link treats `OnModemControlChanged`, `OnBreakChanged` and
-`OnFormatChanged` as the desired state and applies it to the host on its next
-`Poll`, so a replay, which is never polled, changes nothing on the PC.
+A host link applies the chip's format, DTR, RTS and break to the PC on its
+next `Poll`, reading them from the chip at that moment, so a replay, which is
+never polled, changes nothing on the PC, and after a seek that loads older
+registers the PC matches the chip once live.
 `OnByteTransmitted` is not called on a host link while the chip is muted.
 
 ## Acia6551 host-input methods (emulation thread)

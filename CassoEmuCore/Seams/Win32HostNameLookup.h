@@ -14,7 +14,7 @@
 //
 //  IHostNameLookup over an asynchronous GetAddrInfoExW, signaled through an
 //  event in its OVERLAPPED. A dotted IPv4 address completes at once, without
-//  a lookup. Destroying a lookup still running cancels it and waits for the
+//  a lookup. Destroying a lookup that is running cancels it and waits for the
 //  cancellation, so the OVERLAPPED outlives the system's use of it.
 //
 ////////////////////////////////////////////////////////////////////////////////

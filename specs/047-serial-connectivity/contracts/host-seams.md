@@ -8,7 +8,8 @@ struct SerialPortErrors { bool framing, parity, overrun, breakSeen; };
 class IHostSerialPort
 {
 public:
-    virtual HRESULT  Configure    (const SerialLineFormat & format, uint32_t & outBaud) = 0;
+    virtual HRESULT  GetBaudRates (std::vector<uint32_t> & outRates, bool & outIsAnyRate)     = 0;
+    virtual HRESULT  Configure    (const SerialLineFormat & format)                          = 0;
     virtual HRESULT  SetControl   (bool dtr, bool rts)                                   = 0;
     virtual HRESULT  SetBreak     (bool active)                                          = 0;
     virtual HRESULT  Write        (std::span<const Byte> bytes, size_t & outWritten)     = 0;
@@ -26,13 +27,15 @@ public:
 };
 ```
 
-`Configure` returns the rate the port runs at in `outBaud`. Any call failing
-after `Open` means the device is gone.
+`GetBaudRates` lists the rates the port can run at, and the attachment chooses
+the nearest in core (`AciaComPortEndpoint::ChooseRate`); `Configure` is given a
+rate from that list. Any call failing after `Open` means the device is gone.
 
-Win32: `Win32HostSerialPorts` (`GetCommPorts`, `CreateFileW` on
+Win32: `Win32HostSerialPorts` (the values of HKLM\HARDWARE\DEVICEMAP\SERIALCOMM, `CreateFileW` on
 `\\.\COMn`, `SetCommState`, `EscapeCommFunction`, `SetCommBreak`,
 `ClearCommError`, `ReadFile` with `ReadIntervalTimeout = MAXDWORD`,
-`GetCommModemStatus`). The unit test fake is `FakeHostSerialPorts`.
+`GetCommModemStatus`). `Win32HostSerialPort` does the rest. The unit test fakes are
+`FakeHostSerialPorts` and `FakeHostSerialPort`.
 
 ## IHostNetwork addition
 

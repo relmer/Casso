@@ -13,13 +13,13 @@
 //  The Telnet layer between a serial attachment's data and a TCP connection.
 //  Data sent has $FF doubled and CR followed by NUL. Data received has a
 //  doubled $FF undoubled, the NUL after a CR dropped, and every Telnet
-//  command removed: option negotiation is answered through outReplies, and
+//  command removed: replies to option negotiation go to outReplies, and
 //  subnegotiation and the other commands are dropped.
 //
 //  Echo and suppress-go-ahead from the remote end, and suppress-go-ahead
-//  from this end, are agreed to; every other option is declined. Only a
-//  request to change an option's state is answered, so negotiation cannot
-//  loop. A sequence may be split across reads.
+//  from this end, are agreed to; every other option is declined. A reply is
+//  sent only for a request to change an option's state, so negotiation
+//  cannot loop. A sequence may be split across reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -41,7 +41,7 @@ struct SerialPortLines
 //  IHostSerialPort
 //
 //  One open serial port on the PC. No call waits: Read returns what has
-//  arrived, and Write hands its bytes to the driver's buffer. A call that
+//  arrived, and Write puts its bytes in the driver's buffer. A call that
 //  fails after the port opened means the device is gone, as a USB adapter
 //  unplugged. Destroying the object closes the port.
 //

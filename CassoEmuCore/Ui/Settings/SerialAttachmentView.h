@@ -25,7 +25,7 @@ class IHostSerialPorts;
 //  places them from a given point and returns the bottom. Each edit is
 //  reported through the change callback, after which the page stages it and
 //  lays out again. A port that does not parse is not reported, and an error
-//  under the controls gives the rule.
+//  under the controls states the rule.
 //
 //  A Super Serial Card's connector can have nothing on it; a //c port lists
 //  the loopback plug first, which an empty device means there.

@@ -19,8 +19,8 @@
 //  time and closes any other at once. Data to send is queued and sent as the
 //  socket takes it; data received is read up to the caller's limit, so the
 //  rest waits in the PC's socket buffer. With Telnet on, both directions go
-//  through a TelnetCodec, whose answers to the remote end's negotiation are
-//  sent with the data.
+//  through a TelnetCodec, and its replies to the remote end's negotiation
+//  are sent with the data.
 //
 //  Emulation thread only.
 //

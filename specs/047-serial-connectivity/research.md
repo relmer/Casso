@@ -119,8 +119,8 @@ modem), `TelnetCodec`:
 - doubles $FF in data sent and undoubles it in data received;
 - replies to `DO SGA` with `WILL SGA`, to `WILL ECHO` and `WILL SGA` with
   `DO`, to every other `DO` with `WONT` and to every other `WILL` with
-  `DONT`; an option already in the state asked for is not acknowledged
-  again, so negotiation cannot loop;
+  `DONT`; a request for the state an option is in already is not
+  acknowledged again, so negotiation cannot loop;
 - drops subnegotiation (`SB` ... `IAC SE`) and the other `IAC` commands;
 - sends CR as CR NUL, and drops the NUL after a received CR (RFC 854's NVT
   rule, since binary mode is never agreed).
@@ -171,7 +171,7 @@ attachment drop-down and the chosen attachment's options. `SerialCardPage`
 uses one for the Super Serial Card; a new `SerialPortsPage` uses two for the
 //c (port 1, printer; port 2, modem) and is present only on a //c. The COM port
 list is read through `IHostSerialPorts::EnumeratePorts` when the drop-down
-opens. Attachment changes rebuild the machine (the existing `RequiresReset`
+opens (`DxuiComboBox::SetOnOpen`). Attachment changes rebuild the machine (the existing `RequiresReset`
 rule, extended to the options and the //c ports). A rebuild behind live is
 already a machine change, for which the shell offers to discard the history
 ahead, so it is applied once the machine is live.
@@ -180,6 +180,7 @@ ahead, so it is applied once the machine is live.
 
 **Decision**: Attachments post problems to `SerialLinkReports`, a thread-safe
 list in `MachineHost`, each with the port's title. `ShellSerialCard` polls its
-generation each UI tick and displays the newest as a warning infobar, cleared
-when the attachment recovers. A COM port that returns is reopened, at most
+generation each UI tick and displays the newest in the Super Serial Card's
+infobar, behind the card's firmware notices, cleared when the attachment
+recovers. A COM port that returns is reopened, at most
 every 2 seconds of emulated time.

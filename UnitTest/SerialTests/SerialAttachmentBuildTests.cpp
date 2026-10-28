@@ -81,7 +81,7 @@ namespace SerialAttachmentBuildTestNs
 
 
             Assert::IsNotNull (dynamic_cast<AciaLoopbackEndpoint *> (machine.GetRefs().serialChips[0]->GetEndpoint()), L"port 1 as shipped");
-            Assert::IsNull    (machine.GetRefs().serialChips[1]->GetEndpoint(), L"port 2 takes its own setting");
+            Assert::IsNull    (machine.GetRefs().serialChips[1]->GetEndpoint(), L"port 2 has the attachment it was given");
             Assert::AreEqual<size_t> (1, machine.GetSerialLinkReports().GetReports().size(), L"an unknown attachment is reported");
             Assert::AreEqual (std::string ("Serial port 2"), machine.GetSerialLinkReports().GetReports()[0].portTitle);
         }
@@ -114,7 +114,7 @@ namespace SerialAttachmentBuildTestNs
 
 
         //  FR-023: a rebuild closes the old machine's attachments before the
-        //  new machine opens its own, so the same COM port opens again.
+        //  new machine opens its attachments, so the same COM port opens again.
         TEST_METHOD (ClosingTheAttachmentsFreesTheirPortsForTheNextBuild)
         {
             FakeHostSerialPorts                   ports;
@@ -142,7 +142,7 @@ namespace SerialAttachmentBuildTestNs
                 TestMachine  overlapping ("Apple2c", TestMachine::Slots::AsShipped, customize);
 
                 Assert::AreEqual (std::string ("COM3 is in use by another program."), overlapping.GetSerialLinkReports().GetReports()[0].text,
-                                  L"while the old machine holds the port, a new one cannot open it");
+                                  L"while the old machine has the port open, a new one cannot open it");
             }
 
             old.CloseSerialAttachments();

@@ -19,8 +19,8 @@ static constexpr int    s_kPortWidthDp = 90;
 //
 //  SerialAttachmentView::SerialAttachmentView
 //
-//  A card's connector lists None first; a //c port lists the loopback plug
-//  first, as an empty device.
+//  None is first in a card's list; the loopback plug is first in a //c
+//  port's, as an empty device.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,7 +127,7 @@ void SerialAttachmentView::SetPopupHost (DxuiHwndSource * host)
 //
 //  SerialAttachmentView::SetChoice
 //
-//  Shows a staged choice; nothing is reported.
+//  Sets the controls to a staged choice; nothing is reported.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,7 +148,7 @@ void SerialAttachmentView::SetChoice (const SerialAttachmentChoice & choice)
 //  SerialAttachmentView::SyncControls
 //
 //  Every control to the choice. A //c port's loopback plug may be staged as
-//  either an empty device or the plug's own.
+//  either an empty device or serial-loopback.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,8 +202,8 @@ bool SerialAttachmentView::IsLoopback() const
 //
 //  SerialAttachmentView::RefreshComPorts
 //
-//  The ports present now, with the staged one kept in the list when it is
-//  not, so a choice made while an adapter was plugged in still shows.
+//  The ports present now, with the staged one added when it is not, so a
+//  choice made while an adapter was plugged in is listed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -497,7 +497,8 @@ void SerialAttachmentView::ShowError (bool isShown)
 //  SerialAttachmentView::OnAttachPicked
 //
 //  The path stays with the file attachments only. A COM port with none
-//  chosen takes the first one present, which is the one the list shows.
+//  chosen takes the first one present, which is the one selected in the
+//  list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -590,8 +591,8 @@ void SerialAttachmentView::OnHostChanged (const std::wstring & text)
 //
 //  SerialAttachmentView::OnPortChanged
 //
-//  A port that does not parse leaves the staged one as it was and shows the
-//  error until one does.
+//  A port that does not parse is not staged, and the error is displayed
+//  until one does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -620,7 +621,7 @@ void SerialAttachmentView::OnPortChanged (const std::wstring & text)
 //
 //  SerialAttachmentView::OnListenChanged
 //
-//  An empty listen port is none.
+//  An empty listen port means no listening.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

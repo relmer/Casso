@@ -20,7 +20,7 @@ class SerialLinkReports;
 //  A 6551 attached to TCP: connected out to a host and port, or listening on
 //  a port for one connection at a time. DCD and DSR are on while a
 //  connection is open and CTS is always on. A connect out that fails, or a
-//  connection the far end closes, is tried again every kRetrySeconds of
+//  connection the far end closes, starts again every kRetrySeconds of
 //  emulated time, as a cable plugged back in.
 //
 //  What is received is read from the PC no faster than the 6551 takes it:

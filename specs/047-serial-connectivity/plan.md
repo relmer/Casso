@@ -96,7 +96,7 @@ CassoEmuCore/
 │       ├── AciaTcpEndpoint.{h,cpp}
 │       └── AciaModemEndpoint.{h,cpp}
 ├── Seams/
-│   ├── IHostSerialPort.h, Win32HostSerialPorts.{h,cpp}
+│   ├── IHostSerialPort.h, Win32HostSerialPort.{h,cpp}, Win32HostSerialPorts.{h,cpp}
 │   ├── IHostNetwork.h               LookUpHost
 │   └── Win32HostNetwork.cpp, Win32HostNameLookup.{h,cpp}
 ├── Debugger/Reverse/InputJournal.h  AciaLines, AciaConnection
@@ -106,13 +106,14 @@ CassoEmuCore/
 ├── Shell/MachineHost.{h,cpp}        DropHostConnections, ApplyDeviceInput, reports
 ├── Shell/Components/ShellSerialCard.{h,cpp}  the link infobar
 └── Ui/Settings/
+    ├── SerialAttachmentChoice.h     SerialPortId and the staged choice
     ├── SerialAttachmentView.{h,cpp} drop-down and options, shared
     ├── SerialCardPage.{h,cpp}
     ├── SerialPortsPage.{h,cpp}      the //c's two ports
     └── SettingsPanelState.{h,cpp}   staging, RequiresReset
 
 UnitTest/
-├── NetworkTests/FakeHostNetwork.*   name lookup
+├── NetworkTests/FakeHostNetwork.*, FakeHostNameLookup.*   name lookup
 ├── SerialTests/                     FakeHostSerialPorts, codec, modem, link, endpoints, replay
 └── UiTests/                          page and staging tests
 ```

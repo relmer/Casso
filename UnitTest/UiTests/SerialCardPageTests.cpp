@@ -47,11 +47,12 @@ public:
     //  the connector, and the drop-downs follow.
     TEST_METHOD (RestoreDefaultsStagesTheShippedSwitchesAndNoConnector)
     {
-        SettingsPanelState  state;
-        SerialCardPage      page;
-        JsonValue           shipped  = ParseOrFail (kShipped);
-        SscSwitches         defaults = SscSwitches::MakeDefault();
-        int                 index    = -1;
+        SettingsPanelState                state;
+        std::unique_ptr<SerialCardPage>   owned    = std::make_unique<SerialCardPage>();     // on the heap: the page is too big for a test's stack
+        SerialCardPage                  & page     = *owned;
+        JsonValue                         shipped  = ParseOrFail (kShipped);
+        SscSwitches                       defaults = SscSwitches::MakeDefault();
+        int                               index    = -1;
 
 
 

@@ -29,7 +29,7 @@ namespace TelnetCodecTestNs
     //  TelnetCodecTests
     //
     //  The Telnet layer of the TCP and modem attachments: $FF doubled in the
-    //  data, the remote end's negotiation answered and kept from the guest,
+    //  data, replies to the remote end's negotiation, removed from the data,
     //  and the NVT line ending.
     //
     ////////////////////////////////////////////////////////////////////////////

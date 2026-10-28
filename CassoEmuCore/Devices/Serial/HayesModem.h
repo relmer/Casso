@@ -10,12 +10,12 @@
 //
 //  HayesModem
 //
-//  A Hayes-compatible modem's command interpreter, with no I/O of its own.
+//  A Hayes-compatible modem's command interpreter, with no I/O.
 //  The guest's bytes come in through ReceiveFromGuest with the emulated
 //  cycle each arrived at; what the modem sends the guest (echo, result
 //  codes) and what it sends the remote end collect for TakeToGuest and
 //  TakeToRemote; and dialing, answering and hanging up are requests the
-//  attachment takes with TakeLinkRequests and carries out on a TCP link,
+//  attachment takes with TakeLinkRequests and performs on a TCP link,
 //  reporting back through OnConnected, OnDialFailed, OnRemoteClosed,
 //  OnIncomingCall and OnIncomingGone. Tick runs the timers: the escape's
 //  closing guard time, the ring every kRingSeconds, and S7's wait for a

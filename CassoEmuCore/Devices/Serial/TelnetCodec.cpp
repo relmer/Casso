@@ -162,7 +162,7 @@ void TelnetCodec::DecodeByte (
 //  WILL and WONT are about what the remote end performs, DO and DONT about
 //  what this end performs. A request to turn an option on is agreed to or
 //  declined; a request to turn off one that is on is agreed to; a request
-//  for the state an option already has is not answered.
+//  for the state an option already has is not acknowledged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,7 +16,7 @@
 //  timeouts are set so ReadFile takes only what has arrived, which
 //  ClearCommError measures, along with the errors latched since the last
 //  call. Hardware and software flow control in the driver are off; DTR and
-//  RTS are set through EscapeCommFunction and kept across SetCommState.
+//  RTS are set through EscapeCommFunction and set again in SetCommState.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

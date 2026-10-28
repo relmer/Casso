@@ -32,8 +32,8 @@ namespace AciaComPortEndpointTestNs
     //
     //  ComRig
     //
-    //  A 6551 attached to COM3 on the fake PC, programmed for 9600 baud
-    //  polled I/O.
+    //  A 6551 attached to COM3 on the fake PC, set up for 9600 baud polled
+    //  I/O.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -290,8 +290,8 @@ namespace AciaComPortEndpointTestNs
         }
 
 
-        //  SC-003: a far end at another rate shows up as framing errors.
-        TEST_METHOD (AMismatchedRateShowsAsFramingErrors)
+        //  SC-003: a far end at another rate produces framing errors.
+        TEST_METHOD (AMismatchedRateProducesFramingErrors)
         {
             ComRig  rig;
             int     errors = 0;

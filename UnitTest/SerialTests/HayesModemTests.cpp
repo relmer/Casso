@@ -136,7 +136,7 @@ namespace HayesModemTestNs
             Assert::AreEqual (std::string ("bbs.example.org"), requests[0].host);
             Assert::AreEqual<uint16_t> (2323, requests[0].port);
             Assert::IsTrue (driver.modem.GetMode() == HayesModem::Mode::Dialing);
-            Assert::AreEqual (std::string ("ATDT bbs.example.org:2323\r"), driver.Output(), L"no result until the call is answered or fails");
+            Assert::AreEqual (std::string ("ATDT bbs.example.org:2323\r"), driver.Output(), L"no result until the call connects or fails");
         }
 
 
@@ -257,7 +257,7 @@ namespace HayesModemTestNs
 
             Assert::IsTrue (driver.modem.GetMode() == HayesModem::Mode::OnlineCommand);
             Assert::AreEqual (std::string ("\r\nOK\r\n"), driver.Output());
-            Assert::IsTrue (driver.modem.GetDcd(), L"the connection is still open");
+            Assert::IsTrue (driver.modem.GetDcd(), L"the connection is open");
             Assert::AreEqual (std::string ("+++"), driver.Remote(), L"the pluses were sent, as a Hayes sends them");
         }
 
@@ -396,7 +396,7 @@ namespace HayesModemTestNs
 
 
         //  SC-004: a thousand bursts of text, each with +++ somewhere, typed
-        //  without pause, never leave data mode.
+        //  without pause, never switch the modem out of data mode.
         TEST_METHOD (PlusesInsideABurstNeverEscape)
         {
             ModemDriver                   driver;
@@ -566,7 +566,7 @@ namespace HayesModemTestNs
 
             driver.Wait (kSecond * HayesModem::kRingSeconds + kCharGap);
 
-            Assert::IsTrue (driver.modem.IsDataMode(), L"answered on the second");
+            Assert::IsTrue (driver.modem.IsDataMode(), L"picked up on the second");
             Assert::IsTrue (driver.Output().ends_with ("\r\nCONNECT\r\n"));
         }
 
@@ -606,7 +606,7 @@ namespace HayesModemTestNs
 
 
             driver.Type ("ATV0\r");
-            Assert::IsTrue (driver.Output().ends_with ("0\r"), L"V0's own OK is numeric");
+            Assert::IsTrue (driver.Output().ends_with ("0\r"), L"the OK for V0 itself is numeric");
 
             driver.Type ("ATX\r");
             Assert::IsTrue (driver.Output().ends_with ("0\r"));

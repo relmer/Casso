@@ -300,7 +300,7 @@ namespace TcpSerialLinkTestNs
 
             link.Close();
             Assert::IsTrue  (first->destroyed);
-            Assert::IsFalse (listener->destroyed, L"closing the connection leaves the port listening");
+            Assert::IsFalse (listener->destroyed, L"the port is listening after the connection closes");
         }
 
 

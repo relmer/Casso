@@ -100,7 +100,7 @@ void TcpSerialLink::StopListening()
 //
 //  TcpSerialLink::Close
 //
-//  Ends the connection or the connect under way; a listening port keeps
+//  Ends the connection or the connect under way; a listening port goes on
 //  listening.
 //
 ////////////////////////////////////////////////////////////////////////////////

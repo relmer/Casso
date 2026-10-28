@@ -23,7 +23,7 @@ namespace SerialAttachmentViewTestNs
     //
     //  ViewRig
     //
-    //  A view on a panel, laid out, with every change it reports kept.
+    //  A view on a panel, laid out, and a list of every change it reports.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +117,7 @@ namespace SerialAttachmentViewTestNs
             Assert::IsTrue (std::find (rig.view.GetDevices().begin(), rig.view.GetDevices().end(), std::string (kpszSerialLoopback)) == rig.view.GetDevices().end());
 
             rig.view.SetChoice ({ kpszSerialLoopback, "", {} });
-            Assert::AreEqual (0, rig.view.GetAttachDropdown().GetSelectedIndex(), L"the plug staged by name shows as the plug");
+            Assert::AreEqual (0, rig.view.GetAttachDropdown().GetSelectedIndex(), L"the plug staged by its device string is listed as the plug");
             Assert::IsFalse (rig.view.GetNoteText().empty());
         }
 

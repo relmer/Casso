@@ -36,8 +36,7 @@ AciaComPortEndpoint::AciaComPortEndpoint (
 //
 //  AciaComPortEndpoint::OnAttached
 //
-//  DCD and DSR are off until the port's own lines are read on the first
-//  poll.
+//  DCD and DSR are off until the port's lines are read on the first poll.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,8 +128,8 @@ Error:
 //
 //  AciaComPortEndpoint::Open
 //
-//  A port that cannot be opened is tried again kReopenSeconds later, so one
-//  plugged in or let go of by another program is taken up.
+//  A port that cannot be opened is opened again kReopenSeconds later, so one
+//  plugged in, or closed by another program, is used once it is free.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,7 +250,7 @@ Error:
 //  AciaComPortEndpoint::ApplyFormat
 //
 //  The port runs at the nearest rate it has; a replacement off by more than
-//  kRateTolerance is reported the first time the guest asks for that rate.
+//  kRateTolerance is reported the first time the guest sets that rate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -339,7 +338,7 @@ Error:
 //
 //  AciaComPortEndpoint::PassReceived
 //
-//  The driver does not give the position of a byte in error, so its errors
+//  The driver does not report the position of a byte in error, so its errors
 //  go with the last byte read, the one arriving when they were latched. A
 //  break arrives as $00 with a framing error, as the 6551 receives one.
 //  Errors latched with no byte wait for the next.

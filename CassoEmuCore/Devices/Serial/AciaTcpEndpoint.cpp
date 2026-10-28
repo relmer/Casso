@@ -174,8 +174,8 @@ bool AciaTcpEndpoint::Poll (uint64_t cycles)
 //  AciaTcpEndpoint::DropConnection
 //
 //  The connection closes and the chip's lines drop at once, outside the
-//  journal; the boundary keyframe taken next has them. A connect out is
-//  tried again later.
+//  journal; the boundary keyframe taken next has them. A connect out starts
+//  again later.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -225,7 +225,7 @@ Error:
 //
 //  AciaTcpEndpoint::OnLinkEvents
 //
-//  A connect out that failed or a connection that closed is tried again
+//  A connect out that failed or a connection that closed starts again
 //  kRetrySeconds later.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -293,6 +293,6 @@ void AciaTcpEndpoint::ReportFailure (const TcpSerialLink::PollResult & result)
     }
     else
     {
-        Report (std::format ("Cannot connect to {}:{}. The host is offline or refused the connection.", m_settings.host, m_settings.port));
+        Report (std::format ("Cannot connect to {}:{}. The host is offline, or nothing is listening on that port.", m_settings.host, m_settings.port));
     }
 }

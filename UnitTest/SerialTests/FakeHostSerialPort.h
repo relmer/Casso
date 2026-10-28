@@ -14,7 +14,7 @@
 //  FakeSerialPortState
 //
 //  Everything about one fake PC serial port, shared between the
-//  IHostSerialPort the code under test owns and the test, which plays the
+//  IHostSerialPort the code under test owns and the test, which is the
 //  device at the far end: it sets the bytes and errors that arrive and the
 //  status lines, and reads what the port was configured and sent.
 //

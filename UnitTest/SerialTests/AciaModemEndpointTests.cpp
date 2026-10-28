@@ -200,7 +200,7 @@ namespace AciaModemEndpointTestNs
             rig.Run (kSecond * 2);
 
             Assert::AreEqual (std::string ("hi+++there"), std::string (server->sent.begin(), server->sent.end()));
-            Assert::IsTrue (rig.IsDcdOn(), L"still in data mode");
+            Assert::IsTrue (rig.IsDcdOn(), L"in data mode throughout");
         }
 
 

@@ -237,7 +237,7 @@ void HayesModem::ReceiveCommandByte (
 //  HayesModem::ExecuteLine
 //
 //  Runs each command on the line in turn. A command that fails stops the
-//  line with ERROR; one that has its own result (CONNECT, NO CARRIER) or
+//  line with ERROR; one that sends a result itself (CONNECT, NO CARRIER) or
 //  starts a dial stops it without OK.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,7 +289,7 @@ void HayesModem::ExecuteLine (
 //
 //  One command at `at`, which is moved past it. False for an unknown
 //  command or a bad argument. outHasResult is set when the command sent
-//  its own result or left the result for later.
+//  a result or left the result for later.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -470,9 +470,9 @@ bool HayesModem::ExecuteAmpersand (
 //  HayesModem::Dial
 //
 //  The dial string is the rest of the line: a T or P right after the D,
-//  then host[:port]. A space before the host keeps one that begins with T
-//  or P whole. A trailing semicolon, which keeps a Hayes in command mode
-//  after dialing, is dropped.
+//  then host[:port]. With a space before it, a host that begins with T or P
+//  is taken whole. A trailing semicolon, after which a Hayes returns to
+//  command mode once it dials, is dropped.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -631,8 +631,8 @@ void HayesModem::EndCall (bool sendNoCarrier)
 //  HayesModem::Tick
 //
 //  The escape completes after the closing guard time; a dial that has not
-//  connected in S7 seconds fails; a waiting call rings again, and is
-//  answered once S1 reaches a nonzero S0.
+//  connected in S7 seconds fails; a waiting call rings again, and the modem
+//  picks up once S1 equals a nonzero S0.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -745,7 +745,7 @@ void HayesModem::OnDialFailed()
 //  HayesModem::OnRemoteClosed
 //
 //  A call that was up ends with NO CARRIER; a caller who hangs up before
-//  the call is answered stops the ringing.
+//  the modem picks up ends the ringing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

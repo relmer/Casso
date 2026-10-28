@@ -23,9 +23,9 @@ class SerialLinkReports;
 //  call, dialed out or, with a listen port, taken in as a ring.
 //
 //  The modem is equipment outside the machine. Its echo, its results and
-//  the remote end's data reach the chip only from a poll, through the
-//  chip's journaled host input, so a replay gives the guest the same bytes
-//  at the same instructions without a modem. Bytes the guest sends are
+//  the remote end's data are passed to the chip only from a poll, through
+//  the chip's journaled host input, so a replay delivers the same bytes to
+//  the guest at the same instructions without a modem. Bytes the guest sends are
 //  passed to the modem as they finish shifting, with the emulated cycle,
 //  which times the escape. The chip's DTR is passed to the modem on each
 //  poll.
@@ -74,6 +74,6 @@ private:
     Settings             m_settings;
     HayesModem           m_modem;
     TcpSerialLink        m_link;
-    bool                 m_notedDtr   = false;   // the DTR the modem was last told of
+    bool                 m_notedDtr   = false;   // the DTR last passed to the modem
     std::vector<Byte>    m_received;
 };

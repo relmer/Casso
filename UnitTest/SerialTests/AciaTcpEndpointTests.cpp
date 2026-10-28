@@ -33,8 +33,8 @@ namespace AciaTcpEndpointTestNs
     //
     //  TcpRig
     //
-    //  A 6551 with a TCP attachment over the fake network, programmed for
-    //  9600 baud polled I/O.
+    //  A 6551 with a TCP attachment over the fake network, set up for 9600
+    //  baud polled I/O.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -294,7 +294,7 @@ namespace AciaTcpEndpointTestNs
             rig.network.FindConnected ({ kHost, kPort })->connect = FakeSocketState::ConnectOutcome::Refused;
             rig.Run (Acia6551::kIdlePollCycles * 2);
 
-            Assert::AreEqual (std::string ("Cannot connect to peer.example.org:1977. The host is offline or refused the connection."), rig.GetReport());
+            Assert::AreEqual (std::string ("Cannot connect to peer.example.org:1977. The host is offline, or nothing is listening on that port."), rig.GetReport());
             Assert::IsTrue ((rig.acia.GetStatus() & Acia6551::kStatusDcd) != 0);
         }
 
@@ -312,7 +312,7 @@ namespace AciaTcpEndpointTestNs
             rig.network.FindConnected ({ kHost, kPort })->connect = FakeSocketState::ConnectOutcome::Accepted;
             rig.Run (Acia6551::kIdlePollCycles * 2);
 
-            Assert::IsTrue ((rig.acia.GetStatus() & Acia6551::kStatusDcd) == 0, L"connected on the second try");
+            Assert::IsTrue ((rig.acia.GetStatus() & Acia6551::kStatusDcd) == 0, L"connected on the second attempt");
             Assert::AreEqual (std::string(), rig.GetReport(), L"the report is cleared");
         }
 
@@ -371,7 +371,7 @@ namespace AciaTcpEndpointTestNs
 
             Assert::IsTrue (client->destroyed);
             Assert::IsTrue ((rig.acia.GetStatus() & Acia6551::kStatusDcd) != 0, L"DCD off at once");
-            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Tcp, kPort).get(), L"the port is still listening");
+            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Tcp, kPort).get(), L"the port is listening");
         }
 
 

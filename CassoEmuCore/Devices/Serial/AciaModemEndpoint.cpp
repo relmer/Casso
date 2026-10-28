@@ -41,8 +41,8 @@ AciaModemEndpoint::AciaModemEndpoint (
 //  AciaModemEndpoint::OnAttached
 //
 //  The modem is on: DSR and CTS on, and DCD as the modem sets it. With a
-//  listen port it waits for calls. Without the PC's network the modem still
-//  takes commands, and every dial fails.
+//  listen port it waits for calls. Without the PC's network the modem takes
+//  commands, and every dial fails.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +179,7 @@ bool AciaModemEndpoint::Poll (uint64_t cycles)
 //
 //  AciaModemEndpoint::CarryOutRequests
 //
-//  A dial without the PC's network fails at once. An answer needs nothing
+//  A dial without the PC's network fails at once. An answer requires nothing
 //  more: the caller's connection is open already.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -78,11 +78,11 @@ namespace ReverseSerialLinkTestNs
     //
     //  ReverseSerialLinkTests
     //
-    //  A //c whose port 1 is on TCP, the modem or a COM port records a
-    //  session in which the far end connects, sends bytes with errors and
-    //  line changes, and goes away. Each seek back must reach the live state
-    //  at that point, no replay may send anything to the PC, and a resume
-    //  from the past must drop the line.
+    //  A session is recorded on a //c whose port 1 is on TCP, the modem or a
+    //  COM port: the far end connects, sends bytes with errors and line
+    //  changes, and goes away. After each seek back the machine must match
+    //  its live state at that point, no replay may send anything to the PC,
+    //  and a resume from the past must drop the line.
     //
     ////////////////////////////////////////////////////////////////////////////
 
@@ -374,7 +374,7 @@ namespace ReverseSerialLinkTestNs
             last    = TakeSample (machine);
             sent    = client->sent.size();
 
-            Assert::IsTrue (sent > 0,                                            L"live, the guest's echo reached the client");
+            Assert::IsTrue (sent > 0,                                            L"live, the client received the guest's echo");
             Assert::IsTrue (CountRecords (machine, InputKind::AciaByte)       > 0, L"the bytes are journaled");
             Assert::IsTrue (CountRecords (machine, InputKind::AciaLines)      > 0, L"the line changes are journaled");
             Assert::AreEqual<size_t> (2, CountRecords (machine, InputKind::AciaConnection), L"the connection opening and closing");

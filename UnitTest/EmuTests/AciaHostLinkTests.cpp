@@ -126,8 +126,8 @@ namespace AciaHostLinkTestNs
     //  AciaHostLinkTests
     //
     //  A 6551 with an attachment that brings input from the PC: what it
-    //  takes is journaled where it is taken, a replay of the journal gives
-    //  the guest the same view at the same instruction, and nothing is
+    //  takes is journaled where it is taken, a replay of the journal leads
+    //  to the same guest state at the same instruction, and nothing is
     //  polled or sent behind live.
     //
     ////////////////////////////////////////////////////////////////////////////

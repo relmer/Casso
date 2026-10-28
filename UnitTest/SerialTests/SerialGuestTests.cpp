@@ -27,7 +27,7 @@ namespace SerialGuestTestNs
     //  SerialGuestTests
     //
     //  Guest code on a whole machine talking through a serial attachment:
-    //  the 6502 programs the Super Serial Card's 6551 and the bytes reach the
+    //  the 6502 programs the Super Serial Card's 6551 and the bytes arrive at the
     //  PC side of the fake network, and back.
     //
     ////////////////////////////////////////////////////////////////////////////
@@ -188,7 +188,7 @@ namespace SerialGuestTestNs
             machine.RunCycles (kRun);
 
             server = network.FindConnected ({ kBbs, HayesModem::kDefaultDialPort });
-            Assert::IsNotNull (server.get(), L"the guest's ATDT reached the network");
+            Assert::IsNotNull (server.get(), L"the guest's ATDT dialed the fake network");
 
             server->connect = FakeSocketState::ConnectOutcome::Accepted;
             server->inbound = { 'W', 'e', 'l', 'c', 'o', 'm', 'e' };
