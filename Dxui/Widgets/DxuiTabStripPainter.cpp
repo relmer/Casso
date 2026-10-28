@@ -595,7 +595,7 @@ void DxuiTabStripPainter::PaintExplorer (
         bool                       nextLit = (i + 1 == selected) || (i + 1 == m_strip.m_hover);
         float                      labelX  = left + m_strip.m_scaler.ToPxf ((float) DxuiTabStrip::s_kLabelInsetDip);
         float                      labelR  = (float) r.right - padX;
-        std::wstring               shown   = ;
+        std::wstring               shown;
 
         if (!m_strip.IsPainted (i))
         {
