@@ -195,6 +195,29 @@ namespace DebuggerViewMenuTests
         }
 
 
+        TEST_METHOD (TheLogsAreTogetherAheadOfTheTools)
+        {
+            CassoTheme                 theme  = CassoTheme::MakeSkeuomorphic();
+            ViewMenuHost               host;
+            ViewMenuWindow             window (theme, host);
+            std::vector<std::wstring>  panes;
+            std::vector<std::wstring>  order  = { DebuggerLayout::kDiskLog, DebuggerLayout::kInputLog, DebuggerLayout::kVideoLog,
+                                                  DebuggerLayout::kSoundLog, DebuggerLayout::kSerialLog, DebuggerLayout::kNetworkLog,
+                                                  DebuggerLayout::kBasicProgram, DebuggerLayout::kSymbols };
+            auto                       begin  = panes.end();
+
+
+
+            window.OnCreate();
+            panes = window.GetViewMenuPanes();
+            begin = std::ranges::find (panes, order.front());
+
+            Assert::IsTrue (begin != panes.end());
+            Assert::IsTrue (std::distance (begin, panes.end()) >= (ptrdiff_t) order.size());
+            Assert::IsTrue (std::equal (order.begin(), order.end(), begin));
+        }
+
+
         TEST_METHOD (ShowingAClosedMemoryWindowOpensIt)
         {
             CassoTheme      theme  = CassoTheme::MakeSkeuomorphic();
