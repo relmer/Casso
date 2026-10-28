@@ -21,13 +21,17 @@ void MachineEventFeed::AttachToCaches (
 {
     m_diskCache   = caches.disk;
     m_inputCache  = caches.input;
-    m_videoCache  = caches.video;
-    m_soundCache  = caches.sound;
-    m_diskOut     = nullptr;
-    m_inputOut    = nullptr;
-    m_videoOut    = nullptr;
-    m_soundOut    = nullptr;
-    m_isRecording = std::move (isRecording);
+    m_videoCache   = caches.video;
+    m_soundCache   = caches.sound;
+    m_serialCache  = caches.serial;
+    m_networkCache = caches.network;
+    m_diskOut      = nullptr;
+    m_inputOut     = nullptr;
+    m_videoOut     = nullptr;
+    m_soundOut     = nullptr;
+    m_serialOut    = nullptr;
+    m_networkOut   = nullptr;
+    m_isRecording  = std::move (isRecording);
 
     Attach (machine);
 }
@@ -48,13 +52,17 @@ void MachineEventFeed::AttachToEntries (
 {
     m_diskCache   = nullptr;
     m_inputCache  = nullptr;
-    m_videoCache  = nullptr;
-    m_soundCache  = nullptr;
-    m_diskOut     = entries.disk;
-    m_inputOut    = entries.input;
-    m_videoOut    = entries.video;
-    m_soundOut    = entries.sound;
-    m_isRecording = nullptr;
+    m_videoCache   = nullptr;
+    m_soundCache   = nullptr;
+    m_serialCache  = nullptr;
+    m_networkCache = nullptr;
+    m_diskOut      = entries.disk;
+    m_inputOut     = entries.input;
+    m_videoOut     = entries.video;
+    m_soundOut     = entries.sound;
+    m_serialOut    = entries.serial;
+    m_networkOut   = entries.network;
+    m_isRecording  = nullptr;
 
     Attach (machine);
 }
@@ -73,6 +81,7 @@ void MachineEventFeed::Attach (MachineHost & machine)
 {
     Disk2Controller  * controller = machine.GetRefs().diskController;
     bool               isIo       = m_videoCache != nullptr || m_soundCache != nullptr || m_videoOut != nullptr || m_soundOut != nullptr;
+    bool               isComm     = m_serialCache != nullptr || m_networkCache != nullptr || m_serialOut != nullptr || m_networkOut != nullptr;
 
 
 
@@ -83,7 +92,7 @@ void MachineEventFeed::Attach (MachineHost & machine)
     m_decoder.Seed (machine);
     m_decoder.GetFilter (m_ioFilter);
 
-    machine.AttachObservers ({ this, this, isIo ? this : nullptr, isIo ? &m_ioFilter : nullptr }, ObserverSlot::History);
+    machine.AttachObservers ({ this, this, isIo ? this : nullptr, isIo ? &m_ioFilter : nullptr, isComm ? this : nullptr }, ObserverSlot::History);
 }
 
 
@@ -104,13 +113,17 @@ void MachineEventFeed::Detach (MachineHost & machine)
     m_position    = nullptr;
     m_diskCache   = nullptr;
     m_inputCache  = nullptr;
-    m_videoCache  = nullptr;
-    m_soundCache  = nullptr;
-    m_diskOut     = nullptr;
-    m_inputOut    = nullptr;
-    m_videoOut    = nullptr;
-    m_soundOut    = nullptr;
-    m_isRecording = nullptr;
+    m_videoCache   = nullptr;
+    m_soundCache   = nullptr;
+    m_serialCache  = nullptr;
+    m_networkCache = nullptr;
+    m_diskOut      = nullptr;
+    m_inputOut     = nullptr;
+    m_videoOut     = nullptr;
+    m_soundOut     = nullptr;
+    m_serialOut    = nullptr;
+    m_networkOut   = nullptr;
+    m_isRecording  = nullptr;
 }
 
 
@@ -815,6 +828,55 @@ void MachineEventFeed::OnIoAccess (Word address, Byte value, bool isWrite)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineEventFeed::OnCommEvent
+//
+//  Stamped with the machine's position and cycle; a socket's data is
+//  copied once, into a block the entry shares.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineEventFeed::OnCommEvent (
+    const IoEvent          & event,
+    std::span<const Byte>    bytes)
+{
+    bool                                      isSerial = event.kind < IoEventKind::SocketState;
+    DebugEventCache<IoEvent>                * cache    = isSerial ? m_serialCache : m_networkCache;
+    std::vector<IoEntry>                    * out      = isSerial ? m_serialOut   : m_networkOut;
+    IoEvent                                   stamped  = event;
+    uint64_t                                  position = 0;
+    std::shared_ptr<const std::vector<Byte>>  data;
+
+
+
+    if (m_machine == nullptr || (cache == nullptr && out == nullptr) || (out == nullptr && !IsRecording()))
+    {
+        return;
+    }
+
+    position      = *m_position;
+    stamped.cycle = m_machine->GetCpu()->GetTotalCycles();
+
+    if (!bytes.empty())
+    {
+        data = std::make_shared<const std::vector<Byte>> (bytes.begin(), bytes.end());
+    }
+
+    if (out != nullptr)
+    {
+        out->push_back (IoEntry { DebugEventEntryKind::Event, position, stamped.cycle, stamped, std::move (data) });
+    }
+    else
+    {
+        cache->Append (position, stamped.cycle, stamped, std::move (data));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskEventProbe::Attach
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -895,13 +957,12 @@ HRESULT IoEventProbe::Attach (
 
 
 
-    if (m_isVideo)
+    switch (m_kind)
     {
-        outputs.video = &entries;
-    }
-    else
-    {
-        outputs.sound = &entries;
+    case IoLogKind::Video:   outputs.video   = &entries; break;
+    case IoLogKind::Sound:   outputs.sound   = &entries; break;
+    case IoLogKind::Serial:  outputs.serial  = &entries; break;
+    case IoLogKind::Network: outputs.network = &entries; break;
     }
 
     m_feed.AttachToEntries (machine, outputs);

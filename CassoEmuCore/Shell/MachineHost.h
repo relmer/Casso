@@ -57,12 +57,15 @@ class CharacterRomData;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+class ICommEventSink;
+
 struct MachineObservers
 {
     IDisk2EventSink         *  disk     = nullptr;
     IInputEventSink         *  input    = nullptr;
     IIoAccessSink           *  io       = nullptr;
     const IoAccessFilter    *  ioFilter = nullptr;      // the I/O io takes; with none, io takes nothing
+    ICommEventSink          *  comm     = nullptr;      // the serial ports' and network card's events; History slot only
 };
 
 
@@ -335,6 +338,7 @@ public:
     //  cache, or a rebuild's probe on a machine replaying history, the
     //  History slot (ObserverSlot).
     void  AttachObservers (const MachineObservers & observers, ObserverSlot slot = ObserverSlot::Panel);
+    void  AttachCommEventSink (ICommEventSink * sink);
 
 
     //  Ctrl+Reset. User RAM survives; every device takes its reset line.
@@ -524,5 +528,6 @@ private:
 
     InputJournal  m_inputJournal;
 
-    HostInputGate  m_hostInputGate;
+    HostInputGate     m_hostInputGate;
+    ICommEventSink  * m_commSink      = nullptr;   // the debugger's serial and network logs, attached again after a machine switch
 };

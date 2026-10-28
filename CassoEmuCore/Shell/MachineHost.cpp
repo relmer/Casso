@@ -581,6 +581,8 @@ void MachineHost::AttachInputJournal()
         m_refs.uthernet->SetInputJournal  (journal);
         m_refs.uthernet->SetHostInputGate (&m_hostInputGate);
     }
+
+    AttachCommEventSink (m_commSink);
 }
 
 
@@ -2067,6 +2069,44 @@ void MachineHost::AttachObservers (const MachineObservers & observers, ObserverS
     if (m_memoryBus != nullptr)
     {
         m_memoryBus->SetIoAccessSink (slot, (observers.ioFilter != nullptr) ? observers.io : nullptr, (observers.ioFilter != nullptr) ? *observers.ioFilter : IoAccessFilter());
+    }
+
+    if (slot == ObserverSlot::History)
+    {
+        AttachCommEventSink (observers.comm);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachCommEventSink
+//
+//  Each serial chip, numbered as the input journal numbers it, and the
+//  network card. AttachInputJournal calls this again, for the devices of a
+//  machine the builder switched to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::AttachCommEventSink (ICommEventSink * sink)
+{
+    size_t  i = 0;
+
+
+
+    m_commSink = sink;
+
+    for (i = 0; i < m_refs.serialChips.size(); i++)
+    {
+        m_refs.serialChips[i]->SetCommEventSink (sink, (Byte) i);
+    }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->SetCommEventSink (sink);
     }
 }
 

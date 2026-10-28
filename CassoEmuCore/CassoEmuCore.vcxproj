@@ -889,6 +889,7 @@
     <ClInclude Include="Debugger\Events\DebugEventHistory.h" />
     <ClInclude Include="Debugger\Events\DebugEventReplayer.h" />
     <ClInclude Include="Debugger\Events\DebugLogDelta.h" />
+    <ClInclude Include="Debugger\Events\ICommEventSink.h" />
     <ClInclude Include="Debugger\Events\IIoEventSource.h" />
     <ClInclude Include="Debugger\Events\IoEventDecoder.h" />
     <ClInclude Include="Debugger\Events\MachineEventFeed.h" />

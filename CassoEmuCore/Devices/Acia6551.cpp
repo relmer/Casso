@@ -6,6 +6,7 @@
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
 #include "Debugger/DiagnosticsSnapshot.h"
+#include "Debugger/Events/ICommEventSink.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Shell/HostInputGate.h"
 
@@ -89,6 +90,8 @@ Byte Acia6551::Read (Word address)
         break;
     }
 
+    NoteLines();
+
     return result;
 }
 
@@ -154,15 +157,19 @@ void Acia6551::Write (Word address, Byte value)
 
     case kRegCommand:
         WriteCommand (value);
+        EmitComm (IoEventKind::SerialSettings, 0);
         break;
 
     case kRegControl:
         m_control = value;
+        EmitComm (IoEventKind::SerialSettings, 0);
         break;
 
     default:
         break;
     }
+
+    NoteLines();
 }
 
 
@@ -331,6 +338,8 @@ void Acia6551::Tick (uint32_t cycles)
     AdvanceTransmitter (fixedCycles);
     AdvanceReceiver    (fixedCycles);
 
+    NoteLines();
+
 Error:
     return;
 }
@@ -448,6 +457,119 @@ bool Acia6551::ApplyInput (const InputRecord & record)
     }
 
     return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::SetCommEventSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetCommEventSink (
+    ICommEventSink  * sink,
+    Byte              port)
+{
+    m_commSink   = sink;
+    m_commPort   = port;
+    m_notedLines = GetLineBits();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::GetLineBits
+//
+//  The lines on, as IoEventLog's kLine bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Acia6551::GetLineBits() const
+{
+    Byte  bits = 0;
+
+
+
+    bits |= IsDtrOn()                  ? IoEventLog::kLineDtr : 0;
+    bits |= IsRtsOn()                  ? IoEventLog::kLineRts : 0;
+    bits |= m_cts                      ? IoEventLog::kLineCts : 0;
+    bits |= m_dsr                      ? IoEventLog::kLineDsr : 0;
+    bits |= m_dcd                      ? IoEventLog::kLineDcd : 0;
+    bits |= (m_status & kStatusIrq)    ? IoEventLog::kLineIrq : 0;
+
+    return bits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::NoteLines
+//
+//  A serial log entry for the lines, when they differ from the last one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::NoteLines()
+{
+    Byte  bits = 0;
+
+
+
+    if (m_commSink == nullptr)
+    {
+        return;
+    }
+
+    bits = GetLineBits();
+
+    if (bits != m_notedLines)
+    {
+        m_notedLines = bits;
+        EmitComm (IoEventKind::SerialLines, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::EmitComm
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::EmitComm (
+    IoEventKind  kind,
+    Byte         value)
+{
+    IoEvent  event = IoEvent();
+
+
+
+    if (m_commSink == nullptr)
+    {
+        return;
+    }
+
+    event.kind    = kind;
+    event.address = m_baseAddress;
+    event.chip    = m_commPort;
+    event.value   = value;
+    event.control = m_control;
+    event.command = m_command;
+    event.lines   = GetLineBits();
+
+    m_commSink->OnCommEvent (event, {});
 }
 
 
@@ -872,6 +994,8 @@ void Acia6551::TryLoadTransmitter()
     m_txRemaining = carry + GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
     m_status     |= kStatusTxEmpty;
 
+    EmitComm (IoEventKind::SerialSent, m_tsr);
+
     if (IsTxIrqEnabled())
     {
         RaiseIrq();
@@ -1027,10 +1151,13 @@ void Acia6551::LandReceivedByte (Byte value)
     if (m_status & kStatusRxFull)
     {
         m_status |= kStatusOverrun;
+        EmitComm (IoEventKind::SerialOverrun, m_rxData);
     }
 
     m_rxData  = static_cast<Byte> (value & mask);
     m_status |= kStatusRxFull;
+
+    EmitComm (IoEventKind::SerialReceived, m_rxData);
 
     if (IsRxIrqEnabled())
     {
@@ -1042,6 +1169,8 @@ void Acia6551::LandReceivedByte (Byte value)
         m_tsr         = m_rxData;
         m_tsrBusy     = true;
         m_txRemaining = GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
+
+        EmitComm (IoEventKind::SerialSent, m_tsr);
     }
 }
 

@@ -11,8 +11,12 @@
 
 #include "../NetworkTests/DhcpTestPackets.h"
 #include "../NetworkTests/FakeHostNetwork.h"
+#include "Debugger/Events/MachineEventFeed.h"
 #include "Debugger/Reverse/ReverseController.h"
+#include "EmuTests/EventCacheRebuild.h"
+#include "EmuTests/InlineWorkQueue.h"
 #include "EmuTests/ReverseSessionRig.h"
+#include "Shell/DebugEventLogs.h"
 #include "HResultAssert.h"
 #include "TestMachine.h"
 
@@ -813,6 +817,68 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
 
             Assert::IsTrue (last.state == ReverseSessionRig::Save (machine), L"the live end matches");
             Assert::AreEqual (sent, peer->sent.size(), L"a replay sends nothing to the peer");
+        }
+
+
+        //  The network log's cache has the entries a rebuild from history
+        //  makes: the socket's states, and the data it sent and received with
+        //  the bytes.
+        TEST_METHOD (TheNetworkCacheHasWhatARebuildGives)
+        {
+            constexpr size_t  kLength = 3 * 1024;
+
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            InlineWorkQueue                   queue;
+            DebugEventLogs                    logs       (machine);
+            std::vector<Byte>                      outbound = MakePattern (kLength, 0x31);
+            std::vector<Byte>                      reply    = MakePattern (kLength, 0x4C);
+            std::vector<DebugEventEntry<IoEvent>>  entries;
+            std::shared_ptr<FakeSocketState>       peer;
+            HRESULT                                hr       = S_OK;
+            size_t                                 events   = 0;
+            size_t                                 sent     = 0;
+            size_t                                 received = 0;
+
+
+
+            guest.PokeBytes (kSendBuffer, outbound);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            logs.SetWorkQueue (&queue);
+            logs.Start (&controller);
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() == kLength; }, L"the guest sends 3 KB");
+
+            peer->inbound.assign (reply.begin(), reply.end());
+            guest.RunUntil ([&] { return guest.Peek (kDoneFlag) == kDone; }, L"the guest receives 3 KB and disconnects");
+
+            hr = controller.GetKeyframes().WaitForPending();
+            AssertSucceeded (hr, L"WaitForPending");
+
+            EventCacheRebuild::AssertMatches<IoEvent> (machine, controller, logs.GetNetworkCache(), std::make_unique<IoEventProbe> (IoLogKind::Network), events);
+
+            logs.GetNetworkCache().CopySpan (0, UINT64_MAX, entries);
+
+            for (const DebugEventEntry<IoEvent> & entry : entries)
+            {
+                sent     += (entry.event.kind == IoEventKind::SocketSent)     ? entry.event.length : 0;
+                received += (entry.event.kind == IoEventKind::SocketReceived) ? entry.event.length : 0;
+            }
+
+            Assert::AreEqual (kLength, sent,     L"the log has every byte sent");
+            Assert::AreEqual (kLength, received, L"and every byte received");
+            Assert::IsTrue   (std::ranges::any_of (entries, [] (const DebugEventEntry<IoEvent> & e) { return e.event.kind == IoEventKind::SocketState && e.event.value == R::kSockEstablished; }), L"and the socket connecting");
+
+            logs.Stop();
         }
 
 

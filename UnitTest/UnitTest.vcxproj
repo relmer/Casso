@@ -1093,6 +1093,7 @@
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\ReverseSessionRig.h" />
     <ClInclude Include="EmuTests\ThreadAllocationCounter.h" />
+    <ClInclude Include="EmuTests\EventCacheRebuild.h" />
     <ClInclude Include="EmuTests\InlineWorkQueue.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />

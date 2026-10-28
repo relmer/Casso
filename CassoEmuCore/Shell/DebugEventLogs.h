@@ -100,6 +100,8 @@ public:
     const DebugEventCache<InputEvent>  & GetInputCache () const { return m_input.cache; }
     const DebugEventCache<IoEvent>     & GetVideoCache () const { return m_video.cache; }
     const DebugEventCache<IoEvent>     & GetSoundCache () const { return m_sound.cache; }
+    const DebugEventCache<IoEvent>     & GetSerialCache  () const { return m_serial.cache; }
+    const DebugEventCache<IoEvent>     & GetNetworkCache () const { return m_network.cache; }
 
     // IIoEventSource
     void     ClearIoLog   (IoLogKind kind) override;
@@ -192,6 +194,8 @@ private:
     Log<InputEvent>      m_input;
     Log<IoEvent>         m_video;
     Log<IoEvent>         m_sound;
+    Log<IoEvent>         m_serial;
+    Log<IoEvent>         m_network;
     TraceHistory         m_trace          { m_machine, m_history };
     ProfileHistory       m_profile        { m_machine, m_history };
     uint64_t             m_videoClearedAt = 0;

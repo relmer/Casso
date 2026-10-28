@@ -24,6 +24,8 @@ enum class IoLogKind
 {
     Video,
     Sound,
+    Serial,
+    Network,
 };
 
 struct IoLogEntries

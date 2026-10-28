@@ -22,6 +22,8 @@ enum class DebugLogKind
     Input,
     Video,
     Sound,
+    Serial,
+    Network,
 };
 
 //  Each log's name in the requests its pane sends the machine's thread
@@ -32,6 +34,8 @@ inline constexpr std::pair<DebugLogKind, const char *>  s_kDebugLogNames[] =
     { DebugLogKind::Input, "inputlog" },
     { DebugLogKind::Video, "videolog" },
     { DebugLogKind::Sound, "soundlog" },
+    { DebugLogKind::Serial,  "seriallog"  },
+    { DebugLogKind::Network, "networklog" },
 };
 
 inline const char * GetDebugLogName (DebugLogKind kind)

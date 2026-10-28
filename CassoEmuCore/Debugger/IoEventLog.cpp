@@ -186,6 +186,10 @@ void IoEventLog::FormatEntry (
     case IoEventKind::AyWrite:
         line = std::format ("cycle {:>12}  {:>8}         {}", entry.cycle, sinceText, FormatEvent (entry));
         break;
+
+    default:
+        line = std::format ("cycle {:>12}  {}", entry.cycle, FormatEvent (entry));
+        break;
     }
 }
 
@@ -222,6 +226,38 @@ std::string IoEventLog::FormatEvent (const IoEvent & entry)
 
     case IoEventKind::AyWrite:
         text = std::format ("Mockingboard chip {} AY R{:02} = ${:02X}", entry.chip + 1, entry.reg, entry.value);
+        break;
+
+    case IoEventKind::SerialSettings:
+        text = std::format ("port {} command ${:02X} control ${:02X}", entry.chip + 1, entry.command, entry.control);
+        break;
+
+    case IoEventKind::SerialLines:
+        text = std::format ("port {} lines ${:02X}", entry.chip + 1, entry.lines);
+        break;
+
+    case IoEventKind::SerialSent:
+        text = std::format ("port {} sent ${:02X}", entry.chip + 1, entry.value);
+        break;
+
+    case IoEventKind::SerialReceived:
+        text = std::format ("port {} received ${:02X}", entry.chip + 1, entry.value);
+        break;
+
+    case IoEventKind::SerialOverrun:
+        text = std::format ("port {} overrun", entry.chip + 1);
+        break;
+
+    case IoEventKind::SocketState:
+        text = std::format ("socket {} state ${:02X} from ${:02X}", entry.chip, entry.value, entry.reg);
+        break;
+
+    case IoEventKind::SocketSent:
+        text = std::format ("socket {} sent {} bytes", entry.chip, entry.length);
+        break;
+
+    case IoEventKind::SocketReceived:
+        text = std::format ("socket {} received {} bytes", entry.chip, entry.length);
         break;
     }
 

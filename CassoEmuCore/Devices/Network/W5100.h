@@ -49,8 +49,31 @@ public:
 
     // While a log is set, each change the backend makes through the calls
     // below is appended to it, so ApplyChanges makes the same changes again.
+    // A TX commit has the bytes it sent, which ApplyChanges ignores.
+    enum class Change : Byte
+    {
+        SocketStatus,
+        SocketInterrupt,
+        Destination,
+        Unreachable,
+        CommitTx,
+        AppendRx,
+    };
+
+    struct LoggedChange
+    {
+        Change                 change = Change::SocketStatus;
+        int                    socket = 0;
+        uint64_t               first  = 0;
+        uint64_t               second = 0;
+        std::span<const Byte>  bytes;
+    };
+
     void     SetChangeLog    (std::string * log) { m_changeLog = log; }
     HRESULT  ApplyChanges    (std::string_view log);
+
+    // The change at `at` in a log, with `at` moved past it.
+    static HRESULT  ReadChange (std::string_view log, size_t & at, LoggedChange & outChange);
 
     bool  IsInterruptPending () const;
     Word  GetAddressPointer  () const { return m_pointer; }
@@ -126,16 +149,6 @@ private:
     Word      GetTxFreeSize        (int socket) const;
     Word      GetRxReceivedSize    (int socket) const;
     Byte      ReadLatchedWord      (int socket, Word offset, Word value);
-
-    enum class Change : Byte
-    {
-        SocketStatus,
-        SocketInterrupt,
-        Destination,
-        Unreachable,
-        CommitTx,
-        AppendRx,
-    };
 
     void      LogChange            (Change change, int socket, uint64_t first, uint64_t second, std::span<const Byte> bytes = {});
 

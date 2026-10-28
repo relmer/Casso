@@ -6,6 +6,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Events/ICommEventSink.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Shell/HostInputGate.h"
 
@@ -103,6 +104,7 @@ void UthernetCard::Write (
     Byte  value)
 {
     m_chip.WriteIndirect (address - m_ioStart, value);
+    NoteStates();
     UpdateIrq();
 }
 
@@ -390,7 +392,7 @@ void UthernetCard::CallBackend (
     }
 
     m_changeLog.clear();
-    m_chip.SetChangeLog ((m_inputJournal != nullptr) ? &m_changeLog : nullptr);
+    m_chip.SetChangeLog ((m_inputJournal != nullptr || m_commSink != nullptr) ? &m_changeLog : nullptr);
 
     switch (call)
     {
@@ -417,6 +419,8 @@ void UthernetCard::CallBackend (
     {
         m_inputJournal->RecordObserved (cycle, InputKind::NetworkCall, 0, 0, index, m_changeLog);
     }
+
+    EmitChanges (m_changeLog);
 }
 
 
@@ -450,6 +454,8 @@ void UthernetCard::ApplyReplayed (uint64_t index)
         hr = m_chip.ApplyChanges (m_replayed.front().changes);
         IGNORE_RETURN_VALUE (hr, S_OK);
         ASSERT (SUCCEEDED (hr));
+
+        EmitChanges (m_replayed.front().changes);
 
         m_replayed.pop_front();
     }
@@ -511,6 +517,124 @@ void UthernetCard::DropHostConnections()
 
     m_replayed.clear();
     UpdateIrq();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::SetCommEventSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::SetCommEventSink (ICommEventSink * sink)
+{
+    int  socket = 0;
+
+
+
+    m_commSink = sink;
+
+    for (socket = 0; socket < W5100::kSocketCount; socket++)
+    {
+        m_notedStates[(size_t) socket] = m_chip.GetSocketStatus (socket);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::EmitChanges
+//
+//  The data in a call's changes, sent and received, then any socket state
+//  the call changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::EmitChanges (std::string_view changes)
+{
+    HRESULT              hr     = S_OK;
+    size_t               at     = 0;
+    W5100::LoggedChange  logged;
+    IoEvent              event;
+    bool                 isData = false;
+
+
+
+    BAIL_OUT_IF (m_commSink == nullptr, S_OK);
+
+    while (at < changes.size())
+    {
+        hr = W5100::ReadChange (changes, at, logged);
+        CHR (hr);
+
+        isData = logged.change == W5100::Change::CommitTx || logged.change == W5100::Change::AppendRx;
+
+        if (isData)
+        {
+            event         = IoEvent();
+            event.kind    = (logged.change == W5100::Change::CommitTx) ? IoEventKind::SocketSent : IoEventKind::SocketReceived;
+            event.address = m_ioStart;
+            event.chip    = (Byte) logged.socket;
+            event.length  = (uint16_t) logged.bytes.size();
+
+            m_commSink->OnCommEvent (event, logged.bytes);
+        }
+    }
+
+    NoteStates();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::NoteStates
+//
+//  A network log entry for each socket whose state differs from its last one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::NoteStates()
+{
+    int      socket = 0;
+    Byte     status = 0;
+    IoEvent  event;
+
+
+
+    if (m_commSink == nullptr)
+    {
+        return;
+    }
+
+    for (socket = 0; socket < W5100::kSocketCount; socket++)
+    {
+        status = m_chip.GetSocketStatus (socket);
+
+        if (status != m_notedStates[(size_t) socket])
+        {
+            event         = IoEvent();
+            event.kind    = IoEventKind::SocketState;
+            event.address = m_ioStart;
+            event.chip    = (Byte) socket;
+            event.value   = status;
+            event.reg     = m_notedStates[(size_t) socket];
+
+            m_notedStates[(size_t) socket] = status;
+            m_commSink->OnCommEvent (event, {});
+        }
+    }
 }
 
 

@@ -11,6 +11,7 @@
 #include "Devices/Network/W5100SocketBridge.h"
 
 class HostInputGate;
+class ICommEventSink;
 class IHostNetwork;
 class InputJournal;
 class MemoryBus;
@@ -117,6 +118,11 @@ public:
     // guest has open reads as closed by the remote end.
     void  DropHostConnections ();
 
+    // The debugger's network log: each socket's state changes and the data
+    // each sends and receives go to `sink`, or nowhere when it is null.
+    // Emulation thread.
+    void  SetCommEventSink (ICommEventSink * sink);
+
 private:
     enum class BackendCall
     {
@@ -140,24 +146,28 @@ private:
 
     void  CallBackend    (BackendCall call, int socket, Byte command, uint64_t cycle);
     void  ApplyReplayed  (uint64_t index);
+    void  EmitChanges    (std::string_view changes);
+    void  NoteStates     ();
     void  OnPumpInterval (uint32_t cycles);
     void  UpdateIrq      ();
 
-    int                      m_slot            = 0;
-    Word                     m_ioStart         = 0;
-    Word                     m_ioEnd           = 0;
-    W5100                    m_chip;
-    VirtualNetwork           m_network;
-    W5100SocketBridge        m_bridge;
-    IInterruptController   * m_ic              = nullptr;
-    IrqSourceId              m_irqSource       = 0;
-    bool                     m_irqBound        = false;
-    bool                     m_irqAsserted     = false;
-    uint32_t                 m_cyclesSincePump = 0;
-    uint64_t                 m_cycles          = 0;
-    uint64_t                 m_callIndex       = 0;         // calls to the network side so far
-    InputJournal           * m_inputJournal    = nullptr;
-    const HostInputGate    * m_inputGate       = nullptr;
-    std::string              m_changeLog;
-    std::deque<ReplayedCall> m_replayed;                    // journaled calls a replay applied ahead of their instruction
+    int                                      m_slot            = 0;
+    Word                                     m_ioStart         = 0;
+    Word                                     m_ioEnd           = 0;
+    W5100                                    m_chip;
+    VirtualNetwork                           m_network;
+    W5100SocketBridge                        m_bridge;
+    IInterruptController                   * m_ic              = nullptr;
+    IrqSourceId                              m_irqSource       = 0;
+    bool                                     m_irqBound        = false;
+    bool                                     m_irqAsserted     = false;
+    uint32_t                                 m_cyclesSincePump = 0;
+    uint64_t                                 m_cycles          = 0;
+    uint64_t                                 m_callIndex       = 0;   // calls to the network side so far
+    InputJournal                           * m_inputJournal    = nullptr;
+    const HostInputGate                    * m_inputGate       = nullptr;
+    std::string                              m_changeLog;
+    std::deque<ReplayedCall>                 m_replayed;   // journaled calls a replay applied ahead of their instruction
+    ICommEventSink                         * m_commSink        = nullptr;
+    std::array<Byte, W5100::kSocketCount>    m_notedStates     = {};   // the socket states in the last network log entries
 };
