@@ -381,7 +381,7 @@
     <ClCompile Include="EmuTests\DiskComparisonTests.cpp" />
     <ClCompile Include="EmuTests\FileMapTestImages.cpp" />
     <ClCompile Include="EmuTests\FileMapTests.cpp" />
-    <ClCompile Include="EmuTests\FluxTimingTabTests.cpp" />
+    <ClCompile Include="EmuTests\FluxViewTests.cpp" />
     <ClCompile Include="EmuTests\InspectorClipboardTests.cpp" />
     <ClCompile Include="EmuTests\InspectorSearchTests.cpp" />
     <ClCompile Include="EmuTests\TrackExportTests.cpp" />

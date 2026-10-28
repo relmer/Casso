@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/DiskInspector/FindingsTab.h"
+#include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Devices/Disk/Inspector/FindingFormatter.h"
 
 
@@ -17,11 +17,11 @@ static constexpr float  s_kToggleHDip   = 22.0f;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab::FindingsTab
+//  IssuesView::IssuesView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-FindingsTab::FindingsTab (InspectorViewContext & context) :
+IssuesView::IssuesView (InspectorViewContext & context) :
     InspectorTableView (context)
 {
     SetColumns (InspectorTables::GetFindingColumns());
@@ -34,11 +34,11 @@ FindingsTab::FindingsTab (InspectorViewContext & context) :
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab::Refresh
+//  IssuesView::Refresh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindingsTab::Refresh()
+void IssuesView::Refresh()
 {
     if (m_context.analysis != nullptr && m_context.hasDisk)
     {
@@ -58,13 +58,13 @@ void FindingsTab::Refresh()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab::OnMouse
+//  IssuesView::OnMouse
 //
 //  A click on a category toggles it in the filter.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FindingsTab::OnMouse (const DxuiMouseEvent & ev)
+bool IssuesView::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  isHandled = false;
     int   c         = 0;
@@ -101,11 +101,11 @@ bool FindingsTab::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab::GetTopHeightPx
+//  IssuesView::GetTopHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int FindingsTab::GetTopHeightPx() const
+int IssuesView::GetTopHeightPx() const
 {
     return m_scaler.ToPx (kFilterDip);
 }
@@ -116,7 +116,7 @@ int FindingsTab::GetTopHeightPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab::PaintTop
+//  IssuesView::PaintTop
 //
 //  A toggle per category that has findings, with its count; one filtered
 //  out is drawn without its fill. With no findings, the list has a line
@@ -124,7 +124,7 @@ int FindingsTab::GetTopHeightPx() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindingsTab::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top)
+void IssuesView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top)
 {
     int           c       = 0;
     int           total   = 0;
@@ -165,13 +165,13 @@ void FindingsTab::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab::OnSort
+//  IssuesView::OnSort
 //
 //  A second click on the same column reverses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindingsTab::OnSort (int column)
+void IssuesView::OnSort (int column)
 {
     m_isDescending = (column == m_sortColumn) ? !m_isDescending : false;
     m_sortColumn   = column;
@@ -186,13 +186,13 @@ void FindingsTab::OnSort (int column)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab::GetToggleRect
+//  IssuesView::GetToggleRect
 //
 //  Toggles sit left to right in category order, skipping empty ones.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT FindingsTab::GetToggleRect (int category) const
+RECT IssuesView::GetToggleRect (int category) const
 {
     int  w     = m_scaler.ToPx (s_kToggleDip);
     int  gap   = m_scaler.ToPx (s_kToggleGapDip);

@@ -9,8 +9,8 @@
 #include "Machines/Apple2/Common/Disk2Controller.h"
 #include "Ui/DiskInspector/CompareDialog.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
-#include "Ui/DiskInspector/DifferencesTab.h"
-#include "Ui/DiskInspector/FindingsTab.h"
+#include "Ui/DiskInspector/Views/DifferencesView.h"
+#include "Ui/DiskInspector/Views/IssuesView.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/InspectorText.h"
 #include "Devices/Disk/Inspector/InspectorClipboard.h"
@@ -36,14 +36,14 @@
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
-#include "Ui/DiskInspector/FluxTimingTab.h"
+#include "Ui/DiskInspector/Views/FluxView.h"
 #include "Ui/DiskInspector/GoToDialog.h"
-#include "Ui/DiskInspector/NibblesTab.h"
+#include "Ui/DiskInspector/Views/NibblesView.h"
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/PlatterCells.h"
 #include "Ui/DiskInspector/PlatterView.h"
-#include "Ui/DiskInspector/SectorByteView.h"
+#include "Ui/DiskInspector/Views/SectorsView.h"
 #include "Ui/DiskInspector/SectorRowView.h"
 #include "Ui/DiskInspector/TrackHeaderView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
@@ -89,7 +89,6 @@ static constexpr int      s_kMinTableDip    = 200;
 static constexpr int      s_kDecodeButtonDip = 132;
 static constexpr int      s_kExportButtonDip = 80;
 static constexpr int      s_kFindButtonDip   = 60;
-static constexpr int      s_kCopySectorDip   = 110;
 static constexpr int      s_kCompareDip      = 122;
 static constexpr int      s_kFollowDip       = 110;
 static constexpr int      s_kGoToHeadDip     = 94;
@@ -484,9 +483,9 @@ HRESULT DiskInspectorWindow::RenderFrame()
         GetPopupHost()->GetContextMenu().Tick (static_cast<int64_t> (GetTickCount64()));
     }
 
-    m_tracksTab->Tick   (static_cast<int64_t> (GetTickCount64()));
-    m_findingsTab->Tick (static_cast<int64_t> (GetTickCount64()));
-    m_fieldsTab->Tick   (static_cast<int64_t> (GetTickCount64()));
+    m_tracksView->Tick   (static_cast<int64_t> (GetTickCount64()));
+    m_issuesView->Tick (static_cast<int64_t> (GetTickCount64()));
+    m_fieldsView->Tick   (static_cast<int64_t> (GetTickCount64()));
 
     for (IInspectorComponent * component : m_components)
     {
@@ -528,36 +527,38 @@ void DiskInspectorWindow::OnCreate()
     m_stripWhole  = CreateChild<DxuiButton> (L"Whole track");
     m_stripReadout = CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Left);
     m_stripHint   = CreateChild<DxuiLabel> (s_kpszStripHint, DxuiTextRole::Muted, DxuiTextHAlign::Right);
-    m_byteView    = CreateChild<SectorByteView>  (m_session.context);
-    m_nibblesTab  = CreateChild<NibblesTab>      (m_session.context);
-    m_fieldsTab   = CreateChild<InspectorTableView> (m_session.context);
-    m_fluxTab     = CreateChild<FluxTimingTab>   (m_session.context);
-    m_copySector   = CreateChild<DxuiButton> (L"Copy sector");
-    m_tracksTab   = CreateChild<InspectorTableView> (m_session.context);
-    m_findingsTab = CreateChild<FindingsTab>     (m_session.context);
-    m_imageTab    = CreateChild<InspectorTableView> (m_session.context);
+    m_sectorsView    = CreateChild<SectorsView>  (m_session.context);
+    m_nibblesView  = CreateChild<NibblesView>      (m_session.context);
+    m_fieldsView   = CreateChild<InspectorTableView> (m_session.context);
+    m_fluxView     = CreateChild<FluxView>   (m_session.context);
+    m_copySector   = CreateChild<DxuiIconButton>();
+    m_tracksView   = CreateChild<InspectorTableView> (m_session.context);
+    m_issuesView = CreateChild<IssuesView>     (m_session.context);
+    m_imageView    = CreateChild<InspectorTableView> (m_session.context);
     m_files       = std::make_unique<FilesView> (m_session, GetHost());
     m_files->Create();
-    m_diffsTab    = CreateChild<DifferencesTab> (m_session.context, m_session.comparison);
-    m_comparisonPart = std::make_unique<ComparisonPart> (m_session, GetHost(), *m_diffsTab, *m_stripB, *m_files);
+    m_diffsView    = CreateChild<DifferencesView> (m_session.context, m_session.comparison);
+    m_comparisonPart = std::make_unique<ComparisonPart> (m_session, GetHost(), *m_diffsView, *m_stripB, *m_files);
     m_comparisonPart->Create();
     m_findPart    = std::make_unique<FindPart> (m_session, GetHost());
     m_findPart->Create();
     m_findResults = &m_findPart->GetResults();
-    m_editing     = std::make_unique<EditingPart> (m_session, GetHost(), *m_byteView);
+    m_editing     = std::make_unique<EditingPart> (m_session, GetHost(), *m_sectorsView);
     m_editing->Create();
 
-    m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
-    m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
-    m_imageTab->SetColumns   (InspectorTables::GetImageColumns());
-    m_tracksTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
-    m_findingsTab->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
-    m_fieldsTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
+    m_tracksView->SetColumns  (InspectorTables::GetTrackColumns());
+    m_fieldsView->SetColumns  (InspectorTables::GetFieldColumns());
+    m_imageView->SetColumns   (InspectorTables::GetImageColumns());
+    m_tracksView->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
+    m_issuesView->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
+    m_fieldsView->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_stripOut->SetOnClick   ([this] () { m_stripView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_stripIn->SetOnClick    ([this] () { m_stripView->ZoomAboutCenter (kZoomStep); });
     m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
     m_session.context.edits = &m_session.edits;
-    m_copySector->SetOnClick   ([this] () { CopySector(); });
+    m_copySector->SetGlyph          (L"\xE8C8");
+    m_copySector->SetAccessibleName (L"Copy sector");
+    m_copySector->SetOnClick        ([this] () { CopySector(); });
     m_stripB->SetSide (ComparisonSession::kSideB);
 
     m_corners     = std::make_unique<PlatterCorners> (m_session, GetHost(), *m_platterView);
@@ -1151,7 +1152,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     m_diskContentPx = { right.left, y, right.right, right.bottom };
 
-    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_nibblesTab, m_fieldsTab, m_fluxTab, m_tracksTab, m_findingsTab, m_imageTab, m_diffsTab, m_findResults })
+    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_nibblesView, m_fieldsView, m_fluxView, m_tracksView, m_issuesView, m_imageView, m_diffsView, m_findResults })
     {
         content->Layout (m_diskContentPx, scaler);
     }
@@ -1159,14 +1160,14 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     //  The edit bar above the Sector data tab's header and bytes.
     m_editing->Layout ({ right.left, y, right.right, y + m_editing->GetHeightPx (right.right - right.left, scaler) }, scaler);
     y += m_editing->GetHeightPx (right.right - right.left, scaler);
-    m_byteView->Layout ({ right.left, y, right.right, right.bottom }, scaler);
+    m_sectorsView->Layout ({ right.left, y, right.right, right.bottom }, scaler);
 
     m_files->Layout (m_diskContentPx, scaler);
 
-    //  "Copy sector" at the end of the Sector data header's first line, with
+    //  The "Copy sector" icon at the end of the Sectors header's first line, with
     //  room reserved for it there.
-    m_copySector->Layout       ({ right.right - scaler.ToPx (s_kCopySectorDip), y, right.right, y + scaler.ToPx (SectorByteView::kHeaderDip) }, scaler);
-    m_byteView->SetHeaderReserve (scaler.ToPx (s_kCopySectorDip) + margin);
+    m_copySector->Layout       ({ right.right - scaler.ToPx (SectorsView::kHeaderDip), y, right.right, y + scaler.ToPx (SectorsView::kHeaderDip) }, scaler);
+    m_sectorsView->SetHeaderReserve (scaler.ToPx (SectorsView::kHeaderDip) + margin);
 
     //  The strip across the bottom, B's under it while comparing (FR-121).
     y = bandTop + margin;
@@ -1677,7 +1678,7 @@ void DiskInspectorWindow::OnSelection()
         nibble = track->fields[sector->addressField].firstNibble;
     }
 
-    m_nibblesTab->ScrollTo (nibble);
+    m_nibblesView->ScrollTo (nibble);
     SyncTables();
 
     //  A new sector the user chooses anywhere but on the platter starts a
@@ -1740,7 +1741,7 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
     int64_t                               now       = static_cast<int64_t> (GetTickCount64());
     vector<DxuiTooltipSwatch>             swatches;
     bool                                  isInstant = false;
-    const std::array<InspectorView *, 8>  views     = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_byteView, m_nibblesTab, m_fluxTab, m_headerView };
+    const std::array<InspectorView *, 8>  views     = { m_platterView, m_stripView, m_stripB, m_sectorRow, m_sectorsView, m_nibblesView, m_fluxView, m_headerView };
 
 
 
@@ -1879,14 +1880,14 @@ void DiskInspectorWindow::ShowTabContent()
 
 
 
-    m_byteView->SetVisible    (isTrack && m_session.trackTab == kTabSectorData);
-    m_nibblesTab->SetVisible  (isTrack && m_session.trackTab == kTabNibbles);
-    m_fieldsTab->SetVisible   (isTrack && m_session.trackTab == kTabFields);
-    m_fluxTab->SetVisible     (isTrack && m_session.trackTab == kTabFluxTiming);
-    m_tracksTab->SetVisible   (!isTrack && m_session.diskTab == kTabTracks);
-    m_findingsTab->SetVisible (!isTrack && m_session.diskTab == kTabFindings);
-    m_imageTab->SetVisible    (!isTrack && m_session.diskTab == kTabImage);
-    m_diffsTab->SetVisible    (!isTrack && m_session.diskTab == kTabDifferences);
+    m_sectorsView->SetVisible    (isTrack && m_session.trackTab == kTabSectorData);
+    m_nibblesView->SetVisible  (isTrack && m_session.trackTab == kTabNibbles);
+    m_fieldsView->SetVisible   (isTrack && m_session.trackTab == kTabFields);
+    m_fluxView->SetVisible     (isTrack && m_session.trackTab == kTabFluxTiming);
+    m_tracksView->SetVisible   (!isTrack && m_session.diskTab == kTabTracks);
+    m_issuesView->SetVisible (!isTrack && m_session.diskTab == kTabFindings);
+    m_imageView->SetVisible    (!isTrack && m_session.diskTab == kTabImage);
+    m_diffsView->SetVisible    (!isTrack && m_session.diskTab == kTabDifferences);
     m_findResults->SetVisible (!isTrack && m_session.diskTab == kTabFindResults);
     m_files->Show (!isTrack && m_session.diskTab == kTabFileMap);
 }
@@ -1924,18 +1925,32 @@ void DiskInspectorWindow::RefreshTables()
 
         if (m_session.comparison.IsComparing() != m_isTracksCompared)
         {
-            m_tracksTab->SetColumns (columns);
+            m_tracksView->SetColumns (columns);
             m_isTracksCompared = m_session.comparison.IsComparing();
         }
 
-        m_tracksTab->SetRows    (std::move (rows));
-        m_diffsTab->Refresh();
-        m_tracksTab->SetCaption (m_session.context.hasDisk && InspectorTables::IsAlignmentNoteShown (m_session.analysis)
+        m_tracksView->SetRows    (std::move (rows));
+        m_diffsView->Refresh();
+        m_tracksView->SetCaption (m_session.context.hasDisk && InspectorTables::IsAlignmentNoteShown (m_session.analysis)
                                      ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
                                      : L"");
-        m_findingsTab->Refresh();
-        m_imageTab->SetRows (m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr, m_session.context.drive)
-                                               : vector<TableRow>());
+        m_issuesView->Refresh();
+
+        vector<TableRow>  imageRows = m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr,
+                                                                                               m_session.context.drive)
+                                                                : vector<TableRow>();
+
+        //  With no Flux view on a disk without flux tracks, the Image view has
+        //  the note on why the disk has no timing (FR-003).
+        if (m_session.context.hasDisk && m_session.analysis.copy != nullptr && m_session.analysis.summary.fluxTracks == 0)
+        {
+            TableRow  timing;
+
+            timing.cells = { L"Timing", FluxView::FormatNoTiming (m_session.analysis.copy->format, m_session.analysis.copy->woz.info.version) };
+            imageRows.push_back (timing);
+        }
+
+        m_imageView->SetRows (std::move (imageRows));
         m_files->RefreshFileList();
 
         //  Casso does not analyze 3.5" disks; such a WOZ opens on the Image
@@ -1952,7 +1967,7 @@ void DiskInspectorWindow::RefreshTables()
 
     if (m_session.isTablesDirty || qt != m_fieldsOf || track != m_fieldsTrack)
     {
-        m_fieldsTab->SetRows (m_session.context.hasDisk ? InspectorTables::BuildFields (m_session.analysis, qt) : vector<TableRow>());
+        m_fieldsView->SetRows (m_session.context.hasDisk ? InspectorTables::BuildFields (m_session.analysis, qt) : vector<TableRow>());
         m_fieldsOf    = qt;
         m_fieldsTrack = track;
         SyncTables();
@@ -1980,8 +1995,8 @@ void DiskInspectorWindow::SyncTables()
 
 
 
-    m_tracksTab->SelectRowWhere ([qt] (const TableRow & row) { return row.quarterTrack == qt; });
-    m_fieldsTab->SelectRowWhere ([sector] (const TableRow & row) { return sector >= 0 && row.sectorIndex == sector; });
+    m_tracksView->SelectRowWhere ([qt] (const TableRow & row) { return row.quarterTrack == qt; });
+    m_fieldsView->SelectRowWhere ([sector] (const TableRow & row) { return sector >= 0 && row.sectorIndex == sector; });
 }
 
 
@@ -2261,31 +2276,31 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     {
         target = KeyTarget::SectorRow;
     }
-    else if (m_byteView->IsVisible() && IsInside (m_byteView->GetBounds(), pointPx))
+    else if (m_sectorsView->IsVisible() && IsInside (m_sectorsView->GetBounds(), pointPx))
     {
         target = KeyTarget::SectorData;
     }
-    else if (m_nibblesTab->IsVisible() && IsInside (m_nibblesTab->GetBounds(), pointPx))
+    else if (m_nibblesView->IsVisible() && IsInside (m_nibblesView->GetBounds(), pointPx))
     {
         target = KeyTarget::Nibbles;
     }
-    else if (m_fieldsTab->IsVisible() && IsInside (m_fieldsTab->GetBounds(), pointPx))
+    else if (m_fieldsView->IsVisible() && IsInside (m_fieldsView->GetBounds(), pointPx))
     {
         target = KeyTarget::Fields;
     }
-    else if (m_fluxTab->IsVisible() && IsInside (m_fluxTab->GetBounds(), pointPx))
+    else if (m_fluxView->IsVisible() && IsInside (m_fluxView->GetBounds(), pointPx))
     {
         target = KeyTarget::FluxTiming;
     }
-    else if (m_tracksTab->IsVisible() && IsInside (m_tracksTab->GetBounds(), pointPx))
+    else if (m_tracksView->IsVisible() && IsInside (m_tracksView->GetBounds(), pointPx))
     {
         target = KeyTarget::Tracks;
     }
-    else if (m_findingsTab->IsVisible() && IsInside (m_findingsTab->GetBounds(), pointPx))
+    else if (m_issuesView->IsVisible() && IsInside (m_issuesView->GetBounds(), pointPx))
     {
         target = KeyTarget::Findings;
     }
-    else if (m_imageTab->IsVisible() && IsInside (m_imageTab->GetBounds(), pointPx))
+    else if (m_imageView->IsVisible() && IsInside (m_imageView->GetBounds(), pointPx))
     {
         target = KeyTarget::Image;
     }
@@ -2293,7 +2308,7 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     {
         target = KeyTarget::FileList;
     }
-    else if (m_diffsTab->IsVisible() && IsInside (m_diffsTab->GetBounds(), pointPx))
+    else if (m_diffsView->IsVisible() && IsInside (m_diffsView->GetBounds(), pointPx))
     {
         target = KeyTarget::Differences;
     }
@@ -2348,7 +2363,7 @@ void DiskInspectorWindow::ExtendSelection (WPARAM vk)
 {
     const TrackAnalysis *  track  = m_session.model.GetTrack();
     bool                   isByte = m_session.keyTarget == KeyTarget::SectorData;
-    int                    row    = isByte ? SectorByteView::kBytesPerRow : std::max (m_nibblesTab->GetPerRow(), 1);
+    int                    row    = isByte ? SectorsView::kBytesPerRow : std::max (m_nibblesView->GetPerRow(), 1);
     int                    first  = isByte ? m_session.model.GetFirstByte()  : m_session.model.GetFirstNibble();
     int                    count  = isByte ? m_session.model.GetByteCount()  : m_session.model.GetNibbleCount();
     int                    anchor = isByte ? m_session.model.GetByteAnchor() : m_session.model.GetNibbleAnchor();
@@ -2396,14 +2411,14 @@ void DiskInspectorWindow::Copy()
 
     switch (m_session.keyTarget)
     {
-        case KeyTarget::Fields:     text = m_fieldsTab->GetSelectedText();   break;
-        case KeyTarget::Tracks:     text = m_tracksTab->GetSelectedText();   break;
-        case KeyTarget::Findings:   text = m_findingsTab->GetSelectedText(); break;
-        case KeyTarget::Image:      text = m_imageTab->GetSelectedText();    break;
+        case KeyTarget::Fields:     text = m_fieldsView->GetSelectedText();   break;
+        case KeyTarget::Tracks:     text = m_tracksView->GetSelectedText();   break;
+        case KeyTarget::Findings:   text = m_issuesView->GetSelectedText(); break;
+        case KeyTarget::Image:      text = m_imageView->GetSelectedText();    break;
         case KeyTarget::FileList:   text = m_files->GetFileList().GetSelectedText(); break;
-        case KeyTarget::Differences: text = m_diffsTab->GetSelectedText();   break;
+        case KeyTarget::Differences: text = m_diffsView->GetSelectedText();   break;
         case KeyTarget::FindResults: text = m_findResults->GetSelectedText(); break;
-        case KeyTarget::FluxTiming: text = m_fluxTab->GetHistogramText();    break;
+        case KeyTarget::FluxTiming: text = m_fluxView->GetHistogramText();    break;
 
         case KeyTarget::Strip:
         case KeyTarget::Nibbles:
@@ -2660,13 +2675,13 @@ void DiskInspectorWindow::StepKeyTarget (int step)
         { KeyTarget::Platter,    m_platterView },
         { KeyTarget::Strip,      m_stripView },
         { KeyTarget::SectorRow,  m_sectorRow },
-        { KeyTarget::SectorData, m_byteView },
-        { KeyTarget::Nibbles,    m_nibblesTab },
-        { KeyTarget::Fields,     m_fieldsTab },
-        { KeyTarget::FluxTiming, m_fluxTab },
-        { KeyTarget::Tracks,     m_tracksTab },
-        { KeyTarget::Findings,   m_findingsTab },
-        { KeyTarget::Differences, m_diffsTab },
+        { KeyTarget::SectorData, m_sectorsView },
+        { KeyTarget::Nibbles,    m_nibblesView },
+        { KeyTarget::Fields,     m_fieldsView },
+        { KeyTarget::FluxTiming, m_fluxView },
+        { KeyTarget::Tracks,     m_tracksView },
+        { KeyTarget::Findings,   m_issuesView },
+        { KeyTarget::Differences, m_diffsView },
         { KeyTarget::FindResults, m_findResults },
     }};
 
@@ -2716,13 +2731,13 @@ RECT DiskInspectorWindow::GetKeyTargetBounds() const
     {
         case KeyTarget::Strip:      bounds = m_stripView->GetBounds();   break;
         case KeyTarget::SectorRow:  bounds = m_sectorRow->GetBounds();   break;
-        case KeyTarget::SectorData: bounds = m_byteView->GetBounds();    break;
-        case KeyTarget::Nibbles:    bounds = m_nibblesTab->GetBounds();  break;
-        case KeyTarget::Fields:     bounds = m_fieldsTab->GetBounds();   break;
-        case KeyTarget::FluxTiming: bounds = m_fluxTab->GetBounds();     break;
-        case KeyTarget::Tracks:     bounds = m_tracksTab->GetBounds();   break;
-        case KeyTarget::Findings:   bounds = m_findingsTab->GetBounds(); break;
-        case KeyTarget::Differences: bounds = m_diffsTab->GetBounds();   break;
+        case KeyTarget::SectorData: bounds = m_sectorsView->GetBounds();    break;
+        case KeyTarget::Nibbles:    bounds = m_nibblesView->GetBounds();  break;
+        case KeyTarget::Fields:     bounds = m_fieldsView->GetBounds();   break;
+        case KeyTarget::FluxTiming: bounds = m_fluxView->GetBounds();     break;
+        case KeyTarget::Tracks:     bounds = m_tracksView->GetBounds();   break;
+        case KeyTarget::Findings:   bounds = m_issuesView->GetBounds(); break;
+        case KeyTarget::Differences: bounds = m_diffsView->GetBounds();   break;
         case KeyTarget::FindResults: bounds = m_findResults->GetBounds(); break;
         default:                                                         break;
     }

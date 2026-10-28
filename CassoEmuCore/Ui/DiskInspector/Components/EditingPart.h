@@ -10,7 +10,7 @@
 class EditBar;
 class IInspectorComponentHost;
 class InspectorSession;
-class SectorByteView;
+class SectorsView;
 
 
 
@@ -29,7 +29,7 @@ class SectorByteView;
 class EditingPart : public IInspectorComponent
 {
 public:
-    EditingPart (InspectorSession & session, IInspectorComponentHost & host, SectorByteView & byteView);
+    EditingPart (InspectorSession & session, IInspectorComponentHost & host, SectorsView & byteView);
 
     void          Create  () override;
     void          Update  () override;
@@ -82,7 +82,7 @@ private:
 
     InspectorSession           & m_session;
     IInspectorComponentHost    & m_host;
-    SectorByteView             & m_byteView;
+    SectorsView                & m_sectorsView;
     EditBar                    * m_editBar          = nullptr;
     EditBarState                 m_state;
     int64_t                      m_editSig          = 0;

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/DiskInspector/NibblesTab.h"
+#include "Ui/DiskInspector/Views/NibblesView.h"
 #include "Devices/Disk/DiskFieldFormat.h"
 #include "Ui/DiskInspector/ComparisonText.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -28,13 +28,13 @@ static constexpr float     s_kPanelPadDip    = 8.0f;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::Paint
+//  NibblesView::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 //  The nibbles on a near-black panel with a green tint, drawn in the colors
 //  for a dark surface whatever the window's theme (FR-150).
-void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & surface)
+void NibblesView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & surface)
 {
     const IDxuiTheme &     theme   = GetPanelTheme (surface);
     const TrackAnalysis *  track   = m_context.GetTrack();
@@ -164,11 +164,11 @@ void NibblesTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::OnMouse
+//  NibblesView::OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool NibblesTab::OnMouse (const DxuiMouseEvent & ev)
+bool NibblesView::OnMouse (const DxuiMouseEvent & ev)
 {
     const TrackAnalysis *  track     = m_context.GetTrack();
     bool                   isInside  = PtInRect (&m_boundsDip, ev.positionDip) != FALSE;
@@ -232,11 +232,11 @@ bool NibblesTab::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::GetTooltip
+//  NibblesView::GetTooltip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool NibblesTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
+bool NibblesView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
 {
     const TrackAnalysis *  track   = m_context.GetTrack();
     const TrackAnalysis *  trackB  = m_context.trackB;
@@ -269,13 +269,13 @@ bool NibblesTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAn
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::GetTooltipSwatches
+//  NibblesView::GetTooltipSwatches
 //
 //  The colors of the nibble's own cells, the cells its bar is drawn for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool NibblesTab::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
+bool NibblesView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
     const TrackAnalysis *  track  = m_context.GetTrack();
     int                    nibble = (track != nullptr) ? HitTest (pointPx) : -1;
@@ -296,13 +296,13 @@ bool NibblesTab::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::GetOwnCells
+//  NibblesView::GetOwnCells
 //
 //  A nibble's eight bits and any extra zero cells after them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t NibblesTab::GetOwnCells (const TrackAnalysis & track, int nibble)
+uint32_t NibblesView::GetOwnCells (const TrackAnalysis & track, int nibble)
 {
     static constexpr uint32_t  kBitsCells = 8;
 
@@ -317,11 +317,11 @@ uint32_t NibblesTab::GetOwnCells (const TrackAnalysis & track, int nibble)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::ScrollTo
+//  NibblesView::ScrollTo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void NibblesTab::ScrollTo (int nibble)
+void NibblesView::ScrollTo (int nibble)
 {
     if (nibble >= 0)
     {
@@ -335,13 +335,13 @@ void NibblesTab::ScrollTo (int nibble)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::GetNibblesPerRow
+//  NibblesView::GetNibblesPerRow
 //
 //  As many whole steps of 8 as fit after the offset column, and at least one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblesTab::GetNibblesPerRow (float widthPx, float cellPx, float offsetPx)
+int NibblesView::GetNibblesPerRow (float widthPx, float cellPx, float offsetPx)
 {
     int  fit = static_cast<int> ((widthPx - offsetPx) / std::max (cellPx, 1.0f));
 
@@ -356,11 +356,11 @@ int NibblesTab::GetNibblesPerRow (float widthPx, float cellPx, float offsetPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::GetPerRow
+//  NibblesView::GetPerRow
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblesTab::GetPerRow() const
+int NibblesView::GetPerRow() const
 {
     return GetNibblesPerRow (GetWidth(), m_scaler.ToPxf (static_cast<float> (kCellDip)), m_scaler.ToPxf (static_cast<float> (kOffsetDip)));
 }
@@ -371,11 +371,11 @@ int NibblesTab::GetPerRow() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::GetVisibleRows
+//  NibblesView::GetVisibleRows
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblesTab::GetVisibleRows() const
+int NibblesView::GetVisibleRows() const
 {
     return std::max (1, static_cast<int> (GetHeight() / m_scaler.ToPxf (static_cast<float> (kRowDip))));
 }
@@ -386,11 +386,11 @@ int NibblesTab::GetVisibleRows() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::HitTest
+//  NibblesView::HitTest
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int NibblesTab::HitTest (POINT pointPx) const
+int NibblesView::HitTest (POINT pointPx) const
 {
     const TrackAnalysis *  track  = m_context.GetTrack();
     float                  offW   = m_scaler.ToPxf (static_cast<float> (kOffsetDip));
@@ -417,13 +417,13 @@ int NibblesTab::HitTest (POINT pointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::IsInSelection
+//  NibblesView::IsInSelection
 //
 //  Whether a nibble belongs to the selected sector's fields.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool NibblesTab::IsInSelection (const TrackAnalysis & track, int nibble) const
+bool NibblesView::IsInSelection (const TrackAnalysis & track, int nibble) const
 {
     const AnalyzedSector *  sector = m_context.model->GetSector();
     int                     field  = (nibble < static_cast<int> (track.fieldOfNibble.size())) ? track.fieldOfNibble[nibble] : -1;
@@ -439,14 +439,14 @@ bool NibblesTab::IsInSelection (const TrackAnalysis & track, int nibble) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::IsOutsideTable
+//  NibblesView::IsOutsideTable
 //
 //  A data field nibble that is not in its encoding's table, so it cannot be
 //  decoded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool NibblesTab::IsOutsideTable (const TrackAnalysis & track, int nibble)
+bool NibblesView::IsOutsideTable (const TrackAnalysis & track, int nibble)
 {
     int   field     = (nibble < static_cast<int> (track.fieldOfNibble.size())) ? track.fieldOfNibble[nibble] : -1;
     bool  isOutside = false;
@@ -467,13 +467,13 @@ bool NibblesTab::IsOutsideTable (const TrackAnalysis & track, int nibble)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab::IsInRange
+//  NibblesView::IsInRange
 //
 //  Whether a nibble is in the selected run of nibbles (FR-043).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool NibblesTab::IsInRange (int nibble) const
+bool NibblesView::IsInRange (int nibble) const
 {
     int  first = m_context.model->GetFirstNibble();
 

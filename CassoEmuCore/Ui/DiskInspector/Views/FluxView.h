@@ -12,7 +12,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab
+//  FluxView
 //
 //  A flux track's timing (FR-044 to FR-046). Above, each transition's
 //  interval plotted at its recorded time against lines at one, two and three
@@ -31,12 +31,12 @@ enum class HistogramScope
 };
 
 
-class FluxTimingTab : public InspectorView
+class FluxView : public InspectorView
 {
 public:
     static constexpr double  kPlotCells = 3.6;
 
-    explicit FluxTimingTab (InspectorViewContext & context) : InspectorView (context) {}
+    explicit FluxView (InspectorViewContext & context) : InspectorView (context) {}
 
     //  Why a track has no timing, for the image's format and, for a WOZ file,
     //  its INFO chunk version (FR-003).

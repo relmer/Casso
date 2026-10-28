@@ -10,7 +10,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView
+//  SectorsView
 //
 //  The Sector data tab: the selected sector's header, then its 256 bytes as
 //  16 rows of 16 with hex offsets and a text column, zero bytes and bytes of
@@ -20,14 +20,14 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class SectorByteView : public InspectorView
+class SectorsView : public InspectorView
 {
 public:
     static constexpr int  kRowDip      = 18;
     static constexpr int  kHeaderDip   = 22;
     static constexpr int  kBytesPerRow = 16;
 
-    explicit SectorByteView (InspectorViewContext & context) : InspectorView (context) {}
+    explicit SectorsView (InspectorViewContext & context) : InspectorView (context) {}
 
     void  Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse (const DxuiMouseEvent & ev) override;

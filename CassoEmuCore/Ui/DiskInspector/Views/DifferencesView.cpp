@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/DiskInspector/DifferencesTab.h"
+#include "Ui/DiskInspector/Views/DifferencesView.h"
 
 
 
@@ -18,11 +18,11 @@ static constexpr LPCWSTR  s_kpszOptions[] = { L"Ignore sync widths and counts", 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::DifferencesTab
+//  DifferencesView::DifferencesView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DifferencesTab::DifferencesTab (InspectorViewContext & context, ComparisonSession & session) :
+DifferencesView::DifferencesView (InspectorViewContext & context, ComparisonSession & session) :
     InspectorTableView (context),
     m_session          (session)
 {
@@ -36,11 +36,11 @@ DifferencesTab::DifferencesTab (InspectorViewContext & context, ComparisonSessio
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::Refresh
+//  DifferencesView::Refresh
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DifferencesTab::Refresh()
+void DifferencesView::Refresh()
 {
     m_counts = ComparisonText::CountGroups (m_session.GetListed());
     SetRows (ComparisonText::BuildRows (m_session.GetListed(), m_mask, m_sortColumn, m_isDescending));
@@ -52,11 +52,11 @@ void DifferencesTab::Refresh()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::GetDifference
+//  DifferencesView::GetDifference
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Difference * DifferencesTab::GetDifference (const TableRow & row) const
+const Difference * DifferencesView::GetDifference (const TableRow & row) const
 {
     const vector<Difference> &  listed = m_session.GetListed();
 
@@ -71,14 +71,14 @@ const Difference * DifferencesTab::GetDifference (const TableRow & row) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::OnMouse
+//  DifferencesView::OnMouse
 //
 //  A click on a group toggles it in the filter; a click on an option turns
 //  it on or off.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DifferencesTab::OnMouse (const DxuiMouseEvent & ev)
+bool DifferencesView::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  isHandled = false;
     int   i         = 0;
@@ -126,11 +126,11 @@ bool DifferencesTab::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::GetTopHeightPx
+//  DifferencesView::GetTopHeightPx
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DifferencesTab::GetTopHeightPx() const
+int DifferencesView::GetTopHeightPx() const
 {
     return m_scaler.ToPx (2 * kRowDip);
 }
@@ -141,7 +141,7 @@ int DifferencesTab::GetTopHeightPx() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::PaintTop
+//  DifferencesView::PaintTop
 //
 //  A toggle per group that has differences, with its count, one filtered
 //  out drawn without its fill; with none, a line says so. Below, the three
@@ -149,7 +149,7 @@ int DifferencesTab::GetTopHeightPx() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DifferencesTab::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top)
+void DifferencesView::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const RECT & top)
 {
     int           i     = 0;
     int           total = 0;
@@ -204,13 +204,13 @@ void DifferencesTab::PaintTop (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::OnSort
+//  DifferencesView::OnSort
 //
 //  A second click on the same column reverses it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DifferencesTab::OnSort (int column)
+void DifferencesView::OnSort (int column)
 {
     m_isDescending = (column == m_sortColumn) ? !m_isDescending : false;
     m_sortColumn   = column;
@@ -225,13 +225,13 @@ void DifferencesTab::OnSort (int column)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::GetToggleRect
+//  DifferencesView::GetToggleRect
 //
 //  Toggles sit left to right in group order, skipping empty ones.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DifferencesTab::GetToggleRect (int group) const
+RECT DifferencesView::GetToggleRect (int group) const
 {
     int  w     = m_scaler.ToPx (s_kToggleDip);
     int  gap   = m_scaler.ToPx (s_kToggleGapDip);
@@ -259,11 +259,11 @@ RECT DifferencesTab::GetToggleRect (int group) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::GetOptionRect
+//  DifferencesView::GetOptionRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DifferencesTab::GetOptionRect (int option) const
+RECT DifferencesView::GetOptionRect (int option) const
 {
     int  w    = std::min (m_scaler.ToPx (s_kOptionDip), static_cast<int> (m_boundsDip.right - m_boundsDip.left) / kOptionCount - m_scaler.ToPx (s_kToggleGapDip));
     int  gap  = m_scaler.ToPx (s_kToggleGapDip);
@@ -282,11 +282,11 @@ RECT DifferencesTab::GetOptionRect (int option) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::IsOptionOn
+//  DifferencesView::IsOptionOn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DifferencesTab::IsOptionOn (int option) const
+bool DifferencesView::IsOptionOn (int option) const
 {
     const ComparisonOptions &  options = m_session.GetOptions();
 
@@ -301,11 +301,11 @@ bool DifferencesTab::IsOptionOn (int option) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab::ToggleOption
+//  DifferencesView::ToggleOption
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DifferencesTab::ToggleOption (int option)
+void DifferencesView::ToggleOption (int option)
 {
     ComparisonOptions  options = m_session.GetOptions();
 

@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/DiskInspector/FluxTimingTab.h"
+#include "Ui/DiskInspector/Views/FluxView.h"
 #include "Core/UnicodeSymbols.h"
 #include "Devices/Disk/Inspector/InspectorClipboard.h"
 #include "Devices/Disk/Inspector/InspectorFormat.h"
@@ -37,11 +37,11 @@ static constexpr uint8_t s_kPair            = 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::Paint
+//  FluxView::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+void FluxView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     const TrackAnalysis *  track   = m_context.GetTrack();
     const DiskCopy *       copy    = (m_context.analysis != nullptr) ? m_context.analysis->copy.get() : nullptr;
@@ -70,7 +70,7 @@ void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::FormatNoTiming
+//  FluxView::FormatNoTiming
 //
 //  Only a WOZ file of version 2.1 or later can image a track as flux, which
 //  has each bit's timing. A WOZ file's INFO chunk version is 3 for 2.1, 4 for
@@ -80,7 +80,7 @@ void FluxTimingTab::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format, int wozInfoVersion)
+std::wstring FluxView::FormatNoTiming (DiskFormat format, int wozInfoVersion)
 {
     static constexpr int  kFluxInfoVersion = 3;
 
@@ -122,7 +122,7 @@ std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format, int wozInfoVersio
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::PaintPlot
+//  FluxView::PaintPlot
 //
 //  Each transition at its recorded time across the strip's view, its
 //  interval upward; a transition is drawn once per pixel and kind, so the
@@ -130,7 +130,7 @@ std::wstring FluxTimingTab::FormatNoTiming (DiskFormat format, int wozInfoVersio
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FluxTimingTab::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track)
+void FluxView::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track)
 {
     RECT           plot    = GetPlotRect();
     StripGeometry  g       = MakeGeometry();
@@ -199,14 +199,14 @@ void FluxTimingTab::PaintPlot (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::PaintMarks
+//  FluxView::PaintMarks
 //
 //  The index and each sector's address prologue, as rules down the plot
 //  with their labels along its top.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FluxTimingTab::PaintMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g)
+void FluxView::PaintMarks (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g)
 {
     const FramedTrack &          framed = track.framed;
     RECT                         plot   = GetPlotRect();
@@ -252,7 +252,7 @@ void FluxTimingTab::PaintMarks (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::PaintHistogram
+//  FluxView::PaintHistogram
 //
 //  A bar per 0.125 µs of interval, scaled to the tallest, intervals under
 //  half a cell in the color of the pairs they make, with the count over each
@@ -260,7 +260,7 @@ void FluxTimingTab::PaintMarks (IDxuiPainter & painter, IDxuiTextRenderer & text
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FluxTimingTab::PaintHistogram (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track)
+void FluxView::PaintHistogram (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track)
 {
     bool           hasSelection = false;
     FluxHistogram  histogram    = GetHistogram (track, hasSelection);
@@ -296,11 +296,11 @@ void FluxTimingTab::PaintHistogram (IDxuiPainter & painter, IDxuiTextRenderer & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::PaintBars
+//  FluxView::PaintBars
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FluxTimingTab::PaintBars (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram)
+void FluxView::PaintBars (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram)
 {
     RECT   bars    = GetBarsRect();
     float  textPx  = m_scaler.ToPxf (kSmallDip);
@@ -356,13 +356,13 @@ void FluxTimingTab::PaintBars (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::PaintScope
+//  FluxView::PaintScope
 //
 //  The histogram's two scopes as tabs, and the count it has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FluxTimingTab::PaintScope (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram)
+void FluxView::PaintScope (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const FluxHistogram & histogram)
 {
     RECT          row    = GetScopeRect();
     float         textPx = m_scaler.ToPxf (kTextDip);
@@ -398,14 +398,14 @@ void FluxTimingTab::PaintScope (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::OnMouse
+//  FluxView::OnMouse
 //
 //  A click on a scope switches the histogram. Over the plot the wheel and
 //  a drag zoom and pan as they do on the strip, which follows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FluxTimingTab::OnMouse (const DxuiMouseEvent & ev)
+bool FluxView::OnMouse (const DxuiMouseEvent & ev)
 {
     const TrackAnalysis *  track     = m_context.GetTrack();
     RECT                   plot      = GetPlotRect();
@@ -488,14 +488,14 @@ bool FluxTimingTab::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetTooltip
+//  FluxView::GetTooltip
 //
 //  A transition's cell and interval in the plot, a bar's range and count
 //  in the histogram.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FluxTimingTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
+bool FluxView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
 {
     const TrackAnalysis *  track        = m_context.GetTrack();
     bool                   hasSelection = false;
@@ -542,11 +542,11 @@ bool FluxTimingTab::GetTooltip (POINT pointPx, std::wstring & outText, RECT & ou
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::FindPeaks
+//  FluxView::FindPeaks
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-vector<int> FluxTimingTab::FindPeaks (const FluxHistogram & histogram)
+vector<int> FluxView::FindPeaks (const FluxHistogram & histogram)
 {
     vector<int>  peaks;
     int          b      = 0;
@@ -580,14 +580,14 @@ vector<int> FluxTimingTab::FindPeaks (const FluxHistogram & histogram)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::Update
+//  FluxView::Update
 //
 //  A track's intervals and whole-track histogram are built once; the
 //  selection's cells are found on every paint, since it changes elsewhere.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FluxTimingTab::Update (const TrackAnalysis & track) const
+void FluxView::Update (const TrackAnalysis & track) const
 {
     if (m_of != &track)
     {
@@ -607,11 +607,11 @@ void FluxTimingTab::Update (const TrackAnalysis & track) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetHistogram
+//  FluxView::GetHistogram
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-FluxHistogram FluxTimingTab::GetHistogram (const TrackAnalysis & track, bool & outHasSelection) const
+FluxHistogram FluxView::GetHistogram (const TrackAnalysis & track, bool & outHasSelection) const
 {
     FluxHistogram  histogram;
 
@@ -638,11 +638,11 @@ FluxHistogram FluxTimingTab::GetHistogram (const TrackAnalysis & track, bool & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::IsSelected
+//  FluxView::IsSelected
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FluxTimingTab::IsSelected (const FluxInterval & interval) const
+bool FluxView::IsSelected (const FluxInterval & interval) const
 {
     bool  isWrapped = m_selEnd < m_selFirst;
 
@@ -657,11 +657,11 @@ bool FluxTimingTab::IsSelected (const FluxInterval & interval) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::MakeGeometry
+//  FluxView::MakeGeometry
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-StripGeometry FluxTimingTab::MakeGeometry() const
+StripGeometry FluxView::MakeGeometry() const
 {
     RECT  plot = GetPlotRect();
 
@@ -676,14 +676,14 @@ StripGeometry FluxTimingTab::MakeGeometry() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetPlotRect
+//  FluxView::GetPlotRect
 //
 //  The plot over the top part of the tab, past a gutter for its labels; the
 //  scope row, then the histogram and its axis labels, below it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT FluxTimingTab::GetPlotRect() const
+RECT FluxView::GetPlotRect() const
 {
     RECT  plot = m_boundsDip;
 
@@ -701,11 +701,11 @@ RECT FluxTimingTab::GetPlotRect() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetScopeRect
+//  FluxView::GetScopeRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT FluxTimingTab::GetScopeRect() const
+RECT FluxView::GetScopeRect() const
 {
     RECT  row = GetPlotRect();
 
@@ -723,11 +723,11 @@ RECT FluxTimingTab::GetScopeRect() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetBarsRect
+//  FluxView::GetBarsRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT FluxTimingTab::GetBarsRect() const
+RECT FluxView::GetBarsRect() const
 {
     RECT  bars = GetScopeRect();
 
@@ -745,11 +745,11 @@ RECT FluxTimingTab::GetBarsRect() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetScopeOption
+//  FluxView::GetScopeOption
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT FluxTimingTab::GetScopeOption (HistogramScope scope) const
+RECT FluxView::GetScopeOption (HistogramScope scope) const
 {
     RECT  option = GetScopeRect();
     int   width  = m_scaler.ToPx (static_cast<int> (s_kScopeOptionDip));
@@ -768,11 +768,11 @@ RECT FluxTimingTab::GetScopeOption (HistogramScope scope) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetPlotY
+//  FluxView::GetPlotY
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float FluxTimingTab::GetPlotY (double ticks) const
+float FluxView::GetPlotY (double ticks) const
 {
     RECT    plot  = GetPlotRect();
     double  share = std::min (ticks / (TrackAnalyzer::kNominalCellTicks * kPlotCells), 1.0);
@@ -788,13 +788,13 @@ float FluxTimingTab::GetPlotY (double ticks) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::HitInterval
+//  FluxView::HitInterval
 //
 //  The transition nearest the point within a few pixels, or -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int FluxTimingTab::HitInterval (POINT pointPx) const
+int FluxView::HitInterval (POINT pointPx) const
 {
     RECT    plot   = GetPlotRect();
     double  start  = m_context.model->GetStripStart();
@@ -833,11 +833,11 @@ int FluxTimingTab::HitInterval (POINT pointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::HitBin
+//  FluxView::HitBin
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int FluxTimingTab::HitBin (POINT pointPx) const
+int FluxView::HitBin (POINT pointPx) const
 {
     RECT  bars = GetBarsRect();
     int   bin  = -1;
@@ -859,11 +859,11 @@ int FluxTimingTab::HitBin (POINT pointPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTab::GetHistogramText
+//  FluxView::GetHistogramText
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring FluxTimingTab::GetHistogramText() const
+std::wstring FluxView::GetHistogramText() const
 {
     const TrackAnalysis *         track        = m_context.GetTrack();
     bool                          hasSelection = false;

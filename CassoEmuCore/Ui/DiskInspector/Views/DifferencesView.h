@@ -11,7 +11,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DifferencesTab
+//  DifferencesView
 //
 //  Every difference the comparison lists (FR-121), under a row of group
 //  toggles that each give their count and filter the list, as the Findings
@@ -21,12 +21,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DifferencesTab : public InspectorTableView
+class DifferencesView : public InspectorTableView
 {
 public:
     static constexpr int  kRowDip = 28;
 
-    DifferencesTab (InspectorViewContext & context, ComparisonSession & session);
+    DifferencesView (InspectorViewContext & context, ComparisonSession & session);
 
     //  Builds the rows again from the comparison, keeping the filter and sort.
     void  Refresh ();

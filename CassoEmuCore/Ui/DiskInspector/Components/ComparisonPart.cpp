@@ -11,7 +11,7 @@
 #include "Ui/DiskInspector/Components/InspectorMetrics.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/DecodeSettingsDialog.h"
-#include "Ui/DiskInspector/DifferencesTab.h"
+#include "Ui/DiskInspector/Views/DifferencesView.h"
 #include "Ui/DiskInspector/InspectorTableView.h"
 #include "Ui/DiskInspector/TrackStripView.h"
 #include "Ui/DiskInspector/Views/FilesView.h"
@@ -34,10 +34,10 @@ static constexpr int      s_kStopButtonDip = 116;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ComparisonPart::ComparisonPart (InspectorSession & session, IInspectorComponentHost & host, DifferencesTab & diffsTab, TrackStripView & stripB, FilesView & files) :
+ComparisonPart::ComparisonPart (InspectorSession & session, IInspectorComponentHost & host, DifferencesView & diffsTab, TrackStripView & stripB, FilesView & files) :
     m_session  (session),
     m_host     (host),
-    m_diffsTab (diffsTab),
+    m_diffsView (diffsTab),
     m_stripB   (stripB),
     m_files    (files)
 {
@@ -70,7 +70,7 @@ void ComparisonPart::Create()
     m_swapButton->SetOnClick      ([this] () { SwapSides(); });
     m_bSettingsButton->SetOnClick ([this] () { OpenBSettings(); });
     m_stopButton->SetOnClick      ([this] () { StopComparing(); });
-    m_diffsTab.SetOnSelect        ([this] (const TableRow & row) { if (const Difference * d = m_diffsTab.GetDifference (row)) { m_diffIndex = row.finding; SelectDifference (*d); } });
+    m_diffsView.SetOnSelect        ([this] (const TableRow & row) { if (const Difference * d = m_diffsView.GetDifference (row)) { m_diffIndex = row.finding; SelectDifference (*d); } });
 }
 
 
@@ -635,7 +635,7 @@ void ComparisonPart::StepDifference (int step)
         m_diffIndex = (m_diffIndex < 0) ? (step > 0 ? 0 : count - 1) : (m_diffIndex + step + count) % count;
 
         SelectDifference (listed[m_diffIndex]);
-        m_diffsTab.SelectRowWhere ([this] (const TableRow & row) { return row.finding == m_diffIndex; });
+        m_diffsView.SelectRowWhere ([this] (const TableRow & row) { return row.finding == m_diffIndex; });
     }
 }
 

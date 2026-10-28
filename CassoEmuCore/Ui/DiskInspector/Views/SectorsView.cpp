@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "Ui/DiskInspector/SectorByteView.h"
+#include "Ui/DiskInspector/Views/SectorsView.h"
 #include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
@@ -34,11 +34,11 @@ static constexpr float     s_kPanelPadDip    = 8.0f;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::Paint
+//  SectorsView::Paint
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorByteView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+void SectorsView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     const TrackAnalysis *   track  = m_context.GetTrack();
     const AnalyzedSector *  sector = (track != nullptr) ? m_context.model->GetSector() : nullptr;
@@ -80,11 +80,11 @@ void SectorByteView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::GetTextChar
+//  SectorsView::GetTextChar
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-wchar_t SectorByteView::GetTextChar (Byte value)
+wchar_t SectorsView::GetTextChar (Byte value)
 {
     Byte  masked = static_cast<Byte> (value & ~s_kHighBit);
 
@@ -99,14 +99,14 @@ wchar_t SectorByteView::GetTextChar (Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::PaintHeader
+//  SectorsView::PaintHeader
 //
 //  Labeled values, wrapping onto as many lines as the width needs; returns
 //  where the bytes start.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
+float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
 {
     vector<HeaderItem>  items  = InspectorText::BuildSectorHeader (sector, track);
     vector<HeaderItem>  owners;
@@ -159,14 +159,14 @@ float SectorByteView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::PaintBytes
+//  SectorsView::PaintBytes
 //
 //  The sector's bytes; while comparing, B's paired sector below them, both
 //  grids sized to fit, with each byte that differs marked in both (FR-121).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
+void SectorsView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const AnalyzedSector & sector, const TrackAnalysis & track, float y)
 {
     const DataFieldDecode &  data    = track.fields[sector.dataField].data;
     std::span<const Byte>    bytesB  = GetPairedBytes (track);
@@ -241,7 +241,7 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::PaintGrid
+//  SectorsView::PaintGrid
 //
 //  Rows of 16 under their offsets, hex then text. A byte that differs from
 //  the other side's is tinted and underlined, so it shows without color;
@@ -251,7 +251,7 @@ void SectorByteView::PaintBytes (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
+void SectorsView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const ByteGrid & grid, std::span<const Byte> bytes,
                                 std::span<const Byte> other, std::span<const Byte> hits, std::span<const Byte> changed, float textPx)
 {
     float     left   = static_cast<float> (m_boundsDip.left);
@@ -326,14 +326,14 @@ void SectorByteView::PaintGrid (IDxuiPainter & painter, IDxuiTextRenderer & text
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::GetPairedBytes
+//  SectorsView::GetPairedBytes
 //
 //  B's bytes for the selected sector while comparing: the sector B pairs
 //  with it on the same quarter track, when that sector has data.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const Byte> SectorByteView::GetPairedBytes (const TrackAnalysis & track) const
+std::span<const Byte> SectorsView::GetPairedBytes (const TrackAnalysis & track) const
 {
     const TrackAnalysis *  trackB = m_context.trackB;
     int                    paired = (trackB != nullptr) ? DiskComparer::FindPairedSector (track, m_context.model->GetSectorIndex(), *trackB) : -1;
@@ -350,13 +350,13 @@ std::span<const Byte> SectorByteView::GetPairedBytes (const TrackAnalysis & trac
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::PaintSelection
+//  SectorsView::PaintSelection
 //
 //  The selected bytes shaded in both columns, a run per row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorByteView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme)
+void SectorsView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & theme)
 {
     int       first = m_context.model->GetFirstByte();
     int       end   = first + m_context.model->GetByteCount();
@@ -385,14 +385,14 @@ void SectorByteView::PaintSelection (IDxuiPainter & painter, const IDxuiTheme & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::OnMouse
+//  SectorsView::OnMouse
 //
 //  A press on a byte in either column selects it, Shift extends the
 //  selection to it, and a drag extends it as it goes (FR-043).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SectorByteView::OnMouse (const DxuiMouseEvent & ev)
+bool SectorsView::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  isText    = false;
     int   index     = HitTest (ev.positionDip, isText);
@@ -439,13 +439,13 @@ bool SectorByteView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::GetEdit
+//  SectorsView::GetEdit
 //
 //  The selected sector's pending edit, or -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SectorByteView::GetEdit() const
+int SectorsView::GetEdit() const
 {
     const TrackAnalysis *  track = m_context.GetTrack();
 
@@ -460,14 +460,14 @@ int SectorByteView::GetEdit() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::PaintCursor
+//  SectorsView::PaintCursor
 //
 //  While editing, a box around the hex digit or the character typing goes
 //  to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorByteView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme)
+void SectorsView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & theme)
 {
     int    offset = m_context.model->GetFirstByte();
     float  row    = 0;
@@ -498,14 +498,14 @@ void SectorByteView::PaintCursor (IDxuiPainter & painter, const IDxuiTheme & the
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::MoveCursor
+//  SectorsView::MoveCursor
 //
 //  The cursor is the selection's first byte, so moving it selects that
 //  byte alone; it stops at the sector's first and last bytes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SectorByteView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble)
+void SectorsView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble)
 {
     if (offset < 0)
     {
@@ -528,7 +528,7 @@ void SectorByteView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::OnEditKey
+//  SectorsView::OnEditKey
 //
 //  In the hex column a digit sets the digit under the cursor and moves to
 //  the next one; in the text column a character sets the byte and moves on.
@@ -537,7 +537,7 @@ void SectorByteView::MoveCursor (int offset, bool isTextColumn, bool isLowNibble
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SectorByteView::OnEditKey (const DxuiKeyEvent & ev)
+bool SectorsView::OnEditKey (const DxuiKeyEvent & ev)
 {
     int   edit      = GetEdit();
     int   offset    = m_context.model->GetFirstByte();
@@ -598,13 +598,13 @@ bool SectorByteView::OnEditKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::GetTooltip
+//  SectorsView::GetTooltip
 //
 //  Only a byte of a find hit has a tip (FR-056): its offset, and the hit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SectorByteView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
+bool SectorsView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
 {
     const TrackAnalysis *  track  = m_context.GetTrack();
     int                    sector = (m_context.model != nullptr) ? m_context.model->GetSectorIndex() : -1;
@@ -629,11 +629,11 @@ bool SectorByteView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & o
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::GetTooltipSwatches
+//  SectorsView::GetTooltipSwatches
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SectorByteView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
+bool SectorsView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch> & outSwatches) const
 {
     std::wstring  text;
     RECT          anchor = {};
@@ -655,14 +655,14 @@ bool SectorByteView::GetTooltipSwatches (POINT pointPx, vector<DxuiTooltipSwatch
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SectorByteView::HitTest
+//  SectorsView::HitTest
 //
 //  The byte under a point and which column it is in, or -1. A drag past
 //  either column's edge takes the byte at that edge.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SectorByteView::HitTest (POINT pointPx, bool & outIsText) const
+int SectorsView::HitTest (POINT pointPx, bool & outIsText) const
 {
     int    index    = -1;
     int    row      = 0;

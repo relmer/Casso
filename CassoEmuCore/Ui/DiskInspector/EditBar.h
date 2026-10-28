@@ -85,7 +85,7 @@ public:
     //  One row when every visible control fits the width, else two, with the
     //  disk's controls on the second.
     int   GetRowCount (int widthPx, const DxuiDpiScaler & scaler) const;
-    int   GetHeightPx (int widthPx, const DxuiDpiScaler & scaler) const { return GetRowCount (widthPx, scaler) * scaler.ToPx (kRowDip); }
+    int   GetHeightPx (int widthPx, const DxuiDpiScaler & scaler) const;
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
 

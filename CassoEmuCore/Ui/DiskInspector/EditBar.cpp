@@ -35,7 +35,7 @@ static constexpr int  s_kUseBDip      = 120;
 
 EditBar::EditBar()
 {
-    m_edit          = CreateChild<DxuiButton>   (L"Edit sector");
+    m_edit          = CreateChild<DxuiButton>   (L"Stop editing");
     m_checksum      = CreateChild<DxuiCheckbox> (L"Recompute the checksum", true);
     m_count         = CreateChild<DxuiLabel>    (L"", DxuiTextRole::Body,  DxuiTextHAlign::Left);
     m_note          = CreateChild<DxuiLabel>    (L"", DxuiTextRole::Muted, DxuiTextHAlign::Left);
@@ -84,8 +84,9 @@ void EditBar::SetState (const EditBarState & state)
 
 
 
-    m_edit->SetLabel   (state.isEditing ? L"Stop editing" : L"Edit sector");
-    m_edit->SetEnabled (state.canEdit || state.isEditing);
+    //  Edit > "Edit sector" or F2 starts editing (FR-057); while editing is
+    //  on, a click on this button ends it.
+    m_edit->SetVisible (state.isEditing);
 
     m_checksum->SetVisible (state.hasSectorEdit);
     m_checksum->SetChecked (state.isChecksumOn);
@@ -137,7 +138,7 @@ std::wstring EditBar::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
     const ControlTip  tips[] =
     {
-        { m_edit,          L"Edit the selected sector's bytes in the hex and text columns (Escape stops)", L"" },
+        { m_edit,          L"Stop editing the sector's bytes (Escape)",                                     L"" },
         { m_checksum,      L"Write a new data checksum for the sector's new bytes",
                            L"A sector image (.dsk, .do or .po) stores only sector data, so its checksum is always recomputed" },
         { m_discardSector, L"Drop the selected sector's pending edits",                                   L"" },
@@ -240,6 +241,28 @@ void EditBar::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     m_count->Layout ({ x, top, std::max (x, std::min (r, x + scaler.ToPx (s_kCountDip))), bottom }, scaler);
     x = std::min (r, x + (m_count->GetText().empty() ? 0 : scaler.ToPx (s_kCountDip) + gap));
     m_note->Layout  ({ x, top, std::max (x, r), bottom }, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditBar::GetHeightPx
+//
+//  No height while the bar has nothing to show: no editing, no pending
+//  edits and no note.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EditBar::GetHeightPx (int widthPx, const DxuiDpiScaler & scaler) const
+{
+    bool  isEmpty = GetGroupWidthPx (true, scaler) + GetGroupWidthPx (false, scaler) == 0 && m_count->GetText().empty() && m_note->GetText().empty();
+
+
+
+    return isEmpty ? 0 : GetRowCount (widthPx, scaler) * scaler.ToPx (kRowDip);
 }
 
 

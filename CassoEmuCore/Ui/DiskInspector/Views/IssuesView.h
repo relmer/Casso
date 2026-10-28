@@ -10,7 +10,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindingsTab
+//  IssuesView
 //
 //  Every finding on the disk (FR-048), in quarter-track and cell order until
 //  a column header sorts it, under a row of category toggles that each give
@@ -18,12 +18,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class FindingsTab : public InspectorTableView
+class IssuesView : public InspectorTableView
 {
 public:
     static constexpr int  kFilterDip = 28;
 
-    explicit FindingsTab (InspectorViewContext & context);
+    explicit IssuesView (InspectorViewContext & context);
 
     //  Builds the rows again from the analysis, keeping the filter and sort.
     void  Refresh ();

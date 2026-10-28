@@ -507,7 +507,7 @@
     <ClCompile Include="Ui\DiskInspector\ComparisonSession.cpp" />
     <ClCompile Include="Ui\DiskInspector\ComparisonText.cpp" />
     <ClCompile Include="Ui\DiskInspector\DecodeSettingsDialog.cpp" />
-    <ClCompile Include="Ui\DiskInspector\DifferencesTab.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Views\DifferencesView.cpp" />
     <ClCompile Include="Ui\DiskInspector\DecodeSettingsForm.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorPalette.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\ComparisonPart.cpp" />
@@ -525,7 +525,7 @@
     <ClCompile Include="Ui\DiskInspector\TiltButton.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\FilesView.cpp" />
-    <ClCompile Include="Ui\DiskInspector\FindingsTab.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Views\IssuesView.cpp" />
     <ClCompile Include="Ui\DiskInspector\FluxTiming.cpp" />
     <ClCompile Include="Ui\DiskInspector\FollowHead.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTables.cpp" />
@@ -533,9 +533,9 @@
     <ClCompile Include="Ui\DiskInspector\InspectorMarquee.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorText.cpp" />
     <ClCompile Include="Ui\DiskInspector\InspectorTip.cpp" />
-    <ClCompile Include="Ui\DiskInspector\NibblesTab.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Views\NibblesView.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterView.cpp" />
-    <ClCompile Include="Ui\DiskInspector\SectorByteView.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Views\SectorsView.cpp" />
     <ClCompile Include="Ui\DiskInspector\SectorRowView.cpp" />
     <ClCompile Include="Ui\DiskInspector\StripGeometry.cpp" />
     <ClCompile Include="Ui\DiskInspector\TrackHeaderView.cpp" />
@@ -551,7 +551,7 @@
     <ClCompile Include="Ui\DiskInspector\FindBar.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindMarks.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindSession.cpp" />
-    <ClCompile Include="Ui\DiskInspector\FluxTimingTab.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Views\FluxView.cpp" />
     <ClCompile Include="Ui\DiskInspector\GoToDialog.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterGeometry.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterLegendView.cpp" />
@@ -1025,7 +1025,7 @@
     <ClInclude Include="Ui\DiskInspector\ComparisonSession.h" />
     <ClInclude Include="Ui\DiskInspector\ComparisonText.h" />
     <ClInclude Include="Ui\DiskInspector\DecodeSettingsDialog.h" />
-    <ClInclude Include="Ui\DiskInspector\DifferencesTab.h" />
+    <ClInclude Include="Ui\DiskInspector\Views\DifferencesView.h" />
     <ClInclude Include="Ui\DiskInspector\DecodeSettingsForm.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorPalette.h" />
     <ClInclude Include="Ui\DiskInspector\Components\ComparisonPart.h" />
@@ -1048,7 +1048,7 @@
     <ClInclude Include="Ui\DiskInspector\Components\IInspectorComponentHost.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorMetrics.h" />
     <ClInclude Include="Ui\DiskInspector\IDiskInspectorHost.h" />
-    <ClInclude Include="Ui\DiskInspector\FindingsTab.h" />
+    <ClInclude Include="Ui\DiskInspector\Views\IssuesView.h" />
     <ClInclude Include="Ui\DiskInspector\FluxTiming.h" />
     <ClInclude Include="Ui\DiskInspector\FollowHead.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorTables.h" />
@@ -1058,9 +1058,9 @@
     <ClInclude Include="Ui\DiskInspector\InspectorTip.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorView.h" />
     <ClInclude Include="Ui\DiskInspector\InspectorWalkthrough.h" />
-    <ClInclude Include="Ui\DiskInspector\NibblesTab.h" />
+    <ClInclude Include="Ui\DiskInspector\Views\NibblesView.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterView.h" />
-    <ClInclude Include="Ui\DiskInspector\SectorByteView.h" />
+    <ClInclude Include="Ui\DiskInspector\Views\SectorsView.h" />
     <ClInclude Include="Ui\DiskInspector\SectorRowView.h" />
     <ClInclude Include="Ui\DiskInspector\StripGeometry.h" />
     <ClInclude Include="Ui\DiskInspector\TrackHeaderView.h" />
@@ -1075,7 +1075,7 @@
     <ClInclude Include="Ui\DiskInspector\FindBar.h" />
     <ClInclude Include="Ui\DiskInspector\FindMarks.h" />
     <ClInclude Include="Ui\DiskInspector\FindSession.h" />
-    <ClInclude Include="Ui\DiskInspector\FluxTimingTab.h" />
+    <ClInclude Include="Ui\DiskInspector\Views\FluxView.h" />
     <ClInclude Include="Ui\DiskInspector\GoToDialog.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterGeometry.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterLegendView.h" />

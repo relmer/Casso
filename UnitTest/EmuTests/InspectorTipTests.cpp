@@ -9,7 +9,7 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "Ui/DiskInspector/FileMapGridView.h"
 #include "Ui/DiskInspector/InspectorTip.h"
-#include "Ui/DiskInspector/SectorByteView.h"
+#include "Ui/DiskInspector/Views/SectorsView.h"
 #include "Ui/DiskInspector/SectorRowView.h"
 #include "FileMapTestImages.h"
 
@@ -328,7 +328,7 @@ public:
         context.findMarks = &marks;
 
         SectorRowView   row (context);
-        SectorByteView  bytes (context);
+        SectorsView  bytes (context);
 
         row.Layout   ({ 0, 0, 900, 200 }, scaler);
         bytes.Layout ({ 0, 0, 900, 700 }, scaler);

@@ -11,7 +11,7 @@
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/InspectorText.h"
-#include "Ui/DiskInspector/SectorByteView.h"
+#include "Ui/DiskInspector/Views/SectorsView.h"
 
 
 
@@ -23,10 +23,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-EditingPart::EditingPart (InspectorSession & session, IInspectorComponentHost & host, SectorByteView & byteView) :
+EditingPart::EditingPart (InspectorSession & session, IInspectorComponentHost & host, SectorsView & byteView) :
     m_session  (session),
     m_host     (host),
-    m_byteView (byteView)
+    m_sectorsView (byteView)
 {
 }
 
@@ -147,7 +147,7 @@ std::wstring EditingPart::GetTip (POINT pointPx, RECT & outAnchorPx) const
 
 bool EditingPart::OnKey (const DxuiKeyEvent & ev)
 {
-    return m_session.keyTarget == KeyTarget::SectorData && m_byteView.IsEditing() && HandleEditKey (ev);
+    return m_session.keyTarget == KeyTarget::SectorData && m_sectorsView.IsEditing() && HandleEditKey (ev);
 }
 
 
@@ -216,7 +216,7 @@ void EditingPart::OnDiskStarted (const DiskChange & change)
     if (change.hasDisk && isNewDisk && !isReload)
     {
         m_session.edits = EditController();
-        m_byteView.SetEditing (false);
+        m_sectorsView.SetEditing (false);
     }
 
     if (change.hasDisk && isNewDisk)
@@ -261,7 +261,7 @@ void EditingPart::OnEjected()
     }
 
     m_session.edits = EditController();
-    m_byteView.SetEditing (false);
+    m_sectorsView.SetEditing (false);
     m_history.clear();
     m_historyAt = 0;
     m_session.appliedSlots.clear();
@@ -310,9 +310,9 @@ void EditingPart::ToggleEditing()
 
 
 
-    if (m_byteView.IsEditing())
+    if (m_sectorsView.IsEditing())
     {
-        m_byteView.SetEditing (false);
+        m_sectorsView.SetEditing (false);
     }
     else if (track != nullptr)
     {
@@ -321,7 +321,7 @@ void EditingPart::ToggleEditing()
 
         if (edit >= 0)
         {
-            m_byteView.SetEditing (true);
+            m_sectorsView.SetEditing (true);
             m_session.keyTarget = KeyTarget::SectorData;
 
             if (m_session.model.GetFirstByte() < 0)
@@ -368,7 +368,7 @@ bool EditingPart::HandleEditKey (const DxuiKeyEvent & ev)
     }
     else
     {
-        isHandled = m_byteView.OnEditKey (ev);
+        isHandled = m_sectorsView.OnEditKey (ev);
     }
 
     return isHandled;
@@ -464,7 +464,7 @@ void EditingPart::UpdateEditBar()
 
 
 
-    if (m_byteView.IsEditing() && edit < 0 && reason.empty())
+    if (m_sectorsView.IsEditing() && edit < 0 && reason.empty())
     {
         edit = m_session.edits.Begin (*track, m_session.model.GetQuarterTrack(), m_session.model.GetSectorIndex(), reason);
     }
@@ -474,7 +474,7 @@ void EditingPart::UpdateEditBar()
     m_editSig               = static_cast<int64_t> (counts.bytes) << 16 | counts.sectors;
 
     state.canEdit          = m_session.context.hasDisk && reason.empty();
-    state.isEditing        = m_byteView.IsEditing();
+    state.isEditing        = m_sectorsView.IsEditing();
     state.hasSectorEdit    = edit >= 0;
     state.isChecksumOn     = m_session.IsSectorImage() || edit < 0 || m_session.edits.GetEdit (edit).checksumMode == ChecksumMode::Recompute;
     state.isChecksumLocked = m_session.IsSectorImage();
@@ -831,7 +831,7 @@ void EditingPart::TakeApplyReply (const InspectorReply & reply)
             m_historyAt        = static_cast<int> (m_history.size());
             m_session.edits    = EditController();
             m_isFirstApplyDone = true;
-            m_byteView.SetEditing (false);
+            m_sectorsView.SetEditing (false);
         }
         else if (reply.applyKind == ApplyKind::Undo)
         {
@@ -1089,7 +1089,7 @@ bool EditingPart::ConfirmDiscardEdits (const std::wstring & action)
         m_session.edits      = EditController();
         m_session.editNote   = action + L" discarded the pending edits.";
         m_host.SetStatusNote (m_session.editNote);
-        m_byteView.SetEditing (false);
+        m_sectorsView.SetEditing (false);
     }
 
     return isGoingOn;

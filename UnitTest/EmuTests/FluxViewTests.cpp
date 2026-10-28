@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/Inspector/TrackAnalyzer.h"
-#include "Ui/DiskInspector/FluxTimingTab.h"
+#include "Ui/DiskInspector/Views/FluxView.h"
 #include "InspectorTrackBuilder.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FluxTimingTabTests
+//  FluxViewTests
 //
 //  What the Flux timing tab draws from (FR-044, FR-045): the cells a
 //  selection covers, a histogram over a range that crosses the index, and
@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_CLASS (FluxTimingTabTests)
+TEST_CLASS (FluxViewTests)
 {
 public:
 
@@ -108,7 +108,7 @@ public:
         histogram.counts[63] = 400;
         histogram.counts[95] = 50;
         histogram.peak       = 1000;
-        peaks                = FluxTimingTab::FindPeaks (histogram);
+        peaks                = FluxView::FindPeaks (histogram);
 
         Assert::AreEqual (static_cast<size_t> (2), peaks.size(), L"the cluster at 95 is under a tenth of the peak");
         Assert::AreEqual (32, peaks[0], L"a flat top counts once, at its first bin");
@@ -118,16 +118,16 @@ public:
 
     TEST_METHOD (TheNoTimingNoteFitsTheImageFormat)
     {
-        std::wstring  dsk = FluxTimingTab::FormatNoTiming (DiskFormat::Dsk, 0);
-        std::wstring  po  = FluxTimingTab::FormatNoTiming (DiskFormat::Po, 0);
-        std::wstring  nib = FluxTimingTab::FormatNoTiming (DiskFormat::Nib, 0);
+        std::wstring  dsk = FluxView::FormatNoTiming (DiskFormat::Dsk, 0);
+        std::wstring  po  = FluxView::FormatNoTiming (DiskFormat::Po, 0);
+        std::wstring  nib = FluxView::FormatNoTiming (DiskFormat::Nib, 0);
 
 
 
         Assert::IsTrue (dsk.find (L".dsk") != std::wstring::npos && dsk.find (L"copy protection") != std::wstring::npos, dsk.c_str());
         Assert::IsTrue (po.find (L".po") != std::wstring::npos, po.c_str());
         Assert::IsTrue (nib.find (L"no timing between bits") != std::wstring::npos, nib.c_str());
-        Assert::IsTrue (FluxTimingTab::FormatNoTiming (DiskFormat::Woz, 2).find (L"Only WOZ 2.1 or higher") != std::wstring::npos);
-        Assert::IsTrue (FluxTimingTab::FormatNoTiming (DiskFormat::Woz, 3).starts_with (L"This is a WOZ 2.1 disk image"));
+        Assert::IsTrue (FluxView::FormatNoTiming (DiskFormat::Woz, 2).find (L"Only WOZ 2.1 or higher") != std::wstring::npos);
+        Assert::IsTrue (FluxView::FormatNoTiming (DiskFormat::Woz, 3).starts_with (L"This is a WOZ 2.1 disk image"));
     }
 };

@@ -10,7 +10,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  NibblesTab
+//  NibblesView
 //
 //  Every nibble of the selected track (FR-041): rows of a multiple of 8
 //  nibbles sized to the pane, each under a hex offset, in its kind's color,
@@ -22,7 +22,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class NibblesTab : public InspectorView
+class NibblesView : public InspectorView
 {
 public:
     static constexpr int  kRowDip       = 20;
@@ -30,7 +30,7 @@ public:
     static constexpr int  kOffsetDip    = 44;
     static constexpr int  kNibbleStep   = 8;
 
-    explicit NibblesTab (InspectorViewContext & context) : InspectorView (context) {}
+    explicit NibblesView (InspectorViewContext & context) : InspectorView (context) {}
 
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
