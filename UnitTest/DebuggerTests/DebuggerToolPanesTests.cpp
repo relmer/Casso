@@ -678,6 +678,53 @@ namespace DebuggerToolPanesTests
         }
 
 
+        //  Taken back in history, the graph ends at the last row before the
+        //  machine's position, not at the newest row the log has.
+        TEST_METHOD (BehindLiveTheGraphEndsAtThePosition)
+        {
+            CassoTheme            theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost     host;
+            ToolWindow            window   (theme, host);
+            CommLogController     serial   (window.GetPaneHostForTest(), DebugLogKind::Serial);
+            DebugLogDeltas        deltas;
+            IoLogDelta            delta;
+            DebuggerViewSnapshot  snapshot;
+            auto                  row      = [] (uint64_t position, uint64_t cycle, Byte value)
+            {
+                IoLogRow  each;
+
+                each.position      = position;
+                each.cycle         = cycle;
+                each.event.kind    = IoEventKind::SerialSent;
+                each.event.cycle   = cycle;
+                each.event.value   = value;
+                each.event.control = 0x1E;
+                each.event.command = 0x0B;
+                return each;
+            };
+
+
+
+            window.OnCreate();
+            serial.CreateControls();
+            serial.Configure();
+
+            delta.newer = { row (10, 1'000, 'A'), row (500, 50'000, 'B'), row (900, 90'000, 'C') };
+            deltas.serial.push_back (delta);
+            serial.ApplyLogDeltas (deltas, false);
+
+            Assert::IsTrue (serial.GetGraph().GetLast() > 90'000, L"live, the graph ends just after the newest row");
+
+            snapshot.history.isBehindLive = true;
+            snapshot.history.position     = 600;
+            serial.Apply (snapshot);
+            serial.ApplyLogDeltas ({}, false);
+
+            Assert::IsTrue (serial.GetGraph().GetLast() > 50'000,  L"just after the last row before the position");
+            Assert::IsTrue (serial.GetGraph().GetLast() < 60'000,  L"and not at the newest row");
+        }
+
+
         //  The serial ports' and the Uthernet II's panels open their logs.
         TEST_METHOD (TheSerialAndNetworkPanelsOpenTheirLogs)
         {
