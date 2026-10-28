@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "CassoExplorer/Window/Panes/PreviewHexSources.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewHexSources.h"
 #include "CassoExplorer/Browser/BrowserPreviewer.h"
 #include "Seams/Win32DiskFileIo.h"
 

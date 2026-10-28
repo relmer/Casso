@@ -10,7 +10,7 @@
 #include "CassoExplorer/Window/Managers/CassoLinkManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
-#include "CassoExplorer/Window/Panes/ExplorerPreview.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
@@ -235,7 +235,7 @@ private:
                                                                    .cassoLinkManager = m_cassoLinkManager,
                                                                    .dragDrop         = m_dragDrop,
                                                                    .tabManager       = m_tabManager,
-                                                                   .preview          = m_previewPane,
+                                                                   .preview          = m_previewManager,
                                                                    .addressBar       = m_addressBar,
                                                                    .menus            = m_menus,
                                                                    .commandManager   = m_commandManager,
@@ -253,7 +253,7 @@ private:
     CassoLinkManager                           m_cassoLinkManager { m_explorer };
     ExplorerDragDrop                           m_dragDrop         { m_explorer };
     ExplorerTabManager                         m_tabManager       { m_explorer };
-    ExplorerPreview                            m_previewPane      { m_explorer };
+    ExplorerPreviewManager                            m_previewManager      { m_explorer };
     ExplorerAddressBar                         m_addressBar       { m_explorer };
     ExplorerMenus                              m_menus            { m_explorer };
     ExplorerCommandManager                     m_commandManager   { m_explorer };

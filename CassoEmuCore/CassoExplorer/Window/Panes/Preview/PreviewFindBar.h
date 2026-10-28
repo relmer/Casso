@@ -5,7 +5,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerPane.h"
 
 struct ExplorerContext;
-class ExplorerPreview;
+class ExplorerPreviewManager;
 
 
 
@@ -13,7 +13,7 @@ class ExplorerPreview;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind
+//  PreviewFindBar
 //
 //  The hex view's Search and Go to boxes, on the Preview pane's toolbar.
 //  Search finds bytes or Apple text, with or without the high bit, from the
@@ -21,10 +21,10 @@ class ExplorerPreview;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ExplorerPreviewFind
+class PreviewFindBar
 {
 public:
-    ExplorerPreviewFind (ExplorerPreview & preview, ExplorerContext & context);
+    PreviewFindBar (ExplorerPreviewManager & preview, ExplorerContext & context);
 
     void  Create          ();
     void  HandleFocusChanged  (ExplorerPane focus);
@@ -45,8 +45,8 @@ public:
     void  HandleSearchChanged (const std::wstring & text);
 
 private:
-    ExplorerPreview  & m_preview;
-    ExplorerContext  & m_context;
+    ExplorerPreviewManager  & m_preview;
+    ExplorerContext         & m_context;
 
     DxuiToolbarEditBox     m_searchBox;
     DxuiToolbarEditBox     m_goToBox;

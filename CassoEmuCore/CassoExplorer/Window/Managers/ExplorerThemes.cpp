@@ -201,7 +201,7 @@ void ExplorerThemes::Select (const char * name)
     Apply();
 
     //  A Casso theme brings its own CRT effects to a picture preview.
-    m_context.preview.UpdateCrtPicture (true);
+    m_context.preview.GetPicture().UpdateCrtPicture (true);
 }
 
 

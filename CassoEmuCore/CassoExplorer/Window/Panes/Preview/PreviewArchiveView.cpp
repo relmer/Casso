@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "CassoExplorer/Window/Panes/ExplorerPreviewArchive.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewArchiveView.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 
 
@@ -9,12 +9,12 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive::ExplorerPreviewArchive
+//  PreviewArchiveView::PreviewArchiveView
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerPreviewArchive::ExplorerPreviewArchive (ExplorerPreview & preview, ExplorerContext & context)
-    : m_preview (preview),
+PreviewArchiveView::PreviewArchiveView (PreviewListingView & listing, ExplorerContext & context)
+    : m_listing (listing),
       m_context (context)
 {
 }
@@ -25,18 +25,18 @@ ExplorerPreviewArchive::ExplorerPreviewArchive (ExplorerPreview & preview, Explo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive::GetSelectedIds
+//  PreviewArchiveView::GetSelectedIds
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::wstring> ExplorerPreviewArchive::GetSelectedIds() const
+std::vector<std::wstring> PreviewArchiveView::GetSelectedIds() const
 {
     const std::vector<CatalogRow> &  rows = m_context.browser.GetPreview().rows;
     std::vector<std::wstring>        ids;
 
 
 
-    for (int row : m_preview.GetPreviewList()->GetSelectedRows())
+    for (int row : m_listing.GetList()->GetSelectedRows())
     {
         if (row >= 0 && (size_t) row < rows.size() && !rows[(size_t) row].shellId.empty())
         {
@@ -53,7 +53,7 @@ std::vector<std::wstring> ExplorerPreviewArchive::GetSelectedIds() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive::HandleMouse
+//  PreviewArchiveView::HandleMouse
 //
 //  An archive's files in the preview act as the file list's do: a press that
 //  moves drags them out, for the shell to extract where they land, and a
@@ -62,9 +62,9 @@ std::vector<std::wstring> ExplorerPreviewArchive::GetSelectedIds() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point)
+bool PreviewArchiveView::HandleMouse (const DxuiMouseEvent & ev, POINT point)
 {
-    RECT                       bounds = m_preview.GetPreviewList()->GetBounds();
+    RECT                       bounds = m_listing.GetList()->GetBounds();
     DxuiMouseEvent             local  = ExplorerLayout::ToLocal (ev, bounds);
     int                        row    = -1;
     HRESULT                    hr     = S_OK;
@@ -75,15 +75,15 @@ bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point
 
     if (ev.kind == DxuiMouseEventKind::Down && ExplorerLayout::Contains (bounds, point))
     {
-        row = m_preview.GetPreviewList()->HitTestRow (local.positionDip.x, local.positionDip.y);
+        row = m_listing.GetList()->HitTestRow (local.positionDip.x, local.positionDip.y);
         m_context.input.SetFocusPane (ExplorerPane::Preview);
 
         if (row >= 0 && ev.button == DxuiMouseButton::Right)
         {
             //  A right press on a row outside the selection selects it alone.
-            if (!m_preview.GetPreviewList()->IsRowSelected (row))
+            if (!m_listing.GetList()->IsRowSelected (row))
             {
-                m_preview.GetPreviewList()->ClickRow (row, false, false);
+                m_listing.GetList()->ClickRow (row, false, false);
             }
 
             m_menuArmed = true;
@@ -133,7 +133,7 @@ bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point
         //  the selection once the drag is over.
         release.kind   = DxuiMouseEventKind::Up;
         release.button = DxuiMouseButton::Left;
-        m_preview.GetPreviewList()->OnMouse (release);
+        m_listing.GetList()->OnMouse (release);
 
         if (!ids.empty())
         {
@@ -153,14 +153,14 @@ bool ExplorerPreviewArchive::HandleMouse (const DxuiMouseEvent & ev, POINT point
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive::CopySelection
+//  PreviewArchiveView::CopySelection
 //
 //  The shell's data object goes on the clipboard, which keeps the archive's
 //  folder open for a paste after the list has moved on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewArchive::CopySelection (bool cut)
+void PreviewArchiveView::CopySelection (bool cut)
 {
     std::vector<std::wstring>  ids = GetSelectedIds();
     HRESULT                    hr  = S_OK;
@@ -182,7 +182,7 @@ void ExplorerPreviewArchive::CopySelection (bool cut)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive::DeleteSelection
+//  PreviewArchiveView::DeleteSelection
 //
 //  An archive has no Recycle Bin, so its files are deleted for good, after
 //  Windows asks to confirm, as File Explorer deletes them. The archive is
@@ -190,7 +190,7 @@ void ExplorerPreviewArchive::CopySelection (bool cut)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewArchive::DeleteSelection()
+void PreviewArchiveView::DeleteSelection()
 {
     std::vector<std::wstring>  ids = GetSelectedIds();
     HRESULT                    hr  = S_OK;
@@ -214,7 +214,7 @@ void ExplorerPreviewArchive::DeleteSelection()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive::ShowContextMenu
+//  PreviewArchiveView::ShowContextMenu
 //
 //  The file list's menu for an archive's files: the row of Cut, Copy and
 //  Delete, Open, and the shell's full menu under Show more options, Extract
@@ -222,7 +222,7 @@ void ExplorerPreviewArchive::DeleteSelection()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
+void PreviewArchiveView::ShowContextMenu (int x, int y)
 {
     std::vector<DxuiPopupMenuItem>                   items;
     std::vector<std::shared_ptr<const DxuiCommand>>  iconCommands;
@@ -267,9 +267,9 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
 
     m_context.menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::Open), [this]()
     {
-        if (!m_preview.GetPreviewList()->GetSelectedRows().empty())
+        if (!m_listing.GetList()->GetSelectedRows().empty())
         {
-            OpenRow (m_preview.GetPreviewList()->GetSelectedRows()[0]);
+            OpenRow (m_listing.GetList()->GetSelectedRows()[0]);
         }
     });
 
@@ -292,14 +292,14 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive::OpenRow
+//  PreviewArchiveView::OpenRow
 //
 //  A folder inside the archive opens in the file list; a file opens as the
 //  shell opens it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewArchive::OpenRow (int row)
+void PreviewArchiveView::OpenRow (int row)
 {
     const std::vector<CatalogRow> &  rows = m_context.browser.GetPreview().rows;
     HRESULT                          hr   = S_OK;

@@ -328,7 +328,7 @@ void CassoExplorerWindow::OnCreate()
     m_treePane.Create();
     m_listPane.Create();
     m_cassoLinkManager.CreateListActions();
-    m_previewPane.Create();
+    m_previewManager.Create();
     treeSplitter      = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter   = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
 
@@ -343,7 +343,7 @@ void CassoExplorerWindow::OnCreate()
     m_toolbars.CreateMenuBar();
     m_fileOps.Create();
     m_toolbars.CreateCommandBar();
-    m_previewPane.CreateToolbar();
+    m_previewManager.CreateToolbar();
     m_toolbars.Create();
 
     m_toolbars.SetCommandBarDropDowns();
@@ -371,7 +371,7 @@ void CassoExplorerWindow::OnCreate()
     m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
     m_browser.SetShellIcons (&m_shellIcons);
     m_browser.SetShellVerbs (&m_shellVerbs);
-    m_browser.SetPreviewMonitor (m_previewPane.GetPreviewMonitor(), m_prefs.previewCustomArgb);
+    m_browser.SetPreviewMonitor (m_previewManager.GetPicture().GetMonitor(), m_prefs.previewCustomArgb);
     m_explorerOptions = FolderOptions::ReadFromShell();
     m_browser.SetFolderOptions (m_explorerOptions);
     m_treePane.ApplyNavPaneOptions();
@@ -424,7 +424,7 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     painter.FillRect ((float) bounds.left, (float) top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
 
-    m_previewPane.PaintBackground (painter, theme);
+    m_previewManager.PaintBackground (painter, theme);
 
     DxuiWindow::Paint (painter, text, theme);
 }
@@ -743,7 +743,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
 
 
-    if (m_previewPane.HandleHelperMessage (msg, wParam, lParam))
+    if (m_previewManager.GetShell().HandleHelperMessage (msg, wParam, lParam))
     {
         return DxuiMessageResult::Handled;
     }
@@ -768,7 +768,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     //  changing (a log being written, say) would hold off every re-read.
     if (msg == (UINT) ExplorerMessage::ShellPreview)
     {
-        m_previewPane.HandleShellPreviewResult();
+        m_previewManager.GetShell().HandleResult();
         return DxuiMessageResult::Handled;
     }
 
@@ -1031,7 +1031,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     if (timerId == (UINT_PTR) AppTimerId::ExplorerShellPreview)
     {
-        m_previewPane.ShowShellPreviewBytes();
+        m_previewManager.GetShell().ShowBytes();
         return DxuiMessageResult::Handled;
     }
 
@@ -1109,17 +1109,17 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  Menus slide open and submenus wait out a delay, both on ticks the host
     //  supplies; Casso supplies them from its frame loop, and this window from
     //  its timer.
-    if (m_toolbars.WantsTick() || m_previewPane.GetToolbar().WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
+    if (m_toolbars.WantsTick() || m_previewManager.GetToolbar().WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
     {
         m_toolbars.TickMenus (GetNowMs());
-        m_previewPane.GetToolbar().TickMenus (GetNowMs());
+        m_previewManager.GetToolbar().TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
         Invalidate();
     }
 
     //  Scrollbars widen and narrow over a few frames as the pointer comes and
     //  goes.
-    barsMoved = ((int) m_previewPane.TickScrollbars (GetNowMs())
+    barsMoved = ((int) m_previewManager.TickScrollbars (GetNowMs())
                | (int) m_listPane.Tick (GetNowMs())
                | (int) m_treePane.TickScrollbars (GetNowMs())) != 0;
 
@@ -1136,7 +1136,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (m_input.HasCaretFocus())
     {
         ExplorerPane  focus   = m_input.GetFocusPane();
-        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_addressBar.IsCaretOn() : m_previewPane.IsCaretOn (focus);
+        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_addressBar.IsCaretOn() : m_previewManager.GetFind().IsCaretOn (focus);
 
         if (caretOn != m_caretOn)
         {
@@ -1192,8 +1192,8 @@ void CassoExplorerWindow::ArmTick()
 bool CassoExplorerWindow::IsTickWanted() const
 {
     return m_tips.WantsTick() || m_addressBar.WantsTick() || m_tabManager.IsSliding()
-        || m_toolbars.IsMenuOpen() || m_previewPane.GetToolbar().IsMenuOpen()
-        || m_toolbars.WantsTick() || m_previewPane.GetToolbar().WantsTick()
+        || m_toolbars.IsMenuOpen() || m_previewManager.GetToolbar().IsMenuOpen()
+        || m_toolbars.WantsTick() || m_previewManager.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
         || m_input.HasCaretFocus();
 }

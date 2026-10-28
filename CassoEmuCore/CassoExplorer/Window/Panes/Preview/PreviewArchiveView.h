@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 struct ExplorerContext;
-class ExplorerPreview;
+class PreviewListingView;
 
 
 
@@ -11,7 +11,7 @@ class ExplorerPreview;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewArchive
+//  PreviewArchiveView
 //
 //  An archive's files in the Preview pane, handled as the file list's are: a
 //  press that moves drags them out for the shell to extract where they are
@@ -21,10 +21,10 @@ class ExplorerPreview;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ExplorerPreviewArchive
+class PreviewArchiveView
 {
 public:
-    ExplorerPreviewArchive (ExplorerPreview & preview, ExplorerContext & context);
+    PreviewArchiveView (PreviewListingView & listing, ExplorerContext & context);
 
     //  True when the event is taken here.
     bool  HandleMouse         (const DxuiMouseEvent & ev, POINT point);
@@ -37,8 +37,8 @@ private:
     std::vector<std::wstring>  GetSelectedIds  () const;
     void                       ShowContextMenu (int x, int y);
 
-    ExplorerPreview  & m_preview;
-    ExplorerContext  & m_context;
+    PreviewListingView  & m_listing;
+    ExplorerContext     & m_context;
 
     bool   m_dragArmed = false;   // a left press on a file, which may become a drag
     bool   m_menuArmed = false;   // a right press on one, whose menu opens on release

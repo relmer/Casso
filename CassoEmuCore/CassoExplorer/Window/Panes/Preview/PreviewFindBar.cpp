@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "CassoExplorer/Window/Panes/ExplorerPreviewFind.h"
+#include "CassoExplorer/Window/Panes/Preview/PreviewFindBar.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 
 
@@ -9,11 +9,11 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::ExplorerPreviewFind
+//  PreviewFindBar::PreviewFindBar
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ExplorerPreviewFind::ExplorerPreviewFind (ExplorerPreview & preview, ExplorerContext & context)
+PreviewFindBar::PreviewFindBar (ExplorerPreviewManager & preview, ExplorerContext & context)
     : m_preview (preview),
       m_context (context)
 {
@@ -25,11 +25,11 @@ ExplorerPreviewFind::ExplorerPreviewFind (ExplorerPreview & preview, ExplorerCon
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::Create
+//  PreviewFindBar::Create
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewFind::Create()
+void PreviewFindBar::Create()
 {
     m_goToBox.SetHint         (L"Go to");
     m_goToBox.SetWidthDip     (130);
@@ -79,11 +79,11 @@ void ExplorerPreviewFind::Create()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::HandleFocusChanged
+//  PreviewFindBar::HandleFocusChanged
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewFind::HandleFocusChanged (ExplorerPane focus)
+void PreviewFindBar::HandleFocusChanged (ExplorerPane focus)
 {
     m_searchBox.SetFocused (focus == ExplorerPane::Search);
     m_goToBox.SetFocused   (focus == ExplorerPane::GoTo);
@@ -95,13 +95,13 @@ void ExplorerPreviewFind::HandleFocusChanged (ExplorerPane focus)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::CanFindNext
+//  PreviewFindBar::CanFindNext
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerPreviewFind::CanFindNext() const
+bool PreviewFindBar::CanFindNext() const
 {
-    return m_preview.IsHexPreviewShowing() && !m_findBytes.empty();
+    return m_preview.GetHex().IsShowing() && !m_findBytes.empty();
 }
 
 
@@ -110,11 +110,11 @@ bool ExplorerPreviewFind::CanFindNext() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::HandleBoxKey
+//  PreviewFindBar::HandleBoxKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerPreviewFind::HandleBoxKey (ExplorerPane focus, const DxuiKeyEvent & ev)
+bool PreviewFindBar::HandleBoxKey (ExplorerPane focus, const DxuiKeyEvent & ev)
 {
     return (focus == ExplorerPane::Search) ? m_searchBox.OnKey (ev) : m_goToBox.OnKey (ev);
 }
@@ -125,11 +125,11 @@ bool ExplorerPreviewFind::HandleBoxKey (ExplorerPane focus, const DxuiKeyEvent &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::IsCaretOn
+//  PreviewFindBar::IsCaretOn
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerPreviewFind::IsCaretOn (ExplorerPane focus) const
+bool PreviewFindBar::IsCaretOn (ExplorerPane focus) const
 {
     return (focus == ExplorerPane::Search) ? m_searchBox.IsCaretOn() : m_goToBox.IsCaretOn();
 }
@@ -140,16 +140,16 @@ bool ExplorerPreviewFind::IsCaretOn (ExplorerPane focus) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::FocusGoTo
+//  PreviewFindBar::FocusGoTo
 //
 //  Focus moves to the Go to box while the hex view is visible. Returns
 //  whether it moved.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerPreviewFind::FocusGoTo()
+bool PreviewFindBar::FocusGoTo()
 {
-    if (!m_preview.IsHexPreviewShowing())
+    if (!m_preview.GetHex().IsShowing())
     {
         return false;
     }
@@ -166,20 +166,20 @@ bool ExplorerPreviewFind::FocusGoTo()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::FocusFind
+//  PreviewFindBar::FocusFind
 //
 //  Find searches the hex preview while it or one of its boxes has focus.
 //  Returns whether focus moved to the search box.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExplorerPreviewFind::FocusFind()
+bool PreviewFindBar::FocusFind()
 {
     ExplorerPane  focus = m_context.input.GetFocusPane();
 
 
 
-    if (!m_preview.IsHexPreviewShowing() || (focus != ExplorerPane::Preview && focus != ExplorerPane::Search && focus != ExplorerPane::GoTo))
+    if (!m_preview.GetHex().IsShowing() || (focus != ExplorerPane::Preview && focus != ExplorerPane::Search && focus != ExplorerPane::GoTo))
     {
         return false;
     }
@@ -196,7 +196,7 @@ bool ExplorerPreviewFind::FocusFind()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::GoToTyped
+//  PreviewFindBar::GoToTyped
 //
 //  An address matches the offset column, which counts from the file's load
 //  address when it has one; an offset moves from the caret. A target that
@@ -205,17 +205,17 @@ bool ExplorerPreviewFind::FocusFind()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewFind::GoToTyped (const std::wstring & text)
+void PreviewFindBar::GoToTyped (const std::wstring & text)
 {
-    int64_t   origin = (int64_t) m_preview.GetHexView()->GetOriginAddress();
-    int64_t   caret  = origin + (int64_t) m_preview.GetHexView()->GetCaret();
-    int64_t   count  = (m_preview.GetHexView()->GetSource() != nullptr) ? (int64_t) m_preview.GetHexView()->GetSource()->GetByteCount() : 0;
+    int64_t   origin = (int64_t) m_preview.GetHex().GetView()->GetOriginAddress();
+    int64_t   caret  = origin + (int64_t) m_preview.GetHex().GetView()->GetCaret();
+    int64_t   count  = (m_preview.GetHex().GetView()->GetSource() != nullptr) ? (int64_t) m_preview.GetHex().GetView()->GetSource()->GetByteCount() : 0;
     int64_t   target = 0;
     int64_t   last   = 0;
 
 
 
-    if (!m_preview.IsHexPreviewShowing())
+    if (!m_preview.GetHex().IsShowing())
     {
         return;
     }
@@ -229,13 +229,13 @@ void ExplorerPreviewFind::GoToTyped (const std::wstring & text)
 
     m_goToBox.SetText  (L"");
     m_goToBox.SetError (false);
-    m_preview.GetHexView()->GoToOffset ((uint64_t) (target - origin));
+    m_preview.GetHex().GetView()->GoToOffset ((uint64_t) (target - origin));
 
     //  A range selects from its first address to its last.
     if (last > target)
     {
-        m_preview.GetHexView()->ExtendSelectionTo ((uint64_t) (last - origin));
-        m_preview.GetHexView()->EnsureByteVisible ((uint64_t) (target - origin));
+        m_preview.GetHex().GetView()->ExtendSelectionTo ((uint64_t) (last - origin));
+        m_preview.GetHex().GetView()->EnsureByteVisible ((uint64_t) (target - origin));
     }
 
     m_context.input.SetFocusPane (ExplorerPane::Preview);
@@ -247,7 +247,7 @@ void ExplorerPreviewFind::GoToTyped (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::HandleSearchChanged
+//  PreviewFindBar::HandleSearchChanged
 //
 //  Each edit searches again from the start of the current match, so typing
 //  more of a term keeps the match it has while it still fits. Hex digits find
@@ -256,7 +256,7 @@ void ExplorerPreviewFind::GoToTyped (const std::wstring & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewFind::HandleSearchChanged (const std::wstring & text)
+void PreviewFindBar::HandleSearchChanged (const std::wstring & text)
 {
     if (!ActionsGoTo::TryParseSearch (text, m_findBytes, m_findIsText))
     {
@@ -275,7 +275,7 @@ void ExplorerPreviewFind::HandleSearchChanged (const std::wstring & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerPreviewFind::FindNext
+//  PreviewFindBar::FindNext
 //
 //  Searches forward from just past the selection, wrapping at the end. An
 //  incremental search starts at the selection itself and says nothing when
@@ -283,22 +283,22 @@ void ExplorerPreviewFind::HandleSearchChanged (const std::wstring & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerPreviewFind::FindNext (bool incremental)
+void PreviewFindBar::FindNext (bool incremental)
 {
-    const IDxuiHexSource *  source = m_preview.GetHexView()->GetSource();
+    const IDxuiHexSource *  source = m_preview.GetHex().GetView()->GetSource();
     uint64_t                start  = 0;
     uint64_t                found  = 0;
 
 
 
-    if (!m_preview.IsHexPreviewShowing() || m_findBytes.empty() || source == nullptr)
+    if (!m_preview.GetHex().IsShowing() || m_findBytes.empty() || source == nullptr)
     {
         return;
     }
 
     //  The search reads the whole file through the source, not just the part
     //  the view has drawn.
-    start = m_preview.GetHexView()->HasSelection() ? m_preview.GetHexView()->GetSelectionFirst() + (incremental ? 0 : 1) : m_preview.GetHexView()->GetCaret();
+    start = m_preview.GetHex().GetView()->HasSelection() ? m_preview.GetHex().GetView()->GetSelectionFirst() + (incremental ? 0 : 1) : m_preview.GetHex().GetView()->GetCaret();
     found = ActionsGoTo::FindInSource ([source] (uint64_t offset, std::span<uint8_t> out) { source->ReadBytes (offset, out); },
                                           source->GetByteCount(), m_findBytes, m_findIsText, start);
 
@@ -312,9 +312,9 @@ void ExplorerPreviewFind::FindNext (bool incremental)
         return;
     }
 
-    m_preview.GetHexView()->SelectByte        ((uint64_t) found, m_findIsText ? DxuiHexView::Column::Text : DxuiHexView::Column::Hex);
-    m_preview.GetHexView()->ExtendSelectionTo ((uint64_t) (found + m_findBytes.size() - 1));
-    m_preview.GetHexView()->EnsureByteVisible ((uint64_t) found);
+    m_preview.GetHex().GetView()->SelectByte        ((uint64_t) found, m_findIsText ? DxuiHexView::Column::Text : DxuiHexView::Column::Hex);
+    m_preview.GetHex().GetView()->ExtendSelectionTo ((uint64_t) (found + m_findBytes.size() - 1));
+    m_preview.GetHex().GetView()->EnsureByteVisible ((uint64_t) found);
 
     m_context.window.Invalidate();
 }

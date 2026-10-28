@@ -490,7 +490,7 @@ LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
 
     if (cursor == nullptr)
     {
-        cursor = m_context.preview.GetPictureCursor (clientPx);
+        cursor = m_context.preview.GetPicture().GetCursorForPoint (clientPx);
     }
 
     if (cursor == nullptr)
@@ -550,7 +550,7 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 
     if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo)
     {
-        handled = m_context.preview.HandleBoxKey (m_focus, ev);
+        handled = m_context.preview.GetFind().HandleBoxKey (m_focus, ev);
 
         if (handled || ev.kind != DxuiKeyEventKind::Down)
         {

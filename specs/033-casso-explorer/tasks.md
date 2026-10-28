@@ -1312,9 +1312,12 @@ waits for this phase, so it is tested once.
   `CassoEmuCore/CassoExplorer/Window/`, and the app's settings for a window
   are `CassoExplorerWindowContext`. The list pane's and the preview's parts
   use accessors in place of friendship too.
-- [ ] T285 Make the preview a manager that creates and runs one class per
+- [X] T285 Make the preview a manager that creates and runs one class per
   kind of preview (listing, text, hex, picture, archive, shell), with the
   toolbar and find bar shared.
+  Done: `ExplorerPreviewManager` in `Window/Managers/`, and the views in
+  `Window/Panes/Preview/`, each a `PreviewView`. An archive's rows are in the
+  listing's list, so `PreviewArchiveView` is part of `PreviewListingView`.
 - [ ] T286 Add text styles per use and a metrics class for padding and
   alignment to Casso Explorer's classes, in place of the font sizes, strengths
   and inset constants spread through them. The same for all of Dxui is a
