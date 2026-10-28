@@ -3,6 +3,7 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/ReverseController.h"
+#include "Devices/Acia6551.h"
 #include "Shell/DebugEventLogs.h"
 #include "Shell/MachineHost.h"
 
@@ -1239,7 +1240,7 @@ bool DebugEventLogs::TryMakeResetRow (
 
 bool DebugEventLogs::TryMakeRow (
     const InputRecord  & record,
-    InputLogRow        & outRow)
+    InputLogRow        & outRow) const
 {
     constexpr Byte  kStrobe = 0x80;
     InputEvent &    event   = outRow.event;
@@ -1309,8 +1310,9 @@ bool DebugEventLogs::TryMakeRow (
             break;
 
         case InputKind::AciaByte:
+            isRow                    = record.detail < m_machine.GetRefs().serialChips.size();
             event.type               = InputEventType::HostSerialByte;
-            event.payload.io.address = record.detail;
+            event.payload.io.address = isRow ? m_machine.GetRefs().serialChips[record.detail]->GetCommPort() : 0;
             event.payload.io.value   = record.value;
             break;
 

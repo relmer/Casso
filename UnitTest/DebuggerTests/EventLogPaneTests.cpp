@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/Acia6551.h"
 #include "Ui/Debugger/Panes/DiskLogPane.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
@@ -687,14 +688,19 @@ namespace EventLogPaneTests
             std::wstring   address;
             std::wstring   value;
             std::wstring   meaning;
-            InputEvent     event = MakeInputRow (10, InputEventType::HostSerialByte, 1, 'A').event;
+            InputEvent     card    = MakeInputRow (10, InputEventType::HostSerialByte, 2, 'A').event;
+            InputEvent     builtIn = MakeInputRow (10, InputEventType::HostSerialByte, Acia6551::kCommPortBuiltIn | 2, 'A').event;
 
 
 
-            pane.FormatEvent (event, address, value, meaning);
+            pane.FormatEvent (card, address, value, meaning);
 
-            Assert::AreEqual (std::wstring (L"Serial 2"), address);
+            Assert::AreEqual (std::wstring (L"Slot 2"), address);
             Assert::AreEqual (L"HOST serial byte " + value, meaning);
+
+            pane.FormatEvent (builtIn, address, value, meaning);
+
+            Assert::AreEqual (std::wstring (L"Port 2"), address);
         }
 
 
