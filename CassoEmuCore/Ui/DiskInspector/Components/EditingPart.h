@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Ui/DiskInspector/Components/IInspectorComponent.h"
+#include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/EditController.h"
 #include "Ui/DiskInspector/IDiskInspectorHost.h"
 
@@ -44,6 +45,12 @@ public:
     void  ToggleEditing       ();
     void  FollowEdits         ();
     bool  ConfirmDiscardEdits (const std::wstring & action);
+    void  ApplyEdits          ();
+    void  UndoApplied         ();
+    void  RedoApplied         ();
+    void  SaveEditedCopy      ();
+
+    const EditBarState & GetState () const { return m_state; }
 
 private:
     //  One apply's tracks before and after, the guest write counts it left,
@@ -63,14 +70,10 @@ private:
     void          PasteIntoEdit     ();
     std::wstring  GetApplyBlock     () const;
     bool          IsHistoryCurrent  (const vector<RecordWriteCount> & counts) const;
-    void          ApplyEdits        ();
     void          PostApply         (const InspectorRequest & request);
     void          PauseApply        ();
     void          CancelApply       ();
-    void          UndoApplied       ();
-    void          RedoApplied       ();
     void          TakeApplyReply    (const InspectorReply & reply);
-    void          SaveEditedCopy    ();
     void          TakeSaveCopyReply (const InspectorReply & reply);
     bool          GetBSectorBytes   (PendingEdit::Sector & outBytes) const;
     void          UseBBytes         ();
@@ -81,6 +84,7 @@ private:
     IInspectorComponentHost    & m_host;
     SectorByteView             & m_byteView;
     EditBar                    * m_editBar          = nullptr;
+    EditBarState                 m_state;
     int64_t                      m_editSig          = 0;
     vector<AppliedEditRecord>    m_history;
     int                          m_historyAt        = 0;

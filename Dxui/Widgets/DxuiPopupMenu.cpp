@@ -14,6 +14,13 @@
 
 
 
+//  The face a command's glyph is drawn in, as a toolbar draws it.
+static constexpr const wchar_t *  s_kpszGlyphFace = L"Segoe MDL2 Assets";
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPopupMenuItem::ForCommand
@@ -780,9 +787,9 @@ int DxuiPopupMenu::MeasureRunPx (const std::wstring & run, float fontDip, IDxuiT
 //  row ran under the right-aligned accelerators above it. Separate columns
 //  cannot produce that, whatever the mix of rows.
 //
-//  The check gutter is reserved only for a list that HAS a checkable row, so
-//  a menu where nothing can ever check sits flush against its left pad rather
-//  than carrying an empty column.
+//  The check gutter is reserved only for a list that HAS a checkable row or a
+//  row whose glyph is drawn in menus, so a menu where nothing can ever check
+//  sits flush against its left pad, with no empty column.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -799,7 +806,7 @@ int DxuiPopupMenu::MeasureWidthPx (IDxuiTextRenderer & text)
 
     for (const DxuiPopupMenuItem & row : m_rows)
     {
-        if (row.command != nullptr && row.command->isChecked)
+        if (row.command != nullptr && (row.command->isChecked || (row.command->isGlyphInMenus && row.command->glyph != nullptr)))
         {
             m_hasGutter = true;
         }
@@ -1807,6 +1814,20 @@ void DxuiPopupMenu::PaintRow (
                               labelArgb,
                               fontDip,
                               DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Top);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    else if (row.command->isGlyphInMenus && row.command->glyph != nullptr)
+    {
+        hr = text.DrawString (row.command->glyph,
+                              left + (float) pad,
+                              y + (float) padTop,
+                              (float) gutter,
+                              (float) rowH,
+                              labelArgb,
+                              fontDip,
+                              s_kpszGlyphFace,
                               DxuiTextHAlign::Center,
                               DxuiTextVAlign::Top);
         IGNORE_RETURN_VALUE (hr, S_OK);

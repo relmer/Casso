@@ -514,7 +514,10 @@
     <ClCompile Include="Ui\DiskInspector\Components\EditingPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\FindPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\HostLink.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorMenus.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorSession.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\InspectorToolbar.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\StatusBand.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\FilesView.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindingsTab.cpp" />
@@ -1024,7 +1027,11 @@
     <ClInclude Include="Ui\DiskInspector\Components\EditingPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\FindPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\HostLink.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorCommands.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorMenus.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorSession.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorToolbar.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\StatusBand.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />
     <ClInclude Include="Ui\DiskInspector\Views\FilesView.h" />
     <ClInclude Include="Ui\DiskInspector\Components\IInspectorComponent.h" />

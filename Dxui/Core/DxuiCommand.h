@@ -77,6 +77,10 @@ struct DxuiCommand
     //  Absent means the label is drawn at its full width.
     std::optional<DxuiLabelFit>    labelFit;
 
+    //  True when a menu row draws the glyph in its check column, so a user
+    //  can learn a toolbar button's icon from the menu.
+    bool                           isGlyphInMenus = false;
+
     //  Absent means never checked.
     bool          IsChecked    () const { return isChecked ? isChecked() : false; }
 

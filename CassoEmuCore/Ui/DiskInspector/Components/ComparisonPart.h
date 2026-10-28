@@ -44,11 +44,11 @@ public:
     void  StopComparing    ();
     void  EndComparison    (const std::wstring & why);
     void  StepDifference   (int step);
+    void  SwapSides        ();
+    void  OpenBSettings    ();
 
 private:
     void  CheckComparedSources ();
-    void  SwapSides            ();
-    void  OpenBSettings        ();
     void  SelectDifference     (const Difference & difference);
     void  PaintComparisonBar   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
 

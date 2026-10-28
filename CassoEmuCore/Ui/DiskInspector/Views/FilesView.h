@@ -44,6 +44,8 @@ public:
     bool  IsOverGrid      (POINT pointPx) const;
     void  ZoomGrid        (float notches, POINT pointPx);
     bool  IsListAt        (POINT pointPx) const;
+    void  CopyFileMap     ();
+    bool  HasMap          () const;
     bool  GetGridTip      (POINT pointPx, std::wstring & outTip, RECT & outAnchorPx, vector<DxuiTooltipSwatch> & outSwatches) const;
 
     InspectorTableView & GetFileList () const { return *m_fileList; }
@@ -56,7 +58,6 @@ private:
     void  SelectMapCell      (int cell);
     void  StepFileSector     (int step);
     int   GetSelectedMapCell () const;
-    void  CopyFileMap        ();
 
     InspectorSession         & m_session;
     IInspectorComponentHost  & m_host;

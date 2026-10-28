@@ -494,6 +494,7 @@ void EditingPart::UpdateEditBar()
     width = m_editBar->GetBounds().right - m_editBar->GetBounds().left;
     rows  = m_editBar->GetRowCount (width, m_session.scaler);
     m_editBar->SetState (state);
+    m_state = state;
     m_session.isLayoutStale = m_session.isLayoutStale || (width > 0 && m_editBar->GetRowCount (width, m_session.scaler) != rows);
 }
 

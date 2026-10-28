@@ -40,6 +40,8 @@ public:
     virtual void                 StartDisk           (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) = 0;
     virtual HRESULT              ShowDrive           (int drive) = 0;
     virtual void                 TakeTracks          (const InspectorReply & reply) = 0;
+    virtual void                 SetWindowZoom       (double zoom) = 0;
+    virtual void                 OpenWalkthrough     () = 0;
 
     //  Passed to every component in the window's order.
     virtual void                 NotifyDiskStarting    (const DiskChange & change) = 0;

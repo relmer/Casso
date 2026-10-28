@@ -4,6 +4,7 @@
 
 #include "Ui/DiskInspector/Components/IInspectorComponent.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
+#include "Ui/DiskInspector/Components/InspectorCommands.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Config/DiskInspectorPrefs.h"
 #include "Devices/Disk/Inspector/InspectorSearch.h"
@@ -34,6 +35,9 @@ class ComparisonPart;
 class EditingPart;
 class FindPart;
 class HostLink;
+class InspectorMenus;
+class InspectorToolbar;
+class StatusBand;
 class FilesView;
 class DifferencesTab;
 class FindBar;
@@ -85,7 +89,7 @@ public:
     void     ApplyPrefs  (const DiskInspectorPrefs & prefs);
 
     //  The walkthrough from its first step (FR-153).
-    void     OpenWalkthrough () { m_walkthrough.Open(); }
+    void     OpenWalkthrough () override { m_walkthrough.Open(); }
 
     void     Layout      (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void     Paint       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -116,35 +120,15 @@ private:
     void                 NotifyDiskStarted     (const DiskChange & change) override;
     void                 NotifyAnalysisChanged () override;
     bool                 OfferReply            (const InspectorReply & reply) override;
+    void                 SetWindowZoom    (double zoom) override { SetZoom (zoom); }
 
-    //  The toolbar's controls after the file name, in FR-007's order.
-    enum class ToolId
-    {
-        Modes,
-        Range,
-        Follow,
-        GoToHead,
-        GoTo,
-        Find,
-        Compare,
-        Export,
-        Decode,
-    };
+    void          BuildCommands ();
+    static bool   RunCommand    (const InspectorCommands::Command & command);
+    void          UpdateTitle   ();
 
-    struct ToolItem
-    {
-        ToolId  id      = ToolId::Modes;
-        int     widthPx = 0;
-        RECT    rect    = {};
-    };
 
-    vector<ToolItem>  GetToolItems  (const DxuiDpiScaler & scaler) const;
-    static int        FlowToolItems (vector<ToolItem> & inOutItems, int left, int firstLeft, int right, int top, int rowHeight, int gap);
-    void              PlaceToolItem (const ToolItem & item, const DxuiDpiScaler & scaler);
-    uint32_t          GetToolSig    () const;
 
     void  PaintNoDisk      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void  PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     bool  OnWalkthroughMouse (const DxuiMouseEvent & ev);
     bool  OnWalkthroughKey   (const DxuiKeyEvent & ev);
     RECT  GetWalkthroughArea (WalkthroughArea area) const;
@@ -188,9 +172,7 @@ private:
     void  SelectFromRow    (const TableRow & row);
     void  OpenDecodeSettings ();
     void  ApplySettings    (const DecodeSettings & settings);
-    void  StepRange        (int delta);
     void  UpdateTooltip    (POINT pointPx);
-    void  PaintToolbar     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  StepSector       (int delta, bool isToEnd);
     static bool   IsInside    (const RECT & rect, POINT pointPx);
 
@@ -200,19 +182,21 @@ private:
     std::unique_ptr<ComparisonPart>                                                              m_comparisonPart;
     std::unique_ptr<FindPart>                                                                    m_findPart;
     std::unique_ptr<HostLink>                                                                    m_hostLink;
+    std::unique_ptr<InspectorMenus>                                                              m_menus;
+    std::unique_ptr<InspectorToolbar>                                                            m_toolbar;
+    std::unique_ptr<StatusBand>                                                                  m_statusBand;
     vector<IInspectorComponent *>                                                                m_components;
+    InspectorCommands                                                                            m_commands;
+    std::wstring                                                                                 m_title;
+    double                                                                                       m_lastTilt          = 0.5235987755982988;
     bool                                                                                         m_isTracksCompared  = false;
-    uint32_t                                                                                     m_toolSig           = 0;
     DxuiTooltip                                                                                  m_tooltip;
     bool                                                                                         m_isSplitting       = false;
     double                                                                                       m_splitFraction     = 0.5;
     RECT                                                                                         m_toolbarPx         = {};
-    RECT                                                                                         m_fileNamePx        = {};
-    RECT                                                                                         m_chipsPx           = {};
     RECT                                                                                         m_splitterPx        = {};
     std::wstring                                                                                 m_tooltipText;
 
-    DxuiTabStrip                          * m_driveTabs          = nullptr;
     DxuiTabStrip                          * m_tabs               = nullptr;
     DxuiButton                            * m_legendButton       = nullptr;
     DxuiPopupHost                         * m_legendPopup        = nullptr;
@@ -225,19 +209,12 @@ private:
     DxuiButton                            * m_fit                = nullptr;
     DxuiLabel                             * m_zoomLabel          = nullptr;
     DxuiLabel                             * m_hintLabel          = nullptr;
-    DxuiButton                            * m_exportButton       = nullptr;
-    DxuiButton                            * m_goToButton         = nullptr;
-    DxuiButton                            * m_findButton         = nullptr;
     DxuiButton                            * m_copySector         = nullptr;
-    DxuiButton                            * m_compareButton      = nullptr;
-    DxuiCheckbox                          * m_followCheck        = nullptr;
-    DxuiButton                            * m_goToHead           = nullptr;
     int                                     m_flownQuarterTrack  = -1;
     int                                     m_flownSector        = -1;
     bool                                    m_isFilesDefaulted   = false;
     bool                                    m_isFilesSaved       = false;
     InspectorWalkthrough                    m_walkthrough;
-    RECT                                    m_helpPx             = {};
     DxuiCheckbox                          * m_diffsCheck         = nullptr;
     DifferencesTab                        * m_diffsTab           = nullptr;
     DxuiButton                            * m_stripOut           = nullptr;
@@ -258,25 +235,16 @@ private:
     SectorRowView                         * m_sectorRow          = nullptr;
     SectorByteView                        * m_byteView           = nullptr;
     NibblesTab                            * m_nibblesTab         = nullptr;
-    DxuiButton                            * m_decodeButton       = nullptr;
     DxuiCheckbox                          * m_alignmentCheck     = nullptr;
     DxuiCheckbox                          * m_filesCheck         = nullptr;
     DxuiCheckbox                          * m_readsCheck         = nullptr;
     DxuiButton                            * m_topDown            = nullptr;
-    DxuiSegmentedControl                  * m_modeTabs           = nullptr;
-    DxuiButton                            * m_rangeDown          = nullptr;
-    DxuiButton                            * m_rangeUp            = nullptr;
-    DxuiLabel                             * m_rangeLabel         = nullptr;
     PlatterLegendView                     * m_legend             = nullptr;
-    int                                     m_rangeStep          = 3;
     InspectorTableView                    * m_tracksTab          = nullptr;
     FindingsTab                           * m_findingsTab        = nullptr;
     InspectorTableView                    * m_fieldsTab          = nullptr;
     InspectorTableView                    * m_imageTab           = nullptr;
     int                                     m_sectorRows         = 1;
-    DxuiLabel                             * m_statusText         = nullptr;
-    RECT                                    m_statusPx           = {};
-    DxuiZoomControl                       * m_zoomControl        = nullptr;
     double                                  m_zoom               = 1.0;
     RECT                                    m_tabGapPx           = {};
     RECT                                    m_platterAreaPx      = {};
