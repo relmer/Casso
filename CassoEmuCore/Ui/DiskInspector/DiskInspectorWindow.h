@@ -29,6 +29,7 @@ class InspectorTableView;
 class PlatterLegendView;
 class FluxTimingTab;
 class FileMapGridView;
+class EditingPart;
 class FilesView;
 class DifferencesTab;
 class FindBar;
@@ -104,6 +105,7 @@ private:
     void                 Relayout         () override;
     void                 SetStatusNote    (const std::wstring & note) override;
     bool                 Confirm          (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action) override;
+    void                 TakeTracks       (const InspectorReply & reply) override { TakeWrittenTracks (reply); }
 
     //  The toolbar's controls after the file name, in FR-007's order.
     enum class ToolId
@@ -183,26 +185,6 @@ private:
     void  RefreshFindResults ();
     void  SyncFindMarks      ();
     std::set<int>  GetQuarterTracksOf (const vector<RecordResult> & results) const;
-    void  ToggleEditing      ();
-    void  UpdateEditBar      ();
-    void  PasteIntoEdit      ();
-    void  FollowEdits        ();
-    int   GetSelectedEdit    () const;
-    bool  HandleEditKey      (const DxuiKeyEvent & ev);
-    std::wstring  GetApplyBlock () const;
-    bool  IsHistoryCurrent   (const vector<RecordWriteCount> & counts) const;
-    void  ApplyEdits         ();
-    void  PostApply          (const InspectorRequest & request);
-    void  PauseApply         ();
-    void  CancelApply        ();
-    void  UndoApplied        ();
-    void  RedoApplied        ();
-    void  TakeApplyReply     (const InspectorReply & reply);
-    void  SaveEditedCopy     ();
-    bool  GetBSectorBytes    (PendingEdit::Sector & outBytes) const;
-    void  UseBBytes          ();
-    void  TakeSaveCopyReply  (const InspectorReply & reply);
-    static bool  IsSameFile  (const std::filesystem::path & a, const std::filesystem::path & b);
     void  RebuildFindMarks   ();
     void  RepeatFind         ();
     vector<int>  GetShownDiskTabs () const;
@@ -236,6 +218,7 @@ private:
 
     InspectorSession                                                                             m_session;
     std::unique_ptr<FilesView>                                                                   m_files;
+    std::unique_ptr<EditingPart>                                                                 m_editing;
     uint64_t                                                                                     m_comparisonVersion = 0;
     bool                                                                                         m_isTracksCompared  = false;
     int                                                                                          m_diffIndex         = -1;
@@ -303,29 +286,9 @@ private:
     bool                                    m_isFocusShown       = false;
     FindBar                               * m_findBar            = nullptr;
     InspectorTableView                    * m_findResults        = nullptr;
-    EditBar                               * m_editBar            = nullptr;
     int64_t                                 m_sourceCheckMs      = 0;
-    int64_t                                 m_editSig            = 0;
 
-    //  One apply's tracks before and after, the guest write counts it left,
-    //  and those an undo of it left (FR-107).
-    struct AppliedEditRecord
-    {
-        vector<std::shared_ptr<const TrackCopy>>  before;
-        vector<std::shared_ptr<const TrackCopy>>  after;
-        vector<RecordWriteCount>                  countsAfter;
-        vector<RecordWriteCount>                  countsUndone;
-        std::string                               savedTo;
-    };
 
-    vector<AppliedEditRecord>               m_history;
-    int                                     m_historyAt          = 0;
-    InspectorRequest                        m_lastApply;
-    uint64_t                                m_applyRequest       = 0;
-    uint64_t                                m_saveCopyRequest    = 0;
-    bool                                    m_isApplyWaiting     = false;
-    bool                                    m_isApplyPaused      = false;
-    bool                                    m_isFirstApplyDone   = false;
     GoToKind                                m_goToKind           = GoToKind::Track;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     PlatterView                           * m_platterView        = nullptr;

@@ -510,6 +510,7 @@
     <ClCompile Include="Ui\DiskInspector\DifferencesTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\DecodeSettingsForm.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorPalette.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Components\EditingPart.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorSession.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\FilesView.cpp" />
@@ -1016,6 +1017,7 @@
     <ClInclude Include="Ui\DiskInspector\DifferencesTab.h" />
     <ClInclude Include="Ui\DiskInspector\DecodeSettingsForm.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorPalette.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\EditingPart.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorSession.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />
     <ClInclude Include="Ui\DiskInspector\Views\FilesView.h" />

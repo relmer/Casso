@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 class DiskCopy;
+struct InspectorReply;
 
 
 
@@ -37,4 +38,5 @@ public:
     virtual void                 RequestCopy         () = 0;
     virtual void                 StartDisk           (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) = 0;
     virtual HRESULT              ShowDrive           (int drive) = 0;
+    virtual void                 TakeTracks          (const InspectorReply & reply) = 0;
 };
