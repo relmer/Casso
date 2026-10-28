@@ -14,6 +14,7 @@
 #include "CassoExplorer/Window/ExplorerDispatch.h"
 #include "CassoExplorer/Window/ExplorerFileOps.h"
 #include "CassoExplorer/Window/ExplorerInput.h"
+#include "CassoExplorer/Window/ExplorerStatusBar.h"
 #include "CassoExplorer/Window/ExplorerTips.h"
 #include "CassoExplorer/Window/ExplorerToolbars.h"
 #include "CassoExplorer/Window/ExplorerTreePane.h"
@@ -146,7 +147,6 @@ public:
 
     static constexpr int    kMinWindowWidthDip   = 200;
     static constexpr int    kCascadeStepDip      = 32;   // a second window's offset from the saved placement
-    static constexpr float  kStatusLeadDip       = 14.67f;   // its item count, from the band's left edge
 
     //  The private message that holds a deferred Casso reply to the UI.
     static constexpr UINT  kReplyMessage = WM_APP + 0x31;
@@ -275,9 +275,7 @@ private:
     //  Rename in place: an edit box laid over the row's name, as Explorer's
     //  F2 opens one. The row being renamed, or -1.
     DxuiSplitter    * m_previewSplitter    = nullptr;
-    DxuiStatusBar   * m_status             = nullptr;
 
-    DxuiTooltip              m_tooltip;
 
     //  Other launches' arguments, run once the send that brought each returns.
     std::vector<std::wstring>  m_pendingLaunches;
@@ -313,6 +311,7 @@ private:
     friend class ExplorerDispatch;
     friend class ExplorerFileOps;
     friend class ExplorerInput;
+    friend class ExplorerStatusBar;
     friend class ExplorerTips;
     friend class ExplorerToolbars;
     friend class ExplorerTreePane;
@@ -329,6 +328,7 @@ private:
     ExplorerFileOps  m_fileOps { *this };
     ExplorerInput  m_input { *this };
     ExplorerTips  m_tips { *this };
+    ExplorerStatusBar  m_statusBar { *this };
     ExplorerToolbars  m_toolbars { *this };
     ExplorerTreePane  m_treePane { *this };
 };

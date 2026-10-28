@@ -341,20 +341,15 @@ void CassoExplorerWindow::OnCreate()
 
     m_treeSplitter    = treeSplitter;
     m_previewSplitter = previewSplitter;
-    m_status          = CreateChild<DxuiStatusBar>();
+    m_statusBar.Create();
     m_tabStrip.Create();
     m_toolbars.Create();
     m_addressBar.Create();
 
-    //  Explorer's status bar runs on from the list above it, with no lines.
-    m_status->SetDividers (false);
-    m_status->SetLeadDip  (kStatusLeadDip);
-
     m_fileOps.Create();
 
     m_toolbars.SetCommandBarDropDowns();
-    m_tooltip.SetPopupHost     (GetPopupHost());
-    m_tooltip.SetFollowPointer (true);
+    m_tips.Create (GetPopupHost());
 
     //  The buttons along a context menu's edge have only a word under their
     //  icons, so each has a tip, as Explorer's do.
@@ -945,7 +940,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertDone:
-                m_status->SetText (ExplorerLayout::kStatusDetail, L"Inserted into Casso");
+                m_statusBar.SetDetail (L"Inserted into Casso");
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertRefused:
@@ -1159,10 +1154,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         return DxuiMessageResult::NotHandled;
     }
 
-    if (m_tooltip.WantsTick())
-    {
-        m_tooltip.Tick (GetNowMs());
-    }
+    m_tips.Tick (GetNowMs());
 
     if (m_addressBar.Tick (GetNowMs()))
     {
@@ -1253,7 +1245,7 @@ void CassoExplorerWindow::ArmTick()
 
 bool CassoExplorerWindow::IsTickWanted() const
 {
-    return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_addressBar.WantsTick() || m_tabStrip.IsSliding()
+    return m_tips.WantsTick() || m_addressBar.WantsTick() || m_tabStrip.IsSliding()
         || m_toolbars.IsMenuOpen() || m_previewPane.GetToolbar().IsMenuOpen()
         || m_toolbars.WantsTick() || m_previewPane.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()

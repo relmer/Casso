@@ -360,11 +360,8 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A click on the zoom level puts it back to 100%.
-    if (ev.kind == DxuiMouseEventKind::Up && ev.button == DxuiMouseButton::Left
-        && CassoExplorerWindow::Contains (m_window.m_status->GetFieldRect (ExplorerLayout::kStatusZoom), point))
+    if (m_window.m_statusBar.OnZoomClick (ev))
     {
-        m_window.m_dispatch.Dispatch (CassoExplorerCommands::kZoomReset);
         return true;
     }
 
@@ -428,13 +425,11 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
     }
 
     m_window.m_treePane.UpdateTip   (ev, point);
-    m_window.m_tips.UpdateStatusTip (ev, point);
+    m_window.m_statusBar.UpdateTip  (ev, point);
     m_window.m_listPane.UpdateTip   (ev, point);
 
-    //  The status bar's CassoLink line opens the whole activity log.
-    if (press && ev.button == DxuiMouseButton::Left && CassoExplorerWindow::Contains (m_window.m_status->GetFieldRect (ExplorerLayout::kStatusFill), point) && !m_window.m_links.GetLatestActivity().empty())
+    if (m_window.m_statusBar.OnActivityClick (ev))
     {
-        m_window.m_links.ShowActivityLog();
         return true;
     }
 

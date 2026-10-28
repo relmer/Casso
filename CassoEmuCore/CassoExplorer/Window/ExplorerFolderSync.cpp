@@ -534,7 +534,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
     m_window.m_listPane.RestoreView (after);
 
     m_window.m_previewPane.FillPreview();
-    m_window.m_layout.FillStatus();
+    m_window.m_statusBar.Fill();
     m_window.Invalidate();
 }
 

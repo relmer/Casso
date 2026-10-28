@@ -35,8 +35,8 @@ ExplorerTips::ExplorerTips (CassoExplorerWindow & window)
 void ExplorerTips::ShowHoverTip (TipOwner owner, const RECT & anchor, const std::wstring & text, float maxWidthDip)
 {
     m_tipOwner = owner;
-    m_window.m_tooltip.SetMaxTextWidthDip (maxWidthDip);
-    m_window.m_tooltip.RequestShow (anchor, text, CassoExplorerWindow::GetNowMs());
+    m_tooltip.SetMaxTextWidthDip (maxWidthDip);
+    m_tooltip.RequestShow (anchor, text, CassoExplorerWindow::GetNowMs());
 }
 
 
@@ -53,7 +53,7 @@ void ExplorerTips::HideHoverTip (TipOwner owner)
 {
     if (m_tipOwner == owner)
     {
-        m_window.m_tooltip.RequestHide (CassoExplorerWindow::GetNowMs());
+        m_tooltip.RequestHide (CassoExplorerWindow::GetNowMs());
         m_tipOwner = TipOwner::None;
     }
 }
@@ -64,33 +64,14 @@ void ExplorerTips::HideHoverTip (TipOwner owner)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerTips::UpdateStatusTip
-//
-//  The free space of a disk image says which disk it counts.
+//  ExplorerTips::Tick
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExplorerTips::UpdateStatusTip (const DxuiMouseEvent & ev, POINT point)
+void ExplorerTips::Tick (int64_t nowMs)
 {
-    const std::wstring &  tip      = m_window.m_browser.GetStatus().freeSpaceTip;
-    RECT                  anchor   = m_window.m_status->GetFieldRect (ExplorerLayout::kStatusFree);
-    RECT                  activity = m_window.m_status->GetFieldRect (ExplorerLayout::kStatusFill);
-
-
-
-    //  The CassoLink line's tip has the latest entries of the log.
-    if (ev.kind == DxuiMouseEventKind::Move && CassoExplorerWindow::Contains (activity, point) && !m_window.m_links.GetLatestActivity().empty())
+    if (m_tooltip.WantsTick())
     {
-        m_activityTip = m_window.m_links.FormatActivity (kActivityTipLines) + L"\nClick for the whole log.";
-        ShowHoverTip (TipOwner::Status, activity, m_activityTip.c_str(), kActivityTipWidthDip);
-        return;
+        m_tooltip.Tick (nowMs);
     }
-
-    if (ev.kind != DxuiMouseEventKind::Move || tip.empty() || !CassoExplorerWindow::Contains (anchor, point))
-    {
-        HideHoverTip (TipOwner::Status);
-        return;
-    }
-
-    ShowHoverTip (TipOwner::Status, anchor, tip.c_str());
 }

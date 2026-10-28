@@ -1165,7 +1165,7 @@ void ExplorerDispatch::ReportOutcome (const CassoExplorerActions::Outcome & outc
 {
     if (outcome.Succeeded())
     {
-        m_window.m_status->SetText (ExplorerLayout::kStatusDetail, std::format (L"{}: {} file(s)", verbName, outcome.written));
+        m_window.m_statusBar.SetDetail (std::format (L"{}: {} file(s)", verbName, outcome.written));
 
         //  For a copy salvaged from a damaged disk, what could not be read is shown.
         if (!outcome.warning.empty())

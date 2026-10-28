@@ -421,7 +421,7 @@ bool ExplorerToolbars::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouse
 
             if (took)
             {
-                m_window.m_tooltip.HideImmediate();
+                m_window.m_tips.HideImmediate();
                 m_tipMuted = toolbar.GetTooltipAt (x, y, m_tipMuteRect) != nullptr;
             }
 

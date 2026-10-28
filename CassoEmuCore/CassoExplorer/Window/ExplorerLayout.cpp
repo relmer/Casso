@@ -79,61 +79,7 @@ void ExplorerLayout::ConfigureWidgets()
         RecomputeLayout();
     });
 
-    m_window.m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
-                           { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
-
-    m_window.m_tabStrip.Configure();
-
-    m_window.m_addressBar.Configure();
-
-    m_window.m_browser.GetTypedPaths().Reset (m_window.m_prefs.typedPaths);
-    m_window.m_listPane.GetColumns().ApplyStoredColumnWidths();
-
-    m_window.m_folderSync.StartWatch();
-
-    //  Deletions made anywhere reach the bin, so its list follows them.
-    m_window.m_shellVerbs.WatchRecycleBin (m_window.GetHwnd(), CassoExplorerWindow::kRecycleBinMessage);
-
-    //  Slow shell folders, and host folders on the network, read on threads
-    //  of their own and post a message when done.
-    m_window.m_browser.GetShellListings().SetTarget (m_window.GetHwnd(), CassoExplorerWindow::kShellListedMessage);
-    m_window.m_browser.GetHostListings().SetTarget (m_window.GetHwnd(), CassoExplorerWindow::kShellListedMessage);
-    m_window.m_browser.GetHostListings().SetLister ([] (const std::wstring & path, std::vector<FileSystemEntry> & outEntries)
-    {
-        Win32FileSystem  fs;
-
-        return fs.EnumerateAllEntries (path, outEntries);
-    });
-
-    //  The CassoLink connections are under CassoLink; each is started when it is
-    //  opened, and posts here when an operation finishes or its state
-    //  changes.
-    if (m_window.m_context.links != nullptr)
-    {
-        m_window.m_context.links->SetTarget (m_window.GetHwnd(), CassoExplorerWindow::kLinkMessage);
-        m_window.m_context.links->SetLinks (m_window.m_prefs.links);
-        m_window.m_browser.SetLinks (m_window.m_context.links);
-        m_window.m_browser.GetTreeModel().SetLinks (m_window.m_context.links->BuildTreeEntries());
-        m_window.m_treePane.RefreshTree();
-        m_window.m_links.StartAdtProServers();
-    }
-
-    //  Each running Casso with a serial port on TCP is a root as well, read
-    //  now and again whenever a Casso starts, connects a port or exits.
-    if (m_window.m_context.links != nullptr && m_window.m_context.running != nullptr)
-    {
-        HWND             hwnd   = m_window.GetHwnd();
-        std::error_code  ignore;
-
-        std::filesystem::create_directories (m_window.m_context.running->GetFolder(), ignore);
-
-        if (m_window.m_context.watcher != nullptr)
-        {
-            m_window.m_context.watcher->Watch (m_window.m_context.running->GetFolder(), [hwnd] (const std::wstring &) { PostMessageW (hwnd, CassoExplorerWindow::kRunningMessage, 0, 0); });
-        }
-
-        m_window.m_links.OnRunningChanged();
-    }
+    m_window.m_statusBar.Configure();
 
     //  The tabs of the request, from the session or a torn-off tab, or Home.
     m_window.m_browser.RestoreTabs (std::move (m_window.m_context.request.tabs), m_window.m_context.request.activeTab);
@@ -228,7 +174,7 @@ void ExplorerLayout::ApplyTheme()
 
     if (m_window.m_toolbars.IsCreated())
     {
-        m_window.m_tooltip.SetTheme (*m_window.m_theme);
+        m_window.m_tips.ApplyTheme (*m_window.m_theme);
         m_window.m_addressBar.ApplyTheme (m_window.m_theme);
     }
 
@@ -283,7 +229,7 @@ void ExplorerLayout::RecomputeLayout()
     m_window.m_tabBand.SetThickness     (m_window.m_scaler.ToPx (kTabHeightDip));
     m_window.m_menuBand.SetThickness    ((int) std::floor (m_window.m_scaler.ToPxf (kCommandBarDip)));
     m_window.m_toolbarBand.SetThickness ((int) std::floor (m_window.m_scaler.ToPxf (kNavStripFillDip))   + DxuiToolbar::GetEdgePx (m_window.m_scaler));
-    m_window.m_statusBand.SetThickness  (m_window.m_scaler.ToPx (kStatusBandDip));
+    m_window.m_statusBand.SetThickness  (m_window.m_scaler.ToPx (ExplorerStatusBar::kStatusBandDip));
 
     m_window.m_dock.Arrange (m_window.m_client, m_window.m_scaler, bands);
 
@@ -303,9 +249,7 @@ void ExplorerLayout::RecomputeLayout()
 
     m_window.m_addressBar.Layout (m_window.m_toolbars.GetFreeRect(), m_window.m_toolbarBand.GetBounds(), body.right - body.left - m_window.m_scaler.ToPx (panes.tree));
 
-    m_window.m_tooltip.SetDpi (m_window.m_scaler.GetDpi());
-    m_window.m_tooltip.SetViewportSize (m_window.m_client.right - m_window.m_client.left, m_window.m_client.bottom - m_window.m_client.top);
-    m_window.m_status->Layout (m_window.m_statusBand.GetBounds(), m_window.m_scaler);
+    m_window.m_tips.Layout (m_window.m_scaler.GetDpi(), m_window.m_client.right - m_window.m_client.left, m_window.m_client.bottom - m_window.m_client.top);
 
     //  A narrow window has already taken each pane below its minimum, so
     //  the sash can go no further than where the fit put it.
@@ -344,7 +288,7 @@ void ExplorerLayout::RecomputeLayout()
         m_window.m_links.LayoutListActions();
     }
 
-    LayoutStatusFields();
+    m_window.m_statusBar.Layout (m_window.m_statusBand.GetBounds());
 
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_window.m_listPane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
@@ -352,82 +296,6 @@ void ExplorerLayout::RecomputeLayout()
     m_dropHits.Register (DxuiHitRect { m_window.m_tabStrip.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
 
     m_window.Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerLayout::FillStatus
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerLayout::FillStatus()
-{
-    const CassoExplorerBrowser::Status &  status = m_window.m_browser.GetStatus();
-    std::wstring                          detail = status.detail;
-
-
-
-    //  Bytes or characters selected in the preview take the detail section.
-    m_window.m_previewPane.TryGetSelectionDetail (detail);
-
-    //  A link operation's progress has the field while one is pending, so a
-    //  refill on a hover or a selection does not replace it between its
-    //  updates.
-    if (m_window.m_context.links != nullptr && !m_window.m_context.links->GetPendingJobs().empty())
-    {
-        detail                   = CassoLinkConnections::DescribeJobs (m_window.m_context.links->GetPendingJobs());
-        m_window.m_links.MarkJobsShown();
-    }
-
-    m_window.m_status->SetText (kStatusCount,    status.selection);
-    m_window.m_status->SetText (kStatusSelected, status.selected);
-    m_window.m_status->SetText (kStatusFree,     status.freeSpace);
-    m_window.m_status->SetText (kStatusDetail,   detail);
-    m_window.m_status->SetText (kStatusZoom,     std::format (L"{}%", m_window.m_prefs.previewZoom));
-    m_window.m_status->SetText (kStatusFill,     m_window.m_links.GetLatestActivity());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerLayout::LayoutStatusFields
-//
-//  The item count stretches, and free space follows it. The preview's two
-//  fields together are as wide as the preview pane, so they begin at its
-//  left edge; with the preview hidden they keep a fixed width.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerLayout::LayoutStatusFields()
-{
-    RECT   band    = m_window.m_statusBand.GetBounds();
-    bool   preview = m_window.m_prefs.previewVisible && (m_window.m_previewPane.GetRect().right > m_window.m_previewPane.GetRect().left);
-    RECT   sash    = m_window.m_previewSplitter->GetSashRect();
-    int    seam    = (int) (DxuiSplitter::GetSeam (sash.left, sash.right, m_window.m_scaler) + DxuiSplitter::GetLinePx (m_window.m_scaler));
-    int    zoomPx  = m_window.m_scaler.ToPx (kStatusZoomDip);
-    int    detail  = preview ? (std::max) ((int) band.right - seam - zoomPx, 0) : m_window.m_scaler.ToPx (kStatusDetailDip);
-
-
-
-    //  The detail field starts on the splitter's visible line: the lighter of
-    //  the two it draws in the middle of its sash, since the darker one is the
-    //  color of the panes beside it. The two dividers then meet.
-    m_window.m_status->SetFields ({ { L"", 0, false, -1, true },
-                           { L"", 0, false, -1, true },
-                           { L"", 0, true },
-                           { L"", kStatusFreeDip, false },
-                           { L"", 0, false, detail },
-                           { L"", kStatusZoomDip, false } });
-    m_window.m_status->Layout (band, m_window.m_scaler);
-
-    FillStatus();
 }
 
 

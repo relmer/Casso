@@ -144,7 +144,7 @@ void ExplorerPreview::Configure()
     grouped = m_hexView->SetGrouping (prefs.hexGrouping);
     IGNORE_RETURN_VALUE (grouped, true);
 
-    m_hexView->SetOnSelectionChanged ([this] () { m_window.m_layout.FillStatus(); });
+    m_hexView->SetOnSelectionChanged ([this] () { m_window.m_statusBar.Fill(); });
 
     //  The hex view's menu is its own; Go to is the browser's, added to it,
     //  and the view's choices are kept for the next run.
@@ -428,7 +428,7 @@ bool ExplorerPreview::OnMouse (const DxuiMouseEvent & ev)
     if (m_textView->IsInteracting())
     {
         m_textView->OnMouse (ev);
-        m_window.m_layout.FillStatus();
+        m_window.m_statusBar.Fill();
         m_window.Invalidate();
         return true;
     }
@@ -456,7 +456,7 @@ bool ExplorerPreview::OnMouse (const DxuiMouseEvent & ev)
         }
 
         m_textView->OnMouse (ev);
-        m_window.m_layout.FillStatus();
+        m_window.m_statusBar.Fill();
         m_window.Invalidate();
         return true;
     }
@@ -740,7 +740,7 @@ bool ExplorerPreview::OnKey (const DxuiKeyEvent & ev)
 
 
 
-    m_window.m_layout.FillStatus();
+    m_window.m_statusBar.Fill();
 
     return handled;
 }
@@ -1316,7 +1316,7 @@ void ExplorerPreview::SetPreviewZoom (int percent)
     m_picture->SetZoom  ((float) clamped / 100.0f);
     UpdateCrtPicture (false);
 
-    m_window.m_layout.FillStatus();
+    m_window.m_statusBar.Fill();
     m_window.Invalidate();
 }
 

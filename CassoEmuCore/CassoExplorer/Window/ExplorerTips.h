@@ -28,8 +28,6 @@ class ExplorerTips
 public:
     explicit ExplorerTips (CassoExplorerWindow & window);
 
-    static constexpr size_t  kActivityTipLines     = 10;
-    static constexpr float   kActivityTipWidthDip  = 720.0f;   // a log line, time and link and all, on one line
 
     //  Which part of the window the hover tooltip belongs to.
     enum class TipOwner { None, Toolbar, Tree, List, Status, Menu };
@@ -37,7 +35,14 @@ public:
     void  ShowHoverTip        (TipOwner owner, const RECT & anchor, const std::wstring & text,
                                float maxWidthDip = DxuiTooltip::kDefaultMaxTextWidthDip);
     void  HideHoverTip        (TipOwner owner);
-    void  UpdateStatusTip     (const DxuiMouseEvent & ev, POINT point);
+
+    //  The tooltip, which follows the pointer, at the window's DPI and size.
+    void  Create        (DxuiHwndSource * popupHost) { m_tooltip.SetPopupHost (popupHost); m_tooltip.SetFollowPointer (true); }
+    void  ApplyTheme    (const DxuiTheme & theme) { m_tooltip.SetTheme (theme); }
+    void  Layout        (UINT dpi, int widthPx, int heightPx) { m_tooltip.SetDpi (dpi); m_tooltip.SetViewportSize (widthPx, heightPx); }
+    void  HideImmediate () { m_tooltip.HideImmediate(); }
+    bool  WantsTick     () const { return m_tooltip.WantsTick() || m_tooltip.IsVisible(); }
+    void  Tick          (int64_t nowMs);
     void  UpdateListTip       (const DxuiMouseEvent & ev, POINT point);
     void  RefreshListTip      ();
 
@@ -46,9 +51,8 @@ private:
 
     CassoExplorerWindow  & m_window;
 
-    //  The text of the CassoLink line's tip, for as long as the tip is up.
-    std::wstring  m_activityTip;
-    POINT         m_listTipPoint  = {};   // where the pointer last was over the list
-    bool          m_listTipActive = false;
-    TipOwner      m_tipOwner      = TipOwner::None;
+    DxuiTooltip  m_tooltip;
+    POINT        m_listTipPoint  = {};   // where the pointer last was over the list
+    bool         m_listTipActive = false;
+    TipOwner     m_tipOwner      = TipOwner::None;
 };

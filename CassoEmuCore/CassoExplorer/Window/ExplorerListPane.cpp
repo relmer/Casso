@@ -112,7 +112,7 @@ void ExplorerListPane::Configure()
     {
         m_window.m_browser.SetSelectedRows (m_list->GetSelectedRows());
         m_window.m_previewPane.FillPreview();
-        m_window.m_layout.FillStatus();
+        m_window.m_statusBar.Fill();
         m_window.m_toolbars.UpdateCommandBar();
     });
 
@@ -817,7 +817,7 @@ void ExplorerListPane::FillList()
     m_window.m_addressBar.FillAddress();
     m_window.m_addressBar.FillNavTips();
     m_window.m_previewPane.FillPreview();
-    m_window.m_layout.FillStatus();
+    m_window.m_statusBar.Fill();
     m_window.Invalidate();
 }
 
@@ -1067,7 +1067,7 @@ bool ExplorerListPane::SelectRowNamed (const std::wstring & name)
             //  As a click on the row would: the preview, the status bar's
             //  count and the command bar follow the new selection.
             m_window.m_previewPane.FillPreview();
-            m_window.m_layout.FillStatus();
+            m_window.m_statusBar.Fill();
             m_window.m_toolbars.UpdateCommandBar();
             return true;
         }

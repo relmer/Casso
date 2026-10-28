@@ -1562,17 +1562,17 @@ void ExplorerLinks::RefreshLinkViews()
 
     if (!jobs.empty())
     {
-        m_window.m_status->SetText (ExplorerLayout::kStatusDetail, jobs);
+        m_window.m_statusBar.SetDetail (jobs);
         m_linkJobsShown = true;
     }
     else if (m_linkJobsShown)
     {
         m_linkJobsShown = false;
-        m_window.m_layout.FillStatus();
+        m_window.m_statusBar.Fill();
     }
 
     m_window.m_browser.GetTreeModel().SetLinks (m_window.m_context.links->BuildTreeEntries());
-    m_window.m_status->SetText (ExplorerLayout::kStatusFill, GetLatestActivity());
+    m_window.m_statusBar.SetActivity (GetLatestActivity());
 
     for (const CassoLinkSettings & settings : m_window.m_context.links->GetLinks())
     {

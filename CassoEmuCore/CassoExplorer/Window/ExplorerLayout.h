@@ -49,22 +49,6 @@ public:
     //  The widest a pane's message runs before it wraps.
     static constexpr int     kMessageWidthDip = 400;
 
-    //  The status bar's fields, left to right: Explorer's item count and
-    //  selection, flowing from the left; the space between; then free space,
-    //  the preview's detail and its zoom.
-    static constexpr size_t  kStatusCount    = 0;
-    static constexpr size_t  kStatusSelected = 1;
-    static constexpr size_t  kStatusFill     = 2;
-    static constexpr size_t  kStatusFree     = 3;
-    static constexpr size_t  kStatusDetail   = 4;
-    static constexpr size_t  kStatusZoom     = 5;
-
-    //  Status bar field widths: free space, and the preview's detail and zoom
-    //  when the preview is hidden and they cannot follow its edge.
-    static constexpr int   kStatusBandDip   = 26;   // Explorer's status bar, measured at 150%
-    static constexpr int   kStatusFreeDip   = 140;
-    static constexpr int   kStatusDetailDip = 280;
-    static constexpr int   kStatusZoomDip   = 64;
 
     //  The strip a pointer event goes to: the command bar over its band, the
     //  navigation toolbar anywhere else.
@@ -95,8 +79,6 @@ public:
     static bool  IsCassoThemeName (const std::string & name);
     void  RecomputeLayout();
     void  UpdateCommandBar();
-    void  FillStatus();
-    void  LayoutStatusFields ();
 
     //  The part of a pane a message wraps within.
     RECT  GetMessageRect (const RECT & pane) const;
