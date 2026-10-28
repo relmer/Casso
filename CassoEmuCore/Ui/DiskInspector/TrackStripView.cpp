@@ -200,11 +200,9 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
     PaintSeam      (painter, text, theme, track, g);
     PaintLabels    (painter, text, theme, track, g);
 
-    //  Where each nibble's value is drawn, its kind is drawn beside it.
-    if (GetCellPx (track) * s_kCellsPerNibble < digitsW + m_scaler.ToPxf (s_kValuePadDip))
-    {
-        PaintStretchLabels (text, track, g);
-    }
+    //  Where each nibble's value fills the bar, the stretch labels move to
+    //  the label row.
+    PaintStretchLabels (text, theme, track, g, GetCellPx (track) * s_kCellsPerNibble >= digitsW + m_scaler.ToPxf (s_kValuePadDip));
 }
 
 
@@ -215,12 +213,15 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  TrackStripView::PaintStretchLabels
 //
-//  Each stretch of one kind in view, labeled inside the visible part of it
-//  where the label fits: "Sync 20", "Address $0", "Data $0" (FR-035).
+//  Each stretch of one kind in view, labeled where the label fits: "Sync
+//  20", "Address $0", "Data $0" (FR-035). Centered inside the stretch while
+//  the bar has room; once nibble values fill the bar, in the label row at
+//  the left of the stretch's visible part, clear of the sector number and
+//  the write seam's label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g)
+void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, bool isInLabelRow)
 {
     RECT                          bar           = GetBarRect();
     static constexpr PlatterKind  kKindColors[] = { PlatterKind::Sync, PlatterKind::AddressField, PlatterKind::DataField, PlatterKind::Other };
@@ -230,8 +231,11 @@ void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const TrackAn
     std::array<StripSegment, 2>  parts  = {};
     float                        textPx = m_scaler.ToPxf (s_kLabelDip);
     float                        pad    = m_scaler.ToPxf (s_kPadDip);
+    float                        rowTop = static_cast<float> (m_boundsDip.top);
+    float                        rowH   = static_cast<float> (bar.top - m_boundsDip.top) - m_scaler.ToPxf (s_kSeamRuleDip);
     float                        textW  = 0;
     float                        textH  = 0;
+    float                        clearW = 0;
     std::wstring                 label;
 
 
@@ -264,7 +268,17 @@ void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const TrackAn
             float  x0 = std::max (parts[k].x0, static_cast<float> (bar.left));
             float  x1 = std::min (parts[k].x1, static_cast<float> (bar.right));
 
-            if (x1 - x0 >= textW + 2 * pad)
+            if (isInLabelRow)
+            {
+                clearW = GetLabelRowClearance (text, track, g, section, parts[k], x0, x1);
+
+                if (x1 - x0 >= clearW + textW + 2 * pad)
+                {
+                    text.DrawString (label.c_str(), x0 + clearW + pad, rowTop, x1 - x0 - clearW - pad, rowH, theme.ForegroundMuted(), textPx,
+                                     DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+                }
+            }
+            else if (x1 - x0 >= textW + 2 * pad)
             {
                 text.DrawString (label.c_str(), x0, static_cast<float> (bar.top), x1 - x0, static_cast<float> (bar.bottom - bar.top),
                                  DiskInspectorPalette::GetTextColorOn (m_context.palette.GetKindColor (kKindColors[static_cast<size_t> (section.kind)])), textPx,
@@ -272,6 +286,56 @@ void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const TrackAn
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetLabelRowClearance
+//
+//  How far from the left of a stretch's visible part its label in the
+//  label row starts: past the sector number over an address field whose
+//  start is in view, and past the write seam's label over the seam.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float TrackStripView::GetLabelRowClearance (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g, const NibbleSection & section,
+                                            const StripSegment & part, float x0, float x1) const
+{
+    std::array<StripSegment, 2>  seams  = {};
+    int                          count  = GetSeamSegments (track, g, seams);
+    float                        textPx = m_scaler.ToPxf (s_kLabelDip);
+    float                        pad    = m_scaler.ToPxf (s_kPadDip);
+    float                        clearW = 0;
+    float                        textW  = 0;
+    float                        textH  = 0;
+    std::wstring                 mark;
+
+
+
+    if (section.kind == NibbleSectionKind::Address && section.sectorIndex >= 0 && part.x0 >= x0)
+    {
+        const AnalyzedSector &  sector = track.sectors[static_cast<size_t> (section.sectorIndex)];
+
+        mark = std::wstring (DiskInspectorPalette::GetStateSymbol (sector.state)) + L" " + InspectorFormat::FormatSector (sector.sector).substr (1);
+        text.MeasureString (mark.c_str(), textPx, DxuiTheme::kBodyFace, textW, textH);
+        clearW = std::max (clearW, part.x0 + textW - x0);
+    }
+
+    text.MeasureString (s_kpszSeamLabel, textPx, DxuiTheme::kBodyFace, textW, textH);
+
+    for (int k = 0; k < count; k++)
+    {
+        if (seams[k].x1 > x0 && seams[k].x0 < x1 && seams[k].x1 - seams[k].x0 >= textW + pad)
+        {
+            clearW = std::max (clearW, (seams[k].x0 + seams[k].x1 + textW) / 2 - x0);
+        }
+    }
+
+    return clearW;
 }
 
 

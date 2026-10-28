@@ -66,7 +66,9 @@ private:
     void           PaintDividers   (IDxuiPainter & painter, const IDxuiTheme & theme, const StripGeometry & g, float top, float height);
     void           PaintSeam       (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
-    void           PaintStretchLabels (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g);
+    void           PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, bool isInLabelRow);
+    float          GetLabelRowClearance (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g, const NibbleSection & section,
+                                         const StripSegment & part, float x0, float x1) const;
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
     bool           IsOverSeam      (const TrackAnalysis & track, float xPx) const;
     bool           BuildTip        (POINT pointPx, InspectorTip & outTip) const;
