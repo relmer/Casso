@@ -208,7 +208,7 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     y += sectionGap;
 
-    y = m_attachment.Layout (x, y, labelWidth, noteWidth, { rowHeight, rowGap, sectionGap, noteHeight }, scaler);
+    y = m_attachment.Layout (x, y, labelWidth, dropWidth, { rowHeight, rowGap, sectionGap, noteHeight, noteWidth }, scaler);
 
     y += sectionGap;
 

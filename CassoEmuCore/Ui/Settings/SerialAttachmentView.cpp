@@ -244,6 +244,7 @@ int SerialAttachmentView::Layout (
     bool  isModem    = IsDevice (kpszSerialModem);
     bool  isConnect  = isTcp && !m_choice.options.listen;
     int   errorWidth = labelWidth + controlsWidth;
+    int   noteWidth  = (metrics.noteWidth > 0) ? metrics.noteWidth : controlsWidth;
     auto  row        = [&] (DxuiLabel & label, const wchar_t * text, IDxuiControl * control, int width, bool isShown)
     {
         label.SetVisible (isShown);
@@ -271,7 +272,7 @@ int SerialAttachmentView::Layout (
     m_noteText = GetNote (m_choice.device);
     m_note.SetVisible (!m_noteText.empty());
     m_note.SetText    (m_noteText);
-    m_note.SetRect    ({ controlsX, y, controlsX + controlsWidth, y + metrics.noteHeight });
+    m_note.SetRect    ({ controlsX, y, controlsX + noteWidth, y + metrics.noteHeight });
     m_note.SetDpi     (dpi);
 
     if (!m_noteText.empty())

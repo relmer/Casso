@@ -96,5 +96,6 @@ public:
         page.Layout   (kPage, scaler);
 
         Assert::IsTrue (page.GetAttachDropdown().GetBounds().bottom <= page.GetRowDropdown (0).GetBounds().top, L"the connector above the mode");
+        Assert::AreEqual (page.GetRowDropdown (0).GetBounds().right, page.GetAttachDropdown().GetBounds().right, L"and as wide as the switches' drop-downs");
     }
 };

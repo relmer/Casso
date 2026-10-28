@@ -47,6 +47,7 @@ public:
         int  rowGap     = 0;
         int  sectionGap = 0;
         int  noteHeight = 0;
+        int  noteWidth  = 0;     // the controls' width when 0
     };
 
     using BrowseFn = std::function<bool (bool forOutput, std::string & inOutPath)>;
