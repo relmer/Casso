@@ -219,7 +219,9 @@
     <ClCompile Include="Widgets\DxuiTabDragModel.cpp" />
     <ClCompile Include="Widgets\DxuiTabDragVisual.cpp" />
     <ClCompile Include="Widgets\DxuiShimmer.cpp" />
+    <ClCompile Include="Widgets\DxuiTabSlides.cpp" />
     <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
+    <ClCompile Include="Widgets\DxuiTabStripPainter.cpp" />
     <ClCompile Include="Widgets\DxuiTextInput.cpp" />
     <ClCompile Include="Widgets\DxuiToggle.cpp" />
     <ClCompile Include="Theme\DxuiTheme.cpp" />
@@ -351,7 +353,9 @@
     <ClInclude Include="Widgets\DxuiTabDragModel.h" />
     <ClInclude Include="Widgets\DxuiTabDragVisual.h" />
     <ClInclude Include="Widgets\DxuiShimmer.h" />
+    <ClInclude Include="Widgets\DxuiTabSlides.h" />
     <ClInclude Include="Widgets\DxuiTabStrip.h" />
+    <ClInclude Include="Widgets\DxuiTabStripPainter.h" />
     <ClInclude Include="Widgets\DxuiTextInput.h" />
     <ClInclude Include="Widgets\DxuiToggle.h" />
     <ClInclude Include="Widgets\DxuiSelectableText.h" />

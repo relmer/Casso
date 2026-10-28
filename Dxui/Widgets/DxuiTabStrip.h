@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 #include "Core/IDxuiControl.h"
+#include "Widgets/DxuiTabSlides.h"
+#include "Widgets/DxuiTabStripPainter.h"
 #include "Core/DxuiIconImage.h"
 
 
@@ -122,19 +124,19 @@ public:
     //  A tab dragged in from elsewhere, `widthPx` wide with the pointer at its
     //  center: a gap opens where it would drop, until it is cleared.
     //  GetIncomingIndex is where the tab would go, or -1 with none.
-    void  SetIncomingDrag   (int x, int widthPx);
-    void  ClearIncomingDrag ();
-    int   GetIncomingIndex  () const { return m_incoming ? m_gap : -1; }
+    void  SetIncomingDrag   (int x, int widthPx) { m_dragSlides.SetIncomingDrag (x, widthPx); }
+    void  ClearIncomingDrag () { m_dragSlides.ClearIncomingDrag(); }
+    int   GetIncomingIndex  () const { return m_dragSlides.GetIncomingIndex(); }
 
     //  The time slides are measured on, in milliseconds; GetTickCount64 by
     //  default. Slides run only while animations are enabled, which follows
     //  the system's setting unless set.
-    void  SetClock             (ClockFn fn) { m_clock = std::move (fn); }
-    void  SetAnimationsEnabled (bool on)    { m_animate = on; }
+    void  SetClock             (ClockFn fn) { m_dragSlides.SetClock (std::move (fn)); }
+    void  SetAnimationsEnabled (bool on)    { m_dragSlides.SetAnimationsEnabled (on); }
 
     //  True while any tab or the + button is sliding to its place; the host
     //  repaints until it is false.
-    bool  IsSliding () const;
+    bool  IsSliding () const { return m_dragSlides.IsSliding(); }
 
     //  Where tab `index` is drawn now, sliding included, in the strip's own
     //  coordinates.
@@ -152,16 +154,16 @@ public:
 
     //  Draws tab `index` as a dragged tab's card, `widthPx` by `heightPx` from
     //  the origin: its icon and its label, drawn as on the selected tab.
-    void  PaintFloatingTab (IDxuiTextRenderer & text, int index, float widthPx, float heightPx, uint32_t textArgb) const;
+    void  PaintFloatingTab (IDxuiTextRenderer & text, int index, float widthPx, float heightPx, uint32_t textArgb) const { m_painter.PaintFloatingTab (text, index, widthPx, heightPx, textArgb); }
 
     //  The Explorer style's selected tab fill, the color of the row it joins,
     //  and the icon face the close glyph is drawn in.
-    void  SetSelectedFill (uint32_t argb)        { m_selectedFill = argb; }
-    void  SetIconFace     (const wchar_t * face) { m_iconFace     = face; }
+    void  SetSelectedFill (uint32_t argb)        { m_painter.SetSelectedFill (argb); }
+    void  SetIconFace     (const wchar_t * face) { m_painter.SetIconFace (face); }
 
     //  The Explorer style's own strip fill, painted behind the tabs; none
     //  leaves the host's background showing.
-    void  SetStripFill    (uint32_t argb)        { m_stripFill    = argb; }
+    void  SetStripFill    (uint32_t argb)        { m_painter.SetStripFill (argb); }
 
     DxuiTabStripStyle        GetStyle      () const { return m_style;   }
     const std::vector<Tab> & GetTabs       () const { return m_tabs;    }
@@ -224,24 +226,10 @@ private:
     static constexpr float  s_kExplorerCloseGlyphDip  = 8.67f;
     static constexpr int    s_kCornerDip              = 6;   // the selected tab's rounded top corners
 
-    //  One tab's slide, or the + button's, from where it was drawn to where
-    //  it is going, in the strip's content coordinates.
-    struct Slide
-    {
-        float    from    = 0.0f;
-        float    to      = 0.0f;
-        int64_t  startMs = 0;
-    };
-
     void  Commit         (int newIndex);
     bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }
     int   GetMaxScrollPx () const;
     int   GetContentX    (int x) const { return x + m_scrollPx - GetArrowWidthPx(); }
-    int64_t  GetNowMs    () const;
-    float GetSlideLeft   (size_t item) const;
-    void  RetargetSlides ();
-    void  SnapSlides     ();
-    void  UpdateDragGap  ();
     void  EndDrag        (int x, int y);
     void  ClampScroll    ();
     void  ScrollIntoView (int index);
@@ -253,11 +241,9 @@ private:
     int   GetArrowAt     (int x, int y) const;
     bool  CanScroll      (int direction) const;
     void  ScrollByTab    (int direction);
-    void  PaintArrow     (IDxuiPainter & painter, IDxuiTextRenderer & text, int direction, uint32_t hoverArgb, uint32_t textArgb) const;
     int   GetNewTabWidthPx () const;
     RECT  GetNewTabRect  () const;
     bool  IsOverNewTab   (int x, int y) const;
-    void  PaintNewTab    (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const;
     RECT  GetCloseRect   (int index) const;
 
     //  The tab drawn as selected: none while the selected tab is the one being
@@ -266,21 +252,7 @@ private:
     int   GetPaintedSelection () const;
     bool  IsPainted      (int index) const { return !(m_dragging && index == m_pressed); }
 
-    //  A tab's hover fill, darker while pressed; and what a tab shows: the
-    //  strip, or its hover mixed onto the strip.
-    uint32_t  GetHoverFill        (int index, uint32_t hoverArgb) const;
-    uint32_t  GetBesideFill       (int index, uint32_t stripArgb, uint32_t hoverArgb) const;
     int       GetCloseAt          (int x, int y) const;
-    bool      HasTabIcon          (int index) const;
-    void      PaintTabIcon        (IDxuiTextRenderer & text, int index) const;
-    void      PaintTabClose       (IDxuiPainter & painter, IDxuiTextRenderer & text, int index, uint32_t glyphArgb, uint32_t washArgb, float cornerPx) const;
-    void      PaintStandard       (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                                   uint32_t hoverArgb, uint32_t underlineArgb,
-                                   uint32_t textArgb, uint32_t focusArgb) const;
-    void      PaintExplorer       (IDxuiPainter & painter, IDxuiTextRenderer & text,
-                                   uint32_t stripArgb, uint32_t hoverArgb, uint32_t fillArgb, uint32_t dividerArgb,
-                                   uint32_t textArgb, uint32_t focusArgb) const;
-    void      PaintExplorerThemed (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
 
 
     std::vector<Tab>   m_tabs;
@@ -297,15 +269,8 @@ private:
     bool               m_tornOff       = false;
     POINT              m_grab          = {};
     int                m_dragX         = 0;
-    int                m_gap           = -1;   // the slot the gap is open at, among the tabs not dragged
-    bool               m_incoming      = false;
-    int                m_incomingX     = 0;
-    int                m_incomingWidth = 0;
     DragFn             m_dragMove;
     DragFn             m_dragEnd;
-    std::vector<Slide> m_slides;               // one per tab, then the + button
-    ClockFn            m_clock;
-    bool               m_animate       = true;
     int                m_hoverArrow    = 0;   // -1 left, +1 right, 0 neither
     int                m_pressedArrow  = 0;
     NewTabFn           m_newTab;
@@ -315,10 +280,13 @@ private:
     CloseFn            m_close;
     int                m_hoverClose    = -1;
     int                m_pressedClose  = -1;
-    uint32_t           m_selectedFill  = 0;
-    uint32_t           m_stripFill     = 0;
-    const wchar_t *    m_iconFace      = L"Segoe MDL2 Assets";
     bool               m_enabled       = true;
     bool               m_focused       = false;
     DxuiDpiScaler      m_scaler;
+
+    friend class DxuiTabSlides;
+    friend class DxuiTabStripPainter;
+
+    DxuiTabSlides        m_dragSlides { *this };
+    DxuiTabStripPainter  m_painter    { *this };
 };

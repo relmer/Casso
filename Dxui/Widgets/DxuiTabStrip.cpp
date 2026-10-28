@@ -25,7 +25,7 @@
 DxuiTabStrip::DxuiTabStrip()
 {
     m_focusable = true;
-    m_animate   = DxuiSystemSettings::Instance().AreAnimationsEnabled();
+    m_dragSlides.m_animate   = DxuiSystemSettings::Instance().AreAnimationsEnabled();
 }
 
 
@@ -367,7 +367,7 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
         m_hover = -1;
         handled = true;
 
-        UpdateDragGap();
+        m_dragSlides.UpdateDragGap();
 
         if (m_dragMove)
         {
@@ -395,7 +395,7 @@ bool DxuiTabStrip::OnMouseMove (int x, int y)
 void DxuiTabStrip::EndDrag (int x, int y)
 {
     int    index   = m_pressed;
-    int    gap     = m_gap;
+    int    gap     = m_dragSlides.m_gap;
     bool   tornOff = m_tornOff;
     float  dropped = (float) (GetContentX (x) - m_grab.x);
 
@@ -414,14 +414,14 @@ void DxuiTabStrip::EndDrag (int x, int y)
     m_pressedNewTab = false;
     m_pressedClose  = -1;
 
-    UpdateDragGap();
+    m_dragSlides.UpdateDragGap();
 
-    if (!tornOff && index >= 0 && index < (int) m_tabs.size() && m_animate)
+    if (!tornOff && index >= 0 && index < (int) m_tabs.size() && m_dragSlides.m_animate)
     {
-        Slide &  slide = m_slides[(size_t) index];
+        DxuiTabSlides::Slide &  slide = m_dragSlides.m_slides[(size_t) index];
 
         slide.from    = dropped;
-        slide.startMs = GetNowMs();
+        slide.startMs = m_dragSlides.GetNowMs();
     }
 
     if (!tornOff)
@@ -451,300 +451,7 @@ void DxuiTabStrip::CancelDrag()
     m_dragging = false;
     m_tornOff  = false;
 
-    UpdateDragGap();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetIncomingDrag
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::SetIncomingDrag (int x, int widthPx)
-{
-    m_incoming      = true;
-    m_incomingX     = x;
-    m_incomingWidth = widthPx;
-
-    UpdateDragGap();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ClearIncomingDrag
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::ClearIncomingDrag()
-{
-    m_incoming = false;
-
-    UpdateDragGap();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateDragGap
-//
-//  Where the gap is, for the tab dragged along the strip or the one dragged
-//  in, and the slides that open it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::UpdateDragGap()
-{
-    std::vector<int>  widths;
-    int               origin = m_tabs.empty() ? 0 : (int) m_tabs.front().rect.left;
-    int               width  = 0;
-
-
-
-    for (const Tab & tab : m_tabs)
-    {
-        widths.push_back ((int) (tab.rect.right - tab.rect.left));
-    }
-
-    m_gap = -1;
-
-    if (m_dragging && !m_tornOff && m_pressed >= 0 && m_pressed < (int) widths.size())
-    {
-        width = widths[(size_t) m_pressed];
-        m_gap = DxuiTabDragModel::GetGapIndex (widths, m_pressed, origin, GetContentX (m_dragX) - m_grab.x, width);
-    }
-    else if (!m_dragging && m_incoming)
-    {
-        width = m_incomingWidth;
-        m_gap = DxuiTabDragModel::GetGapIndex (widths, -1, origin, GetContentX (m_incomingX) - width / 2, width);
-    }
-
-    RetargetSlides();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RetargetSlides
-//
-//  Each tab, and the + button after them, slides from where it is drawn now
-//  to where the drag puts it. With no drag, that is where the host laid it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::RetargetSlides()
-{
-    std::vector<int>  widths;
-    std::vector<int>  lefts;
-    int               origin  = m_tabs.empty() ? 0 : (int) m_tabs.front().rect.left;
-    int               end     = m_tabs.empty() ? 0 : (int) m_tabs.back().rect.right;
-    int               dragged = m_dragging ? m_pressed : -1;
-    int64_t           now     = GetNowMs();
-    size_t            i       = 0;
-
-
-
-    if (m_slides.size() != m_tabs.size() + 1)
-    {
-        SnapSlides();
-    }
-
-    for (const Tab & tab : m_tabs)
-    {
-        widths.push_back ((int) (tab.rect.right - tab.rect.left));
-        lefts.push_back  ((int) tab.rect.left);
-    }
-
-    if (m_dragging || m_incoming)
-    {
-        DxuiTabDragModel::GetLefts (widths, dragged, origin, m_gap,
-                                    m_dragging ? ((dragged >= 0) ? widths[(size_t) dragged] : 0) : m_incomingWidth,
-                                    lefts, end);
-    }
-
-    lefts.push_back (end);
-
-    for (i = 0; i < m_slides.size(); i++)
-    {
-        Slide &  slide = m_slides[i];
-        float    to    = (float) lefts[i];
-
-        if (slide.to != to)
-        {
-            slide.from    = m_animate ? GetSlideLeft (i) : to;
-            slide.to      = to;
-            slide.startMs = now;
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SnapSlides
-//
-//  Every tab and the + button straight to where the host laid them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::SnapSlides()
-{
-    size_t  i = 0;
-
-
-
-    m_slides.assign (m_tabs.size() + 1, Slide());
-
-    for (i = 0; i < m_slides.size(); i++)
-    {
-        float  left = (i < m_tabs.size()) ? (float) m_tabs[i].rect.left : (m_tabs.empty() ? 0.0f : (float) m_tabs.back().rect.right);
-
-        m_slides[i].from = left;
-        m_slides[i].to   = left;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetNowMs
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int64_t DxuiTabStrip::GetNowMs() const
-{
-    return m_clock ? m_clock() : (int64_t) GetTickCount64();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetSlideLeft
-//
-//  Where item `item` is drawn now: a tab by its index, or the + button after
-//  the last of them, easing out toward its place.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-float DxuiTabStrip::GetSlideLeft (size_t item) const
-{
-    Slide    slide;
-    float    left    = 0.0f;
-    int64_t  elapsed = 0;
-
-
-
-    if (item >= m_slides.size())
-    {
-        return (item < m_tabs.size()) ? (float) m_tabs[item].rect.left : (m_tabs.empty() ? 0.0f : (float) m_tabs.back().rect.right);
-    }
-
-    slide   = m_slides[item];
-    elapsed = GetNowMs() - slide.startMs;
-    left    = slide.to;
-
-    if (m_animate && slide.from != slide.to && elapsed >= 0 && elapsed < s_kSlideMs)
-    {
-        left = slide.from + (slide.to - slide.from) * DxuiAnimation::ApplyEase (DxuiTweenEase::EaseOut, (float) elapsed / (float) s_kSlideMs);
-    }
-
-    return left;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsSliding
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTabStrip::IsSliding() const
-{
-    int64_t  now     = GetNowMs();
-    bool     sliding = false;
-
-
-
-    for (const Slide & slide : m_slides)
-    {
-        sliding = sliding || (m_animate && slide.from != slide.to && now - slide.startMs < s_kSlideMs);
-    }
-
-    return sliding;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintFloatingTab
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintFloatingTab (IDxuiTextRenderer & text, int index, float widthPx, float heightPx, uint32_t textArgb) const
-{
-    HRESULT       hr      = S_OK;
-    float         iconPx  = m_scaler.ToPxf ((float) s_kIconDip);
-    float         labelX  = m_scaler.ToPxf ((float) s_kLabelInsetDip);
-    float         labelW  = (std::max) (widthPx - labelX - m_scaler.ToPxf (kLabelPadXDip), 0.0f);
-    float         fontPx  = m_scaler.ToPxf (kExplorerLabelFontDip);
-    std::wstring  shown;
-
-
-
-    BAIL_OUT_IF (index < 0 || index >= (int) m_tabs.size(), S_OK);
-
-    if (HasTabIcon (index))
-    {
-        const DxuiIconImage  & icon = *m_tabs[(size_t) index].icon;
-
-        hr = text.DrawIconBitmap (icon.bgraPremul.data(), icon.width, icon.height,
-                                  m_scaler.ToPxf ((float) s_kIconInsetDip), (heightPx - iconPx) * 0.5f, iconPx, iconPx);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    shown = DxuiTextElide::ToWidth (text, m_tabs[(size_t) index].label, fontPx, GetLabelFace(), labelW, DxuiElide::Tail);
-
-    hr = text.DrawString (shown.c_str(),
-                          labelX, 0.0f, labelW, heightPx,
-                          textArgb,
-                          fontPx,
-                          GetLabelFace(),
-                          DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Center,
-                          DxuiFontWeight::SemiBold,
-                          false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-Error:
-    return;
+    m_dragSlides.UpdateDragGap();
 }
 
 
@@ -821,10 +528,10 @@ void DxuiTabStrip::SetTabs (std::vector<Tab> tabs)
 
     if (!keepSlides)
     {
-        SnapSlides();
+        m_dragSlides.SnapSlides();
     }
 
-    UpdateDragGap();
+    m_dragSlides.UpdateDragGap();
     ClampScroll();
 }
 
@@ -922,7 +629,7 @@ void DxuiTabStrip::MoveDraggedTab (int to)
 {
     int   from   = m_pressed;
     LONG  left   = 0;
-    bool  slides = m_slides.size() == m_tabs.size() + 1;
+    bool  slides = m_dragSlides.m_slides.size() == m_tabs.size() + 1;
 
 
 
@@ -944,11 +651,11 @@ void DxuiTabStrip::MoveDraggedTab (int to)
 
     if (slides && from < to)
     {
-        std::rotate (m_slides.begin() + from, m_slides.begin() + from + 1, m_slides.begin() + to + 1);
+        std::rotate (m_dragSlides.m_slides.begin() + from, m_dragSlides.m_slides.begin() + from + 1, m_dragSlides.m_slides.begin() + to + 1);
     }
     else if (slides)
     {
-        std::rotate (m_slides.begin() + to, m_slides.begin() + from, m_slides.begin() + from + 1);
+        std::rotate (m_dragSlides.m_slides.begin() + to, m_dragSlides.m_slides.begin() + from, m_dragSlides.m_slides.begin() + from + 1);
     }
 
     for (Tab & tab : m_tabs)
@@ -1118,55 +825,6 @@ void DxuiTabStrip::ScrollByTab (int direction)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaintArrow
-//
-//  A triangle, dimmed when there is nothing further to scroll to, with the
-//  hover fill only when it can act.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintArrow (IDxuiPainter & painter, IDxuiTextRenderer & text, int direction, uint32_t hoverArgb, uint32_t textArgb) const
-{
-    constexpr float  s_kArrowFontDip   = 9.0f;
-    constexpr float  s_kArrowIdleScale = 0.35f;
-    constexpr float  s_kPressedScale   = 0.82f;
-
-
-
-    HRESULT   hr      = S_OK;
-    int       arrow   = GetArrowWidthPx();
-    float     left    = (float) ((direction < 0) ? (int) m_boundsDip.left : GetViewRight());
-    float     top     = (float) m_boundsDip.top;
-    float     height  = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    bool      enabled = CanScroll (direction);
-    uint32_t  color   = enabled ? textArgb : DxuiColor::Scale (textArgb, s_kArrowIdleScale);
-
-
-
-    if (enabled && m_hoverArrow == direction)
-    {
-        painter.FillRect (left, top, (float) arrow, height,
-                          (m_pressedArrow == direction) ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
-    }
-
-    hr = text.DrawString ((direction < 0) ? s_kpszTriangleLeft : s_kpszTriangleRight,
-                          left, top, (float) arrow, height,
-                          color,
-                          m_scaler.ToPxf (s_kArrowFontDip),
-                          DxuiTheme::GetUiFace(),
-                          DxuiTextHAlign::Center,
-                          DxuiTextVAlign::Center,
-                          DxuiFontWeight::Normal,
-                          false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  GetNewTabWidthPx
 //
 //  Zero with no new-tab handler, so a strip without one has no + button.
@@ -1209,7 +867,7 @@ RECT DxuiTabStrip::GetNewTabRect() const
         {
             //  It slides along after the last tab as a drag opens and closes
             //  the gap.
-            left = (LONG) std::lround (GetSlideLeft (m_tabs.size())) + GetArrowWidthPx() - m_scrollPx;
+            left = (LONG) std::lround (m_dragSlides.GetSlideLeft (m_tabs.size())) + GetArrowWidthPx() - m_scrollPx;
         }
 
         //  The gap is before the button, not part of it.
@@ -1249,52 +907,6 @@ bool DxuiTabStrip::IsOverNewTab (int x, int y) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaintNewTab
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintNewTab (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t hoverArgb, uint32_t textArgb) const
-{
-    constexpr float  s_kGlyphDip     = 12.0f;
-    constexpr float  s_kHoverInset   = 4.0f;
-    constexpr float  s_kPressedScale = 0.82f;
-
-
-
-    HRESULT  hr    = S_OK;
-    RECT     rc    = GetNewTabRect();
-    float    inset = m_scaler.ToPxf (s_kHoverInset);
-
-
-
-    //  Explorer's: a rounded box inside the button's span, and the icon font's
-    //  thin Add glyph rather than a heavy text plus.
-    if (m_hoverNewTab)
-    {
-        painter.FillRoundedRect ((float) rc.left + inset, (float) rc.top + inset,
-                                 (float) (rc.right - rc.left) - inset * 2.0f, (float) (rc.bottom - rc.top) - inset * 2.0f,
-                                 m_scaler.ToPxf ((float) s_kCornerDip),
-                                 m_pressedNewTab ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
-    }
-
-    hr = text.DrawString (s_kpszMdl2Add,
-                          (float) rc.left, (float) rc.top, (float) (rc.right - rc.left), (float) (rc.bottom - rc.top),
-                          textArgb,
-                          m_scaler.ToPxf (s_kGlyphDip),
-                          DxuiTextRenderer::IsFontFamilyInstalled (L"Segoe Fluent Icons") ? L"Segoe Fluent Icons" : L"Segoe MDL2 Assets",
-                          DxuiTextHAlign::Center,
-                          DxuiTextVAlign::Center,
-                          DxuiFontWeight::Normal,
-                          false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  GetTabScreenRect
 //
 //  Where tab `index` is drawn: where it has slid to, moved by the scroll and
@@ -1306,7 +918,7 @@ RECT DxuiTabStrip::GetTabScreenRect (int index) const
 {
     const RECT &  r     = m_tabs[(size_t) index].rect;
     int           shift = GetArrowWidthPx() - m_scrollPx;
-    LONG          left  = (LONG) std::lround (GetSlideLeft ((size_t) index));
+    LONG          left  = (LONG) std::lround (m_dragSlides.GetSlideLeft ((size_t) index));
 
 
 
@@ -1429,497 +1041,11 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     if (m_style == DxuiTabStripStyle::Explorer)
     {
-        PaintExplorer (painter, text, kExplorerStrip, kExplorerHover, kExplorerSelected, kExplorerDivider, kExplorerText, kFocusRing);
+        m_painter.PaintExplorer (painter, text, kExplorerStrip, kExplorerHover, kExplorerSelected, kExplorerDivider, kExplorerText, kFocusRing);
     }
     else
     {
-        PaintStandard (painter, text, kStandardHover, kStandardSelected, kStandardText, kFocusRing);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::GetHoverFill
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t DxuiTabStrip::GetHoverFill (int index, uint32_t hoverArgb) const
-{
-    constexpr float  s_kPressedScale = 0.82f;   // armed-tab tint, a touch darker than hover
-
-
-
-    return (index == m_pressed && index == m_hover) ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::GetBesideFill
-//
-//  The hover is translucent over the strip, so it is mixed onto it here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-uint32_t DxuiTabStrip::GetBesideFill (int index, uint32_t stripArgb, uint32_t hoverArgb) const
-{
-    uint32_t  hover = 0;
-
-
-
-    if (index < 0 || index >= (int) m_tabs.size() || index != m_hover)
-    {
-        return stripArgb;
-    }
-
-    hover = GetHoverFill (index, hoverArgb);
-
-    return DxuiColor::Mix (stripArgb, hover | 0xFF000000u, (float) (hover >> 24) / 255.0f);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::HasTabIcon
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DxuiTabStrip::HasTabIcon (int index) const
-{
-    const Tab  & t = m_tabs[(size_t) index];
-
-
-
-    return t.icon && !t.icon->bgraPremul.empty();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::PaintTabIcon
-//
-//  Draws tab `index`'s icon, if it has one, near its left edge and centered
-//  on its height.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintTabIcon (IDxuiTextRenderer & text, int index) const
-{
-    HRESULT  hr     = S_OK;
-    RECT     r      = GetTabScreenRect (index);
-    float    iconPx = m_scaler.ToPxf ((float) s_kIconDip);
-    float    height = (float) (r.bottom - r.top);
-
-
-
-    if (HasTabIcon (index))
-    {
-        const DxuiIconImage  & icon = *m_tabs[(size_t) index].icon;
-
-        hr = text.DrawIconBitmap (icon.bgraPremul.data(), icon.width, icon.height,
-                                  (float) r.left + m_scaler.ToPxf ((float) s_kIconInsetDip), (float) r.top + (height - iconPx) * 0.5f, iconPx, iconPx);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::PaintTabClose
-//
-//  Draws tab `index`'s close button: the glyph, over a faint wash of
-//  `washArgb` while hovered, a stronger one while pressed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintTabClose (
-    IDxuiPainter       & painter,
-    IDxuiTextRenderer  & text,
-    int                  index,
-    uint32_t             glyphArgb,
-    uint32_t             washArgb,
-    float                cornerPx) const
-{
-    constexpr uint32_t  kHoverAlpha   = 0x1F000000u;
-    constexpr uint32_t  kPressedAlpha = 0x33000000u;
-
-
-
-    HRESULT   hr    = S_OK;
-    RECT      close = GetCloseRect (index);
-    uint32_t  alpha = (m_pressedClose == index) ? kPressedAlpha : kHoverAlpha;
-
-
-
-    if (m_hoverClose == index)
-    {
-        painter.FillRoundedRect ((float) close.left, (float) close.top,
-                                 (float) (close.right - close.left), (float) (close.bottom - close.top), cornerPx,
-                                 (washArgb & 0x00FFFFFFu) | alpha);
-    }
-
-    hr = text.DrawString (s_kpszMdl2ChromeClose,
-                          (float) close.left, (float) close.top,
-                          (float) (close.right - close.left), (float) (close.bottom - close.top),
-                          glyphArgb,
-                          m_scaler.ToPxf ((m_style == DxuiTabStripStyle::Explorer) ? s_kExplorerCloseGlyphDip : (float) s_kCloseGlyphDip),
-                          m_iconFace,
-                          DxuiTextHAlign::Center,
-                          DxuiTextVAlign::Center,
-                          DxuiFontWeight::Normal,
-                          false);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::PaintStandard
-//
-//  The Standard style, with caller-supplied colors so the themed and fallback
-//  Paint entry points share one body.
-//
-//  A connected-tab look: the selected tab shares the page background (no
-//  chip fill) and is marked by a thick accent underline flush with the page
-//  edge; the rest are unfilled with dimmed labels, and a hovered or armed one
-//  gets a subtle fill hint. Each label is centered in its tab, inside the
-//  label pad; an icon or a close button takes its room from that box.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintStandard (
-    IDxuiPainter       & painter,
-    IDxuiTextRenderer  & text,
-    uint32_t             hoverArgb,
-    uint32_t             underlineArgb,
-    uint32_t             textArgb,
-    uint32_t             focusArgb) const
-{
-    constexpr float  kFocusThickDip  = 1.0f;
-    constexpr float  kFocusInsetDip  = 1.0f;
-    constexpr float  kPadYDip        = 4.0f;
-    constexpr float  kPressedScale   = 0.82f;   // armed-tab tint, a touch darker than hover
-    constexpr float  kUnderlineDip   = 3.0f;    // thick selected-tab underline
-    constexpr float  kMutedTextScale = 0.62f;   // dim unselected labels
-
-
-
-    HRESULT   hr         = S_OK;
-    int       i          = 0;
-    size_t    n          = m_tabs.size();
-    float     focusThick = m_scaler.ToPxf (kFocusThickDip);
-    float     focusInset = m_scaler.ToPxf (kFocusInsetDip);
-    float     padX       = m_scaler.ToPxf (kLabelPadXDip);
-    float     padY       = m_scaler.ToPxf (kPadYDip);
-    float     fontDip    = m_scaler.ToPxf (kLabelFontDip);
-    float     underline  = m_scaler.ToPxf (kUnderlineDip);
-    float     corner     = m_scaler.ToPxf (DxuiTheme::kCornerRadiusDip);
-    uint32_t  mutedText  = DxuiColor::Scale (textArgb, kMutedTextScale);
-    int       selected   = GetPaintedSelection();
-
-
-
-    if (IsOverflowing())
-    {
-        hr = text.PushClipRect ((float) GetViewLeft(), (float) m_boundsDip.top,
-                                (float) (GetViewRight() - GetViewLeft()), (float) (m_boundsDip.bottom - m_boundsDip.top));
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    for (i = 0; i < (int) n; ++i)
-    {
-        const Tab  & t       = m_tabs[(size_t) i];
-        RECT         r       = GetTabScreenRect (i);
-        float        width   = (float) (r.right  - r.left);
-        float        height  = (float) (r.bottom - r.top);
-        bool         isSel   = (i == selected);
-        bool         isHover = (i == m_hover);
-        bool         isArmed = (i == m_pressed && i == m_hover);
-        float        labelX  = (float) r.left + padX;
-        float        labelW  = width - padX * 2.0f;
-
-        if (!IsPainted (i))
-        {
-            continue;
-        }
-
-        if (!isSel && (isHover || isArmed))
-        {
-            painter.FillRoundedRect ((float) r.left, (float) r.top, width, height, corner,
-                                     isArmed ? DxuiColor::Darken (hoverArgb, kPressedScale) : hoverArgb);
-        }
-
-        if (isSel)
-        {
-            painter.FillRect ((float) r.left, (float) r.bottom - underline, width, underline, underlineArgb);
-        }
-
-        if (m_focused && m_focusCueVisible && isSel)
-        {
-            painter.OutlineRoundedRect ((float) r.left + focusInset, (float) r.top + focusInset,
-                                        width - focusInset * 2.0f, height - focusInset * 2.0f,
-                                        corner, focusThick, focusArgb);
-        }
-
-        if (HasTabIcon (i))
-        {
-            PaintTabIcon (text, i);
-
-            labelX = (float) r.left + m_scaler.ToPxf ((float) s_kLabelInsetDip);
-            labelW = (std::max) ((float) r.right - padX - labelX, 0.0f);
-        }
-
-        if (m_close)
-        {
-            PaintTabClose (painter, text, i, isSel ? textArgb : mutedText, textArgb, corner);
-
-            labelW = (std::max) ((float) GetCloseRect (i).left - labelX, 0.0f);
-        }
-
-        hr = text.DrawString (t.label.c_str(),
-                              labelX,
-                              (float) r.top + padY,
-                              labelW,
-                              height - padY * 2.0f,
-                              isSel ? textArgb : mutedText,
-                              fontDip,
-                              GetLabelFace(),
-                              DxuiTextHAlign::Center,
-                              DxuiTextVAlign::Center);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (IsOverflowing())
-    {
-        hr = text.PopClipRect();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
-        PaintArrow (painter, text, -1, hoverArgb, textArgb);
-        PaintArrow (painter, text,  1, hoverArgb, textArgb);
-    }
-
-    if (GetNewTabWidthPx() > 0)
-    {
-        PaintNewTab (painter, text, hoverArgb, textArgb);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::PaintExplorer
-//
-//  The Explorer style, with caller-supplied colors so the themed and
-//  fallback Paint entry points share one body.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintExplorer (
-    IDxuiPainter       & painter,
-    IDxuiTextRenderer  & text,
-    uint32_t             stripArgb,
-    uint32_t             hoverArgb,
-    uint32_t             fillArgb,
-    uint32_t             dividerArgb,
-    uint32_t             textArgb,
-    uint32_t             focusArgb) const
-{
-    constexpr float  s_kFocusThickDip  = 1.0f;
-    constexpr float  s_kFocusInsetDip  = 1.0f;
-    constexpr float  s_kDividerDip     = 16.0f;
-    constexpr float  s_kMutedTextScale = 0.8f;    // Explorer's #CCCCCC on an unselected tab
-    constexpr float  s_kBaseLineDip    = 1.0f;    // Explorer's 2 px at 150%
-    constexpr float  s_kBaseLineScale  = 0.9f;    // Explorer's #1D1D1D under #202020
-
-
-
-    HRESULT   hr         = S_OK;
-    int       i          = 0;
-    size_t    n          = m_tabs.size();
-    float     focusThick = m_scaler.ToPxf (s_kFocusThickDip);
-    float     focusInset = m_scaler.ToPxf (s_kFocusInsetDip);
-    float     padX       = m_scaler.ToPxf (kLabelPadXDip);
-    float     fontDip    = m_scaler.ToPxf (kExplorerLabelFontDip);
-    float     corner     = m_scaler.ToPxf ((float) s_kCornerDip);
-    float     dividerH   = m_scaler.ToPxf (s_kDividerDip);
-    float     baseLine   = (std::max) (1.0f, std::round (m_scaler.ToPxf (s_kBaseLineDip)));
-    uint32_t  mutedText  = DxuiColor::Scale (textArgb, s_kMutedTextScale);
-    int       selected   = GetPaintedSelection();
-
-
-
-    //  File Explorer's tabs: the selected one is filled with the
-    //  row below and joins it, rounded at the top and square at the bottom;
-    //  the rest are unfilled, split by short dividers, with dimmer labels.
-    if (HasBounds())
-    {
-        hr = text.PushClipRect ((float) GetViewLeft(), (float) m_boundsDip.top,
-                                (float) (GetViewRight() - GetViewLeft()), (float) (m_boundsDip.bottom - m_boundsDip.top));
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    //  Explorer's strip ends in a darker line the selected tab breaks, and
-    //  which a hovered tab stops short of.
-    //  It is black laid over the strip, which darkens an opaque strip by the
-    //  same amount and darkens a backdrop showing through an empty one too,
-    //  and it stops at the selected tab, whose translucent fill would show it.
-    if (HasBounds())
-    {
-        float     lineTop   = (float) m_boundsDip.bottom - baseLine;
-        float     viewLeft  = (float) GetViewLeft();
-        float     viewRight = (float) GetViewRight();
-        uint32_t  lineArgb  = (uint32_t) std::lround ((1.0f - s_kBaseLineScale) * 255.0f) << 24;
-
-        if (selected >= 0 && selected < (int) n)
-        {
-            RECT  sel = GetTabScreenRect (selected);
-
-            painter.FillRect (viewLeft,         lineTop, (std::max) (0.0f, (float) sel.left - viewLeft),   baseLine, lineArgb);
-            painter.FillRect ((float) sel.right, lineTop, (std::max) (0.0f, viewRight - (float) sel.right), baseLine, lineArgb);
-        }
-        else
-        {
-            painter.FillRect (viewLeft, lineTop, viewRight - viewLeft, baseLine, lineArgb);
-        }
-    }
-
-    //  Fills first, so no fill covers another tab's label or close button;
-    //  the selected tab last.
-    for (i = 0; i < (int) n; ++i)
-    {
-        RECT  r = GetTabScreenRect (i);
-
-        //  Explorer's hovered tab: rounded at the top, square where it meets
-        //  the row below, with a 1 px edge halfway between it and the strip
-        //  along its top and sides.
-        if (i != selected && i == m_hover && IsPainted (i))
-        {
-            float     left   = (float) r.left;
-            float     top    = (float) r.top;
-            float     width  = (float) (r.right - r.left);
-            float     height = (float) (r.bottom - r.top) - baseLine;
-            uint32_t  fill   = GetBesideFill (i, stripArgb, fillArgb);
-            uint32_t  edge   = DxuiColor::Mix (stripArgb, fill, 0.5f);
-
-            painter.FillRoundedRect (left, top, width, height, corner, edge);
-            painter.FillRect        (left, top + height - corner, width, corner, edge);
-            painter.FillRoundedRect (left + 1.0f, top + 1.0f, width - 2.0f, height - 1.0f, (std::max) (corner - 1.0f, 0.0f), fill);
-            painter.FillRect        (left + 1.0f, top + height - corner, width - 2.0f, corner, fill);
-        }
-    }
-
-    if (selected >= 0 && selected < (int) n)
-    {
-        RECT   r      = GetTabScreenRect (selected);
-        float  left   = (float) r.left;
-        float  top    = (float) r.top;
-        float  width  = (float) (r.right - r.left);
-        float  height = (float) (r.bottom - r.top);
-        float  bottom = top + height;
-
-        //  The rounded top is clipped short of the square bottom, so a
-        //  translucent fill is laid down once everywhere.
-        painter.PushClipRect    (left, top, width, height - corner);
-        painter.FillRoundedRect (left, top, width, height, corner, fillArgb);
-        painter.PopClipRect();
-        painter.FillRect        (left, bottom - corner, width, corner, fillArgb);
-    }
-
-    for (i = 0; i < (int) n; ++i)
-    {
-        const Tab  & t       = m_tabs[(size_t) i];
-        RECT         r       = GetTabScreenRect (i);
-        float        left    = (float) r.left;
-        float        top     = (float) r.top;
-        float        width   = (float) (r.right - r.left);
-        float        height  = (float) (r.bottom - r.top);
-        float        bottom  = top + height;
-        bool         isSel   = (i == selected);
-        bool         isHover = (i == m_hover);
-        bool         isArmed = (i == m_pressed && i == m_hover);
-        bool         nextLit = (i + 1 == selected) || (i + 1 == m_hover);
-        float        labelX  = left + m_scaler.ToPxf ((float) s_kLabelInsetDip);
-        float        labelR  = (float) r.right - padX;
-        std::wstring shown;
-
-        if (!IsPainted (i))
-        {
-            continue;
-        }
-
-        if (!isSel && !isHover && !isArmed && !nextLit && i + 1 < (int) n)
-        {
-            painter.FillRect (left + width - 1.0f, top + (height - dividerH) * 0.5f, 1.0f, dividerH, dividerArgb);
-        }
-
-        if (m_focused && m_focusCueVisible && isSel)
-        {
-            painter.OutlineRoundedRect (left + focusInset, top + focusInset,
-                                        width - focusInset * 2.0f, height - focusInset * 2.0f,
-                                        corner, focusThick, focusArgb);
-        }
-
-        PaintTabIcon (text, i);
-
-        if (m_close)
-        {
-            PaintTabClose (painter, text, i, isSel ? textArgb : mutedText, textArgb, corner);
-
-            labelR = (float) GetCloseRect (i).left;
-        }
-
-        //  A label wider than its room is cut off with an ellipsis, never wrapped.
-        shown = DxuiTextElide::ToWidth (text, t.label, fontDip, GetLabelFace(), (std::max) (labelR - labelX, 0.0f), DxuiElide::Tail);
-
-        hr = text.DrawString (shown.c_str(),
-                              labelX, top, (std::max) (labelR - labelX, 0.0f), height,
-                              isSel ? textArgb : mutedText,
-                              fontDip,
-                              GetLabelFace(),
-                              DxuiTextHAlign::Left,
-                              DxuiTextVAlign::Center,
-                              isSel ? DxuiFontWeight::SemiBold : DxuiFontWeight::Normal,
-                              false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (HasBounds())
-    {
-        hr = text.PopClipRect();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    if (GetArrowWidthPx() > 0)
-    {
-        PaintArrow (painter, text, -1, hoverArgb, textArgb);
-        PaintArrow (painter, text,  1, hoverArgb, textArgb);
-    }
-
-    if (GetNewTabWidthPx() > 0)
-    {
-        PaintNewTab (painter, text, hoverArgb, textArgb);
+        m_painter.PaintStandard (painter, text, kStandardHover, kStandardSelected, kStandardText, kFocusRing);
     }
 }
 
@@ -1973,80 +1099,17 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 {
     if (m_style == DxuiTabStripStyle::Explorer)
     {
-        PaintExplorerThemed (painter, text, theme);
+        m_painter.PaintExplorerThemed (painter, text, theme);
     }
     else
     {
         //  The selection color marks the selected tab's underline and hover is
         //  a subtle fill hint; unselected tabs blend with the page.
-        PaintStandard (painter, text,
+        m_painter.PaintStandard (painter, text,
                        theme.HoverBackground(),
                        theme.SelectionBackground(),
                        theme.Foreground(),
                        theme.FocusRing());
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiTabStrip::PaintExplorerThemed
-//
-//  The Explorer style in the theme's colors, with the host's strip and
-//  selected fills where it gives them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiTabStrip::PaintExplorerThemed (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const
-{
-    uint32_t  fill  = (m_selectedFill != 0) ? m_selectedFill : theme.BackgroundElevated();
-    uint32_t  strip = (m_stripFill    != 0) ? m_stripFill    : theme.Background();
-    uint32_t  hover = (theme.Foreground() & 0x00FFFFFFu) | 0x14000000u;
-
-
-
-    //  The strip's own fill, when the host gives one, goes down first.
-    if (m_stripFill != 0 && HasBounds())
-    {
-        painter.FillRect ((float) m_boundsDip.left, (float) m_boundsDip.top,
-                          (float) (m_boundsDip.right - m_boundsDip.left), (float) (m_boundsDip.bottom - m_boundsDip.top), m_stripFill);
-    }
-
-    //  The selected tab takes the color of the row it joins, which the host
-    //  gives; without one it takes the elevated surface. A hovered tab is a
-    //  faint wash of the text color, which reads in either theme, as Explorer's
-    //  gray does, where the theme's hover is a saturated selection color.
-    PaintExplorer (painter, text,
-                   strip,
-                   hover,
-                   fill,
-                   theme.Divider(),
-                   theme.Foreground(),
-                   theme.FocusRing());
-
-    //  Explorer's light theme lines the strip's bottom, except under the
-    //  selected tab, which joins the row below.
-    if (theme.TabStripEdge() != 0 && HasBounds())
-    {
-        float  line   = (std::max) (1.0f, m_scaler.ToPxf (1.0f));
-        float  bottom = (float) m_boundsDip.bottom - line;
-        float  left   = (float) m_boundsDip.left;
-        float  right  = (float) m_boundsDip.right;
-        int    sel    = GetPaintedSelection();
-        RECT   tab    = (sel >= 0 && sel < (int) m_tabs.size()) ? GetTabScreenRect (sel) : RECT {};
-
-        if (tab.right > tab.left)
-        {
-            painter.FillRect (left, bottom, (std::max) (0.0f, (float) tab.left - left), line, theme.TabStripEdge());
-            painter.FillRect ((float) tab.right, bottom, (std::max) (0.0f, right - (float) tab.right), line, theme.TabStripEdge());
-        }
-        else
-        {
-            painter.FillRect (left, bottom, right - left, line, theme.TabStripEdge());
-        }
     }
 }
 
