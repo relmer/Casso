@@ -77,9 +77,8 @@ ShellHistory::~ShellHistory() = default;
 
 void ShellHistory::LoadSettings()
 {
-    m_isOn           = m_settings.isRecording;
-    m_budgetMb       = m_settings.budgetMb;
-    m_intervalFrames = m_settings.intervalFrames;
+    m_isOn     = m_settings.isRecording;
+    m_budgetMb = m_settings.budgetMb;
 }
 
 
@@ -158,7 +157,7 @@ void ShellHistory::StartRecording()
 
     if (!isFromSaved)
     {
-        hr = m_reverseHost->StartRecording (ReverseHost::MakeSettings (m_budgetMb, m_intervalFrames));
+        hr = m_reverseHost->StartRecording (ReverseHost::MakeSettings (m_budgetMb, static_cast<int> (KeyframeSettings::kDefaultFrames)));
     }
 
     if (FAILED (hr))
@@ -234,7 +233,7 @@ void ShellHistory::ApplyOptions (
 {
     HRESULT  hr          = S_OK;
     bool     wasOn       = m_isOn && IsRecording();
-    size_t   budgetBytes = ReverseHost::MakeSettings (budgetMb, m_intervalFrames).keyframes.budgetBytes;
+    size_t   budgetBytes = ReverseHost::MakeSettings (budgetMb, static_cast<int> (KeyframeSettings::kDefaultFrames)).keyframes.budgetBytes;
 
 
 
@@ -282,24 +281,20 @@ Error:
 //  SaveOptions
 //
 //  UI thread: saved, and posted to the CPU thread, which owns the history
-//  and applies the recording and budget at once. The interval is read when
-//  history next starts, since a keyframe interval changed under recorded
-//  history would mix two schedules.
+//  and applies them at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ShellHistory::SaveOptions (
     bool  isRecording,
-    int   budgetMb,
-    int   intervalFrames)
+    int   budgetMb)
 {
     bool  isCanceled = m_settings.isRecording && !isRecording && !ConfirmTurnOff();
 
 
 
-    m_settings.isRecording    = isRecording || isCanceled;
-    m_settings.budgetMb       = budgetMb;
-    m_settings.intervalFrames = std::clamp (intervalFrames, 1, HistorySettings::kMaxIntervalFrames);
+    m_settings.isRecording = isRecording || isCanceled;
+    m_settings.budgetMb    = budgetMb;
     m_host.SaveSettings();
 
     m_host.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (m_settings.isRecording, budgetMb));
@@ -346,8 +341,8 @@ bool ShellHistory::ConfirmTurnOff()
 //  RunMenuCommand
 //
 //  UI thread. A command not enabled now, as an accelerator can send, does
-//  nothing. Rewind from the menu steps back one frame, the stretch F2 steps
-//  each frame it is down; it and Step back pause a running machine first.
+//  nothing. Rewind and Forward from the menu move ten seconds, and they and
+//  Step back pause a running machine first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -366,7 +361,12 @@ void ShellHistory::RunMenuCommand (WORD id)
     {
         case IDM_HISTORY_REWIND:
             PauseMachine();
-            PostCommand (ReverseCommand::RewindFrame);
+            PostCommand (ReverseCommand::SkipBack);
+            break;
+
+        case IDM_HISTORY_FORWARD:
+            PauseMachine();
+            PostCommand (ReverseCommand::SkipForward);
             break;
 
         case IDM_HISTORY_STEP_BACK:
@@ -379,7 +379,7 @@ void ShellHistory::RunMenuCommand (WORD id)
             break;
 
         case IDM_HISTORY_TOGGLE:
-            isSaved = SaveOptions (!m_settings.isRecording, m_settings.budgetMb, m_settings.intervalFrames);
+            isSaved = SaveOptions (!m_settings.isRecording, m_settings.budgetMb);
             IGNORE_RETURN_VALUE (isSaved, false);
             break;
 
@@ -432,6 +432,7 @@ bool ShellHistory::IsMenuItemEnabled (
             isEnabled = isOn && !isAtOldest;
             break;
 
+        case IDM_HISTORY_FORWARD:
         case IDM_HISTORY_GO_LIVE:
             isEnabled = isOn && isBehindLive;
             break;

@@ -65,7 +65,8 @@ public:
     static void             FillBudget   (const KeyframeStore & store, HistoryStatus & status);
 
 private:
-    HRESULT  Move (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
+    HRESULT  Move        (ReverseCommand command, uint64_t argument, IReverseStopTest * stopTest, ReverseResult & result);
+    HRESULT  SkipForward (ReverseResult & result);
 
     MachineHost            & m_machine;
     ReverseController        m_controller;

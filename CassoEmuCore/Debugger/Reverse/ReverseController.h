@@ -113,6 +113,7 @@ class ReverseController : public HistoryRecorder
 public:
     static constexpr uint64_t  kScanlineCycles = 65;
     static constexpr uint64_t  kFrameCycles    = KeyframeSettings::kFrameCycles;
+    static constexpr uint64_t  kSkipCycles     = kFrameCycles * 600;   // ten seconds
 
     //  Asked, live, whether the call record shows that no call made at or
     //  after the given cycle, where history begins, entered the code now

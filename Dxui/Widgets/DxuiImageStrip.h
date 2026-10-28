@@ -171,6 +171,7 @@ private:
     void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
     void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintMarks       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  PaintBranchArt   (IDxuiTextRenderer & text, float x, float y, float sizePx, uint32_t ink);
     void  TrackFlyout      (int x, int y);
     void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);
     void  GetLabelSpan     (IDxuiTextRenderer & text, const std::wstring & label, float centerX, float & outLeft, float & outWidth) const;
@@ -222,6 +223,9 @@ private:
 
     std::vector<DxuiStripMark>  m_marks;   // the source's marks, read each paint
     std::vector<MarkBadge>      m_badges;  // where the last paint placed them
+    std::vector<uint32_t>       m_branchArt;            // a branch mark's pixels, redrawn when the size or ink changes
+    int                         m_branchArtSize = 0;
+    uint32_t                    m_branchArtInk  = 0;
     DxuiStripFlyout             m_flyout;
     DxuiStripPreview            m_preview;
 };

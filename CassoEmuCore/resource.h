@@ -167,6 +167,7 @@
 #define IDM_HISTORY_STEP_BACK       40411
 #define IDM_HISTORY_GO_LIVE         40412
 #define IDM_HISTORY_TOGGLE          40413
+#define IDM_HISTORY_FORWARD         40414
 
 // 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
 // per action via the preview's Print / Save buttons, not a File-menu Eject).

@@ -63,6 +63,7 @@ void HistoryThumbnails::GetMarks (std::vector<DxuiStripMark> & outMarks)
                 continue;
             }
 
+            strip.art     = (mark.kind == HistoryMarkKind::Fork) ? DxuiStripMarkArt::Branch : DxuiStripMarkArt::Glyph;
             strip.glyph   = GetMarkGlyph (mark.kind);
             strip.count   = mark.count;
             strip.id      = mark.position;

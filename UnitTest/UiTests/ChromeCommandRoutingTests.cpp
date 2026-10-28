@@ -178,6 +178,7 @@ public:
         { L"IDM_HISTORY_STEP_BACK",         IDM_HISTORY_STEP_BACK         },
         { L"IDM_HISTORY_GO_LIVE",           IDM_HISTORY_GO_LIVE           },
         { L"IDM_HISTORY_TOGGLE",            IDM_HISTORY_TOGGLE            },
+        { L"IDM_HISTORY_FORWARD",           IDM_HISTORY_FORWARD           },
     };
 
     TEST_METHOD (Every_IDM_Value_Is_Unique)

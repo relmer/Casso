@@ -161,7 +161,7 @@ HRESULT ShellHistory::StartFromSaved()
     hr = RestoreMediaIds (contents.media);
     CHR (hr);
 
-    hr = m_reverseHost->StartRecordingFromSaved (ReverseHost::MakeSettings (m_budgetMb, m_intervalFrames), contents.keyframes);
+    hr = m_reverseHost->StartRecordingFromSaved (ReverseHost::MakeSettings (m_budgetMb, static_cast<int> (KeyframeSettings::kDefaultFrames)), contents.keyframes);
     CHR (hr);
 
     isBehind = contents.resumePosition < m_machine.GetPosition();

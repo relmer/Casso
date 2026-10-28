@@ -566,6 +566,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             case IDM_TAPE_FASTFORWARD: return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::FastForward, m_tapeDeck->GetTapeView());
             case IDM_TAPE_EJECT:       return m_tapeDeck->IsTapeRecorderShown() && TapeDeckWidget::IsRegionEnabled (TapeDeckRegion::Eject,       m_tapeDeck->GetTapeView());
             case IDM_HISTORY_REWIND:    return m_history->IsMenuCommandEnabled (commandId);
+            case IDM_HISTORY_FORWARD:   return m_history->IsMenuCommandEnabled (commandId);
             case IDM_HISTORY_STEP_BACK: return m_history->IsMenuCommandEnabled (commandId);
             case IDM_HISTORY_GO_LIVE:   return m_history->IsMenuCommandEnabled (commandId);
             default:           return true;

@@ -188,6 +188,57 @@ namespace DxuiImageStripMarkTests
         }
 
 
+        TEST_METHOD (ABranchMarkDrawsItsBranchWithTheCountBesideIt)
+        {
+            StripRig       rig;
+            DxuiStripMark  branch = MarkingSource::MakeMark (4.0f, 0, L"Other branches", 3);
+            RECT           badge  = {};
+            int            drawn  = 0;
+
+
+
+            branch.art       = DxuiStripMarkArt::Branch;
+            rig.source.marks = { branch };
+            rig.Paint();
+
+            badge = rig.strip.GetMarkBadges().front().rect;
+
+            for (const RecordedTextCall & call : rig.text.IconCalls())
+            {
+                bool  isSquare  = call.width == call.height && call.width > 1.0f && call.width < (float) (badge.bottom - badge.top);
+                bool  isInFirst = call.x >= (float) badge.left && call.x + call.width <= (float) (badge.left + badge.bottom - badge.top) + 0.5f;
+
+
+
+                drawn += (isSquare && isInFirst) ? 1 : 0;
+            }
+
+            Assert::AreEqual (1, drawn, L"the branch, drawn as a picture in the badge's first square");
+            Assert::AreEqual (1, rig.CountStrings (L"3"), L"the count beside it, with no glyph");
+        }
+
+
+        TEST_METHOD (TheBranchArtCoversBothLinesAndLeavesTheRestClear)
+        {
+            constexpr int          kSize  = 20;
+            std::vector<uint32_t>  pixels;
+            auto                   alphaAt = [&] (int x, int y) { return pixels[(size_t) y * kSize + (size_t) x] >> 24; };
+
+
+
+            DxuiBranchArt::Draw (kSize, 0xFFFFFFFFu, pixels);
+
+            Assert::AreEqual<size_t> (kSize * kSize, pixels.size());
+            Assert::IsTrue (alphaAt (1,  15) > 128, L"the main line at the left edge");
+            Assert::IsTrue (alphaAt (18, 15) > 128, L"the main line at the right edge");
+            Assert::IsTrue (alphaAt (18, 4)  > 128, L"the branch at the right edge, above it");
+            Assert::AreEqual (0u, alphaAt (1,  1),  L"clear above the main line at the left");
+            Assert::AreEqual (0u, alphaAt (18, 10), L"clear between the lines at the right");
+            Assert::AreEqual (0u, alphaAt (10, 19), L"clear below the main line");
+            Assert::AreEqual ((pixels[15 * kSize + 1] >> 16) & 0xFFu, alphaAt (1, 15), L"premultiplied by its coverage");
+        }
+
+
         TEST_METHOD (MarksTooCloseToTellApartShareABadge)
         {
             StripRig  rig;

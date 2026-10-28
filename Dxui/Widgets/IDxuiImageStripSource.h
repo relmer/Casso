@@ -10,10 +10,29 @@ struct DxuiIconImage;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiStripMarkArt
+//
+//  What a mark's badge draws: its glyph from the glyph font, or a branch
+//  drawn by DxuiBranchArt.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+enum class DxuiStripMarkArt
+{
+    Glyph,
+    Branch,
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiStripMark
 //
 //  A mark along a strip: where it is, in cells from the leading edge as the
-//  playhead's offset is, the glyph drawn for it, a count beside the glyph
+//  playhead's offset is, the art and glyph drawn for it, a count beside it
 //  when above 1, its tip, the source's key for it, and whether resting the
 //  pointer on it opens a flyout of rows rather than a tip.
 //
@@ -21,12 +40,13 @@ struct DxuiIconImage;
 
 struct DxuiStripMark
 {
-    float         offset  = 0.0f;
-    wchar_t       glyph   = 0;
-    int           count   = 1;
-    std::wstring  tip;
-    uint64_t      id      = 0;
-    bool          hasRows = false;
+    float             offset  = 0.0f;
+    DxuiStripMarkArt  art     = DxuiStripMarkArt::Glyph;
+    wchar_t           glyph   = 0;
+    int               count   = 1;
+    std::wstring      tip;
+    uint64_t          id      = 0;
+    bool              hasRows = false;
 };
 
 

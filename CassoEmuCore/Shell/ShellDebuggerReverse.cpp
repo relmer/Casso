@@ -394,9 +394,8 @@ ReverseOptions ShellDebugger::GetReverseOptions()
 
 
 
-    options.isRecording    = m_history.GetSettings().isRecording;
-    options.budgetMb       = m_history.GetSettings().budgetMb;
-    options.intervalFrames = m_history.GetSettings().intervalFrames;
+    options.isRecording = m_history.GetSettings().isRecording;
+    options.budgetMb    = m_history.GetSettings().budgetMb;
     return options;
 }
 
@@ -416,7 +415,7 @@ void ShellDebugger::SetReverseOptions (const ReverseOptions & options)
 
 
 
-    isSaved = m_history.SaveOptions (options.isRecording, options.budgetMb, options.intervalFrames);
+    isSaved = m_history.SaveOptions (options.isRecording, options.budgetMb);
     IGNORE_RETURN_VALUE (isSaved, false);
 }
 

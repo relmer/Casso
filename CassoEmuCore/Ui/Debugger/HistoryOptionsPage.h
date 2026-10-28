@@ -13,14 +13,13 @@
 //  HistoryOptionsPage
 //
 //  The History tab of the debugger's Options and of Settings: the check box
-//  that turns history recording on, the memory budget as a slider over
+//  that turns history recording on, and the memory budget as a slider over
 //  ReverseBudget's range, with the estimated time of history under it, at
-//  the recording's rate once it has one, and the frames between keyframes,
-//  which apply from the next start of history.
+//  the recording's rate once it has one.
 //
-//  A SAVED BUDGET OR INTERVAL ABOVE ITS RANGE IS NOT CHANGED BY OPENING THE
-//  PAGE. The slider is placed at its maximum, and the page returns the saved
-//  value while the slider is where it was placed.
+//  A SAVED BUDGET ABOVE THE RANGE IS NOT CHANGED BY OPENING THE PAGE. The
+//  slider is placed at its maximum, and the page returns the saved value while
+//  the slider is where it was placed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +37,6 @@ public:
     DxuiCheckbox  & GetRecordCheckbox ()       { return m_record;   }
     DxuiSlider    & GetBudgetSlider   ()       { return m_budget;   }
     DxuiLabel     & GetEstimateLabel  ()       { return m_estimate; }
-    DxuiSlider    & GetIntervalSlider ()       { return m_interval; }
 
 private:
     static constexpr int  kPagePadDp     = 16;
@@ -47,11 +45,6 @@ private:
     static constexpr int  kSectionGapDp  = 18;
     static constexpr int  kSliderWidthDp = 420;
 
-    // The interval slider's range and ticks, in video frames; the settings
-    // allow more, for a preferences file edited by hand.
-    static constexpr int  kMaxSliderFrames = 60;
-    static constexpr int  kFrameTick       = 5;
-
     static RECT  MakeRect (int l, int t, int w, int h);
     void         UpdateEstimate ();
 
@@ -59,11 +52,7 @@ private:
     DxuiLabel     m_budgetLabel;
     DxuiSlider    m_budget;
     DxuiLabel     m_estimate;
-    DxuiLabel     m_intervalLabel;
-    DxuiSlider    m_interval;
     int           m_savedBudgetMb  = ReverseOptions::kDefaultBudgetMb;
     int           m_placedMb       = ReverseOptions::kDefaultBudgetMb;
-    int           m_savedFrames    = ReverseOptions::kDefaultIntervalFrames;
-    int           m_placedFrames   = ReverseOptions::kDefaultIntervalFrames;
     HistoryStatus m_status;
 };

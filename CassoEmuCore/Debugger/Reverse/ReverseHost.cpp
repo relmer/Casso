@@ -314,6 +314,14 @@ HRESULT ReverseHost::Move (
             hr = m_controller.StepBackCycles (ReverseController::kFrameCycles, result);
             break;
 
+        case ReverseCommand::SkipBack:
+            hr = m_controller.StepBackCycles (ReverseController::kSkipCycles, result);
+            break;
+
+        case ReverseCommand::SkipForward:
+            hr = SkipForward (result);
+            break;
+
         case ReverseCommand::SwitchBranch:
             hr = m_controller.SwitchBranch (static_cast<uint32_t> (argument), result);
             break;
@@ -321,6 +329,46 @@ HRESULT ReverseHost::Move (
         default:
             CBRAEx (false, E_INVALIDARG);
             break;
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SkipForward
+//
+//  Ten seconds toward the live end along the active path, or to the live end
+//  when it is nearer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT ReverseHost::SkipForward (ReverseResult & result)
+{
+    HRESULT   hr     = S_OK;
+    EmuCpu  * cpu    = m_machine.GetCpu();
+    uint64_t  target = 0;
+
+
+
+    CBRA (cpu);
+
+    target = cpu->GetHistoryCycles() + ReverseController::kSkipCycles;
+
+    if (target >= m_controller.GetLiveEndCycle())
+    {
+        hr = m_controller.SeekToPosition (m_controller.GetLiveEndPosition(), result);
+    }
+    else
+    {
+        hr = m_controller.SeekToCycle (target, result);
     }
 
     CHR (hr);

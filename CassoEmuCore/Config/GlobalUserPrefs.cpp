@@ -86,7 +86,6 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "settingsHeightDip",
     "reverseRecording",
     "reverseBudgetMb",
-    "reverseIntervalFrames",
     "autoUpdateCheck",
     "autoSaveMachineState",
     "lastUpdateCheckUtc",
@@ -1342,9 +1341,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     }
 
     // The machine history.
-    root.emplace_back ("reverseRecording",      JsonValue (history.isRecording));
-    root.emplace_back ("reverseBudgetMb",       JsonValue ((double) history.budgetMb));
-    root.emplace_back ("reverseIntervalFrames", JsonValue ((double) history.intervalFrames));
+    root.emplace_back ("reverseRecording", JsonValue (history.isRecording));
+    root.emplace_back ("reverseBudgetMb",  JsonValue ((double) history.budgetMb));
 
     // The update check.
     root.emplace_back ("autoUpdateCheck",    JsonValue (autoUpdateCheck));
@@ -1638,12 +1636,11 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     settingsWidthDip  = std::max (GetIntOpt (v, "settingsWidthDip",  settingsWidthDip),  0);
     settingsHeightDip = std::max (GetIntOpt (v, "settingsHeightDip", settingsHeightDip), 0);
 
-    // The machine history: a budget below a few megabytes holds
-    // almost nothing, and a keyframe more than ten seconds apart makes every
-    // step back replay that long.
-    history.isRecording    = TryGetBoolOpt (v, "reverseRecording", history.isRecording);
-    history.budgetMb       = std::clamp (GetIntOpt (v, "reverseBudgetMb",       history.budgetMb),       HistorySettings::kMinBudgetMb, HistorySettings::kMaxBudgetMb);
-    history.intervalFrames = std::clamp (GetIntOpt (v, "reverseIntervalFrames", history.intervalFrames), 1,                             HistorySettings::kMaxIntervalFrames);
+    // The machine history; a budget below a few megabytes records almost
+    // nothing. An older build's reverseIntervalFrames is not read, and is
+    // written back as an unknown key for the builds that read it.
+    history.isRecording = TryGetBoolOpt (v, "reverseRecording", history.isRecording);
+    history.budgetMb    = std::clamp (GetIntOpt (v, "reverseBudgetMb", history.budgetMb), HistorySettings::kMinBudgetMb, HistorySettings::kMaxBudgetMb);
 
     // The update check; absent keys keep struct defaults.
     autoUpdateCheck    = TryGetBoolOpt (v, "autoUpdateCheck", autoUpdateCheck);

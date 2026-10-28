@@ -210,7 +210,7 @@ WindowCommandRoute WindowCommandManager::GetCommandRoute (int id)
     else if (id == IDM_PRINTER_MODERN_FAILED)                              { route = WindowCommandRoute::PrinterModernFailed; }
     else if (id == IDM_PRINTER_PREVIEW)                                    { route = WindowCommandRoute::PrinterPreview; }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { route = WindowCommandRoute::Help; }
-    else if (id >= IDM_HISTORY_REWIND && id <= IDM_HISTORY_TOGGLE)          { route = WindowCommandRoute::History; }
+    else if (id >= IDM_HISTORY_REWIND && id <= IDM_HISTORY_FORWARD)          { route = WindowCommandRoute::History; }
     else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { route = WindowCommandRoute::ExternalDrive; }
     else if (id == IDM_MOUSE_CONNECT ||

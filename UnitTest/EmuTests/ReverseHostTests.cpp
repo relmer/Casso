@@ -388,6 +388,37 @@ public:
     }
 
 
+    //  The History menu's ten-second skips stop at the ends of history: the
+    //  rig's history is shorter than a skip, so back lands at the oldest
+    //  position and forward at the live end.
+    TEST_METHOD (TheSkipsStopAtTheEndsOfHistory)
+    {
+        TestMachine    machine ("Apple2e");
+        ReverseHost    host    (machine);
+        ReverseResult  result;
+        HRESULT        hr      = S_OK;
+        uint64_t       liveEnd = 0;
+
+
+
+        PrepareRecording (machine, host);
+
+        liveEnd = machine.GetPosition();
+
+        hr = host.Execute (ReverseCommand::SkipBack, 0, nullptr, result);
+        AssertSucceeded (hr, L"SkipBack");
+
+        Assert::IsTrue             (result.outcome == ReverseOutcome::AtHistoryStart, L"at the start of history");
+        Assert::AreEqual<uint64_t> (host.GetController().GetOldestPosition(), machine.GetPosition(), L"at the oldest position");
+        Assert::IsTrue             (host.IsBehindLive(), L"behind live");
+
+        hr = host.Execute (ReverseCommand::SkipForward, 0, nullptr, result);
+        AssertSucceeded (hr, L"SkipForward");
+
+        Assert::AreEqual<uint64_t> (liveEnd, machine.GetPosition(), L"at the live end");
+        Assert::IsFalse            (host.IsBehindLive(), L"live");
+    }
+
     //  Reverse continue needs a stop test; without one nothing moves and the
     //  command fails rather than claiming a landing.
     TEST_METHOD (ReverseContinueWithoutAStopTestFailsInPlace)

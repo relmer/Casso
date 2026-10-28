@@ -94,7 +94,7 @@ public:
     static constexpr const wchar_t *  kpszTurnOffButton = L"&Turn off";
 
     const HistorySettings &  GetSettings       () const { return m_settings; }
-    bool                     SaveOptions       (bool isRecording, int budgetMb, int intervalFrames);
+    bool                     SaveOptions       (bool isRecording, int budgetMb);
     void                     SetConfirmTurnOff (ConfirmFn confirm) { m_confirmTurnOff = std::move (confirm); }
 
     // UI thread: the History menu's commands, and whether each is enabled:
@@ -230,7 +230,6 @@ private:
     bool                          m_isOn              = false;   // the settings, read when the CPU thread starts and changed by the options
     bool                          m_isNetworkFenced   = false;   // the Uthernet II was in use at the last check, so history is off
     int                           m_budgetMb          = 0;
-    int                           m_intervalFrames    = 0;
     std::optional<ReverseOutcome> m_lastOutcome;                 // the last reverse command's, for the history band
     uint64_t                      m_lastPosition      = 0;       // where it landed
     std::atomic<bool>             m_isRewindKeyDown   = false;   // the UI thread's: the rewind key is down

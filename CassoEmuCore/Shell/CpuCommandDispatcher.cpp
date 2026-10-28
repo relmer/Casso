@@ -30,6 +30,8 @@ static constexpr std::pair<ReverseCommand, const char *>  s_kReverseWords[] =
     { ReverseCommand::ScrubCycle,      "scrub-cycle" },
     { ReverseCommand::GoLive,          "live"       },
     { ReverseCommand::RewindFrame,     "rewind"     },
+    { ReverseCommand::SkipBack,        "skip-back"  },
+    { ReverseCommand::SkipForward,     "skip-forward" },
     { ReverseCommand::SwitchBranch,    "switch"     },
 };
 

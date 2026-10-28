@@ -12,9 +12,9 @@
 //
 //  ReverseOptions
 //
-//  The history settings an options page edits: whether history recording
-//  is on, the memory budget for its snapshots, and how many video frames
-//  apart they are taken.
+//  Reverse execution's settings: whether history recording is on, and the
+//  memory budget for its snapshots. Snapshots are taken
+//  kDefaultIntervalFrames video frames apart.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,9 +23,8 @@ struct ReverseOptions
     static constexpr int  kDefaultBudgetMb       = 64;
     static constexpr int  kDefaultIntervalFrames = 10;
 
-    bool  isRecording    = true;
-    int   budgetMb       = kDefaultBudgetMb;
-    int   intervalFrames = kDefaultIntervalFrames;
+    bool  isRecording = true;
+    int   budgetMb    = kDefaultBudgetMb;
 };
 
 

@@ -230,11 +230,9 @@ public:
 
         Assert::IsTrue (defaults.history.isRecording, L"history is on by default");
         Assert::AreEqual (HistorySettings::kDefaultBudgetMb, defaults.history.budgetMb);
-        Assert::AreEqual (HistorySettings::kDefaultFrames,   defaults.history.intervalFrames);
 
-        orig.history.isRecording    = false;
-        orig.history.budgetMb       = 128;
-        orig.history.intervalFrames = 4;
+        orig.history.isRecording = false;
+        orig.history.budgetMb    = 128;
 
         hr = orig.Save (L"C:\\Casso", fs);
         AssertSucceeded (hr);
@@ -252,8 +250,9 @@ public:
         AssertSucceeded (hr);
 
         Assert::IsFalse  (clamped.history.isRecording, L"the debugger options' key is read");
-        Assert::AreEqual (HistorySettings::kMinBudgetMb,       clamped.history.budgetMb,       L"a budget below the least clamps up");
-        Assert::AreEqual (HistorySettings::kMaxIntervalFrames, clamped.history.intervalFrames, L"an interval past the most clamps down");
+        Assert::AreEqual (HistorySettings::kMinBudgetMb, clamped.history.budgetMb, L"a budget below the least clamps up");
+        Assert::IsTrue   (std::ranges::any_of (clamped.unknownPassthrough, [] (const auto & entry) { return entry.first == "reverseIntervalFrames"; }),
+                          L"an older build's keyframe interval is kept for it");
     }
 
 

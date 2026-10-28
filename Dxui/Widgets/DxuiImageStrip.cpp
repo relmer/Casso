@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "DxuiImageStrip.h"
+#include "DxuiBranchArt.h"
 #include "Theme/DxuiTheme.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
@@ -925,8 +926,8 @@ void DxuiImageStrip::PaintHoverLine (
 //  DxuiImageStrip::PaintMarks
 //
 //  Each of the source's marks on a strip lying down: a thin line across the
-//  pictures at its offset, and its glyph in a badge on the pictures' bottom
-//  edge, with the count beside the glyph when it is above 1. A mark closer
+//  pictures at its offset, and its glyph or branch in a badge on the
+//  pictures' bottom edge, with the count beside it when it is above 1. A mark closer
 //  to the one before than a badge's width joins that badge, whose tip lists
 //  both. Drawn as pictures are, since pictures draw over shapes. The badges
 //  are saved for the tooltip's hit test.
@@ -951,6 +952,8 @@ void DxuiImageStrip::PaintMarks (
     uint32_t            ink        = theme.Foreground() | kOpaque;
     uint32_t            back       = (theme.Background() & kColorMask) | kBadgeArgb;
     std::wstring        label;
+    float               labelLeft  = 0.0f;
+    float               labelWidth = 0.0f;
     MarkBadge           placed;
 
 
@@ -974,7 +977,7 @@ void DxuiImageStrip::PaintMarks (
             continue;
         }
 
-        label = std::wstring (1, mark.glyph);
+        label = (mark.art == DxuiStripMarkArt::Glyph) ? std::wstring (1, mark.glyph) : std::wstring();
 
         if (mark.count > 1)
         {
@@ -989,9 +992,24 @@ void DxuiImageStrip::PaintMarks (
         hr = text.DrawIconBitmap (&back, 1, 1, along - width / 2.0f, top, width, badge);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        hr = text.DrawString (label.c_str(), along - width / 2.0f, top, width, badge, ink, size, kGlyphFace,
-                              DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
-        IGNORE_RETURN_VALUE (hr, S_OK);
+        labelLeft  = along - width / 2.0f;
+        labelWidth = width;
+
+        //  A branch takes the badge's first square, and the count the rest.
+        if (mark.art == DxuiStripMarkArt::Branch)
+        {
+            PaintBranchArt (text, labelLeft + (badge - size) / 2.0f, top + (badge - size) / 2.0f, size, ink);
+
+            labelLeft  += badge;
+            labelWidth -= badge;
+        }
+
+        if (!label.empty())
+        {
+            hr = text.DrawString (label.c_str(), labelLeft, top, labelWidth, badge, ink, size, kGlyphFace,
+                                  DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
 
         placed.rect    = RECT { (LONG) std::lround (along - width / 2.0f), (LONG) std::lround (top), (LONG) std::lround (along + width / 2.0f), m_rc.bottom };
         placed.along   = along;
@@ -1001,6 +1019,43 @@ void DxuiImageStrip::PaintMarks (
 
         m_badges.push_back (placed);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::PaintBranchArt
+//
+//  A branch mark's art, square at sizePx, drawn again only when its size or
+//  ink changed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::PaintBranchArt (
+    IDxuiTextRenderer  & text,
+    float                x,
+    float                y,
+    float                sizePx,
+    uint32_t             ink)
+{
+    HRESULT  hr     = S_OK;
+    int      sizeAt = std::max ((int) std::lround (sizePx), 1);
+
+
+
+    if (sizeAt != m_branchArtSize || ink != m_branchArtInk)
+    {
+        DxuiBranchArt::Draw (sizeAt, ink, m_branchArt);
+
+        m_branchArtSize = sizeAt;
+        m_branchArtInk  = ink;
+    }
+
+    hr = text.DrawIconBitmap (m_branchArt.data(), sizeAt, sizeAt, x, y, sizePx, sizePx);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

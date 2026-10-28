@@ -1946,9 +1946,8 @@ ReverseOptions SettingsSheet::MakeHistoryOptions (const HistorySettings & settin
 
 
 
-    options.isRecording    = settings.isRecording;
-    options.budgetMb       = settings.budgetMb;
-    options.intervalFrames = settings.intervalFrames;
+    options.isRecording = settings.isRecording;
+    options.budgetMb    = settings.budgetMb;
 
     return options;
 }
@@ -1982,9 +1981,9 @@ void SettingsSheet::CommitHistoryOptions()
     chosen = m_historyPage->GetOptions();
     saved  = MakeHistoryOptions (m_prefs->history);
 
-    if (chosen.isRecording != saved.isRecording || chosen.budgetMb != saved.budgetMb || chosen.intervalFrames != saved.intervalFrames)
+    if (chosen.isRecording != saved.isRecording || chosen.budgetMb != saved.budgetMb)
     {
-        isSaved = m_emuShell->GetHistory().SaveOptions (chosen.isRecording, chosen.budgetMb, chosen.intervalFrames);
+        isSaved = m_emuShell->GetHistory().SaveOptions (chosen.isRecording, chosen.budgetMb);
         IGNORE_RETURN_VALUE (isSaved, false);
     }
 }

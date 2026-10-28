@@ -105,7 +105,10 @@ namespace ShellHistoryTests
             Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_STEP_BACK, true,  true,  true),  L"step back, at the oldest point");
             Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_STEP_BACK, false, false, false), L"step back, history off");
 
-            //  Go live: behind live.
+            //  Forward and go live: behind live.
+            Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_FORWARD,   true,  true,  false), L"forward, behind live");
+            Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_FORWARD,   true,  false, false), L"forward, live");
+            Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_FORWARD,   false, true,  false), L"forward, history off");
             Assert::IsTrue  (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_GO_LIVE,   true,  true,  false), L"go live, behind live");
             Assert::IsFalse (ShellHistory::IsMenuItemEnabled (IDM_HISTORY_GO_LIVE,   true,  false, false), L"go live, live");
 
@@ -160,7 +163,7 @@ namespace ShellHistoryTests
 
             history.SetConfirmTurnOff ([&asked] { asked++; return false; });
 
-            isSaved = history.SaveOptions (false, kBudgetMb, HistorySettings::kDefaultFrames);
+            isSaved = history.SaveOptions (false, kBudgetMb);
 
             Assert::AreEqual (1, asked, L"the confirmation is shown");
             Assert::IsFalse  (isSaved, L"the change is canceled");
@@ -179,13 +182,13 @@ namespace ShellHistoryTests
 
             history.SetConfirmTurnOff ([&asked] { asked++; return true; });
 
-            isSaved = history.SaveOptions (false, kBudgetMb, HistorySettings::kDefaultFrames);
+            isSaved = history.SaveOptions (false, kBudgetMb);
 
             Assert::AreEqual (1, asked, L"the confirmation is shown");
             Assert::IsTrue   (isSaved, L"the change is made");
             Assert::IsFalse  (history.GetSettings().isRecording, L"history is off");
 
-            isSaved = history.SaveOptions (true, kBudgetMb, HistorySettings::kDefaultFrames);
+            isSaved = history.SaveOptions (true, kBudgetMb);
 
             Assert::AreEqual (1, asked, L"turning it on shows no confirmation");
             Assert::IsTrue   (isSaved && history.GetSettings().isRecording, L"history is on");
