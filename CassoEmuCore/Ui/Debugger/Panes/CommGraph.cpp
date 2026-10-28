@@ -142,7 +142,8 @@ void CommGraph::AddBits (
 //  CommGraph::AddLineLevels
 //
 //  A segment for each stretch a control line is on, from the level at
-//  `first` through each change to `last`.
+//  `first` through each change to `last`. A line on at `first` was on before
+//  it, so its stretch begins a cycle before the span and has no edge there.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +169,7 @@ void CommGraph::AddLineLevels (
     for (const auto & [lane, bit] : kBits)
     {
         bool      isOn  = (initial & bit) != 0;
-        uint64_t  since = first;
+        uint64_t  since = (first > 0) ? first - 1 : 0;
 
         for (const auto & [cycle, lines] : changes)
         {

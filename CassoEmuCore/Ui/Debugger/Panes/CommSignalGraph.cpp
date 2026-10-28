@@ -183,7 +183,9 @@ uint32_t CommSignalGraph::GetStateColor (Byte status)
 //  CommSignalGraph::PaintLevels
 //
 //  The trace at the lane's rest level between segments, and at each
-//  segment's level across it, with an edge wherever the level changes.
+//  segment's level across it, with an edge wherever the level changes. A
+//  segment that begins before the span or ends after it has no edge at the
+//  plot's end, where the level does not change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,7 +202,7 @@ void CommSignalGraph::PaintLevels (
     float     low    = bottom - inset;
     int       level  = lane.restLevel;
     float     x      = GetX (m_first);
-    float     next   = 0.0f;
+    uint64_t  reach  = m_first;
     auto      levelY = [&] (int value) { return (value != 0) ? high : low; };
     auto      run    = [&] (float to, int value)
     {
@@ -226,12 +228,23 @@ void CommSignalGraph::PaintLevels (
             continue;
         }
 
-        next = GetX (segment.first);
-        run (next, lane.restLevel);
-        run (GetX (segment.last), segment.level);
+        if (segment.first < m_first)
+        {
+            level = segment.level;
+        }
+        else if (segment.first > reach)
+        {
+            run (GetX (segment.first), lane.restLevel);
+        }
+
+        run (GetX (std::min (segment.last, m_last)), segment.level);
+        reach = std::max (reach, segment.last);
     }
 
-    run (GetX (m_last), lane.restLevel);
+    if (reach < m_last)
+    {
+        run (GetX (m_last), lane.restLevel);
+    }
 }
 
 
