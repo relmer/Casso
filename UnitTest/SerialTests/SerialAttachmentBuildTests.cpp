@@ -113,6 +113,51 @@ namespace SerialAttachmentBuildTestNs
         }
 
 
+        //  FR-023: a rebuild closes the old machine's attachments before the
+        //  new machine opens its own, so the same COM port opens again.
+        TEST_METHOD (ClosingTheAttachmentsFreesTheirPortsForTheNextBuild)
+        {
+            FakeHostSerialPorts                   ports;
+            std::shared_ptr<FakeSerialPortState>  com3      = ports.AddPort ("COM3");
+            auto                                  customize = [&ports] (MachineConfig & config, MachineBuildServices & services)
+            {
+                for (PortConfig & port : config.ports)
+                {
+                    if (port.name == kpszSerialPort1Name)
+                    {
+                        port.device         = kpszSerialComPort;
+                        port.serial.comPort = "COM3";
+                    }
+                }
+
+                services.hostSerialPorts = &ports;
+            };
+            TestMachine                           old       ("Apple2c", TestMachine::Slots::AsShipped, customize);
+
+
+
+            Assert::IsTrue (com3->isOpen);
+
+            {
+                TestMachine  overlapping ("Apple2c", TestMachine::Slots::AsShipped, customize);
+
+                Assert::AreEqual (std::string ("COM3 is in use by another program."), overlapping.GetSerialLinkReports().GetReports()[0].text,
+                                  L"while the old machine holds the port, a new one cannot open it");
+            }
+
+            old.CloseSerialAttachments();
+            Assert::IsFalse (com3->isOpen);
+            Assert::IsNull  (old.GetRefs().serialChips[0]->GetEndpoint(), L"the chip is detached first");
+
+            {
+                TestMachine  rebuilt ("Apple2c", TestMachine::Slots::AsShipped, customize);
+
+                Assert::IsTrue (com3->isOpen);
+                Assert::AreEqual<size_t> (0, rebuilt.GetSerialLinkReports().GetReports().size());
+            }
+        }
+
+
         TEST_METHOD (WithoutTheSeamsTheHostAttachmentsAreReported)
         {
             TestMachine  machine ("Apple2c", [] (MachineConfig & config)

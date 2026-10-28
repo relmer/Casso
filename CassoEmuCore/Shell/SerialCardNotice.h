@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Serial/SerialLinkReports.h"
+
 struct MachineConfig;
 
 
@@ -20,6 +22,7 @@ enum class SerialCardNoticeKind
     FirmwareMissing,
     FirmwareInvalid,
     AttachmentProblem,
+    LinkProblem,
     Downloading,
     FirmwareInstalled,
     DownloadFailed,
@@ -35,7 +38,8 @@ enum class SerialCardNoticeKind
 //
 //  What the Super Serial Card's infobar reports, and the buttons it offers:
 //  firmware that is missing or invalid, a serial attachment that could not
-//  be opened, and the progress of a firmware download. None means the
+//  be opened, the progress of a firmware download, and a problem a serial
+//  attachment reported while the machine runs, on any port. None means the
 //  infobar is hidden.
 //
 //  The text is built here rather than in the shell so a test can check it,
@@ -60,6 +64,9 @@ public:
     static SerialCardNotice  MakeDownloading    ();
     static SerialCardNotice  MakeInstalled      ();
     static SerialCardNotice  MakeDownloadFailed (const string & error);
+
+    // The newest of the serial attachments' reports, with its port's title.
+    static SerialCardNotice  MakeForLinks       (const vector<SerialLinkReports::Report> & reports);
 
     SerialCardNoticeKind  kind = SerialCardNoticeKind::None;
     wstring               text;

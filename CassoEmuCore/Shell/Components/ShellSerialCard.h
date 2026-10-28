@@ -17,7 +17,9 @@ class EmulatorShell;
 //
 //  The Super Serial Card's infobar: missing or invalid firmware, an
 //  attachment that could not be opened, and the firmware download the
-//  infobar and Settings start.
+//  infobar and Settings start. With none of those, it reports the newest
+//  problem any serial attachment posted to the machine's SerialLinkReports,
+//  read again each frame its generation moves.
 //
 //  The machine may be rebuilt on a thread other than the UI's, so a build
 //  only stores the notice for the infobar (NoteMachineBuilt), and the UI
@@ -62,6 +64,7 @@ public:
 
 private:
     void  Show     (const SerialCardNotice & notice);
+    void  ShowLinkReports ();
     void  OnAction (size_t index);
 
     EmulatorShell                        & m_shell;
@@ -70,8 +73,9 @@ private:
 
     mutex                                  m_pendingLock;
     SerialCardNotice                       m_pendingNotice;
-    atomic<uint32_t>                       m_pendingGeneration = 0;
-    uint32_t                               m_appliedGeneration = 0;
+    atomic<uint32_t>                       m_pendingGeneration     = 0;
+    uint32_t                               m_appliedGeneration     = 0;
+    uint64_t                               m_appliedLinkGeneration = 0;
 
     bool          m_isDownloading         = false;
     bool          m_reportInInfobar       = true;

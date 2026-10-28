@@ -107,8 +107,8 @@ rebuild. **Independent test**: set each attachment, apply, rebuild, read back.
 - [X] T029 [US5] Add `SerialAttachmentView` in `CassoEmuCore/Ui/Settings/SerialAttachmentView.{h,cpp}`: drop-down (Nothing on the card only, Loopback plug, Output file, Input file, COM port, TCP, Modem) and the chosen attachment's options (COM port list from `IHostSerialPorts::EnumeratePorts` when opened; host and port, or listen and port; Telnet; modem listen port), with field validation in the two-line error form; tests in `UnitTest/UiTests/SerialAttachmentViewTests.cpp`
 - [X] T030 [US5] Use `SerialAttachmentView` in `CassoEmuCore/Ui/Settings/SerialCardPage.{h,cpp}`; update `UnitTest/UiTests/SerialCardPageTests.cpp`
 - [X] T031 [US5] Add `SerialPortsPage` for the //c (port 1 and port 2, each a `SerialAttachmentView`), present only on a //c, in `CassoEmuCore/Ui/Settings/SerialPortsPage.{h,cpp}` and the sheet `CassoEmuCore/Ui/Settings/SettingsSheet.cpp`; tests in `UnitTest/UiTests/SerialPortsPageTests.cpp`
-- [ ] T032 [US5] Close the old machine's attachments before the new machine's open on a rebuild (FR-023), in the machine switch path in `CassoEmuCore/Shell/`; test with two builds sharing one fake port and one listen port
-- [ ] T033 [US5] Display `SerialLinkReports` in a warning infobar in `CassoEmuCore/Shell/Components/ShellSerialCard.{h,cpp}` (newest report, cleared on recovery); tests in `UnitTest/UiTests/SerialCardNoticeTests.cpp`
+- [X] T032 [US5] Close the old machine's attachments before the new machine's open on a rebuild (FR-023), in the machine switch path in `CassoEmuCore/Shell/`; test with two builds sharing one fake port and one listen port
+- [X] T033 [US5] Display `SerialLinkReports` in a warning infobar in `CassoEmuCore/Shell/Components/ShellSerialCard.{h,cpp}` (newest report, cleared on recovery); tests in `UnitTest/UiTests/SerialCardNoticeTests.cpp`
 
 **Checkpoint**: commit and push.
 

@@ -108,6 +108,24 @@ namespace SerialCardNoticeTestNs
             Assert::IsTrue (failed.text.find (L"HTTP 404") != wstring::npos);
         }
 
+        TEST_METHOD (NoLinkReportsShowNothing)
+        {
+            Assert::IsTrue (SerialCardNoticeKind::None == SerialCardNotice::MakeForLinks ({}).kind);
+        }
+
+
+        TEST_METHOD (TheNewestLinkReportIsShownWithItsPort)
+        {
+            SerialCardNotice  notice = SerialCardNotice::MakeForLinks ({ { "Serial port 1", "COM3 was disconnected." },
+                                                                         { "Serial port 2", "Port 1977 is in use by another program." } });
+
+
+
+            Assert::IsTrue (SerialCardNoticeKind::LinkProblem == notice.kind);
+            Assert::AreEqual (wstring (L"Serial port 2: Port 1977 is in use by another program."), notice.text);
+            Assert::AreEqual (wstring (SerialCardNotice::kpszDismiss), notice.actions.front());
+        }
+
     private:
         static MachineConfig MakeConfig (bool enabled, SlotFirmwareStatus status)
         {

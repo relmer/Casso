@@ -142,3 +142,32 @@ SerialCardNotice SerialCardNotice::MakeDownloadFailed (const string & error)
 
     return notice;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeForLinks
+//
+//  The infobar has room for one report, so the newest is shown; another
+//  appears again when it is posted anew.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SerialCardNotice SerialCardNotice::MakeForLinks (const vector<SerialLinkReports::Report> & reports)
+{
+    SerialCardNotice  notice;
+
+
+
+    if (!reports.empty())
+    {
+        notice.kind    = SerialCardNoticeKind::LinkProblem;
+        notice.text    = TextEncoding::NarrowToWide (reports.back().portTitle + ": " + reports.back().text);
+        notice.actions = { kpszDismiss };
+    }
+
+    return notice;
+}

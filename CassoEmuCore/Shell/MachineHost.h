@@ -284,6 +284,11 @@ public:
     //  its devices have on the host are from later, so each is closed.
     void  DropHostConnections ();
 
+    //  Before a rebuild: every serial attachment is detached and destroyed,
+    //  so the COM ports and listen ports it had are free for the new
+    //  machine's.
+    void  CloseSerialAttachments ();
+
     //  CPU thread, at the start of an execution slice: with the journal on,
     //  journals each host-written input that changed since it was last seen,
     //  at this position, so a replay landing anywhere after it holds it.

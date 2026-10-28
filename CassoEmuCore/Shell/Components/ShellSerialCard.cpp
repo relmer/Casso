@@ -101,6 +101,16 @@ void ShellSerialCard::Tick()
         {
             Show (notice);
         }
+
+        if (!m_isDownloading && notice.kind == SerialCardNoticeKind::None)
+        {
+            ShowLinkReports();
+        }
+    }
+
+    if (m_shell.m_machine.GetSerialLinkReports().GetGeneration() != m_appliedLinkGeneration && !m_isDownloading)
+    {
+        ShowLinkReports();
     }
 
     if (m_downloadFinished.exchange (false))
@@ -272,6 +282,34 @@ void ShellSerialCard::Show (const SerialCardNotice & notice)
     if (m_shell.m_chrome != nullptr)
     {
         m_shell.m_chrome->ReflowChromeForChangeBand();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShowLinkReports
+//
+//  The serial attachments' newest report, unless the card's own notice is
+//  up; the card's firmware matters first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellSerialCard::ShowLinkReports()
+{
+    SerialLinkReports  & reports  = m_shell.m_machine.GetSerialLinkReports();
+    bool                 isLinkUp = m_notice.kind == SerialCardNoticeKind::None || m_notice.kind == SerialCardNoticeKind::LinkProblem;
+
+
+
+    m_appliedLinkGeneration = reports.GetGeneration();
+
+    if (isLinkUp)
+    {
+        Show (SerialCardNotice::MakeForLinks (reports.GetReports()));
     }
 }
 

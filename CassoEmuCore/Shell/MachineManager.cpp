@@ -496,7 +496,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         m_shell.m_machine.SetApple2cRomBank (nullptr);
         // A serial attachment's COM port or connection closes before the new
         // machine's attachments open theirs, which may be the same ones.
-        m_shell.m_machine.GetOwnedAciaEndpoints().clear();
+        m_shell.m_machine.CloseSerialAttachments();
         m_shell.m_machine.GetOwnedDevices().clear();
         m_shell.m_machine.GetVideoModes().clear();
         m_shell.m_machine.GetMemoryBus() = MemoryBus();
