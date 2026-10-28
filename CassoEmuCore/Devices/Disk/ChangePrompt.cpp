@@ -594,7 +594,7 @@ ChangePrompt ChangePrompt::ComposeLostFile (const std::string & imagePath, int d
     if (copyAlreadyWritten && !copyPath.empty())
     {
         prompt.message = full + L"\n\n" + where
-                       + L" has the disk's contents in memory, and they are also saved in "
+                       + L" has the disk's contents in memory; they are also saved in "
                        + GetFileName (copyPath) + L" in the same folder. "
                          L"You can save them to another file or discard them.";
     }
