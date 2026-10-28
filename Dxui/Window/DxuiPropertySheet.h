@@ -104,15 +104,12 @@ public:
 
     //
     //  Tab sizing. Each tab is as wide as its label, measured in the tab
-    //  strip's font, plus kTabPadXDip on both sides, but never narrower than
-    //  kTabMinWidthDip. LayoutTabRects is the pure rule (exposed for tests):
-    //  visible tabs sit edge to edge from the strip's left pad, and a hidden
-    //  tab gets an empty rect. outRects must be at least tabs.size() long.
-    //  MeasureTabLabelDip measures one label the way the strip draws it.
+    //  strip's font, plus DxuiTabStrip::kLabelPadXDip on both sides.
+    //  LayoutTabRects is the pure rule (exposed for tests): visible tabs sit
+    //  edge to edge from the strip's left pad, and a hidden tab gets an empty
+    //  rect. outRects must be at least tabs.size() long. MeasureTabLabelDip
+    //  measures one label the way the strip draws it.
     //
-    static constexpr int  kTabMinWidthDip = 64;
-    static constexpr int  kTabPadXDip     = 12;
-
     static void     LayoutTabRects     (const RECT                     & stripPx,
                                         const DxuiDpiScaler            & scaler,
                                         std::span<const DxuiSheetTab>    tabs,
