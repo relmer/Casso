@@ -667,6 +667,9 @@
     <ClCompile Include="Ui\Settings\SettingsCompositor.cpp" />
     <ClCompile Include="Ui\Settings\SettingsMachineCatalog.cpp" />
     <ClCompile Include="Ui\Settings\SettingsSheet.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsTabSparkle.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsPreviewScene.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsDriveAudition.cpp" />
     <ClCompile Include="Ui\Settings\SettingsSheetSize.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
@@ -1425,6 +1428,9 @@
     <ClInclude Include="Ui\Settings\SettingsMachineCatalog.h" />
     <ClInclude Include="Ui\Settings\SettingsCompositor.h" />
     <ClInclude Include="Ui\Settings\SettingsSheet.h" />
+    <ClInclude Include="Ui\Settings\SettingsTabSparkle.h" />
+    <ClInclude Include="Ui\Settings\SettingsPreviewScene.h" />
+    <ClInclude Include="Ui\Settings\SettingsDriveAudition.h" />
     <ClInclude Include="Ui\Settings\SettingsSheetSize.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
