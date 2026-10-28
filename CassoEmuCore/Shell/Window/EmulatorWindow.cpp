@@ -905,9 +905,9 @@ int EmulatorShell::RunMessageLoop()
     m_cpuManager.SetCommandGate     ([this] (WORD id, const std::string & payload) { return m_debugger->AllowCommand (id, payload); });
 
     // The disk store's token moves off the CPU thread while an update
-    // installer's freeze lasts, so the window thread can save the disks, and
+    // installer's hold lasts, so the window thread can save the disks, and
     // moves back after.
-    m_cpuManager.SetDeployFreezeHooks ([this] { m_machine.ReleaseDiskOwnership(); },
+    m_cpuManager.SetDeployHoldHooks ([this] { m_machine.ReleaseDiskOwnership(); },
                                      [this] { m_machine.ClaimDiskOwnership(); });
 
     // Cold-boot mount window is closed once the UI message loop is

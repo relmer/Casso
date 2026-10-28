@@ -1064,14 +1064,14 @@ public:
         AssertSucceeded (hr, L"DeploySave::Flush");
         Assert::AreEqual<size_t> (1, log.count, L"the flush wrote the disk once");
         Assert::IsTrue  (atLive == log.last,     L"as the live run left it");
-        Assert::IsFalse (result.wasBehindLive,   L"the machine was live when frozen");
+        Assert::IsFalse (result.wasBehindLive,   L"the machine was live when held");
         Assert::IsFalse (isSaved,                L"so the user is not told it was saved behind live");
     }
 
 
     //  When the return to live misses its deadline, the machine is behind
     //  live, and the deploy flush saves the disk at its position. The Go live
-    //  queued behind a slow command runs after the freeze ends, when its
+    //  queued behind a slow command runs after the hold ends, when its
     //  request no longer waits, so it does not move the machine.
     TEST_METHOD (ADeployWhoseReturnToLiveTimesOutSavesTheDiskWhereItStands)
     {
@@ -1139,10 +1139,10 @@ public:
         AssertSucceeded (hr, L"DeploySave::Flush");
         Assert::AreEqual<size_t> (1, log.count,                  L"the flush wrote the disk once");
         Assert::IsTrue  (afterStep == log.last,                  L"as it was after the step from the past");
-        Assert::IsTrue  (result.wasBehindLive,                   L"behind live when frozen");
+        Assert::IsTrue  (result.wasBehindLive,                   L"behind live when held");
         Assert::IsTrue  (result.wasReplaying,                    L"with the replay flag set");
         Assert::IsTrue  (isSaved,                                L"so the user is told");
-        Assert::AreEqual (1, goLives.load(),                     L"the queued Go live ran after the freeze");
+        Assert::AreEqual (1, goLives.load(),                     L"the queued Go live ran after the hold");
         Assert::IsTrue  (isReplay,                               L"the replay flag is set again");
         Assert::IsTrue  (isBehind,                               L"and the Go live did not move the machine");
     }
@@ -1242,8 +1242,8 @@ private:
         const std::function<void()>  & slow)
     {
         cpu.SetPaused (true);
-        cpu.SetDeployFreezeHooks ([&machine] { machine.ReleaseDiskOwnership(); },
-                                  [&machine] { machine.ClaimDiskOwnership(); });
+        cpu.SetDeployHoldHooks ([&machine] { machine.ReleaseDiskOwnership(); },
+                                [&machine] { machine.ClaimDiskOwnership(); });
 
         machine.ReleaseDiskOwnership();
 

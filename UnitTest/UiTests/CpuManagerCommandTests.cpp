@@ -190,8 +190,8 @@ public:
     }
 
 
-    //  A deploy freeze stops frames, the command drain and the service pass
-    //  until it is released; a command posted while frozen runs after.
+    //  A deploy hold stops frames, the command drain and the service pass
+    //  until it is released; a command posted while held runs after.
     TEST_METHOD (HoldForDeploy_HoldsFramesCommandsAndService)
     {
         CpuManager        cpu;
@@ -215,8 +215,8 @@ public:
         WaitFor ([&] { return frames.load (std::memory_order_acquire) > 0; });
 
         hr = cpu.HoldForDeploy (s_kWaitMs);
-        Assert::AreEqual (S_OK, hr, L"the freeze takes effect");
-        Assert::IsTrue  (cpu.IsHeldForDeploy(),       L"the thread is frozen");
+        Assert::AreEqual (S_OK, hr, L"the hold takes effect");
+        Assert::IsTrue  (cpu.IsHeldForDeploy(),       L"the thread is held");
         Assert::IsTrue  (cpu.IsDeployHoldRequested(), L"and the request is in place");
 
         frameMark   = frames.load (std::memory_order_acquire);
@@ -225,8 +225,8 @@ public:
         cpu.PostCommand (IDM_DISK_EJECT1);
         std::this_thread::sleep_for (std::chrono::milliseconds (s_kParkMs));
 
-        Assert::AreEqual (frameMark,   frames.load (std::memory_order_acquire),   L"no frame runs while frozen");
-        Assert::AreEqual (serviceMark, services.load (std::memory_order_acquire), L"no service pass runs while frozen");
+        Assert::AreEqual (frameMark,   frames.load (std::memory_order_acquire),   L"no frame runs while held");
+        Assert::AreEqual (serviceMark, services.load (std::memory_order_acquire), L"no service pass runs while held");
         Assert::AreEqual (0,           commands.load (std::memory_order_acquire), L"and no command is drained");
 
         cpu.ReleaseDeployHold();
@@ -240,7 +240,7 @@ public:
 
 
     //  A paused machine with no service function waits for a command or a
-    //  resume; the freeze request ends that wait, so the freeze takes effect
+    //  resume; the hold request ends that wait, so the hold takes effect
     //  well before the deadline.
     TEST_METHOD (HoldForDeploy_WhilePausedWithNoServiceFunction_IsHeldBeforeTheDeadline)
     {
@@ -260,7 +260,7 @@ public:
         start = std::chrono::steady_clock::now();
         hr    = cpu.HoldForDeploy (s_kWaitMs);
 
-        Assert::AreEqual (S_OK, hr, L"the freeze takes effect on a paused thread");
+        Assert::AreEqual (S_OK, hr, L"the hold takes effect on a paused thread");
         Assert::IsTrue  (std::chrono::steady_clock::now() - start < std::chrono::milliseconds (s_kWaitMs / 2),
                          L"well before the deadline");
 
@@ -280,19 +280,19 @@ public:
         Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
 
         hr = cpu.HoldForDeploy (s_kWaitMs);
-        Assert::AreEqual (S_OK, hr, L"the freeze takes effect");
+        Assert::AreEqual (S_OK, hr, L"the hold takes effect");
 
         // A Stop that hangs here would deadlock a failed update's shutdown.
         cpu.Stop();
 
-        Assert::IsFalse (cpu.IsRunning(),             L"Stop brings the thread down from a freeze");
-        Assert::IsFalse (cpu.IsHeldForDeploy(),       L"the freeze has ended");
+        Assert::IsFalse (cpu.IsRunning(),             L"Stop brings the thread down from a hold");
+        Assert::IsFalse (cpu.IsHeldForDeploy(),       L"the hold has ended");
         Assert::IsFalse (cpu.IsDeployHoldRequested(), L"and nothing is requested");
     }
 
 
-    //  A freeze that misses its deadline is withdrawn, so the thread does not
-    //  freeze later, after its caller has given up.
+    //  A hold that misses its deadline is withdrawn, so the thread is not
+    //  held later, after its caller has given up.
     TEST_METHOD (HoldForDeploy_TimesOutAndWithdrawsWhileACommandRuns)
     {
         CpuManager         cpu;
@@ -330,22 +330,22 @@ public:
 
         hr = cpu.HoldForDeploy (s_kParkMs);
 
-        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TIMEOUT), hr, L"the freeze times out while the command runs");
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_TIMEOUT), hr, L"the hold times out while the command runs");
         Assert::IsFalse (cpu.IsDeployHoldRequested(), L"and is withdrawn");
 
         isLetGo = true;
         cpu.PostCommand (IDM_DISK_EJECT2);
         WaitFor ([&] { return commands.load (std::memory_order_acquire) == 2; });
 
-        Assert::AreEqual (2, commands.load (std::memory_order_acquire), L"the thread runs on: it never froze");
-        Assert::IsFalse (cpu.IsHeldForDeploy(), L"and is not frozen");
+        Assert::AreEqual (2, commands.load (std::memory_order_acquire), L"the thread runs on: it was never held");
+        Assert::IsFalse (cpu.IsHeldForDeploy(), L"and is not held");
 
         cpu.Stop();
     }
 
 
-    //  The freeze hooks move the disk store's token: the emulation thread
-    //  releases it before it is frozen, the test thread claims it while frozen,
+    //  The hold hooks move the disk store's token: the emulation thread
+    //  releases it before it is held, the test thread claims it while held,
     //  and the emulation thread claims it again after the release.
     TEST_METHOD (HoldForDeploy_LetsAnotherThreadClaimTheStore)
     {
@@ -358,7 +358,7 @@ public:
 
         ownership.Release();
 
-        cpu.SetDeployFreezeHooks ([&] { ownership.Release(); }, [&] { ownership.Claim(); });
+        cpu.SetDeployHoldHooks ([&] { ownership.Release(); }, [&] { ownership.Claim(); });
 
         hr = cpu.Start ([&] { ownership.Claim(); },
                         [&] (const EmulatorCommand &) { isClaimedAfter = ownership.IsHeldByCurrentThread(); },
@@ -367,10 +367,10 @@ public:
         Assert::AreEqual (S_OK, hr, L"CpuManager::Start should succeed");
 
         hr = cpu.HoldForDeploy (s_kWaitMs);
-        Assert::AreEqual (S_OK, hr, L"the freeze takes effect");
+        Assert::AreEqual (S_OK, hr, L"the hold takes effect");
 
         ownership.Claim();
-        Assert::IsTrue (ownership.IsHeldByCurrentThread(), L"the test thread has the store while the thread is frozen");
+        Assert::IsTrue (ownership.IsHeldByCurrentThread(), L"the test thread has the store while the thread is held");
 
         ownership.Release();
         cpu.ReleaseDeployHold();

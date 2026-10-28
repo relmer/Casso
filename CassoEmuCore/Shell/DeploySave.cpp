@@ -110,10 +110,10 @@ void DeploySave::CompleteLiveReturn (
 //
 //  GetLastOutcome
 //
-//  Window thread, once the CPU thread is frozen: the newest request's
+//  Window thread, once the CPU thread is held: the newest request's
 //  outcome, a late one included, or TimedOut while none has arrived. A Go
-//  live already running when the freeze was requested has finished by then,
-//  because the freeze takes effect only between passes.
+//  live already running when the hold was requested has finished by then,
+//  because the hold takes effect only between passes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,11 +134,11 @@ LiveReturnOutcome DeploySave::GetLastOutcome() const
 //
 //  Flush
 //
-//  Window thread: freezes the CPU thread, calls Claim on the disk store's
+//  Window thread: holds the CPU thread, calls Claim on the disk store's
 //  token and saves every disk as quit does. The replay flag is cleared first, because a
 //  bay flush skips the file while it is set, and its value goes into
 //  result.wasReplaying so Resume can set it back. Returns with the CPU thread
-//  frozen and the token on the calling thread. When the freeze does not take
+//  held and the token on the calling thread. When the hold does not take
 //  effect, the token is left alone and the failure is returned.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,9 +184,9 @@ Error:
 //  Resume
 //
 //  Window thread, for a deploy that did not go ahead: when the calling thread
-//  has the store's token, because Flush froze the CPU thread and called Claim,
-//  sets the replay flag back and releases the token; then ends the freeze. After a
-//  freeze that never took effect it touches no store state.
+//  has the store's token, because Flush held the CPU thread and called Claim,
+//  sets the replay flag back and releases the token; then ends the hold. After a
+//  hold that never took effect it does not touch store state.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,9 +247,9 @@ LiveReturnOutcome DeploySave::ToLiveReturnOutcome (
 //  IsSavedBehindLive
 //
 //  Whether the disks were saved somewhere other than the live end, which is
-//  when the user is told: the CPU thread was behind live once frozen, or the
+//  when the user is told: the CPU thread was behind live once held, or the
 //  return to live cut the history. A NotBehindLive answer, and a TimedOut one
-//  whose Go live finished before the freeze, mean the disks were saved at the
+//  whose Go live finished before the hold, mean the disks were saved at the
 //  live end.
 //
 ////////////////////////////////////////////////////////////////////////////////

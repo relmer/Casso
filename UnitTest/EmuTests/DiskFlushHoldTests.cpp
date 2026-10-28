@@ -518,7 +518,7 @@ public:
     }
 
 
-    //  An update installed now saves every disk with the CPU thread frozen.
+    //  An update installed now saves every disk with the CPU thread held.
     TEST_METHOD (DeployFlushLosesNoGuestWrite)
     {
         RunDeployFlush (false);
@@ -536,9 +536,9 @@ public:
 private:
 
     //  The guest writes on every frame of a running CPU thread, and an eject
-    //  is posted after the deploy flush. The flush freezes the thread first,
+    //  is posted after the deploy flush. The flush holds the thread first,
     //  so the one write it makes has every guest write, no write lands after
-    //  it, and the eject waits for the freeze to end.
+    //  it, and the eject waits for the hold to end.
     static void RunDeployFlush (bool isFlushHeld)
     {
         auto                 store      = std::make_unique<DiskImageStore>();
@@ -558,7 +558,7 @@ private:
         store->SetFlushHold (isFlushHeld);
         ownership.Release();
 
-        cpu.SetDeployFreezeHooks ([&] { ownership.Release(); }, [&] { ownership.Claim(); });
+        cpu.SetDeployHoldHooks ([&] { ownership.Release(); }, [&] { ownership.Claim(); });
 
         hr = cpu.Start ([&] { ownership.Claim(); },
                         [&] (const EmulatorCommand & cmd)
@@ -603,8 +603,8 @@ private:
         ownership.Claim();
 
         Assert::IsFalse (isDirty,           L"no guest write landed after the flush");
-        Assert::IsTrue  (isMounted,         L"the eject posted during the freeze did not run");
-        Assert::IsTrue  (isEjected.load(),  L"and runs once the freeze ends");
+        Assert::IsTrue  (isMounted,         L"the eject posted during the hold did not run");
+        Assert::IsTrue  (isEjected.load(),  L"and runs once the hold ends");
         Assert::AreEqual<size_t> (1, files.writes, L"with nothing left to write");
     }
 

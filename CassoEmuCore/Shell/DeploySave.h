@@ -37,7 +37,7 @@ enum class LiveReturnOutcome
 //
 //  DeployFlushResult
 //
-//  What DeploySave::Flush found once the CPU thread was frozen.
+//  What DeploySave::Flush found once the CPU thread was held.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +57,7 @@ struct DeployFlushResult
 //
 //  An update installed while the machine is behind live saves the disks at
 //  the live end. The window thread posts a request that the CPU thread return
-//  to live and waits for the outcome, bounded; then it freezes the CPU thread and saves
+//  to live and waits for the outcome, bounded; then it holds the CPU thread and saves
 //  every disk from the window thread.
 //
 //  RequestLiveReturn and GetLastOutcome run on the window thread, IsAwaited
