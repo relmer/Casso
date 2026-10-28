@@ -29,6 +29,7 @@ class InspectorTableView;
 class PlatterLegendView;
 class FluxTimingTab;
 class FileMapGridView;
+class ComparisonPart;
 class EditingPart;
 class FilesView;
 class DifferencesTab;
@@ -136,23 +137,12 @@ private:
 
     void  RequestCopy      () override;
     void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) override;
-    void  TakeComparison   ();
-    void  SyncSideB        ();
     void  TickHead         ();
     void  RequestWrittenTracks ();
     void  TakeWrittenTracks    (const InspectorReply & reply);
     void  SetFollowHead    (bool isOn);
     void  GoToHead         ();
     void  SelectHeadTrack  (int quarterTrack);
-    void  OpenCompare      ();
-    void  StopComparing    ();
-    void  EndComparison    (const std::wstring & why);
-    void  CheckComparedSources ();
-    void  SwapSides        ();
-    void  OpenBSettings    ();
-    void  StepDifference   (int step);
-    void  SelectDifference (const Difference & difference);
-    void  PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintNoDisk      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void  PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     bool  OnWalkthroughMouse (const DxuiMouseEvent & ev);
@@ -219,18 +209,9 @@ private:
     InspectorSession                                                                             m_session;
     std::unique_ptr<FilesView>                                                                   m_files;
     std::unique_ptr<EditingPart>                                                                 m_editing;
-    uint64_t                                                                                     m_comparisonVersion = 0;
+    std::unique_ptr<ComparisonPart>                                                              m_comparisonPart;
     bool                                                                                         m_isTracksCompared  = false;
-    int                                                                                          m_diffIndex         = -1;
     uint32_t                                                                                     m_toolSig           = 0;
-    RECT                                                                                         m_barPx             = {};
-    uint64_t                                                                                     m_modelBDisk        = 0;
-    vector<Difference>                                                                           m_nibbleDiffs;
-    const TrackAnalysis                                                                        * m_diffsOfA          = nullptr;
-    const TrackAnalysis                                                                        * m_diffsOfB          = nullptr;
-    double                                                                                       m_bOffset           = 0.0;
-    double                                                                                       m_linkStartB        = -1.0;
-    double                                                                                       m_linkSpanB         = 0.0;
     DxuiTooltip                                                                                  m_tooltip;
     bool                                                                                         m_isSplitting       = false;
     double                                                                                       m_splitFraction     = 0.5;
@@ -271,11 +252,6 @@ private:
     uint64_t                                m_countsGeneration   = 0;
     uint64_t                                m_trackRequest       = 0;
     int64_t                                 m_trackRequestMs     = 0;
-    DxuiButton                            * m_prevDiff           = nullptr;
-    DxuiButton                            * m_nextDiff           = nullptr;
-    DxuiButton                            * m_swapButton         = nullptr;
-    DxuiButton                            * m_bSettingsButton    = nullptr;
-    DxuiButton                            * m_stopButton         = nullptr;
     DxuiCheckbox                          * m_diffsCheck         = nullptr;
     DifferencesTab                        * m_diffsTab           = nullptr;
     DxuiButton                            * m_stripOut           = nullptr;
@@ -286,7 +262,6 @@ private:
     bool                                    m_isFocusShown       = false;
     FindBar                               * m_findBar            = nullptr;
     InspectorTableView                    * m_findResults        = nullptr;
-    int64_t                                 m_sourceCheckMs      = 0;
 
 
     GoToKind                                m_goToKind           = GoToKind::Track;
