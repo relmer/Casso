@@ -856,13 +856,12 @@ void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
     {
         next = (external != nullptr) ? external : &m_disks[drive];
 
-        //  Another disk, or the same file reloaded, starts the counts over.
-        if (next != m_activeDisk[drive])
-        {
-            m_visits[drive].fill (0);
-            m_access[drive].Clear();
-            m_isWriteBlocked[drive] = false;
-        }
+        //  Every call is a bay change: another disk, an eject, or the same
+        //  file reloaded into the same image object at the same address.
+        //  Each starts the counts over.
+        m_visits[drive].fill (0);
+        m_access[drive].Clear();
+        m_isWriteBlocked[drive] = false;
 
         m_activeDisk[drive] = next;
         m_engine[drive].SetDiskImage (m_activeDisk[drive]);

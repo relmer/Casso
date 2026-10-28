@@ -1574,6 +1574,26 @@ public:
             Assert::IsTrue (rig->bayChanges[1] == BayChange::Swapped);
         }
 
+        //  A restored machine state -> Restored, with a new media id and the
+        //  same bytes as inserted.
+        {
+            auto          rig      = std::make_unique<Rig>();
+            uint64_t      before   = 0;
+            vector<Byte>  inserted;
+
+            rig->WriteImage (kImagePath, 0x11);
+            AssertSucceeded (rig->store.Mount (kSlot, kDrive, kImagePath));
+            before   = rig->store.GetMediaId (kSlot, kDrive);
+            inserted = rig->store.GetImage (kSlot, kDrive)->GetSourceBytes();
+
+            rig->store.NoteStateRestored (kSlot, kDrive);
+
+            Assert::AreEqual ((size_t) 2, rig->bayChanges.size());
+            Assert::IsTrue   (rig->bayChanges[1] == BayChange::Restored);
+            Assert::AreNotEqual (before, rig->store.GetMediaId (kSlot, kDrive), L"a viewer analyzes it again");
+            Assert::IsTrue   (inserted == rig->store.GetImage (kSlot, kDrive)->GetSourceBytes(), L"As inserted is the disk as first inserted");
+        }
+
         //  User eject -> Ejected.
         {
             auto  rig = std::make_unique<Rig>();

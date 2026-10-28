@@ -167,6 +167,14 @@ public:
 
     DiskImage *   GetImage          (int slot, int drive);
     uint64_t      GetMediaId        (int slot, int drive) const;
+
+    //  A machine state was restored and a mounted disk's tracks may have
+    //  changed under it (FR-069): the bay gets a new media id and the sink
+    //  gets BayChange::Restored, so the drive's counts start over and a viewer
+    //  analyzes the disk as after a reload. The file's bytes as inserted are
+    //  left as they are, so "As inserted" is the disk as first inserted
+    //  (FR-117).
+    void          NoteStateRestored (int slot, int drive);
     bool          IsMounted         (int slot, int drive) const;
     const string &GetSourcePath     (int slot, int drive) const;
 

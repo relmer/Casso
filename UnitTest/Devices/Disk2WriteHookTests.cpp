@@ -176,6 +176,13 @@ public:
         disk->LoadFromBytes (DiskFormat::Dsk, vector<Byte> (kDskBytes, 0), "blank.dsk");
         Assert::AreEqual (uint64_t (0), disk->GetGuestWriteCount (slot), L"a reload starts it over");
 
+        //  The store reloads a file into the same image object and re-points
+        //  the drive at it.
+        Assert::AreEqual (1u, ctrl->GetVisitCount (0, 2));
+        ctrl->SetExternalDisk (0, disk.get());
+        Assert::AreEqual (0u, ctrl->GetVisitCount (0, 2), L"a reload starts the visits over");
+        Assert::IsTrue   (ctrl->GetAccessLog (0).GetWrites()[2].empty(), L"and the access marks");
+
         ctrl->SetExternalDisk (0, other.get());
         Assert::AreEqual (0u, ctrl->GetVisitCount (0, 2), L"another disk starts the visits over");
     }

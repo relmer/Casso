@@ -549,7 +549,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
 
     controller = FindSlot6Controller();
     image      = m_diskStore.GetImage (6, drive);
-    inserted   = (change != BayChange::Ejected);
+    inserted   = (change == BayChange::Inserted || change == BayChange::Swapped);
 
     //  Insert and swap sounds are held during the cold-boot mount window and a
     //  programmatic remount (reset / power-cycle rebuild); an eject sound
@@ -570,8 +570,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     }
 
     //  The debug event fires whichever way the disk went, and is not held at
-    //  cold boot: the debug log is not something a launch should hide.
-    if (controller != nullptr)
+    //  cold boot: the debug log is not something a launch should hide. A
+    //  restored state doesn't move a disk.
+    if (controller != nullptr && change != BayChange::Restored)
     {
         if (inserted)
         {
@@ -613,6 +614,9 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
                 m_diskAudioSources[drive]->OnDiskInserted();
             }
 
+            break;
+
+        case BayChange::Restored:
             break;
 
         case BayChange::Swapped:
