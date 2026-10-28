@@ -41,6 +41,7 @@ public:
     void           PaintHits        (IDxuiPainter & painter, const PlatterPlacement & view);
     void           PaintAlignment   (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintAccess      (IDxuiPainter & painter, const PlatterPlacement & view, AccessKind kind) const;
+    void           DimForAccess     (IDxuiPainter & painter, const PlatterPlacement & view) const;
     static uint32_t                      GetHeatAlpha (uint32_t count, uint32_t most);
     static const DiskAccessLog::Spans &  GetSpans     (const DriveAccess & access, AccessKind kind);
     void           PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;

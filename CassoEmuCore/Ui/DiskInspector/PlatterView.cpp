@@ -27,9 +27,9 @@ static constexpr float  s_kTickShare        = 0.3f;
 static constexpr double s_kTwoPi            = 6.283185307179586;
 static constexpr uint32_t s_kSelectionAlpha = 0x60000000u;
 static constexpr float    s_kHeadReachDip    = 14.0f;
-static constexpr float    s_kHeadArmDip      = 12.0f;
-static constexpr float    s_kHeadEyeDip      = 6.0f;
-static constexpr uint32_t s_kHeadArmAlpha    = 0x50000000u;
+static constexpr float    s_kHeadEyeDip      = 14.0f;
+static constexpr float    s_kHeadFarShare    = 1.8f;
+static constexpr uint32_t s_kHeadBodyAlpha   = 0xD8000000u;
 static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
 static constexpr float    s_kHeadShadowDip   = 6.0f;
 static constexpr uint32_t s_kHeadShadowArgb  = 0x40000000u;
@@ -153,6 +153,11 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
     {
         StrokeDiskCircle (painter, view, static_cast<float> (PlatterGeometry::GetRingOuter (view.headLimitRing)) * view.outerRadiusPx,
                        m_scaler.ToPxf (s_kHoverOutlineDip), theme.ForegroundMuted());
+    }
+
+    if ((m_context.isReadsOverlay || m_context.isWritesOverlay || m_context.isScansOverlay) && m_context.drive != nullptr)
+    {
+        m_overlays->DimForAccess (painter, view);
     }
 
     if (m_context.isReadsOverlay && m_context.drive != nullptr)
@@ -975,13 +980,15 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintHead
 //
-//  The head marker: a bullseye exactly on the head's quarter track and
-//  angle, and in the flat view a translucent arm along the radius out past
-//  the rim (FR-064); in the tilted view a translucent head carriage on its
-//  rail, with a soft shadow under it (FR-152). The color indicates idle,
-//  reading or writing, and a blocked write adds a cross. The marker is
-//  drawn over everything and is not hit-tested, so the pointer acts on the
-//  platter under it.
+//  The head marker, drawn as a hard drive's head arm (FR-064, FR-152): an
+//  arm that widens from the head out past the rim, rounded at its tip by a
+//  ring with a clear window over the platter under the head, and a
+//  crosshair through the window whose center is exactly on the head's
+//  quarter track and angle. The crosshair's lines run along the radius and
+//  across it. Tilted, the arm has a soft shadow under it. The ring and the
+//  arm's edge indicate idle, reading or writing by color, and a blocked
+//  write adds a cross. The marker is drawn over everything and is not
+//  hit-tested, so the pointer acts on the platter under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -990,11 +997,14 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     const DiskInspectorColors &  colors = m_context.palette.colors;
     POINT                        eyeAt  = {};
     float                        outer  = view.outerRadiusPx + m_scaler.ToPxf (s_kHeadReachDip);
-    float                        half   = m_scaler.ToPxf (s_kHeadArmDip) / 2.0f;
-    float                        eye    = m_scaler.ToPxf (s_kHeadEyeDip);
+    float                        ring   = m_scaler.ToPxf (s_kHeadEyeDip);
     float                        line   = m_scaler.ToPxf (s_kSelectOutlineDip);
+    float                        rimW   = line * 2.0f;
+    float                        hole   = ring - rimW / 2.0f;
+    float                        farW   = ring * s_kHeadFarShare;
     float                        drop   = m_scaler.ToPxf (s_kHeadShadowDip);
-    float                        cross  = eye * 0.7f;
+    float                        cross  = hole * 0.7f;
+    float                        gap    = std::max (hole * 0.18f, line);
     float                        ex     = 0.0f;
     float                        ey     = 0.0f;
     float                        ox     = 0.0f;
@@ -1002,11 +1012,10 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     float                        ux     = 0.0f;
     float                        uy     = 0.0f;
     float                        len    = 0.0f;
-    float                        px     = 0.0f;
-    float                        py     = 0.0f;
     uint32_t                     argb   = colors.headIdle;
+    uint32_t                     body   = (theme.BackgroundElevated() & 0x00FFFFFFu) | s_kHeadBodyAlpha;
     uint32_t                     halo   = (theme.Background() & 0x00FFFFFFu) | s_kHeadHaloAlpha;
-    std::array<float, 8>         body   = {};
+    std::array<float, 8>         arm    = {};
 
 
 
@@ -1015,49 +1024,61 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
         return;
     }
 
-    ex   = static_cast<float> (eyeAt.x);
-    ey   = static_cast<float> (eyeAt.y);
+    //  The exact point, not the rounded pixel, so the crosshair's center is
+    //  on the head's track at any zoom.
+    PlatterGeometry::ProjectAt (view, m_context.head.turn, PlatterGeometry::GetRingMiddle (m_context.head.quarterTrack) * view.outerRadiusPx, ex, ey);
     argb = (m_context.head.activity == HeadActivity::Reading) ? colors.headReading
          : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
                                                               : colors.headWriting;
 
     //  Outward along the radius on screen, and across it.
     PlatterGeometry::ProjectAt (view, m_context.head.turn, outer, ox, oy);
-    len = std::max (std::hypot (ox - ex, oy - ey), 1.0f);
+    len = std::max (std::hypot (ox - ex, oy - ey), ring * 2.0f);
     ux  = (ox - ex) / len;
     uy  = (oy - ey) / len;
-    px  = -uy * half;
-    py  = ux * half;
+    ox  = ex + ux * len;
+    oy  = ey + uy * len;
 
-    if (view.tilt == 0.0f)
+    //  The arm runs from the ring's outer edge, as wide as the ring, out to
+    //  the far end, wider. Its near edge is outside the window, so the
+    //  window stays clear.
+    arm = { ex + ux * ring - uy * ring, ey + uy * ring + ux * ring,
+            ox - uy * farW,             oy + ux * farW,
+            ox + uy * farW,             oy - ux * farW,
+            ex + ux * ring + uy * ring, ey + uy * ring - ux * ring };
+
+    if (view.tilt != 0.0f)
     {
-        painter.FillConvexQuad (ex + px, ey + py, ox + px, oy + py, ox - px, oy - py, ex - px, ey - py, (argb & 0x00FFFFFFu) | s_kHeadArmAlpha);
+        painter.FillConvexQuad (arm[0], arm[1] + drop, arm[2], arm[3] + drop, arm[4], arm[5] + drop, arm[6], arm[7] + drop, s_kHeadShadowArgb);
+        OutlineCircle (painter, ex, ey + drop, ring, rimW, s_kHeadShadowArgb);
     }
-    else
+
+    painter.FillConvexQuad (arm[0], arm[1], arm[2], arm[3], arm[4], arm[5], arm[6], arm[7], body);
+    painter.DrawLine (arm[0], arm[1], arm[2], arm[3], line / 2.0f, argb);
+    painter.DrawLine (arm[4], arm[5], arm[6], arm[7], line / 2.0f, argb);
+    painter.DrawLine (arm[2], arm[3], arm[4], arm[5], line / 2.0f, argb);
+
+    //  The ring: a dark halo so it reads over any ring color, then its rim.
+    OutlineCircle (painter, ex, ey, ring, rimW + line * 2.0f, halo);
+    OutlineCircle (painter, ex, ey, ring, rimW, argb);
+
+    //  The crosshair, along the radius and across it, each line haloed and
+    //  broken around the center, with a dot on the head's position.
+    for (const std::array<float, 2> & d : { std::array<float, 2> { ux, uy }, std::array<float, 2> { -uy, ux } })
     {
-        //  The rail from the carriage out past the rim, the shadow, then the
-        //  carriage around the bullseye.
-        painter.DrawLine (ex, ey, ox + ux * half * 4.0f, oy + uy * half * 4.0f, half * 0.6f, (theme.ForegroundMuted() & 0x00FFFFFFu) | s_kHeadArmAlpha);
-
-        body = { ex - ux * half * 1.5f + px * 1.6f, ey - uy * half * 1.5f + py * 1.6f,
-                 ex + ux * half * 4.0f + px * 1.6f, ey + uy * half * 4.0f + py * 1.6f,
-                 ex + ux * half * 4.0f - px * 1.6f, ey + uy * half * 4.0f - py * 1.6f,
-                 ex - ux * half * 1.5f - px * 1.6f, ey - uy * half * 1.5f - py * 1.6f };
-
-        painter.FillConvexQuad (body[0], body[1] + drop, body[2], body[3] + drop, body[4], body[5] + drop, body[6], body[7] + drop, s_kHeadShadowArgb);
-        painter.FillConvexQuad (body[0], body[1], body[2], body[3], body[4], body[5], body[6], body[7], (argb & 0x00FFFFFFu) | s_kHeadArmAlpha);
-
-        for (size_t k = 0; k < body.size(); k += 2)
+        for (float sign : { 1.0f, -1.0f })
         {
-            painter.DrawLine (body[k], body[k + 1], body[(k + 2) % body.size()], body[(k + 3) % body.size()], line / 2.0f, argb);
+            float  x0 = ex + sign * d[0] * gap;
+            float  y0 = ey + sign * d[1] * gap;
+            float  x1 = ex + sign * d[0] * hole;
+            float  y1 = ey + sign * d[1] * hole;
+
+            painter.DrawLine (x0, y0, x1, y1, line * 1.5f, halo);
+            painter.DrawLine (x0, y0, x1, y1, line / 2.0f, argb);
         }
     }
 
-    //  The bullseye: a dark halo so it reads over any ring color, its ring,
-    //  and a dot on the head's position.
-    OutlineCircle (painter, ex, ey, eye, line * 2.0f, halo);
-    OutlineCircle (painter, ex, ey, eye, line, argb);
-    painter.FillCircle (ex, ey, line, argb);
+    painter.FillCircle (ex, ey, line * 0.75f, argb);
 
     if (m_context.head.activity == HeadActivity::WriteBlocked)
     {

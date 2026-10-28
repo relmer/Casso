@@ -719,6 +719,41 @@ void DxuiPopupHost::HandleDpiChanged (UINT newDpi)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ClampVertically
+//
+//  A rect shifted up or down into the work area; one taller than the work
+//  area has its top at the work area's top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DxuiPopupHost::ClampVertically (RECT placed, RECT monitorWorkAreaPx)
+{
+    LONG  shift = 0;
+
+
+
+    if (placed.bottom > monitorWorkAreaPx.bottom)
+    {
+        shift = placed.bottom - monitorWorkAreaPx.bottom;
+    }
+
+    if (placed.top - shift < monitorWorkAreaPx.top)
+    {
+        shift = placed.top - monitorWorkAreaPx.top;
+    }
+
+    placed.top    -= shift;
+    placed.bottom -= shift;
+
+    return placed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ComputePlacementForTest
 //
 //  Pure-function placement helper. Tries the preferred edge first;
@@ -726,7 +761,9 @@ void DxuiPopupHost::HandleDpiChanged (UINT newDpi)
 //  the work area on that edge, flips to the opposite edge and
 //  re-checks. After edge selection the rect is finally clamped to
 //  the work area on the orthogonal axis so it never paints off
-//  the monitor.
+//  the monitor. A popup above or below its anchor that fits on
+//  neither side opens on the side with more room, shifted into the
+//  work area, as a tall menu does in Windows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -758,6 +795,13 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                 {
                     chosen = DxuiPopupPlacement::Above;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
+                    outAbove = placed.top < monitorWorkAreaPx.top;
+                }
+
+                if (outBelow && outAbove)
+                {
+                    chosen = (monitorWorkAreaPx.bottom - anchorScreenPx.bottom >= anchorScreenPx.top - monitorWorkAreaPx.top) ? DxuiPopupPlacement::Below : DxuiPopupPlacement::Above;
+                    placed = ClampVertically (PlaceOnEdge (anchorScreenPx, chosen, popupSizePx), monitorWorkAreaPx);
                 }
 
                 break;
@@ -768,6 +812,13 @@ RECT DxuiPopupHost::ComputePlacementForTest (
                 {
                     chosen = DxuiPopupPlacement::Below;
                     placed = PlaceOnEdge (anchorScreenPx, chosen, popupSizePx);
+                    outBelow = placed.bottom > monitorWorkAreaPx.bottom;
+                }
+
+                if (outAbove && outBelow)
+                {
+                    chosen = (anchorScreenPx.top - monitorWorkAreaPx.top >= monitorWorkAreaPx.bottom - anchorScreenPx.bottom) ? DxuiPopupPlacement::Above : DxuiPopupPlacement::Below;
+                    placed = ClampVertically (PlaceOnEdge (anchorScreenPx, chosen, popupSizePx), monitorWorkAreaPx);
                 }
 
                 break;

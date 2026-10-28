@@ -743,23 +743,33 @@ InspectorViewModel::View InspectorViewModel::GetBetweenView (const View & from, 
 //
 //  InspectorViewModel::StartFlight
 //
-//  From the view as it is, out to fit, then in to the view centered on the
-//  selection's chord. From a view already at fit, the first leg is skipped.
+//  From the view as it is, out only as far as the view with both its center
+//  and the selection's chord in it, then in to the view centered on the
+//  chord. A selection near enough that the middle view is no wider than
+//  the view at either end is flown to directly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void InspectorViewModel::StartFlight (double nowMs)
 {
-    double  end   = 0;
-    double  start = GetSelectionTurn (end);
+    double  end    = 0;
+    double  start  = GetSelectionTurn (end);
+    Point   center = { -m_pan.x / m_zoom, -m_pan.y / m_zoom };
+    Point   a;
+    Point   b;
 
 
 
     if (start >= 0)
     {
         end             = (end < start) ? end + 1.0 : end;
+        a               = GetFitPoint (m_quarterTrack, start + m_rotation);
+        b               = GetFitPoint (m_quarterTrack, end + m_rotation);
         m_flightFrom    = GetView();
-        m_flightTo      = GetChordView (GetFitPoint (m_quarterTrack, start + m_rotation), GetFitPoint (m_quarterTrack, end + m_rotation));
+        m_flightTo      = GetChordView (a, b);
+        m_flightMid     = GetChordView ({ std::min ({ center.x, a.x, b.x }), std::min ({ center.y, a.y, b.y }) },
+                                        { std::max ({ center.x, a.x, b.x }), std::max ({ center.y, a.y, b.y }) });
+        m_isTwoLegs     = m_flightMid.zoom < std::min (m_flightFrom.zoom, m_flightTo.zoom) - 1e-9;
         m_flightStartMs = nowMs;
         m_isFlying      = true;
     }
@@ -776,17 +786,17 @@ void InspectorViewModel::StartFlight (double nowMs)
 //  The view for the moment. The flight as a whole is eased, slow at its
 //  start and end and fastest between, and the two legs split it in the
 //  proportion of their changes in zoom by scale, so the zoom's speed runs on
-//  through the whole disk rather than stopping there. Returns whether the
+//  through the middle view rather than stopping there. Returns whether the
 //  flight goes on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool InspectorViewModel::StepFlight (double nowMs)
 {
-    double  out      = std::log (std::max (m_flightFrom.zoom, 1.0));
-    double  in       = std::log (std::max (m_flightTo.zoom, 1.0));
+    double  out      = m_isTwoLegs ? std::log (m_flightFrom.zoom / m_flightMid.zoom) : 0.0;
+    double  in       = m_isTwoLegs ? std::log (m_flightTo.zoom / m_flightMid.zoom) : 0.0;
     double  share    = (out + in > 0) ? out / (out + in) : 0.0;
-    double  duration = (out > 0) ? 2 * kFlightLegMs : kFlightLegMs;
+    double  duration = m_isTwoLegs ? 2 * kFlightLegMs : kFlightLegMs;
     double  t        = std::clamp ((nowMs - m_flightStartMs) / duration, 0.0, 1.0);
     double  e        = Ease (t);
     View    view;
@@ -799,11 +809,11 @@ bool InspectorViewModel::StepFlight (double nowMs)
     }
     else if (e < share)
     {
-        view = GetBetweenView (m_flightFrom, View(), e / share);
+        view = GetBetweenView (m_flightFrom, m_flightMid, e / share);
     }
     else
     {
-        view = GetBetweenView (View(), m_flightTo, (e - share) / (1.0 - share));
+        view = GetBetweenView (m_flightMid, m_flightTo, (e - share) / (1.0 - share));
     }
 
     if (m_isFlying)

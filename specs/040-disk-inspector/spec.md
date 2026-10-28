@@ -149,6 +149,16 @@ comparing two quarter tracks of one disk.
 - Q: What does a click on a sector's label in the strip do? → A: It selects
   the sector and the platter flies to it; a range dragged out on the strip
   is flown to the same way (FR-165).
+- Q: The flight between selections goes out to the whole disk and back,
+  which is jarring. What should it do? → A: Zoom out only as far as it takes
+  to have both where the view was and the new selection in view (FR-038).
+- Q: The head marker is a circle on a stick. What should it look like? →
+  A: A hard drive's head arm: an isosceles arm rounded at its tip by a ring,
+  with a crosshair in the ring's window on the exact track and angle
+  (FR-064, FR-152).
+- Q: Turning on Reads, Writes or Scans changes nothing visible. How are
+  they made plain? → A: The tracks are dimmed while one is on, every ring of
+  a track's band is shaded, and the shading is near opaque (FR-161).
 - Q: Can a selection be returned to? → A: Back and Forward step through the
   user's selections, with Alt+Left and Alt+Right, the mouse's back and
   forward buttons, and the Go menu (FR-164).
@@ -1352,7 +1362,7 @@ legend, and tilt the platter and back.
    address field, each with its swatch.
 4. **Given** Casso running a disk, **When** the head marker passes under
    the pointer, **Then** the tooltip text is about the cell under the
-   bullseye.
+   crosshair.
 5. **Given** the flat platter, **When** the user drags with the right mouse
    button, **Then** the platter tilts, and its tooltips and clicks match the
    cell under the pointer; **When** the user chooses "Top down", **Then** it
@@ -1964,11 +1974,12 @@ legend, and tilt the platter and back.
   keeping its zoom, until the selected sector or nibble is in view, and the
   File map grid MUST scroll to the selected sector's cell. When the user
   chooses a new sector anywhere but on the platter, the platter MUST zoom
-  out smoothly from its view to the whole disk, then in until the sector is
-  centered and the chord from its start to its end is 75% of the line
-  through the view's center along that chord, from edge to edge, the
-  flight's speed slow at its start and end and fastest between, with no
-  pause at the whole disk. A sector
+  out smoothly from its view only as far as a view with both its center
+  and the new sector in it, then in until the sector is centered and the
+  chord from its start to its end is 75% of the line through the view's
+  center along that chord, from edge to edge, the flight's speed slow at
+  its start and end and fastest between, with no pause between. A sector
+  in a view no wider than the current one MUST be flown to directly. A sector
   chosen on the platter or by Follow head MUST NOT start this flight, and
   the user zooming or panning the platter MUST end it. A pan MUST stop with
   the disk's edge at the view's center, so a sector on the outermost ring
@@ -2290,8 +2301,10 @@ legend, and tilt the platter and back.
   MUST point at the head's quarter track and show idle, reading, writing and
   write blocked differently. While the platter is zoomed in it MUST stay
   still and the head marker MUST move around it instead. The head marker MUST
-  be semi-transparent, so the rings under it stay visible, with a bullseye
-  exactly over the head's quarter track and angle, and hovering, clicking and
+  be drawn as a hard drive's head arm: an arm widening from the head out
+  past the rim, rounded at its tip by a ring with a clear window over the
+  rings under the head, with a crosshair in the window whose center is
+  exactly over the head's quarter track and angle. Hovering, clicking and
   dragging over the marker MUST act on the platter under it.
 - **FR-065**: The window MUST show whether the disk in the drive is
   write-protected and each cause Casso reports for the drive, including the
@@ -3067,8 +3080,7 @@ legend, and tilt the platter and back.
   where rings are too thin to fit them, and zooming MUST move the view
   toward the point under the pointer.
 - **FR-152**: In Casso, the tilted view MUST draw the head at the near edge
-  as a translucent head carriage on its rail, with the bullseye of FR-064 on
-  the disk and a soft shadow, and hovering and clicking over it MUST act on
+  as the head arm of FR-064 projected onto the disk, with a soft shadow, and hovering and clicking over it MUST act on
   the disk, as over the flat view's head marker.
 - **FR-153**: The first time someone opens the inspector, a walkthrough MUST
   open over the window with a step for each area: the platter, its colors
@@ -3152,7 +3164,9 @@ legend, and tilt the platter and back.
   shade the arcs of the sectors accessed that way as a heat map in a
   distinct color: more opaque the more times a sector was accessed, on a log
   scale against the most-accessed sector on the disk, with a sector accessed
-  once plainly marked. The sector buttons and the Sectors view's header
+  once plainly marked. While any of them is on, the tracks MUST be dimmed,
+  and every quarter track that shares a record MUST be shaded with its
+  counts, so the whole band a track is drawn as is marked. The sector buttons and the Sectors view's header
   MUST include "Read N times", "Written N times" and "Scanned N times".
 - **FR-162**: The window's code MUST be divided into component classes, each
   owning its controls and their state: the menu bar and toolbar, the
@@ -3743,7 +3757,7 @@ release (Delivery). The first release MUST NOT depend on them.
   flat view's projection puts under that point, with no miss, and the
   tilted view turns as smoothly as the flat one.
 - **SC-032**: With the head marker over the pointer, hovering and clicking
-  address the cell under the bullseye in every case checked.
+  address the cell under the crosshair in every case checked.
 - **SC-033**: Someone new to disk internals, after the walkthrough and
   without other help, can find which file owns a given sector and which
   tracks contain no standard sectors, in under five minutes.

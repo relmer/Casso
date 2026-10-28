@@ -314,7 +314,7 @@ public:
 
 
 
-    TEST_METHOD (AFlightGoesOutToFitThenInToTheSector)
+    TEST_METHOD (AFlightGoesOutOnlyAsFarAsItMustThenInToTheSector)
     {
         DiskAnalysis               analysis;
         InspectorViewModel         model;
@@ -335,8 +335,7 @@ public:
         model.SelectSector (0, 8);
         model.StartFlight (1000.0);
 
-        //  Out to about the whole disk, then in, never turning back on the
-        //  way; the zoom moves least at the start.
+        //  Out, then in, never turning back on the way.
         for (double at = 1000.0; at < 1000.0 + 2 * kLeg; at += kLeg / 50)
         {
             previous = model.GetZoom();
@@ -347,7 +346,8 @@ public:
             Assert::IsTrue (!isIn || model.GetZoom() >= previous - 1e-9, L"no zooming out once zooming in");
         }
 
-        Assert::IsTrue  (least < 1.1, L"the whole disk between the legs");
+        Assert::IsTrue  (least < 4.0,  L"out from where it started");
+        Assert::IsTrue  (least >= 1.0, L"never past the whole disk");
         Assert::IsFalse (model.StepFlight (1000.0 + 2 * kLeg), L"landed");
 
         start   = model.GetSelectionTurn (end);
@@ -361,4 +361,36 @@ public:
         model.StartFlight (5000.0);
         model.PanBy ({ 0.1, 0.0 });
         Assert::IsFalse (model.IsFlying(), L"a pan ends a flight");
-    }};
+    }
+
+
+
+    TEST_METHOD (AFlightToTheNextSectorZoomsOutOnlyALittle)
+    {
+        DiskAnalysis        analysis;
+        InspectorViewModel  model;
+        double              least = InspectorViewModel::kMaxZoom;
+        constexpr double    kLeg  = InspectorViewModel::kFlightLegMs;
+
+
+
+        AnalyzeDsk (analysis);
+        model.SetDisk      (7);
+        model.SetAnalysis  (&analysis);
+        model.SelectSector (0, 0);
+        model.StartFlight  (0.0);
+        model.StepFlight   (4 * kLeg);
+
+        model.SelectSector (0, 1);
+        model.StartFlight  (10000.0);
+
+        for (double at = 10000.0; at <= 10000.0 + 2 * kLeg; at += kLeg / 50)
+        {
+            model.StepFlight (at);
+            least = std::min (least, model.GetZoom());
+        }
+
+        Assert::IsTrue  (least > 2.0, L"nowhere near the whole disk");
+        Assert::IsFalse (model.IsFlying());
+    }
+};

@@ -98,6 +98,23 @@ public:
     }
 
 
+    TEST_METHOD (Below_TooTallForEitherSide_OpensBelowShiftedOnScreen)
+    {
+        RECT  anchor = MakeRect (100, 200, 300, 230);
+        RECT  work   = MakeRect (0, 0, 1000, 800);
+        SIZE  size   = MakeSize (200, 700);
+
+        RECT  placed = DxuiPopupHost::ComputePlacementForTest (anchor,
+                                                               work,
+                                                               DxuiPopupPlacement::Below,
+                                                               size,
+                                                               true);
+
+        Assert::AreEqual ((LONG) 100, placed.top,    L"more room below, so below, shifted up to fit");
+        Assert::AreEqual ((LONG) 800, placed.bottom);
+    }
+
+
     TEST_METHOD (Above_PlacesPopupAboveAnchor)
     {
         RECT  anchor = MakeRect (100, 400, 300, 430);

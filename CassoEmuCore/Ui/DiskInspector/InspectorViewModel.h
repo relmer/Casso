@@ -135,8 +135,8 @@ public:
     //  views at one zoom.
     static View   GetBetweenView (const View & from, const View & to, double t);
 
-    //  A flight zooms the platter out to the whole disk, then in to the
-    //  selection (FR-038). ZoomAbout, PanBy, Fit and StopFlight end the flight.
+    //  A flight zooms the platter out until both the view's center and the
+    //  selection are in view, then in to the selection (FR-038). ZoomAbout, PanBy, Fit and StopFlight end the flight.
     void    StartFlight     (double nowMs);
     bool    StepFlight      (double nowMs);
     void    StopFlight      () { m_isFlying = false; }
@@ -185,6 +185,8 @@ private:
     bool                  m_isStripFitted = false;
     View                  m_flightFrom;
     View                  m_flightTo;
+    View                  m_flightMid;
+    bool                  m_isTwoLegs     = false;
     double                m_flightStartMs = 0.0;
     bool                  m_isFlying      = false;
     SelectionHistory      m_history;

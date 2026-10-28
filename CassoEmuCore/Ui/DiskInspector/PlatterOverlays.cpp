@@ -37,8 +37,9 @@ static constexpr float    s_kHitEdgeDip      = 1.0f;
 static constexpr float    s_kHitSolidDip     = 24.0f;
 static constexpr float    s_kReadsMinDip     = 2.0f;
 static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
-static constexpr uint32_t s_kHeatMinAlpha    = 0x60u;
-static constexpr uint32_t s_kHeatMaxAlpha    = 0xF0u;
+static constexpr uint32_t s_kHeatMinAlpha    = 0x90u;
+static constexpr uint32_t s_kHeatMaxAlpha    = 0xFFu;
+static constexpr uint32_t s_kAccessDimAlpha  = 0xA8000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
 
 
@@ -1263,65 +1264,96 @@ void PlatterOverlays::PaintAlignment (IDxuiPainter & painter, const IDxuiTheme &
 
 void PlatterOverlays::PaintAccess (IDxuiPainter & painter, const PlatterPlacement & view, AccessKind kind) const
 {
-    const DriveHeadState                                       & drive   = *m_view.m_context.drive;
-    const DiskInspectorColors                                  & colors  = m_view.m_context.palette.colors;
-    uint32_t                                                     rgb     = ((kind == AccessKind::Writes) ? colors.headWriting : (kind == AccessKind::Scans) ? colors.headScanning : colors.headReading) & 0x00FFFFFFu;
-    float                                                        width   = static_cast<float> (PlatterGeometry::GetRingWidth()) * view.outerRadiusPx;
-    float                                                        band    = std::max (width, m_view.m_scaler.ToPxf (s_kReadsMinDip));
-    uint32_t                                                     most    = 1;
-    static const vector<CellSpan>                                s_kNone;
-    std::array<vector<uint32_t>, PlatterRenderer::kRingCount>    counts;
+    const DriveHeadState           & drive    = *m_view.m_context.drive;
+    const DiskInspectorColors      & colors   = m_view.m_context.palette.colors;
+    const DiskAnalysis             & analysis = *m_view.m_context.analysis;
+    uint32_t                         rgb      = ((kind == AccessKind::Writes) ? colors.headWriting : (kind == AccessKind::Scans) ? colors.headScanning : colors.headReading) & 0x00FFFFFFu;
+    float                            width    = static_cast<float> (PlatterGeometry::GetRingWidth()) * view.outerRadiusPx;
+    float                            band     = std::max (width, m_view.m_scaler.ToPxf (s_kReadsMinDip));
+    uint32_t                         most     = 1;
+    static const vector<CellSpan>    s_kNone;
+    vector<vector<uint32_t>>         counts (analysis.tracks.size());
 
 
 
+    //  The quarter tracks that share a record share its counts, so the whole
+    //  band a track is drawn as is shaded, not just the ring the head was on.
     for (int qt = 0; qt < PlatterRenderer::kRingCount; qt++)
     {
         const TrackAnalysis *     track = m_view.GetRingTrack (qt);
         const vector<CellSpan> &  spans = (drive.access != nullptr) ? GetSpans (*drive.access, kind)[static_cast<size_t> (qt)] : s_kNone;
+        int                       slot  = analysis.entries[static_cast<size_t> (qt)].slot;
+        vector<uint32_t>          ring;
 
-        if (track != nullptr && !track->sectors.empty())
+        if (track != nullptr && !track->sectors.empty() && !spans.empty())
         {
-            counts[static_cast<size_t> (qt)] = SectorAccess::Count (kind, *track, spans);
+            ring = SectorAccess::Count (kind, *track, spans);
+            counts[static_cast<size_t> (slot)].resize (ring.size(), 0);
 
-            for (uint32_t count : counts[static_cast<size_t> (qt)])
+            for (size_t s = 0; s < ring.size(); s++)
             {
-                most = std::max (most, count);
+                counts[static_cast<size_t> (slot)][s] += ring[s];
+                most = std::max (most, counts[static_cast<size_t> (slot)][s]);
             }
         }
     }
 
     for (int qt = 0; qt < PlatterRenderer::kRingCount; qt++)
     {
-        const TrackAnalysis *     track   = m_view.GetRingTrack (qt);
-        const vector<uint32_t> &  ring    = counts[static_cast<size_t> (qt)];
-        int                       slot    = m_view.m_context.analysis->entries[static_cast<size_t> (qt)].slot;
-        bool                      isWhole = (kind == AccessKind::Writes) ? (slot >= 0 && slot < static_cast<int> (drive.recordWriteCounts.size()) && drive.recordWriteCounts[static_cast<size_t> (slot)] > 0)
-                                          : (kind == AccessKind::Reads && drive.visitCounts[static_cast<size_t> (qt)] > 0);
+        const TrackAnalysis *  track   = m_view.GetRingTrack (qt);
+        int                    slot    = analysis.entries[static_cast<size_t> (qt)].slot;
+        bool                   isWhole = (kind == AccessKind::Writes) ? (slot >= 0 && slot < static_cast<int> (drive.recordWriteCounts.size()) && drive.recordWriteCounts[static_cast<size_t> (slot)] > 0)
+                                       : (kind == AccessKind::Reads && drive.visitCounts[static_cast<size_t> (qt)] > 0);
 
         //  A track with sectors is marked sector by sector; only one without
         //  them falls back to its whole ring.
         isWhole = isWhole && (track == nullptr || track->sectors.empty());
 
-        for (size_t s = 0; s < ring.size(); s++)
+        for (size_t s = 0; slot >= 0 && track != nullptr && s < counts[static_cast<size_t> (slot)].size(); s++)
         {
             const AnalyzedSector &  sector = track->sectors[s];
             int                     firstF = (kind == AccessKind::Reads && sector.dataField >= 0) ? sector.dataField : sector.addressField;
             int                     lastF  = (kind == AccessKind::Scans || sector.dataField < 0) ? sector.addressField : sector.dataField;
             double                  a      = TrackAnalyzer::GetAngle (*track, track->fields[static_cast<size_t> (firstF)].startCell);
             double                  b      = TrackAnalyzer::GetAngle (*track, track->fields[static_cast<size_t> (lastF)].endCell);
+            uint32_t                count  = counts[static_cast<size_t> (slot)][s];
 
-            if (ring[s] > 0)
+            if (count > 0)
             {
                 ShadeRingArc (painter, view, a, (b >= a) ? b : b + 1.0, PlatterGeometry::GetRingOuter (std::min (qt + 1, static_cast<int> (PlatterRenderer::kRingCount))) * view.outerRadiusPx,
-                              PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx, rgb | GetHeatAlpha (ring[s], most));
+                              PlatterGeometry::GetRingOuter (qt) * view.outerRadiusPx, rgb | GetHeatAlpha (count, most));
             }
         }
 
         if (isWhole)
         {
-            m_view.StrokeDiskCircle (painter, view, static_cast<float> (PlatterGeometry::GetRingMiddle (qt)) * view.outerRadiusPx, band, rgb | s_kReadsAlpha);
+            m_view.StrokeDiskCircle (painter, view, static_cast<float> (PlatterGeometry::GetRingMiddle (qt)) * view.outerRadiusPx, band, rgb | (s_kHeatMaxAlpha << 24));
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterOverlays::DimForAccess
+//
+//  While "Reads", "Writes" or "Scans" is on, the tracks are dimmed so the
+//  shaded sectors are plain against them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PlatterOverlays::DimForAccess (IDxuiPainter & painter, const PlatterPlacement & view) const
+{
+    double  outer = PlatterGeometry::GetRingOuter (0) * view.outerRadiusPx;
+    double  inner = PlatterGeometry::GetRingOuter (PlatterRenderer::kRingCount) * view.outerRadiusPx;
+
+
+
+    m_view.StrokeDiskCircle (painter, view, static_cast<float> ((outer + inner) / 2), static_cast<float> (outer - inner),
+                             (m_view.m_context.palette.background & 0x00FFFFFFu) | s_kAccessDimAlpha);
 }
 
 
