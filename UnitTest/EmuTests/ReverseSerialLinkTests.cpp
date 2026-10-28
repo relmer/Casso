@@ -444,7 +444,7 @@ namespace ReverseSerialLinkTestNs
 
             Assert::IsNotNull (server.get(), L"the guest dialed");
             Assert::IsFalse (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"the BBS hung up live");
-            Assert::IsTrue (ReadReceived (machine).find ("CONNECT\r\nWelcome") != std::string::npos, L"the guest received the modem's output");
+            Assert::IsTrue (ReadReceived (machine).find ("CONNECT 9600\r\nWelcome") != std::string::npos, L"the guest received the modem's output");
 
             sent = server->sent.size();
             SeekEverywhere (machine, controller, samples, last);

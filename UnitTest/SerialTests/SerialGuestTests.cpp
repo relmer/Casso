@@ -197,7 +197,7 @@ namespace SerialGuestTestNs
             //  The program reads only once the whole command is sent, so the
             //  echo overruns the 6551 as it would on the card.
             received = ReadReceived (machine);
-            Assert::IsTrue (received.find ("\r\nCONNECT\r\nWelcome") != std::string::npos, TextEncoding::NarrowToWide (received.substr (0, 64)).c_str());
+            Assert::IsTrue (received.find ("\r\nCONNECT 9600\r\nWelcome") != std::string::npos, TextEncoding::NarrowToWide (received.substr (0, 64)).c_str());
         }
 
 

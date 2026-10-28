@@ -135,8 +135,8 @@ character-at-a-time. With every other option declined, the remote stays in plain
 - Command buffer: 40 characters after `AT`; more is `ERROR`.
 - `X0` reports `CONNECT`; `X1`-`X4` report `CONNECT <rate>` with the 6551's
   baud rate, and numeric codes 1, 5, 10, 11 and 12 for 300, 1200, 2400, 4800
-  and 9600 (1 for any other rate). The default is `X0`, since the spec's
-  scenarios use the bare word.
+  and 9600 (1 for any other rate). The default is `X4`, as on later Hayes
+  modems (owner decision 2026-10-28); `ATX0` gives the bare word.
 - Accepted and ignored so period initialization strings succeed: `B`, `L`,
   `M`, `N`, `W`, `X`, `Y`, `&C`, `&D`, `&K`, `&S`, `&W`, each with an optional
   digit. `&C1` (default) makes DCD follow the connection; with `&C0` DCD is

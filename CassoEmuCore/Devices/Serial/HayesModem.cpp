@@ -27,8 +27,8 @@ HayesModem::HayesModem (uint32_t cpuClockHz)
 //
 //  HayesModem::ResetSettings
 //
-//  The factory settings: echo on, results as words, CONNECT without a rate,
-//  DCD following the call, a DTR drop hanging up, and the S-registers' usual
+//  The factory settings: echo on, results as words, X4 (CONNECT with the
+//  rate), DCD following the call, a DTR drop hanging up, and the S-registers' usual
 //  defaults.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +46,7 @@ void HayesModem::ResetSettings()
     constexpr Byte  kCarrierLoss    = 14;
     constexpr Byte  kGuardTime      = 50;
     constexpr int   kHangUpOnDtr    = 2;
+    constexpr int   kResultSet      = 4;
 
 
 
@@ -65,7 +66,7 @@ void HayesModem::ResetSettings()
     m_isEcho         = true;
     m_isQuiet        = false;
     m_isVerbose      = true;
-    m_xLevel         = 0;
+    m_xLevel         = kResultSet;
     m_followsCarrier = true;
     m_dtrMode        = kHangUpOnDtr;
 }

@@ -183,7 +183,7 @@ namespace AciaModemEndpointTestNs
 
             rig.DialBbs();
 
-            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nCONNECT\r\n"));
+            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nCONNECT 9600\r\n"));
             Assert::IsTrue (rig.IsDcdOn());
         }
 
@@ -292,7 +292,7 @@ namespace AciaModemEndpointTestNs
 
             rig.Type ("ATA\r");
             rig.Run (Acia6551::kIdlePollCycles * 2 + ModemRig::kCharacter * 16);
-            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nCONNECT\r\n"));
+            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nCONNECT 9600\r\n"));
             Assert::IsTrue (rig.IsDcdOn());
 
             caller->inbound = { 'h', 'i' };
@@ -311,7 +311,7 @@ namespace AciaModemEndpointTestNs
             rig.network.OfferConnection (rig.network.FindBound (HostSocketKind::Tcp, kListenPort), { 0x7F000001, 50000 });
             rig.Run (Acia6551::kIdlePollCycles * 2 + ModemRig::kCharacter * 20);
 
-            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nRING\r\n\r\nCONNECT\r\n"));
+            Assert::IsTrue (rig.TakeOutput().ends_with ("\r\nRING\r\n\r\nCONNECT 9600\r\n"));
             Assert::IsTrue (rig.IsDcdOn());
         }
 

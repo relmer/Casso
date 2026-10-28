@@ -804,6 +804,29 @@ namespace HayesModemTestNs
         }
 
 
+        //  The factory settings are X4, so CONNECT has the rate; X0 leaves it
+        //  off.
+        TEST_METHOD (TheFactorySettingsReportTheBaudRateAndX0DoesNot)
+        {
+            ModemDriver  driver;
+
+
+
+            driver.modem.SetBaudRate (1200.0);
+            driver.Type ("ATZD h\r");
+            driver.Output();
+            driver.modem.OnConnected (driver.now);
+            Assert::AreEqual (std::string ("\r\nCONNECT 1200\r\n"), driver.Output());
+
+            driver.modem.OnRemoteClosed();
+            driver.Output();
+            driver.Type ("ATX0D h\r");
+            driver.Output();
+            driver.modem.OnConnected (driver.now);
+            Assert::AreEqual (std::string ("\r\nCONNECT\r\n"), driver.Output());
+        }
+
+
         TEST_METHOD (DtrDroppingHangsUpUnderAmpD2)
         {
             ModemDriver  driver;
