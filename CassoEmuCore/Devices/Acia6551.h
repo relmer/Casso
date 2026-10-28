@@ -194,6 +194,11 @@ public:
     // link's clock.
     uint64_t  GetElapsedCycles () const { return m_elapsedCycles; }
 
+    // A resume from the past, on the emulation thread: the bytes the chip
+    // took from its attachment after the point go to the receiver again,
+    // behind the ones restored with the point.
+    void    RequeueReceivedBytes  (std::span<const Byte> bytes) { m_rxQueue.Push (bytes.data(), bytes.size()); }
+
     // Reverse execution: the journal for the bytes taken from an attachment,
     // or null, with this chip's index among the machine's serial chips; the
     // gate checked before they are taken; and, in a replay, a journaled byte

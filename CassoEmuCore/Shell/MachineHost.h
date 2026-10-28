@@ -284,9 +284,11 @@ public:
     //  on the host are from the state replaced, so each is closed.
     void  DropHostConnections ();
 
-    //  The machine is live again at a point in the past: each device brings
-    //  its connections on the host back in step with its restored state.
-    void  ResyncHostConnections  ();
+    //  The machine is live again at a point in the past, the journal's entry
+    //  `cursor` the first after it: each device brings its connections on
+    //  the host back in step with its restored state, and what the host sent
+    //  it after the point goes to the guest again.
+    void  ResyncHostConnections  (size_t cursor);
 
     //  Before a rebuild: every serial attachment is detached and destroyed,
     //  so the COM ports and listen ports it had are free for the new

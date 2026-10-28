@@ -126,7 +126,9 @@ void W5100SocketBridge::CloseAll()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void W5100SocketBridge::Resync()
+void W5100SocketBridge::Resync (
+    const ResumeTraffic  & traffic,
+    uint64_t               now)
 {
     int  socket = 0;
 
@@ -134,7 +136,7 @@ void W5100SocketBridge::Resync()
 
     for (socket = 0; socket < kSocketCount; socket++)
     {
-        ResyncSocket (socket);
+        ResyncSocket (socket, traffic, now);
     }
 }
 
@@ -146,30 +148,31 @@ void W5100SocketBridge::Resync()
 //
 //  W5100SocketBridge::ResyncSocket
 //
-//  A host socket that matches the chip's socket stays open. A connection
-//  the peer closed since reads as closed by the peer. A connection the chip
-//  has and the host doesn't reads as reset by the peer; a connect, a listen
-//  or a UDP socket starts again on the host. The guest's bytes that were
-//  queued for the host are queued again from the chip's TX buffer. A MACRAW
-//  socket's virtual network starts over, since the guest's TCP stack is
-//  from the earlier point.
+//  A host socket that matches the chip's socket, and didn't close after the
+//  point, stays open. What it received after the point goes into the RX
+//  buffer again, ahead of anything new; a connection the peer closed since
+//  then reads as closed by the peer. The guest's bytes that were queued for
+//  the host are queued again from the chip's TX buffer. A MACRAW socket's
+//  virtual network returns to the point (VirtualNetwork::Rewind). A
+//  connection the chip has and the host doesn't reads as reset by the peer;
+//  a connect, a listen or a UDP socket starts again on the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void W5100SocketBridge::ResyncSocket (int socket)
+void W5100SocketBridge::ResyncSocket (
+    int                    socket,
+    const ResumeTraffic  & traffic,
+    uint64_t               now)
 {
     Slot  & slot   = m_slots[socket];
     Byte    status = m_chip.GetSocketStatus (socket);
 
 
 
-    if (IsInStep (socket))
+    if (IsInStep (socket) && !traffic.isClosedAfter[socket])
     {
-        if (slot.phase == Phase::PeerClosed && status == R::kSockEstablished)
-        {
-            m_chip.SetSocketStatus      (socket, R::kSockCloseWait);
-            m_chip.RaiseSocketInterrupt (socket, R::kSnIrDisconnect);
-        }
+        slot.resent.assign (traffic.received[socket].begin(), traffic.received[socket].end());
+        slot.isCloseAfterResent = slot.phase == Phase::PeerClosed && status == R::kSockEstablished;
 
         if (slot.phase == Phase::Established || slot.phase == Phase::PeerClosed)
         {
@@ -182,6 +185,13 @@ void W5100SocketBridge::ResyncSocket (int socket)
             }
         }
 
+        PumpResent (socket);
+        return;
+    }
+
+    if (slot.phase == Phase::MacRaw && status == R::kSockMacRaw && !traffic.isClosedAfter[socket])
+    {
+        m_network.Rewind (traffic.toGuest, traffic.firstToGuestAfter, traffic.fromGuest, traffic.firstFromGuestAfter, now);
         return;
     }
 
@@ -212,6 +222,42 @@ void W5100SocketBridge::ResyncSocket (int socket)
             Fail (socket, R::kSnIrDisconnect);
             break;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100SocketBridge::PumpResent
+//
+//  The blocks a resume put back, each whole once the RX buffer has room for
+//  it. Returns true once none is waiting.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool W5100SocketBridge::PumpResent (int socket)
+{
+    Slot  & slot = m_slots[socket];
+
+
+
+    while (!slot.resent.empty() && m_chip.TryAppendRx (socket, slot.resent.front()))
+    {
+        slot.resent.pop_front();
+        m_chip.RaiseSocketInterrupt (socket, R::kSnIrReceive);
+    }
+
+    if (slot.resent.empty() && slot.isCloseAfterResent)
+    {
+        slot.isCloseAfterResent = false;
+
+        m_chip.SetSocketStatus      (socket, R::kSockCloseWait);
+        m_chip.RaiseSocketInterrupt (socket, R::kSnIrDisconnect);
+    }
+
+    return slot.resent.empty();
 }
 
 
@@ -735,15 +781,25 @@ void W5100SocketBridge::PumpSocket (
 
         case Phase::Established:
             PumpTcpTransfer (socket);
-            PumpTcpReceive (socket);
+
+            if (PumpResent (socket))
+            {
+                PumpTcpReceive (socket);
+            }
+
             break;
 
         case Phase::PeerClosed:
             PumpTcpTransfer (socket);
+            PumpResent (socket);
             break;
 
         case Phase::Udp:
-            PumpUdpReceive (socket);
+            if (PumpResent (socket))
+            {
+                PumpUdpReceive (socket);
+            }
+
             break;
 
         case Phase::MacRaw:

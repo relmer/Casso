@@ -529,13 +529,106 @@ void UthernetCard::DropHostConnections()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UthernetCard::ResyncHostConnections()
+void UthernetCard::ResyncHostConnections (
+    const InputJournal  * journal,
+    size_t                cursor)
 {
-    m_bridge.Resync();
+    W5100SocketBridge::ResumeTraffic  traffic;
+
+
+
+    if (journal != nullptr)
+    {
+        ReadResumeTraffic (*journal, cursor, traffic);
+    }
+
+    m_bridge.Resync (traffic, m_cycles + m_cyclesSincePump);
 
     m_replayed.clear();
     NoteStates();
     UpdateIrq();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::ReadResumeTraffic
+//
+//  The changes each journaled call made: the blocks put in each socket's RX
+//  buffer after the point, the sockets closed after it, and socket 0's
+//  frames each way. The frames refer into the journal.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::ReadResumeTraffic (
+    const InputJournal                  & journal,
+    size_t                                cursor,
+    W5100SocketBridge::ResumeTraffic    & outTraffic)
+{
+    HRESULT              hr      = S_OK;
+    size_t               index   = 0;
+    size_t               at      = 0;
+    bool                 isAfter = false;
+    W5100::LoggedChange  logged;
+
+
+
+    for (index = journal.GetBeginIndex(); index < journal.GetEndIndex(); index++)
+    {
+        const InputRecord  & record = journal.GetRecord (index);
+
+        if (index == cursor)
+        {
+            outTraffic.firstToGuestAfter   = outTraffic.toGuest.size();
+            outTraffic.firstFromGuestAfter = outTraffic.fromGuest.size();
+        }
+
+        if (record.kind != InputKind::NetworkCall)
+        {
+            continue;
+        }
+
+        isAfter = index >= cursor;
+        at      = 0;
+
+        while (at < record.payload.size())
+        {
+            hr = W5100::ReadChange (record.payload, at, logged);
+            CHR (hr);
+
+            if (logged.change == W5100::Change::AppendRx && isAfter)
+            {
+                outTraffic.received[(size_t) logged.socket].emplace_back (logged.bytes.begin(), logged.bytes.end());
+            }
+
+            if (logged.change == W5100::Change::AppendRx && logged.socket == 0 && logged.bytes.size() > W5100Registers::kMacRawHeaderLength)
+            {
+                outTraffic.toGuest.push_back (logged.bytes.subspan (W5100Registers::kMacRawHeaderLength));
+            }
+
+            if (logged.change == W5100::Change::CommitTx && logged.socket == 0)
+            {
+                outTraffic.fromGuest.push_back (logged.bytes);
+            }
+
+            if (logged.change == W5100::Change::SocketStatus && isAfter && logged.first == W5100Registers::kSockClosed)
+            {
+                outTraffic.isClosedAfter[(size_t) logged.socket] = true;
+            }
+        }
+    }
+
+    if (cursor >= journal.GetEndIndex())
+    {
+        outTraffic.firstToGuestAfter   = outTraffic.toGuest.size();
+        outTraffic.firstFromGuestAfter = outTraffic.fromGuest.size();
+    }
+
+Error:
+    return;
 }
 
 

@@ -29,6 +29,22 @@ class W5100SocketBridge : public IW5100Backend
 {
 public:
 
+    static constexpr int  kSocketCount = 4;
+
+    //  What history has of the card's traffic, for Resync: the blocks each
+    //  socket received after the point the machine resumes from, and which
+    //  sockets closed after it; and socket 0's MACRAW frames to and from the
+    //  guest, oldest first, with the index of the first after the point.
+    struct ResumeTraffic
+    {
+        std::array<std::vector<std::vector<Byte>>, kSocketCount>   received;
+        std::array<bool, kSocketCount>                             isClosedAfter       = {};
+        std::vector<std::span<const Byte>>                         toGuest;
+        size_t                                                     firstToGuestAfter   = 0;
+        std::vector<std::span<const Byte>>                         fromGuest;
+        size_t                                                     firstFromGuestAfter = 0;
+    };
+
     W5100SocketBridge (W5100 & chip, VirtualNetwork & network) : m_chip (chip), m_network (network) {}
     ~W5100SocketBridge () override;
 
@@ -41,11 +57,10 @@ public:
     bool  IsActive       () const;
     void  Pump           (uint64_t now);
     void  CloseAll       ();
-    void  Resync         ();
+    void  Resync         (const ResumeTraffic & traffic, uint64_t now);
 
 private:
 
-    static constexpr int     kSocketCount   = 4;
     static constexpr size_t  kReceiveBuffer = 65535;
 
     enum class Phase
@@ -67,15 +82,17 @@ private:
 
     struct Slot
     {
-        Phase                         phase           = Phase::Idle;
-        std::unique_ptr<IHostSocket>  host;
-        std::vector<Byte>             txQueue;                // copied from TX, not yet taken by the host
-        bool                          sendPending     = false;
-        uint16_t                      sourcePort      = 0;    // the chip's endpoints when the phase began
-        uint32_t                      destinationIp   = 0;
-        uint16_t                      destinationPort = 0;
-        std::set<uint64_t>            udpPeers;               // packed endpoints sent to
-        std::deque<Datagram>          udpPending;             // received, waiting for RX space
+        Phase                          phase              = Phase::Idle;
+        std::unique_ptr<IHostSocket>   host;
+        std::vector<Byte>              txQueue;                   // copied from TX, not yet taken by the host
+        bool                           sendPending        = false;
+        uint16_t                       sourcePort         = 0;    // the chip's endpoints when the phase began
+        uint32_t                       destinationIp      = 0;
+        uint16_t                       destinationPort    = 0;
+        std::set<uint64_t>             udpPeers;                  // packed endpoints sent to
+        std::deque<Datagram>           udpPending;                // received, waiting for RX space
+        std::deque<std::vector<Byte>>  resent;                    // blocks received after a resume's point, for the RX buffer again
+        bool                           isCloseAfterResent = false;
     };
 
     void  CloseSlot        (int socket);
@@ -90,7 +107,8 @@ private:
     void  Fail             (int socket, Byte interrupt);
     void  NoteEndpoints    (int socket);
     bool  IsInStep         (int socket) const;
-    void  ResyncSocket     (int socket);
+    void  ResyncSocket     (int socket, const ResumeTraffic & traffic, uint64_t now);
+    bool  PumpResent       (int socket);
 
     void  PumpSocket       (int socket, uint64_t now);
     void  PumpConnecting   (int socket);

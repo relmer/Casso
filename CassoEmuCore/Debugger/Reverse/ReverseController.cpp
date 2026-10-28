@@ -355,7 +355,9 @@ Error:
 //  replay from an earlier one would reproduce the change. The machine is live
 //  again at its position. From the past, its connections on the host are
 //  from later, so they are brought back in step with it ahead of the
-//  keyframe: one that matches the restored state stays open.
+//  keyframe and before the journal is cut, since the journal has what the
+//  host sent after the point: one that matches the restored state stays open, and what it sent
+//  after the point goes to the guest again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -376,8 +378,8 @@ HRESULT ReverseController::OnMachineChanged()
 
     if (!m_isLive)
     {
+        m_machine.ResyncHostConnections (m_replayer.GetJournalCursor());
         m_machine.GetInputJournal().Truncate (m_replayer.GetJournalCursor());
-        m_machine.ResyncHostConnections();
     }
 
     // By position: a power cycle restarts the cycle counter, and every

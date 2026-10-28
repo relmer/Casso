@@ -717,11 +717,31 @@ void MachineHost::DropHostConnections()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineHost::ResyncHostConnections()
+void MachineHost::ResyncHostConnections (size_t cursor)
 {
+    size_t                          index = 0;
+    std::vector<std::vector<Byte>>  bytes (m_refs.serialChips.size());
+
+
+
+    for (index = cursor; index < m_inputJournal.GetEndIndex(); index++)
+    {
+        const InputRecord  & record = m_inputJournal.GetRecord (index);
+
+        if (record.kind == InputKind::AciaByte && record.detail < bytes.size())
+        {
+            bytes[record.detail].push_back (record.value);
+        }
+    }
+
+    for (index = 0; index < bytes.size(); index++)
+    {
+        m_refs.serialChips[index]->RequeueReceivedBytes (bytes[index]);
+    }
+
     if (m_refs.uthernet != nullptr)
     {
-        m_refs.uthernet->ResyncHostConnections();
+        m_refs.uthernet->ResyncHostConnections (&m_inputJournal, cursor);
     }
 }
 

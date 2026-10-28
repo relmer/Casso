@@ -309,7 +309,8 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 
 ### Session 2026-10-28 (owner decision: resuming from the past during a call)
 
-- Q: Under FR-324 as written, a rewind and resume during a BBS call drops the call. Does the user then have to dial again? -> A: No. On a resume from the past, the real host connections stay open, and one closes only when the host side has actually dropped; FR-324 is amended to match, for Uthernet sockets here and for the serial attachments in 047 (its FR-019). Loading a state file closes them. Data the network sent between the resume point and the live point is not delivered again.
+- Q: Under FR-324 as written, a rewind and resume during a BBS call drops the call. Does the user then have to dial again? -> A: No. On a resume from the past, the real host connections stay open, and one closes only when the host side has actually dropped; FR-324 is amended to match, for Uthernet sockets here and for the serial attachments in 047 (its FR-019). Loading a state file closes them.
+- Q: Why does a MACRAW socket start its virtual network over, and should the data received between the resume point and the live point be delivered again? -> A: MACRAW can be recovered: the relay's guest-facing TCP state was the only part not rewound, and the frames in history indicate where the guest's stack was at the point, so each relay returns to it and sends again what it sent since. Yes, deliver it again: what each socket, relay and serial port received after the point is in the journal, so it goes to the guest again ahead of anything new. What the guest sent after the point was delivered to the peer and can't be taken back, so the peer can get it twice.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3485,8 +3486,14 @@ run something, switch back to the //e: it is where it was left.
   to the guest as closed by the peer, and a socket whose connection is gone
   MUST read as reset by the remote end. A host connection that doesn't match
   any socket MUST be closed. A connect in progress, a listen and a UDP socket
-  MUST start again on the host. A MACRAW socket's virtual network MUST start
-  over. Loading a state file MUST close every host connection.
+  MUST start again on the host. What a connection that stays open received
+  after the point MUST go to the guest again, ahead of anything new, and the
+  same for the bytes a serial port took from its attachment after the point.
+  A MACRAW socket's relayed connections MUST return to the point: the data
+  sent to the guest after it is sent again from where the guest's stack
+  was, and a connection opened after the point is closed. UDP the guest
+  received after the point MUST be queued for it again. Loading a state file
+  MUST close every host connection.
 - **FR-325**: The debugger MUST have a serial log for each serial port: a
   signal graph with one colored line for each of TxD, RxD, RTS, CTS, DTR, DSR,
   DCD and IRQ, each line turned on and off by the user, and under the graph a
