@@ -1074,6 +1074,15 @@ void FloatingPanes::Float (const std::wstring & key)
     //  Composited, so the row of a dragged tab can fade over a tab strip.
     params.composited       = true;
 
+    //  Made at its place, so it has that monitor's DPI from the start. Made
+    //  elsewhere and moved to a monitor at another scale, the system would
+    //  scale its size by the ratio of the two.
+    if (rect.right > rect.left && rect.bottom > rect.top)
+    {
+        params.useInitialWindowRectPx = true;
+        params.initialWindowRectPx    = rect;
+    }
+
     hr = window->Create (params);
 
     if (FAILED (hr))
