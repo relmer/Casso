@@ -711,15 +711,6 @@ private:
 
     RECT                             m_viewportBoundsPx  = {};
 
-    // True between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE. Inside the OS drag
-    // loop the window changes once per pixel and the end of the loop is the
-    // placement; outside it -- a snap layout, Win+arrow, a monitor removed --
-    // one change is one placement, and nothing else reports those.
-    bool                     m_inSizeMove     = false;
-    // The last maximized size the OS offered, so the trace prints a change
-    // rather than a line per pointer tick.
-    POINT                    m_lastMaxSize    = { 0, 0 };
-
 
     // Tools waiting on an insert or a reload, and hand-offs whose folder is
     // recorded once the mount succeeds.
