@@ -271,6 +271,8 @@
     <ClCompile Include="Machines\Apple2\Common\Dos33Volume.cpp" />
     <ClCompile Include="Machines\Apple2\Common\AssembledFilePlacement.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosVolume.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\ProDosVolumeRemover.cpp" />
+    <ClCompile Include="Machines\Apple2\Common\ProDosVolumeWriter.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerMain.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerShell.cpp" />
     <ClCompile Include="CassoExplorer\CassoExplorerAbout.cpp" />
@@ -736,6 +738,8 @@
     <ClInclude Include="Machines\Apple2\Common\AppleFileName.h" />
     <ClInclude Include="Machines\Apple2\Common\Dos33Volume.h" />
     <ClInclude Include="Machines\Apple2\Common\ProDosVolume.h" />
+    <ClInclude Include="Machines\Apple2\Common\ProDosVolumeRemover.h" />
+    <ClInclude Include="Machines\Apple2\Common\ProDosVolumeWriter.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerShell.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerAbout.h" />
     <ClInclude Include="CassoExplorer\CassoExplorerActions.h" />
