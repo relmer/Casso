@@ -31,6 +31,7 @@ class FluxTimingTab;
 class FileMapGridView;
 class ComparisonPart;
 class EditingPart;
+class FindPart;
 class FilesView;
 class DifferencesTab;
 class FindBar;
@@ -169,14 +170,7 @@ private:
     void  ExtendSelection (WPARAM vk);
     void  Copy            ();
     void  CopySector      ();
-    void  OpenFindBar        ();
-    void  CloseFindBar       ();
-    void  RunFind            (const SearchQuery & query);
-    void  RefreshFindResults ();
-    void  SyncFindMarks      ();
     std::set<int>  GetQuarterTracksOf (const vector<RecordResult> & results) const;
-    void  RebuildFindMarks   ();
-    void  RepeatFind         ();
     vector<int>  GetShownDiskTabs () const;
     int          GetTabIndex      () const;
     void  OpenExport ();
@@ -192,8 +186,6 @@ private:
     void          StepKeyTarget      (int step);
     RECT          GetKeyTargetBounds () const;
     void  OpenGoTo  ();
-    void  StepFind  (int step);
-    void  SelectHit (const SearchHit & hit);
     void  ShowDiskTab      (int tab) override;
     void  RefreshTables    ();
     void  SyncTables       ();
@@ -210,6 +202,7 @@ private:
     std::unique_ptr<FilesView>                                                                   m_files;
     std::unique_ptr<EditingPart>                                                                 m_editing;
     std::unique_ptr<ComparisonPart>                                                              m_comparisonPart;
+    std::unique_ptr<FindPart>                                                                    m_findPart;
     bool                                                                                         m_isTracksCompared  = false;
     uint32_t                                                                                     m_toolSig           = 0;
     DxuiTooltip                                                                                  m_tooltip;
@@ -260,7 +253,6 @@ private:
     DxuiLabel                             * m_stripReadout       = nullptr;
     DxuiLabel                             * m_stripHint          = nullptr;
     bool                                    m_isFocusShown       = false;
-    FindBar                               * m_findBar            = nullptr;
     InspectorTableView                    * m_findResults        = nullptr;
 
 

@@ -418,9 +418,9 @@ void ComparisonPart::SyncSideB()
 //  ComparisonPart::OpenCompare
 //
 //  "Compare with..." (FR-117): the dialog returns A's and B's sources. When
-//  A is this window's drive, its disk's analysis is reused, or the disk is read
-//  again after a swap;
-//  any other A is read by the comparison and drawn in its place.
+//  A is this window's drive, its disk's analysis is reused, or the disk is
+//  read again after a swap; any other A is read by the comparison and drawn
+//  in its place.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

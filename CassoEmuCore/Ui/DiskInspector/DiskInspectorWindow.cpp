@@ -25,6 +25,7 @@
 #include "Ui/DiskInspector/Views/FilesView.h"
 #include "Ui/DiskInspector/Components/ComparisonPart.h"
 #include "Ui/DiskInspector/Components/EditingPart.h"
+#include "Ui/DiskInspector/Components/FindPart.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
@@ -48,8 +49,6 @@
 
 static constexpr LPCWSTR  s_kpszWindowTitle = L"Disk inspector";
 static constexpr LPCWSTR  s_kpszClassName   = L"CassoDiskInspector";
-static constexpr LPCWSTR  s_kpszFindBadHex  = L"Enter pairs of hex digits, such as D5 AA 96.";
-static constexpr LPCWSTR  s_kpszFindBadText = L"Enter the text to find, in plain ASCII.";
 
 //  A command added to the system menu: below SC_SIZE, low four bits clear.
 static constexpr UINT     s_kDefaultSizeCommand = 0x0010;
@@ -389,7 +388,7 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_tracksTab->Tick   (static_cast<int64_t> (GetTickCount64()));
     m_findingsTab->Tick (static_cast<int64_t> (GetTickCount64()));
     m_fieldsTab->Tick   (static_cast<int64_t> (GetTickCount64()));
-    m_findBar->Tick     (static_cast<int64_t> (GetTickCount64()));
+    m_findPart->Tick    (static_cast<int64_t> (GetTickCount64()));
     m_modeTabs->Tick    (static_cast<int64_t> (GetTickCount64()));
     Invalidate();
 
@@ -459,8 +458,9 @@ void DiskInspectorWindow::OnCreate()
     m_diffsTab    = CreateChild<DifferencesTab> (m_session.context, m_session.comparison);
     m_comparisonPart = std::make_unique<ComparisonPart> (m_session, GetHost(), *m_diffsTab, *m_stripB, *m_files);
     m_comparisonPart->Create();
-    m_findResults = CreateChild<InspectorTableView> (m_session.context);
-    m_findBar     = CreateChild<FindBar>();
+    m_findPart    = std::make_unique<FindPart> (m_session, GetHost());
+    m_findPart->Create();
+    m_findResults = &m_findPart->GetResults();
     m_editing     = std::make_unique<EditingPart> (m_session, GetHost(), *m_byteView);
     m_editing->Create();
 
@@ -484,17 +484,8 @@ void DiskInspectorWindow::OnCreate()
     m_decodeButton->SetOnClick ([this] () { OpenDecodeSettings(); });
     m_exportButton->SetOnClick ([this] () { OpenExport(); });
     m_goToButton->SetOnClick   ([this] () { OpenGoTo(); });
-    m_findButton->SetOnClick   ([this] () { OpenFindBar(); });
-    m_findResults->SetColumns  (InspectorTables::GetSearchHitColumns());
+    m_findButton->SetOnClick   ([this] () { m_findPart->OpenFindBar(); });
     m_session.context.edits = &m_session.edits;
-    m_findResults->SetOnSelect ([this] (const TableRow & row) { if (m_session.find.Choose (row.finding)) { SelectHit (m_session.find.GetHits()[row.finding]); m_findBar->SetResult (row.finding, m_session.find.GetCount()); } });
-    m_findBar->Init            (GetHwnd(), GetTextRenderer(), GetPopupHost(), m_session.theme);
-    m_findBar->SetOnSearch     ([this] (const SearchQuery & query) { RunFind (query); });
-    m_findBar->SetOnStep       ([this] (int step) { StepFind (step); });
-    m_findBar->SetOnList       ([this] () { ShowDiskTab (kTabFindResults); });
-    m_findBar->SetOnClose      ([this] () { CloseFindBar(); });
-    m_findBar->SetVisible      (false);
-    m_session.find.GetQuery().isWholeDisk = true;
     m_copySector->SetOnClick   ([this] () { CopySector(); });
     m_compareButton->SetOnClick   ([this] () { m_comparisonPart->OpenCompare(); });
     m_followCheck->SetOnChange    ([this] (bool isChecked) { SetFollowHead (isChecked); });
@@ -811,7 +802,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_session.context.scenePx = boundsDip;
 
     m_toolbarPx  = { boundsDip.left, boundsDip.top, boundsDip.right, top - bar - find };
-    m_findBar->Layout ({ boundsDip.left, top - find, boundsDip.right, top }, scaler);
+    m_findPart->Layout ({ boundsDip.left, top - find, boundsDip.right, top }, scaler);
     m_splitterPx = { splitX, top, splitX + scaler.ToPx (s_kSplitterDip), bandTop };
     right        = { m_splitterPx.right + margin, top + margin, boundsDip.right - margin, bandTop - margin / 2 };
 
@@ -1283,7 +1274,7 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
         m_session.keyTarget = GetKeyTarget (p);
         m_isFocusShown      = false;
         GetFocusManager().SetFocused (nullptr);
-        m_findBar->SetInputFocused (m_session.keyTarget == KeyTarget::FindBar && m_findBar->IsInputFocused());
+        m_findPart->OnPress();
     }
 
     if (!isCovered && ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && m_session.context.hasDisk &&
@@ -1374,7 +1365,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
 
     //  Keys go to the find bar while it has the focus, all but the window's
     //  zoom and its Ctrl+F and Ctrl+G.
-    if (m_session.isFindOpen && m_session.keyTarget == KeyTarget::FindBar && !(ev.ctrl && (IsZoomKey (ev.vk) || ev.vk == 'F' || ev.vk == 'G')) && m_findBar->OnKey (ev))
+    if (m_findPart->OnKey (ev))
     {
         isHandled = true;
     }
@@ -1422,7 +1413,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_DOWN:  m_session.model.PanBy ({ 0.0, -s_kPanStep }); break;
                 case 'A':      SelectAll();                          break;
                 case 'C':      if (ev.shift) { CopySector(); } else { Copy(); } break;
-                case 'F':      OpenFindBar();                        break;
+                case 'F':      m_findPart->OpenFindBar();            break;
                 case 'G':      OpenGoTo();                           break;
                 default:       isHandled = false;                    break;
             }
@@ -1462,7 +1453,7 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
                 case VK_LEFT:  StepSector (-1, false); break;
                 case VK_RIGHT: StepSector ( 1, false); break;
                 case VK_HOME:  StepSector (-1, true);  break;
-                case VK_F3:    StepFind (ev.shift ? -1 : 1); break;
+                case VK_F3:    m_findPart->StepFind (ev.shift ? -1 : 1); break;
                 case VK_F6:    StepKeyTarget (ev.shift ? -1 : 1); break;
                 case VK_END:   StepSector ( 1, true);  break;
                 default:       isHandled = false;      break;
@@ -1642,9 +1633,7 @@ void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const
         m_editing->OnDiskStarted (copy->mediaId != lastMedia, isReload);
 
         //  Hits point into the analysis they were found in.
-        m_session.find.Clear();
-        m_findBar->SetResult (-1, 0);
-        RefreshFindResults();
+        m_findPart->OnDiskStarted();
 
         //  The copy's own write counts are where the guest's writes start.
         m_session.writeCounts.clear();
@@ -1713,11 +1702,11 @@ void DiskInspectorWindow::TakeResults()
         //  hits on tracks analyzed again, and with any new file map.
         if (m_session.find.IsRepeatDue (m_session.scheduler->HasPending()))
         {
-            RepeatFind();
+            m_findPart->RepeatFind();
         }
         else if (!m_session.find.IsEmpty())
         {
-            RebuildFindMarks();
+            m_findPart->RebuildFindMarks();
         }
     }
 }
@@ -2402,117 +2391,6 @@ bool DiskInspectorWindow::IsStripKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::OpenFindBar
-//
-//  The find bar opens on the last query, with the focus in its pattern.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::OpenFindBar()
-{
-    if (!m_session.isFindOpen)
-    {
-        m_session.isFindOpen = true;
-        m_findBar->SetQuery  (m_session.find.GetQuery());
-        m_findBar->SetResult (m_session.find.GetIndex(), m_session.find.GetCount());
-        m_findBar->SetVisible (true);
-        SyncFindMarks();
-        Layout (m_boundsDip, m_session.hostScaler);
-    }
-
-    m_session.keyTarget = KeyTarget::FindBar;
-    m_findBar->SetInputFocused (true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::CloseFindBar
-//
-//  The hits stay for F3 and the Find results tab.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::CloseFindBar()
-{
-    m_session.isFindOpen = false;
-    m_findBar->SetInputFocused (false);
-    m_findBar->SetVisible (false);
-    SyncFindMarks();
-    m_session.keyTarget = KeyTarget::Platter;
-    Layout (m_boundsDip, m_session.hostScaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::RunFind
-//
-//  The query's hits replace the last ones, and the first is selected. For a
-//  pattern that cannot be read, the hits are cleared and the bar displays
-//  an example of a valid pattern. The Find results tab is visible only
-//  while there are hits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::RunFind (const SearchQuery & query)
-{
-    bool  isRead = m_session.find.Run (m_session.analysis, m_session.model.GetQuarterTrack(), query, m_session.scheduler->HasPending());
-
-
-
-    if (!m_session.context.hasDisk)
-    {
-        m_session.find.Clear();
-    }
-
-    m_findBar->SetSearched (query);
-    m_findBar->SetError (isRead ? std::wstring() : (query.kind == SearchKind::SectorText ? std::wstring (s_kpszFindBadText) : std::wstring (s_kpszFindBadHex)));
-
-    RefreshFindResults();
-    StepFind (1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::RefreshFindResults
-//
-//  The Find results tab's rows for the hits; with none, a window showing
-//  the tab goes back to Tracks.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::RefreshFindResults()
-{
-    m_findResults->SetRows (InspectorTables::BuildSearchHits (m_session.find.GetHits(), m_session.context.hasDisk ? &m_session.analysis : nullptr, m_session.GetFileMap()));
-    RebuildFindMarks();
-
-    if (m_session.find.IsEmpty() && m_session.isDiskGroup && m_session.diskTab == kTabFindResults)
-    {
-        ShowDiskTab (kTabTracks);
-    }
-    else if (m_session.scaler.GetDpi() != 0)
-    {
-        Layout (m_boundsDip, m_session.hostScaler);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::Confirm
 //
 //  A modal question with the lines given and a button for the action and
@@ -2564,65 +2442,6 @@ bool DiskInspectorWindow::Confirm (const std::wstring & title, const vector<std:
 
 Error:
     return result == kYes;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::RebuildFindMarks
-//
-//  The marks for the hits whose record has not been analyzed again since the
-//  search. A hit on a record analyzed again refers to an analysis that is
-//  gone, so it is left out before anything reads through it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::RebuildFindMarks()
-{
-    m_session.findMarks.Build (m_session.find.GetCurrentHits (m_session.analysis), m_session.GetFileMap(), m_session.find.GetQuery().text);
-    SyncFindMarks();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::RepeatFind
-//
-//  The last search again over the whole analysis, without moving the
-//  selection. The selected hit's index is clamped to the new count.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::RepeatFind()
-{
-    m_session.find.Repeat (m_session.analysis, m_session.scheduler->HasPending());
-    RefreshFindResults();
-    m_findBar->SetResult (m_session.find.GetIndex(), m_session.find.GetCount());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SyncFindMarks
-//
-//  The views mark the hits while the find bar is open (FR-056), and the
-//  Tracks tab counts them.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SyncFindMarks()
-{
-    m_session.context.findMarks = (m_session.isFindOpen && !m_session.findMarks.IsEmpty()) ? &m_session.findMarks : nullptr;
-    m_session.isTablesDirty     = true;
 }
 
 
@@ -2745,68 +2564,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::StepFind
-//
-//  Find next and Find previous, wrapping around the hits.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::StepFind (int step)
-{
-    int  index = m_session.find.Step (step);
-
-
-
-    if (index >= 0)
-    {
-        SelectHit (m_session.find.GetHits()[index]);
-        m_findResults->SelectRowWhere ([index] (const TableRow & row) { return row.finding == index; });
-    }
-
-    m_findBar->SetResult (index, m_session.find.GetCount());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SelectHit
-//
-//  A sector hit selects its sector; a nibble hit its nibbles, and one off
-//  the framed nibbles the nibble its first cell falls in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SelectHit (const SearchHit & hit)
-{
-    const TrackAnalysis *  track  = nullptr;
-    int                    nibble = hit.firstNibble;
-
-
-
-    if (hit.sectorIndex >= 0)
-    {
-        m_session.model.SelectSector (hit.quarterTrack, hit.sectorIndex);
-    }
-    else
-    {
-        m_session.model.SelectQuarterTrack (hit.quarterTrack);
-        track  = m_session.model.GetTrack();
-        nibble = (!hit.isAligned && track != nullptr) ? PlatterGeometry::GetNibbleAt (*track, hit.cell) : nibble;
-        m_session.model.SelectNibbles (hit.quarterTrack, nibble, hit.nibbleCount);
-    }
-
-    OnSelection();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::GetKeyTarget
 //
 //  The view under a press, for the keys that act on the view pressed last.
@@ -2819,7 +2576,7 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
 
 
 
-    if (m_session.isFindOpen && IsInside (m_findBar->GetBounds(), pointPx))
+    if (m_findPart->IsBarAt (pointPx))
     {
         target = KeyTarget::FindBar;
     }
