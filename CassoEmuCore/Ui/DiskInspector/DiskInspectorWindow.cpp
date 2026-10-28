@@ -26,6 +26,7 @@
 #include "Ui/DiskInspector/Components/ComparisonPart.h"
 #include "Ui/DiskInspector/Components/EditingPart.h"
 #include "Ui/DiskInspector/Components/FindPart.h"
+#include "Ui/DiskInspector/Components/HostLink.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
@@ -110,7 +111,6 @@ static constexpr int      s_kCopySectorDip   = 110;
 static constexpr int      s_kCompareDip      = 122;
 static constexpr int      s_kFollowDip       = 110;
 static constexpr int      s_kGoToHeadDip     = 94;
-static constexpr int64_t  s_kRecopyMs        = 500;
 static constexpr int      s_kBarDip          = 36;
 static constexpr int      s_kMinFileNameDip  = 200;
 static constexpr int      s_kFocusGapDip    = 3;
@@ -258,7 +258,7 @@ HRESULT DiskInspectorWindow::ShowDrive (int drive)
         m_driveTabs->SetSelected (drive);
     }
 
-    RequestCopy();
+    m_hostLink->RequestCopy();
     UpdateControls();
 
 Error:
@@ -311,6 +311,138 @@ void DiskInspectorWindow::SetStatusNote (const std::wstring & note)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskInspectorWindow::RequestCopy
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::RequestCopy()
+{
+    m_hostLink->RequestCopy();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::StartDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason)
+{
+    m_hostLink->StartDisk (copy, reason);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::TakeTracks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::TakeTracks (const InspectorReply & reply)
+{
+    m_hostLink->TakeWrittenTracks (reply);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::NotifyDiskStarting
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::NotifyDiskStarting (const DiskChange & change)
+{
+    for (IInspectorComponent * component : m_components)
+    {
+        component->OnDiskStarting (change);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::NotifyDiskStarted
+//
+//  A saved Files choice applies to every disk (FR-080).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::NotifyDiskStarted (const DiskChange & change)
+{
+    if (change.hasDisk)
+    {
+        m_isFilesDefaulted = m_isFilesSaved;
+    }
+
+    for (IInspectorComponent * component : m_components)
+    {
+        component->OnDiskStarted (change);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::NotifyAnalysisChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskInspectorWindow::NotifyAnalysisChanged()
+{
+    for (IInspectorComponent * component : m_components)
+    {
+        component->OnAnalysisChanged();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskInspectorWindow::OfferReply
+//
+//  A reply goes to the first component that takes it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskInspectorWindow::OfferReply (const InspectorReply & reply)
+{
+    bool  isTaken = false;
+
+
+
+    for (IInspectorComponent * component : m_components)
+    {
+        isTaken = isTaken || component->TakeReply (reply);
+    }
+
+    return isTaken;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskInspectorWindow::ConfirmDiscardEdits
 //
 //  Before something discards the pending edits (FR-108): true when there are
@@ -348,11 +480,11 @@ HRESULT DiskInspectorWindow::RenderFrame()
     m_session.context.palette = DiskInspectorPalette::Resolve (*m_session.theme);
     m_tooltip.SetTheme (*m_session.theme);
 
-    TakeReplies();
-    TakeResults();
+    m_hostLink->TakeReplies();
+    m_hostLink->TakeResults();
     m_comparisonPart->TakeComparison();
     m_comparisonPart->SyncSideB();
-    TickHead();
+    m_hostLink->TickHead();
     UpdateRings();
     UpdateControls();
     RefreshTables();
@@ -408,6 +540,7 @@ Error:
 
 void DiskInspectorWindow::OnCreate()
 {
+    m_hostLink    = std::make_unique<HostLink> (m_session, GetHost());
     m_driveTabs   = CreateChild<DxuiTabStrip>();
     m_platterView = CreateChild<PlatterView> (m_session.context);
     m_zoomOut     = CreateChild<DxuiButton> (s_kpszMinus);
@@ -488,8 +621,8 @@ void DiskInspectorWindow::OnCreate()
     m_session.context.edits = &m_session.edits;
     m_copySector->SetOnClick   ([this] () { CopySector(); });
     m_compareButton->SetOnClick   ([this] () { m_comparisonPart->OpenCompare(); });
-    m_followCheck->SetOnChange    ([this] (bool isChecked) { SetFollowHead (isChecked); });
-    m_goToHead->SetOnClick        ([this] () { GoToHead(); });
+    m_followCheck->SetOnChange    ([this] (bool isChecked) { m_hostLink->SetFollowHead (isChecked); });
+    m_goToHead->SetOnClick        ([this] () { m_hostLink->GoToHead(); });
     m_diffsCheck->SetOnChange     ([this] (bool isChecked) { m_session.context.isDiffsOverlay = isChecked; });
     m_stripB->SetSide (ComparisonSession::kSideB);
     m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
@@ -499,6 +632,8 @@ void DiskInspectorWindow::OnCreate()
     m_modeTabs->SetOnChange  ([this] (int index) { m_session.context.isTimingMode = (index == 1); });
     m_rangeDown->SetOnClick  ([this] () { StepRange (-1); });
     m_rangeUp->SetOnClick    ([this] () { StepRange (1); });
+
+    m_components = { m_hostLink.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get() };
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -1505,253 +1640,6 @@ LPCWSTR DiskInspectorWindow::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::RequestCopy
-//
-//  A copy of whatever disk is in the drive; the reply says which disk it is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::RequestCopy()
-{
-    InspectorRequest  request;
-
-
-
-    request.kind             = InspectorRequestKind::CopyDisk;
-    request.drive            = m_session.drive;
-    m_session.pendingRequest = m_session.host->PostInspectorRequest (request);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::TakeReplies
-//
-//  Only the reply to the latest request counts. Its disk starts the view
-//  over unless it is the same disk; every record waits for its analysis.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::TakeReplies()
-{
-    vector<InspectorReply>  replies;
-
-
-
-    m_session.host->TakeInspectorReplies (replies);
-
-    for (InspectorReply & reply : replies)
-    {
-        if (m_session.comparison.OfferReply (reply))
-        {
-            continue;
-        }
-
-        if (reply.requestId == m_session.pendingRequest)
-        {
-            m_session.pendingRequest = 0;
-            StartDisk (reply.disk, (reply.status == InspectorReplyStatus::Unopenable) ? reply.reason : std::wstring());
-        }
-        else if (reply.requestId == m_trackRequest)
-        {
-            m_trackRequest = 0;
-            TakeWrittenTracks (reply);
-        }
-        else
-        {
-            (void) m_editing->TakeReply (reply);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::StartDisk
-//
-//  A new disk for side A starts the view over; every record waits for its
-//  analysis. With no disk, the reason it could not be opened is kept.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::StartDisk (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason)
-{
-    DecodeSettings  settings  = m_session.comparison.IsComparing() ? m_session.analysis.settings : DecodeSettings::MakeStandard();
-    int             slot      = 0;
-    uint64_t        lastMedia = m_session.analysis.mediaId;
-    std::string     lastFile  = (m_session.analysis.copy != nullptr) ? m_session.analysis.copy->fileName : std::string();
-    bool            isReload  = copy != nullptr && !lastFile.empty() && copy->fileName == lastFile;
-
-
-
-    if (copy != nullptr && copy->mediaId != lastMedia)
-    {
-        m_session.statusNote.clear();
-    }
-
-    //  End a comparison of this drive once its disk is ejected or replaced.
-    if (m_session.comparison.IsComparing() && m_session.sourceA == ComparisonSource { ComparisonSourceKind::DriveNow, m_session.drive } && lastMedia != 0 &&
-        (copy == nullptr || copy->mediaId != lastMedia))
-    {
-        m_comparisonPart->EndComparison (std::format (L"The comparison ended. The disk in drive {} was ejected or replaced.", m_session.drive + 1));
-    }
-
-    m_session.context.hasDisk = (copy != nullptr);
-    m_session.openError       = reason;
-    m_session.changedSlots.clear();
-    m_session.levels.fill (nullptr);
-    m_session.timingLevels.fill (nullptr);
-
-    if (m_session.context.hasDisk)
-    {
-        m_session.model.SetDisk (copy->mediaId);
-        m_files->ResetZoom();
-
-        m_session.analysis           = DiskAnalysis();
-        m_session.analysis.mediaId   = copy->mediaId;
-        m_session.analysis.copy      = copy;
-        m_session.analysis.settings  = settings;
-        m_session.analysis.headLimit = Disk2Controller::kMaxQuarterTrack;
-        m_session.analysis.tracks.resize (copy->tracks.size());
-        DiskAnalyzer::Assemble (m_session.analysis);
-        m_session.scheduler->Restart (copy, m_session.analysis.settings);
-
-        for (slot = 0; slot < static_cast<int> (copy->tracks.size()); slot++)
-        {
-            m_session.changedSlots.insert (slot);
-        }
-
-        //  A saved Files choice applies to every disk (FR-080).
-        m_isFilesDefaulted = m_isFilesSaved;
-
-        m_editing->OnDiskStarted (copy->mediaId != lastMedia, isReload);
-
-        //  Hits point into the analysis they were found in.
-        m_findPart->OnDiskStarted();
-
-        //  The copy's own write counts are where the guest's writes start.
-        m_session.writeCounts.clear();
-        m_session.writtenSlots.clear();
-        m_trackRequest = 0;
-
-        for (const std::shared_ptr<const TrackCopy> & track : copy->tracks)
-        {
-            m_session.writeCounts.push_back (track != nullptr ? track->guestWriteCount : 0);
-        }
-    }
-    else
-    {
-        m_editing->OnEjected();
-        m_session.model.SetDisk (0);
-        m_session.analysis = DiskAnalysis();
-    }
-
-    m_session.model.SetAnalysis (m_session.context.hasDisk ? &m_session.analysis : nullptr);
-    m_session.comparison.MarkAChanged();
-    m_session.isTablesDirty = true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::TakeResults
-//
-//  Every result that arrived since the last frame is stored, then the disk
-//  is rebuilt once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::TakeResults()
-{
-    vector<RecordResult>  results;
-
-
-
-    m_session.scheduler->TakeResults (results);
-
-    for (RecordResult & result : results)
-    {
-        if (result.mediaId == m_session.analysis.mediaId)
-        {
-            DiskAnalyzer::Accept (result.copy, result.slot, std::move (result.analysis), m_session.analysis);
-            m_session.changedSlots.insert (result.slot);
-            m_session.levels[result.slot]       = nullptr;
-            m_session.timingLevels[result.slot] = nullptr;
-        }
-    }
-
-    if (!results.empty())
-    {
-        DiskAnalyzer::Assemble (m_session.analysis);
-        m_session.model.SetAnalysis (&m_session.analysis);
-        m_session.comparison.MarkAChanged (GetQuarterTracksOf (results));
-        m_session.isTablesDirty = true;
-        m_editing->FollowEdits();
-
-        //  A search made while the disk was being analyzed is run again once
-        //  the analysis is done. Otherwise the marks are rebuilt without the
-        //  hits on tracks analyzed again, and with any new file map.
-        if (m_session.find.IsRepeatDue (m_session.scheduler->HasPending()))
-        {
-            m_findPart->RepeatFind();
-        }
-        else if (!m_session.find.IsEmpty())
-        {
-            m_findPart->RebuildFindMarks();
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetQuarterTracksOf
-//
-//  Every quarter track mapped to one of the analyzed tracks' slots.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::set<int> DiskInspectorWindow::GetQuarterTracksOf (const vector<RecordResult> & results) const
-{
-    std::set<int>  slots;
-    std::set<int>  quarterTracks;
-
-
-
-    for (const RecordResult & result : results)
-    {
-        slots.insert (result.slot);
-    }
-
-    for (int qt = 0; qt < DiskImage::kQuarterTrackCount; qt++)
-    {
-        if (slots.contains (m_session.analysis.entries[qt].slot))
-        {
-            quarterTracks.insert (qt);
-        }
-    }
-
-    return quarterTracks;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::UpdateRings
 //
 //  The platter's rings for every record whose analysis or state changed. A
@@ -1848,8 +1736,8 @@ void DiskInspectorWindow::UpdateControls()
         m_editing->Update();
         m_copySector->SetEnabled   (m_session.model.GetSector() != nullptr && m_session.model.GetSector()->dataField >= 0);
         m_compareButton->SetVisible   (m_session.context.hasDisk || m_session.comparison.IsComparing());
-        m_followCheck->SetVisible     (IsHeadShown());
-        m_goToHead->SetVisible        (IsHeadShown());
+        m_followCheck->SetVisible     (m_hostLink->IsHeadShown());
+        m_goToHead->SetVisible        (m_hostLink->IsHeadShown());
         m_goToHead->SetEnabled        (m_session.headState != nullptr && m_session.headState->hasDisk);
         m_diffsCheck->SetVisible      (m_session.comparison.IsComparing() && m_session.context.hasDisk);
         m_comparisonPart->Update();
@@ -1916,7 +1804,7 @@ void DiskInspectorWindow::OnSelection()
     {
         m_session.model.StopFlight();
     }
-    else if (!m_isHeadSelecting && sector != nullptr && (m_session.model.GetQuarterTrack() != m_flownQuarterTrack || m_session.model.GetSectorIndex() != m_flownSector))
+    else if (!m_hostLink->IsHeadSelecting() && sector != nullptr && (m_session.model.GetQuarterTrack() != m_flownQuarterTrack || m_session.model.GetSectorIndex() != m_flownSector))
     {
         m_session.model.StartFlight (InspectorMarquee::GetClockMs());
     }
@@ -1925,9 +1813,9 @@ void DiskInspectorWindow::OnSelection()
     m_flownSector       = m_session.model.GetSectorIndex();
 
     //  A selection made by hand ends Follow head (FR-067).
-    if (!m_isHeadSelecting && m_followHead.IsOn())
+    if (!m_hostLink->IsHeadSelecting() && m_hostLink->IsFollowingHead())
     {
-        m_followHead.OnHandSelection();
+        m_hostLink->OnHandSelection();
         m_followCheck->SetChecked (false);
     }
 }
@@ -3176,227 +3064,6 @@ bool DiskInspectorWindow::IsImageShown() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::TickHead
-//
-//  Once a frame: the drive's head as last published, and with Follow head
-//  on, the head's track once the head has settled on it (FR-067).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::TickHead()
-{
-    int            qt       = -1;
-    bool           isOnDisk = false;
-    InspectorHead  head;
-
-
-
-    m_session.headState = m_session.host->GetHeadState (m_session.drive);
-
-    //  A disk inserted, swapped or ejected has a new media id; a copy of it is
-    //  requested once, and the reply replaces the analysis on screen.
-    if (m_session.headState != nullptr && m_session.IsWindowDiskA() && m_session.pendingRequest == 0 && m_session.headState->mediaId != m_session.analysis.mediaId &&
-        m_session.headState->mediaId != m_session.requestedMediaId)
-    {
-        m_session.requestedMediaId = m_session.headState->mediaId;
-        RequestCopy();
-    }
-
-    RequestWrittenTracks();
-
-    isOnDisk = m_session.headState != nullptr && m_session.headState->hasDisk && m_session.headState->mediaId == m_session.analysis.mediaId && m_session.IsWindowDiskA();
-
-    if (isOnDisk)
-    {
-        qt = m_followHead.Tick (m_session.headState->headQuarterTrack, static_cast<int64_t> (GetTickCount64()));
-
-        head.isShown      = true;
-        head.quarterTrack = m_session.headState->headQuarterTrack;
-        head.turn         = m_session.headState->angle;
-        head.activity     = m_session.headState->activity;
-    }
-
-    m_session.context.head  = head;
-    m_session.context.drive = isOnDisk ? m_session.headState.get() : nullptr;
-
-    //  While the drive turns, the platter turns under the head at 12
-    //  o'clock, or at the near edge when tilted (FR-152). Zoomed in, the
-    //  platter does not turn and the head moves around it (FR-064).
-    if (isOnDisk && m_session.headState->isTurning && m_session.model.IsAtFit())
-    {
-        m_session.model.SetRotation ((m_session.model.IsTilted() ? 0.5 : 0.0) - m_session.headState->angle);
-    }
-
-    if (qt >= 0)
-    {
-        SelectHeadTrack (qt);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SetFollowHead
-//
-//  Turning Follow head on selects the head's track at once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SetFollowHead (bool isOn)
-{
-    int  head = (m_session.headState != nullptr) ? m_session.headState->headQuarterTrack : m_session.model.GetQuarterTrack();
-    int  qt   = m_followHead.SetOn (isOn, head, static_cast<int64_t> (GetTickCount64()));
-
-
-
-    if (qt >= 0)
-    {
-        SelectHeadTrack (qt);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GoToHead
-//
-//  "Go to head": the head's track, once, leaving Follow head as it is.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::GoToHead()
-{
-    if (m_session.headState != nullptr && m_session.headState->hasDisk)
-    {
-        SelectHeadTrack (m_session.headState->headQuarterTrack);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::SelectHeadTrack
-//
-//  A selection made for the head rather than by hand, so Follow head stays.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::SelectHeadTrack (int quarterTrack)
-{
-    m_isHeadSelecting = true;
-    m_session.model.SelectQuarterTrack (quarterTrack);
-    OnSelection();
-    m_isHeadSelecting = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::RequestWrittenTracks
-//
-//  The records the guest has written since the window's copy, from the
-//  published write counts, copied again at most twice a second so a track
-//  being written continuously still shows within half a second (FR-069).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::RequestWrittenTracks()
-{
-    const DriveHeadState *  state = m_session.headState.get();
-    int64_t                 now   = static_cast<int64_t> (GetTickCount64());
-    InspectorRequest        request;
-    size_t                  slot  = 0;
-
-
-
-    if (state != nullptr && m_session.analysis.copy != nullptr && state->mediaId == m_session.analysis.mediaId && m_session.IsWindowDiskA() && state->countsGeneration != m_countsGeneration)
-    {
-        for (slot = 0; slot < state->recordWriteCounts.size() && slot < m_session.analysis.copy->tracks.size(); slot++)
-        {
-            if (slot >= m_session.writeCounts.size() || state->recordWriteCounts[slot] != m_session.writeCounts[slot])
-            {
-                m_session.writtenSlots.insert (static_cast<int> (slot));
-            }
-        }
-
-        m_session.writeCounts   = state->recordWriteCounts;
-        m_countsGeneration      = state->countsGeneration;
-        m_session.isTablesDirty = true;
-    }
-
-    if (!m_session.writtenSlots.empty() && m_trackRequest == 0 && now - m_trackRequestMs >= s_kRecopyMs)
-    {
-        request.kind     = InspectorRequestKind::CopyTracks;
-        request.drive    = m_session.drive;
-        request.mediaId  = m_session.analysis.mediaId;
-        request.slots.assign (m_session.writtenSlots.begin(), m_session.writtenSlots.end());
-        m_trackRequest   = m_session.host->PostInspectorRequest (request);
-        m_trackRequestMs = now;
-        m_session.writtenSlots.clear();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::TakeWrittenTracks
-//
-//  The written records go into a new copy of the disk, sharing every other
-//  record with the old one, and only they are analyzed again. A reply for a
-//  disk no longer in the drive starts the window over on the new one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::TakeWrittenTracks (const InspectorReply & reply)
-{
-    vector<int>  slots;
-
-
-
-    if (reply.status == InspectorReplyStatus::DiskChanged || reply.status == InspectorReplyStatus::NoDisk)
-    {
-        RequestCopy();
-    }
-    else if (m_session.analysis.copy != nullptr && reply.mediaId == m_session.analysis.mediaId && !reply.tracks.empty())
-    {
-        auto  copy = std::make_shared<DiskCopy> (*m_session.analysis.copy);
-
-        for (const std::shared_ptr<const TrackCopy> & track : reply.tracks)
-        {
-            if (track != nullptr && track->slot >= 0 && track->slot < static_cast<int> (copy->tracks.size()))
-            {
-                copy->tracks[track->slot] = track;
-                slots.push_back (track->slot);
-            }
-        }
-
-        m_session.analysis.copy = copy;
-        m_session.scheduler->Update (copy, slots);
-        m_session.isTablesDirty = true;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::GetToolItems
 //
 //  The toolbar's controls after the file name in FR-007's order, each with
@@ -3419,7 +3086,7 @@ vector<DiskInspectorWindow::ToolItem> DiskInspectorWindow::GetToolItems (const D
         items.push_back ({ ToolId::Range, scaler.ToPx (s_kRangeDip) });
     }
 
-    if (IsHeadShown())
+    if (m_hostLink->IsHeadShown())
     {
         items.push_back ({ ToolId::Follow,   scaler.ToPx (s_kFollowDip) });
         items.push_back ({ ToolId::GoToHead, scaler.ToPx (s_kGoToHeadDip) });
@@ -3566,24 +3233,6 @@ uint32_t DiskInspectorWindow::GetToolSig() const
     }
 
     return sig;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::IsHeadShown
-//
-//  "Follow head" and "Go to head" are offered while Casso publishes the
-//  head of the window's own drive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DiskInspectorWindow::IsHeadShown() const
-{
-    return m_session.context.hasDisk && m_session.headState != nullptr && m_session.IsWindowDiskA();
 }
 
 
@@ -3741,11 +3390,14 @@ void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
     inOut.isAlignment   = m_alignmentCheck->IsChecked();
     inOut.isFiles       = m_session.context.isFilesOverlay;
     inOut.isReads       = m_session.context.isReadsOverlay;
-    m_files->GetPrefs (inOut);
-    inOut.isFollowHead  = m_followHead.IsOn();
     inOut.zoom          = m_zoom;
     inOut.tilt          = m_session.model.GetTilt();
     inOut.lastDrive     = m_session.drive;
+
+    for (IInspectorComponent * component : m_components)
+    {
+        component->GetPrefs (inOut);
+    }
 }
 
 
@@ -3801,9 +3453,13 @@ void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
     m_platterView->SetAlignmentShown (prefs.isAlignment);
     m_filesCheck->SetChecked (prefs.isFiles);
     m_readsCheck->SetChecked (prefs.isReads);
-    m_files->ApplyPrefs (prefs);
     m_followCheck->SetChecked (prefs.isFollowHead);
-    SetFollowHead (prefs.isFollowHead);
+
+    for (IInspectorComponent * component : m_components)
+    {
+        component->ApplyPrefs (prefs);
+    }
+
     SetZoom (prefs.zoom);
     m_session.model.SetTilt (prefs.tilt);
 

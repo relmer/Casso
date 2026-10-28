@@ -190,32 +190,56 @@ bool EditingPart::TakeReply (const InspectorReply & reply)
 //
 //  EditingPart::OnDiskStarted
 //
-//  Pending edits are discarded with the disk they were made on. A remount
-//  of the same file, as Reset, Power Cycle and a machine change do, is a
-//  reload: the edits follow their fields once each track is analyzed again
-//  (FR-108). A new disk clears the apply history.
+//  Pending edits are discarded with the disk they were made on, or when the
+//  disk is ejected. A remount of the same file, as Reset, Power Cycle and a
+//  machine change do, is a reload: the edits follow their fields once each
+//  track is analyzed again (FR-108). A new disk clears the apply history.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EditingPart::OnDiskStarted (bool isNewDisk, bool isReload)
+void EditingPart::OnDiskStarted (const DiskChange & change)
 {
-    if (isNewDisk && !isReload && !m_session.edits.IsEmpty())
+    bool  isNewDisk = change.isNewDisk;
+    bool  isReload  = change.isReload;
+
+
+
+    if (!change.hasDisk)
+    {
+        OnEjected();
+    }
+    else if (isNewDisk && !isReload && !m_session.edits.IsEmpty())
     {
         m_session.editNote = L"Pending edits were discarded: the disk in the drive changed";
     }
 
-    if (isNewDisk && !isReload)
+    if (change.hasDisk && isNewDisk && !isReload)
     {
         m_session.edits = EditController();
         m_byteView.SetEditing (false);
     }
 
-    if (isNewDisk)
+    if (change.hasDisk && isNewDisk)
     {
         m_history.clear();
         m_historyAt = 0;
         m_session.appliedSlots.clear();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EditingPart::OnAnalysisChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EditingPart::OnAnalysisChanged()
+{
+    FollowEdits();
 }
 
 

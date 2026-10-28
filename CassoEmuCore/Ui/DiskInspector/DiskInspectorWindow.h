@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Ui/DiskInspector/Components/IInspectorComponent.h"
 #include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Config/DiskInspectorPrefs.h"
@@ -32,6 +33,7 @@ class FileMapGridView;
 class ComparisonPart;
 class EditingPart;
 class FindPart;
+class HostLink;
 class FilesView;
 class DifferencesTab;
 class FindBar;
@@ -107,7 +109,13 @@ private:
     void                 Relayout         () override;
     void                 SetStatusNote    (const std::wstring & note) override;
     bool                 Confirm          (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action) override;
-    void                 TakeTracks       (const InspectorReply & reply) override { TakeWrittenTracks (reply); }
+    void                 TakeTracks       (const InspectorReply & reply) override;
+    void                 RequestCopy      () override;
+    void                 StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) override;
+    void                 NotifyDiskStarting    (const DiskChange & change) override;
+    void                 NotifyDiskStarted     (const DiskChange & change) override;
+    void                 NotifyAnalysisChanged () override;
+    bool                 OfferReply            (const InspectorReply & reply) override;
 
     //  The toolbar's controls after the file name, in FR-007's order.
     enum class ToolId
@@ -134,23 +142,12 @@ private:
     static int        FlowToolItems (vector<ToolItem> & inOutItems, int left, int firstLeft, int right, int top, int rowHeight, int gap);
     void              PlaceToolItem (const ToolItem & item, const DxuiDpiScaler & scaler);
     uint32_t          GetToolSig    () const;
-    bool              IsHeadShown   () const;
 
-    void  RequestCopy      () override;
-    void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) override;
-    void  TickHead         ();
-    void  RequestWrittenTracks ();
-    void  TakeWrittenTracks    (const InspectorReply & reply);
-    void  SetFollowHead    (bool isOn);
-    void  GoToHead         ();
-    void  SelectHeadTrack  (int quarterTrack);
     void  PaintNoDisk      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void  PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     bool  OnWalkthroughMouse (const DxuiMouseEvent & ev);
     bool  OnWalkthroughKey   (const DxuiKeyEvent & ev);
     RECT  GetWalkthroughArea (WalkthroughArea area) const;
-    void  TakeReplies      ();
-    void  TakeResults      ();
     void  UpdateRings      ();
     void  UpdateControls   ();
     void  OnSelection      () override;
@@ -170,7 +167,6 @@ private:
     void  ExtendSelection (WPARAM vk);
     void  Copy            ();
     void  CopySector      ();
-    std::set<int>  GetQuarterTracksOf (const vector<RecordResult> & results) const;
     vector<int>  GetShownDiskTabs () const;
     int          GetTabIndex      () const;
     void  OpenExport ();
@@ -203,6 +199,8 @@ private:
     std::unique_ptr<EditingPart>                                                                 m_editing;
     std::unique_ptr<ComparisonPart>                                                              m_comparisonPart;
     std::unique_ptr<FindPart>                                                                    m_findPart;
+    std::unique_ptr<HostLink>                                                                    m_hostLink;
+    vector<IInspectorComponent *>                                                                m_components;
     bool                                                                                         m_isTracksCompared  = false;
     uint32_t                                                                                     m_toolSig           = 0;
     DxuiTooltip                                                                                  m_tooltip;
@@ -234,17 +232,12 @@ private:
     DxuiButton                            * m_compareButton      = nullptr;
     DxuiCheckbox                          * m_followCheck        = nullptr;
     DxuiButton                            * m_goToHead           = nullptr;
-    FollowHead                              m_followHead;
-    bool                                    m_isHeadSelecting    = false;
     int                                     m_flownQuarterTrack  = -1;
     int                                     m_flownSector        = -1;
     bool                                    m_isFilesDefaulted   = false;
     bool                                    m_isFilesSaved       = false;
     InspectorWalkthrough                    m_walkthrough;
     RECT                                    m_helpPx             = {};
-    uint64_t                                m_countsGeneration   = 0;
-    uint64_t                                m_trackRequest       = 0;
-    int64_t                                 m_trackRequestMs     = 0;
     DxuiCheckbox                          * m_diffsCheck         = nullptr;
     DifferencesTab                        * m_diffsTab           = nullptr;
     DxuiButton                            * m_stripOut           = nullptr;

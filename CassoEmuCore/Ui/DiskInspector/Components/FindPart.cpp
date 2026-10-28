@@ -162,11 +162,40 @@ bool FindPart::IsBarAt (POINT pointPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void FindPart::OnDiskStarted()
+void FindPart::OnDiskStarted (const DiskChange & change)
 {
-    m_session.find.Clear();
-    m_findBar->SetResult (-1, 0);
-    RefreshFindResults();
+    if (change.hasDisk)
+    {
+        m_session.find.Clear();
+        m_findBar->SetResult (-1, 0);
+        RefreshFindResults();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindPart::OnAnalysisChanged
+//
+//  A search made while the disk was being analyzed is run again once the
+//  analysis is done. Otherwise the marks are rebuilt without the hits on
+//  tracks analyzed again, and with any new file map.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FindPart::OnAnalysisChanged()
+{
+    if (m_session.find.IsRepeatDue (m_session.scheduler->HasPending()))
+    {
+        RepeatFind();
+    }
+    else if (!m_session.find.IsEmpty())
+    {
+        RebuildFindMarks();
+    }
 }
 
 

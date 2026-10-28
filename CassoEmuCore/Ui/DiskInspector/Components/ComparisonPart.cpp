@@ -136,6 +136,27 @@ void ComparisonPart::Update()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ComparisonPart::OnDiskStarting
+//
+//  A comparison of the window's drive ends once its disk is ejected or
+//  replaced.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ComparisonPart::OnDiskStarting (const DiskChange & change)
+{
+    if (m_session.comparison.IsComparing() && m_session.IsWindowDiskA() && change.lastMediaId != 0 && change.isNewDisk)
+    {
+        EndComparison (std::format (L"The comparison ended. The disk in drive {} was ejected or replaced.", m_session.drive + 1));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ComparisonPart::PaintUnder
 //
 ////////////////////////////////////////////////////////////////////////////////

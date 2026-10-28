@@ -33,6 +33,7 @@ public:
     std::wstring  GetTip     (POINT pointPx, RECT & outAnchorPx) const override;
     void          GetPrefs   (DiskInspectorPrefs & inOut) const override;
     void          ApplyPrefs (const DiskInspectorPrefs & prefs) override;
+    void          OnDiskStarted (const DiskChange & change) override;
 
     void  Layout          (const RECT & area, const DxuiDpiScaler & scaler);
     void  Show            (bool isShown);

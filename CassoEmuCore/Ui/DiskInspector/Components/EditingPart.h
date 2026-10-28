@@ -38,11 +38,11 @@ public:
     void  Layout              (const RECT & area, const DxuiDpiScaler & scaler);
     int   GetHeightPx         (int widthPx, const DxuiDpiScaler & scaler) const;
     void  SetShown            (bool isShown);
+    void  OnDiskStarted       (const DiskChange & change) override;
+    void  OnAnalysisChanged   () override;
+    bool  TakeReply           (const InspectorReply & reply) override;
     void  ToggleEditing       ();
     void  FollowEdits         ();
-    bool  TakeReply           (const InspectorReply & reply);
-    void  OnDiskStarted       (bool isNewDisk, bool isReload);
-    void  OnEjected           ();
     bool  ConfirmDiscardEdits (const std::wstring & action);
 
 private:
@@ -59,6 +59,7 @@ private:
 
     bool          HandleEditKey     (const DxuiKeyEvent & ev);
     void          UpdateEditBar     ();
+    void          OnEjected         ();
     void          PasteIntoEdit     ();
     std::wstring  GetApplyBlock     () const;
     bool          IsHistoryCurrent  (const vector<RecordWriteCount> & counts) const;

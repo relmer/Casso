@@ -39,7 +39,8 @@ public:
     void  RefreshFindResults ();
     void  RepeatFind         ();
     void  RebuildFindMarks   ();
-    void  OnDiskStarted      ();
+    void  OnDiskStarted      (const DiskChange & change) override;
+    void  OnAnalysisChanged  () override;
     void  OnPress            ();
     bool  IsBarAt            (POINT pointPx) const;
 
