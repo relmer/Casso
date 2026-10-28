@@ -584,6 +584,11 @@ public:
                                     vector<string>         & outFiles,
                                     string                 & outError);
 
+    // A serial port entry's attachment options; the settings read them with
+    // the same keys.
+    static void    ParseSerialOptions (const JsonValue          & entry,
+                                       SerialAttachmentOptions  & outOptions);
+
 private:
     template <typename T>
     struct Field
@@ -629,8 +634,6 @@ private:
     // before the key existed depends on that reading.
     static void    ParsePorts         (const JsonValue    & owner,
                                        vector<PortConfig> & outPorts);
-    static void    ParseSerialOptions (const JsonValue          & entry,
-                                       SerialAttachmentOptions  & outOptions);
 
     static HRESULT LoadTiming         (const JsonValue & timing,
                                        MachineConfig   & outConfig,

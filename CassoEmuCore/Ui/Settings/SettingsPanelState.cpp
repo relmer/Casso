@@ -589,7 +589,8 @@ void SettingsPanelState::Cancel()
 bool SettingsPanelState::IsDirty() const
 {
     return !ArePrefsEqual    (m_original.prefs,    m_current.prefs)
-        || !AreHardwareEqual (m_original.hardware, m_current.hardware);
+        || !AreHardwareEqual (m_original.hardware, m_current.hardware)
+        || m_original.machinePorts != m_current.machinePorts;
 }
 
 
@@ -623,7 +624,16 @@ bool SettingsPanelState::RequiresReset() const
         bool                   serial = after.type == kpszSuperSerialCardDevice;
 
         changed = before.enabled != after.enabled
-               || (serial && (before.ports != after.ports || before.portPath != after.portPath));
+               || (serial && (before.ports != after.ports || before.portPath != after.portPath || before.portSerial != after.portSerial));
+    }
+
+    // The //c's serial ports likewise.
+    for (const SettingsMachinePort & after : m_current.machinePorts)
+    {
+        const SettingsMachinePort  * before   = FindMachinePort (m_original.machinePorts, after.name);
+        bool                         isSerial = after.name == kpszSerialPort1Name || after.name == kpszSerialPort2Name;
+
+        changed = changed || (isSerial && (before == nullptr || !(*before == after)));
     }
 
     return changed;
@@ -1155,6 +1165,205 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HasBuiltInSerialPorts
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsPanelState::HasBuiltInSerialPorts() const
+{
+    return FindMachinePort (m_current.machinePorts, kpszSerialPort1Name) != nullptr
+        || FindMachinePort (m_current.machinePorts, kpszSerialPort2Name) != nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSerialAttachment
+//
+//  A connector the machine does not have reads as nothing attached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SerialAttachmentChoice SettingsPanelState::GetSerialAttachment (SerialPortId port) const
+{
+    SerialAttachmentChoice        choice;
+    int                           index   = FindSerialCard();
+    const SettingsMachinePort   * builtIn = nullptr;
+
+
+
+    if (port == SerialPortId::Card && index >= 0)
+    {
+        const HardwareEntry &  entry = m_current.hardware[static_cast<size_t> (index)];
+
+        choice.device  = entry.ports.empty() ? std::string() : entry.ports.front();
+        choice.path    = entry.portPath;
+        choice.options = entry.portSerial;
+    }
+    else if (port != SerialPortId::Card)
+    {
+        builtIn = FindMachinePort (m_current.machinePorts, (port == SerialPortId::Port1) ? kpszSerialPort1Name : kpszSerialPort2Name);
+
+        if (builtIn != nullptr)
+        {
+            choice.device  = builtIn->device;
+            choice.path    = builtIn->path;
+            choice.options = builtIn->serial;
+        }
+    }
+
+    return choice;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetSerialAttachment
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsPanelState::SetSerialAttachment (
+    SerialPortId                    port,
+    const SerialAttachmentChoice  & choice)
+{
+    HRESULT                hr      = S_OK;
+    int                    index   = FindSerialCard();
+    const char           * name    = (port == SerialPortId::Port1) ? kpszSerialPort1Name : kpszSerialPort2Name;
+    SettingsMachinePort  * builtIn = nullptr;
+    HardwareEntry        * entry   = nullptr;
+
+
+
+    if (port == SerialPortId::Card)
+    {
+        CBR (index >= 0);
+
+        entry             = &m_current.hardware[static_cast<size_t> (index)];
+        entry->ports      = { choice.device };
+        entry->portPath   = choice.path;
+        entry->portSerial = choice.options;
+    }
+    else
+    {
+        for (SettingsMachinePort & each : m_current.machinePorts)
+        {
+            builtIn = (each.name == name) ? &each : builtIn;
+        }
+
+        CBR (builtIn != nullptr);
+
+        builtIn->device = choice.device;
+        builtIn->path   = choice.path;
+        builtIn->serial = choice.options;
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindMachinePort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const SettingsMachinePort * SettingsPanelState::FindMachinePort (
+    const std::vector<SettingsMachinePort>  & ports,
+    const std::string                       & name)
+{
+    auto  found = std::find_if (ports.begin(), ports.end(), [&name] (const SettingsMachinePort & port) { return port.name == name; });
+
+
+
+    return (found != ports.end()) ? &*found : nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildSerialPortJson
+//
+//  A connector's entry: its name when it has one, its device, and then its
+//  file and the options that differ from their defaults, so a connector the
+//  user never set writes nothing new.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue SettingsPanelState::BuildSerialPortJson (
+    const std::string              & name,
+    const std::string              & device,
+    const std::string              & path,
+    const SerialAttachmentOptions  & options)
+{
+    std::vector<std::pair<std::string, JsonValue>>  entry;
+    SerialAttachmentOptions                         defaults;
+
+
+
+    if (!name.empty())
+    {
+        entry.emplace_back (kpszPortNameKey, JsonValue (name));
+    }
+
+    entry.emplace_back (kpszPortDeviceKey, JsonValue (device));
+
+    if (!path.empty())
+    {
+        entry.emplace_back (kpszPortPathKey, JsonValue (path));
+    }
+
+    if (!options.comPort.empty())
+    {
+        entry.emplace_back (kpszComPortKey, JsonValue (options.comPort));
+    }
+
+    if (!options.host.empty())
+    {
+        entry.emplace_back (kpszHostKey, JsonValue (options.host));
+    }
+
+    if (options.tcpPort != defaults.tcpPort)
+    {
+        entry.emplace_back (kpszTcpPortKey, JsonValue ((double) options.tcpPort));
+    }
+
+    if (options.listen)
+    {
+        entry.emplace_back (kpszListenKey, JsonValue (true));
+    }
+
+    if (options.telnet.has_value())
+    {
+        entry.emplace_back (kpszTelnetKey, JsonValue (*options.telnet));
+    }
+
+    if (options.modemListenPort != defaults.modemListenPort)
+    {
+        entry.emplace_back (kpszListenPortKey, JsonValue ((double) options.modemListenPort));
+    }
+
+    return JsonValue (std::move (entry));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetHardwareEnabled
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1246,14 +1455,16 @@ void SettingsPanelState::RefreshMergedJson (const JsonValue & mergedJson)
         HardwareEntry &  current   = m_current.hardware[i];
         HardwareEntry &  original  = m_original.hardware[i];
         bool             sameCard  = hardware[i].type == current.type && hardware[i].slot == current.slot;
-        bool             unchanged = current.ports == original.ports && current.portPath == original.portPath;
+        bool             unchanged = current.ports == original.ports && current.portPath == original.portPath && current.portSerial == original.portSerial;
 
         if (sameCard && unchanged)
         {
-            current.ports     = hardware[i].ports;
-            current.portPath  = hardware[i].portPath;
-            original.ports    = hardware[i].ports;
-            original.portPath = hardware[i].portPath;
+            current.ports       = hardware[i].ports;
+            current.portPath    = hardware[i].portPath;
+            current.portSerial  = hardware[i].portSerial;
+            original.ports      = hardware[i].ports;
+            original.portPath   = hardware[i].portPath;
+            original.portSerial = hardware[i].portSerial;
         }
     }
 
@@ -1871,6 +2082,8 @@ HRESULT SettingsPanelState::ExtractMachinePorts (
         {
             port.name   = GetStringOpt (entry, kpszPortNameKey,   "");
             port.device = GetStringOpt (entry, kpszPortDeviceKey, "");
+            port.path   = GetStringOpt (entry, kpszPortPathKey,   "");
+            MachineConfigLoader::ParseSerialOptions (entry, port.serial);
         }
 
         outPorts.push_back (std::move (port));
@@ -2040,6 +2253,7 @@ HRESULT SettingsPanelState::ExtractHardware (
                         if (j == 0 && port.GetType() == JsonType::Object)
                         {
                             hw.portPath = GetStringOpt (port, kpszPortPathKey, "");
+                            MachineConfigLoader::ParseSerialOptions (port, hw.portSerial);
                         }
                     }
                 }
@@ -2288,16 +2502,11 @@ JsonValue SettingsPanelState::BuildJson (
 
                         for (const std::string & device : staged->ports)
                         {
-                            // The first connector of a card with a file
-                            // attachment is written as an object, to include the
-                            // file's path.
-                            if (portArr.empty() && !staged->portPath.empty())
+                            // The first connector of a card with a file or
+                            // options is written as an object, to include them.
+                            if (portArr.empty() && (!staged->portPath.empty() || !(staged->portSerial == SerialAttachmentOptions {})))
                             {
-                                std::vector<std::pair<std::string, JsonValue>>  port;
-
-                                port.emplace_back (kpszPortDeviceKey, JsonValue (device));
-                                port.emplace_back (kpszPortPathKey,   JsonValue (staged->portPath));
-                                portArr.emplace_back (JsonValue (std::move (port)));
+                                portArr.emplace_back (BuildSerialPortJson ("", device, staged->portPath, staged->portSerial));
                             }
                             else
                             {
@@ -2343,11 +2552,7 @@ JsonValue SettingsPanelState::BuildJson (
 
         for (const SettingsMachinePort & port : machinePorts)
         {
-            std::vector<std::pair<std::string, JsonValue>>  entry;
-
-            entry.emplace_back (kpszPortNameKey,   JsonValue (port.name));
-            entry.emplace_back (kpszPortDeviceKey, JsonValue (port.device));
-            portArr.emplace_back (JsonValue (std::move (entry)));
+            portArr.emplace_back (BuildSerialPortJson (port.name, port.device, port.path, port.serial));
         }
 
         root.emplace_back (kpszPortsKey, JsonValue (std::move (portArr)));
@@ -2537,6 +2742,7 @@ bool SettingsPanelState::AreHardwareEqual (
              && a[i].enabled     == b[i].enabled
              && a[i].ports       == b[i].ports
              && a[i].portPath    == b[i].portPath
+             && a[i].portSerial  == b[i].portSerial
              && a[i].switchesSw1 == b[i].switchesSw1
              && a[i].switchesSw2 == b[i].switchesSw2
              && a[i].network     == b[i].network;

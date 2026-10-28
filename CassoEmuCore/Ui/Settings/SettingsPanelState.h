@@ -6,6 +6,7 @@
 #include "Controllers/ControllerTypes.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
+#include "Ui/Settings/SerialAttachmentChoice.h"
 
 
 
@@ -149,6 +150,9 @@ struct HardwareEntry
     std::string  switchesSw2;
     std::string  portPath;
 
+    // The COM port, TCP and modem options of the card's first connector.
+    SerialAttachmentOptions  portSerial;
+
     // The network card's settings; defaults for every other device.
     NetworkCardSettings  network;
 };
@@ -165,8 +169,12 @@ struct HardwareEntry
 //
 struct SettingsMachinePort
 {
-    std::string  name;      // "disk", "serial1", "joystick"
-    std::string  device;    // what is attached; empty for an unoccupied port
+    std::string              name;      // "disk", "serial1", "joystick"
+    std::string              device;    // what is attached; empty for an unoccupied port
+    std::string              path;      // a serial port's host file
+    SerialAttachmentOptions  serial;    // a serial port's COM port, TCP and modem options
+
+    bool operator== (const SettingsMachinePort & other) const = default;
 };
 
 
@@ -368,6 +376,13 @@ public:
     HRESULT SetSerialCardSwitches   (const std::string & sw1, const std::string & sw2);
     HRESULT SetSerialCardAttachment (const std::string & device, const std::string & path);
 
+    // Every serial connector's attachment and options: the card's, and the
+    // //c's two, whose presence HasBuiltInSerialPorts reports. Setting one the
+    // staged machine does not have fails.
+    bool                    HasBuiltInSerialPorts () const;
+    SerialAttachmentChoice  GetSerialAttachment   (SerialPortId port) const;
+    HRESULT                 SetSerialAttachment   (SerialPortId port, const SerialAttachmentChoice & choice);
+
     // The Uthernet II. The machine's slot list places it and the Machine tab
     // turns it on; turned on with no MAC address, it gets a random locally
     // administered one.
@@ -447,6 +462,12 @@ private:
     static constexpr const char *  kpszPortNameKey  = "name";
     static constexpr const char *  kpszPortDeviceKey = "device";
     static constexpr const char *  kpszPortPathKey   = "path";
+    static constexpr const char *  kpszComPortKey    = "comPort";
+    static constexpr const char *  kpszHostKey       = "host";
+    static constexpr const char *  kpszTcpPortKey    = "port";
+    static constexpr const char *  kpszListenKey     = "listen";
+    static constexpr const char *  kpszTelnetKey     = "telnet";
+    static constexpr const char *  kpszListenPortKey = "listenPort";
     static constexpr const char *  kpszSwitchesKey   = "switches";
     static constexpr const char *  kpszSw1Key        = "sw1";
     static constexpr const char *  kpszSw2Key        = "sw2";
@@ -456,6 +477,12 @@ private:
     static constexpr const char *  kpszDiskIiDrive  = "disk-ii-drive";
     static constexpr size_t        kSecondDrivePortIndex = 1;
     static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
+
+    static const SettingsMachinePort *  FindMachinePort     (const std::vector<SettingsMachinePort> & ports, const std::string & name);
+    static JsonValue                    BuildSerialPortJson (const std::string              & name,
+                                                             const std::string              & device,
+                                                             const std::string              & path,
+                                                             const SerialAttachmentOptions  & options);
 
     static int  FindKey (
         const std::vector<std::pair<std::string, JsonValue>> & entries,
