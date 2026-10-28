@@ -128,6 +128,7 @@ rebuild. **Independent test**: set each attachment, apply, rebuild, read back.
 - [ ] T043 Once 033 merges to master and master is merged here, default the //c's port 1 to 033's serial ImageWriter (owner decision 2026-10-28).
 - [X] T044 Lay out the serial connector above the switches on the Serial card page (owner decision 2026-10-28). *Done: `SerialCardPage::Layout`; test `TheConnectorIsAboveTheSwitches`.*
 - [ ] T045 Once 033 merges to master and master is merged here, apply a serial attachment change to the running machine with no reset (owner decision 2026-10-28), through 033's `SettingsConnectors` path, which applies a //c port's device live; build 047's attachments there and drop the serial terms from `RequiresReset`.
+- [ ] T046 Rebuild 047's serial attachments on 033's serial layer (owner decision 2026-10-28), once 035-debugger has merged master with 033 in it and the 035 session sends that commit: merge `origin/035-debugger` there; extend `SerialPortDevice` with `tcp:host:port`, `?telnet`, `modem[:listenPort]` and `com:COMn` following the 6551 (with `com:COMn@baud` as a fixed rate); install 047's endpoints through `MachineHost::ConnectSerialPort`; take 047's `IAciaEndpoint` and journaled `Acia6551`; one set of per-port arrays in `MachineHost`; one Settings control set; convert the `serial-*` devices and option keys on load; run CassoLink over the journaled endpoints, as settled with the 033 session. T043 and T045 are part of this.
 
 ---
 
