@@ -2313,3 +2313,64 @@ The test reads through whatever any-thread accessor the publish decision settles
 
 The scratch copy with the probe code and logs is at `C:\Users\relmer\AppData\Local\Temp\claude\C--Users-relmer-source-repos-relmer-Casso\76c7343d-9eb8-42be-850a-498f31e14796\scratchpad\asan-src`. It takes 5.1 GB and is safe to delete; the probe source is `UnitTest\EmuTests\AsanProbeTests.cpp`. The worktree is unchanged.
 
+## R7. Disk file I/O on its own thread (owner decision, 2026-10-28)
+
+### Decision
+
+Every read and write of a disk file moves off the thread with the disk store's token. The owner's rule: UI work runs on the UI thread, emulation on the CPU thread, and file I/O on a separate thread. T062 measured a spin-down commit at 33 to 43 ms at the median on a USB stick and 173 ms at worst, which is two to ten frames of emulation stopped at every motor stop.
+
+The store stays single-threaded, and no `DiskImage` is shared with the I/O thread. On the store's thread the image is serialized to bytes, the file work for those bytes is posted to a queue, and the result is applied when its completion is drained on the store's thread again. Work on the I/O thread does not read or write an `Entry`, a `DiskImage` or a sink.
+
+### Design
+
+**`IDiskIoQueue`** (`CassoEmuCore/Devices/Disk/IDiskIoQueue.h`):
+
+```cpp
+class IDiskIoQueue
+{
+public:
+    using Work       = std::function<void ()>;    // on the I/O thread
+    using Completion = std::function<void ()>;    // on the store's thread
+
+    virtual void     Post             (Work work, Completion completion) = 0;
+    virtual void     DrainCompletions () = 0;           // the store's thread
+    virtual bool     IsIdle           () const = 0;     // nothing posted and not drained
+    virtual HRESULT  WaitUntilIdle    (DWORD timeoutMs) = 0;   // drains while it waits
+};
+```
+
+Two implementations:
+
+- `InlineDiskIoQueue` runs the work and then the completion inside `Post`. It is the store's default, so the CLI, the tools, scratch machines and the existing tests run in exactly today's order of events.
+- `ThreadedDiskIoQueue` runs work in posting order on one thread, so two commits to one file never run out of order, and appends each completion to a list that the store's thread drains. A callback set by the shell runs when a completion is appended, to schedule the drain.
+
+**Per-bay save state.** `Entry` gains a `SaveInFlight` record: the generations from `GetTrackGenerations` and the `GetImageId` at the moment the bytes were taken, the moment of the save, and the action that waits for it. While one is in flight, another save request for that bay sets `isResaveDue` and posts nothing; the completion posts a new save when the image is dirty. A completion for a bay whose image id differs applies nothing to the bay. A completion whose generations match the image's calls `MarkSaved` and `RecordCommittedFile`. Otherwise the image stays dirty and the next save writes it.
+
+**What runs on the I/O thread.** Everything `DurableCommit::Commit` does, `ReadIdentity` (the staleness check before a commit and the identity after it), `ReadImageFile`, the probes in `DoesPathExist` and `FindFreePreservedPath`, the recovery and preserved copies, and the salvaged copy. One save is one job: stat the file, compare it against the identity from the last commit or the mount, commit, stat again. The job's result indicates which of these happened: the bytes were written, the file had changed, or the commit failed.
+
+**Actions that depend on a save** (R2's table) finish in the completion. An eject empties the bay once its save completes, or puts its question. A mount over a bay reads the new file in a job, loads it on the store's thread, then saves the old disk in a second job, and swaps or declines in that job's completion. A write-protect change saves first in the same way. `Mount` and `MountFromBytes` take a completion callback that receives the `HRESULT` and the `MountDiagnosis`; the shell's `WM_APP_MOUNT_COMPLETED` post is that callback. With the inline queue the callback runs before `Mount` returns, so the synchronous overloads, which the tools and the tests call, return the same result as today.
+
+**Where completions are drained.** On the CPU thread: in the motor-off and idle callbacks (`MachineBuilder.cpp:1731-1758`) and in the service pass, so a completion is applied within a frame of being posted, paused or not. On the window thread: `FlushAllForShutdown` and `DeploySave::Flush` post their saves and call `WaitUntilIdle` with a deadline. A shutdown save that misses its deadline is reported as a failed save, so a slow share cannot stop Casso from closing, and the notice states that the disk may not be written.
+
+**Ownership.** The queue is the store's, and `DrainCompletions` asserts the store's token. `NoteExternalChange` remains the one store member that any thread may call.
+
+### Rationale
+
+Serializing on the store's thread preserves FR-001's single owner: no two threads read the image. Taking the generations with the bytes is what makes a completion safe to apply after the guest has written again: `MarkSaved` with bytes older than the image would mark clean a track that the file lacks. One I/O thread rather than a pool orders the commits to one file without a lock per path. With the inline default, a test that does not install a threaded queue runs in today's order, and new tests use a queue that runs nothing until the test drains it.
+
+### Alternatives considered
+
+1. **A synchronous commit** (T062's first reading). The owner decided against it.
+2. **Only the spin-down commit off the thread.** Not chosen: eject, insert, reset and switch saves are the same commit, and the mount read is file I/O as well.
+3. **The store's token on the I/O thread during a save.** Not chosen: the Disk II controller reads and writes the image on the CPU thread every cycle, so the token cannot move off the CPU thread while the machine runs.
+4. **A thread per save.** Not chosen: two commits to one file could run out of order.
+
+### Test plan
+
+With a queue that runs nothing until the test drains it: a spin-down save is posted and the image is dirty until the completion; after a guest write between the post and the completion, the image is dirty and a second save is posted; two saves to one file run in order; an eject with a save in flight empties the bay only after the completion; a failed commit is reported once, from the completion; a completion for a disk that left its bay applies nothing; a mount over a dirty bay reads, loads, saves and swaps in that order, and declines after a failed save. With `ThreadedDiskIoQueue`: the work runs on a thread other than the poster's, completions are drained on the poster's, and `WaitUntilIdle` returns `ERROR_TIMEOUT` for a job that does not finish. The existing store tests pass on the inline queue. Measured: frame times on the USB stick during a spin-down save, before and after.
+
+### Risks
+
+1. **A completion applied late.** A completion waits for the next drain, at most a frame while the machine runs. A paused machine drains from the service pass.
+2. **A quit while a save is in flight.** `FlushAllForShutdown` waits, with a deadline, for every job posted before it.
+3. **A completion for a medium that reverse execution swapped out.** `SeatMedia` swaps media without a save. The completion compares the bay's image id, and a retained disk's dirty state is left as it is, as today.
