@@ -592,6 +592,7 @@ void SerialCardPage::OnAttachmentChanged (const SerialAttachmentChoice & choice)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SerialCardPage::SyncSwitches

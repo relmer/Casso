@@ -575,7 +575,7 @@ Full reference: **[docs/Assembler.md](docs/Assembler.md)**.
 
 ### Testing
 
-**6600+ unit tests** covering CPU encoding and addressing, assembler features,
+**11,300+ unit tests** covering CPU encoding and addressing, assembler features,
 the audio pipeline, the 6522 VIA and AY-3-8910, //e MMU and Language Card, video
 timing, the Disk II nibble engine, WOZ and nibblized formats, DOS 3.3 and ProDOS
 file read/write, the printer pipeline, and reset semantics.
@@ -714,7 +714,7 @@ Casso.sln
 ├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — assembler CLI (`as65`, `merlin`) with `run` and `disk` subcommands
-├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (6600+ tests)
+├── UnitTest/      Test DLL — Microsoft Native CppUnitTest (11,300+ tests)
 └── ScenarioTests/ Test DLL — system tests needing the DOS 3.3 System Master and a booted guest (`RunTests.ps1 -Scenario`)
 ```
 
