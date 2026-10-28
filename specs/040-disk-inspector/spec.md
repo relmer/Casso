@@ -2304,9 +2304,10 @@ legend, and tilt the platter and back.
   still and the head marker MUST move around it instead. The head marker MUST
   be drawn as a hard drive's head arm: a translucent arm with a rounded tip
   centered on the head, its sides tangent to the tip and widening out past
-  the rim, and in the tip, with a margin of arm around it, a ring with a
-  clear window over the rings under the head, with a crosshair in the window whose center is
-  exactly over the head's quarter track and angle. Hovering, clicking and
+  the rim to the edge of the view. In the tip, with a margin of arm around
+  it, a slightly translucent ring MUST have a clear window over the rings
+  under the head, with a slightly translucent crosshair in the window whose
+  center is exactly over the head's quarter track and angle. Hovering, clicking and
   dragging over the marker MUST act on the platter under it.
 - **FR-065**: The window MUST show whether the disk in the drive is
   write-protected and each cause Casso reports for the drive, including the

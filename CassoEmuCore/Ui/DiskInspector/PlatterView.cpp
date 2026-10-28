@@ -985,7 +985,7 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  The head marker, drawn as a hard drive's head arm (FR-064, FR-152): a
 //  translucent arm with a rounded tip centered on the head, its sides
-//  tangent to the tip and widening out past the rim. In the tip, a ring with
+//  tangent to the tip and widening out past the rim and off the view. In the tip, a ring with
 //  a margin of arm around it has a clear window over the platter under the
 //  head, and a crosshair in the window has its center exactly on the head's
 //  quarter track and angle, its lines along the radius and across it. The
@@ -1020,6 +1020,7 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     float                        uy     = 0.0f;
     float                        len    = 0.0f;
     float                        span   = 0.0f;
+    float                        slope  = 0.0f;
     uint32_t                     argb   = colors.headIdle;
     uint32_t                     body   = (theme.BackgroundElevated() & 0x00FFFFFFu) | s_kHeadBodyAlpha;
     uint32_t                     halo   = (theme.Background() & 0x00FFFFFFu) | s_kHeadHaloAlpha;
@@ -1039,15 +1040,19 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
          : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
                                                               : colors.headWriting;
 
-    //  Outward along the radius on screen; the arm ends past the rim and is
-    //  always long enough to taper.
+    //  Outward along the radius on screen. The arm widens from the tip to
+    //  farW past the rim, and runs on at that slope beyond the view's edge,
+    //  so its far end is never in view.
     PlatterGeometry::ProjectAt (view, m_context.head.turn, outer, ox, oy);
-    span = std::max (std::hypot (ox - ex, oy - ey), 1.0f);
-    len  = std::max (span, tip * 3.0f);
-    ux   = (ox - ex) / span;
-    uy   = (oy - ey) / span;
-    ox   = ex + ux * len;
-    oy   = ey + uy * len;
+    span  = std::max (std::hypot (ox - ex, oy - ey), 1.0f);
+    len   = std::max (span, tip * 3.0f);
+    slope = (farW - tip) / len;
+    len   = std::max (len, 2.0f * (GetWidth() + GetHeight()));
+    farW  = tip + slope * len;
+    ux    = (ox - ex) / span;
+    uy    = (oy - ey) / span;
+    ox    = ex + ux * len;
+    oy    = ey + uy * len;
 
     if (view.tilt != 0.0f)
     {
