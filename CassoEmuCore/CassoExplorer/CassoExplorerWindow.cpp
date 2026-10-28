@@ -376,10 +376,9 @@ void CassoExplorerWindow::OnCreate()
     m_treeSplitter    = treeSplitter;
     m_previewSplitter = previewSplitter;
     m_status          = CreateChild<DxuiStatusBar>();
-    m_tabs            = CreateChild<DxuiTabStrip>();
+    m_tabStrip.Create();
     m_toolbar         = CreateChild<DxuiToolbar>();
-    m_address         = CreateChild<DxuiAddressBar>();
-    m_findBox         = CreateChild<DxuiTextInput>();
+    m_addressBar.Create();
     m_menuBar         = CreateChild<DxuiMenuBar>();
 
     //  Explorer's status bar runs on from the list above it, with no lines.
@@ -394,14 +393,6 @@ void CassoExplorerWindow::OnCreate()
     m_renameBox->SetTextRenderer (GetTextRenderer());
 
     m_toolbar->SetTextRenderer (GetTextRenderer());
-    m_address->SetTextRenderer (GetTextRenderer());
-    m_address->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
-                                ? DxuiToolbar::kFluentIconFace
-                                : DxuiToolbar::kMdl2IconFace);
-    m_address->SetFont         (DxuiTextRenderer::IsFontFamilyInstalled (DxuiAddressBar::kVariableTextFace)
-                                ? DxuiAddressBar::kVariableTextFace
-                                : DxuiTheme::GetUiFace(),
-                                DxuiAddressBar::kFontDip);
     m_toolbar->SetPopupHost    (GetPopupHost());
     m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
 
@@ -629,7 +620,7 @@ void CassoExplorerWindow::ShowAbout()
 
 void CassoExplorerWindow::OnWindowClose()
 {
-    if (m_tabs->IsDragging())
+    if (m_tabStrip.IsDragging())
     {
         m_tabStrip.CancelTabDrag();
     }
@@ -658,7 +649,7 @@ void CassoExplorerWindow::OnWindowClose()
 
 void CassoExplorerWindow::CloseForApp()
 {
-    if (m_tabs->IsDragging())
+    if (m_tabStrip.IsDragging())
     {
         m_tabStrip.CancelTabDrag();
     }
@@ -1119,7 +1110,7 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     //  to see the click that took it elsewhere.
     if (!active)
     {
-        m_suggest.Close();
+        m_addressBar.CloseSuggestions();
 
         for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_previewPane.GetToolbar() })
         {
@@ -1279,9 +1270,8 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         m_tooltip.Tick (GetNowMs());
     }
 
-    if (m_address->WantsTick())
+    if (m_addressBar.Tick (GetNowMs()))
     {
-        m_address->Tick (GetNowMs());
         Invalidate();
     }
 
@@ -1307,7 +1297,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
                | (int) m_tree->TickScrollbars (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
-    barsMoved = barsMoved || m_tabs->IsSliding();
+    barsMoved = barsMoved || m_tabStrip.IsSliding();
 
     if (barsMoved)
     {
@@ -1318,7 +1308,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  time it turns on or off, not one every tick.
     if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch)
     {
-        bool  caretOn = (m_focus == ExplorerPane::LocationSearch) ? m_findBox->IsCaretOn() : m_previewPane.IsCaretOn (m_focus);
+        bool  caretOn = (m_focus == ExplorerPane::LocationSearch) ? m_addressBar.IsCaretOn() : m_previewPane.IsCaretOn (m_focus);
 
         if (caretOn != m_caretOn)
         {
@@ -1373,7 +1363,7 @@ void CassoExplorerWindow::ArmTick()
 
 bool CassoExplorerWindow::IsTickWanted() const
 {
-    return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_address->WantsTick() || m_tabs->IsSliding()
+    return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_addressBar.WantsTick() || m_tabStrip.IsSliding()
         || m_menuBar->IsOpen() || m_toolbar->IsMenuOpen() || m_commandBar->IsMenuOpen() || m_previewPane.GetToolbar().IsMenuOpen()
         || m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewPane.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()

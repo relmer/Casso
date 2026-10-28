@@ -320,8 +320,6 @@ private:
     std::wstring                               m_listViewKey;
     bool                                       m_treeRevealPending = false;
     ExplorerPane                               m_focus             = ExplorerPane::Tree;
-    std::vector<BrowserModel::AddressSegment>  m_addressSegments;
-    BrowserModel::AddressRoot                  m_addressRoot;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiTreeView         * m_tree            = nullptr;
@@ -339,13 +337,8 @@ private:
     bool              m_listActionFirewall = false;
     DxuiSplitter    * m_previewSplitter    = nullptr;
     DxuiStatusBar   * m_status             = nullptr;
-    DxuiTabStrip    * m_tabs               = nullptr;
     DxuiToolbar     * m_toolbar            = nullptr;
-    DxuiAddressBar  * m_address            = nullptr;
 
-    //  Explorer's search box, at the address bar's right: a search over the
-    //  folder shown and below it.
-    DxuiTextInput          * m_findBox       = nullptr;
     DxuiTooltip              m_tooltip;
     DxuiInPlaceTip           m_labelTip;   // a tree name the splitter cuts off, shown whole over its row
 
@@ -356,8 +349,6 @@ private:
     bool                                    m_caretOn      = true;   // the search caret as last drawn
     bool                                    m_tickArmed    = false;   // the animation tick is running
     std::vector<std::wstring>               m_cutPaths;   // cut to the clipboard and not yet pasted, drawn dimmed
-    DxuiSuggestionList                      m_suggest;
-    std::wstring                            m_addressTyped;
 
     //  The window's edges, docked. Each band is stamped with the thickness
     //  its widget needs and comes back with the rect that widget is laid

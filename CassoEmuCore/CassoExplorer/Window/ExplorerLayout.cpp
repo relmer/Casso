@@ -57,14 +57,6 @@ void ExplorerLayout::ConfigureWidgets()
     //  strip stays, empty and hidden, so its Alt handling finds nothing.
     m_window.m_menuBar->SetItems   ({});
     m_window.m_menuBar->SetVisible (false);
-    m_window.m_addressRoot = ExplorerAddressBar::GetProfileRoot();
-
-    //  A local folder only: a network path is never asked about on this thread.
-    m_window.m_addressRoot.isHostFolder = [this] (const std::wstring & path)
-    {
-        return m_window.m_context.fs != nullptr && path.size() > 1 && path[1] == L':' && m_window.m_context.fs->DirectoryExists (path);
-    };
-
     m_window.m_browser.GetTreeRoots (roots);
 
     m_window.m_tree->SetShowCheckboxes (false);
@@ -286,83 +278,9 @@ void ExplorerLayout::ConfigureWidgets()
     m_window.m_status->SetFields ({ { L"", 0, false, -1, true }, { L"", 0, false, -1, true }, { L"", 0, true },
                            { L"", kStatusFreeDip, false }, { L"", kStatusDetailDip, false }, { L"", kStatusZoomDip, false } });
 
-    //  The tabs are drawn as File Explorer's are, and its tab close glyph is
-    //  Segoe Fluent Icons', thinner than MDL2's.
-    m_window.m_tabs->SetStyle    (DxuiTabStripStyle::Explorer);
-    m_window.m_tabs->SetNewTabGapDip (CassoExplorerWindow::kNewTabGapDip);
-    m_window.m_tabs->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
-                                  ? DxuiToolbar::kFluentIconFace
-                                  : DxuiToolbar::kMdl2IconFace);
+    m_window.m_tabStrip.Configure();
 
-    m_window.m_tabs->SetOnChange ([this] (int index) { m_window.m_tabStrip.SwitchToTab ((size_t) index); });
-    m_window.m_tabs->SetOnMove   ([this] (int from, int to)
-    {
-        bool  moved = m_window.m_browser.MoveTab ((size_t) from, (size_t) to);
-
-        IGNORE_RETURN_VALUE (moved, true);
-        m_window.SaveSession();
-    });
-    m_window.m_tabs->SetOnDragMove ([this] (int index, POINT point, bool tornOff) { m_window.m_tabStrip.OnTabDragMove (index, point, tornOff); });
-    m_window.m_tabs->SetOnDragEnd  ([this] (int index, POINT point, bool tornOff) { m_window.m_tabStrip.OnTabDragEnd  (index, point, tornOff); });
-    m_window.m_tabs->SetOnNewTab ([this]() { m_window.m_dispatch.Dispatch (CassoExplorerCommands::kNewTab); });
-    m_window.m_tabs->SetOnClose  ([this] (int index) { m_window.m_tabStrip.CloseTabAt ((size_t) index); });
-
-    m_window.m_address->SetOnSegment ([this] (int index)
-    {
-        if (index >= 0 && index < (int) m_window.m_addressSegments.size())
-        {
-            m_window.m_browser.NavigateToLocation (m_window.m_addressSegments[(size_t) index].location);
-            m_window.m_listPane.FillList();
-        }
-    });
-    m_window.m_address->SetOnSubmit ([this] (const std::wstring & text) { m_window.m_addressBar.SubmitAddress (text); });
-    m_window.m_address->SetOnSeparator ([this] (int index, const RECT & anchor) { m_window.m_addressBar.ShowAddressMenu (index, anchor); });
-    m_window.m_address->SetOnOverflow  ([this] (const RECT & anchor) { m_window.m_addressBar.ShowAddressOverflowMenu (anchor); });
-    m_window.m_address->SetOnRoots     ([this] (const RECT & anchor) { m_window.m_addressBar.ShowAddressRootsMenu (anchor); });
-
-    m_window.m_findBox->SetTextRenderer (m_window.GetTextRenderer());
-    m_window.m_findBox->SetHwnd         (m_window.GetHwnd());
-    m_window.m_findBox->SetFont         (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
-    m_window.m_findBox->SetExplorerChrome (true);
-    m_window.m_findBox->SetTrailingGlyph  (s_kpszMdl2Search, DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace);
-    m_window.m_findBox->SetClearGlyph     (s_kpszMdl2Cancel);
-
-    //  An emptied box leaves the search for the folder it searched, as
-    //  Explorer's does, whether by its X or by deleting the query.
-    m_window.m_findBox->SetOnChange ([this] (const std::wstring & text)
-    {
-        if (text.empty())
-        {
-            m_window.m_addressBar.LeaveSearch();
-        }
-    });
-
-    m_window.m_address->SetOnHistory   ([this] (const RECT & anchor) { m_window.m_addressBar.ShowAddressHistoryMenu (anchor); });
-    m_window.m_address->SetHistoryChevron (false);
-
-    //  Explorer drops its history as the address opens for editing, and
-    //  turns it into completions as a path is typed.
-    m_window.m_suggest.SetPopupHost (m_window.GetPopupHost());
-    m_window.m_suggest.SetOnPick    ([this] (const std::wstring & text) { m_window.m_addressBar.SubmitAddress (text); });
-    m_window.m_address->SetOnEditState ([this] (bool editing)
-    {
-        m_window.m_addressTyped.clear();
-
-        if (editing)
-        {
-            m_window.m_addressBar.ShowAddressSuggestions (std::wstring());
-        }
-        else
-        {
-            m_window.m_suggest.Close();
-        }
-    });
-    m_window.m_address->SetOnEditText ([this] (const std::wstring & text)
-    {
-        m_window.m_addressTyped = text;
-        m_window.m_addressBar.ShowAddressSuggestions (text);
-    });
-    m_window.m_address->SetOnEditKey ([this] (WPARAM vk) { return m_window.m_addressBar.OnAddressKey (vk); });
+    m_window.m_addressBar.Configure();
 
     m_window.m_browser.GetTypedPaths().Reset (m_window.m_prefs.typedPaths);
     m_window.m_listPane.ApplyStoredColumnWidths();
@@ -547,16 +465,10 @@ void ExplorerLayout::ApplyTheme()
         }
 
         m_window.m_tooltip.SetTheme (*m_window.m_theme);
-        m_window.m_suggest.SetTheme (m_window.m_theme);
+        m_window.m_addressBar.ApplyTheme (m_window.m_theme);
     }
 
-    //  The tabs sit on the caption's color, as Explorer's do, and the selected
-    //  one joins the row below it, the menu bar's strip.
-    if (m_window.m_tabs != nullptr)
-    {
-        m_window.m_tabs->SetStripFill    (m_window.m_theme->titleBarTop);
-        m_window.m_tabs->SetSelectedFill (m_window.m_theme->navStrip);
-    }
+    m_window.m_tabStrip.ApplyTheme (*m_window.m_theme);
 
     if (m_window.GetHwnd() != nullptr)
     {
@@ -594,9 +506,6 @@ void ExplorerLayout::RecomputeLayout()
     int             rightDip    = 0;
     bool            preview     = m_window.m_prefs.previewVisible;
     PaneWidths      panes;
-    RECT            addressRect = {};
-    RECT            findRect    = {};
-    int             findWidth   = 0;
 
 
 
@@ -624,8 +533,7 @@ void ExplorerLayout::RecomputeLayout()
         return;
     }
 
-    m_window.m_tabs->Layout (m_window.m_tabBand.GetBounds(), m_window.m_scaler);
-    m_window.m_tabStrip.FillTabs();
+    m_window.m_tabStrip.Layout (m_window.m_tabBand.GetBounds());
 
     m_window.m_commandBar->SetHostClientRect (m_window.m_client);
     m_window.m_commandBar->Layout (m_window.m_menuBand.GetBounds(), m_window.m_scaler);
@@ -636,18 +544,7 @@ void ExplorerLayout::RecomputeLayout()
     panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_window.m_scaler.GetDpi()),
                       m_window.m_prefs.treeWidthDip, preview ? m_window.m_prefs.previewWidthDip : 0);
 
-    //  The search box takes the row's right end, 30% of the width right of
-    //  the tree and a little in from the edge, as Explorer's does, and the
-    //  address the rest.
-    addressRect        = GetAddressRect (m_window.m_toolbar->GetFreeRect(), m_window.m_toolbarBand.GetBounds(), m_window.m_scaler);
-    addressRect.right -= (int) std::lround (m_window.m_scaler.ToPxf (kFindBoxRightInsetDip));
-    findWidth          = std::clamp ((int) std::lround (kFindBoxShare * (float) (body.right - body.left - m_window.m_scaler.ToPx (panes.tree))),
-                                     m_window.m_scaler.ToPx (kFindBoxMinDip), m_window.m_scaler.ToPx (kFindBoxMaxDip));
-    findRect           = RECT { addressRect.right - findWidth, addressRect.top, addressRect.right, addressRect.bottom };
-
-    addressRect.right = findRect.left - m_window.m_scaler.ToPx (kFindBoxGapDip);
-    m_window.m_address->Layout (addressRect, m_window.m_scaler);
-    m_window.m_findBox->Layout (findRect, m_window.m_scaler);
+    m_window.m_addressBar.Layout (m_window.m_toolbar->GetFreeRect(), m_window.m_toolbarBand.GetBounds(), body.right - body.left - m_window.m_scaler.ToPx (panes.tree));
 
     m_window.m_tooltip.SetDpi (m_window.m_scaler.GetDpi());
     m_window.m_tooltip.SetViewportSize (m_window.m_client.right - m_window.m_client.left, m_window.m_client.bottom - m_window.m_client.top);
@@ -708,7 +605,7 @@ void ExplorerLayout::RecomputeLayout()
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_window.m_list->GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
     m_dropHits.Register (DxuiHitRect { m_window.m_tree->GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTree });
-    m_dropHits.Register (DxuiHitRect { m_window.m_tabs->GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
+    m_dropHits.Register (DxuiHitRect { m_window.m_tabStrip.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
 
     m_window.Invalidate();
 }
@@ -998,33 +895,4 @@ int ExplorerLayout::GetListRowHeightPx (UINT dpi)
 
 
     return 2 * half + partial;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerLayout::GetAddressRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT ExplorerLayout::GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler)
-{
-    int   height = scaler.ToPx (kAddressBoxDip);
-    int   middle = (strip.top + strip.bottom - DxuiToolbar::GetEdgePx (scaler)) / 2;
-    RECT  rect   = free;
-
-
-
-    if (free.right <= free.left)
-    {
-        return free;
-    }
-
-    rect.top    = middle - height / 2;
-    rect.bottom = rect.top + height;
-
-    return rect;
 }

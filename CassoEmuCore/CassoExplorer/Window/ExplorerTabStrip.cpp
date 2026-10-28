@@ -26,6 +26,225 @@ ExplorerTabStrip::ExplorerTabStrip (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerTabStrip::Create
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTabStrip::Create()
+{
+    m_tabs = m_window.CreateChild<DxuiTabStrip>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::Configure
+//
+//  The tabs are drawn as File Explorer's are, and the tab close glyph is
+//  Segoe Fluent Icons', thinner than MDL2's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTabStrip::Configure()
+{
+    m_tabs->SetStyle         (DxuiTabStripStyle::Explorer);
+    m_tabs->SetNewTabGapDip  (CassoExplorerWindow::kNewTabGapDip);
+    m_tabs->SetIconFace      (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                              ? DxuiToolbar::kFluentIconFace
+                              : DxuiToolbar::kMdl2IconFace);
+
+    m_tabs->SetOnChange ([this] (int index) { SwitchToTab ((size_t) index); });
+    m_tabs->SetOnMove   ([this] (int from, int to)
+    {
+        bool  moved = m_window.m_browser.MoveTab ((size_t) from, (size_t) to);
+
+        IGNORE_RETURN_VALUE (moved, true);
+        m_window.SaveSession();
+    });
+    m_tabs->SetOnDragMove ([this] (int index, POINT point, bool tornOff) { OnTabDragMove (index, point, tornOff); });
+    m_tabs->SetOnDragEnd  ([this] (int index, POINT point, bool tornOff) { OnTabDragEnd  (index, point, tornOff); });
+    m_tabs->SetOnNewTab   ([this]() { m_window.m_dispatch.Dispatch (CassoExplorerCommands::kNewTab); });
+    m_tabs->SetOnClose    ([this] (int index) { CloseTabAt ((size_t) index); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::ApplyTheme
+//
+//  The tabs are on the caption's color, as Explorer's are, and the selected
+//  one joins the row below it, the menu bar's strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTabStrip::ApplyTheme (const DxuiTheme & theme)
+{
+    if (m_tabs == nullptr)
+    {
+        return;
+    }
+
+    m_tabs->SetStripFill    (theme.titleBarTop);
+    m_tabs->SetSelectedFill (theme.navStrip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTabStrip::Layout (const RECT & rect)
+{
+    m_tabs->Layout (rect, m_window.m_scaler);
+    FillTabs();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::ClearHoverOnLeave
+//
+//  A pointer leaving the strip by any edge, or the window, ends the tab's
+//  hover.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerTabStrip::ClearHoverOnLeave (const DxuiMouseEvent & ev)
+{
+    DxuiMouseEvent  away = ev;
+
+
+
+    if (m_tabs->GetHoverIndex() < 0 || m_tabs->IsInteracting())
+    {
+        return;
+    }
+
+    if ((ev.kind != DxuiMouseEventKind::Move || CassoExplorerWindow::Contains (m_tabs->GetBounds(), ev.positionDip)) && ev.kind != DxuiMouseEventKind::Leave)
+    {
+        return;
+    }
+
+    away.kind        = DxuiMouseEventKind::Move;
+    away.positionDip = { -1, -1 };
+
+    m_tabs->OnMouse (away);
+    m_window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::OnMouse
+//
+//  A tab being dragged has the pointer until the button comes up, so the
+//  drag can run past the strip's ends and scroll it. A move with the button
+//  already up means the release went elsewhere, as when another window took
+//  the mouse, so the drag is canceled. A right-click on a tab opens its
+//  menu, as Explorer's does.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerTabStrip::OnMouse (const DxuiMouseEvent & ev)
+{
+    POINT  point = ev.positionDip;
+    bool   over  = CassoExplorerWindow::Contains (m_tabs->GetBounds(), point);
+
+
+
+    if (m_tabs->IsDragging() && ev.kind == DxuiMouseEventKind::Move && ev.button != DxuiMouseButton::Left)
+    {
+        CancelTabDrag();
+        return true;
+    }
+
+    if (m_tabs->IsInteracting())
+    {
+        m_tabs->OnMouse (ev);
+        m_window.Invalidate();
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && over && m_tabs->HitTest (point.x, point.y) >= 0)
+    {
+        ShowTabContextMenu (point.x, point.y, m_tabs->HitTest (point.x, point.y));
+        return true;
+    }
+
+    if (!over || !m_tabs->OnMouse (ev))
+    {
+        return false;
+    }
+
+    m_window.Invalidate();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::OnEscapeKey
+//
+//  Escape cancels a tab drag, as in File Explorer: the card goes, the gap
+//  closes and the tab is back where it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerTabStrip::OnEscapeKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind != DxuiKeyEventKind::Down || ev.vk != VK_ESCAPE || !m_tabs->IsDragging())
+    {
+        return false;
+    }
+
+    CancelTabDrag();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::HitTest
+//
+//  The tab under a point in the window's client area, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ExplorerTabStrip::HitTest (POINT client) const
+{
+    return m_tabs->HitTest (client.x, client.y);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerTabStrip::OpenInNewWindow
 //
 //  Another window of the app on the path, stepped down and right from this
@@ -217,7 +436,7 @@ void ExplorerTabStrip::ShowTabContextMenu (int x, int y, int index)
 void ExplorerTabStrip::FillTabs()
 {
     const BrowserModel              & model = m_window.m_browser.GetBrowserModel();
-    RECT                              strip = m_window.m_tabs->GetBounds();
+    RECT                              strip = m_tabs->GetBounds();
     int                               width = m_window.m_scaler.ToPx (kTabWidthDip);
     int                               count = (int) model.GetTabCount();
     int                               lead  = (int) std::lround (m_window.m_scaler.ToPxf (kTabLeadDip));
@@ -257,8 +476,8 @@ void ExplorerTabStrip::FillTabs()
         tabs.push_back (tab);
     }
 
-    m_window.m_tabs->SetTabs (std::move (tabs));
-    m_window.m_tabs->SetSelected ((int) model.GetActiveIndex());
+    m_tabs->SetTabs (std::move (tabs));
+    m_tabs->SetSelected ((int) model.GetActiveIndex());
 }
 
 
@@ -275,10 +494,8 @@ void ExplorerTabStrip::SwitchToTab (size_t index)
 {
     //  An address being typed belongs to the tab it was typed in, so it is
     //  dropped, as in Explorer, and the new tab's address shows.
-    if (m_window.m_address->IsEditing())
+    if (m_window.m_addressBar.EndEdit())
     {
-        m_window.m_address->EndEdit();
-
         if (m_window.m_focus == ExplorerPane::Address)
         {
             m_window.m_input.SetFocusPane (ExplorerPane::List);
@@ -309,7 +526,7 @@ void ExplorerTabStrip::SwitchToTab (size_t index)
 void ExplorerTabStrip::OnTabDragMove (int index, POINT client, bool tornOff)
 {
     POINT  screen = client;
-    POINT  grab   = m_window.m_tabs->GetDragGrab();
+    POINT  grab   = m_tabs->GetDragGrab();
     BOOL   mapped = ClientToScreen (m_window.GetHwnd(), &screen);
 
 
@@ -388,7 +605,7 @@ void ExplorerTabStrip::OnTabDragEnd (int index, POINT client, bool tornOff)
 
 void ExplorerTabStrip::CancelTabDrag()
 {
-    m_window.m_tabs->CancelDrag();
+    m_tabs->CancelDrag();
     m_tabDragVisual.Hide();
     SetTabDragTarget (nullptr, POINT {});
     m_window.ArmTick();
@@ -413,8 +630,8 @@ void ExplorerTabStrip::CancelTabDrag()
 void ExplorerTabStrip::ShowTabDragVisual (int index, POINT screen)
 {
     HRESULT   hr   = S_OK;
-    RECT      tab  = m_window.m_tabs->GetTabScreenRect (index);
-    POINT     grab = m_window.m_tabs->GetDragGrab();
+    RECT      tab  = m_tabs->GetTabScreenRect (index);
+    POINT     grab = m_tabs->GetDragGrab();
     uint32_t  text = m_window.m_theme->Foreground();
     uint32_t  wash = m_window.m_theme->navStrip;
     uint32_t  fill = DxuiColor::Mix (m_window.m_theme->Background() | 0xFF000000u, wash | 0xFF000000u, (float) (wash >> 24) / 255.0f);
@@ -427,7 +644,7 @@ void ExplorerTabStrip::ShowTabDragVisual (int index, POINT screen)
                                fill,
                                [this, index, text] (IDxuiPainter &, IDxuiTextRenderer & renderer, float width, float height)
                                {
-                                   m_window.m_tabs->PaintFloatingTab (renderer, index, width, height, text);
+                                   m_tabs->PaintFloatingTab (renderer, index, width, height, text);
                                });
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -568,9 +785,9 @@ RECT ExplorerTabStrip::GetTearOffRect (POINT screen) const
 {
     WINDOWPLACEMENT  place  = { sizeof (place) };
     RECT             window = {};
-    RECT             strip  = m_window.m_tabs->GetBounds();
+    RECT             strip  = m_tabs->GetBounds();
     POINT            client = {};
-    POINT            grab   = m_window.m_tabs->GetDragGrab();
+    POINT            grab   = m_tabs->GetDragGrab();
     int              width  = 0;
     int              height = 0;
     int              left   = 0;
@@ -700,7 +917,7 @@ void ExplorerTabStrip::CloseTabAt (size_t index)
 
 bool ExplorerTabStrip::IsOverTabStrip (POINT screen) const
 {
-    RECT   strip  = m_window.m_tabs->GetBounds();
+    RECT   strip  = m_tabs->GetBounds();
     POINT  origin = {};
 
 
@@ -736,9 +953,9 @@ void ExplorerTabStrip::OnTabHover (bool over, POINT screen)
 
 
 
-    if (!m_window.m_tabs->GetTabs().empty())
+    if (!m_tabs->GetTabs().empty())
     {
-        const RECT &  first = m_window.m_tabs->GetTabs().front().rect;
+        const RECT &  first = m_tabs->GetTabs().front().rect;
 
         width = first.right - first.left;
     }
@@ -748,11 +965,11 @@ void ExplorerTabStrip::OnTabHover (bool over, POINT screen)
         mapped = ScreenToClient (m_window.GetHwnd(), &point);
         IGNORE_RETURN_VALUE (mapped, TRUE);
 
-        m_window.m_tabs->SetIncomingDrag (point.x, width);
+        m_tabs->SetIncomingDrag (point.x, width);
     }
     else
     {
-        m_window.m_tabs->ClearIncomingDrag();
+        m_tabs->ClearIncomingDrag();
     }
 
     m_window.ArmTick();
@@ -774,11 +991,11 @@ void ExplorerTabStrip::OnTabHover (bool over, POINT screen)
 
 void ExplorerTabStrip::AcceptTab (BrowserModel::Tab tab)
 {
-    int  index = m_window.m_tabs->GetIncomingIndex();
+    int  index = m_tabs->GetIncomingIndex();
 
 
 
-    m_window.m_tabs->ClearIncomingDrag();
+    m_tabs->ClearIncomingDrag();
 
     if (index < 0)
     {

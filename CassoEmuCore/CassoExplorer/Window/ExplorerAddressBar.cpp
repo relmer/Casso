@@ -25,6 +25,406 @@ ExplorerAddressBar::ExplorerAddressBar (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerAddressBar::Create
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::Create()
+{
+    m_address = m_window.CreateChild<DxuiAddressBar>();
+    m_findBox = m_window.CreateChild<DxuiTextInput>();
+
+    m_address->SetTextRenderer (m_window.GetTextRenderer());
+    m_address->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
+                                ? DxuiToolbar::kFluentIconFace
+                                : DxuiToolbar::kMdl2IconFace);
+    m_address->SetFont         (DxuiTextRenderer::IsFontFamilyInstalled (DxuiAddressBar::kVariableTextFace)
+                                ? DxuiAddressBar::kVariableTextFace
+                                : DxuiTheme::GetUiFace(),
+                                DxuiAddressBar::kFontDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::Configure
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::Configure()
+{
+    m_addressRoot = GetProfileRoot();
+
+    //  A local folder only: a network path is never asked about on this thread.
+    m_addressRoot.isHostFolder = [this] (const std::wstring & path)
+    {
+        return m_window.m_context.fs != nullptr && path.size() > 1 && path[1] == L':' && m_window.m_context.fs->DirectoryExists (path);
+    };
+
+    m_address->SetOnSegment ([this] (int index)
+    {
+        if (index >= 0 && index < (int) m_addressSegments.size())
+        {
+            m_window.m_browser.NavigateToLocation (m_addressSegments[(size_t) index].location);
+            m_window.m_listPane.FillList();
+        }
+    });
+    m_address->SetOnSubmit    ([this] (const std::wstring & text) { SubmitAddress (text); });
+    m_address->SetOnSeparator ([this] (int index, const RECT & anchor) { ShowAddressMenu (index, anchor); });
+    m_address->SetOnOverflow  ([this] (const RECT & anchor) { ShowAddressOverflowMenu (anchor); });
+    m_address->SetOnRoots     ([this] (const RECT & anchor) { ShowAddressRootsMenu (anchor); });
+
+    m_findBox->SetTextRenderer   (m_window.GetTextRenderer());
+    m_findBox->SetHwnd           (m_window.GetHwnd());
+    m_findBox->SetFont           (DxuiAddressBar::kVariableTextFace, DxuiAddressBar::kFontDip);
+    m_findBox->SetExplorerChrome (true);
+    m_findBox->SetTrailingGlyph  (s_kpszMdl2Search, DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace);
+    m_findBox->SetClearGlyph     (s_kpszMdl2Cancel);
+
+    //  An emptied box leaves the search for the folder it searched, as
+    //  Explorer's does, whether by its X or by deleting the query.
+    m_findBox->SetOnChange ([this] (const std::wstring & text)
+    {
+        if (text.empty())
+        {
+            LeaveSearch();
+        }
+    });
+
+    m_address->SetOnHistory      ([this] (const RECT & anchor) { ShowAddressHistoryMenu (anchor); });
+    m_address->SetHistoryChevron (false);
+
+    //  Explorer drops its history as the address opens for editing, and
+    //  turns it into completions as a path is typed.
+    m_suggest.SetPopupHost (m_window.GetPopupHost());
+    m_suggest.SetOnPick    ([this] (const std::wstring & text) { SubmitAddress (text); });
+
+    m_address->SetOnEditState ([this] (bool editing)
+    {
+        m_addressTyped.clear();
+
+        if (editing)
+        {
+            ShowAddressSuggestions (std::wstring());
+        }
+        else
+        {
+            m_suggest.Close();
+        }
+    });
+    m_address->SetOnEditText ([this] (const std::wstring & text)
+    {
+        m_addressTyped = text;
+        ShowAddressSuggestions (text);
+    });
+    m_address->SetOnEditKey ([this] (WPARAM vk) { return OnAddressKey (vk); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::Layout
+//
+//  The address box is the toolbar's free span, 32 dip tall and centered in
+//  the strip above its bottom line. The search box takes the row's right
+//  end, 30% of the width right of the tree and a little in from the edge,
+//  as Explorer's does, and the address the rest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int rightOfTreePx)
+{
+    const DxuiDpiScaler  & scaler      = m_window.m_scaler;
+    RECT                   addressRect = GetAddressRect (free, strip, scaler);
+    RECT                   findRect    = {};
+    int                    findWidth   = 0;
+
+
+
+    addressRect.right -= (int) std::lround (scaler.ToPxf (kFindBoxRightInsetDip));
+    findWidth          = std::clamp ((int) std::lround (kFindBoxShare * (float) rightOfTreePx), scaler.ToPx (kFindBoxMinDip), scaler.ToPx (kFindBoxMaxDip));
+    findRect           = RECT { addressRect.right - findWidth, addressRect.top, addressRect.right, addressRect.bottom };
+
+    addressRect.right = findRect.left - scaler.ToPx (kFindBoxGapDip);
+    m_address->Layout (addressRect, scaler);
+    m_findBox->Layout (findRect, scaler);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::GetAddressRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT ExplorerAddressBar::GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler)
+{
+    int   height = scaler.ToPx (kAddressBoxDip);
+    int   middle = (strip.top + strip.bottom - DxuiToolbar::GetEdgePx (scaler)) / 2;
+    RECT  rect   = free;
+
+
+
+    if (free.right <= free.left)
+    {
+        return free;
+    }
+
+    rect.top    = middle - height / 2;
+    rect.bottom = rect.top + height;
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::OnLocationChanged
+//
+//  The address leads with the icon of its first segment. Explorer's search
+//  box has the name of what it will search, and is emptied on leaving a
+//  search's results. For a search's results, a restored tab's among them,
+//  the box has the query, over the folder that was searched.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::OnLocationChanged (const Location & location)
+{
+    Location      lead  = GetAddressSegmentsFor (location).front().location;
+    std::wstring  scope;
+    std::wstring  query;
+    Location      up;
+
+
+
+    m_address->SetLeadIcon  (BrowserCells::GetLocationIcon (lead, m_window.m_shellIcons));
+    m_address->SetLeadGlyph ((lead.kind == Location::Kind::Root && lead.path == TreeModel::kThisPcRootId) ? s_kpszMdl2ThisPc : nullptr);
+
+    if (!SearchQuery::IsId (location.path))
+    {
+        std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (location, m_addressRoot);
+
+        m_findBox->SetText        (L"");
+        m_findBox->SetPlaceholder (L"Search " + (segments.empty() ? std::wstring() : segments.back().label));
+        return;
+    }
+
+    SearchQuery::TryParseId (location.path, scope, query);
+    m_findBox->SetText        (query);
+    m_findBox->SetPlaceholder (L"Search " + (m_window.m_browser.TryGetUpTarget (up) ? GetNavLabel (up) : std::wstring()));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::CloseSuggestionsOnPress
+//
+//  The suggestions have no capture, so a press anywhere else in the window
+//  closes them; a press in the address bar edits the path or, on the caret,
+//  closes them there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::CloseSuggestionsOnPress (const DxuiMouseEvent & ev)
+{
+    if (ev.kind == DxuiMouseEventKind::Down && m_suggest.IsOpen() && !CassoExplorerWindow::Contains (m_address->GetBounds(), ev.positionDip))
+    {
+        m_suggest.Close();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::OnMouse
+//
+//  A right-click on the address, not while it is being edited, opens
+//  Explorer's address menu. The address bar is in the toolbar's row, so it is
+//  ahead of the toolbar. Moves go to the address and the search box wherever
+//  the pointer is, so their hover clears on the way out.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerAddressBar::OnMouse (const DxuiMouseEvent & ev)
+{
+    POINT  point  = ev.positionDip;
+    bool   press  = ev.kind == DxuiMouseEventKind::Down;
+    bool   wasLit = false;
+
+
+
+    if (press && ev.button == DxuiMouseButton::Right && !m_address->IsEditing() && CassoExplorerWindow::Contains (m_address->GetBounds(), point))
+    {
+        ShowAddressContextMenu (point.x, point.y);
+        return true;
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting() && m_address->OnMouse (ev))
+    {
+        m_window.Invalidate();
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting())
+    {
+        wasLit = m_findBox->IsClearHovered();
+
+        m_findBox->OnMouse (ev);
+
+        if (m_findBox->IsClearHovered() != wasLit)
+        {
+            m_window.Invalidate();
+        }
+    }
+
+    if (ev.kind == DxuiMouseEventKind::Move && !m_address->IsInteracting())
+    {
+        return false;
+    }
+
+    if (CassoExplorerWindow::Contains (m_findBox->GetBounds(), point))
+    {
+        if (press)
+        {
+            m_window.m_input.SetFocusPane (ExplorerPane::LocationSearch);
+        }
+
+        m_findBox->OnMouse (ev);
+        m_window.Invalidate();
+        return true;
+    }
+
+    if (!m_address->IsInteracting() && !CassoExplorerWindow::Contains (m_address->GetBounds(), point))
+    {
+        return false;
+    }
+
+    if (press)
+    {
+        m_window.m_input.SetFocusPane (ExplorerPane::Address);
+        m_address->SetFocusCue (false);
+    }
+
+    if (!m_address->OnMouse (ev))
+    {
+        return false;
+    }
+
+    m_window.Invalidate();
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::GetCursorForPoint
+//
+//  The address being edited is text, and the cursor over it is the I-beam;
+//  over its clear and history buttons it is the arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR ExplorerAddressBar::GetCursorForPoint (POINT clientPx) const
+{
+    if (m_address->IsEditing() && m_address->HitTest (clientPx.x, clientPx.y).part == DxuiAddressBar::Part::Blank)
+    {
+        return IDC_IBEAM;
+    }
+
+    return nullptr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::OnFocusChanged
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerAddressBar::OnFocusChanged (ExplorerPane focus)
+{
+    m_address->OnFocusChanged (focus == ExplorerPane::Address);
+    m_findBox->SetFocused     (focus == ExplorerPane::LocationSearch);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::Tick
+//
+//  Returns whether the address bar's animation moved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerAddressBar::Tick (int64_t nowMs)
+{
+    if (!m_address->WantsTick())
+    {
+        return false;
+    }
+
+    m_address->Tick (nowMs);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerAddressBar::EndEdit
+//
+//  An address being typed is for the tab it was typed in, so it is dropped.
+//  Returns whether one was being typed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerAddressBar::EndEdit()
+{
+    if (!m_address->IsEditing())
+    {
+        return false;
+    }
+
+    m_address->EndEdit();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerAddressBar::GoToLocation
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +453,7 @@ void ExplorerAddressBar::GoToLocation (const Location & location)
 
 std::vector<BrowserModel::AddressSegment> ExplorerAddressBar::GetAddressSegmentsFor (const Location & location)
 {
-    std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (location, m_window.m_addressRoot);
+    std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (location, m_addressRoot);
     IShellIcons::DriveInfo                     drive;
     bool                                       onDrive  = false;
 
@@ -168,15 +568,15 @@ void ExplorerAddressBar::FillAddress()
 
 
 
-    m_window.m_addressSegments = GetAddressSegmentsFor (location);
+    m_addressSegments = GetAddressSegmentsFor (location);
 
-    for (const BrowserModel::AddressSegment & segment : m_window.m_addressSegments)
+    for (const BrowserModel::AddressSegment & segment : m_addressSegments)
     {
         labels.push_back (segment.label);
     }
 
-    m_window.m_address->SetSegments (std::move (labels));
-    m_window.m_address->SetPath (BrowserModel::FormatAddress (location));
+    m_address->SetSegments (std::move (labels));
+    m_address->SetPath (BrowserModel::FormatAddress (location));
 }
 
 
@@ -259,12 +659,12 @@ void ExplorerAddressBar::ShowAddressMenu (int index, const RECT & anchor)
 
 
 
-    if (index < 0 || index >= (int) m_window.m_addressSegments.size())
+    if (index < 0 || index >= (int) m_addressSegments.size())
     {
         return;
     }
 
-    m_window.m_browser.GetFolderChildren (m_window.m_addressSegments[(size_t) index].location, children);
+    m_window.m_browser.GetFolderChildren (m_addressSegments[(size_t) index].location, children);
     m_window.m_menuCommands.clear();
 
     for (const BrowserModel::AddressSegment & child : children)
@@ -286,10 +686,10 @@ void ExplorerAddressBar::ShowAddressMenu (int index, const RECT & anchor)
 
     if (!items.empty())
     {
-        m_window.m_address->SetOpenSeparator (index);
+        m_address->SetOpenSeparator (index);
         DxuiContextMenu::ShowUnder (*m_window.GetPopupHost(), anchor, std::move (items), [this] (bool)
         {
-            m_window.m_address->SetOpenSeparator (-1);
+            m_address->SetOpenSeparator (-1);
             m_window.Invalidate();
         });
     }
@@ -318,9 +718,9 @@ void ExplorerAddressBar::ShowAddressHistoryMenu (const RECT & anchor)
     UNREFERENCED_PARAMETER (anchor);
 
     //  The caret opens the history and, pressed again, closes it.
-    if (m_window.m_suggest.IsOpen())
+    if (m_suggest.IsOpen())
     {
-        m_window.m_suggest.Close();
+        m_suggest.Close();
         return;
     }
 
@@ -339,7 +739,7 @@ void ExplorerAddressBar::ShowAddressHistoryMenu (const RECT & anchor)
 
 void ExplorerAddressBar::ShowAddressSuggestions (const std::wstring & typed)
 {
-    m_window.m_suggest.Show (m_window.m_address->GetBounds(), typed.empty() ? GetAddressHistory() : GetCompletions (typed));
+    m_suggest.Show (m_address->GetBounds(), typed.empty() ? GetAddressHistory() : GetCompletions (typed));
 }
 
 
@@ -362,22 +762,22 @@ bool ExplorerAddressBar::OnAddressKey (WPARAM vk)
 
 
 
-    if (!m_window.m_suggest.IsOpen())
+    if (!m_suggest.IsOpen())
     {
         return false;
     }
 
     if (vk == VK_DOWN || vk == VK_UP)
     {
-        shown = m_window.m_suggest.MoveHighlight ((vk == VK_DOWN) ? 1 : -1);
-        m_window.m_address->SetEditText (shown.empty() ? m_window.m_addressTyped : shown);
+        shown = m_suggest.MoveHighlight ((vk == VK_DOWN) ? 1 : -1);
+        m_address->SetEditText (shown.empty() ? m_addressTyped : shown);
         m_window.Invalidate();
         return true;
     }
 
     if (vk == VK_ESCAPE)
     {
-        m_window.m_suggest.Close();
+        m_suggest.Close();
         return true;
     }
 
@@ -497,7 +897,7 @@ void ExplorerAddressBar::ShowAddressContextMenu (int x, int y)
     m_window.m_menus.AddMenuCommand (items, L"&Edit address", [this]()
     {
         m_window.m_input.SetFocusPane (ExplorerPane::Address);
-        m_window.m_address->BeginEdit();
+        m_address->BeginEdit();
         m_window.Invalidate();
     });
 
@@ -634,12 +1034,12 @@ void ExplorerAddressBar::ShowAddressOverflowMenu (const RECT & anchor)
 
     m_window.m_menuCommands.clear();
 
-    for (i = (std::min) (m_window.m_address->GetFirstShown(), (int) m_window.m_addressSegments.size()) - 1; i >= 0; i--)
+    for (i = (std::min) (m_address->GetFirstShown(), (int) m_addressSegments.size()) - 1; i >= 0; i--)
     {
         std::shared_ptr<DxuiCommand>  command = std::make_shared<DxuiCommand>();
-        Location                      target  = m_window.m_addressSegments[(size_t) i].location;
+        Location                      target  = m_addressSegments[(size_t) i].location;
 
-        command->label    = EscapeMnemonics (m_window.m_addressSegments[(size_t) i].label);
+        command->label    = EscapeMnemonics (m_addressSegments[(size_t) i].label);
         command->dispatch = [this, target]()
         {
             m_window.m_browser.NavigateToLocation (target);
@@ -710,20 +1110,20 @@ bool ExplorerAddressBar::OnFindBoxKey (const DxuiKeyEvent & ev)
 
     if (down && ev.vk == VK_RETURN)
     {
-        SearchLocation (m_window.m_findBox->GetText());
+        SearchLocation (m_findBox->GetText());
         return true;
     }
 
     if (down && ev.vk == VK_ESCAPE)
     {
-        m_window.m_findBox->SetText (L"");
+        m_findBox->SetText (L"");
         LeaveSearch();
 
         m_window.m_input.SetFocusPane (ExplorerPane::List);
         return true;
     }
 
-    return m_window.m_findBox->OnKey (ev);
+    return m_findBox->OnKey (ev);
 }
 
 

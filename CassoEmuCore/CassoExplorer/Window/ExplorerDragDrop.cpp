@@ -815,7 +815,7 @@ void ExplorerDragDrop::HoverDropTab (POINT screen)
 
 
     ScreenToClient (m_window.GetHwnd(), &client);
-    index = m_window.m_tabs->HitTest (client.x, client.y);
+    index = m_window.m_tabStrip.HitTest (client);
 
     if (index >= 0 && (size_t) index != m_window.m_browser.GetBrowserModel().GetActiveIndex())
     {

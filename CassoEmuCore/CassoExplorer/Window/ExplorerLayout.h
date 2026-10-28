@@ -41,12 +41,6 @@ public:
     //  tall, and the command bar starts 4 dip in.
     static constexpr float  kCommandBarDip        = 47.0f;
     static constexpr float  kNavStripFillDip      = 48.0f;
-    static constexpr int    kAddressBoxDip        = 32;
-    static constexpr int    kFindBoxMinDip        = 100;
-    static constexpr int    kFindBoxMaxDip        = 720;
-    static constexpr float  kFindBoxShare         = 0.3f;   // of the width right of the tree, measured at 150%
-    static constexpr float  kFindBoxRightInsetDip = 5.33f;   // past the toolbar's own padding
-    static constexpr int    kFindBoxGapDip        = 8;
     static constexpr UINT   kListRowHalfDip       = 14;
     static constexpr int    kMinTreeWidthDip      = 140;
     static constexpr int    kMinListWidthDip      = 220;
@@ -102,10 +96,6 @@ public:
     //  twice 14 dip rounded up, and a pixel more at any scale that is not a
     //  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.
     static int  GetListRowHeightPx (UINT dpi);
-
-    //  The address box: the toolbar's free span, 32 dip tall and centered
-    //  in the strip above its bottom line.
-    static RECT  GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
 
     void  ConfigureWidgets();
     void  ApplyTheme();

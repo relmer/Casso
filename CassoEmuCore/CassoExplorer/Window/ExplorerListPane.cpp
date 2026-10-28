@@ -329,36 +329,8 @@ void ExplorerListPane::FillList()
     if (m_window.m_browser.GetLocation() != m_listLocation)
     {
         m_listLocation = m_window.m_browser.GetLocation();
-        {
-            Location  lead = m_window.m_addressBar.GetAddressSegmentsFor (m_listLocation).front().location;
-
-            m_window.m_address->SetLeadIcon  (BrowserCells::GetLocationIcon (lead, m_window.m_shellIcons));
-            m_window.m_address->SetLeadGlyph ((lead.kind == Location::Kind::Root && lead.path == TreeModel::kThisPcRootId) ? s_kpszMdl2ThisPc : nullptr);
-        }
-
+        m_window.m_addressBar.OnLocationChanged (m_listLocation);
         m_window.m_menus.SetCommandBarDropDowns();
-
-        //  Explorer's box says what it will search, and empties on leaving
-        //  a search's results.
-        if (!SearchQuery::IsId (m_listLocation.path))
-        {
-            std::vector<BrowserModel::AddressSegment>  segments = BrowserModel::GetAddressSegments (m_listLocation, m_window.m_addressRoot);
-
-            m_window.m_findBox->SetText        (L"");
-            m_window.m_findBox->SetPlaceholder (L"Search " + (segments.empty() ? std::wstring() : segments.back().label));
-        }
-        else
-        {
-            //  A search's results, a restored tab's among them, show its query
-            //  over the folder it searched.
-            std::wstring  scope;
-            std::wstring  query;
-            Location      up;
-
-            SearchQuery::TryParseId (m_listLocation.path, scope, query);
-            m_window.m_findBox->SetText        (query);
-            m_window.m_findBox->SetPlaceholder (L"Search " + (m_window.m_browser.TryGetUpTarget (up) ? m_window.m_addressBar.GetNavLabel (up) : std::wstring()));
-        }
 
         m_window.m_list->SetTopRow (0);
         m_window.m_list->SetLeftPx (0);

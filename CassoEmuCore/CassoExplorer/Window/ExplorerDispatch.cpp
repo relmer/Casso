@@ -531,13 +531,13 @@ void ExplorerDispatch::Dispatch (int id)
 
         case CassoExplorerCommands::kEditAddress:
             m_window.m_input.SetFocusPane (ExplorerPane::Address);
-            m_window.m_address->BeginEdit();
+            m_window.m_addressBar.BeginEdit();
             break;
 
         case CassoExplorerCommands::kAddressHistory:
             m_window.m_input.SetFocusPane (ExplorerPane::Address);
-            m_window.m_address->BeginEdit();
-            m_window.m_addressBar.ShowAddressHistoryMenu (m_window.m_address->GetBounds());
+            m_window.m_addressBar.BeginEdit();
+            m_window.m_addressBar.ShowHistoryDropDown();
             break;
 
         case CassoExplorerCommands::kAbout:

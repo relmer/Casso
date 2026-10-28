@@ -43,9 +43,8 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
 
     m_window.m_tree->OnFocusChanged        (pane == ExplorerPane::Tree);
     m_window.m_list->OnFocusChanged        (pane == ExplorerPane::List);
-    m_window.m_tabs->OnFocusChanged        (pane == ExplorerPane::Tabs);
-    m_window.m_address->OnFocusChanged     (pane == ExplorerPane::Address);
-    m_window.m_findBox->SetFocused         (pane == ExplorerPane::LocationSearch);
+    m_window.m_tabStrip.OnFocusChanged     (pane == ExplorerPane::Tabs);
+    m_window.m_addressBar.OnFocusChanged   (pane);
     m_window.m_toolbar->SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
     m_window.m_commandBar->SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
     m_window.m_previewPane.OnFocusChanged  (pane);
@@ -111,7 +110,7 @@ void ExplorerInput::SetFocusStop (const FocusStop & stop)
                                                                                              : ExplorerPane::PreviewToolbar);
             break;
 
-        case FocusStop::Kind::Address: m_window.m_address->SetFocusCue (true); SetFocusPane (ExplorerPane::Address); break;
+        case FocusStop::Kind::Address: m_window.m_addressBar.ShowFocusCue(); SetFocusPane (ExplorerPane::Address); break;
         case FocusStop::Kind::Tabs:    SetFocusPane (ExplorerPane::Tabs);    break;
         case FocusStop::Kind::List:    SetFocusPane (ExplorerPane::List);    break;
         case FocusStop::Kind::Preview: SetFocusPane (ExplorerPane::Preview); break;
@@ -333,27 +332,8 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         m_window.m_labelTip.Hide();
     }
 
-    //  A pointer leaving the strip by any edge, or the window, takes the
-    //  tab's hover with it.
-    if (m_window.m_tabs->GetHoverIndex() >= 0 && !m_window.m_tabs->IsInteracting() &&
-        ((ev.kind == DxuiMouseEventKind::Move && !CassoExplorerWindow::Contains (m_window.m_tabs->GetBounds(), point)) || ev.kind == DxuiMouseEventKind::Leave))
-    {
-        DxuiMouseEvent  away = ev;
-
-        away.kind        = DxuiMouseEventKind::Move;
-        away.positionDip = { -1, -1 };
-
-        m_window.m_tabs->OnMouse (away);
-        m_window.Invalidate();
-    }
-
-    //  The address's suggestions hold no capture, so a press anywhere else in
-    //  the window is what closes them; the address bar's own presses edit
-    //  the path or, on the caret, close them there.
-    if (ev.kind == DxuiMouseEventKind::Down && m_window.m_suggest.IsOpen() && !CassoExplorerWindow::Contains (m_window.m_address->GetBounds(), point))
-    {
-        m_window.m_suggest.Close();
-    }
+    m_window.m_tabStrip.ClearHoverOnLeave (ev);
+    m_window.m_addressBar.CloseSuggestionsOnPress (ev);
 
     if (m_window.m_previewPane.OnMessageMouse (ev))
     {
@@ -437,63 +417,9 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A right-click on the address, not while it is being edited, gives
-    //  Explorer's address menu.
-    if (press && ev.button == DxuiMouseButton::Right && !m_window.m_address->IsEditing() && CassoExplorerWindow::Contains (m_window.m_address->GetBounds(), point))
+    if (m_window.m_addressBar.OnMouse (ev))
     {
-        m_window.m_addressBar.ShowAddressContextMenu (point.x, point.y);
         return true;
-    }
-
-    //  The address bar sits in the toolbar's row, so it answers first. Moves
-    //  reach it wherever the pointer is, so its hover clears on the way out.
-    if (ev.kind == DxuiMouseEventKind::Move && !m_window.m_address->IsInteracting() && m_window.m_address->OnMouse (ev))
-    {
-        m_window.Invalidate();
-    }
-
-    //  Moves reach the search box wherever the pointer is, so its X lights
-    //  under the pointer and goes dark on the way out.
-    if (ev.kind == DxuiMouseEventKind::Move && !m_window.m_address->IsInteracting())
-    {
-        bool  wasLit = m_window.m_findBox->IsClearHovered();
-
-        m_window.m_findBox->OnMouse (ev);
-
-        if (m_window.m_findBox->IsClearHovered() != wasLit)
-        {
-            m_window.Invalidate();
-        }
-    }
-
-    if (ev.kind != DxuiMouseEventKind::Move || m_window.m_address->IsInteracting())
-    {
-        if (CassoExplorerWindow::Contains (m_window.m_findBox->GetBounds(), point))
-        {
-            if (press)
-            {
-                SetFocusPane (ExplorerPane::LocationSearch);
-            }
-
-            m_window.m_findBox->OnMouse (ev);
-            m_window.Invalidate();
-            return true;
-        }
-
-        if (m_window.m_address->IsInteracting() || CassoExplorerWindow::Contains (m_window.m_address->GetBounds(), point))
-        {
-            if (press)
-            {
-                SetFocusPane (ExplorerPane::Address);
-                m_window.m_address->SetFocusCue (false);
-            }
-
-            if (m_window.m_address->OnMouse (ev))
-            {
-                m_window.Invalidate();
-                return true;
-            }
-        }
     }
 
     if (m_window.m_previewPane.GetToolbar().IsVisible()
@@ -532,20 +458,8 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A move with the button already up means the release went elsewhere,
-    //  as when another window took the mouse, so the drag is canceled.
-    if (m_window.m_tabs->IsDragging() && ev.kind == DxuiMouseEventKind::Move && ev.button != DxuiMouseButton::Left)
+    if (m_window.m_tabStrip.OnMouse (ev))
     {
-        m_window.m_tabStrip.CancelTabDrag();
-        return true;
-    }
-
-    //  A tab being dragged keeps the pointer until the button comes up, so the
-    //  drag can run past the strip's ends and scroll it.
-    if (m_window.m_tabs->IsInteracting())
-    {
-        m_window.m_tabs->OnMouse (ev);
-        m_window.Invalidate();
         return true;
     }
 
@@ -553,20 +467,6 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
     //  bars do.
     if (press && ev.button == DxuiMouseButton::Right && m_window.m_menus.ShowScrollbarMenu (ev))
     {
-        return true;
-    }
-
-    //  A right-click on a tab opens its menu, as Explorer's does.
-    if (press && ev.button == DxuiMouseButton::Right && CassoExplorerWindow::Contains (m_window.m_tabs->GetBounds(), point)
-        && m_window.m_tabs->HitTest (point.x, point.y) >= 0)
-    {
-        m_window.m_tabStrip.ShowTabContextMenu (point.x, point.y, m_window.m_tabs->HitTest (point.x, point.y));
-        return true;
-    }
-
-    if (CassoExplorerWindow::Contains (m_window.m_tabs->GetBounds(), point) && m_window.m_tabs->OnMouse (ev))
-    {
-        m_window.Invalidate();
         return true;
     }
 
@@ -844,11 +744,9 @@ LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
         cursor = m_window.m_previewPane.GetCursorForPoint (clientPx);
     }
 
-    //  The address being edited is text, and takes the I-beam over it; its
-    //  clear and history buttons keep the arrow.
-    if (cursor == nullptr && m_window.m_address->IsEditing() && m_window.m_address->HitTest (clientPx.x, clientPx.y).part == DxuiAddressBar::Part::Blank)
+    if (cursor == nullptr)
     {
-        cursor = IDC_IBEAM;
+        cursor = m_window.m_addressBar.GetCursorForPoint (clientPx);
     }
 
     if (cursor == nullptr && m_window.m_previewSplitter->IsVisible())
@@ -888,11 +786,8 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
 
     m_window.ArmTick();
 
-    //  Escape cancels a tab drag, as in File Explorer: the card goes, the gap
-    //  closes and the tab is back where it was.
-    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE && m_window.m_tabs->IsDragging())
+    if (m_window.m_tabStrip.OnEscapeKey (ev))
     {
-        m_window.m_tabStrip.CancelTabDrag();
         return true;
     }
 
@@ -940,9 +835,9 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
     //  While the address bar is being edited, keys and characters go to its
     //  text field first; the keys it leaves, Tab and Ctrl+T among them, carry
     //  on as usual.
-    if (m_window.m_focus == ExplorerPane::Address && m_window.m_address->IsEditing())
+    if (m_window.m_focus == ExplorerPane::Address && m_window.m_addressBar.IsEditing())
     {
-        handled = m_window.m_address->OnKey (ev);
+        handled = m_window.m_addressBar.OnKey (ev);
 
         if (handled || ev.kind != DxuiKeyEventKind::Down)
         {
@@ -1140,9 +1035,9 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
         case ExplorerPane::PreviewToolbar: handled = RouteToolbarKey (true, ev); break;
         case ExplorerPane::Search:                                               break;
         case ExplorerPane::GoTo:                                                 break;
-        case ExplorerPane::Address: handled = m_window.m_address->OnKey (ev);     break;
+        case ExplorerPane::Address: handled = m_window.m_addressBar.OnKey (ev); break;
         case ExplorerPane::LocationSearch: handled = m_window.m_addressBar.OnFindBoxKey (ev);  break;
-        case ExplorerPane::Tabs:    handled = m_window.m_tabs->OnKey (ev);        break;
+        case ExplorerPane::Tabs:    handled = m_window.m_tabStrip.OnKey (ev); break;
         case ExplorerPane::Tree:    handled = m_window.m_tree->OnKey (ev);        break;
         case ExplorerPane::List:    handled = m_window.m_list->OnKey (ev);        break;
         case ExplorerPane::Preview: handled = m_window.m_previewPane.OnKey (ev); break;
@@ -1173,7 +1068,7 @@ IDxuiControl * ExplorerInput::GetFocusedControl() const
 {
     switch (m_window.m_focus)
     {
-        case ExplorerPane::Tabs:    return m_window.m_tabs;
+        case ExplorerPane::Tabs:    return m_window.m_tabStrip.GetControl();
         case ExplorerPane::Tree:    return m_window.m_tree;
         case ExplorerPane::List:    return m_window.m_list;
         case ExplorerPane::Preview: return m_window.m_previewPane.GetFocusedControl();

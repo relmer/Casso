@@ -3,13 +3,8 @@
 #include "Pch.h"
 
 #include "CassoExplorer/ICassoExplorerHost.h"
-
-class CassoLinkConnections;
-class FirewallMonitor;
-class RunningCassoRegistry;
-class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
-class CassoExplorerWindow;
+#include "CassoExplorer/Window/ExplorerPane.h"
+ CassoExplorerWindow;
 
 
 
@@ -21,7 +16,8 @@ class CassoExplorerWindow;
 //
 //  The address bar and the search box: the path's segments and their
 //  menus, typed paths and what they could go on to be, the history and
-//  roots menus, and a search over the folder on display.
+//  roots menus, and a search over the folder on display. The window routes
+//  pointer and key events over them here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +28,51 @@ public:
 
     static constexpr const wchar_t *  kExplorerTypedPathsKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths";
     static constexpr size_t           kMaxCompletions        = 200;
+
+    //  Explorer's address box is 32 dip tall; the search box is 30% of the
+    //  width right of the tree, between these, measured at 150%.
+    static constexpr int    kAddressBoxDip        = 32;
+    static constexpr int    kFindBoxMinDip        = 100;
+    static constexpr int    kFindBoxMaxDip        = 720;
+    static constexpr float  kFindBoxShare         = 0.3f;
+    static constexpr float  kFindBoxRightInsetDip = 5.33f;   // past the toolbar's padding
+    static constexpr int    kFindBoxGapDip        = 8;
+
+    //  The widgets, as children of the window, and their handlers once the
+    //  window has its HWND.
+    void  Create    ();
+    void  Configure ();
+
+    //  The two boxes in the toolbar's free span of the strip, the search box
+    //  sized from the width right of the tree.
+    void         Layout         (const RECT & free, const RECT & strip, int rightOfTreePx);
+    static RECT  GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
+    void         ApplyTheme     (const DxuiTheme * theme) { m_suggest.SetTheme (theme); }
+
+    //  The address's lead icon and the search box's text for a new location.
+    void  OnLocationChanged (const Location & location);
+
+    //  Pointer events: a press closes the suggestions, ahead of the window's
+    //  other routing; the boxes have the rest in the toolbar's row.
+    void     CloseSuggestionsOnPress (const DxuiMouseEvent & ev);
+    void     CloseSuggestions        () { m_suggest.Close(); }
+    bool     OnMouse                 (const DxuiMouseEvent & ev);
+    LPCWSTR  GetCursorForPoint       (POINT clientPx) const;
+
+    //  Keys, and focus. The address being edited has its keys first.
+    bool  IsEditing      () const { return m_address->IsEditing(); }
+    bool  OnKey          (const DxuiKeyEvent & ev) { return m_address->OnKey (ev); }
+    void  OnFocusChanged (ExplorerPane focus);
+    void  ShowFocusCue   () { m_address->SetFocusCue (true); }
+    bool  IsCaretOn      () const { return m_findBox->IsCaretOn(); }
+
+    bool  WantsTick      () const { return m_address->WantsTick(); }
+    bool  Tick           (int64_t nowMs);
+
+    //  Editing the address from a command, and the typed address dropped.
+    void  BeginEdit      () { m_address->BeginEdit(); }
+    bool  EndEdit        ();
+    void  ShowHistoryDropDown () { ShowAddressHistoryMenu (m_address->GetBounds()); }
     void  GoToLocation      (const Location & location);
     void  FillAddress();
     void  FillNavTips();
@@ -67,4 +108,14 @@ private:
     friend class CassoExplorerWindow;
 
     CassoExplorerWindow  & m_window;
+
+    DxuiAddressBar                             * m_address = nullptr;
+
+    //  Explorer's search box, at the address bar's right: a search over the
+    //  folder shown and below it.
+    DxuiTextInput                              * m_findBox = nullptr;
+    DxuiSuggestionList                           m_suggest;
+    std::vector<BrowserModel::AddressSegment>    m_addressSegments;
+    BrowserModel::AddressRoot                    m_addressRoot;
+    std::wstring                                 m_addressTyped;
 };
