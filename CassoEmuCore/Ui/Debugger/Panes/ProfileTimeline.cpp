@@ -148,6 +148,26 @@ std::wstring ProfileTimeline::GetFrameTip (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProfileTimeline::SetPointer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfileTimeline::SetPointer (std::optional<int> x)
+{
+    bool  isChanged = x != m_pointerX;
+
+
+
+    m_pointerX = x;
+    return isChanged;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProfileTimeline::GetShareColor
 //
 //  The kColoredRoutines hottest routines have the flame graph's colors, and
@@ -267,5 +287,11 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
             y -= tall;
             painter.FillRect (x, y, width, tall, GetShareColor (routine, m_otherArgb));
         }
+    }
+
+    if (m_pointerX.has_value())
+    {
+        painter.FillRect ((float) *m_pointerX, (float) m_boundsDip.top, std::max (1.0f, (float) std::lround (m_scaler.ToPxf (1.0f))), height,
+                          theme.PlayheadHoverLine());
     }
 }

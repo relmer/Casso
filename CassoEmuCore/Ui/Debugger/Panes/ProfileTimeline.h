@@ -15,7 +15,8 @@
 //  bar as tall as its share of a frame's cycles, stacked by routine in the
 //  flame graph's colors for the kColoredRoutines hottest routines, the rest
 //  of its cycles together in the divider color. A frame's tip lists its
-//  routines.
+//  routines. A line is drawn down the timeline at the pointer, in the
+//  history timeline's color for its line at the pointer.
 //
 //  Bounds are pixels, like every Dxui control.
 //
@@ -43,6 +44,10 @@ public:
 
     bool  TryGetTipAt (POINT point, std::wstring & text, std::vector<uint32_t> & swatches) const;
 
+    //  The pointer's x while it is over the timeline, for the line drawn
+    //  there, or none; true when the line moves, appears or goes.
+    bool  SetPointer  (std::optional<int> x);
+
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
@@ -59,4 +64,5 @@ private:
     std::vector<ProfileRoutineEntry>  m_routines;
     DxuiDpiScaler                     m_scaler;
     uint32_t                          m_otherArgb = 0xFF808080;   // the theme's divider color, as last painted
+    std::optional<int>                m_pointerX;
 };

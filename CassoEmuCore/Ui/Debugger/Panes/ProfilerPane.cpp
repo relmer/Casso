@@ -606,8 +606,22 @@ void ProfilerPane::ShowPeriod (size_t period)
 bool ProfilerPane::RouteContentMouse (const DxuiMouseEvent & ev)
 {
     bool  isUsed = false;
+    bool  isOver = false;
 
 
+
+    //  This is called for every mouse event in the window, so the line at
+    //  the pointer is cleared once the pointer is off the timeline. The
+    //  event is not consumed, so the tip is drawn too.
+    if (m_host.IsRoutable (m_timeline))
+    {
+        isOver = ev.kind != DxuiMouseEventKind::Leave && m_timeline->IsVisible() && DxuiDockSite::Contains (m_timeline->GetBounds(), ev.positionDip);
+
+        if (m_timeline->SetPointer (isOver ? std::optional<int> (ev.positionDip.x) : std::nullopt))
+        {
+            m_host.Repaint();
+        }
+    }
 
     if (!m_host.IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !DxuiDockSite::Contains (m_flameGraph->GetBounds(), ev.positionDip))
     {

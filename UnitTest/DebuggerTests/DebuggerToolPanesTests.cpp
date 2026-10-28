@@ -475,6 +475,48 @@ namespace DebuggerToolPanesTests
 
 
 
+        //  With the pointer over the timeline, a line is drawn down it at the
+        //  pointer, as the history timeline draws one; with the pointer
+        //  gone, none is.
+        TEST_METHOD (ALineIsDrawnAtThePointerOverTheTimeline)
+        {
+            ProfileTimeline       timeline;
+            ProfileData           profile   = MakeRoutineProfile();
+            MockDxuiPainter       painter;
+            MockDxuiTextRenderer  text;
+            MockDxuiTheme         theme;
+            DxuiDpiScaler         scaler;
+            auto                  findLine  = [&]
+            {
+                std::optional<float>  x;
+
+                for (const RecordedPaintCall & call : painter.Calls())
+                {
+                    x = (call.argb == theme.PlayheadHoverLine()) ? std::optional<float> (call.x) : x;
+                }
+
+                return x;
+            };
+
+
+
+            scaler.SetDpi (96);
+            timeline.SetData (profile);
+            timeline.Layout  (RECT { 0, 0, 600, 40 }, scaler);
+
+            Assert::IsTrue  (timeline.SetPointer (250), L"the line appears");
+            timeline.Paint  (painter, text, theme);
+            Assert::AreEqual (250.0f, findLine().value_or (-1.0f), L"at the pointer");
+
+            Assert::IsFalse (timeline.SetPointer (250), L"nothing changed");
+            Assert::IsTrue  (timeline.SetPointer (std::nullopt), L"the line goes");
+
+            painter.Reset();
+            timeline.Paint  (painter, text, theme);
+            Assert::IsFalse (findLine().has_value());
+        }
+
+
         //  A bar that covers several frames, once the frames are joined into
         //  wider bars, is as tall as its cycles are a share of those frames'.
         TEST_METHOD (ABarOfSeveralFramesIsScaledByThem)
