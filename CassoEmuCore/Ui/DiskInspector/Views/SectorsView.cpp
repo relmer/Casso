@@ -4,6 +4,8 @@
 #include "Devices/Disk/Inspector/DiskComparer.h"
 #include "Ui/DiskInspector/FileMapText.h"
 #include "Ui/DiskInspector/InspectorText.h"
+#include "Ui/DiskInspector/SectorAccess.h"
+#include "Shell/InspectorStatusPublisher.h"
 
 
 
@@ -132,6 +134,25 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
     {
         owners = FileMapText::BuildSectorItems (*m_context.fileMap, m_context.model->GetQuarterTrack() / DiskImage::kQuarterTracksPerWholeTrack, sector.sector);
         items.insert (items.end(), owners.begin(), owners.end());
+    }
+
+    //  How many times the guest read and wrote the sector (FR-161).
+    if (m_context.drive != nullptr && m_context.drive->access != nullptr && &sector >= track.sectors.data() && &sector < track.sectors.data() + track.sectors.size())
+    {
+        size_t    qt     = static_cast<size_t> (m_context.model->GetQuarterTrack());
+        size_t    s      = static_cast<size_t> (&sector - track.sectors.data());
+        uint32_t  reads  = SectorAccess::CountReads  (track, m_context.drive->access->reads[qt])[s];
+        uint32_t  writes = SectorAccess::CountWrites (track, m_context.drive->access->writes[qt])[s];
+
+        if (reads > 0)
+        {
+            items.push_back ({ L"Read", std::format (L"{} {}", reads, reads == 1 ? L"time" : L"times") });
+        }
+
+        if (writes > 0)
+        {
+            items.push_back ({ L"Written", std::format (L"{} {}", writes, writes == 1 ? L"time" : L"times") });
+        }
     }
 
     for (const HeaderItem & item : items)
