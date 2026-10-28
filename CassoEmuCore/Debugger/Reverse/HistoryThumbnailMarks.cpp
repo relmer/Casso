@@ -334,6 +334,7 @@ HistoryThumbnails::Image HistoryThumbnails::GetBranchPicture (uint32_t branchId)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HistoryThumbnails::TrySubmitBranch
