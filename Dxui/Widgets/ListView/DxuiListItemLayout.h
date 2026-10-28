@@ -48,7 +48,6 @@ public:
     static int          GetItemIconPx    (DxuiListViewTypes::View view, UINT dpi);
     bool                GetItemRectPx    (int item, RECT & outRect) const;
 
-    RECT  GetSelectionBandPx    () const;
 
     //  Explorer's Content, measured at 100, 125 and 150% over a range of
     //  widths: the icon 33.33 dip into the row and the name 8 past it. The
@@ -149,11 +148,20 @@ public:
 
     static inline const DxuiListViewTypes::ItemLayout  s_kNoItemLayout {};
 
-    void          BeginSelectionBand      (int lx, int ly, bool ctrl);
-    void          UpdateSelectionBand     (int lx, int ly);
+
+    //  The line an item view's scroll is held at, let go when the view scrolls
+    //  any other way; and the page sliding into view, which IsPageSliding ends
+    //  once its time is up.
+    void                                 ReleaseAnchor () { m_itemAnchorLine = -1; }
+    void                                 EndPageSlide  () { m_pageSlide = {}; }
+    const DxuiListViewTypes::PageSlide & GetPageSlide  () const { return m_pageSlide; }
+    bool                                 IsPageSliding ();
 
 private:
     friend class DxuiListView;
+    friend class DxuiListFlowLayout;
+    friend class DxuiListItemKeys;
+    friend class DxuiListItemPainter;
 
     DxuiListView  & m_list;
 
@@ -167,6 +175,12 @@ private:
     mutable int                            m_linesHPx         = 0;
     DxuiListViewTypes::RowNameSource       m_rowNames;
     mutable int                            m_itemNameWidestPx = 0;
-    POINT                                  m_bandStart        = {};
-    POINT                                  m_bandEnd          = {};
+
+    int                                    m_itemAnchorLine   = -1;      // an item view's scroll held at this line's edge; -1 for the top row's
+    bool                                   m_itemAnchorBottom = false;   // its bottom edge rather than its top
+    mutable int                            m_itemTextVersion  = 0;
+    mutable int                            m_captionLinePx    = 0;       // GDI's line height for captions; 0 until a paint measures it
+    mutable std::vector<int>               m_itemNameWPx;                // each item's name width; empty until measured
+    mutable ItemTextKey                    m_itemNameKey;                // what the widths were measured for
+    DxuiListViewTypes::PageSlide           m_pageSlide;
 };

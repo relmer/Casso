@@ -331,8 +331,8 @@ void DxuiListScrollbars::SetTopRow (int topRow)
 
 
     m_list.m_flushBottom    = false;
-    m_list.m_itemAnchorLine = -1;
-    m_list.m_pageSlide      = {};
+    m_list.m_items.ReleaseAnchor();
+    m_list.m_items.EndPageSlide();
 
     if (topRow < 0)
     {
@@ -689,7 +689,7 @@ void DxuiListScrollbars::GetPageFromTrackClick (int yPx)
     HRESULT                              hr      = S_OK;
     DxuiListViewTypes::ScrollbarMetrics  m       = GetScrollbarGeometry();
     int                                  cap     = GetVisibleRowCapacity();
-    DxuiListViewTypes::PageSlide         running = m_list.m_pageSlide;
+    DxuiListViewTypes::PageSlide         running = m_list.m_items.GetPageSlide();
     int                                  shownPx = 0;
     int                                  restPx  = 0;
 
@@ -735,7 +735,7 @@ void DxuiListScrollbars::BeginThumbDrag (int grabYPx)
 
 
 
-    m_list.m_vertDragging   = true;
+    m_vertDragging   = true;
     m_vertDragGrab = (float) grabYPx - m.thumbTop;
     m_vertScroll.SetDragOffset (m.thumbTop - (float) m.trackTop);
 }
@@ -761,7 +761,7 @@ void DxuiListScrollbars::UpdateThumbDrag (int yPx)
 
 
 
-    BAIL_OUT_IF (!m_list.m_vertDragging || !m.visible, S_OK);
+    BAIL_OUT_IF (!m_vertDragging || !m.visible, S_OK);
 
     //  The puck follows the pointer by the pixel; the rows follow in whole
     //  rows as the puck reaches each one. At the bottom of its travel, the
@@ -1048,7 +1048,7 @@ void DxuiListScrollbars::BeginHorzThumbDrag (int grabXPx)
 
 
 
-    m_list.m_horzDragging   = true;
+    m_horzDragging   = true;
     m_horzDragGrab = (float) grabXPx - m.thumbLeft;
 }
 
@@ -1073,7 +1073,7 @@ void DxuiListScrollbars::UpdateHorzThumbDrag (int xPx)
 
 
 
-    BAIL_OUT_IF (!m_list.m_horzDragging || !m.visible, S_OK);
+    BAIL_OUT_IF (!m_horzDragging || !m.visible, S_OK);
 
     travel    = (float) m.trackW - m.thumbW;
     thumbLeft = (float) xPx - m_horzDragGrab;
@@ -1222,7 +1222,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiListScrollbars::DispatchScrollbarPress
+//  DxuiListScrollbars::OnPress
 //
 //  Tries the horizontal then vertical scrollbar regions (arrows, thumb,
 //  track) at the press point, acting on the first hit: arrows step, the
@@ -1230,7 +1230,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListScrollbars::DispatchScrollbarPress (int lx, int ly)
+bool DxuiListScrollbars::OnPress (int lx, int ly)
 {
     bool  handled = true;
     int   hStep   = m_list.m_scaler.ToPx (DxuiListView::s_kHScrollStepDip);
@@ -1240,22 +1240,249 @@ bool DxuiListScrollbars::DispatchScrollbarPress (int lx, int ly)
     // A press on an arrow or the track does its one-shot scroll now and
     // arms auto-repeat (Tick fires the rest while the button is held);
     // grabbing the thumb starts a drag and does not repeat.
-    m_list.m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::None;
+    m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::None;
     m_scrollRepeatXPx     = lx;
     m_scrollRepeatYPx     = ly;
     m_scrollRepeatNextMs  = 0;
 
-    if      (HitTestHorzScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_list.m_leftPx - hStep);       m_list.m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::HorzArrowLeft;  }
-    else if (HitTestHorzScrollbarArrowRight (lx, ly)) { SetLeftPx (m_list.m_leftPx + hStep);       m_list.m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::HorzArrowRight; }
+    if      (HitTestHorzScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_list.m_leftPx - hStep);       m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::HorzArrowLeft;  }
+    else if (HitTestHorzScrollbarArrowRight (lx, ly)) { SetLeftPx (m_list.m_leftPx + hStep);       m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::HorzArrowRight; }
     else if (HitTestHorzScrollbarThumb      (lx, ly)) { BeginHorzThumbDrag (lx); }
-    else if (HitTestHorzScrollbarTrack      (lx, ly)) { GetPageFromHorzTrackClick (lx);        m_list.m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::HorzTrack;      }
-    else if (HitTestScrollbarArrowUp     (lx, ly)) { m_list.ScrollByRows (-1);                     m_list.m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::VertArrowUp;    }
-    else if (HitTestScrollbarArrowDown   (lx, ly)) { m_list.ScrollByRows (1);                      m_list.m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::VertArrowDown;  }
+    else if (HitTestHorzScrollbarTrack      (lx, ly)) { GetPageFromHorzTrackClick (lx);        m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::HorzTrack;      }
+    else if (HitTestScrollbarArrowUp     (lx, ly)) { m_list.ScrollByRows (-1);                     m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::VertArrowUp;    }
+    else if (HitTestScrollbarArrowDown   (lx, ly)) { m_list.ScrollByRows (1);                      m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::VertArrowDown;  }
     else if (HitTestScrollbarThumb       (lx, ly)) { BeginThumbDrag (ly); }
-    else if (HitTestScrollbarTrack       (lx, ly)) { GetPageFromTrackClick (ly);               m_list.m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::VertTrack;      }
+    else if (HitTestScrollbarTrack       (lx, ly)) { GetPageFromTrackClick (ly);               m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::VertTrack;      }
     else                                           { handled = false; }
 
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListScrollbars::OnDrag
+//
+//  A thumb being dragged follows the pointer. Returns whether one was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListScrollbars::OnDrag (int lx, int ly)
+{
+    if (m_vertDragging)
+    {
+        UpdateThumbDrag (ly);
+        return true;
+    }
+
+    if (m_horzDragging)
+    {
+        UpdateHorzThumbDrag (lx);
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListScrollbars::OnRelease
+//
+//  Ends a held arrow or track, or a thumb drag. Returns whether one was in
+//  progress.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListScrollbars::OnRelease()
+{
+    if (m_scrollRepeat != DxuiListViewTypes::ScrollRepeat::None)
+    {
+        m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::None;
+        return true;
+    }
+
+    if (m_vertDragging)
+    {
+        EndThumbDrag();
+        return true;
+    }
+
+    if (m_horzDragging)
+    {
+        EndHorzThumbDrag();
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListScrollbars::EndThumbDrag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListScrollbars::EndThumbDrag()
+{
+    m_vertDragging = false;
+    m_vertDragGrab = 0.0f;
+    m_vertScroll.SetDragOffset (std::nullopt);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListScrollbars::EndHorzThumbDrag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListScrollbars::EndHorzThumbDrag()
+{
+    m_horzDragging = false;
+    m_horzDragGrab = 0.0f;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListScrollbars::OnWheel
+//
+//  Scrolls the list when the pointer is inside: Shift+wheel scrolls
+//  horizontally, otherwise vertically. ev.wheelDelta is in notches and
+//  is converted to the raw WHEEL_DELTA units the scroll helpers expect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListScrollbars::OnWheel (const DxuiMouseEvent & ev, bool inside)
+{
+    HRESULT  hr       = S_OK;
+    bool     handled  = false;
+    int      hStep    = m_list.m_scaler.ToPx (DxuiListView::s_kHScrollStepDip);
+    int      rawDelta = (int) (ev.wheelDelta * (float) WHEEL_DELTA);
+
+
+
+    BAIL_OUT_IF (!inside, S_OK);
+
+    if (ev.wheelHorizontal)
+    {
+        // Trackpad / tilt-wheel horizontal (WM_MOUSEHWHEEL): a positive
+        // delta means "scroll right", the opposite of the Shift+wheel
+        // convention below (positive = toward the start), so negate.
+        ScrollByWheelDeltaHorizontal (-rawDelta, hStep);
+    }
+    else if (ev.shift)
+    {
+        ScrollByWheelDeltaHorizontal (rawDelta, hStep);
+    }
+    else
+    {
+        ScrollByWheelDelta (rawDelta, GetWheelLinesPerNotch());
+    }
+
+    handled = true;
+
+Error:
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListScrollbars::Tick
+//
+//  Drives scrollbar auto-repeat for a held arrow / track press. The host
+//  calls this once per frame with a monotonic millisecond clock: after
+//  the initial delay the pressed action fires at the repeat interval
+//  until OnRelease clears the press. Track paging stops when the
+//  thumb reaches the held point (matching the OS scrollbar).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListScrollbars::Tick (int64_t nowMs)
+{
+    int   hStep      = 0;
+    bool  reschedule = true;
+
+
+
+    if (m_scrollRepeat == DxuiListViewTypes::ScrollRepeat::None)
+    {
+        // Nothing held. The common case, so it is the first test.
+    }
+    else if (m_scrollRepeatNextMs == 0)
+    {
+        // Arm the initial delay on the first tick after the press.
+        m_scrollRepeatNextMs = nowMs + s_kScrollRepeatDelayMs;
+    }
+    else if (nowMs >= m_scrollRepeatNextMs)
+    {
+        hStep = m_list.m_scaler.ToPx (DxuiListView::s_kHScrollStepDip);
+
+        switch (m_scrollRepeat)
+        {
+            case DxuiListViewTypes::ScrollRepeat::VertArrowUp:    m_list.ScrollByRows (-1);            break;
+            case DxuiListViewTypes::ScrollRepeat::VertArrowDown:  m_list.ScrollByRows (1);             break;
+            case DxuiListViewTypes::ScrollRepeat::HorzArrowLeft:  SetLeftPx (m_list.m_leftPx - hStep); break;
+            case DxuiListViewTypes::ScrollRepeat::HorzArrowRight: SetLeftPx (m_list.m_leftPx + hStep); break;
+
+            // Track paging stops once the thumb reaches the held point --
+            // the repeat ends outright, so there is nothing to reschedule.
+            case DxuiListViewTypes::ScrollRepeat::VertTrack:
+                if (HitTestScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+                {
+                    m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::None;
+                    reschedule     = false;
+                }
+                else
+                {
+                    GetPageFromTrackClick (m_scrollRepeatYPx);
+                }
+
+                break;
+
+            case DxuiListViewTypes::ScrollRepeat::HorzTrack:
+                if (HitTestHorzScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+                {
+                    m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::None;
+                    reschedule     = false;
+                }
+                else
+                {
+                    GetPageFromHorzTrackClick (m_scrollRepeatXPx);
+                }
+
+                break;
+
+            default:
+                break;
+        }
+
+        if (reschedule)
+        {
+            m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
+        }
+    }
 }
 
 

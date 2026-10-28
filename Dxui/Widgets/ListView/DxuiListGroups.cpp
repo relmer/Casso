@@ -116,7 +116,7 @@ Error:
 void DxuiListGroups::BuildLines() const
 {
     int  rows  = m_list.GetRowCount();
-    int  first = m_list.m_groups.empty() ? rows : (std::min) (m_list.m_groups[0].firstRow, rows);
+    int  first = m_groups.empty() ? rows : (std::min) (m_groups[0].firstRow, rows);
 
 
 
@@ -134,14 +134,14 @@ void DxuiListGroups::BuildLines() const
         m_lines.push_back (r);
     }
 
-    for (size_t g = 0; g < m_list.m_groups.size(); g++)
+    for (size_t g = 0; g < m_groups.size(); g++)
     {
-        int  start = std::clamp (m_list.m_groups[g].firstRow, 0, rows);
-        int  end   = (g + 1 < m_list.m_groups.size()) ? std::clamp (m_list.m_groups[g + 1].firstRow, start, rows) : rows;
+        int  start = std::clamp (m_groups[g].firstRow, 0, rows);
+        int  end   = (g + 1 < m_groups.size()) ? std::clamp (m_groups[g + 1].firstRow, start, rows) : rows;
 
         m_lines.push_back (-((int) g + 1));
 
-        for (int r = start; r < end && !m_list.m_groups[g].collapsed; r++)
+        for (int r = start; r < end && !m_groups[g].collapsed; r++)
         {
             m_rowLines[(size_t) r] = (int) m_lines.size();
             m_lines.push_back (r);
@@ -259,7 +259,7 @@ int DxuiListGroups::GetGroupOfLine (int line) const
 
 int DxuiListGroups::GetLineOfGroup (int group) const
 {
-    if (!m_list.HasGroupLines() || group < 0 || group >= (int) m_list.m_groups.size())
+    if (!m_list.HasGroupLines() || group < 0 || group >= (int) m_groups.size())
     {
         return -1;
     }
@@ -298,7 +298,7 @@ void DxuiListGroups::SetGroups (std::vector<DxuiListViewTypes::Group> groups)
 
     for (DxuiListViewTypes::Group & group : groups)
     {
-        for (const DxuiListViewTypes::Group & old : m_list.m_groups)
+        for (const DxuiListViewTypes::Group & old : m_groups)
         {
             if (old.label == group.label)
             {
@@ -308,7 +308,7 @@ void DxuiListGroups::SetGroups (std::vector<DxuiListViewTypes::Group> groups)
         }
     }
 
-    same = std::equal (groups.begin(), groups.end(), m_list.m_groups.begin(), m_list.m_groups.end(), [] (const DxuiListViewTypes::Group & a, const DxuiListViewTypes::Group & b)
+    same = std::equal (groups.begin(), groups.end(), m_groups.begin(), m_groups.end(), [] (const DxuiListViewTypes::Group & a, const DxuiListViewTypes::Group & b)
     {
         return a.label == b.label && a.firstRow == b.firstRow && a.collapsed == b.collapsed;
     });
@@ -316,15 +316,15 @@ void DxuiListGroups::SetGroups (std::vector<DxuiListViewTypes::Group> groups)
     if (!same)
     {
         m_list.m_flushBottom    = false;
-        m_list.m_itemAnchorLine = -1;
+        m_list.m_items.ReleaseAnchor();
     }
 
-    m_list.m_groups     = std::move (groups);
+    m_groups     = std::move (groups);
     m_linesDirty        = true;
-    m_list.m_hoverGroup = -1;
-    m_list.m_groupSlide = {};
+    m_hoverGroup = -1;
+    m_groupSlide = {};
 
-    if (m_list.m_focusGroup >= (int) m_list.m_groups.size())
+    if (m_list.m_focusGroup >= (int) m_groups.size())
     {
         m_list.m_focusGroup = -1;
     }
@@ -348,14 +348,14 @@ void DxuiListGroups::SetGroups (std::vector<DxuiListViewTypes::Group> groups)
 
 void DxuiListGroups::SetGroupCollapsed (int group, bool collapsed)
 {
-    if (group < 0 || group >= (int) m_list.m_groups.size() || m_list.m_groups[(size_t) group].collapsed == collapsed)
+    if (group < 0 || group >= (int) m_groups.size() || m_groups[(size_t) group].collapsed == collapsed)
     {
         return;
     }
 
-    m_list.m_groups[(size_t) group].collapsed = collapsed;
+    m_groups[(size_t) group].collapsed = collapsed;
     m_linesDirty                              = true;
-    m_list.m_groupSlide                       = { group, m_list.GetClockMs() };
+    m_groupSlide                       = { group, m_list.GetClockMs() };
 
     m_list.m_scrollbars.SetTopRow (m_list.m_topRow);
 }
@@ -372,13 +372,13 @@ void DxuiListGroups::SetGroupCollapsed (int group, bool collapsed)
 
 void DxuiListGroups::SetAllGroupsCollapsed (bool collapsed)
 {
-    for (DxuiListViewTypes::Group & group : m_list.m_groups)
+    for (DxuiListViewTypes::Group & group : m_groups)
     {
         group.collapsed = collapsed;
     }
 
     m_linesDirty        = true;
-    m_list.m_groupSlide = {};
+    m_groupSlide = {};
 
     m_list.m_scrollbars.SetTopRow (m_list.m_topRow);
 }
@@ -395,7 +395,7 @@ void DxuiListGroups::SetAllGroupsCollapsed (bool collapsed)
 
 bool DxuiListGroups::IsGroupCollapsed (int group) const
 {
-    return group >= 0 && group < (int) m_list.m_groups.size() && m_list.m_groups[(size_t) group].collapsed;
+    return group >= 0 && group < (int) m_groups.size() && m_groups[(size_t) group].collapsed;
 }
 
 
@@ -415,24 +415,19 @@ bool DxuiListGroups::IsGroupCollapsed (int group) const
 
 bool DxuiListGroups::IsGroupSliding()
 {
-    if (m_list.m_pageSlide.active)
+    if (m_list.m_items.IsPageSliding())
     {
-        if (m_list.GetClockMs() - m_list.m_pageSlide.startMs >= DxuiListView::s_kPageSlideMs)
-        {
-            m_list.m_pageSlide = {};
-        }
-
         return true;
     }
 
-    if (m_list.m_groupSlide.group < 0)
+    if (m_groupSlide.group < 0)
     {
         return false;
     }
 
-    if (m_list.GetClockMs() - m_list.m_groupSlide.startMs >= s_kGroupSlideMs)
+    if (m_list.GetClockMs() - m_groupSlide.startMs >= s_kGroupSlideMs)
     {
-        m_list.m_groupSlide = {};
+        m_groupSlide = {};
     }
 
     return true;
@@ -501,19 +496,19 @@ float DxuiListGroups::EaseGroupSlide (float t)
 
 float DxuiListGroups::GetGroupSlideShown() const
 {
-    int64_t  elapsed = m_list.GetClockMs() - m_list.m_groupSlide.startMs;
+    int64_t  elapsed = m_list.GetClockMs() - m_groupSlide.startMs;
     float    eased   = 0.0f;
 
 
 
-    if (m_list.m_groupSlide.group < 0 || m_list.m_groupSlide.group >= (int) m_list.m_groups.size() || elapsed >= s_kGroupSlideMs)
+    if (m_groupSlide.group < 0 || m_groupSlide.group >= (int) m_groups.size() || elapsed >= s_kGroupSlideMs)
     {
         return -1.0f;
     }
 
     eased = EaseGroupSlide ((float) elapsed / (float) s_kGroupSlideMs);
 
-    return m_list.m_groups[(size_t) m_list.m_groupSlide.group].collapsed ? 1.0f - eased : eased;
+    return m_groups[(size_t) m_groupSlide.group].collapsed ? 1.0f - eased : eased;
 }
 
 
@@ -534,8 +529,8 @@ void DxuiListGroups::GetGroupRowSpan (int group, int & start, int & end) const
 
 
 
-    start = std::clamp (m_list.m_groups[(size_t) group].firstRow, 0, rows);
-    end   = (group + 1 < (int) m_list.m_groups.size()) ? std::clamp (m_list.m_groups[(size_t) group + 1].firstRow, start, rows) : rows;
+    start = std::clamp (m_groups[(size_t) group].firstRow, 0, rows);
+    end   = (group + 1 < (int) m_groups.size()) ? std::clamp (m_groups[(size_t) group + 1].firstRow, start, rows) : rows;
 }
 
 
@@ -566,7 +561,7 @@ std::vector<DxuiListViewTypes::LineSpot> DxuiListGroups::PlaceDataLines (
     float                                     rowH   = (float) m_list.GetRowHeightPx();
     float                                     bottom = (float) m_list.m_boundsDip.bottom;
     float                                     shown  = m_list.HasGroupLines() ? GetGroupSlideShown() : -1.0f;
-    int                                       group  = m_list.m_groupSlide.group;
+    int                                       group  = m_groupSlide.group;
     int                                       start  = 0;
     int                                       end    = 0;
     float                                     fullH  = 0.0f;
@@ -613,7 +608,7 @@ std::vector<DxuiListViewTypes::LineSpot> DxuiListGroups::PlaceDataLines (
 
         clipTop = spot.y + rowH;
         clipH   = fullH * shown;
-        extra   = clipH - (m_list.m_groups[(size_t) group].collapsed ? 0.0f : fullH);
+        extra   = clipH - (m_groups[(size_t) group].collapsed ? 0.0f : fullH);
 
         for (int r = start; r < end; r++)
         {
@@ -709,6 +704,53 @@ bool DxuiListGroups::HitTestGroupChevron (int xPx, int group) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiListGroups::OnPress
+//
+//  The chevron, or a second click on the header, opens or closes the group;
+//  a click on the header otherwise selects its rows. List's headers are
+//  labels only, as Explorer's are: they select. Returns whether the press
+//  was on a group's header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListGroups::OnPress (int lx, int ly)
+{
+    int      group = HitTestGroupHeader (lx, ly);
+    int64_t  nowMs = 0;
+    bool     twice = false;
+
+
+
+    if (group < 0)
+    {
+        return false;
+    }
+
+    nowMs = (int64_t) GetTickCount64();
+    twice = group == m_lastHeaderGroup && (nowMs - m_lastHeaderMs) <= (int64_t) GetDoubleClickTime();
+
+    m_lastHeaderGroup = twice ? -1 : group;
+    m_lastHeaderMs    = nowMs;
+
+    if (!m_list.m_flow.HasListGroups() && (twice || HitTestGroupChevron (lx, group)))
+    {
+        SetGroupCollapsed (group, !IsGroupCollapsed (group));
+        m_list.m_focusGroup = group;
+    }
+    else
+    {
+        SelectGroup (group);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SelectGroup
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -721,13 +763,13 @@ void DxuiListGroups::SelectGroup (int group)
 
 
 
-    if (group < 0 || group >= (int) m_list.m_groups.size())
+    if (group < 0 || group >= (int) m_groups.size())
     {
         return;
     }
 
-    first = m_list.m_groups[(size_t) group].firstRow;
-    end   = (group + 1 < (int) m_list.m_groups.size()) ? m_list.m_groups[(size_t) group + 1].firstRow : m_list.GetRowCount();
+    first = m_groups[(size_t) group].firstRow;
+    end   = (group + 1 < (int) m_groups.size()) ? m_groups[(size_t) group + 1].firstRow : m_list.GetRowCount();
 
     for (int r = first; r < end; r++)
     {
@@ -767,11 +809,11 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
     int          steps   = (int) (armHalf - thick * 0.5f);
     uint32_t     ink     = m_list.m_theme->ForegroundMuted();
     bool         focused = m_list.m_listFocused && group == m_list.m_focusGroup;
-    DxuiRowLook  look    = DxuiRowLook::Resolve (*m_list.m_theme, false, focused, group == m_list.m_hoverGroup, m_list.m_listFocused);
+    DxuiRowLook  look    = DxuiRowLook::Resolve (*m_list.m_theme, false, focused, group == m_hoverGroup, m_list.m_listFocused);
 
 
 
-    if (group < 0 || group >= (int) m_list.m_groups.size())
+    if (group < 0 || group >= (int) m_groups.size())
     {
         return;
     }
@@ -792,7 +834,7 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
     //  List's headers have none: its groups do not collapse.
     for (int s = 0; s <= steps && !m_list.m_flow.HasListGroups(); ++s)
     {
-        if (m_list.m_groups[(size_t) group].collapsed)
+        if (m_groups[(size_t) group].collapsed)
         {
             float  dx = cx - armHalf * 0.5f + (float) s;
 
@@ -808,7 +850,7 @@ void DxuiListGroups::PaintGroupHeader (IDxuiPainter & painter, IDxuiTextRenderer
         }
     }
 
-    hr = text.DrawString (m_list.m_groups[(size_t) group].label.c_str(), labelX, ry, layoutW - (labelX - x), rowH,
+    hr = text.DrawString (m_groups[(size_t) group].label.c_str(), labelX, ry, layoutW - (labelX - x), rowH,
                           pal.fg, m_list.m_scaler.ToPxf (m_list.m_fontDip), m_list.GetBodyFace(),
                           DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -832,7 +874,7 @@ int DxuiListGroups::GetGroupOfRow (int row) const
 
 
 
-    for (size_t g = 0; g < m_list.m_groups.size() && m_list.m_groups[g].firstRow <= row; g++)
+    for (size_t g = 0; g < m_groups.size() && m_groups[g].firstRow <= row; g++)
     {
         group = (int) g;
     }

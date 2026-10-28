@@ -45,7 +45,7 @@ bool DxuiListKeyboard::HandleKeyboardBodyRowNav (WPARAM vk, bool shift, bool ctr
     bool                          paging  = (vk == VK_PRIOR || vk == VK_NEXT);
     int                           shownPx = paging ? m_list.GetShownScrollPx() : 0;
     int                           restPx  = paging ? m_list.m_items.GetRestScrollPx()  : 0;
-    DxuiListViewTypes::PageSlide  running = m_list.m_pageSlide;
+    DxuiListViewTypes::PageSlide  running = m_list.m_items.GetPageSlide();
     bool                          handled = false;
 
 

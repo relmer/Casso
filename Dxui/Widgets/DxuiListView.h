@@ -7,9 +7,10 @@
 #include "Widgets/ListView/DxuiListKeyboard.h"
 #include "Widgets/ListView/DxuiListItemLayout.h"
 #include "Widgets/ListView/DxuiListItemKeys.h"
-#include "Widgets/ListView/DxuiListPainter.h"
+#include "Widgets/ListView/DxuiListItemPainter.h"
 #include "Widgets/ListView/DxuiListColumns.h"
-#include "Widgets/ListView/DxuiListMouse.h"
+#include "Widgets/ListView/DxuiListRows.h"
+#include "Widgets/ListView/DxuiListBand.h"
 #include "Widgets/ListView/DxuiListFlowLayout.h"
 #include "Theme/DxuiTheme.h"
 
@@ -51,12 +52,12 @@ public:
     //  left, the name's icon and each column's text where Explorer puts them,
     //  and a slightly shorter header. Off by default.
     void  SetExplorerDetails (bool on)                       { m_explorerDetails = on; }
-    void  SetHoveredRow   (int row)                        { m_painter.m_hovered = row; if (row >= 0) { m_hoverGroup = -1; } }
+    void  SetHoveredRow   (int row)                        { m_hovered = row; if (row >= 0) { m_grouping.ClearHover(); } }
 
     //  The row a drag would drop on, drawn as Explorer draws its drop target: in
     //  the hover fill, outlined in the accent. -1 draws none.
-    void  SetDropRow      (int row)                        { m_painter.m_dropRow = row; }
-    int   GetDropRow      () const                         { return m_painter.m_dropRow; }
+    void  SetDropRow      (int row)                        { m_dropRow = row; }
+    int   GetDropRow      () const                         { return m_dropRow; }
 
     //  A column whose cells leave room for an icon whether they have one or
     //  not, so every name starts at the same place. -1 for none.
@@ -74,7 +75,7 @@ public:
 
     //  A group set again under the same label keeps whether it was collapsed.
     void                        SetGroups          (std::vector<Group> groups) { m_grouping.SetGroups (groups); }
-    const std::vector<Group> &  GetGroups          () const                    { return m_groups; }
+    const std::vector<Group> &  GetGroups          () const                    { return m_grouping.m_groups; }
 
     //  Collapsing hides a group's rows under its header, as Explorer's do.
     void                        SetGroupCollapsed      (int group, bool collapsed) { m_grouping.SetGroupCollapsed (group, collapsed); }
@@ -90,7 +91,7 @@ public:
 
     //  Whether an item view cut the item's name short with an ellipsis when it
     //  last drew it, so a host can show the whole of it in a tip.
-    bool                        IsItemNameCut          (int row) const { return std::find (m_painter.m_nameCut.begin(), m_painter.m_nameCut.end(), row) != m_painter.m_nameCut.end(); }
+    bool                        IsItemNameCut          (int row) const { return std::find (m_itemPainter.m_nameCut.begin(), m_itemPainter.m_nameCut.end(), row) != m_itemPainter.m_nameCut.end(); }
     //  The group whose header is under a point, in the same coordinates as
     //  HitTestRow, or -1.
     int                         HitTestGroupHeader (int xPx, int yPx) const { return m_grouping.HitTestGroupHeader (xPx, yPx); }
@@ -152,9 +153,9 @@ public:
 
     // Row count honoring virtual (provider) mode. All scroll math, hit-test,
     // and paint bounds go through this so the two modes share one code path.
-    int   GetRowCount              () const { return m_virtual ? m_virtualCount : (int) m_columnSizing.m_rows.size(); }
+    int   GetRowCount              () const { return m_virtual ? m_virtualCount : (int) m_rowData.size(); }
 
-    int   GetHoveredRow            () const                 { return m_painter.m_hovered; }
+    int   GetHoveredRow            () const                 { return m_hovered; }
     bool  IsHeaderShown            () const                 { return m_showHeader; }
     int   GetHeaderHeightPx        () const                 { return m_showHeader ? GetHeaderBarPx() : 0; }
     int   GetVisibleColumnCount    () const { return m_columnSizing.GetVisibleColumnCount(); }
@@ -184,7 +185,7 @@ public:
     const std::vector<int> &  GetSelectedRows () const   { return m_selectedRows; }
     void                      SetSelectedRows (std::vector<int> rows, int anchor);
     bool                      IsRowSelected   (int row) const;
-    int                       GetAnchorRow    () const   { return m_mouse.m_anchorRow; }
+    int                       GetAnchorRow    () const   { return m_anchorRow; }
 
     // A click that selects, as the mouse delivers it: the modifiers decide
     // whether it replaces, toggles or extends the selection. Raises the
@@ -216,7 +217,7 @@ public:
     // Left/Right resize the column.
     void  SetKeyboardColumnResize (bool enabled)           { m_kbColResize = enabled; }
 
-    // Vertical scroll. The widget keeps a top-row index into m_rows;
+    // Vertical scroll. The widget keeps a top-row index into m_rowData;
     // Paint clips to [m_topRow, m_topRow + capacity). A list opens at its
     // top. "Sticky tail" is opt-in, for live logs: once enabled, it pins
     // the view to the bottom when new rows arrive while the user is already
@@ -269,8 +270,8 @@ public:
     void             GetPageFromTrackClick        (int yPx) { m_scrollbars.GetPageFromTrackClick (yPx); }
     void             BeginThumbDrag            (int grabYPx) { m_scrollbars.BeginThumbDrag (grabYPx); }
     void             UpdateThumbDrag           (int yPx) { m_scrollbars.UpdateThumbDrag (yPx); }
-    void             EndThumbDrag              ()                            { m_vertDragging = false; m_scrollbars.m_vertDragGrab = 0.0f; m_scrollbars.m_vertScroll.SetDragOffset (std::nullopt); }
-    bool             IsThumbDragging           () const                      { return m_vertDragging; }
+    void             EndThumbDrag              () { m_scrollbars.EndThumbDrag(); }
+    bool             IsThumbDragging           () const { return m_scrollbars.IsThumbDragging(); }
 
     // Horizontal scroll (opt-in via SetHorizontalScrollEnabled; default
     // off so existing consumers are unaffected). When enabled and the
@@ -313,8 +314,8 @@ public:
     void              GetPageFromHorzTrackClick         (int xPx) { m_scrollbars.GetPageFromHorzTrackClick (xPx); }
     void              BeginHorzThumbDrag             (int grabXPx) { m_scrollbars.BeginHorzThumbDrag (grabXPx); }
     void              UpdateHorzThumbDrag            (int xPx) { m_scrollbars.UpdateHorzThumbDrag (xPx); }
-    void              EndHorzThumbDrag               ()                          { m_horzDragging = false; m_scrollbars.m_horzDragGrab = 0.0f; }
-    bool              IsHorzThumbDragging            () const                    { return m_horzDragging; }
+    void              EndHorzThumbDrag               () { m_scrollbars.EndHorzThumbDrag(); }
+    bool              IsHorzThumbDragging            () const { return m_scrollbars.IsHorzThumbDragging(); }
 
     // Sizing helpers (the host dialog uses these to size itself).
     int   GetRequiredRowsForHeightPx (int heightPx) const { return m_scrollbars.GetRequiredRowsForHeightPx (heightPx); }
@@ -380,7 +381,7 @@ public:
     // on the second click on the same row inside the system double-click
     // time. Selection still follows every click, and keyboard activation
     // (Enter / Space) is unaffected.
-    void  SetActivateOnDoubleClick (bool enabled)                { m_mouse.m_activateOnDoubleClick = enabled; }
+    void  SetActivateOnDoubleClick (bool enabled)                { m_rows.SetActivateOnDoubleClick (enabled); }
     void  SetClock (ClockFn clock)                               { m_keyboard.m_clock = std::move (clock); }
 
     //  Whether a page slides into view, as Explorer's does. Off by default.
@@ -389,29 +390,29 @@ public:
     // By default the selected row only paints while the list itself holds
     // keyboard focus (its focus cue). File-picker-style consumers keep the
     // selection visible regardless, like a real list view.
-    void  SetAlwaysShowSelection   (bool enabled)                { m_painter.m_alwaysShowSelection = enabled; }
+    void  SetAlwaysShowSelection   (bool enabled)                { m_alwaysShowSelection = enabled; }
 
     // Selected rows in the accent selection color a text control uses, as a
     // preview of a file's contents does, rather than the neutral fill a file
     // list uses.
-    void  SetTextSelectionColors   (bool enabled)                { m_painter.m_textSelectionColors = enabled; }
+    void  SetTextSelectionColors   (bool enabled)                { m_textSelectionColors = enabled; }
 
     // Raised once when an interactive column-resize drag completes, with
     // the column index and its new effective width in physical pixels.
     // Lets a host that owns a persisted column model (e.g. the debug
     // panels) record the user's width without re-implementing the drag.
     void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_mouse.m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None || m_mouse.m_dragSelecting || m_bandActive || m_headerPressCol >= 0; }
+    bool  IsInteracting         () const  { return m_scrollbars.IsInteracting() || m_header.IsInteracting() || m_rows.IsDragSelecting() || m_band.IsActive(); }
 
     //  Ends a drag that is extending the selection, keeping what it selected,
     //  for a host that turns the drag into something else, such as moving the
     //  rows, and so never passes on the release.
-    void  EndDragSelect         ()        { m_mouse.m_dragSelecting = false; }
+    void  EndDragSelect         ()        { m_rows.EndDragSelect(); }
 
     //  The order the columns are shown in, left to right, as indexes into the
     //  columns; SetColumns starts it in their own order. A header dragged along
     //  the strip moves its column, as in Explorer, and reports the new order.
-    const std::vector<size_t> &  GetColumnOrder () const { return m_columnOrder; }
+    const std::vector<size_t> &  GetColumnOrder () const { return m_header.GetColumnOrder(); }
     void                         SetColumnOrder (const std::vector<size_t> & order) { m_header.SetColumnOrder (order); }
     void                         SetOnColumnsReordered (std::function<void (const std::vector<size_t> &)> cb) { m_header.m_onColumnsReordered = std::move (cb); }
 
@@ -420,15 +421,15 @@ public:
 
     //  The rubber band an item view draws while the pointer drags from empty
     //  space, in the list's pixels; empty when none is being drawn.
-    RECT  GetSelectionBandPx    () const { return m_items.GetSelectionBandPx(); }
-    bool  IsResizingColumn      () const  { return m_mouse.m_resizeColumn >= 0; }
+    RECT  GetSelectionBandPx    () const { return m_band.GetRectPx(); }
+    bool  IsResizingColumn      () const  { return m_header.IsResizingColumn(); }
 
     // Auto-repeat for a held scrollbar arrow / track press (like key
     // repeat). The host drives this once per frame with a monotonic
     // millisecond clock; after the initial delay the pressed arrow / page
     // action fires at the repeat interval until the button is released.
     // No-op when no arrow / track press is active.
-    void  Tick (int64_t nowMs);
+    void  Tick (int64_t nowMs) { m_scrollbars.Tick (nowMs); }
 
     // Rendering.
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
@@ -484,21 +485,16 @@ private:
     static constexpr float  s_kFontDip           = 13.0f;
     static constexpr float  s_kHeaderFontDip     = 13.0f;
 
-    // Scrollbar auto-repeat cadence (ms), mirroring typical key-repeat:
-    // a longer delay before the first repeat, then a steady interval.
-    static constexpr int64_t  s_kScrollRepeatDelayMs    = 400;
-    static constexpr int64_t  s_kScrollRepeatIntervalMs = 60;
-
     //  Lines are what Details view stacks and scrolls by: each row, and a
     //  header above each group. Without groups a line is a row.
-    bool  HasGroupLines  () const { return !m_groups.empty() && !IsItemsView(); }
+    bool  HasGroupLines  () const { return !m_grouping.m_groups.empty() && !IsItemsView(); }
     static bool  IsAtPageEdge           (int cur, int edge, bool down) { return cur >= 0 && (down ? cur >= edge : cur <= edge); }
 
     static constexpr int64_t  s_kPageSlideMs = 175;
     int                     GetShownScrollPx   () const { return m_items.GetRestScrollPx() - m_items.GetPageSlidePx(); }
 
     // Fill `out` with row `r`'s cells: from the provider in virtual mode, or
-    // a copy of m_rows[r] otherwise. Used by Paint's visible-window pull.
+    // a copy of m_rowData[r] otherwise. Used by Paint's visible-window pull.
     void         ProvideRow          (int r, std::vector<Cell> & out) const;
 
     static constexpr int  s_kItemPadDip  = 6;
@@ -533,7 +529,7 @@ private:
 
     static inline const ListLayout  s_kNoListLayout {};
     // The cell vector for row `r`: the provider scratch in virtual mode
-    // (pulled + auto-fit noted as a side effect), m_rows[r] otherwise.
+    // (pulled + auto-fit noted as a side effect), m_rowData[r] otherwise.
     const std::vector<Cell> & GetRowCells (int r) const;
     // Clamp m_topRow / sticky-tail after the row count changes (shared by
     // SetRows / AppendRows / SetVirtualRowCount / SetRowProvider).
@@ -544,8 +540,18 @@ private:
 
     // Drops selected rows past the end after the row count changes.
     void    PruneSelection           ();
+
+    //  The colors the rows, items, header and bars are drawn in, from the theme.
+    Palette  MakePalette () const;
+
+    //  A press, the drag that follows and its release, routed to the bars, the
+    //  header, the groups, the rows and the band in turn.
+    bool  OnPress   (const DxuiMouseEvent & ev, int lx, int ly, bool inside);
+    bool  OnDrag    (int lx, int ly, bool inside);
+    bool  OnRelease (int lx, int ly, bool inside);
     const IDxuiTheme                * m_theme     = nullptr;
     std::vector<Column>               m_columns;
+    std::vector<std::vector<Cell>>    m_rowData;
     HWND                              m_ownerHwnd = nullptr;
     // Per-column pixel width fitted to the header + widest cell via
     // MeasureColumnsPx (DWrite). Monotonic and persists across SetRows so
@@ -563,61 +569,41 @@ private:
     std::function<int (UINT)> m_rowHeightPxFn;
     DxuiDpiScaler             m_scaler;
     // Virtual (provider) row model — see SetRowProvider. When m_virtual is
-    // true, m_rows is empty and rows are pulled on demand into m_providerScratch.
-    bool                                     m_virtual          = false;
-    RowSource                                m_rowSource;
-    int                                      m_virtualCount     = 0;
-    RowProvider                              m_rowProvider;
-    mutable std::vector<Cell>                m_providerScratch;
-    int                                      m_iconColumn       = -1;
-    bool                                     m_seedRowOnFocus   = true;
-    int                                      m_selectedRow      = -1;
-    bool                                     m_multiSelect      = false;
-    std::vector<int>                         m_selectedRows;
-    bool                                     m_showHeader       = false;
-    View                                     m_view             = View::Details;
-    bool                                     m_detailsHeader    = false;   // the header Details had, while another view shows
-    int                                      m_topRow           = 0;
-    bool                                     m_flushBottom      = false;   // Details: the rows lifted so the last whole one ends at the bottom
-    int                                      m_itemAnchorLine   = -1;   // an item view's scroll held at this line's edge; -1 for m_topRow's
-    bool                                     m_itemAnchorBottom = false;   // its bottom edge rather than its top
-    bool                                     m_listFocused      = false;
-    std::vector<Group>                       m_groups;
-    int                                      m_focusGroup       = -1;
-    mutable int                              m_itemTextVersion  = 0;
-    mutable int                              m_captionLinePx    = 0;   // GDI's line height for captions; 0 until a paint measures it
-    mutable std::vector<int>                 m_itemNameWPx;   // each item's name width; empty until measured
-    mutable DxuiListItemLayout::ItemTextKey  m_itemNameKey;   // what the widths were measured for
-    int                                      m_rowsVersion      = 0;   // counts row sets, so measurements of the last one are dropped
-    int                                      m_hoverGroup       = -1;
-    GroupSlide                               m_groupSlide;
-    PageSlide                                m_pageSlide;
-    bool                                     m_kbColNavEnabled  = false;
-    bool                                     m_kbColResize      = false;
-    bool                                     m_vertDragging     = false;
-    bool                                     m_hScrollEnabled   = false;
-    int                                      m_leftPx           = 0;
-    bool                                     m_horzDragging     = false;
-    ScrollRepeat                             m_scrollRepeat     = ScrollRepeat::None;
-    bool                                     m_contentHidden    = false;
+    // true, m_rowData is empty and rows are pulled on demand into m_providerScratch.
+    bool                       m_virtual             = false;
+    RowSource                  m_rowSource;
+    int                        m_virtualCount        = 0;
+    RowProvider                m_rowProvider;
+    mutable std::vector<Cell>  m_providerScratch;
+    int                        m_iconColumn          = -1;
+    bool                       m_seedRowOnFocus      = true;
+    int                        m_selectedRow         = -1;
+    bool                       m_multiSelect         = false;
+    std::vector<int>           m_selectedRows;
+    int                        m_anchorRow           = -1;
+    int                        m_hovered             = -1;
+    int                        m_dropRow             = -1;
+    bool                       m_alwaysShowSelection = false;
+    bool                       m_textSelectionColors = false;
+    bool                       m_showHeader          = false;
+    View                       m_view                = View::Details;
+    bool                       m_detailsHeader       = false;   // the header Details had, while another view shows
+    int                        m_topRow              = 0;
+    bool                       m_flushBottom         = false;   // Details: the rows lifted so the last whole one ends at the bottom
+    bool                       m_listFocused         = false;
+    int                        m_focusGroup          = -1;
+    int                        m_rowsVersion         = 0;   // counts row sets, so measurements of the last one are dropped
+    bool                       m_kbColNavEnabled     = false;
+    bool                       m_kbColResize         = false;
+    bool                       m_hScrollEnabled      = false;
+    int                        m_leftPx              = 0;
+    bool                       m_contentHidden       = false;
     std::function<void (int)>         m_onSelectionChanged;
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int, int)>    m_onColumnResized;
 
-    //  A header press: sorts on release in place, or moves its column once
-    //  the pointer has travelled far enough to be a drag.
-    std::vector<size_t>  m_columnOrder;
-    int                  m_headerPressCol     = -1;
-    int                  m_headerPressXPx     = 0;
-    int                  m_headerDragXPx      = 0;
-    bool                 m_headerDragging     = false;
     int64_t  GetClockMs        () const;
 
-    //  A rubber band in an item view: where the press was, in content pixels
-    //  so it stays put as the view scrolls, where the pointer is now, and the
-    //  selection a Ctrl press began with, which the band adds to.
-    bool                 m_bandActive     = false;
-    std::vector<int>     m_bandBase;
 
     //  The list's parts, each with the state it uses.
     friend class DxuiListScrollbars;
@@ -626,9 +612,10 @@ private:
     friend class DxuiListKeyboard;
     friend class DxuiListItemLayout;
     friend class DxuiListItemKeys;
-    friend class DxuiListPainter;
+    friend class DxuiListItemPainter;
     friend class DxuiListColumns;
-    friend class DxuiListMouse;
+    friend class DxuiListRows;
+    friend class DxuiListBand;
     friend class DxuiListFlowLayout;
     DxuiListScrollbars  m_scrollbars { *this };
     DxuiListGroups  m_grouping { *this };
@@ -636,9 +623,10 @@ private:
     DxuiListKeyboard  m_keyboard { *this };
     DxuiListItemLayout  m_items { *this };
     DxuiListItemKeys  m_itemKeys { *this };
-    DxuiListPainter  m_painter { *this };
+    DxuiListItemPainter  m_itemPainter { *this };
     DxuiListColumns  m_columnSizing { *this };
-    DxuiListMouse  m_mouse { *this };
+    DxuiListRows  m_rows { *this };
+    DxuiListBand  m_band { *this };
     DxuiListFlowLayout  m_flow { *this };
 };
 

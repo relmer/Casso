@@ -289,7 +289,7 @@ void DxuiListColumns::MeasureColumnsPx (IDxuiTextRenderer & text) const
             wpx = std::max (wpx, (int) std::ceil (w));
         }
 
-        for (const auto & row : m_rows)
+        for (const auto & row : m_list.m_rowData)
         {
             if (c < row.size() && !row[c].text.empty())
             {
@@ -357,7 +357,7 @@ void DxuiListColumns::UpdateAutoFitFromRows()
             maxChars = std::max (maxChars, (int) m_list.m_columns[c].title.size());
         }
 
-        for (const auto & row : m_rows)
+        for (const auto & row : m_list.m_rowData)
         {
             if (c < row.size())
             {
@@ -411,7 +411,7 @@ int DxuiListColumns::GetNthVisibleColumnIndex (int n) const
 
     for (size_t i = 0; i < m_list.m_columns.size(); ++i)
     {
-        size_t  c = (i < m_list.m_columnOrder.size()) ? m_list.m_columnOrder[i] : i;
+        size_t  c = (i < m_list.GetColumnOrder().size()) ? m_list.GetColumnOrder()[i] : i;
 
         if (!m_list.m_columns[c].visible)
         {
@@ -459,7 +459,7 @@ int DxuiListColumns::GetVisibleIndexOfColumn (size_t absCol) const
     //  In display order, as GetNthVisibleColumnIndex counts.
     for (size_t i = 0; i < columnCount; ++i)
     {
-        size_t  c = (i < m_list.m_columnOrder.size()) ? m_list.m_columnOrder[i] : i;
+        size_t  c = (i < m_list.GetColumnOrder().size()) ? m_list.GetColumnOrder()[i] : i;
 
         if (c == absCol)
         {
@@ -886,7 +886,7 @@ void DxuiListColumns::ComputeColumnLayout (float fullW, std::vector<int> & xs, s
     //  Left to right in the shown order, which a header drag changes.
     for (size_t n = 0; n < m_list.m_columns.size(); ++n)
     {
-        size_t  c = (n < m_list.m_columnOrder.size()) ? m_list.m_columnOrder[n] : n;
+        size_t  c = (n < m_list.GetColumnOrder().size()) ? m_list.GetColumnOrder()[n] : n;
 
         xs[c]  = x;
         x     += ws[c];

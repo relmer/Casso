@@ -176,19 +176,19 @@ void DxuiListHeader::PaintHeader (
     for (size_t n = 0; n <= m_list.m_columns.size(); ++n)
     {
         bool     dragged     = n == m_list.m_columns.size();
-        size_t   c           = dragged ? (size_t) (std::max) (m_list.m_headerPressCol, 0) : n;
+        size_t   c           = dragged ? (size_t) (std::max) (m_headerPressCol, 0) : n;
         bool     hasSort     = ((int) c == m_sortColumn) && m_list.m_columns[c].visible && (colWPx[c] > 0);
         float    sortReserve = 0.0f;
         float    titlePad    = (float) m_list.m_columnSizing.GetHeaderTitlePadPx (c);
         float    titleW      = (float) colWPx[c] - titlePad - cellPadR - sortReserve;
         float    shift       = 0.0f;
 
-        if (dragged && !(m_list.m_headerDragging && m_list.m_headerPressCol >= 0))
+        if (dragged && !(m_headerDragging && m_headerPressCol >= 0))
         {
             continue;
         }
 
-        if (!dragged && m_list.m_headerDragging && (int) c == m_list.m_headerPressCol)
+        if (!dragged && m_headerDragging && (int) c == m_headerPressCol)
         {
             continue;
         }
@@ -200,7 +200,7 @@ void DxuiListHeader::PaintHeader (
 
         if (dragged)
         {
-            shift = std::clamp ((float) (m_list.m_headerDragXPx - m_list.m_headerPressXPx), -(float) colXPx[c], layoutW - (float) (colXPx[c] + colWPx[c]) - colOff);
+            shift = std::clamp ((float) (m_headerDragXPx - m_headerPressXPx), -(float) colXPx[c], layoutW - (float) (colXPx[c] + colWPx[c]) - colOff);
 
             painter.FillRect (x + colOff + (float) colXPx[c] + shift, y, (float) colWPx[c], headerH, pal.bgHover);
         }
@@ -258,7 +258,7 @@ void DxuiListHeader::PaintHeader (
 
         sepX = x + colOff + (float) colXPx[c] + (float) colWPx[c] - 1.0f + GetHeaderSlidePx (c, m_list.GetClockMs());
 
-        if (m_list.m_headerDragging && (int) c == m_list.m_headerPressCol)
+        if (m_headerDragging && (int) c == m_headerPressCol)
         {
             continue;
         }
@@ -296,7 +296,7 @@ void DxuiListHeader::PaintHeader (
 
 void DxuiListHeader::UpdateHeaderSlides()
 {
-    int               pos     = GetColumnDropPosition (m_list.m_headerDragXPx);
+    int               pos     = GetColumnDropPosition (m_headerDragXPx);
     int64_t           now     = m_list.GetClockMs();
     int               cap     = m_list.m_scrollbars.GetVisibleRowCapacity();
     bool              needBar = (m_list.m_grouping.GetLineCount() > cap) && (cap > 0);
@@ -308,7 +308,7 @@ void DxuiListHeader::UpdateHeaderSlides()
 
 
 
-    if (pos == m_headerDropPos || m_list.m_headerPressCol < 0)
+    if (pos == m_headerDropPos || m_headerPressCol < 0)
     {
         return;
     }
@@ -318,15 +318,15 @@ void DxuiListHeader::UpdateHeaderSlides()
 
     m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
 
-    from  = (size_t) (std::find (m_list.m_columnOrder.begin(), m_list.m_columnOrder.end(), (size_t) m_list.m_headerPressCol) - m_list.m_columnOrder.begin());
-    width = (float) colWPx[(size_t) m_list.m_headerPressCol];
+    from  = (size_t) (std::find (m_columnOrder.begin(), m_columnOrder.end(), (size_t) m_headerPressCol) - m_columnOrder.begin());
+    width = (float) colWPx[(size_t) m_headerPressCol];
 
-    for (size_t n = 0; n < m_list.m_columnOrder.size(); n++)
+    for (size_t n = 0; n < m_columnOrder.size(); n++)
     {
-        size_t  c      = m_list.m_columnOrder[n];
+        size_t  c      = m_columnOrder[n];
         float   target = 0.0f;
 
-        if ((int) c == m_list.m_headerPressCol)
+        if ((int) c == m_headerPressCol)
         {
             continue;
         }
@@ -367,7 +367,7 @@ float DxuiListHeader::GetHeaderSlidePx (size_t column, int64_t nowMs) const
 
 
 
-    if (!m_list.m_headerDragging || column >= m_headerSlides.size())
+    if (!m_headerDragging || column >= m_headerSlides.size())
     {
         return 0.0f;
     }
@@ -392,7 +392,7 @@ float DxuiListHeader::GetHeaderSlidePx (size_t column, int64_t nowMs) const
 
 bool DxuiListHeader::IsHeaderSliding (int64_t nowMs) const
 {
-    if (!m_list.m_headerDragging)
+    if (!m_headerDragging)
     {
         return false;
     }
@@ -507,7 +507,7 @@ void DxuiListHeader::SetColumnOrder (const std::vector<size_t> & order)
         seen[c] = true;
     }
 
-    m_list.m_columnOrder = order;
+    m_columnOrder = order;
 }
 
 
@@ -536,9 +536,9 @@ int DxuiListHeader::GetColumnDropPosition (int xPx) const
 
     m_list.m_columnSizing.ComputeColumnLayout ((float) fullW, colXPx, colWPx);
 
-    for (size_t n = 0; n < m_list.m_columnOrder.size(); n++)
+    for (size_t n = 0; n < m_columnOrder.size(); n++)
     {
-        size_t  c = m_list.m_columnOrder[n];
+        size_t  c = m_columnOrder[n];
 
         if (m_list.m_columns[c].visible && colWPx[c] > 0 && xAdj < colXPx[c] + colWPx[c] / 2)
         {
@@ -546,7 +546,7 @@ int DxuiListHeader::GetColumnDropPosition (int xPx) const
         }
     }
 
-    return (int) m_list.m_columnOrder.size();
+    return (int) m_columnOrder.size();
 }
 
 
@@ -564,15 +564,15 @@ int DxuiListHeader::GetColumnDropPosition (int xPx) const
 
 void DxuiListHeader::EndHeaderPress (int lx, int ly)
 {
-    int     pressed = m_list.m_headerPressCol;
-    bool    dragged = m_list.m_headerDragging;
+    int     pressed = m_headerPressCol;
+    bool    dragged = m_headerDragging;
     int     target  = 0;
     size_t  from    = 0;
 
 
 
-    m_list.m_headerPressCol = -1;
-    m_list.m_headerDragging = false;
+    m_headerPressCol = -1;
+    m_headerDragging = false;
     m_headerDropPos         = -1;
     m_headerSlides.clear();
 
@@ -587,9 +587,9 @@ void DxuiListHeader::EndHeaderPress (int lx, int ly)
     }
 
     target = GetColumnDropPosition (lx);
-    from   = (size_t) (std::find (m_list.m_columnOrder.begin(), m_list.m_columnOrder.end(), (size_t) pressed) - m_list.m_columnOrder.begin());
+    from   = (size_t) (std::find (m_columnOrder.begin(), m_columnOrder.end(), (size_t) pressed) - m_columnOrder.begin());
 
-    if (from >= m_list.m_columnOrder.size())
+    if (from >= m_columnOrder.size())
     {
         return;
     }
@@ -600,18 +600,192 @@ void DxuiListHeader::EndHeaderPress (int lx, int ly)
         return;
     }
 
-    m_list.m_columnOrder.erase (m_list.m_columnOrder.begin() + (ptrdiff_t) from);
+    m_columnOrder.erase (m_columnOrder.begin() + (ptrdiff_t) from);
 
     if ((size_t) target > from)
     {
         target--;
     }
 
-    m_list.m_columnOrder.insert (m_list.m_columnOrder.begin() + target, (size_t) pressed);
+    m_columnOrder.insert (m_columnOrder.begin() + target, (size_t) pressed);
 
     if (m_onColumnsReordered)
     {
-        m_onColumnsReordered (m_list.m_columnOrder);
+        m_onColumnsReordered (m_columnOrder);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnPress
+//
+//  A press on a column's divider starts its resize, and a second press on
+//  the same divider inside the double-click time fits the column to its
+//  content instead, as it does in Explorer. The pair is consumed so a third
+//  press counts afresh. A press on a header sorts on the release rather than
+//  here, since the press may instead start a drag that moves the column.
+//  Returns whether the press was on the header.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnPress (int lx, int ly)
+{
+    int  grabTol   = m_list.m_scaler.ToPx (DxuiListView::s_kResizeGrabDip);
+    int  resizeCol = HitTestColumnResize (lx, ly, grabTol);
+    int  headerCol = -1;
+
+
+
+    if (resizeCol >= 0)
+    {
+        int64_t  nowMs = (int64_t) GetTickCount64();
+        bool     fit   = (resizeCol == m_lastDividerCol)
+                         && (nowMs - m_lastDividerMs) <= (int64_t) GetDoubleClickTime();
+
+        m_lastDividerCol = fit ? -1 : resizeCol;
+        m_lastDividerMs  = nowMs;
+
+        if (fit)
+        {
+            m_list.m_columnSizing.FitColumnToContent ((size_t) resizeCol);
+            return true;
+        }
+
+        m_resizeColumn   = resizeCol;
+        m_resizeStartXPx = lx;
+        m_resizeStartWPx = m_list.m_columnSizing.GetColumnEffectiveWidthPx ((size_t) resizeCol);
+        return true;
+    }
+
+    headerCol = HitTestHeaderColumn (lx, ly);
+
+    if (headerCol < 0)
+    {
+        return false;
+    }
+
+    m_headerPressCol = headerCol;
+    m_headerPressXPx = lx;
+    m_headerDragXPx  = lx;
+    m_headerDragging = false;
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnDrag
+//
+//  A divider being dragged sets its column's width; a pressed header becomes
+//  a drag once the pointer has moved far enough, and the other headers slide
+//  aside for it. Returns whether either was in progress.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnDrag (int lx)
+{
+    int  minColW = m_list.m_scaler.ToPx (DxuiListView::s_kMinColWidthDip);
+
+
+
+    if (m_resizeColumn >= 0)
+    {
+        m_list.m_columnSizing.SetColumnOverrideWidthPx ((size_t) m_resizeColumn, std::max (minColW, m_resizeStartWPx + (lx - m_resizeStartXPx)));
+        return true;
+    }
+
+    if (m_headerPressCol < 0)
+    {
+        return false;
+    }
+
+    m_headerDragXPx  = lx;
+    m_headerDragging = m_headerDragging || std::abs (lx - m_headerPressXPx) >= m_list.m_scaler.ToPx (s_kHeaderDragDip);
+
+    if (m_headerDragging)
+    {
+        UpdateHeaderSlides();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::OnRelease
+//
+//  Ends a header press, which sorts or moves its column, or a divider drag,
+//  which reports the column's new width. Returns whether either was in
+//  progress.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListHeader::OnRelease (int lx, int ly)
+{
+    int  resizedCol   = m_resizeColumn;
+    int  resizedWidth = 0;
+
+
+
+    if (m_headerPressCol >= 0)
+    {
+        EndHeaderPress (lx, ly);
+        return true;
+    }
+
+    if (resizedCol < 0)
+    {
+        return false;
+    }
+
+    resizedWidth   = m_list.m_columnSizing.GetColumnEffectiveWidthPx ((size_t) resizedCol);
+    m_resizeColumn = -1;
+
+    if (m_list.m_onColumnResized)
+    {
+        m_list.m_onColumnResized (resizedCol, resizedWidth);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListHeader::MatchColumnCount
+//
+//  A column order with a different count than the columns starts over in
+//  the columns' order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListHeader::MatchColumnCount (size_t count)
+{
+    if (m_columnOrder.size() == count)
+    {
+        return;
+    }
+
+    m_columnOrder.resize (count);
+
+    for (size_t c = 0; c < m_columnOrder.size(); c++)
+    {
+        m_columnOrder[c] = c;
     }
 }
 

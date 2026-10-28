@@ -60,15 +60,7 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
     m_columnSizing.m_measuredWPx.clear();
     m_columnSizing.m_overrideWPx.assign (m_columns.size(), -1);
 
-    if (m_columnOrder.size() != m_columns.size())
-    {
-        m_columnOrder.resize (m_columns.size());
-
-        for (size_t c = 0; c < m_columnOrder.size(); c++)
-        {
-            m_columnOrder[c] = c;
-        }
-    }
+    m_header.MatchColumnCount (m_columns.size());
 
     // NOTE: deliberately does NOT ResetAutoFit. Consumers re-issue
     // SetColumns on width / visibility changes (and per mouse-move
@@ -101,7 +93,7 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
     m_rowProvider = nullptr;
     m_rowSource   = nullptr;
 
-    m_columnSizing.m_rows = std::move (rows);
+    m_rowData = std::move (rows);
 
     //  NOT RE-MEASURED HERE. Measuring walks every cell of every row through
     //  the text renderer, and a folder of a few thousand files paid that on
@@ -125,9 +117,9 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 
 void DxuiListView::SetRowIcon (int row, std::shared_ptr<const DxuiIconImage> icon)
 {
-    if (row >= 0 && row < (int) m_columnSizing.m_rows.size() && !m_columnSizing.m_rows[(size_t) row].empty())
+    if (row >= 0 && row < (int) m_rowData.size() && !m_rowData[(size_t) row].empty())
     {
-        m_columnSizing.m_rows[(size_t) row][0].icon = std::move (icon);
+        m_rowData[(size_t) row][0].icon = std::move (icon);
     }
 }
 
@@ -157,7 +149,7 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
     {
         m_topRow      = maxTop;
         m_flushBottom = m_scrollbars.CanLiftRows();
-        m_pageSlide   = {};
+        m_items.m_pageSlide   = {};
     }
 
     if (m_topRow < 0)
@@ -198,7 +190,7 @@ void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
     m_rowProvider  = std::move (provider);
     m_rowSource    = nullptr;
     m_virtualCount = (rowCount > 0) ? rowCount : 0;
-    m_columnSizing.m_rows.clear();
+    m_rowData.clear();
 
     ClampTopAfterCountChange (wasSticky);
 }
@@ -225,7 +217,7 @@ void DxuiListView::SetRowSource (int rowCount, RowSource source)
     m_rowProvider  = nullptr;
     m_rowSource    = std::move (source);
     m_virtualCount = (rowCount > 0) ? rowCount : 0;
-    m_columnSizing.m_rows.clear();
+    m_rowData.clear();
 
     ClampTopAfterCountChange (wasSticky);
 }
@@ -282,9 +274,9 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
         return;
     }
 
-    if (r >= 0 && (size_t) r < m_columnSizing.m_rows.size())
+    if (r >= 0 && (size_t) r < m_rowData.size())
     {
-        out = m_columnSizing.m_rows[(size_t) r];
+        out = m_rowData[(size_t) r];
     }
 }
 
@@ -321,7 +313,7 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
     m_rowSource   = nullptr;
     m_rowProvider = nullptr;
 
-    m_columnSizing.m_rows.insert (m_columnSizing.m_rows.end(),
+    m_rowData.insert (m_rowData.end(),
                                   std::make_move_iterator (rows.begin()),
                                   std::make_move_iterator (rows.end()));
 
@@ -364,14 +356,14 @@ void DxuiListView::SetSelectedRow (int r)
     if (r < 0)
     {
         m_selectedRow       = -1;
-        m_mouse.m_anchorRow = -1;
+        m_anchorRow = -1;
         m_selectedRows.clear();
         return;
     }
 
     EnsureVisible (r);
     m_selectedRow       = r;
-    m_mouse.m_anchorRow = r;
+    m_anchorRow = r;
     m_selectedRows.assign (1, r);
 }
 
@@ -431,12 +423,12 @@ void DxuiListView::SetSelectedRows (std::vector<int> rows, int anchor)
     if (m_selectedRows.empty())
     {
         m_selectedRow       = -1;
-        m_mouse.m_anchorRow = -1;
+        m_anchorRow = -1;
         return;
     }
 
-    m_mouse.m_anchorRow = IsRowSelected (anchor) ? anchor : m_selectedRows.back();
-    m_selectedRow       = m_mouse.m_anchorRow;
+    m_anchorRow = IsRowSelected (anchor) ? anchor : m_selectedRows.back();
+    m_selectedRow       = m_anchorRow;
 
     EnsureVisible (m_selectedRow);
 }
@@ -471,7 +463,7 @@ bool DxuiListView::IsRowSelected (int row) const
 
 void DxuiListView::SelectRangeFromAnchor (int row)
 {
-    int  anchor = (m_mouse.m_anchorRow >= 0) ? m_mouse.m_anchorRow : row;
+    int  anchor = (m_anchorRow >= 0) ? m_anchorRow : row;
     int  first  = (std::min) (anchor, row);
     int  last   = (std::max) (anchor, row);
     int  r      = 0;
@@ -485,7 +477,7 @@ void DxuiListView::SelectRangeFromAnchor (int row)
         m_selectedRows.push_back (r);
     }
 
-    m_mouse.m_anchorRow = anchor;
+    m_anchorRow = anchor;
     m_selectedRow       = row;
 
     EnsureVisible (row);
@@ -527,7 +519,7 @@ void DxuiListView::ClickRow (int row, bool ctrl, bool shift)
             m_selectedRows.insert (at, row);
         }
 
-        m_mouse.m_anchorRow = row;
+        m_anchorRow = row;
         m_selectedRow       = row;
         EnsureVisible (row);
     }
@@ -576,9 +568,9 @@ void DxuiListView::SelectAllRows()
         m_selectedRow = 0;
     }
 
-    if (m_mouse.m_anchorRow < 0)
+    if (m_anchorRow < 0)
     {
-        m_mouse.m_anchorRow = m_selectedRow;
+        m_anchorRow = m_selectedRow;
     }
 
     if (m_onSelectionChanged)
@@ -612,9 +604,9 @@ void DxuiListView::PruneSelection()
         m_selectedRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
     }
 
-    if (m_mouse.m_anchorRow >= count)
+    if (m_anchorRow >= count)
     {
-        m_mouse.m_anchorRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
+        m_anchorRow = m_selectedRows.empty() ? -1 : m_selectedRows.back();
     }
 }
 
@@ -754,7 +746,7 @@ LPCWSTR DxuiListView::GetCursorForPoint (POINT localPx) const
 //  HitTestRow
 //
 //  xPx/yPx are relative to the list's rect.left/top. Returns the
-//  data-row index (into m_rows), accounting for the current scroll
+//  data-row index (into m_rowData), accounting for the current scroll
 //  offset, or -1 if the point is outside any visible data row.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -780,6 +772,39 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
     }
 
     return (line < 0) ? -1 : m_grouping.GetRowOfLine (line);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakePalette
+//
+//  Derives the per-element ARGB colors from the active theme. Called
+//  once per paint; assumes the theme has already been null-checked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiListView::Palette DxuiListView::MakePalette() const
+{
+    DxuiListViewTypes::Palette  pal = {};
+
+
+
+    pal.fg       = m_theme->Foreground();
+    pal.fgDim    = (pal.fg & 0x00FFFFFFu) | 0xA0000000u;
+    pal.hdrFg    = m_theme->HeadingForeground();
+    pal.bgRow    = m_theme->ContentBackground();
+    pal.bgHover  = m_theme->ContentHover();
+    pal.bgSel    = m_textSelectionColors ? m_theme->SelectionBackground() : m_theme->ContentSelection();
+    pal.edgeSel  = m_textSelectionColors ? 0u : m_theme->ContentSelectionEdge();
+    pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
+    pal.border   = m_theme->ContentHeaderDivider();
+    pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
+
+    return pal;
 }
 
 
@@ -831,7 +856,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     //  columns are sized and its names cut by the same measure.
     gdiText = text.SetGdiClassicText (true);
 
-    pal = m_painter.MakePalette();
+    pal = MakePalette();
 
     if (m_columnSizing.m_measuredWPx.size() != m_columns.size() || (m_columnSizing.m_preciseAutoFit && m_columnSizing.m_measureDirty))
     {
@@ -869,7 +894,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     //  content is hidden, no rows are drawn.
     if (!m_contentHidden && IsItemsView())
     {
-        m_painter.PaintItems (painter, text, pal, x, y);
+        m_itemPainter.PaintItems (painter, text, pal, x, y);
     }
     else if (!m_contentHidden)
     {
@@ -883,8 +908,8 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
             painter.PushClipRect (x, y + bodyTop, layoutW, contentH - bodyTop);
         }
 
-        m_painter.PaintDataRows (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
-        m_painter.PaintSelectionBand (painter, pal, x, y);
+        m_rows.Paint (painter, text, pal, x, y, layoutW, firstRow, lastRow, colXPx, colWPx);
+        m_band.Paint (painter, pal, x, y);
 
         if (bodyTop > 0.0f)
         {
@@ -952,7 +977,7 @@ int64_t DxuiListView::GetClockMs() const
 //
 //  The cell vector for row `r`. Virtual mode pulls the row on demand into
 //  the reused provider scratch and grows the auto-fit counts from it; push
-//  mode references m_rows directly, with no per-row copy. Factored from
+//  mode references m_rowData directly, with no per-row copy. Factored from
 //  PaintDataRows so its loop can bind the row's cells at the top of the
 //  body instead of after the mode branch.
 //
@@ -983,7 +1008,7 @@ const std::vector<DxuiListViewTypes::Cell> & DxuiListView::GetRowCells (int r) c
     }
     else
     {
-        cells = &m_columnSizing.m_rows[(size_t) r];
+        cells = &m_rowData[(size_t) r];
     }
 
     return *cells;
@@ -1174,13 +1199,13 @@ bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
 
     switch (ev.kind)
     {
-        case DxuiMouseEventKind::Down:  handled = m_mouse.DispatchMouseDown  (ev, lx, ly, inside);  break;
+        case DxuiMouseEventKind::Down:  handled = OnPress (ev, lx, ly, inside);  break;
         case DxuiMouseEventKind::Move:  handled = (ev.button != DxuiMouseButton::Left && IsInteracting())
-                                                  ? m_mouse.DispatchMouseUp   (lx, ly, inside)
-                                                  : m_mouse.DispatchMouseMove (lx, ly, inside);     break;
-        case DxuiMouseEventKind::Up:    handled = m_mouse.DispatchMouseUp    (lx, ly, inside);      break;
-        case DxuiMouseEventKind::Wheel: handled = m_mouse.DispatchMouseWheel (ev, inside);          break;
-        case DxuiMouseEventKind::Leave: SetHoveredRow (-1); m_hoverGroup = -1;              break;
+                                                  ? OnRelease (lx, ly, inside)
+                                                  : OnDrag    (lx, ly, inside);     break;
+        case DxuiMouseEventKind::Up:    handled = OnRelease (lx, ly, inside);      break;
+        case DxuiMouseEventKind::Wheel: handled = m_scrollbars.OnWheel (ev, inside);          break;
+        case DxuiMouseEventKind::Leave: SetHoveredRow (-1); m_grouping.ClearHover();              break;
         default:                                                                            break;
     }
 
@@ -1193,80 +1218,109 @@ bool DxuiListView::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiListView::Tick
+//  OnPress
 //
-//  Drives scrollbar auto-repeat for a held arrow / track press. The host
-//  calls this once per frame with a monotonic millisecond clock: after
-//  the initial delay the pressed action fires at the repeat interval
-//  until DispatchMouseUp clears the press. Track paging stops when the
-//  thumb reaches the held point (matching the OS scrollbar).
+//  Left-press priority chain: the scrollbars, then the header's dividers and
+//  columns, then a group's header, then a data row, then empty space, which
+//  starts a rubber band, as in Explorer: between items, below the last row,
+//  or past the last column. Without multiple selection, a plain click on the
+//  empty space below the rows selects nothing. A left-press anywhere inside
+//  the list is consumed so the host can claim focus. (Right-click stays with
+//  the host: its menu content is host-specific.)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::Tick (int64_t nowMs)
+bool DxuiListView::OnPress (const DxuiMouseEvent & ev, int lx, int ly, bool inside)
 {
-    int   hStep      = 0;
-    bool  reschedule = true;
+    int  row = -1;
 
 
 
-    if (m_scrollRepeat == ScrollRepeat::None)
+    if (ev.button != DxuiMouseButton::Left || !inside)
     {
-        // Nothing held. The common case, so it is the first test.
+        return false;
     }
-    else if (m_scrollbars.m_scrollRepeatNextMs == 0)
+
+    if (m_scrollbars.OnPress (lx, ly) || m_header.OnPress (lx, ly))
     {
-        // Arm the initial delay on the first tick after the press.
-        m_scrollbars.m_scrollRepeatNextMs = nowMs + s_kScrollRepeatDelayMs;
+        return true;
     }
-    else if (nowMs >= m_scrollbars.m_scrollRepeatNextMs)
+
+    row = HitTestRow (lx, ly);
+
+    if (m_grouping.OnPress (lx, ly) || m_rows.OnPress (ev, row))
     {
-        hStep = m_scaler.ToPx (s_kHScrollStepDip);
-
-        switch (m_scrollRepeat)
-        {
-            case ScrollRepeat::VertArrowUp:    ScrollByRows (-1);            break;
-            case ScrollRepeat::VertArrowDown:  ScrollByRows (1);             break;
-            case ScrollRepeat::HorzArrowLeft:  m_scrollbars.SetLeftPx (m_leftPx - hStep); break;
-            case ScrollRepeat::HorzArrowRight: m_scrollbars.SetLeftPx (m_leftPx + hStep); break;
-
-            // Track paging stops once the thumb reaches the held point --
-            // the repeat ends outright, so there is nothing to reschedule.
-            case ScrollRepeat::VertTrack:
-                if (m_scrollbars.HitTestScrollbarThumb (m_scrollbars.m_scrollRepeatXPx, m_scrollbars.m_scrollRepeatYPx))
-                {
-                    m_scrollRepeat = ScrollRepeat::None;
-                    reschedule     = false;
-                }
-                else
-                {
-                    m_scrollbars.GetPageFromTrackClick (m_scrollbars.m_scrollRepeatYPx);
-                }
-
-                break;
-
-            case ScrollRepeat::HorzTrack:
-                if (m_scrollbars.HitTestHorzScrollbarThumb (m_scrollbars.m_scrollRepeatXPx, m_scrollbars.m_scrollRepeatYPx))
-                {
-                    m_scrollRepeat = ScrollRepeat::None;
-                    reschedule     = false;
-                }
-                else
-                {
-                    m_scrollbars.GetPageFromHorzTrackClick (m_scrollbars.m_scrollRepeatXPx);
-                }
-
-                break;
-
-            default:
-                break;
-        }
-
-        if (reschedule)
-        {
-            m_scrollbars.m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
-        }
+        // Taken.
     }
+    else if (m_multiSelect && (IsItemsView() || ly >= GetHeaderHeightPx() + (m_showHeader ? GetHeaderGapPx() : 0)))
+    {
+        m_band.Begin (lx, ly, ev.ctrl);
+    }
+    else if (!ev.ctrl && !ev.shift && !m_selectedRows.empty())
+    {
+        ClearSelection();
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDrag
+//
+//  Drives an in-progress resize, header, thumb, band or selection drag;
+//  otherwise tracks the hovered row and group header while the pointer is
+//  inside. Returns true while dragging or hovering inside the list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::OnDrag (int lx, int ly, bool inside)
+{
+    if (m_header.OnDrag (lx) || m_scrollbars.OnDrag (lx, ly) || m_band.OnDrag (lx, ly) || m_rows.OnDrag (ly))
+    {
+        return true;
+    }
+
+    if (!inside)
+    {
+        SetHoveredRow (-1);
+        m_grouping.ClearHover();
+        return false;
+    }
+
+    SetHoveredRow (HitTestRow (lx, ly));
+    m_grouping.OnHover (lx, ly);
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnRelease
+//
+//  Ends the band, a range a row press left, a held scrollbar, or a header
+//  press or resize; otherwise a release over a data row selects it and
+//  raises onActivateRow. Returns true when one of those ended or a row was
+//  released on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::OnRelease (int lx, int ly, bool inside)
+{
+    int   row    = inside ? HitTestRow (lx, ly) : -1;
+    bool  ranged = m_rows.EndPress();
+
+
+
+    return m_band.OnRelease() || ranged || m_scrollbars.OnRelease() || m_header.OnRelease (lx, ly) || m_rows.OnRelease (row);
 }
 
 
@@ -1475,9 +1529,9 @@ void DxuiListView::SetView (View view)
     m_view           = view;
     m_topRow         = 0;
     m_leftPx         = 0;
-    m_pageSlide      = {};
+    m_items.m_pageSlide      = {};
     m_flushBottom    = false;
-    m_itemAnchorLine = -1;
+    m_items.m_itemAnchorLine = -1;
 
     EnsureVisible (m_selectedRow);
 }

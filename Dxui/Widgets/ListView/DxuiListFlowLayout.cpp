@@ -36,8 +36,8 @@ const std::vector<int> & DxuiListFlowLayout::GetListColumnLefts() const
 {
     DxuiListViewTypes::ItemGrid  grid  = m_list.m_items.GetItemGrid();
     int                          rows  = m_list.GetRowCount();
-    bool                         sized = m_list.m_itemNameWPx.size() == (size_t) rows && rows > 0 && m_list.m_itemNameKey.rowsVersion == m_list.m_rowsVersion;
-    std::array<int, 5>           key   = { grid.perLine, sized ? m_list.m_itemTextVersion : -1, m_list.m_rowsVersion, grid.cellW, (int) m_list.m_scaler.GetDpi() };
+    bool                         sized = m_list.m_items.m_itemNameWPx.size() == (size_t) rows && rows > 0 && m_list.m_items.m_itemNameKey.rowsVersion == m_list.m_rowsVersion;
+    std::array<int, 5>           key   = { grid.perLine, sized ? m_list.m_items.m_itemTextVersion : -1, m_list.m_rowsVersion, grid.cellW, (int) m_list.m_scaler.GetDpi() };
     int                          x     = 0;
 
 
@@ -57,7 +57,7 @@ const std::vector<int> & DxuiListFlowLayout::GetListColumnLefts() const
 
         for (int item = first; sized && item < (std::min) (rows, first + grid.perLine); item++)
         {
-            widest = (std::max) (widest, m_list.m_itemNameWPx[(size_t) item]);
+            widest = (std::max) (widest, m_list.m_items.m_itemNameWPx[(size_t) item]);
         }
 
         x += sized ? m_list.m_items.GetNameCellWPx (widest) : grid.cellW;
@@ -106,7 +106,7 @@ int DxuiListFlowLayout::FindListColumn (int x) const
 
 bool DxuiListFlowLayout::HasListGroups() const
 {
-    return !m_list.m_groups.empty() && m_list.IsItemsView() && DxuiListItemLayout::GetItemMetrics (m_list.m_view).columns;
+    return !m_list.GetGroups().empty() && m_list.IsItemsView() && DxuiListItemLayout::GetItemMetrics (m_list.m_view).columns;
 }
 
 
@@ -159,7 +159,7 @@ DxuiListViewTypes::ListLayout DxuiListFlowLayout::BuildListLayout() const
     int                            rows     = m_list.GetRowCount();
     int                            fullH    = m_list.m_boundsDip.bottom - m_list.m_boundsDip.top;
     int                            x        = 0;
-    bool                           measured = m_list.m_itemNameWPx.size() == (size_t) (std::max) (rows, 0) && rows > 0;
+    bool                           measured = m_list.m_items.m_itemNameWPx.size() == (size_t) (std::max) (rows, 0) && rows > 0;
 
 
 
@@ -168,15 +168,15 @@ DxuiListViewTypes::ListLayout DxuiListFlowLayout::BuildListLayout() const
     layout.perCol  = (grid.cellH > 0) ? (std::max) (1, (fullH - m_list.GetScrollbarWidthPx() - layout.headerH) / grid.cellH) : 1;
     layout.blockOf.assign ((size_t) (std::max) (rows, 0), -1);
 
-    for (size_t g = 0; g < m_list.m_groups.size(); g++)
+    for (size_t g = 0; g < m_list.GetGroups().size(); g++)
     {
-        int                           start = std::clamp (m_list.m_groups[g].firstRow, 0, rows);
-        int                           end   = (g + 1 < m_list.m_groups.size()) ? std::clamp (m_list.m_groups[g + 1].firstRow, start, rows) : rows;
+        int                           start = std::clamp (m_list.GetGroups()[g].firstRow, 0, rows);
+        int                           end   = (g + 1 < m_list.GetGroups().size()) ? std::clamp (m_list.GetGroups()[g + 1].firstRow, start, rows) : rows;
         DxuiListViewTypes::ListBlock  block;
 
         block.group = (int) g;
         block.first = start;
-        block.count = m_list.m_groups[g].collapsed ? 0 : end - start;
+        block.count = m_list.GetGroups()[g].collapsed ? 0 : end - start;
         block.left  = x;
         block.colLefts.push_back (0);
 
@@ -186,7 +186,7 @@ DxuiListViewTypes::ListLayout DxuiListFlowLayout::BuildListLayout() const
 
             for (int item = start + k; item < start + (std::min) (k + layout.perCol, block.count); item++)
             {
-                widest = (std::max) (widest, measured ? m_list.m_itemNameWPx[(size_t) item] : 0);
+                widest = (std::max) (widest, measured ? m_list.m_items.m_itemNameWPx[(size_t) item] : 0);
             }
 
             block.colLefts.push_back (block.colLefts.back() + (measured ? m_list.m_items.GetNameCellWPx (widest) - (int) std::lround (m_list.m_scaler.ToPxf (s_kListGroupColumnTrimDip)) : grid.cellW));

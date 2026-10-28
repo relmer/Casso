@@ -8,6 +8,7 @@
 
 #include "Theme/DxuiColor.h"
 #include "Core/DxuiUnicodeSymbols.h"
+#include "Widgets/ListView/DxuiListIcons.h"
 
 
 
@@ -1350,7 +1351,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
             if (node->iconBroken)
             {
-                DxuiListPainter::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
+                DxuiListIcons::PaintBrokenBadge (text, textX, rowY + (rowHeight - iconPx) * 0.5f, iconPx, m_scaler.ToPxf (DxuiListView::s_kBrokenBadgeMinDip));
             }
 
             //  At the icon's lower left, where the broken badge goes, and as

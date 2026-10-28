@@ -61,7 +61,7 @@ public:
 
     // Grow the monotonic auto-fit glyph counts from one row's cells (the
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
-    // virtual mode where m_rows is empty).
+    // virtual mode where m_list.m_rowData is empty).
     void         NoteAutoFitRow      (const std::vector<DxuiListViewTypes::Cell> & cells) const;
     int          GetColumnNaturalWidthPx (size_t c) const;
 
@@ -78,7 +78,6 @@ private:
 
     DxuiListView  & m_list;
 
-    std::vector<std::vector<DxuiListViewTypes::Cell>>  m_rows;
     mutable std::vector<int>                           m_measuredWPx;
     std::vector<int>                                   m_overrideWPx;
 

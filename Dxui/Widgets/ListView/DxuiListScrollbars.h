@@ -6,6 +6,7 @@
 #include "Widgets/DxuiScrollbar.h"
 
 class DxuiListView;
+struct DxuiMouseEvent;
 
 
 
@@ -60,6 +61,11 @@ public:
     int   GetRequiredHeightPx        () const;
     static constexpr int      s_kMinThumbPx       = 16;
 
+    // Scrollbar auto-repeat cadence (ms), mirroring typical key-repeat:
+    // a longer delay before the first repeat, then a steady interval.
+    static constexpr int64_t  s_kScrollRepeatDelayMs    = 400;
+    static constexpr int64_t  s_kScrollRepeatIntervalMs = 60;
+
     //  How far the rows are drawn above their places, and whether they can be.
     int   GetRowShiftPx () const;
     bool  CanLiftRows   () const;
@@ -67,7 +73,19 @@ public:
     //  Rows the body shows at least part of: the whole ones, and a cut one.
     int   GetShownRowCount () const;
     DxuiListViewTypes::ScrollLayout ComputeScrollLayout () const;
-    bool    DispatchScrollbarPress (int lx, int ly);
+    //  A press on either bar, the thumb drag that follows and its release,
+    //  and the wheel; each returns whether the bars took the event. Tick
+    //  repeats a held arrow or track.
+    bool    OnPress   (int lx, int ly);
+    bool    OnDrag    (int lx, int ly);
+    bool    OnRelease ();
+    bool    OnWheel   (const DxuiMouseEvent & ev, bool inside);
+    void    Tick      (int64_t nowMs);
+    void    EndThumbDrag     ();
+    void    EndHorzThumbDrag ();
+    bool    IsThumbDragging     () const { return m_vertDragging; }
+    bool    IsHorzThumbDragging () const { return m_horzDragging; }
+    bool    IsInteracting       () const { return m_vertDragging || m_horzDragging || m_scrollRepeat != DxuiListViewTypes::ScrollRepeat::None; }
     void    PaintScrollbar          (IDxuiPainter  & painter,
                                      const DxuiListViewTypes::Palette & pal,
                                      float           x,
@@ -107,4 +125,9 @@ private:
     int64_t                m_scrollRepeatNextMs = 0;
     mutable DxuiScrollbar  m_vertScroll;
     mutable DxuiScrollbar  m_horzScroll;
+
+    //  A thumb being dragged, and an arrow or the track held down.
+    bool                             m_vertDragging = false;
+    bool                             m_horzDragging = false;
+    DxuiListViewTypes::ScrollRepeat  m_scrollRepeat = DxuiListViewTypes::ScrollRepeat::None;
 };

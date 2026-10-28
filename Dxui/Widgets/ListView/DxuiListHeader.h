@@ -26,6 +26,20 @@ class DxuiListHeader
 public:
     explicit DxuiListHeader (DxuiListView & list);
 
+    static constexpr int  s_kHeaderDragDip = 5;   // how far a header moves before it is a drag
+
+    //  A press on a divider or a header, the drag that follows and its
+    //  release; each returns whether the header took the event.
+    bool  OnPress   (int lx, int ly);
+    bool  OnDrag    (int lx);
+    bool  OnRelease (int lx, int ly);
+    bool  IsInteracting    () const { return m_resizeColumn >= 0 || m_headerPressCol >= 0; }
+    bool  IsResizingColumn () const { return m_resizeColumn >= 0; }
+
+    //  The order the columns are shown in, left to right.
+    const std::vector<size_t> &  GetColumnOrder   () const { return m_columnOrder; }
+    void                         MatchColumnCount (size_t count);
+
     bool  IsHeaderSliding   (int64_t nowMs) const;
 
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const;
@@ -94,4 +108,18 @@ private:
 
     std::vector<HeaderSlide>  m_headerSlides;
     int                       m_headerDropPos     = -1;
+
+    //  A header press: sorts on release in place, or moves its column once
+    //  the pointer has traveled far enough to be a drag. A divider being
+    //  dragged, and the last press on one, which a second press fits.
+    std::vector<size_t>  m_columnOrder;
+    int                  m_headerPressCol = -1;
+    int                  m_headerPressXPx = 0;
+    int                  m_headerDragXPx  = 0;
+    bool                 m_headerDragging = false;
+    int                  m_resizeColumn   = -1;
+    int                  m_resizeStartXPx = 0;
+    int                  m_resizeStartWPx = 0;
+    int                  m_lastDividerCol = -1;
+    int64_t              m_lastDividerMs  = 0;
 };

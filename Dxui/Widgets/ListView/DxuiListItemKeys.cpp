@@ -181,8 +181,8 @@ bool DxuiListItemKeys::HandleKeyboardItemPage (const DxuiListViewTypes::ItemLayo
     int   target      = -1;
     int   item        = -1;
     int   savedTop    = m_list.m_topRow;
-    int   savedAnchor = m_list.m_itemAnchorLine;
-    bool  savedBottom = m_list.m_itemAnchorBottom;
+    int   savedAnchor = m_list.m_items.m_itemAnchorLine;
+    bool  savedBottom = m_list.m_items.m_itemAnchorBottom;
     bool  scroll      = false;
 
 
@@ -219,8 +219,8 @@ bool DxuiListItemKeys::HandleKeyboardItemPage (const DxuiListViewTypes::ItemLayo
     if (!scroll)
     {
         m_list.m_scrollbars.SetTopRow (savedTop);
-        m_list.m_itemAnchorLine   = savedAnchor;
-        m_list.m_itemAnchorBottom = savedBottom;
+        m_list.m_items.m_itemAnchorLine   = savedAnchor;
+        m_list.m_items.m_itemAnchorBottom = savedBottom;
     }
     else if (down)
     {
@@ -470,9 +470,9 @@ void DxuiListItemKeys::AnchorItemLine (int line, bool bottom)
     }
 
     //  A group mid-slide is laid out with it open, where the line is another.
-    m_list.m_groupSlide       = {};
-    m_list.m_itemAnchorLine   = line;
-    m_list.m_itemAnchorBottom = bottom;
+    m_list.m_grouping.EndGroupSlide();
+    m_list.m_items.m_itemAnchorLine   = line;
+    m_list.m_items.m_itemAnchorBottom = bottom;
     px                        = m_list.m_items.GetItemTopPx (layout);
 
     if (px <= 0)
@@ -486,8 +486,8 @@ void DxuiListItemKeys::AnchorItemLine (int line, bool bottom)
     //  The top row is set first, since setting it lets go of the line.
     m_list.m_scrollbars.SetTopRow ((top >= 0) ? top : (int) layout.lines.size() - 1);
 
-    m_list.m_itemAnchorLine   = line;
-    m_list.m_itemAnchorBottom = bottom;
+    m_list.m_items.m_itemAnchorLine   = line;
+    m_list.m_items.m_itemAnchorBottom = bottom;
 }
 
 
@@ -804,7 +804,7 @@ bool DxuiListItemKeys::HandleKeyboardListJump (WPARAM vk, bool shift, bool ctrl)
     std::vector<DxuiListViewTypes::ListColumn>  cols   = m_list.m_flow.GetListColumns();
     bool                                        home   = (vk == VK_HOME);
     bool                                        paging = (vk == VK_PRIOR || vk == VK_NEXT);
-    int                                         group  = home ? 0 : (int) m_list.m_groups.size() - 1;
+    int                                         group  = home ? 0 : (int) m_list.GetGroups().size() - 1;
 
 
 

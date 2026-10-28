@@ -104,7 +104,7 @@ DxuiListViewTypes::ItemGrid DxuiListItemLayout::GetItemGrid() const
 
     //  Once the names are measured, Small icons and List are as wide as they
     //  need: List's widest column here, its others in GetListColumnLefts.
-    if ((m_list.m_view == DxuiListViewTypes::View::SmallIcons || m_list.m_view == DxuiListViewTypes::View::List) && !m_list.m_itemNameWPx.empty() && m_list.m_itemNameWPx.size() == (size_t) rows)
+    if ((m_list.m_view == DxuiListViewTypes::View::SmallIcons || m_list.m_view == DxuiListViewTypes::View::List) && !m_itemNameWPx.empty() && m_itemNameWPx.size() == (size_t) rows)
     {
         int  widest = GetNameCellWPx (m_itemNameWidestPx);
 
@@ -219,7 +219,7 @@ DxuiListViewTypes::ScrollLayout DxuiListItemLayout::ComputeItemScrollLayout() co
 
 bool DxuiListItemLayout::HasItemGroups() const
 {
-    return !m_list.m_groups.empty() && m_list.IsItemsView() && !GetItemMetrics (m_list.m_view).columns;
+    return !m_list.GetGroups().empty() && m_list.IsItemsView() && !GetItemMetrics (m_list.m_view).columns;
 }
 
 
@@ -265,7 +265,7 @@ void DxuiListItemLayout::SyncItemTextLines() const
     {
         m_itemTextKey = key;
         m_itemTextLines.assign ((size_t) (std::max) (m_list.GetRowCount(), 0), 0);
-        m_list.m_itemTextVersion++;
+        m_itemTextVersion++;
     }
 }
 
@@ -334,7 +334,7 @@ bool DxuiListItemLayout::MeasureItemTextLines (IDxuiTextRenderer & text, const s
 
     if (taller)
     {
-        m_list.m_itemTextVersion++;
+        m_itemTextVersion++;
     }
 
     return taller;
@@ -446,7 +446,7 @@ int DxuiListItemLayout::GetTileRowPx (int lines) const
 
 int DxuiListItemLayout::GetCaptionLinePx() const
 {
-    return (m_list.m_captionLinePx > 0) ? m_list.m_captionLinePx : m_list.m_scaler.ToPx (GetItemMetrics (m_list.m_view).lineDip);
+    return (m_captionLinePx > 0) ? m_captionLinePx : m_list.m_scaler.ToPx (GetItemMetrics (m_list.m_view).lineDip);
 }
 
 
@@ -471,14 +471,14 @@ void DxuiListItemLayout::MeasureItemNames (IDxuiTextRenderer & text) const
 
 
 
-    if (key == m_list.m_itemNameKey && m_list.m_itemNameWPx.size() == (size_t) (std::max) (rows, 0))
+    if (key == m_itemNameKey && m_itemNameWPx.size() == (size_t) (std::max) (rows, 0))
     {
         return;
     }
 
-    m_list.m_itemNameKey = key;
+    m_itemNameKey = key;
     m_itemNameWidestPx   = 0;
-    m_list.m_itemNameWPx.assign ((size_t) (std::max) (rows, 0), 0);
+    m_itemNameWPx.assign ((size_t) (std::max) (rows, 0), 0);
 
     for (int row = 0; row < rows; row++)
     {
@@ -501,11 +501,11 @@ void DxuiListItemLayout::MeasureItemNames (IDxuiTextRenderer & text) const
         hr = name.empty() ? S_OK : text.MeasureStringGdi (name.c_str(), fontPx, DxuiTheme::kBodyFace, w);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        m_list.m_itemNameWPx[(size_t) row] = (int) std::ceil (w);
-        m_itemNameWidestPx                 = (std::max) (m_itemNameWidestPx, m_list.m_itemNameWPx[(size_t) row]);
+        m_itemNameWPx[(size_t) row] = (int) std::ceil (w);
+        m_itemNameWidestPx                 = (std::max) (m_itemNameWidestPx, m_itemNameWPx[(size_t) row]);
     }
 
-    m_list.m_itemTextVersion++;
+    m_itemTextVersion++;
 }
 
 
@@ -546,7 +546,7 @@ DxuiListViewTypes::LayoutKey DxuiListItemLayout::GetLayoutKey() const
 
     SyncItemTextLines();
 
-    key.names   = m_list.m_itemTextVersion;
+    key.names   = m_itemTextVersion;
     key.caption = GetCaptionLinePx();
     key.cellW   = grid.cellW;
     key.cellH   = grid.cellH;
@@ -557,9 +557,9 @@ DxuiListViewTypes::LayoutKey DxuiListItemLayout::GetLayoutKey() const
     key.indent  = m_list.m_scaler.ToPx (DxuiListView::s_kGroupLabelDip) - (int) std::lround (m_list.m_scaler.ToPxf (DxuiListView::s_kListGroupItemsPullDip));
     key.rows    = m_list.GetRowCount();
 
-    key.groups.reserve (m_list.m_groups.size());
+    key.groups.reserve (m_list.GetGroups().size());
 
-    for (const DxuiListViewTypes::Group & group : m_list.m_groups)
+    for (const DxuiListViewTypes::Group & group : m_list.GetGroups())
     {
         key.groups.emplace_back (group.firstRow, group.collapsed);
     }
@@ -616,8 +616,8 @@ DxuiListViewTypes::ItemLayout DxuiListItemLayout::BuildItemLayout (int openGroup
     int                            rows    = m_list.GetRowCount();
     int                            headerH = m_list.GetRowHeightPx();
     int                            y       = m_list.m_scaler.ToPx (s_kItemsTopDip);
-    bool                           grouped = !m_list.m_groups.empty();
-    size_t                         runs    = grouped ? m_list.m_groups.size() : 1;
+    bool                           grouped = !m_list.GetGroups().empty();
+    size_t                         runs    = grouped ? m_list.GetGroups().size() : 1;
 
 
 
@@ -626,9 +626,9 @@ DxuiListViewTypes::ItemLayout DxuiListItemLayout::BuildItemLayout (int openGroup
     //  Without groups the items are one run, with no header over it.
     for (size_t g = 0; g < runs; g++)
     {
-        int   start     = grouped ? std::clamp (m_list.m_groups[g].firstRow, 0, rows) : 0;
-        int   end       = (grouped && g + 1 < m_list.m_groups.size()) ? std::clamp (m_list.m_groups[g + 1].firstRow, start, rows) : rows;
-        bool  collapsed = grouped && m_list.m_groups[g].collapsed && (int) g != openGroup;
+        int   start     = grouped ? std::clamp (m_list.GetGroups()[g].firstRow, 0, rows) : 0;
+        int   end       = (grouped && g + 1 < m_list.GetGroups().size()) ? std::clamp (m_list.GetGroups()[g + 1].firstRow, start, rows) : rows;
+        bool  collapsed = grouped && m_list.GetGroups()[g].collapsed && (int) g != openGroup;
 
         if (grouped)
         {
@@ -727,7 +727,7 @@ void DxuiListItemLayout::BeginPageSlide (const DxuiListViewTypes::PageSlide & ru
 
     if (restPx == restBeforePx)
     {
-        m_list.m_pageSlide = running;
+        m_pageSlide = running;
         return;
     }
 
@@ -735,7 +735,7 @@ void DxuiListItemLayout::BeginPageSlide (const DxuiListViewTypes::PageSlide & ru
 
     if (fromPx == restPx)
     {
-        m_list.m_pageSlide = {};
+        m_pageSlide = {};
         return;
     }
 
@@ -748,7 +748,35 @@ void DxuiListItemLayout::BeginPageSlide (const DxuiListViewTypes::PageSlide & ru
 
     fromPx = (layout != nullptr && line >= 0) ? fromPx - layout->lines[(size_t) line].top : fromPx;
 
-    m_list.m_pageSlide = { true, fromPx, line, m_list.GetClockMs() - kPageSlideLeadMs };
+    m_pageSlide = { true, fromPx, line, m_list.GetClockMs() - kPageSlideLeadMs };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListItemLayout::IsPageSliding
+//
+//  Whether a page is still sliding into view; a slide whose time is up
+//  ends here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListItemLayout::IsPageSliding()
+{
+    if (!m_pageSlide.active)
+    {
+        return false;
+    }
+
+    if (m_list.GetClockMs() - m_pageSlide.startMs >= DxuiListView::s_kPageSlideMs)
+    {
+        m_pageSlide = {};
+    }
+
+    return true;
 }
 
 
@@ -771,31 +799,31 @@ void DxuiListItemLayout::BeginPageSlide (const DxuiListViewTypes::PageSlide & ru
 int DxuiListItemLayout::GetPageSlidePx() const
 {
     constexpr int                          kMaxSlideViews = 2;
-    bool                                   inLine         = m_list.m_pageSlide.active && m_list.m_pageSlide.fromLine >= 0 && UsesItemLayout();
+    bool                                   inLine         = m_pageSlide.active && m_pageSlide.fromLine >= 0 && UsesItemLayout();
     const DxuiListViewTypes::ItemLayout  * layout         = inLine ? &GetItemLayout() : nullptr;
-    int                                    fromPx         = m_list.m_pageSlide.fromPx;
+    int                                    fromPx         = m_pageSlide.fromPx;
     int                                    boundPx        = 0;
     float                                  t              = 0.0f;
 
 
 
-    if (!m_list.m_pageSlide.active || !UsesPageSlide())
+    if (!m_pageSlide.active || !UsesPageSlide())
     {
         return 0;
     }
 
     if (layout != nullptr)
     {
-        if (m_list.m_pageSlide.fromLine >= (int) layout->lines.size())
+        if (m_pageSlide.fromLine >= (int) layout->lines.size())
         {
             return 0;
         }
 
-        fromPx += layout->lines[(size_t) m_list.m_pageSlide.fromLine].top;
+        fromPx += layout->lines[(size_t) m_pageSlide.fromLine].top;
     }
 
     boundPx = GetScrollViewPx() * kMaxSlideViews;
-    t       = std::clamp ((float) (m_list.GetClockMs() - m_list.m_pageSlide.startMs) / (float) DxuiListView::s_kPageSlideMs, 0.0f, 1.0f);
+    t       = std::clamp ((float) (m_list.GetClockMs() - m_pageSlide.startMs) / (float) DxuiListView::s_kPageSlideMs, 0.0f, 1.0f);
 
     return std::clamp ((int) std::lround ((float) (GetRestScrollPx() - fromPx) * (1.0f - t)), -boundPx, boundPx);
 }
@@ -893,12 +921,12 @@ int DxuiListItemLayout::GetItemTopPx (const DxuiListViewTypes::ItemLayout & layo
 
 
 
-    if (m_list.m_itemAnchorLine >= 0 && m_list.m_itemAnchorLine < (int) layout.lines.size())
+    if (m_itemAnchorLine >= 0 && m_itemAnchorLine < (int) layout.lines.size())
     {
-        const DxuiListViewTypes::ItemLine & line = layout.lines[(size_t) m_list.m_itemAnchorLine];
+        const DxuiListViewTypes::ItemLine & line = layout.lines[(size_t) m_itemAnchorLine];
 
         //  A line taller than the view shows from its top either way.
-        px = (m_list.m_itemAnchorBottom && line.height <= viewH) ? line.top + line.height - viewH : line.top;
+        px = (m_itemAnchorBottom && line.height <= viewH) ? line.top + line.height - viewH : line.top;
 
         return std::clamp (px, 0, (std::max) (0, layout.totalH - viewH));
     }
@@ -973,7 +1001,7 @@ void DxuiListItemLayout::EnsureItemLineVisible (const DxuiListViewTypes::ItemLay
 
     bottom = layout.lines[(size_t) line].top + layout.lines[(size_t) line].height;
 
-    if (m_list.m_itemAnchorLine >= 0 && bottom > GetItemTopPx (layout) + viewH)
+    if (m_itemAnchorLine >= 0 && bottom > GetItemTopPx (layout) + viewH)
     {
         m_list.m_itemKeys.AnchorItemLine (line, true);
         return;
@@ -1000,7 +1028,7 @@ void DxuiListItemLayout::EnsureItemLineVisible (const DxuiListViewTypes::ItemLay
 
 bool DxuiListItemLayout::IsFirstOfGroup (int item) const
 {
-    return std::any_of (m_list.m_groups.begin(), m_list.m_groups.end(), [item] (const DxuiListViewTypes::Group & group) { return group.firstRow == item; });
+    return std::any_of (m_list.GetGroups().begin(), m_list.GetGroups().end(), [item] (const DxuiListViewTypes::Group & group) { return group.firstRow == item; });
 }
 
 
@@ -1103,7 +1131,7 @@ int DxuiListItemLayout::GetFirstItemLine (const DxuiListViewTypes::ItemLayout & 
 
 int DxuiListItemLayout::GetItemLinesHPx (const DxuiListViewTypes::ItemGrid & grid, int rows) const
 {
-    std::array<int, 5>  key   = { grid.perLine, grid.cellH, rows, m_list.m_rowsVersion, m_list.m_itemTextVersion };
+    std::array<int, 5>  key   = { grid.perLine, grid.cellH, rows, m_list.m_rowsVersion, m_itemTextVersion };
     int                 total = 0;
 
 
@@ -1503,12 +1531,12 @@ DxuiListViewTypes::ItemSlide DxuiListItemLayout::PlaceItemSlide() const
         return slide;
     }
 
-    slide.layout = BuildItemLayout (m_list.m_groupSlide.group);
+    slide.layout = BuildItemLayout (m_list.m_grouping.GetSlidingGroup());
     topPx        = GetItemTopPx (GetItemLayout());
 
     for (size_t line = 0; line < slide.layout.lines.size(); line++)
     {
-        if (slide.layout.lines[line].group == m_list.m_groupSlide.group)
+        if (slide.layout.lines[line].group == m_list.m_grouping.GetSlidingGroup())
         {
             slide.header = (int) line;
         }
@@ -1533,7 +1561,7 @@ DxuiListViewTypes::ItemSlide DxuiListItemLayout::PlaceItemSlide() const
     slide.shift   = GetItemTopPx (slide.layout) - topPx;
     slide.active  = true;
 
-    m_list.m_grouping.GetGroupRowSpan (m_list.m_groupSlide.group, slide.start, slide.end);
+    m_list.m_grouping.GetGroupRowSpan (m_list.m_grouping.GetSlidingGroup(), slide.start, slide.end);
 
     return slide;
 }
@@ -1666,137 +1694,4 @@ POINT DxuiListItemLayout::GetItemScrollOffsetPx() const
     }
 
     return POINT { 0, (grid.perLine > 0) ? (m_list.m_topRow / grid.perLine) * grid.cellH : 0 };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListItemLayout::BeginSelectionBand
-//
-//  Without Ctrl the band starts from nothing; with it, the band adds to the
-//  selection the press found.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListItemLayout::BeginSelectionBand (int lx, int ly, bool ctrl)
-{
-    POINT  offset = GetItemScrollOffsetPx();
-
-
-
-    m_list.m_bandActive = true;
-    m_bandStart         = POINT { lx + offset.x, ly + offset.y };
-    m_bandEnd           = m_bandStart;
-    m_list.m_bandBase   = ctrl ? m_list.m_selectedRows : std::vector<int>();
-
-    if (!ctrl)
-    {
-        m_list.ClearSelection();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListItemLayout::UpdateSelectionBand
-//
-//  Every item the band touches is selected, with what Ctrl kept.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DxuiListItemLayout::UpdateSelectionBand (int lx, int ly)
-{
-    POINT                                  offset  = GetItemScrollOffsetPx();
-    RECT                                   band    = {};
-    std::vector<int>                       rows    = m_list.m_bandBase;
-    std::vector<int>                       before  = m_list.m_selectedRows;
-    int                                    last    = -1;
-    bool                                   listGrp = m_list.m_flow.HasListGroups();
-    bool                                   itemGrp = !listGrp && UsesItemLayout();
-    const DxuiListViewTypes::ListLayout  & listLay = listGrp ? m_list.m_flow.GetListLayout() : DxuiListView::s_kNoListLayout;
-    const DxuiListViewTypes::ItemLayout  & itemLay = itemGrp ? GetItemLayout() : s_kNoItemLayout;
-
-
-
-    m_bandEnd = POINT { lx + offset.x, ly + offset.y };
-
-    band = RECT { (std::min) (m_bandStart.x, m_bandEnd.x), (std::min) (m_bandStart.y, m_bandEnd.y),
-                  (std::max) (m_bandStart.x, m_bandEnd.x), (std::max) (m_bandStart.y, m_bandEnd.y) };
-
-    for (int item = 0; item < m_list.GetRowCount(); item++)
-    {
-        RECT  cell   = {};
-        RECT  hit    = {};
-        int   line   = m_list.IsItemsView() ? -1 : m_list.m_grouping.GetLineOfRow (item);
-        bool  placed = false;
-
-        //  In Details a row spans every column, at its line's place.
-        if (!m_list.IsItemsView())
-        {
-            placed = line >= 0;
-            cell   = RECT { 0, line * m_list.GetRowHeightPx(), m_list.m_columnSizing.GetContentWidthPx(), (line + 1) * m_list.GetRowHeightPx() };
-        }
-        else
-        {
-            placed = listGrp ? m_list.m_flow.GetListItemRectPx    (listLay, item, cell)
-                             : itemGrp ? GetGroupedItemRectPx (itemLay, item, cell)
-                                       : GetItemRectPx        (item, cell);
-
-            if (placed)
-            {
-                OffsetRect (&cell, offset.x, offset.y);
-            }
-        }
-
-        if (!placed)
-        {
-            continue;
-        }
-
-        if (IntersectRect (&hit, &cell, &band))
-        {
-            rows.push_back (item);
-            last = item;
-        }
-    }
-
-    m_list.SetSelectedRows (std::move (rows), last);
-
-    //  A band shrunk back off every item clears the selection, and that is a
-    //  change too.
-    if (m_list.m_onSelectionChanged && (last >= 0 || m_list.m_selectedRows != before))
-    {
-        m_list.m_onSelectionChanged (last);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DxuiListItemLayout::GetSelectionBandPx
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DxuiListItemLayout::GetSelectionBandPx() const
-{
-    POINT  offset = GetItemScrollOffsetPx();
-
-
-
-    if (!m_list.m_bandActive)
-    {
-        return RECT {};
-    }
-
-    return RECT { (std::min) (m_bandStart.x, m_bandEnd.x) - offset.x, (std::min) (m_bandStart.y, m_bandEnd.y) - offset.y,
-                  (std::max) (m_bandStart.x, m_bandEnd.x) - offset.x, (std::max) (m_bandStart.y, m_bandEnd.y) - offset.y };
 }
