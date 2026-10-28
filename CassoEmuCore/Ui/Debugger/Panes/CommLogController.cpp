@@ -246,31 +246,49 @@ void CommLogController::ApplyLogDeltas (const DebugLogDeltas & deltas, bool isWi
 //
 //  CommLogController::UpdateGraph
 //
-//  Built again only when the rows or the keyboard's row changed, or the
-//  span or the lanes did, since the build reads every row.
+//  Built again only when the rows, the keyboard's row or the position the
+//  machine was taken back to changed, or the span or the lanes did, since
+//  the build reads every row. Behind live it reads only the rows before the
+//  position, the ones the list has.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void CommLogController::UpdateGraph()
 {
-    const std::vector<IoLogRow>  & rows     = m_model->GetRows().GetRows();
+    const std::vector<IoLogRow>  & all      = m_model->GetRows().GetRows();
     int                            selected = m_list->GetSelectedRow();
     const std::vector<int>       & view     = m_model->GetView();
+    std::vector<IoLogRow>          before;
     std::optional<size_t>          anchor;
     std::vector<CommLane>          lanes;
     uint64_t                       first    = 0;
     uint64_t                       last     = 0;
     Byte                           port     = 0;
+    size_t                         shown    = all.size();
 
 
 
-    if (selected == m_graphedRow && rows.size() == m_graphedCount)
+    if (selected == m_graphedRow && all.size() == m_graphedCount && m_shownBefore == m_graphedBefore)
     {
         return;
     }
 
-    m_graphedRow   = selected;
-    m_graphedCount = rows.size();
+    m_graphedRow    = selected;
+    m_graphedCount  = all.size();
+    m_graphedBefore = m_shownBefore;
+
+    while (shown > 0 && all[shown - 1].position >= m_shownBefore)
+    {
+        shown--;
+    }
+
+    if (shown < all.size())
+    {
+        before.assign (all.begin(), all.begin() + (ptrdiff_t) shown);
+    }
+
+    const std::vector<IoLogRow>  & rows = (shown < all.size()) ? before : all;
+
 
     if (selected >= 0 && (size_t) selected < view.size() && view[(size_t) selected] >= 0)
     {

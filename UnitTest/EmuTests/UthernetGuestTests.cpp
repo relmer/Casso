@@ -17,6 +17,7 @@
 #include "EmuTests/InlineWorkQueue.h"
 #include "EmuTests/ReverseSessionRig.h"
 #include "Shell/DebugEventLogs.h"
+#include "Shell/MachineStateFile.h"
 #include "HResultAssert.h"
 #include "TestMachine.h"
 
@@ -921,6 +922,48 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             AssertSucceeded (hr, L"OnMachineChanged");
 
             Assert::IsFalse  (controller.IsInHistory(), L"the machine is live where it stands");
+            Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the guest's socket is closed");
+            Assert::IsTrue   ((chip.GetSocketInterrupt (0) & R::kSnIrDisconnect) != 0, L"as closed by the remote end");
+            Assert::IsTrue   (peer->destroyed, L"the host connection is closed");
+        }
+
+
+        //  A state file saved with a socket open has no host connection behind
+        //  it once loaded, so the socket reads as closed by the remote end,
+        //  and the connection the machine had before the load is closed.
+        TEST_METHOD (ALoadedStateFileClosesTheOpenSockets)
+        {
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::shared_ptr<FakeSocketState>  peer;
+            std::vector<Byte>                 bytes;
+            MachineStateContents              contents;
+            MachineStateError                 error;
+            uint64_t                          saved      = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            hr = MachineStateFile::Build (machine, bytes, error);
+            AssertSucceeded (hr, L"Build");
+
+            saved = machine.GetCpu()->GetTotalCycles();
+            guest.RunUntil ([&] { return machine.GetCpu()->GetTotalCycles() > saved + 4 * kSlice; }, L"the session runs on");
+
+            hr = MachineStateFile::Parse (bytes, contents, error);
+            AssertSucceeded (hr, L"Parse");
+
+            hr = MachineStateFile::Apply (machine, contents, error);
+            AssertSucceeded (hr, L"Apply");
+
             Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the guest's socket is closed");
             Assert::IsTrue   ((chip.GetSocketInterrupt (0) & R::kSnIrDisconnect) != 0, L"as closed by the remote end");
             Assert::IsTrue   (peer->destroyed, L"the host connection is closed");

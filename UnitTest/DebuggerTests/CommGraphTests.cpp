@@ -173,6 +173,77 @@ namespace DebuggerTests
         }
 
 
+        //  $00 sent is nine space bits in a row and a mark stop bit: one edge
+        //  down at the start bit and one up at the stop bit, with no return
+        //  to mark between the space bits.
+        TEST_METHOD (BitsOfOneLevelInARowDrawNoEdgesBetweenThem)
+        {
+            CassoTheme             theme   = CassoTheme::MakeSkeuomorphic();
+            CommSignalGraph        graph;
+            MockDxuiPainter        painter;
+            MockDxuiTextRenderer   text;
+            DxuiDpiScaler          scaler;
+            std::vector<CommLane>  lanes;
+            uint64_t               start   = 20'000;
+            uint64_t               end     = start + (uint64_t) std::llround (12.0 * PerBit());
+            uint32_t               txd     = FlameGraphView::GetRoutineColor (CommGraph::kTxd);
+            size_t                 edges   = 0;
+
+
+
+            scaler.SetDpi (96);
+            CommGraph::BuildSerial ({ MakeSerial (IoEventKind::SerialSent, start + (uint64_t) PerBit(), 0x00, 0) }, 0, start, end, lanes);
+
+            graph.SetLanes (lanes, std::vector<bool> (CommGraph::kSerialLaneCount, true), start, end, false);
+            graph.Layout (RECT { 0, 0, CommSignalGraph::kLabelDip + 1000, graph.GetHeightDip() }, scaler);
+            graph.Paint (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                edges += (call.kind == RecordedPaintKind::DrawLine && call.argb == txd && call.width < 0.5f && call.height > 0.0f) ? 1 : 0;
+            }
+
+            Assert::AreEqual ((size_t) 2, edges, L"down at the start bit, up at the stop bit");
+        }
+
+
+        //  DTR turned on before the span and left on draws one level line
+        //  across the plot, with no edge at either end of it.
+        TEST_METHOD (ALineOnAcrossTheSpanHasNoEdgeAtItsEnds)
+        {
+            CassoTheme             theme   = CassoTheme::MakeSkeuomorphic();
+            CommSignalGraph        graph;
+            MockDxuiPainter        painter;
+            MockDxuiTextRenderer   text;
+            DxuiDpiScaler          scaler;
+            std::vector<CommLane>  lanes;
+            uint32_t               dtr     = FlameGraphView::GetRoutineColor (CommGraph::kDtr);
+            size_t                 edges   = 0;
+            size_t                 levels  = 0;
+
+
+
+            scaler.SetDpi (96);
+            CommGraph::BuildSerial ({ MakeSerial (IoEventKind::SerialLines, kStart - 5'000, 0, IoEventLog::kLineDtr) }, 0, kStart, kEnd, lanes);
+
+            graph.SetLanes (lanes, std::vector<bool> (CommGraph::kSerialLaneCount, true), kStart, kEnd, false);
+            graph.Layout (RECT { 0, 0, CommSignalGraph::kLabelDip + 1000, graph.GetHeightDip() }, scaler);
+            graph.Paint (painter, text, theme);
+
+            for (const RecordedPaintCall & call : painter.Calls())
+            {
+                if (call.kind == RecordedPaintKind::DrawLine && call.argb == dtr)
+                {
+                    edges  += (call.width  < 0.5f && call.height > 0.0f) ? 1 : 0;
+                    levels += (call.height < 0.5f && call.width  > 0.0f) ? 1 : 0;
+                }
+            }
+
+            Assert::AreEqual ((size_t) 0, edges,  L"the line was on before the span and stays on");
+            Assert::AreEqual ((size_t) 1, levels, L"one level line across the plot");
+        }
+
+
         TEST_METHOD (ASocketsLaneHasItsStatesAndTotals)
         {
             std::vector<CommLane>  lanes;

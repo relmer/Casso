@@ -175,10 +175,10 @@ void DebuggerWindow::OpenEventLog (DebugLogKind kind)
 {
     switch (kind)
     {
-    case DebugLogKind::Disk:  ShowPane (DebuggerLayout::kDiskLog);  break;
-    case DebugLogKind::Input: ShowPane (DebuggerLayout::kInputLog); break;
-    case DebugLogKind::Video: ShowPane (DebuggerLayout::kVideoLog); break;
-    case DebugLogKind::Sound: ShowPane (DebuggerLayout::kSoundLog); break;
+    case DebugLogKind::Disk:    ShowPane (DebuggerLayout::kDiskLog);    break;
+    case DebugLogKind::Input:   ShowPane (DebuggerLayout::kInputLog);   break;
+    case DebugLogKind::Video:   ShowPane (DebuggerLayout::kVideoLog);   break;
+    case DebugLogKind::Sound:   ShowPane (DebuggerLayout::kSoundLog);   break;
     case DebugLogKind::Serial:  ShowPane (DebuggerLayout::kSerialLog);  break;
     case DebugLogKind::Network: ShowPane (DebuggerLayout::kNetworkLog); break;
     }

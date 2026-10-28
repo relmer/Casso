@@ -35,6 +35,10 @@ public:
     //  The height for the lanes shown and the axis.
     int   GetHeightDip () const;
 
+    //  The cycles the graph spans.
+    uint64_t  GetFirst () const { return m_first; }
+    uint64_t  GetLast  () const { return m_last; }
+
     std::optional<uint64_t>  GetCycleAt (POINT point) const;
     bool                     TryGetTipAt (POINT point, std::wstring & text) const;
 

@@ -61,8 +61,9 @@ private:
     void          UpdateGraph    ();
 
     std::unique_ptr<CommLogPane>  m_model;
-    CommSignalGraph             * m_graph        = nullptr;
-    uint64_t                      m_span         = kDefaultSpan;
-    int                           m_graphedRow   = -2;        // the keyboard's row when the graph was last built
-    size_t                        m_graphedCount = SIZE_MAX;  // the rows then
+    CommSignalGraph             * m_graph         = nullptr;
+    uint64_t                      m_span          = kDefaultSpan;
+    int                           m_graphedRow    = -2;          // the keyboard's row when the graph was last built
+    size_t                        m_graphedCount  = SIZE_MAX;    // the rows then
+    uint64_t                      m_graphedBefore = UINT64_MAX;  // and the position the machine was taken back to
 };

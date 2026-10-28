@@ -434,9 +434,9 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
         { kInputLog,     126 },
         { kVideoLog,     127 },
         { kSoundLog,     128 },
-        { kBasicProgram, 129 },
-        { kSerialLog,    130 },
-        { kNetworkLog,   131 },
+        { kSerialLog,    129 },
+        { kNetworkLog,   130 },
+        { kBasicProgram, 131 },
         { kConsole,      150 },
     };
     std::vector<std::wstring>  tools = GetToolPaneIds();
@@ -480,7 +480,7 @@ std::optional<int> DebuggerLayout::GetViewMenuRank (const std::wstring & pane)
     {
         if (pane == tools[i])
         {
-            return 130 + (int) i;
+            return 140 + (int) i;
         }
     }
 
