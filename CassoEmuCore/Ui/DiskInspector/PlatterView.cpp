@@ -50,10 +50,6 @@ static constexpr uint32_t s_kHeadArmAlpha    = 0x50000000u;
 static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
 static constexpr float    s_kHeadShadowDip   = 6.0f;
 static constexpr uint32_t s_kHeadShadowArgb  = 0x40000000u;
-static constexpr int      s_kTiltInsetDip    = 16;
-static constexpr int      s_kTiltTrackDip    = 96;
-static constexpr int      s_kTiltGrabDip     = 10;
-static constexpr float    s_kTiltKnobDip     = 6.0f;
 static constexpr float    s_kReadsMinDip     = 2.0f;
 static constexpr uint32_t s_kReadsAlpha      = 0x60000000u;
 static constexpr uint32_t s_kHitAlpha        = 0x70000000u;
@@ -95,8 +91,7 @@ void PlatterView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
         PaintDisk    (painter, theme, view);
         PaintNibbles (painter, text, theme, view);
         PaintHead    (painter, theme, view);
-        PaintTiltHandle (painter, theme);
-        painter.SetClipRect (hadClip ? &oldClip : nullptr);
+            painter.SetClipRect (hadClip ? &oldClip : nullptr);
     }
 }
 
@@ -1894,17 +1889,9 @@ bool PlatterView::OnMouse (const DxuiMouseEvent & ev)
 bool PlatterView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & outAnchorPx) const
 {
     InspectorTip  tip;
-    RECT          handle = GetTiltHandleRect();
     bool          hasTip = false;
 
 
-
-    if (PtInRect (&handle, pointPx))
-    {
-        outText     = L"Drag to tilt the platter, or drag with the right mouse button anywhere on it. Double-click here, or click Top down, to see it from above.";
-        outAnchorPx = handle;
-        return true;
-    }
 
     hasTip = BuildTip (pointPx, tip);
 
@@ -2420,89 +2407,16 @@ double PlatterView::GetLocalScale (const PlatterPlacement & view, double turn, d
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PlatterView::GetTiltHandleRect
-//
-//  The tilt handle: a short vertical track along the view's right edge,
-//  flat at its top and tilted fully at its bottom, and the area around it
-//  that takes the pointer.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT PlatterView::GetTiltHandleRect() const
-{
-    LONG  x     = m_boundsDip.right - m_scaler.ToPx (s_kTiltInsetDip);
-    LONG  top   = m_boundsDip.top + m_scaler.ToPx (s_kTiltInsetDip);
-    LONG  reach = m_scaler.ToPx (s_kTiltGrabDip);
-
-
-
-    return { x - reach, top - reach, x + reach, top + m_scaler.ToPx (s_kTiltTrackDip) + reach };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlatterView::SetTiltFromHandle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PlatterView::SetTiltFromHandle (LONG yPx)
-{
-    double  top    = m_boundsDip.top + m_scaler.ToPxf (s_kTiltInsetDip);
-    double  length = std::max (m_scaler.ToPxf (s_kTiltTrackDip), 1.0f);
-
-
-
-    m_context.model->SetTilt ((yPx - top) / length * InspectorViewModel::kMaxTilt);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PlatterView::PaintTiltHandle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PlatterView::PaintTiltHandle (IDxuiPainter & painter, const IDxuiTheme & theme) const
-{
-    float   x      = static_cast<float> (m_boundsDip.right - m_scaler.ToPx (s_kTiltInsetDip));
-    float   top    = static_cast<float> (m_boundsDip.top + m_scaler.ToPx (s_kTiltInsetDip));
-    float   length = m_scaler.ToPxf (s_kTiltTrackDip);
-    float   knob   = m_scaler.ToPxf (s_kTiltKnobDip);
-    float   y      = top + static_cast<float> (m_context.model->GetTilt() / InspectorViewModel::kMaxTilt) * length;
-
-
-
-    painter.DrawLine (x, top, x, top + length, m_scaler.ToPxf (s_kSelectOutlineDip), theme.ForegroundMuted());
-    painter.FillCircle (x, y, knob, m_context.model->IsTilted() ? theme.Accent() : theme.Foreground());
-    OutlineCircle (painter, x, y, knob, 1.0f, theme.Background());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  PlatterView::OnTiltMouse
 //
-//  A press on the tilt handle sets the tilt from where it is on the track,
-//  and a double-click there returns the platter to flat. A right drag tilts
-//  the platter by its height and turns it by its width (FR-151).
+//  A right drag tilts the platter by its height and turns it by its width
+//  (FR-151).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
 {
     POINT    p         = ev.positionDip;
-    RECT     handle    = GetTiltHandleRect();
-    int64_t  now       = static_cast<int64_t> (GetTickCount64());
     double   half      = std::max (1.0f, std::min (GetWidth(), GetHeight()) / 2.0f);
     double   radius    = std::max (MakeView().outerRadiusPx, 1.0f);
     bool     isHandled = false;
@@ -2512,20 +2426,7 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
         case DxuiMouseEventKind::Down:
-            if (ev.button == DxuiMouseButton::Left && PtInRect (&handle, p) && now - m_lastHandleClickMs <= static_cast<int64_t> (GetDoubleClickTime()))
-            {
-                m_context.model->SetTilt (0.0);
-                m_lastHandleClickMs = 0;
-                isHandled           = true;
-            }
-            else if (ev.button == DxuiMouseButton::Left && PtInRect (&handle, p))
-            {
-                m_isTiltHandle      = true;
-                m_lastHandleClickMs = now;
-                SetTiltFromHandle (p.y);
-                isHandled           = true;
-            }
-            else if (ev.button == DxuiMouseButton::Right && PtInRect (&m_boundsDip, p))
+            if (ev.button == DxuiMouseButton::Right && PtInRect (&m_boundsDip, p))
             {
                 m_isTilting = true;
                 m_tiltAt    = p;
@@ -2535,12 +2436,7 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Move:
-            if (m_isTiltHandle)
-            {
-                SetTiltFromHandle (p.y);
-                isHandled = true;
-            }
-            else if (m_isTilting)
+            if (m_isTilting)
             {
                 m_context.model->SetTilt     (m_context.model->GetTilt() + (p.y - m_tiltAt.y) / half);
                 m_context.model->SetRotation (m_context.model->GetRotation() + (p.x - m_tiltAt.x) / (s_kTwoPi * radius));
@@ -2551,9 +2447,8 @@ bool PlatterView::OnTiltMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Up:
-            isHandled      = m_isTiltHandle || (m_isTilting && ev.button == DxuiMouseButton::Right);
-            m_isTiltHandle = false;
-            m_isTilting    = m_isTilting && ev.button != DxuiMouseButton::Right;
+            isHandled   = m_isTilting && ev.button == DxuiMouseButton::Right;
+            m_isTilting = m_isTilting && ev.button != DxuiMouseButton::Right;
             break;
 
         default:

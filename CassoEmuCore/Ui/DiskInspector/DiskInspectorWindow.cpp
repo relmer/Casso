@@ -29,6 +29,7 @@
 #include "Ui/DiskInspector/Components/HostLink.h"
 #include "Ui/DiskInspector/Components/InspectorMenus.h"
 #include "Ui/DiskInspector/Components/InspectorToolbar.h"
+#include "Ui/DiskInspector/Components/PlatterCorners.h"
 #include "Ui/DiskInspector/Components/StatusBand.h"
 #include "Ui/DiskInspector/EditBar.h"
 #include "Ui/DiskInspector/FindBar.h"
@@ -40,7 +41,6 @@
 #include "Ui/DiskInspector/FluxTiming.h"
 #include "Ui/DiskInspector/InspectorMarquee.h"
 #include "Ui/DiskInspector/PlatterCells.h"
-#include "Ui/DiskInspector/PlatterLegendView.h"
 #include "Ui/DiskInspector/PlatterView.h"
 #include "Ui/DiskInspector/SectorByteView.h"
 #include "Ui/DiskInspector/SectorRowView.h"
@@ -84,13 +84,8 @@ static constexpr double   s_kMinSplit       = 0.3;
 static constexpr double   s_kMaxSplit       = 0.7;
 static constexpr double   s_kPanStep        = 0.1;
 static constexpr int      s_kStatusDip      = 28;
-static constexpr int      s_kFitDip         = 48;
 static constexpr int      s_kMinPlatterColumnDip = 420;
-static constexpr int      s_kZoomLabelDip   = 40;
-static constexpr int      s_kCheckLabelPadDip = 30;
 static constexpr int      s_kTabLabelPadDip = 24;
-static constexpr int      s_kLegendButtonDip = 80;
-static constexpr int64_t  s_kLegendReopenMs = 300;
 
 //  The tab strip's tips, in its order: the track tabs, then the disk tabs.
 static constexpr LPCWSTR  s_kpszTabTips[] =
@@ -371,17 +366,10 @@ void DiskInspectorWindow::NotifyDiskStarting (const DiskChange & change)
 //
 //  DiskInspectorWindow::NotifyDiskStarted
 //
-//  A saved Files choice applies to every disk (FR-080).
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::NotifyDiskStarted (const DiskChange & change)
 {
-    if (change.hasDisk)
-    {
-        m_isFilesDefaulted = m_isFilesSaved;
-    }
-
     for (IInspectorComponent * component : m_components)
     {
         component->OnDiskStarted (change);
@@ -545,12 +533,6 @@ void DiskInspectorWindow::OnCreate()
     m_toolbar     = std::make_unique<InspectorToolbar> (m_session, GetHost(), m_commands);
     m_toolbar->Create();
     m_platterView = CreateChild<PlatterView> (m_session.context);
-    m_zoomOut     = CreateChild<DxuiButton> (s_kpszMinus);
-    m_zoomIn      = CreateChild<DxuiButton> (L"+");
-    m_fit         = CreateChild<DxuiButton> (L"Fit");
-    m_topDown     = CreateChild<DxuiButton> (L"Top down");
-    m_zoomLabel   = CreateChild<DxuiLabel> (L"",         DxuiTextRole::Body,    DxuiTextHAlign::Left);
-    m_hintLabel   = CreateChild<DxuiLabel> (s_kpszHint,  DxuiTextRole::Muted  , DxuiTextHAlign::Left);
     m_headerView  = CreateChild<TrackHeaderView> (m_session.context);
     m_stripView   = CreateChild<TrackStripView>  (m_session.context);
     m_stripB      = CreateChild<TrackStripView>  (m_session.contextB);
@@ -565,13 +547,7 @@ void DiskInspectorWindow::OnCreate()
     m_nibblesTab  = CreateChild<NibblesTab>      (m_session.context);
     m_fieldsTab   = CreateChild<InspectorTableView> (m_session.context);
     m_fluxTab     = CreateChild<FluxTimingTab>   (m_session.context);
-    m_legendButton = CreateChild<DxuiButton> (L"Legend");
     m_copySector   = CreateChild<DxuiButton> (L"Copy sector");
-    m_diffsCheck   = CreateChild<DxuiCheckbox> (L"Differences");
-    m_alignmentCheck = CreateChild<DxuiCheckbox> (L"Alignment");
-    m_filesCheck     = CreateChild<DxuiCheckbox> (L"Files");
-    m_readsCheck     = CreateChild<DxuiCheckbox> (L"Reads");
-    m_legend       = CreateChild<PlatterLegendView> (m_session.context);
     m_tracksTab   = CreateChild<InspectorTableView> (m_session.context);
     m_findingsTab = CreateChild<FindingsTab>     (m_session.context);
     m_imageTab    = CreateChild<InspectorTableView> (m_session.context);
@@ -586,7 +562,6 @@ void DiskInspectorWindow::OnCreate()
     m_editing     = std::make_unique<EditingPart> (m_session, GetHost(), *m_byteView);
     m_editing->Create();
 
-    m_legendButton->SetOnClick ([this] () { if (m_isLegendPinned) { HideLegend(); } else if (static_cast<int64_t> (GetTickCount64()) - m_legendClosedMs > s_kLegendReopenMs) { ShowLegend (true); } });
     m_tabs->SetOnChange      ([this] (int index) { if (index < kTrackTabCount) { ShowTrackTab (index); } else { ShowDiskTab (GetShownDiskTabs()[static_cast<size_t> (index - kTrackTabCount)]); } });
     m_tracksTab->SetColumns  (InspectorTables::GetTrackColumns());
     m_fieldsTab->SetColumns  (InspectorTables::GetFieldColumns());
@@ -594,27 +569,21 @@ void DiskInspectorWindow::OnCreate()
     m_tracksTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_findingsTab->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
     m_fieldsTab->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
-    m_zoomOut->SetOnClick    ([this] () { m_platterView->ZoomAboutCenter (1.0 / kZoomStep); });
-    m_zoomIn->SetOnClick     ([this] () { m_platterView->ZoomAboutCenter (kZoomStep); });
-    m_fit->SetOnClick        ([this] () { m_session.model.Fit(); });
-    m_topDown->SetOnClick    ([this] () { m_session.model.SetTilt (0.0); });
     m_stripOut->SetOnClick   ([this] () { m_stripView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_stripIn->SetOnClick    ([this] () { m_stripView->ZoomAboutCenter (kZoomStep); });
     m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
     m_session.context.edits = &m_session.edits;
     m_copySector->SetOnClick   ([this] () { CopySector(); });
-    m_diffsCheck->SetOnChange     ([this] (bool isChecked) { m_session.context.isDiffsOverlay = isChecked; });
     m_stripB->SetSide (ComparisonSession::kSideB);
-    m_alignmentCheck->SetOnChange ([this] (bool isChecked) { m_platterView->SetAlignmentShown (isChecked); });
-    m_filesCheck->SetOnChange     ([this] (bool isChecked) { m_session.context.isFilesOverlay = isChecked; });
-    m_readsCheck->SetOnChange     ([this] (bool isChecked) { m_session.context.isReadsOverlay = isChecked; });
 
+    m_corners     = std::make_unique<PlatterCorners> (m_session, GetHost(), *m_platterView);
+    m_corners->Create();
     m_statusBand  = std::make_unique<StatusBand> (m_session, GetHost());
     m_statusBand->Create();
     m_menus       = std::make_unique<InspectorMenus> (m_session, GetHost(), m_commands);
     m_menus->Create();
 
-    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
+    m_components = { m_hostLink.get(), m_menus.get(), m_toolbar.get(), m_corners.get(), m_files.get(), m_editing.get(), m_comparisonPart.get(), m_findPart.get(), m_statusBand.get() };
 
     m_tooltip.SetPopupHost (GetPopupHost());
 
@@ -743,29 +712,28 @@ void DiskInspectorWindow::BuildCommands()
     c.flat                      = make (L"F&lat", L"", [this] () { m_session.model.SetTilt (0.0); });
     c.flat->isEnabled           = hasDisk;
     c.flat->isChecked           = [this] () { return !m_session.model.IsTilted(); };
-    c.tilted                    = make (L"Tilte&d", L"", [this] () { m_session.model.SetTilt (m_lastTilt); });
+    c.tilted                    = make (L"Tilte&d", L"", [this] () { m_session.model.SetTilt (m_corners->GetLastTilt()); });
     c.tilted->isEnabled         = hasDisk;
     c.tilted->isChecked         = [this] () { return m_session.model.IsTilted(); };
-    c.legend                    = make (L"Le&gend", L"", [this] () { ShowLegend (true); });
+    c.legend                    = make (L"Le&gend", L"", [this] () { m_corners->ShowLegend (true); });
     c.legend->isEnabled         = hasDisk;
 
-    c.overlays.push_back (make (L"F&iles", L"", [this] () { m_filesCheck->SetChecked (!m_filesCheck->IsChecked()); m_session.context.isFilesOverlay = m_filesCheck->IsChecked(); }));
-    c.overlays.back()->isChecked = [this] () { return m_session.context.isFilesOverlay; };
-    c.overlays.back()->isEnabled = hasDisk;
+    auto  overlay = [this, &c, &make] (LPCWSTR label, PlatterOverlay which, std::function<bool()> isEnabled)
+    {
+        c.overlays.push_back (make (label, L"", [this, which] () { m_corners->SetOverlay (which, !m_corners->IsOverlayOn (which)); }));
+        c.overlays.back()->isChecked = [this, which] () { return m_corners->IsOverlayOn (which); };
+        c.overlays.back()->isEnabled = std::move (isEnabled);
+    };
+
+    overlay (L"F&iles", PlatterOverlay::Files, hasDisk);
 
     if (hasDrives)
     {
-        c.overlays.push_back (make (L"&Reads", L"", [this] () { m_readsCheck->SetChecked (!m_readsCheck->IsChecked()); m_session.context.isReadsOverlay = m_readsCheck->IsChecked(); }));
-        c.overlays.back()->isChecked = [this] () { return m_session.context.isReadsOverlay; };
-        c.overlays.back()->isEnabled = [this] () { return m_session.context.hasDisk && m_session.IsWindowDiskA(); };
+        overlay (L"&Reads", PlatterOverlay::Reads, [this] () { return m_session.context.hasDisk && m_session.IsWindowDiskA(); });
     }
 
-    c.overlays.push_back (make (L"Track &alignment", L"", [this] () { m_alignmentCheck->SetChecked (!m_alignmentCheck->IsChecked()); m_platterView->SetAlignmentShown (m_alignmentCheck->IsChecked()); }));
-    c.overlays.back()->isChecked = [this] () { return m_alignmentCheck->IsChecked(); };
-    c.overlays.back()->isEnabled = hasDisk;
-    c.overlays.push_back (make (L"Diff&erences", L"", [this] () { m_diffsCheck->SetChecked (!m_diffsCheck->IsChecked()); m_session.context.isDiffsOverlay = m_diffsCheck->IsChecked(); }));
-    c.overlays.back()->isChecked = [this] () { return m_session.context.isDiffsOverlay; };
-    c.overlays.back()->isEnabled = [this] () { return m_session.context.hasDisk && m_session.comparison.IsComparing(); };
+    overlay (L"Track &alignment", PlatterOverlay::Alignment, hasDisk);
+    overlay (L"Diff&erences", PlatterOverlay::Differences, [this] () { return m_session.context.hasDisk && m_session.comparison.IsComparing(); });
 
     for (const auto & [label, tab, isDisk] : { std::tuple { L"Sector data", static_cast<int> (kTabSectorData), false }, std::tuple { L"Nibbles", static_cast<int> (kTabNibbles), false },
                                                std::tuple { L"Fields", static_cast<int> (kTabFields), false }, std::tuple { L"Flux timing", static_cast<int> (kTabFluxTiming), false },
@@ -900,9 +868,6 @@ void DiskInspectorWindow::UpdateTitle()
         m_title = title;
         SetTitle (title);
     }
-
-    //  The last tilt the user set, for View > "Tilted".
-    m_lastTilt = m_session.model.IsTilted() ? m_session.model.GetTilt() : m_lastTilt;
 }
 
 
@@ -951,7 +916,7 @@ void DiskInspectorWindow::OnWindowClose()
     if (ConfirmDiscardEdits (L"Closing the disk inspector"))
     {
         m_tooltip.HideImmediate();
-        HideLegend();
+        m_corners->HideLegend();
         m_session.host->SetHeadStateWanted (false);
         Hide();
         m_session.host->OnInspectorClosed();
@@ -1122,7 +1087,7 @@ bool DiskInspectorWindow::IsZoomKey (WPARAM vk)
 //  DiskInspectorWindow::LayoutContent
 //
 //  The toolbar row across the top. Under it the platter column, the platter
-//  as large as the column allows with its controls on one row beneath it; past
+//  as large as the column allows with its controls in the corners; past
 //  the splitter the track column: header, sector row, one tab strip with the
 //  track tabs then the disk tabs, and the chosen tab's content. Along the
 //  bottom, across both columns, the strip with its controls and hint.
@@ -1145,12 +1110,12 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     int                        bandTop   = std::max (top, static_cast<int> (boundsDip.bottom) - band);
     int                        x         = boundsDip.left + margin;
     int                        column    = splitX - boundsDip.left - 2 * margin;
-    int                        areaH     = std::max (0, bandTop - top - 2 * margin - row);
+    int                        areaH     = std::max (0, bandTop - top - 2 * margin);
     int                        side      = std::max (0, std::min (column, areaH));
     int                        y         = 0;
     int                        header    = scaler.ToPx (TrackHeaderView::kLineDip * TrackHeaderView::kLines);
     int                        rowsH     = 0;
-    int                        minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), GetPlatterControlsWidthPx (scaler));
+    int                        minColumn = std::max (scaler.ToPx (s_kMinPlatterColumnDip), m_corners->GetMinWidthPx (scaler));
     RECT                       right     = {};
     RECT                       platter   = {};
 
@@ -1188,17 +1153,13 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     m_comparisonPart->Layout ({ boundsDip.left, top - bar - find, boundsDip.right, top - find }, scaler);
 
-    //  The platter as large as its column allows; its hint shows only where
-    //  the column has height to spare once the platter fills its width.
+    //  The platter as large as its column allows, with its controls floating
+    //  in the column's corners.
     platter = { boundsDip.left + margin + (column - side) / 2, top + margin, boundsDip.left + margin + (column - side) / 2 + side, top + margin + side };
     m_platterView->Layout (platter, scaler);
 
-    m_isHintShown = areaH - side >= row;
-    m_hintLabel->Layout ({ x, platter.bottom + margin / 2, splitX - margin, platter.bottom + margin / 2 + row }, scaler);
-
-    LayoutPlatterControls ({ x, bandTop - margin - row, splitX - margin, bandTop - margin }, scaler);
-
     m_platterAreaPx = { boundsDip.left, top, splitX, bandTop };
+    m_corners->Layout ({ boundsDip.left + margin, top + margin, splitX - margin, top + margin + areaH }, scaler);
 
     //  The track column.
     y = right.top;
@@ -1245,84 +1206,6 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
     m_stripHint->Layout    ({ x + 2 * button + scaler.ToPx (s_kWholeTrackDip + s_kReadoutDip) + margin, y, boundsDip.right - margin, y + row }, scaler);
 
     m_stripAreaPx = { boundsDip.left, bandTop, boundsDip.right, boundsDip.bottom };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::LayoutPlatterControls
-//
-//  One row under the platter: the zoom controls, then each overlay that is
-//  offered, as wide as its label, then "Legend" at the row's right end.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::LayoutPlatterControls (const RECT & area, const DxuiDpiScaler & scaler)
-{
-    int  button = scaler.ToPx (s_kButtonDip);
-    int  gap    = scaler.ToPx (s_kMarginDip) / 2;
-    int  x      = area.left;
-
-
-
-    m_zoomOut->Layout   ({ x, area.top, x + button, area.bottom }, scaler);
-    x += button;
-    m_zoomIn->Layout    ({ x, area.top, x + button, area.bottom }, scaler);
-    x += button;
-    m_fit->Layout       ({ x, area.top, x + scaler.ToPx (s_kFitDip), area.bottom }, scaler);
-    x += scaler.ToPx (s_kFitDip) + gap;
-    m_zoomLabel->Layout ({ x, area.top, x + scaler.ToPx (s_kZoomLabelDip), area.bottom }, scaler);
-    x += scaler.ToPx (s_kZoomLabelDip) + gap;
-    m_topDown->Layout   ({ x, area.top, x + GetLabelWidthPx (L"Top down", s_kCheckLabelPadDip, scaler), area.bottom }, scaler);
-    x += GetLabelWidthPx (L"Top down", s_kCheckLabelPadDip, scaler) + gap;
-
-    for (const auto & [check, label] : { std::pair { m_alignmentCheck, L"Alignment" }, std::pair { m_filesCheck, L"Files" }, std::pair { m_readsCheck, L"Reads" },
-                                     std::pair { m_diffsCheck, L"Differences" } })
-    {
-        int  w = GetLabelWidthPx (label, s_kCheckLabelPadDip, scaler);
-
-        check->Layout ({ x, area.top, x + w, area.bottom }, scaler);
-        x += (check == m_diffsCheck && !m_session.comparison.IsComparing()) ? 0 : w + gap;
-    }
-
-    m_legendButton->Layout ({ area.right - scaler.ToPx (s_kLegendButtonDip), area.top, area.right, area.bottom }, scaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::GetPlatterControlsWidthPx
-//
-//  The width LayoutPlatterControls lays its row out in, so the platter
-//  column is never narrower than the row.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int DiskInspectorWindow::GetPlatterControlsWidthPx (const DxuiDpiScaler & scaler) const
-{
-    int  gap   = scaler.ToPx (s_kMarginDip) / 2;
-    int  width = 2 * scaler.ToPx (s_kButtonDip) + scaler.ToPx (s_kFitDip) + gap + scaler.ToPx (s_kZoomLabelDip) + gap +
-                 GetLabelWidthPx (L"Top down", s_kCheckLabelPadDip, scaler) + gap + scaler.ToPx (s_kLegendButtonDip);
-
-
-
-    for (LPCWSTR label : { L"Alignment", L"Files", L"Reads" })
-    {
-        width += GetLabelWidthPx (label, s_kCheckLabelPadDip, scaler) + gap;
-    }
-
-    if (m_session.comparison.IsComparing())
-    {
-        width += GetLabelWidthPx (L"Differences", s_kCheckLabelPadDip, scaler) + gap;
-    }
-
-    return width;
 }
 
 
@@ -1568,8 +1451,8 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
     }
 
     //  Every event is passed to every component, so each component's hover
-    //  follows the pointer; a press or release a component takes doesn't
-    //  reach the controls.
+    //  follows the pointer; a press or release that a component takes is not
+    //  passed on to the controls.
     for (IInspectorComponent * component : m_components)
     {
         isComponent = component->OnMouse (ev) || isComponent;
@@ -1582,18 +1465,16 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
 
     isHandled = isHandled || isComponent;
 
-    if (ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Leave)
-    {
-        TrackLegendHover (p);
-    }
-
-    //  The views draw their hover from where the pointer is (FR-148).
-    m_session.context.hoverPx = (ev.kind == DxuiMouseEventKind::Leave) ? POINT { SHRT_MIN, SHRT_MIN } : (ev.kind == DxuiMouseEventKind::Move ? p : m_session.context.hoverPx);
+    //  The views draw their hover from where the pointer is (FR-148), and
+    //  the platter draws none under its corner groups (FR-163).
+    m_session.context.hoverPx = (ev.kind == DxuiMouseEventKind::Leave || m_corners->Contains (p)) ? POINT { SHRT_MIN, SHRT_MIN }
+                              : (ev.kind == DxuiMouseEventKind::Move ? p : m_session.context.hoverPx);
 
     if (ev.kind == DxuiMouseEventKind::Move)
     {
         UpdateTooltip (p);
-        m_statusBand->SetHint (!m_session.context.hasDisk ? m_session.statusNote : IsInside (m_platterAreaPx, p) ? s_kpszHint : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : m_session.statusNote);
+        m_statusBand->SetHint (!m_session.context.hasDisk ? m_session.statusNote : (IsInside (m_platterAreaPx, p) && !m_corners->Contains (p)) ? s_kpszHint
+                               : IsInside (m_stripAreaPx, p) ? s_kpszStripHint : m_session.statusNote);
     }
     else if (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel || ev.kind == DxuiMouseEventKind::Leave)
     {
@@ -1783,7 +1664,7 @@ LPCWSTR DiskInspectorWindow::GetCursorForPoint (POINT clientPx) const
     {
         cursor = IDC_SIZEWE;
     }
-    else if (m_platterView != nullptr && (m_platterView->IsDragging() || (IsInside (m_platterView->GetBounds(), clientPx) && !m_session.model.IsAtFit())))
+    else if (m_platterView != nullptr && (m_platterView->IsDragging() || (IsInside (m_platterView->GetBounds(), clientPx) && !m_corners->Contains (clientPx) && !m_session.model.IsAtFit())))
     {
         cursor = IDC_SIZEALL;
     }
@@ -1864,32 +1745,16 @@ void DiskInspectorWindow::UpdateRings()
 //
 //  DiskInspectorWindow::UpdateControls
 //
-//  The zoom controls are hidden with no disk, and "Fit" is unavailable at
-//  fit (FR-025).
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskInspectorWindow::UpdateControls()
 {
-    if (m_zoomLabel != nullptr)
+    if (m_corners != nullptr)
     {
         UpdateTitle();
-        m_zoomLabel->SetText    (std::format (L"{:.0f}{}", m_session.model.GetZoom(), s_kpszMultiplyX));
-        m_fit->SetEnabled       (!m_session.model.IsAtFit());
-        m_topDown->SetEnabled   (m_session.model.IsTilted());
-        m_zoomOut->SetEnabled   (!m_session.model.IsAtFit());
-        m_zoomOut->SetVisible   (m_session.context.hasDisk);
         m_copySector->SetVisible   (m_session.context.hasDisk && !m_session.isDiskGroup && m_session.trackTab == kTabSectorData);
         m_editing->SetShown        (m_session.context.hasDisk && !m_session.isDiskGroup && m_session.trackTab == kTabSectorData);
         m_copySector->SetEnabled   (m_session.model.GetSector() != nullptr && m_session.model.GetSector()->dataField >= 0);
-        m_diffsCheck->SetVisible      (m_session.comparison.IsComparing() && m_session.context.hasDisk);
-        m_zoomIn->SetVisible    (m_session.context.hasDisk);
-        m_fit->SetVisible       (m_session.context.hasDisk);
-        m_topDown->SetVisible   (m_session.context.hasDisk);
-        m_zoomLabel->SetVisible (m_session.context.hasDisk);
-        m_hintLabel->SetVisible    (false);
-        m_legend->SetVisible       (false);
-        m_legendButton->SetVisible (m_session.context.hasDisk);
         m_files->SyncSelection();
         m_stripOut->SetVisible     (m_session.context.hasDisk);
         m_stripIn->SetVisible      (m_session.context.hasDisk);
@@ -1900,9 +1765,6 @@ void DiskInspectorWindow::UpdateControls()
         m_stripReadout->SetText    (m_stripView->GetReadout() + ((m_session.model.GetTrack() != nullptr && m_session.model.GetNibbleCount() > 0)
                                     ? L"    " + InspectorText::FormatSelection (*m_session.model.GetTrack(), m_session.model.GetFirstNibble(), m_session.model.GetNibbleCount()) : L""));
         m_stripHint->SetVisible    (false);
-        m_alignmentCheck->SetVisible (m_session.context.hasDisk);
-        m_filesCheck->SetVisible     (m_session.context.hasDisk);
-        m_readsCheck->SetVisible     (m_session.context.hasDisk && m_session.IsWindowDiskA());
 
         for (IInspectorComponent * component : m_components)
         {
@@ -2005,7 +1867,8 @@ void DiskInspectorWindow::UpdateTooltip (POINT pointPx)
 
     for (InspectorView * view : views)
     {
-        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && view->GetTooltip (pointPx, tip, anchor))
+        if (tip.empty() && view != nullptr && view->IsVisible() && IsInside (view->GetBounds(), pointPx) && !(view == m_platterView && m_corners->Contains (pointPx)) &&
+            view->GetTooltip (pointPx, tip, anchor))
         {
             view->GetTooltipSwatches (pointPx, swatches);
             isInstant = view == m_platterView || view == m_stripView || view == m_stripB;
@@ -2193,16 +2056,6 @@ void DiskInspectorWindow::RefreshTables()
                                      ? L"This image's INFO says its tracks were not imaged in sync, so their alignment to one another was not kept"
                                      : L"");
         m_findingsTab->Refresh();
-
-        //  A disk with a volume the map reads opens on the Files overlay, the
-        //  most telling view of it; the user's choice stands after that.
-        if (!m_isFilesDefaulted && m_session.GetFileMap() != nullptr && m_session.GetFileMap()->notMapped == NotMappedReason::None)
-        {
-            m_isFilesDefaulted               = true;
-            m_session.context.isFilesOverlay = true;
-            m_filesCheck->SetChecked (true);
-        }
-
         m_imageTab->SetRows (m_session.context.hasDisk ? InspectorTables::BuildImage (m_session.analysis.image, m_session.context.drive != nullptr ? m_session.analysis.copy.get() : nullptr, m_session.context.drive)
                                                : vector<TableRow>());
         m_files->RefreshFileList();
@@ -2941,18 +2794,10 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
     const ButtonTip  tips[] =
     {
-        { m_zoomOut,         L"Zoom the platter out (minus)",                                    L"The whole disk is shown, so the platter cannot zoom out further" },
-        { m_zoomIn,          L"Zoom the platter in (plus)",                                      nullptr },
-        { m_fit,             L"Show the whole disk (0)",                                         L"The whole disk is already shown" },
-        { m_topDown,         L"See the platter from above, not tilted",                         L"The platter is not tilted" },
-        { m_alignmentCheck,  L"Mark where sector 0 and the longest sync start on each track",   nullptr },
-        { m_filesCheck,      L"Color each sector's data field by its role in the file map",     nullptr },
-        { m_readsCheck,      L"Mark each quarter track the drive has read since the disk was inserted", nullptr },
-        { m_stripOut,        L"Zoom the strip out",                                              L"The strip already shows the whole track" },
+        { m_stripOut,       L"Zoom the strip out",                                              L"The strip already shows the whole track" },
         { m_stripIn,         L"Zoom the strip in",                                               nullptr },
         { m_stripWhole,      L"Show the whole track in the strip",                               L"The strip already shows the whole track" },
         { m_copySector,      L"Copy the whole sector as a hex dump (Ctrl+Shift+C)",              L"The selected sector has no data field to copy" },
-        { m_diffsCheck,      L"Mark the quarter tracks that differ",                             nullptr },
     };
 
 
@@ -3145,124 +2990,6 @@ bool DiskInspectorWindow::IsImageShown() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskInspectorWindow::ShowLegend
-//
-//  The legend in a popup above the "Legend" button (FR-030). A preview on
-//  hover lets the pointer through and closes when the pointer leaves the
-//  button; a pinned one, after a click, stays until the next click outside
-//  it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::ShowLegend (bool isPinned)
-{
-    HRESULT                    hr       = S_OK;
-    DxuiHwndSource           * host     = GetPopupHost();
-    DxuiPopupHost::ShowParams  params;
-    RECT                       button   = m_legendButton->GetBounds();
-    POINT                      topLeft  = { button.left,  button.top };
-    POINT                      botRight = { button.right, button.bottom };
-
-
-
-    HideLegend();
-    BAIL_OUT_IF (host == nullptr, S_OK);
-
-    m_legendPopup = host->AcquirePopup();
-    BAIL_OUT_IF (m_legendPopup == nullptr, S_OK);
-
-    ClientToScreen (GetHwnd(), &topLeft);
-    ClientToScreen (GetHwnd(), &botRight);
-
-    params.ownerHwnd        = GetHwnd();
-    params.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
-    params.placement        = DxuiPopupPlacement::Above;
-    params.flipIfOffscreen  = true;
-    params.dismiss          = isPinned ? DxuiPopupDismiss::OnClickOutside : DxuiPopupDismiss::Manual;
-    params.input            = isPinned ? DxuiPopupInput::Interactive : DxuiPopupInput::PassThrough;
-    params.sizeDip          = { PlatterLegendView::kWidthDip, m_legend->GetHeightDip() };
-    params.backgroundArgb   = m_session.theme->BackgroundElevated();
-    params.renderContent    = [this] (IDxuiPainter & painter, IDxuiTextRenderer & text)
-                              {
-                                  m_legend->Layout ({ 0, 0, m_session.scaler.ToPx (PlatterLegendView::kWidthDip), m_session.scaler.ToPx (m_legend->GetHeightDip()) }, m_session.scaler);
-                                  m_legend->Paint  (painter, text, *m_session.theme);
-                              };
-    params.onClosed         = [this] ()
-                              {
-                                  m_legendPopup    = nullptr;
-                                  m_isLegendPinned = false;
-                                  m_legendClosedMs = static_cast<int64_t> (GetTickCount64());
-                              };
-
-    hr = m_legendPopup->Show (std::move (params));
-    CHRF (hr, host->ReleasePopup (m_legendPopup); m_legendPopup = nullptr);
-
-    m_isLegendPinned = isPinned;
-
-Error:
-    return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::HideLegend
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::HideLegend()
-{
-    DxuiPopupHost  * popup = m_legendPopup;
-
-
-
-    m_legendPopup    = nullptr;
-    m_isLegendPinned = false;
-
-    if (popup != nullptr && GetPopupHost() != nullptr)
-    {
-        GetPopupHost()->ReleasePopup (popup);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskInspectorWindow::TrackLegendHover
-//
-//  The pointer over the "Legend" button previews the legend; leaving the
-//  button closes the preview, and leaves a pinned legend open.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskInspectorWindow::TrackLegendHover (POINT pointPx)
-{
-    bool  isOver = m_legendButton->IsVisible() && IsInside (m_legendButton->GetBounds(), pointPx);
-
-
-
-    if (isOver && m_legendPopup == nullptr)
-    {
-        ShowLegend (false);
-    }
-    else if (!isOver && m_legendPopup != nullptr && !m_isLegendPinned)
-    {
-        HideLegend();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  DiskInspectorWindow::GetPrefs
 //
 //  The placement is the restored one, in the workspace coordinates
@@ -3289,10 +3016,7 @@ void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
     inOut.isDiskGroup   = m_session.isDiskGroup;
     inOut.trackTab      = m_session.trackTab;
     inOut.diskTab       = (m_session.diskTab == kTabDifferences) ? kTabTracks : m_session.diskTab;
-    inOut.isAlignment   = m_alignmentCheck->IsChecked();
-    inOut.isFiles       = m_session.context.isFilesOverlay;
-    inOut.isReads       = m_session.context.isReadsOverlay;
-    inOut.zoom          = m_zoom;
+    inOut.zoom         = m_zoom;
     inOut.tilt          = m_session.model.GetTilt();
     inOut.lastDrive     = m_session.drive;
 
@@ -3332,18 +3056,9 @@ void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
         SetWindowPlacement (GetHwnd(), &placement);
     }
 
-    m_session.context.isFilesOverlay = prefs.isFiles;
-    m_session.context.isReadsOverlay = prefs.isReads;
-    m_isFilesDefaulted               = prefs.w > 0;
-    m_isFilesSaved                   = prefs.w > 0;
-    m_session.trackTab               = std::clamp (prefs.trackTab, 0, kTrackTabCount - 1);
-    m_session.diskTab                = std::clamp (prefs.diskTab,  0, kDiskTabCount  - 1);
-    m_session.diskTab                = (m_session.diskTab == kTabDifferences) ? kTabTracks : m_session.diskTab;
-
-    m_alignmentCheck->SetChecked (prefs.isAlignment);
-    m_platterView->SetAlignmentShown (prefs.isAlignment);
-    m_filesCheck->SetChecked (prefs.isFiles);
-    m_readsCheck->SetChecked (prefs.isReads);
+    m_session.trackTab = std::clamp (prefs.trackTab, 0, kTrackTabCount - 1);
+    m_session.diskTab  = std::clamp (prefs.diskTab,  0, kDiskTabCount  - 1);
+    m_session.diskTab  = (m_session.diskTab == kTabDifferences) ? kTabTracks : m_session.diskTab;
 
     for (IInspectorComponent * component : m_components)
     {

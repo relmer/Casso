@@ -41,7 +41,7 @@ public:
 
     PlatterRenderer &  GetRenderer ()       { return m_renderer; }
     PlatterHit         HitTest     (POINT pointPx) const;
-    bool               IsDragging  () const { return m_isPanning || m_isTilting || m_isTiltHandle; }
+    bool               IsDragging  () const { return m_isPanning || m_isTilting; }
     void               ZoomBy      (double factor, POINT anchorPx);
     void               ZoomAboutCenter (double factor);
     //  Where the head's bullseye is drawn, or false when there is no head.
@@ -103,10 +103,7 @@ private:
     void           PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
     void           PaintReads     (IDxuiPainter & painter, const PlatterPlacement & view) const;
-    void           PaintTiltHandle (IDxuiPainter & painter, const IDxuiTheme & theme) const;
     bool           OnTiltMouse    (const DxuiMouseEvent & ev);
-    RECT           GetTiltHandleRect () const;
-    void           SetTiltFromHandle (LONG yPx);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
     static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);
 
@@ -127,9 +124,7 @@ private:
     bool                       m_isPressed         = false;
     bool                       m_isPanning         = false;
     bool                       m_isTilting         = false;
-    bool                       m_isTiltHandle      = false;
     POINT                      m_tiltAt            = {};
-    int64_t                    m_lastHandleClickMs = 0;
     POINT                      m_pressAt           = {};
     POINT                      m_lastAt            = {};
     int64_t                    m_lastClickMs       = 0;
