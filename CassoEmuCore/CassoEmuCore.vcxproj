@@ -350,6 +350,7 @@
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
     <ClCompile Include="Shell\ShellDebuggerReverse.cpp" />
     <ClCompile Include="Shell\ShellDebuggerProject.cpp" />
+    <ClCompile Include="Shell\ShellDebuggerPrefs.cpp" />
     <ClCompile Include="Shell\TraceHistory.cpp" />
     <ClCompile Include="Shell\ProfileHistory.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\ProfileProgress.cpp" />
@@ -1477,6 +1478,7 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\ShellDebugger.h" />
+    <ClInclude Include="Shell\ShellDebuggerPrefs.h" />
     <ClInclude Include="Shell\IDebuggerHost.h" />
     <ClInclude Include="Shell\EmulatorShellDebuggerHost.h" />
     <ClInclude Include="Config\DebuggerSettings.h" />
