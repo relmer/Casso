@@ -1288,7 +1288,7 @@ covered every kind of preview, IDs and text settings were scattered, and
 the headers were neither ordered nor aligned. The //c walkthrough (T214)
 waits for this phase, so it is tested once.
 
-- [ ] T282 Put every CassoEmuCore timer id in one `enum class` in
+- [X] T282 Put every CassoEmuCore timer id in one `enum class` in
   `CassoEmuCore/Core/AppTimerIds.h`, so no two can collide, and the
   window's private messages in an `enum class` in
   `CassoEmuCore/CassoExplorer/CassoExplorerWindow.h`.
