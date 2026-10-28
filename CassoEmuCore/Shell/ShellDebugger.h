@@ -408,7 +408,6 @@ private:
     std::unique_ptr<ReverseHost>  m_reverseHost;
     IReverseStopTest            * m_reverseStopTest       = nullptr;
     bool                          m_isReverseOn           = false;   // the settings, read when the CPU thread starts and changed by Tools > Options
-    bool                          m_isNetworkFenced       = false;   // the Uthernet II was in use at the last check, so history is off
     int                           m_reverseBudgetMb       = 0;
     int                           m_reverseIntervalFrames = 0;
     std::optional<ReverseOutcome> m_lastReverseOutcome;                // the last reverse command's, for the history band
@@ -490,7 +489,6 @@ private:
     void            SyncHeatHistory         (bool isAttached);
     void            ServiceCallHistory();
     void            ServiceEventLogs();
-    void            FenceHistoryForNetwork();
 
     // The debug channel, when `--debugger` opened it. Built and torn down on
     // the CPU thread, and only ever touched there.

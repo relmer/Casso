@@ -541,7 +541,7 @@ void UthernetCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
     m_chip.GetSourceMac (mac);
 
     card.rows.push_back (MakeTextRow ("Slot",   std::format ("{}", m_slot)));
-    card.rows.push_back (MakeFlagRow ("In use", IsActive(), "a socket or a host connection is open, so history is off"));
+    card.rows.push_back (MakeFlagRow ("In use", IsActive(), "a socket or a host connection is open"));
 
     chip.rows.push_back (MakeByteRow ("Mode",        m_chip.PeekCommon (W5100Registers::kMr), { "RST", "", "", "PB", "PPPoE", "", "AI", "IND" }));
     chip.rows.push_back (MakeTextRow ("MAC",         std::format ("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])));

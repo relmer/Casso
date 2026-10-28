@@ -1031,10 +1031,9 @@ stopped there; clicking the live end goes live, also stopped. The timeline
 docks and floats, and its place is restored, as the command bar's is.
 Floating, it is as long as it was docked, and dragging either end resizes it.
 
-No step back or seek can cross a time the Uthernet II was in use. Its open
-connections are on the host, and no replay can open them again. While the
-card has a socket or a connection open, history is off. Once all are closed,
-recording starts again, and the timeline begins there.
+History covers the Uthernet II in use. What the network sends the card is
+stored in history as it arrives, and a step back or a seek replays it from
+there. A replay sends nothing to the network and receives nothing from it.
 
 ### The status bar
 
