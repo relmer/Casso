@@ -585,6 +585,7 @@ void DiskManager::CompleteMountInSlot6 (int drive, const std::string & path, HRE
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MountDiskForCommand
