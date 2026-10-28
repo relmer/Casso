@@ -508,7 +508,8 @@ namespace ReverseSerialLinkTestNs
 
         //  FR-019: the machine goes live again at a point in the past before
         //  the client connected. The real connection is open, DCD matches it
-        //  at the next poll, and what the client sends next is echoed.
+        //  at the next poll, and what the client sent since and sends next is
+        //  received and echoed.
         TEST_METHOD (TheTcpConnectionStaysOpenAcrossAResume)
         {
             FakeHostNetwork                   network;
@@ -521,7 +522,6 @@ namespace ReverseSerialLinkTestNs
             std::shared_ptr<FakeSocketState>  client;
             std::vector<Sample>               samples;
             ReverseResult                     result;
-            size_t                            sent       = 0;
             HRESULT                           hr         = S_OK;
 
 
@@ -544,12 +544,11 @@ namespace ReverseSerialLinkTestNs
             machine.RunCycles (kSliceCycles);
             Assert::IsTrue (machine.GetRefs().serialChips[0]->IsDcdTrue(), L"DCD on at the next poll");
 
-            sent = client->sent.size();
             client->inbound.insert (client->inbound.end(), { 'H', 'I' });
-            machine.RunCycles (8 * kSliceCycles);
+            machine.RunCycles (kSlices / 2 * kSliceCycles);
 
-            Assert::IsTrue   (ReadReceived (machine).starts_with ("HI"), L"the client's bytes arrive at the guest");
-            Assert::AreEqual (sent + 2, client->sent.size(), L"and are echoed");
+            Assert::IsTrue (ReadReceived (machine).find ("HI") != std::string::npos, L"the client's bytes arrive at the guest");
+            Assert::IsTrue (std::string (client->sent.begin(), client->sent.end()).ends_with ("HI"), L"and are echoed");
         }
 
 
@@ -658,6 +657,76 @@ namespace ReverseSerialLinkTestNs
             machine.RunCycles (8 * kSliceCycles);
 
             Assert::IsTrue (ReadReceived (machine).find ("HI") != std::string::npos, L"the port's bytes arrive at the guest");
+        }
+
+
+        //  The bytes the port took after the point are received again on a
+        //  resume, in order and each with its receive errors, as live.
+        TEST_METHOD (AResumeFromThePastReceivesTheBytesAgainWithTheirErrors)
+        {
+            FakeHostSerialPorts                   ports;
+            std::shared_ptr<FakeSerialPortState>  com3       = ports.AddPort ("COM3");
+            TestMachine                           machine    ("Apple2c", TestMachine::Slots::AsShipped, [&ports] (MachineConfig & config, MachineBuildServices & services)
+            {
+                AttachPort1 (config, MakeAttachment (kpszSerialComPort));
+                services.hostSerialPorts = &ports;
+            });
+            ReverseController                     controller (machine);
+            CommEventRecorder                     recorder;
+            std::vector<Sample>                   samples;
+            std::vector<LoggedEvent>              live;
+            std::vector<LoggedEvent>              again;
+            ReverseResult                         result;
+            size_t                                point      = (kSlices / kSampleEvery / 2) * kSampleEvery;
+            size_t                                atPoint    = 0;
+            size_t                                run        = 0;
+            HRESULT                               hr         = S_OK;
+
+
+
+            PrepareEcho (machine);
+            machine.AttachCommEventSink (&recorder);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            samples = Record (machine, [&com3, &recorder, &atPoint, point] (size_t slice)
+            {
+                constexpr size_t  kFeedEvery = 4;
+
+                if (slice == point)
+                {
+                    atPoint = recorder.events.size();
+                }
+
+                if (slice % kFeedEvery == 0)
+                {
+                    com3->inbound.insert (com3->inbound.end(), { (Byte) slice, (Byte) (slice + 1) });
+                    com3->errors.isFraming = (slice % (kFeedEvery * 3)) == 0;
+                }
+            });
+
+            live.assign (recorder.events.begin() + atPoint, recorder.events.end());
+            Assert::IsTrue (std::ranges::any_of (live, [] (const LoggedEvent & each) { return each.reg != 0; }), L"bytes with errors after the point");
+
+            hr = controller.SeekToCycle (samples[point / kSampleEvery].cycle, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+
+            recorder.events.clear();
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            for (run = point; run < kSlices; run++)
+            {
+                machine.RunCycles (kSliceCycles);
+            }
+
+            again.assign (recorder.events.begin(), recorder.events.begin() + std::min (recorder.events.size(), live.size()));
+            Assert::AreEqual (live.size(), again.size(), L"each byte received again");
+            Assert::IsTrue   (live == again, L"in order, each with its errors");
+
+            machine.AttachCommEventSink (nullptr);
         }
 
 

@@ -711,16 +711,17 @@ void MachineHost::DropHostConnections()
 //
 //  MachineHost::ResyncHostConnections
 //
-//  The serial attachments are not called: each poll sets the 6551's CTS,
-//  DSR and DCD from the attachment, so the first poll after the resume
-//  corrects the restored levels.
+//  Each serial chip receives again, behind what was restored with the point,
+//  the bytes it took after the point, each with its receive errors. The
+//  serial attachments are not called: each poll sets the 6551's CTS, DSR
+//  and DCD from the attachment, so the first poll after the resume corrects
+//  the restored levels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::ResyncHostConnections (size_t cursor)
 {
-    size_t                          index = 0;
-    std::vector<std::vector<Byte>>  bytes (m_refs.serialChips.size());
+    size_t  index = 0;
 
 
 
@@ -728,15 +729,10 @@ void MachineHost::ResyncHostConnections (size_t cursor)
     {
         const InputRecord  & record = m_inputJournal.GetRecord (index);
 
-        if (record.kind == InputKind::AciaByte && record.detail < bytes.size())
+        if (record.kind == InputKind::AciaByte && record.detail < m_refs.serialChips.size())
         {
-            bytes[record.detail].push_back (record.value);
+            m_refs.serialChips[record.detail]->ReceiveFromHostNow (record.value, (Byte) record.data);
         }
-    }
-
-    for (index = 0; index < bytes.size(); index++)
-    {
-        m_refs.serialChips[index]->RequeueReceivedBytes (bytes[index]);
     }
 
     if (m_refs.uthernet != nullptr)

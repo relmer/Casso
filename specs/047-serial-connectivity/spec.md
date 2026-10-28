@@ -255,7 +255,8 @@ check that the choice and its options are applied after the restart.
   MUST send nothing to a COM port or connection.
 - **FR-019**: On a resume from a point in the past the real connection MUST
   stay open, and the guest's CTS, DSR and DCD MUST match the attachment at the next
-  poll. Loading a state file with a connection open MUST close the real
+  poll. The bytes the 6551 took from the attachment after the point MUST be
+  received again, in order and each with its receive errors. Loading a state file with a connection open MUST close the real
   connection and turn DCD off for the guest; the modem MUST answer
   `NO CARRIER`.
 - **FR-020**: 035's serial log MUST list the traffic of every attachment.
