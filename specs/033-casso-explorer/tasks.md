@@ -1338,7 +1338,12 @@ waits for this phase, so it is tested once.
   Done: nested types and aliases lead each section, since a constructor's
   signature can use them; data members are in their original order. A comment over a
   method whose body is in a .cpp is in that function's banner.
-- [ ] T289 The gate of T280, and one review agent, as T281.
+- [X] T289 The gate of T280, and one review agent, as T281.
+  Done 2026-10-28: unit suite 7,875 and scenario suite 98 passed; Release x64,
+  Release ARM64 and the Debug analysis rebuild built with no warnings.
+  `CheckStyle -Mode Tree` reports only the CS0019 and CS0025 backlog in
+  files this branch did not add lines to. The reviewer found no behavior
+  change.
 
 **Dependencies**: in order. T214 follows T289.
 ## Section H dependencies
