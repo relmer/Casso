@@ -5,11 +5,6 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "CassoExplorer/Window/ExplorerPane.h"
 
-class CassoLinkConnections;
-class FirewallMonitor;
-class RunningCassoRegistry;
-class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
 struct FocusStop;
 

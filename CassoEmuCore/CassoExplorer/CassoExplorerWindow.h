@@ -29,7 +29,6 @@ class FirewallMonitor;
 class RunningCassoRegistry;
 class ILinkAnnouncements;
 struct CassoExplorerSessionWindow;
-class FolderWatch;
 class IFolderWatcher;
 
 

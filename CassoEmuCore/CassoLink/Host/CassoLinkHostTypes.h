@@ -3,12 +3,6 @@
 #include "Pch.h"
 
 
-class IByteStream;
-class ICassoLinkFolder;
-struct CassoLinkClient;
-struct CassoLinkStatus;
-
-
 
 
 

@@ -4,10 +4,6 @@
 
 #include "CassoLink/Host/CassoLinkHostTypes.h"
 
-class IByteStream;
-class ICassoLinkFolder;
-struct CassoLinkClient;
-struct CassoLinkStatus;
 class CassoLinkHost;
 struct CassoLinkPacket;
 

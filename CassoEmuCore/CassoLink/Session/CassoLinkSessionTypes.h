@@ -4,9 +4,6 @@
 
 #include "CassoLink/LinkedDisk.h"
 
-class IByteStream;
-class IByteStreamFactory;
-class IDiskFileIo;
 class CassoLinkSession;
 
 

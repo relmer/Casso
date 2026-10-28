@@ -5,11 +5,6 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 
-class CassoLinkConnections;
-class FirewallMonitor;
-class RunningCassoRegistry;
-class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
 
 

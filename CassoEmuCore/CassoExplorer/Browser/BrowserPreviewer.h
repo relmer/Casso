@@ -7,8 +7,6 @@
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "Core/MemoryBus.h"
 
-class CassoLinkConnections;
-class IDiskFileIo;
 class CassoExplorerBrowser;
 
 

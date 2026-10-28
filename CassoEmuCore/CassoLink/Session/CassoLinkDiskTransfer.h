@@ -4,9 +4,6 @@
 
 #include "CassoLink/Session/CassoLinkSessionTypes.h"
 
-class IByteStream;
-class IByteStreamFactory;
-class IDiskFileIo;
 class CassoLinkSession;
 
 

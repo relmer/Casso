@@ -5,11 +5,6 @@
 #include "CassoExplorer/CassoExplorerActions.h"
 #include "Seams/Win32ProcessLauncher.h"
 
-class CassoLinkConnections;
-class FirewallMonitor;
-class RunningCassoRegistry;
-class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
 
 

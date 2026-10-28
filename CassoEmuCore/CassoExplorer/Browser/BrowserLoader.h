@@ -6,8 +6,6 @@
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Model/TreeModel.h"
 
-class CassoLinkConnections;
-class IDiskFileIo;
 class CassoExplorerBrowser;
 
 

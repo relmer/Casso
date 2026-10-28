@@ -7,8 +7,6 @@
 #include "CassoExplorer/Model/TreeModel.h"
 #include "Seams/IShellIcons.h"
 
-class CassoLinkConnections;
-class IDiskFileIo;
 class CassoExplorerBrowser;
 struct CatalogRow;
 

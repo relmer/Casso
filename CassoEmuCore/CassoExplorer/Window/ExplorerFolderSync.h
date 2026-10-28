@@ -5,11 +5,6 @@
 #include "CassoExplorer/Model/FolderWatch.h"
 
 
-class CassoLinkConnections;
-class FirewallMonitor;
-class RunningCassoRegistry;
-class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
 
 

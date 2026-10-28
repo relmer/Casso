@@ -6,8 +6,6 @@
 #include "CassoLink/LinkBootstrap.h"
 
 class IByteStream;
-class IByteStreamFactory;
-class IDiskFileIo;
 class CassoLinkSession;
 struct CassoLinkSettings;
 

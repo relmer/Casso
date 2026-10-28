@@ -6,11 +6,6 @@
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
 #include "Seams/Win32PackagedCommands.h"
 
-class CassoLinkConnections;
-class FirewallMonitor;
-class RunningCassoRegistry;
-class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
 
 

@@ -2,11 +2,8 @@
 
 #include "Pch.h"
 
-class CassoLinkConnections;
 class FirewallMonitor;
-class RunningCassoRegistry;
 class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
 struct LinkTreeEntry;
 struct Location;
