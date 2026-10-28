@@ -67,11 +67,12 @@ void InputJournal::Record (
 ////////////////////////////////////////////////////////////////////////////////
 
 __declspec (noinline) void InputJournal::RecordObserved (
-    uint64_t   cycle,
-    InputKind  kind,
-    Byte       value,
-    uint16_t   detail,
-    uint64_t   data)
+    uint64_t          cycle,
+    InputKind         kind,
+    Byte              value,
+    uint16_t          detail,
+    uint64_t          data,
+    std::string_view  payload)
 {
     InputRecord  * record = nullptr;
 
@@ -92,7 +93,7 @@ __declspec (noinline) void InputJournal::RecordObserved (
     record->data       = data;
     record->isObserved = !m_isSampling;
 
-    record->payload.clear();
+    record->payload.assign (payload);
 }
 
 

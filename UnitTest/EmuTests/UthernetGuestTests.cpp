@@ -10,6 +10,9 @@
 
 #include "../NetworkTests/DhcpTestPackets.h"
 #include "../NetworkTests/FakeHostNetwork.h"
+#include "Debugger/Reverse/ReverseController.h"
+#include "EmuTests/ReverseSessionRig.h"
+#include "HResultAssert.h"
 #include "TestMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -624,11 +627,19 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
                 Assert::AreNotEqual (kFailed, Peek (kDoneFlag), what);
                 Assert::IsTrue (spent < kCycleLimit, what);
 
+                if (onSlice)
+                {
+                    onSlice();
+                }
+
                 spent += m_machine.RunCycles (kSlice);
             }
         }
 
-        FakeHostNetwork  host;
+        TestMachine  & GetMachine() { return m_machine; }
+
+        FakeHostNetwork        host;
+        std::function<void()>  onSlice;     // called before each slice RunUntil runs
 
     private:
 
@@ -712,6 +723,94 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
 
             Assert::IsTrue (guest.PeekBytes (kRecvBuffer, kLength) == reply, L"3 KB back, in order");
             Assert::IsTrue (peer->shutdownSent, L"DISCON shuts the host connection down");
+        }
+
+
+        //  The replies from the host's sockets arrive from outside the
+        //  machine, so a replay has them only from history. The program
+        //  connects, sends and receives 3 KB each way while history is on;
+        //  after a seek back to each sample the machine must match its live
+        //  state there, and the peer must receive nothing more during the
+        //  seeks.
+        TEST_METHOD (ATcpSessionReplaysFromHistory)
+        {
+            constexpr size_t  kLength      = 3 * 1024;
+            constexpr size_t  kSampleEvery = 1;
+            constexpr size_t  kShuffle     = 7;
+
+            struct Sample
+            {
+                uint64_t           position = 0;
+                uint64_t           cycle    = 0;
+                std::vector<Byte>  state;
+            };
+
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            std::vector<Byte>                 outbound   = MakePattern (kLength, 0x21);
+            std::vector<Byte>                 reply      = MakePattern (kLength, 0x5A);
+            std::vector<Sample>               samples;
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            Sample                            last;
+            size_t                            slice      = 0;
+            size_t                            sent       = 0;
+            size_t                            i          = 0;
+            HRESULT                           hr         = S_OK;
+            auto                              take       = [&machine] ()
+            {
+                return Sample { machine.GetPosition(), machine.GetCpu()->GetTotalCycles(), ReverseSessionRig::Save (machine) };
+            };
+
+
+
+            guest.PokeBytes (kSendBuffer, outbound);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            guest.onSlice = [&] ()
+            {
+                if (slice++ % kSampleEvery == 0)
+                {
+                    samples.push_back (take());
+                }
+            };
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() == kLength; }, L"the guest sends 3 KB");
+
+            peer->inbound.assign (reply.begin(), reply.end());
+            guest.RunUntil ([&] { return guest.Peek (kDoneFlag) == kDone; }, L"the guest receives 3 KB and disconnects");
+
+            guest.onSlice = nullptr;
+            last          = take();
+            sent          = peer->sent.size();
+
+            Assert::IsTrue (guest.PeekBytes (kRecvBuffer, kLength) == reply, L"3 KB back, in order");
+            Assert::IsTrue (samples.size() > 4, std::format (L"the session spans several samples, not {}", samples.size()).c_str());
+
+            for (i = 0; i < samples.size(); i++)
+            {
+                const Sample  & sample = samples[(i * kShuffle) % samples.size()];
+
+                hr = controller.SeekToCycle (sample.cycle, result);
+                AssertSucceeded (hr, L"SeekToCycle");
+
+                Assert::AreEqual<uint64_t> (sample.position, result.position, L"the seek lands on the sampled boundary");
+                Assert::IsTrue (sample.state == ReverseSessionRig::Save (machine), std::format (L"the replayed state at position {} matches live", sample.position).c_str());
+            }
+
+            hr = controller.SeekToCycle (UINT64_MAX, result);
+            AssertSucceeded (hr, L"SeekToCycle live");
+
+            Assert::IsTrue (last.state == ReverseSessionRig::Save (machine), L"the live end matches");
+            Assert::AreEqual (sent, peer->sent.size(), L"a replay sends nothing to the peer");
         }
     };
 

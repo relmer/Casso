@@ -10,11 +10,14 @@
 #include "Devices/Network/W5100.h"
 #include "Devices/Network/W5100SocketBridge.h"
 
+class HostInputGate;
 class IHostNetwork;
+class InputJournal;
 class MemoryBus;
 class NetworkCardSettings;
 
 struct DeviceConfig;
+struct InputRecord;
 
 
 
@@ -38,7 +41,7 @@ struct DeviceConfig;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class UthernetCard : public MemoryDevice, public IMachineState, public IDiagnosticsProvider
+class UthernetCard : public MemoryDevice, public IMachineState, public IDiagnosticsProvider, private IW5100Backend
 {
 public:
 
@@ -77,7 +80,7 @@ public:
 
         if (m_cyclesSincePump >= kPumpCycles)
         {
-            OnPumpInterval();
+            OnPumpInterval (cycles);
         }
     }
 
@@ -101,11 +104,38 @@ public:
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
+    // History: each call to the network side that changes the chip is
+    // journaled with the changes. Behind live, when HostInputGate::IsHeld
+    // returns true, the journal supplies the changes and the network side is
+    // not called, so a replay sends nothing and receives nothing.
+    void  SetInputJournal  (InputJournal * journal)         { m_inputJournal = journal; }
+    void  SetHostInputGate (const HostInputGate * gate)     { m_inputGate = gate; }
+    bool  ApplyInput       (const InputRecord & record);
+
 private:
+    enum class BackendCall
+    {
+        Command,
+        Reset,
+        Pump,
+    };
+
+    struct ReplayedCall
+    {
+        uint64_t     index = 0;
+        std::string  changes;
+    };
+
     std::string  FormatIp     (Word address) const;
     std::string  FormatSocket (int socket) const;
 
-    void  OnPumpInterval ();
+    // IW5100Backend: the chip's calls, passed to the bridge through CallBackend.
+    void  OnCommand      (int socket, Byte command) override;
+    void  OnReset        ()                         override;
+
+    void  CallBackend    (BackendCall call, int socket, Byte command, uint64_t cycle);
+    void  ApplyReplayed  (uint64_t index);
+    void  OnPumpInterval (uint32_t cycles);
     void  UpdateIrq      ();
 
     int                      m_slot            = 0;
@@ -120,4 +150,9 @@ private:
     bool                     m_irqAsserted     = false;
     uint32_t                 m_cyclesSincePump = 0;
     uint64_t                 m_cycles          = 0;
+    uint64_t                 m_callIndex       = 0;         // calls to the network side so far
+    InputJournal           * m_inputJournal    = nullptr;
+    const HostInputGate    * m_inputGate       = nullptr;
+    std::string              m_changeLog;
+    std::deque<ReplayedCall> m_replayed;                    // journaled calls a replay applied ahead of their instruction
 };

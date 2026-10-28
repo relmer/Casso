@@ -575,6 +575,12 @@ void MachineHost::AttachInputJournal()
         m_refs.serialChips[i]->SetInputJournal  (journal, (uint16_t) i);
         m_refs.serialChips[i]->SetHostInputGate (&m_hostInputGate);
     }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->SetInputJournal  (journal);
+        m_refs.uthernet->SetHostInputGate (&m_hostInputGate);
+    }
 }
 
 
@@ -627,6 +633,11 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
     if (!isApplied && record.kind == InputKind::AciaByte && record.detail < m_refs.serialChips.size())
     {
         isApplied = m_refs.serialChips[record.detail]->ApplyInput (record);
+    }
+
+    if (!isApplied && m_refs.uthernet != nullptr)
+    {
+        isApplied = m_refs.uthernet->ApplyInput (record);
     }
 
     return isApplied;

@@ -6,6 +6,8 @@
 #include "Core/MachineConfig.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/Reverse/InputJournal.h"
+#include "Shell/HostInputGate.h"
 
 
 
@@ -26,7 +28,7 @@ UthernetCard::UthernetCard (int slot)
     m_ioStart = (Word) (kSlotIoBase + slot * kSlotIoStride + kRegisterOffset);
     m_ioEnd   = (Word) (m_ioStart + kRegisterCount - 1);
 
-    m_chip.SetBackend (&m_bridge);
+    m_chip.SetBackend (this);
 }
 
 
@@ -178,6 +180,7 @@ HRESULT UthernetCard::SaveState (StateWriter & writer) const
     m_chip.SaveState (writer);
     writer.WriteUInt32 (m_cyclesSincePump);
     writer.WriteUInt64 (m_cycles);
+    writer.WriteUInt64 (m_callIndex);
 
     hr = writer.EndSection();
     CHR (hr);
@@ -213,6 +216,9 @@ HRESULT UthernetCard::LoadState (StateReader & reader)
 
     reader.ReadUInt32 (m_cyclesSincePump);
     reader.ReadUInt64 (m_cycles);
+    reader.ReadUInt64 (m_callIndex);
+
+    m_replayed.clear();
 
     hr = reader.EndSection();
     CHR (hr);
@@ -303,17 +309,177 @@ void UthernetCard::ApplySettings (const NetworkCardSettings & settings)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UthernetCard::OnPumpInterval()
+void UthernetCard::OnPumpInterval (uint32_t cycles)
 {
+    uint64_t  cycle = (m_inputJournal != nullptr) ? m_inputJournal->GetCycle() - cycles : 0;
+
+
+
     m_cycles          += m_cyclesSincePump;
     m_cyclesSincePump  = 0;
 
-    if (m_bridge.IsActive())
+    CallBackend (BackendCall::Pump, 0, 0, cycle);
+    UpdateIrq();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::OnCommand
+//
+//  A command the guest wrote to a socket's command register, during the
+//  instruction that wrote it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::OnCommand (
+    int   socket,
+    Byte  command)
+{
+    CallBackend (BackendCall::Command, socket, command, (m_inputJournal != nullptr) ? m_inputJournal->GetCycle() : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::OnReset
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::OnReset()
+{
+    CallBackend (BackendCall::Reset, 0, 0, (m_inputJournal != nullptr) ? m_inputJournal->GetCycle() : 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::CallBackend
+//
+//  Live, calls the bridge and journals the changes it made to the chip,
+//  stamped with the cycle the instruction began at and numbered by the
+//  count of calls. Behind live, applies the journaled changes for this
+//  call instead. Every call is counted either way, a pump interval with no
+//  socket open included, so the numbers match between a replay and live.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::CallBackend (
+    BackendCall  call,
+    int          socket,
+    Byte         command,
+    uint64_t     cycle)
+{
+    uint64_t  index = m_callIndex++;
+
+
+
+    if (m_inputGate != nullptr && m_inputGate->IsHeld())
     {
-        m_bridge.Pump (m_cycles);
+        ApplyReplayed (index);
+        return;
     }
 
-    UpdateIrq();
+    m_changeLog.clear();
+    m_chip.SetChangeLog ((m_inputJournal != nullptr) ? &m_changeLog : nullptr);
+
+    switch (call)
+    {
+    case BackendCall::Command:
+        m_bridge.OnCommand (socket, command);
+        break;
+
+    case BackendCall::Reset:
+        m_bridge.OnReset();
+        break;
+
+    case BackendCall::Pump:
+        if (m_bridge.IsActive())
+        {
+            m_bridge.Pump (m_cycles);
+        }
+
+        break;
+    }
+
+    m_chip.SetChangeLog (nullptr);
+
+    if (m_inputJournal != nullptr && !m_changeLog.empty())
+    {
+        m_inputJournal->RecordObserved (cycle, InputKind::NetworkCall, 0, 0, index, m_changeLog);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::ApplyReplayed
+//
+//  The changes journaled for call `index`, if any. A replay applies each
+//  record just before the instruction it was made during, so the record
+//  for this call is at the front.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::ApplyReplayed (uint64_t index)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    while (!m_replayed.empty() && m_replayed.front().index < index)
+    {
+        ASSERT (false && "a journaled network call was not replayed");
+        m_replayed.pop_front();
+    }
+
+    if (!m_replayed.empty() && m_replayed.front().index == index)
+    {
+        hr = m_chip.ApplyChanges (m_replayed.front().changes);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+        ASSERT (SUCCEEDED (hr));
+
+        m_replayed.pop_front();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::ApplyInput
+//
+//  A journaled call goes ahead of the instruction it was made during, for
+//  ApplyReplayed to apply when the replay makes the same call.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool UthernetCard::ApplyInput (const InputRecord & record)
+{
+    bool  isApplied = record.kind == InputKind::NetworkCall;
+
+
+
+    if (isApplied)
+    {
+        m_replayed.push_back ({ record.data, record.payload });
+    }
+
+    return isApplied;
 }
 
 

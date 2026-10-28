@@ -47,6 +47,11 @@ public:
     void     SaveState       (StateWriter & writer) const;
     HRESULT  LoadState       (StateReader & reader);
 
+    // While a log is set, each change the backend makes through the calls
+    // below is appended to it, so ApplyChanges makes the same changes again.
+    void     SetChangeLog    (std::string * log) { m_changeLog = log; }
+    HRESULT  ApplyChanges    (std::string_view log);
+
     bool  IsInterruptPending () const;
     Word  GetAddressPointer  () const { return m_pointer; }
 
@@ -121,9 +126,25 @@ private:
     Word      GetRxReceivedSize    (int socket) const;
     Byte      ReadLatchedWord      (int socket, Word offset, Word value);
 
-    std::vector<Byte>                           m_mem     = std::vector<Byte> (kMemorySize);
-    std::array<SocketState, kSocketCount>       m_sockets = {};
-    Word                                        m_pointer = 0;
-    IW5100Backend                             * m_backend = nullptr;
-    NullW5100Backend                            m_nullBackend;
+    enum class Change : Byte
+    {
+        SocketStatus,
+        SocketInterrupt,
+        Destination,
+        Unreachable,
+        CommitTx,
+        AppendRx,
+    };
+
+    void      LogChange            (Change change, int socket, uint64_t first, uint64_t second, std::span<const Byte> bytes = {});
+
+    static void      AppendLogValue (std::string & log, uint64_t value);
+    static uint64_t  ReadLogValue   (std::string_view log, size_t offset);
+
+    std::vector<Byte>                        m_mem         = std::vector<Byte> (kMemorySize);
+    std::array<SocketState, kSocketCount>    m_sockets     = {};
+    Word                                     m_pointer     = 0;
+    IW5100Backend                          * m_backend     = nullptr;
+    std::string                            * m_changeLog   = nullptr;
+    NullW5100Backend                         m_nullBackend;
 };

@@ -39,6 +39,7 @@ enum class InputKind : uint8_t
     MouseTarget,
     JoyportJack,
     HostState,
+    NetworkCall,
 };
 
 
@@ -155,7 +156,7 @@ public:
     uint64_t  GetCycle() const { return (m_cycleSource != nullptr) ? *m_cycleSource : 0; }
 
     void  Record         (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, std::string_view payload);
-    void  RecordObserved (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, uint64_t data);
+    void  RecordObserved (uint64_t cycle, InputKind kind, Byte value, uint16_t detail, uint64_t data, std::string_view payload = {});
 
     size_t               GetBeginIndex () const { return m_firstIndex; }
     size_t               GetEndIndex   () const { return m_firstIndex + m_count; }
