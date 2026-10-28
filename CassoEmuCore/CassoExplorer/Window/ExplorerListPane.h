@@ -44,10 +44,7 @@ public:
     static bool  IsListColumnShown (size_t column, bool chosen, Location::Kind kind, bool searching = false);
     void         ApplyColumnOrder  ();
     void  FillList();
-    void  RevealLocationInTree();
     void  OnShellListed     (const std::wstring & key);
-    void  ScrollTreeToRow (int row);
-    int   WalkTreeLabels (int row, const std::wstring & path);
 
     //  What an empty list says, named for the kind of thing being looked at.
     static std::wstring  GetEmptyLocationMessage (Location::Kind kind);
@@ -78,8 +75,6 @@ public:
     void          ApplyFolderView ();
     void          RememberFolderSort ();
 
-    //  Re-reads the tree, keeping what was open, highlighted and on screen.
-    void  RefreshTree();
 
 private:
     friend class CassoExplorerWindow;

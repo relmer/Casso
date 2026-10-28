@@ -41,7 +41,7 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
 
     m_window.m_focus = pane;
 
-    m_window.m_tree->OnFocusChanged        (pane == ExplorerPane::Tree);
+    m_window.m_treePane.OnFocusChanged     (pane == ExplorerPane::Tree);
     m_window.m_list->OnFocusChanged        (pane == ExplorerPane::List);
     m_window.m_tabStrip.OnFocusChanged     (pane == ExplorerPane::Tabs);
     m_window.m_addressBar.OnFocusChanged   (pane);
@@ -321,17 +321,7 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
 
     m_window.ArmTick();
 
-    //  A tree name cut off by the splitter shows whole as the pointer reaches
-    //  it, and goes when the pointer leaves it or does anything else.
-    if (ev.kind == DxuiMouseEventKind::Move)
-    {
-        m_window.m_tips.UpdateLabelTip (point);
-    }
-    else
-    {
-        m_window.m_labelTip.Hide();
-    }
-
+    m_window.m_treePane.UpdateLabelTip (ev);
     m_window.m_tabStrip.ClearHoverOnLeave (ev);
     m_window.m_addressBar.CloseSuggestionsOnPress (ev);
 
@@ -370,7 +360,7 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         POINT  at      = (ev.kind == DxuiMouseEventKind::Leave) ? POINT { -1, -1 } : point;
         int    changed = (int) m_window.m_previewPane.UpdateScrollbarHover (at)
                        | (int) m_window.m_list->SetScrollbarHover (at)
-                       | (int) m_window.m_tree->SetScrollbarHover (at);
+                       | (int) m_window.m_treePane.UpdateScrollbarHover (at);
 
         if (changed != 0)
         {
@@ -524,42 +514,12 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A press on a drive's, a folder's or an image's node drags it once the
-    //  pointer has moved far enough, as a list row's press drags its selection.
-    if (m_treeDrag.armed)
+    if (m_window.m_treePane.OnCapturedMouse (ev))
     {
-        if (ev.kind == DxuiMouseEventKind::Up || ev.kind == DxuiMouseEventKind::Leave)
-        {
-            m_treeDrag.armed = false;
-        }
-        else if (ev.kind == DxuiMouseEventKind::Move
-              && (abs (point.x - m_treeDrag.start.x) > GetSystemMetrics (SM_CXDRAG)
-               || abs (point.y - m_treeDrag.start.y) > GetSystemMetrics (SM_CYDRAG)))
-        {
-            m_treeDrag.armed = false;
-            m_window.m_dragDrop.BeginTreeDrag (m_treeDrag.location);
-            m_window.Invalidate();
-            return true;
-        }
-    }
-
-    //  The tree takes points in the window's coordinates, as its press did, so
-    //  a drag that started there keeps the same origin.
-    if (m_window.m_tree->IsInteracting())
-    {
-        m_window.m_tree->OnMouse (ev);
-        m_window.Invalidate();
         return true;
     }
 
-    //  Explorer's tree drops its hover as the pointer leaves it.
-    if (m_window.m_tree->GetHoverRow() >= 0 && (ev.kind == DxuiMouseEventKind::Leave || !CassoExplorerWindow::Contains (m_window.m_tree->GetBounds(), point)))
-    {
-        m_window.m_tree->SetHoverRow (-1);
-        m_window.Invalidate();
-    }
-
-    m_window.m_tips.UpdateTreeTip   (ev, point);
+    m_window.m_treePane.UpdateTip   (ev, point);
     m_window.m_tips.UpdateStatusTip (ev, point);
     m_window.m_tips.UpdateListTip   (ev, point);
 
@@ -570,55 +530,8 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (CassoExplorerWindow::Contains (m_window.m_tree->GetBounds(), point))
+    if (m_window.m_treePane.OnMouse (ev))
     {
-        //  A right-click neither selects nor takes focus, as in Explorer: the
-        //  node under the pointer keeps its hover, and the menu is its own.
-        if (press && ev.button != DxuiMouseButton::Right)
-        {
-            SetFocusPane (ExplorerPane::Tree);
-        }
-
-        //  Below the last node: the pane's own options, as Explorer's has.
-        if (press && ev.button == DxuiMouseButton::Right && m_window.m_tree->HitTestRow (point.x, point.y) < 0)
-        {
-            m_window.m_menus.ShowTreeEmptyMenu (point.x, point.y);
-            return true;
-        }
-
-        if (press && ev.button == DxuiMouseButton::Right)
-        {
-            int                   row  = m_window.m_tree->HitTestRow (point.x, point.y);
-            const DxuiTreeNode *  node = m_window.m_tree->GetNodeAt (row);
-
-            if (node != nullptr)
-            {
-                m_window.m_tree->SetHoverRow (row);
-                m_window.Invalidate();
-                m_window.m_menus.ShowTreeContextMenu (point.x, point.y, node->id);
-            }
-
-            return true;
-        }
-
-        if (press && ev.button == DxuiMouseButton::Left)
-        {
-            int                   row   = m_window.m_tree->HitTestRow (point.x, point.y);
-            const DxuiTreeNode  * node  = m_window.m_tree->GetNodeAt (row);
-            Location              at;
-            bool                  found = node != nullptr && !node->dimmed && m_window.m_browser.TryGetNodeLocation (node->id, at);
-
-            if (found && ((at.kind == Location::Kind::AppleDrive && at.innerPath.empty())
-                       || at.kind == Location::Kind::HostFolder || at.kind == Location::Kind::DiskImage))
-            {
-                m_treeDrag.armed    = true;
-                m_treeDrag.start    = point;
-                m_treeDrag.location = at;
-            }
-        }
-
-        m_window.m_tree->OnMouse (ev);
-        m_window.Invalidate();
         return true;
     }
 
@@ -933,24 +846,9 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
     }
 
     //  The same keys on the tree act on its selected node.
-    if (m_window.m_focus == ExplorerPane::Tree && ev.kind == DxuiKeyEventKind::Down
-        && ((ev.ctrl && ev.shift && !ev.alt && ev.vk == 'C') || (ev.alt && !ev.ctrl && ev.vk == VK_RETURN)))
+    if (m_window.m_focus == ExplorerPane::Tree && m_window.m_treePane.TryShortcutKey (ev, handled))
     {
-        const DxuiTreeNode  * node     = m_window.m_tree->GetNodeAt (m_window.m_tree->GetHighlight());
-        Location              location;
-        bool                  copyable = node != nullptr && m_window.m_browser.TryGetNodeLocation (node->id, location)
-                                         && location.kind != Location::Kind::Root && location.kind != Location::Kind::RecycleBin;
-
-        if (copyable && ev.vk == 'C')
-        {
-            DxuiClipboard::SetText (m_window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
-        }
-        else if (copyable)
-        {
-            m_window.m_fileOps.ShowLocationProperties (location);
-        }
-
-        return copyable;
+        return handled;
     }
 
     //  Copy in an image writes the files a paste would, as the context menu's
@@ -1038,7 +936,7 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
         case ExplorerPane::Address: handled = m_window.m_addressBar.OnKey (ev); break;
         case ExplorerPane::LocationSearch: handled = m_window.m_addressBar.OnFindBoxKey (ev);  break;
         case ExplorerPane::Tabs:    handled = m_window.m_tabStrip.OnKey (ev); break;
-        case ExplorerPane::Tree:    handled = m_window.m_tree->OnKey (ev);        break;
+        case ExplorerPane::Tree:    handled = m_window.m_treePane.OnKey (ev); break;
         case ExplorerPane::List:    handled = m_window.m_list->OnKey (ev);        break;
         case ExplorerPane::Preview: handled = m_window.m_previewPane.OnKey (ev); break;
     }
@@ -1069,7 +967,7 @@ IDxuiControl * ExplorerInput::GetFocusedControl() const
     switch (m_window.m_focus)
     {
         case ExplorerPane::Tabs:    return m_window.m_tabStrip.GetControl();
-        case ExplorerPane::Tree:    return m_window.m_tree;
+        case ExplorerPane::Tree:    return m_window.m_treePane.GetControl();
         case ExplorerPane::List:    return m_window.m_list;
         case ExplorerPane::Preview: return m_window.m_previewPane.GetFocusedControl();
         default:            return nullptr;

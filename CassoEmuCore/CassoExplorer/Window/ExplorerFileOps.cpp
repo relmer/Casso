@@ -119,14 +119,12 @@ void ExplorerFileOps::BeginRename()
 
 void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
 {
-    int           row   = m_window.m_tree->FindRowById (id);
     RECT          label = {};
-    RECT          tree  = m_window.m_tree->GetBounds();
     std::wstring  path;
 
 
 
-    if (row < 0 || !m_window.m_browser.TryGetNodePath (id, path))
+    if (!m_window.m_treePane.HasNode (id) || !m_window.m_browser.TryGetNodePath (id, path))
     {
         return;
     }
@@ -136,14 +134,10 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
         EndRename (false);
     }
 
-    m_window.m_tree->EnsureRowVisible (row);
-
-    if (!m_window.m_tree->GetLabelTextRect (row, label))
+    if (!m_window.m_treePane.TryGetRenameRect (id, label))
     {
         return;
     }
-
-    label.right = (std::max) (label.right, (LONG) tree.right - m_window.m_scaler.ToPx (8));
 
     m_window.m_renameBox->SetMaxLength (MAX_PATH);
     m_window.m_renameBox->SetText      (std::filesystem::path (path).filename().wstring());

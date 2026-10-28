@@ -1370,7 +1370,7 @@ void ExplorerLinks::ApplyLinks()
     m_window.m_browser.GetTreeModel().SetLinks (m_window.m_context.links->BuildTreeEntries());
 
     m_window.SaveSession();
-    m_window.m_listPane.RefreshTree();
+    m_window.m_treePane.RefreshTree();
 
     //  A link that was never started changes nothing that would refresh the
     //  other windows, and one of them can be on a link just removed.
@@ -1483,19 +1483,13 @@ void ExplorerLinks::RefreshLinkViews()
 
         for (const std::wstring & node : { id, TreeModel::kLinkCopyTag + id })
         {
-            if (m_window.m_tree->FindRowById (node) >= 0)
-            {
-                m_window.m_tree->ReplaceChildren (node, m_window.m_browser.GetTreeChildren (node));
-            }
+            m_window.m_treePane.ReloadChildren (node);
         }
     }
 
     for (const std::wstring & node : { std::wstring (TreeModel::kCassoLinkRootId), TreeModel::kLinkCopyTag + std::wstring (TreeModel::kCassoLinkRootId) })
     {
-        if (m_window.m_tree->FindRowById (node) >= 0)
-        {
-            m_window.m_tree->ReplaceChildren (node, m_window.m_browser.GetTreeChildren (node));
-        }
+        m_window.m_treePane.ReloadChildren (node);
     }
 
     //  A connection removed in another window has nothing to list. A drive of a
@@ -1611,7 +1605,7 @@ void ExplorerLinks::OnRunningChanged()
     }
 
     m_window.m_browser.GetTreeModel().SetLinks (m_window.m_context.links->BuildTreeEntries());
-    m_window.m_listPane.RefreshTree();
+    m_window.m_treePane.RefreshTree();
     StartAdtProServers();
 
 Error:

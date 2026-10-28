@@ -27,251 +27,6 @@ ExplorerListPane::ExplorerListPane (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerListPane::RevealLocationInTree
-//
-//  Expands This PC, or with the all-folders option on the desktop, down to the
-//  current location's folder, highlights it and expands it, as File Explorer's
-//  navigation pane does when a window opens on a folder.
-//  Each path component is matched against the child labels without regard to
-//  case, since a restored path need not match the case on disk.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerListPane::RevealLocationInTree()
-{
-    Location              location = m_window.m_browser.GetLocation();
-    std::wstring          path     = location.path;
-    std::wstring          current  = m_window.m_tree->GetHighlightedId();
-    int                   casso    = m_window.m_tree->FindRowById (TreeModel::kCassoRootId);
-    int                   desktop  = m_window.m_tree->FindRowById (TreeModel::kDesktopRootId);
-    size_t                prefix   = wcslen (TreeModel::kCassoRootId);
-    size_t                pcPrefix = wcslen (TreeModel::kThisPcRootId);
-    const DxuiTreeNode *  root     = nullptr;
-    bool                  wasOpen  = false;
-    size_t                known    = 0;
-    std::wstring          knownId;
-    int                   row      = -1;
-    std::wstring          link;
-    int                   slot     = 0;
-    int                   drive    = 0;
-
-
-
-    //  A root is a node of its own. A CassoLink connection or one of its
-    //  drives is under CassoLink, which is opened down to it.
-    if (location.kind == Location::Kind::Root)
-    {
-        if (TreeModel::TryParseLinkId (location.path, link, slot, drive) && TreeModel::StripLinkCopy (current) != location.path)
-        {
-            m_window.m_tree->SetRowExpanded (m_window.m_tree->FindRowById (TreeModel::kCassoLinkRootId), true);
-
-            if (drive != 0)
-            {
-                m_window.m_tree->SetRowExpanded (m_window.m_tree->FindRowById (TreeModel::MakeLinkId (link)), true);
-            }
-        }
-
-        row = m_window.m_tree->FindRowById (location.path);
-
-        if (row >= 0 && TreeModel::StripLinkCopy (current) != location.path)
-        {
-            m_window.m_tree->HighlightRow (row);
-            ScrollTreeToRow (row);
-        }
-
-        return;
-    }
-
-    if (location.kind == Location::Kind::None || path.size() < 2 || path[1] != L':')
-    {
-        return;
-    }
-
-    //  A node the user clicked already shows the location, possibly under the
-    //  Casso root rather than This PC, so it stays highlighted, opened, and in
-    //  view.
-    if (current.size() >= path.size() && _wcsicmp (current.c_str() + current.size() - path.size(), path.c_str()) == 0)
-    {
-        m_window.m_tree->SetRowExpanded (m_window.m_tree->GetHighlight(), true);
-        ScrollTreeToRow (m_window.m_tree->GetHighlight());
-        return;
-    }
-
-    //  A click on an ADTPro server's folder node, under its connection,
-    //  highlights that node, so no other is searched for.
-    if (TreeModel::StripLinkCopy (current) == TreeModel::kAdtProId + path)
-    {
-        ScrollTreeToRow (m_window.m_tree->GetHighlight());
-        return;
-    }
-
-    //  Casso's known folders come first: the deepest one that holds the
-    //  location is where the walk starts. The Casso root is closed again when
-    //  none does and it was closed before.
-    if (casso >= 0)
-    {
-        root    = m_window.m_tree->GetNodeAt (casso);
-        wasOpen = (root != nullptr) && root->expanded;
-
-        m_window.m_tree->SetRowExpanded (casso, true);
-        root = m_window.m_tree->GetNodeAt (m_window.m_tree->FindRowById (TreeModel::kCassoRootId));
-
-        for (size_t i = 0; root != nullptr && i < root->children.size(); i++)
-        {
-            const std::wstring &  id     = root->children[i].id;
-            std::wstring          folder = (id.size() > prefix) ? id.substr (prefix) : std::wstring();
-            bool                  within = !folder.empty() && folder.size() > known
-                                        && _wcsnicmp (path.c_str(), folder.c_str(), folder.size()) == 0
-                                        && (path.size() == folder.size() || path[folder.size()] == L'\\' || folder.back() == L'\\');
-
-            if (within)
-            {
-                known   = folder.size();
-                knownId = id;
-            }
-        }
-
-        if (knownId.empty() && !wasOpen)
-        {
-            m_window.m_tree->SetRowExpanded (m_window.m_tree->FindRowById (TreeModel::kCassoRootId), false);
-        }
-    }
-
-    //  With the all-folders option on, This PC is under the desktop, beside the
-    //  desktop's own folders, as the user's and OneDrive's; the deepest of
-    //  those that contains the location is where the walk starts.
-    if (knownId.empty() && desktop >= 0)
-    {
-        m_window.m_tree->SetRowExpanded (desktop, true);
-        root = m_window.m_tree->GetNodeAt (m_window.m_tree->FindRowById (TreeModel::kDesktopRootId));
-
-        for (size_t i = 0; root != nullptr && i < root->children.size(); i++)
-        {
-            const std::wstring &  id     = root->children[i].id;
-            std::wstring          folder = (id.size() > pcPrefix && id.starts_with (TreeModel::kThisPcRootId)) ? id.substr (pcPrefix) : std::wstring();
-            bool                  within = !folder.empty() && folder.size() > known
-                                        && _wcsnicmp (path.c_str(), folder.c_str(), folder.size()) == 0
-                                        && (path.size() == folder.size() || path[folder.size()] == L'\\' || folder.back() == L'\\');
-
-            if (within)
-            {
-                known   = folder.size();
-                knownId = id;
-            }
-        }
-    }
-
-    row = knownId.empty() ? WalkTreeLabels (m_window.m_tree->FindRowById (TreeModel::kThisPcRootId), path)
-                          : WalkTreeLabels (m_window.m_tree->FindRowById (knownId), path.substr (known));
-
-    if (row < 0)
-    {
-        return;
-    }
-
-    //  The open folder's own row is opened too, as Explorer's is.
-    m_window.m_tree->HighlightRow (row);
-    m_window.m_tree->SetRowExpanded (row, true);
-    ScrollTreeToRow (row);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerListPane::ScrollTreeToRow
-//
-//  Into view now, or at the first layout when the tree has no height yet.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerListPane::ScrollTreeToRow (int row)
-{
-
-    if (m_window.m_tree->GetRowCap() > 0)
-    {
-        m_window.m_tree->EnsureRowVisible (row);
-    }
-    else
-    {
-        m_window.m_treeRevealPending = true;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerListPane::WalkTreeLabels
-//
-//  Expands down from a row one path component at a time, matching each against
-//  the child labels without regard to case, and returns the deepest row
-//  reached. A drive's label is its volume name, so a drive is matched by the
-//  letter its id ends with instead.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int ExplorerListPane::WalkTreeLabels (int row, const std::wstring & path)
-{
-    size_t  start = 0;
-
-
-
-    if (row < 0)
-    {
-        return -1;
-    }
-
-    while (start < path.size())
-    {
-        size_t                slash = path.find (L'\\', start);
-        std::wstring          label = path.substr (start, (slash == std::wstring::npos) ? std::wstring::npos : slash - start);
-        const DxuiTreeNode *  node  = nullptr;
-        int                   next  = -1;
-
-        start = (slash == std::wstring::npos) ? path.size() : slash + 1;
-
-        if (label.empty())
-        {
-            continue;
-        }
-
-        m_window.m_tree->SetRowExpanded (row, true);
-        node = m_window.m_tree->GetNodeAt (row);
-
-        for (size_t i = 0; node != nullptr && i < node->children.size() && next < 0; i++)
-        {
-            const std::wstring &  childLabel = node->children[i].label;
-            bool                  isDrive    = label.size() == 2 && label[1] == L':';
-
-            if (isDrive ? (_wcsnicmp (node->children[i].id.c_str() + wcslen (TreeModel::kThisPcRootId), label.c_str(), 2) == 0)
-                        : (_wcsicmp (childLabel.c_str(), label.c_str()) == 0))
-            {
-                next = m_window.m_tree->FindRowById (node->children[i].id);
-            }
-        }
-
-        if (next < 0)
-        {
-            break;
-        }
-
-        row = next;
-    }
-
-    return row;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerListPane::FillList
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,9 +90,9 @@ void ExplorerListPane::FillList()
         m_window.m_list->SetTopRow (0);
         m_window.m_list->SetLeftPx (0);
 
-        if (m_window.m_menus.IsNavOptionOn (&CassoExplorerPrefs::navExpandToCurrent))
+        if (m_window.m_treePane.IsNavOptionOn (&CassoExplorerPrefs::navExpandToCurrent))
         {
-            RevealLocationInTree();
+            m_window.m_treePane.RevealLocationInTree();
         }
 
         m_window.m_folderSync.UpdateWatchedFolders();
@@ -936,9 +691,9 @@ bool ExplorerListPane::ReadFolderOptions()
     //  The pane's options Casso Explorer still follows change with them.
     m_window.m_explorerOptions = options;
     m_window.m_browser.SetFolderOptions (options);
-    m_window.m_menus.ApplyNavPaneOptions();
+    m_window.m_treePane.ApplyNavPaneOptions();
     m_window.m_browser.GetTreeModel().InvalidateAll();
-    RefreshTree();
+    m_window.m_treePane.RefreshTree();
 
     return true;
 }
@@ -971,10 +726,10 @@ void ExplorerListPane::OnShellListed (const std::wstring & key)
         {
             nodeId = TreeModel::MakeFolderId (underCasso, key.substr (hostTree.size()));
 
-            if (m_window.m_tree->FindRowById (nodeId) >= 0)
+            if (m_window.m_treePane.HasNode (nodeId))
             {
                 m_window.m_browser.GetTreeModel().Invalidate (nodeId);
-                m_window.m_tree->ReplaceChildren (nodeId, m_window.m_browser.GetTreeChildren (nodeId));
+                m_window.m_treePane.ReloadChildren (nodeId);
             }
         }
     }
@@ -1012,61 +767,13 @@ void ExplorerListPane::OnShellListed (const std::wstring & key)
     {
         nodeId = std::wstring (TreeModel::kShellRootTag) + key.substr (treeKey.size());
 
-        if (m_window.m_tree->FindRowById (nodeId) >= 0)
+        if (m_window.m_treePane.HasNode (nodeId))
         {
             m_window.m_browser.GetTreeModel().Invalidate (nodeId);
-            m_window.m_tree->ReplaceChildren (nodeId, m_window.m_browser.GetTreeChildren (nodeId));
+            m_window.m_treePane.ReloadChildren (nodeId);
         }
     }
 
-    m_window.Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerListPane::RefreshTree
-//
-//  Reads the whole tree again in place, as Explorer's F5 does: the roots, then
-//  each open node in row order, which puts every parent ahead of its children.
-//  What is open, highlighted and on screen stays, by the tree's own merge.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerListPane::RefreshTree()
-{
-    std::vector<std::wstring>  open;
-    std::vector<DxuiTreeNode>  roots;
-    int                        row = 0;
-
-
-
-    for (row = 0; row < m_window.m_tree->GetVisibleCount(); row++)
-    {
-        const DxuiTreeNode *  node = m_window.m_tree->GetNodeAt (row);
-
-        if (node != nullptr && node->expanded)
-        {
-            open.push_back (node->id);
-        }
-    }
-
-    m_window.m_browser.GetTreeModel().InvalidateAll();
-    m_window.m_browser.GetTreeRoots (roots);
-    m_window.m_tree->ReplaceRoots (std::move (roots));
-
-    for (const std::wstring & id : open)
-    {
-        if (m_window.m_tree->FindRowById (id) >= 0)
-        {
-            m_window.m_tree->ReplaceChildren (id, m_window.m_browser.GetTreeChildren (id));
-        }
-    }
-
-    m_window.m_folderSync.UpdateWatchedFolders();
     m_window.Invalidate();
 }
 

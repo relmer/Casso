@@ -67,20 +67,13 @@ public:
     bool                            ShowScrollbarMenu (const DxuiMouseEvent & ev);
     void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
     void  AddPackagedCommandsFor  (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    void  AddTreeIconRow          (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder, const std::wstring & id);
     void  AddPackagedEntry        (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
     bool  AddWindowsCommands      (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
     bool  GetSelectionKind        (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
 
     void  ShowListHeaderMenu (int x, int y, int column);
     void  ShowListContextMenu (int x, int y, int group = -1);
-    void  ShowTreeContextMenu (int x, int y, const std::wstring & id);
 
-    //  The menu below the tree's last node, and the pane options it sets.
-    void  ShowTreeEmptyMenu   (int x, int y);
-    void  AddNavPaneToggle    (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, CassoExplorerPrefs::NavOption option);
-    void  ApplyNavPaneOptions ();
-    bool  IsNavOptionOn       (CassoExplorerPrefs::NavOption option) const;
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"", const wchar_t * menuGlyph = nullptr);
     void  AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
     static const wchar_t *  GetVerbGlyph (CassoExplorerActions::Verb verb);

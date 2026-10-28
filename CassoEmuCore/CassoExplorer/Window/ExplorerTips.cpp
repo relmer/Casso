@@ -24,40 +24,6 @@ ExplorerTips::ExplorerTips (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerTips::UpdateLabelTip
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerTips::UpdateLabelTip (POINT point)
-{
-    int   row = -1;
-    RECT  box = {};
-
-
-
-    if (m_window.m_tree->IsVisible() && CassoExplorerWindow::Contains (m_window.m_tree->GetBounds(), point))
-    {
-        row = m_window.m_tree->HitTestRow (point.x, point.y);
-    }
-
-    if (row < 0 || m_window.m_theme == nullptr || !m_window.m_tree->GetClippedLabelRect (row, box))
-    {
-        m_window.m_labelTip.Hide();
-        return;
-    }
-
-    m_window.m_labelTip.Show (box, m_window.m_tree->GetLabelFill (row, *m_window.m_theme), [this, row] (IDxuiPainter & painter, IDxuiTextRenderer & text)
-    {
-        m_window.m_tree->PaintLabel (row, painter, text, *m_window.m_theme);
-    });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerTips::ShowHoverTip
 //
 //  One tooltip serves every part of the window. Each part hides only a tip it
@@ -90,80 +56,6 @@ void ExplorerTips::HideHoverTip (TipOwner owner)
         m_window.m_tooltip.RequestHide (CassoExplorerWindow::GetNowMs());
         m_tipOwner = TipOwner::None;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerTips::UpdateTreeTip
-//
-//  The Casso node's tip lists what the folders under it are, since nothing
-//  else on screen does. A known folder that is not there gets a tip on why,
-//  and so does an image that is not a disk, with the same reason as in the list.
-//  That reason is read from the file once per node the pointer enters.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerTips::UpdateTreeTip (const DxuiMouseEvent & ev, POINT point)
-{
-    int                   row  = -1;
-    const DxuiTreeNode *  node = nullptr;
-    RECT                  tree = m_window.m_tree->GetBounds();
-    RECT                  anchor;
-    Location              location;
-
-
-
-    if (ev.kind == DxuiMouseEventKind::Move && CassoExplorerWindow::Contains (tree, point))
-    {
-        row  = m_window.m_tree->HitTestRow (point.x, point.y);
-        node = m_window.m_tree->GetNodeAt (row);
-    }
-
-    bool  adtPro  = node != nullptr && TreeModel::StripLinkCopy (node->id).starts_with (TreeModel::kAdtProId);
-    bool  broken  = node != nullptr && node->iconBroken;
-    bool  warning = node != nullptr && node->iconWarning;
-
-
-
-    if (broken && node->id != m_treeTipId)
-    {
-        m_treeTipId   = node->id;
-        m_treeTipText = m_window.m_browser.TryGetNodeLocation (node->id, location) ? m_window.m_browser.GetImageProblem (location.path) : std::wstring();
-    }
-
-    //  A connection the firewall blocks has the cause as its tip.
-    if (warning)
-    {
-        std::wstring   link;
-        int            slot  = 0;
-        int            drive = 0;
-        LinkTreeEntry  entry;
-
-        m_treeTipId   = node->id;
-        m_treeTipText = TreeModel::TryParseLinkId (TreeModel::StripLinkCopy (node->id), link, slot, drive) && m_window.m_links.TryGetLinkEntry (link, entry)
-                      ? entry.firewall : std::wstring();
-    }
-
-    bool  problem = (broken || warning) && !m_treeTipText.empty();
-
-    if (node == nullptr || (node->id != TreeModel::kCassoRootId && !node->dimmed && !adtPro && !problem))
-    {
-        HideHoverTip (TipOwner::Tree);
-        return;
-    }
-
-    anchor.left   = tree.left;
-    anchor.right  = tree.right;
-    anchor.top    = tree.top + (row - m_window.m_tree->GetTopRow()) * m_window.m_tree->GetRowHeight();
-    anchor.bottom = anchor.top + m_window.m_tree->GetRowHeight();
-
-    ShowHoverTip (TipOwner::Tree, anchor, adtPro       ? TreeModel::StripLinkCopy (node->id).substr (wcslen (TreeModel::kAdtProId)).c_str()
-                                        : problem      ? m_treeTipText.c_str()
-                                        : node->dimmed ? kMissingNodeTip : kCassoNodeTip);
 }
 
 

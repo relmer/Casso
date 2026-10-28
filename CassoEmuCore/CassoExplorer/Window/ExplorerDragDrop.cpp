@@ -35,14 +35,11 @@ ExplorerDragDrop::ExplorerDragDrop (CassoExplorerWindow & window)
 
 void ExplorerDragDrop::BeginTreeDrag (const Location & location)
 {
-    HRESULT         hr = S_OK;
-    DxuiMouseEvent  release;
+    HRESULT  hr = S_OK;
 
 
 
-    release.kind   = DxuiMouseEventKind::Up;
-    release.button = DxuiMouseButton::Left;
-    m_window.m_tree->OnMouse (release);
+    m_window.m_treePane.ReleasePress();
 
     //  A disk image has Casso's floppy, which the shell has no icon for.
     if (location.kind != Location::Kind::AppleDrive)
@@ -140,8 +137,8 @@ bool ExplorerDragDrop::TryGetAppleDropDrive (int tag, POINT screen, Location & o
 
     if (tag == CassoExplorerWindow::kDropTagTree)
     {
-        row  = m_window.m_tree->HitTestRow (client.x, client.y);
-        node = (row >= 0) ? m_window.m_tree->GetNodeAt (row) : nullptr;
+        row  = m_window.m_treePane.HitTestRow (client);
+        node = (row >= 0) ? m_window.m_treePane.GetNodeAt (row) : nullptr;
 
         if (node != nullptr && m_window.m_browser.TryGetNodeLocation (node->id, location) && location.kind == Location::Kind::AppleDrive)
         {
@@ -201,8 +198,8 @@ bool ExplorerDragDrop::TryGetDropLocation (int tag, POINT screen, Location & out
 
     if (tag == CassoExplorerWindow::kDropTagTree)
     {
-        row  = m_window.m_tree->HitTestRow (client.x, client.y);
-        node = (row >= 0) ? m_window.m_tree->GetNodeAt (row) : nullptr;
+        row  = m_window.m_treePane.HitTestRow (client);
+        node = (row >= 0) ? m_window.m_treePane.GetNodeAt (row) : nullptr;
 
         //  A root holds drives and known folders, not files, so it takes no drop.
         if (node == nullptr || !m_window.m_browser.TryGetNodeLocation (node->id, outLocation) || outLocation.kind == Location::Kind::Root)
@@ -253,8 +250,8 @@ bool ExplorerDragDrop::TryGetHostDropFolder (int tag, POINT screen, std::wstring
 
     if (tag == CassoExplorerWindow::kDropTagTree)
     {
-        row  = m_window.m_tree->HitTestRow (client.x, client.y);
-        node = (row >= 0) ? m_window.m_tree->GetNodeAt (row) : nullptr;
+        row  = m_window.m_treePane.HitTestRow (client);
+        node = (row >= 0) ? m_window.m_treePane.GetNodeAt (row) : nullptr;
 
         if (node == nullptr || !m_window.m_browser.TryGetNodeLocation (node->id, location))
         {
@@ -854,7 +851,7 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
 
     if (accepted && tag == CassoExplorerWindow::kDropTagTree)
     {
-        treeRow = m_window.m_tree->HitTestRow (client.x, client.y);
+        treeRow = m_window.m_treePane.HitTestRow (client);
     }
     else if (accepted && tag == CassoExplorerWindow::kDropTagList)
     {
@@ -872,15 +869,10 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
     }
 
     //  A collapsed node the drag rests on for a second opens, as in File
-    //  Explorer's navigation pane, so the drop can go into one of its folders.
+    //  Explorer's navigation pane.
     if (treeRow >= 0 && treeRow == m_treeDropRow && GetTickCount64() - m_treeDropSinceMs >= kTreeDropExpandMs)
     {
-        const DxuiTreeNode  * node = m_window.m_tree->GetNodeAt (treeRow);
-
-        if (node != nullptr && !node->expanded && (!node->childrenLoaded || !node->children.empty()) && m_window.m_tree->SetRowExpanded (treeRow, true))
-        {
-            m_window.Invalidate();
-        }
+        m_window.m_treePane.ExpandRowForDrop (treeRow);
     }
 
     if (listRow == m_window.m_list->GetDropRow() && treeRow == m_treeDropRow)
@@ -891,7 +883,7 @@ void ExplorerDragDrop::ShowDropTarget (int tag, POINT screen, bool accepted)
     m_window.m_list->SetDropRow (listRow);
     m_treeDropRow     = treeRow;
     m_treeDropSinceMs = GetTickCount64();
-    m_window.m_tree->SetDropRow (treeRow);
+    m_window.m_treePane.SetDropRow (treeRow);
 
     m_window.Invalidate();
 }
@@ -916,8 +908,7 @@ void ExplorerDragDrop::ClearDropTarget()
     }
 
     m_window.m_list->SetDropRow  (-1);
-    m_window.m_tree->SetDropRow  (-1);
-    m_window.m_tree->SetHoverRow (-1);
+    m_window.m_treePane.ClearDropTarget();
     m_treeDropRow = -1;
 
     m_window.Invalidate();

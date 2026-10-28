@@ -46,10 +46,7 @@ ExplorerLayout::ExplorerLayout (CassoExplorerWindow & window)
 
 void ExplorerLayout::ConfigureWidgets()
 {
-    std::vector<DxuiTreeNode>  roots;
-    bool                       grouped = false;
-    bool                       opened  = false;
-    HRESULT                    hr      = S_OK;
+    HRESULT  hr = S_OK;
 
 
 
@@ -57,62 +54,7 @@ void ExplorerLayout::ConfigureWidgets()
     //  strip stays, empty and hidden, so its Alt handling finds nothing.
     m_window.m_menuBar->SetItems   ({});
     m_window.m_menuBar->SetVisible (false);
-    m_window.m_browser.GetTreeRoots (roots);
-
-    m_window.m_tree->SetShowCheckboxes (false);
-    m_window.m_tree->SetFontDip (CassoExplorerWindow::kProseFontDip);
-    m_window.m_tree->SetIndentDip (kTreeIndentDip);
-    m_window.m_tree->SetIconLeadDip (kTreeIconLeadDip);
-    m_window.m_tree->SetIconGapDip  (kTreeIconGapDip);
-    m_window.m_tree->SetLeftPadDip  (kTreeLeftPadDip);
-    m_window.m_tree->SetHorizontalScrollEnabled (false);
-    m_window.m_tree->SetNodes (std::move (roots));
-    m_window.m_tree->SetChildProvider ([this] (const std::wstring & id) { return m_window.m_browser.GetTreeChildren (id); });
-
-    //  A known folder whose drive is away has nothing to show, so selecting
-    //  it opens nothing; it stays in the tree to be removed.
-    m_window.m_tree->SetOnSelect ([this] (const std::wstring & id)
-    {
-        HRESULT               hr   = S_OK;
-        const DxuiTreeNode *  node = m_window.m_tree->GetNodeAt (m_window.m_tree->FindRowById (id));
-
-
-
-        if (node != nullptr && node->dimmed)
-        {
-            return;
-        }
-
-        //  Add a CassoLink connection opens its dialog, and the tree goes back
-        //  to where the list is.
-        if (TreeModel::StripLinkCopy (id) == TreeModel::kAddLinkId)
-        {
-            m_window.m_links.EditLink (std::string());
-            m_window.m_listPane.RevealLocationInTree();
-            m_window.Invalidate();
-            return;
-        }
-
-        hr = m_window.m_browser.SelectTreeNode (id);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-        m_window.m_listPane.FillList();
-    });
-
-    //  Opening or closing a folder changes which folders are on screen.
-    m_window.m_tree->SetOnExpand ([this] (const std::wstring &, bool)
-    {
-        m_window.m_folderSync.UpdateWatchedFolders();
-    });
-
-    //  The Casso places and This PC open on their first level; the shell's
-    //  other roots stay closed, as Explorer's do. Network in particular takes
-    //  as long as the network takes to answer.
-    for (const std::wstring & id : { std::wstring (TreeModel::kCassoRootId), std::wstring (TreeModel::kThisPcRootId) })
-    {
-        opened = m_window.m_tree->SetRowExpanded (m_window.m_tree->FindRowById (id), true);
-        IGNORE_RETURN_VALUE (opened, true);
-    }
-
+    m_window.m_treePane.Configure();
 
     m_window.m_list->SetShowHeader (true);
     m_window.m_list->SetIconColumn (0);
@@ -320,7 +262,7 @@ void ExplorerLayout::ConfigureWidgets()
         m_window.m_context.links->SetLinks (m_window.m_prefs.links);
         m_window.m_browser.SetLinks (m_window.m_context.links);
         m_window.m_browser.GetTreeModel().SetLinks (m_window.m_context.links->BuildTreeEntries());
-        m_window.m_listPane.RefreshTree();
+        m_window.m_treePane.RefreshTree();
         m_window.m_links.StartAdtProServers();
     }
 
@@ -361,7 +303,7 @@ void ExplorerLayout::ConfigureWidgets()
         CoTaskMemFree (recent);
     }
 
-    m_window.m_tree->OnFocusChanged (true);
+    m_window.m_treePane.OnFocusChanged (true);
 
     if (!m_window.m_context.request.openPath.empty())
     {
@@ -558,16 +500,7 @@ void ExplorerLayout::RecomputeLayout()
     m_window.m_treeSplitter->SetPositionDip (panes.tree);
 
     sashRect = m_window.m_treeSplitter->GetSashRect();
-    m_window.m_tree->Layout (RECT { body.left, body.top, sashRect.left, body.bottom }, m_window.m_scaler);
-
-    //  The tree has no height until its first layout, so the node revealed at
-    //  startup is scrolled into view here: to the middle, since the layouts
-    //  that follow as the window settles can make the tree shorter.
-    if (m_window.m_treeRevealPending && m_window.m_tree->GetRowCap() > 0)
-    {
-        m_window.m_tree->SetTopRow (m_window.m_tree->GetHighlight() - m_window.m_tree->GetRowCap() / 2);
-        m_window.m_treeRevealPending = false;
-    }
+    m_window.m_treePane.Layout (RECT { body.left, body.top, sashRect.left, body.bottom });
 
     right    = RECT { sashRect.right, body.top, body.right, body.bottom };
     rightDip = MulDiv (right.right - right.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_window.m_scaler.GetDpi());
@@ -604,7 +537,7 @@ void ExplorerLayout::RecomputeLayout()
 
     m_dropHits.Clear();
     m_dropHits.Register (DxuiHitRect { m_window.m_list->GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagList });
-    m_dropHits.Register (DxuiHitRect { m_window.m_tree->GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTree });
+    m_dropHits.Register (DxuiHitRect { m_window.m_treePane.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTree });
     m_dropHits.Register (DxuiHitRect { m_window.m_tabStrip.GetBounds(), DxuiHitSlot::Custom, CassoExplorerWindow::kDropTagTabs });
 
     m_window.Invalidate();

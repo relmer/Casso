@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/ExplorerFileOps.h"
 #include "CassoExplorer/Window/ExplorerInput.h"
 #include "CassoExplorer/Window/ExplorerTips.h"
+#include "CassoExplorer/Window/ExplorerTreePane.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32InfoTips.h"
@@ -318,11 +319,9 @@ private:
     //  folder opens in its own view.
     DxuiListView::View                         m_listView          = DxuiListView::View::Details;
     std::wstring                               m_listViewKey;
-    bool                                       m_treeRevealPending = false;
     ExplorerPane                               m_focus             = ExplorerPane::Tree;
 
     DxuiMenuBar          * m_menuBar         = nullptr;
-    DxuiTreeView         * m_tree            = nullptr;
     DxuiSplitter         * m_treeSplitter    = nullptr;
     DxuiListView         * m_list            = nullptr;
 
@@ -340,7 +339,6 @@ private:
     DxuiToolbar     * m_toolbar            = nullptr;
 
     DxuiTooltip              m_tooltip;
-    DxuiInPlaceTip           m_labelTip;   // a tree name the splitter cuts off, shown whole over its row
 
     //  Other launches' arguments, run once the send that brought each returns.
     std::vector<std::wstring>  m_pendingLaunches;
@@ -377,6 +375,7 @@ private:
     friend class ExplorerFileOps;
     friend class ExplorerInput;
     friend class ExplorerTips;
+    friend class ExplorerTreePane;
     ExplorerLayout  m_layout { *this };
     ExplorerListPane  m_listPane { *this };
     ExplorerFolderSync  m_folderSync { *this };
@@ -390,5 +389,6 @@ private:
     ExplorerFileOps  m_fileOps { *this };
     ExplorerInput  m_input { *this };
     ExplorerTips  m_tips { *this };
+    ExplorerTreePane  m_treePane { *this };
 };
 

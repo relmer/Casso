@@ -62,7 +62,7 @@ CassoExplorerWindow::~CassoExplorerWindow()
 
     m_shellVerbs.UnwatchRecycleBin();
     m_dragDrop.m_dropTarget.Shutdown();
-    m_labelTip.Hide();
+    m_treePane.HideLabelTip();
     DestroyBackend();
 }
 
@@ -324,17 +324,17 @@ CassoExplorerSessionWindow CassoExplorerWindow::GetSessionWindow() const
 
 void CassoExplorerWindow::OnCreate()
 {
-    CassoExplorerNamedControl<DxuiTreeView>         * tree            = CreateChild<CassoExplorerNamedControl<DxuiTreeView>>();
-    CassoExplorerNamedControl<DxuiListView>         * list            = CreateChild<CassoExplorerNamedControl<DxuiListView>>();
+    CassoExplorerNamedControl<DxuiListView>         * list            = nullptr;
     CassoExplorerNamedControl<DxuiSplitter>         * treeSplitter    = nullptr;
     CassoExplorerNamedControl<DxuiSplitter>         * previewSplitter = nullptr;
 
 
 
-    tree->SetAccessibleName (L"Folders and disk images");
+    m_treePane.Create();
+
+    list = CreateChild<CassoExplorerNamedControl<DxuiListView>>();
     list->SetAccessibleName (L"Files");
 
-    m_tree            = tree;
     m_list            = list;
     m_listMessage     = CreateChild<DxuiLabel> (L"", DxuiTextRole::Muted, DxuiTextHAlign::Center, DxuiTextVAlign::Center);
     m_listAction      = CreateChild<DxuiButton> (L"Bootstrap the Apple");
@@ -422,7 +422,6 @@ void CassoExplorerWindow::OnCreate()
     m_commandBar->SetBarPadDp        (kCommandBarPadXDp);
     m_menus.SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
-    m_labelTip.SetPopupHost    (GetPopupHost());
     m_tooltip.SetFollowPointer (true);
 
     //  The buttons along a context menu's edge have only a word under their
@@ -464,7 +463,7 @@ void CassoExplorerWindow::OnCreate()
     m_browser.SetPreviewMonitor (m_previewPane.GetPreviewMonitor(), m_prefs.previewCustomArgb);
     m_explorerOptions = FolderOptions::ReadFromShell();
     m_browser.SetFolderOptions (m_explorerOptions);
-    m_menus.ApplyNavPaneOptions();
+    m_treePane.ApplyNavPaneOptions();
     m_listPane.SizeListIcons();
     m_listPane.m_listIcons.LoadInBackground (GetHwnd(), kIconsLoadedMessage);
     m_infoTips.Start (GetHwnd(), kInfoTipMessage);
@@ -1294,7 +1293,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
                | (int) m_list->TickScrollbars (GetNowMs())
                | (int) m_list->IsHeaderSliding (GetNowMs())
                | (int) m_list->IsGroupSliding()
-               | (int) m_tree->TickScrollbars (GetNowMs())) != 0;
+               | (int) m_treePane.TickScrollbars (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
     barsMoved = barsMoved || m_tabStrip.IsSliding();

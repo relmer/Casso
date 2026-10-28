@@ -120,7 +120,7 @@ void ExplorerFolderSync::ReloadKnownFolders()
 
     m_window.m_browser.GetTreeModel().SetKnownFolders (folders);
     m_window.m_browser.GetTreeModel().Invalidate (TreeModel::kCassoRootId);
-    m_window.m_tree->ReplaceChildren (TreeModel::kCassoRootId, m_window.m_browser.GetTreeChildren (TreeModel::kCassoRootId));
+    m_window.m_treePane.ReloadChildren (TreeModel::kCassoRootId);
     UpdateWatchedFolders();
     m_window.Invalidate();
 
@@ -193,7 +193,7 @@ void ExplorerFolderSync::RefreshQuickAccessIfChanged()
     {
         m_window.m_quickAccessStamp = stamp;
         m_window.m_browser.RefreshShellRoots();
-        m_window.m_listPane.RefreshTree();
+        m_window.m_treePane.RefreshTree();
     }
 }
 
@@ -257,7 +257,7 @@ void ExplorerFolderSync::CheckDrives()
 
     m_window.m_browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
     m_window.m_browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
-    m_window.m_tree->ReplaceChildren (TreeModel::kThisPcRootId, m_window.m_browser.GetTreeChildren (TreeModel::kThisPcRootId));
+    m_window.m_treePane.ReloadChildren (TreeModel::kThisPcRootId);
     ReloadKnownFolders();
 
     if (!m_window.m_browser.GetBrowserModel().HasTabs())
@@ -322,9 +322,9 @@ void ExplorerFolderSync::UpdateWatchedFolders()
         folders.push_back (CassoExplorerBrowser::GetParentFolder (showing.path));
     }
 
-    for (row = 0; row < m_window.m_tree->GetVisibleCount(); row++)
+    for (row = 0; row < m_window.m_treePane.GetVisibleCount(); row++)
     {
-        const DxuiTreeNode *  node = m_window.m_tree->GetNodeAt (row);
+        const DxuiTreeNode *  node = m_window.m_treePane.GetNodeAt (row);
         Location              at;
 
         if (node != nullptr && node->expanded
@@ -416,9 +416,9 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
 
 
 
-    for (row = 0; row < m_window.m_tree->GetVisibleCount(); row++)
+    for (row = 0; row < m_window.m_treePane.GetVisibleCount(); row++)
     {
-        const DxuiTreeNode *  node = m_window.m_tree->GetNodeAt (row);
+        const DxuiTreeNode *  node = m_window.m_treePane.GetNodeAt (row);
         Location              at;
 
         //  A closed folder is read again too, so its first subfolder gives it
@@ -440,10 +440,10 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
     //  away has no row by the time its turn comes, and is passed over.
     for (const std::wstring & id : stale)
     {
-        if (m_window.m_tree->FindRowById (id) >= 0)
+        if (m_window.m_treePane.HasNode (id))
         {
             m_window.m_browser.GetTreeModel().Invalidate (id);
-            m_window.m_tree->ReplaceChildren (id, m_window.m_browser.GetTreeChildren (id));
+            m_window.m_treePane.ReloadChildren (id);
         }
     }
 
@@ -482,7 +482,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  Not while a rename is open or a button is down: the rows under either
     //  would change. The changes wait, and the timer tries again.
-    if (m_window.IsRenaming() || m_window.m_dragArmed || m_window.m_list->IsInteracting() || m_window.m_tree->IsInteracting())
+    if (m_window.IsRenaming() || m_window.m_dragArmed || m_window.m_list->IsInteracting() || m_window.m_treePane.IsInteracting())
     {
         SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId, CassoExplorerWindow::kFolderSettleMs, nullptr);
         return;

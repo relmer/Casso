@@ -54,14 +54,6 @@ public:
     bool  RouteToolbarMouse   (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
     bool  RouteCommandBarKey      (const DxuiKeyEvent & ev);
 
-    //  A press on a drive's node in the tree, which drags the whole drive once
-    //  the pointer moves far enough.
-    struct TreeDrag
-    {
-        bool      armed    = false;
-        POINT     start    = {};
-        Location  location;
-    };
     struct RightPress
     {
         bool   active  = false;
@@ -77,7 +69,6 @@ private:
 
     POINT                                     m_dragStart           = {};
 
-    TreeDrag  m_treeDrag;
     int       m_toolbarFocus    = 0;
     int       m_commandBarFocus = 0;
 

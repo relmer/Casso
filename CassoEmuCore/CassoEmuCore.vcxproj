@@ -307,6 +307,7 @@
     <ClCompile Include="CassoExplorer\Window\PreviewHexSources.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerTabStrip.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerTips.cpp" />
+    <ClCompile Include="CassoExplorer\Window\ExplorerTreePane.cpp" />
     <ClCompile Include="CassoExplorer\Model\BrowserModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoTargeting.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoExplorerPrefs.cpp" />
@@ -770,6 +771,7 @@
     <ClInclude Include="CassoExplorer\Window\PreviewHexSources.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerTabStrip.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerTips.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerTreePane.h" />
     <ClInclude Include="CassoExplorer\Model\BrowserModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoTargeting.h" />
     <ClInclude Include="CassoExplorer\Model\CassoExplorerPrefs.h" />
