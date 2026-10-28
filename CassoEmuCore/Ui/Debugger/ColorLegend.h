@@ -35,6 +35,7 @@ public:
         Annotation,
         Result,
         PreviousAutoWatch,
+        PreviousStatement,
         DisabledWatch,
         UnverifiedFrame,
         LastReturn,

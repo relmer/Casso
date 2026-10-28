@@ -712,3 +712,68 @@ std::string BasicWatches::Quote (BasicType type, const std::string & value)
 {
     return (type == BasicType::String) ? "\"" + value + "\"" : value;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BasicAutoWatches::Update
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<BasicAutoWatches::Row> BasicAutoWatches::Update (
+    const DebuggerViewSnapshot::BasicState  & basic,
+    uint64_t                                  cycles)
+{
+    std::vector<Row>                  rows;
+    std::vector<BasicWatches::Item>   items = BasicWatches::GetStatementItems (basic);
+    std::optional<std::string>        value;
+    auto                              add   = [&] (const BasicWatches::Item & item, bool isPrevious)
+    {
+        auto  last = m_lastValues.find (item.name);
+
+
+
+        rows.push_back ({ item, isPrevious, last != m_lastValues.end() && last->second != item.value });
+    };
+
+
+
+    if (cycles != m_cycles)
+    {
+        m_previous   = std::move (m_names);
+        m_lastValues = std::move (m_values);
+        m_cycles     = cycles;
+        m_names.clear();
+        m_values.clear();
+
+        for (const BasicWatches::Item & item : items)
+        {
+            m_names.push_back (item.name);
+        }
+    }
+
+    for (const BasicWatches::Item & item : items)
+    {
+        add (item, false);
+    }
+
+    for (const std::string & name : m_previous)
+    {
+        value = BasicWatches::TryGetValue (basic, name);
+
+        if (value.has_value() && std::ranges::find (m_names, name) == m_names.end())
+        {
+            add ({ name, *value }, true);
+        }
+    }
+
+    for (const Row & row : rows)
+    {
+        m_values[row.item.name] = row.item.value;
+    }
+
+    return rows;
+}

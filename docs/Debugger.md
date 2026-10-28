@@ -641,7 +641,10 @@ a BASIC line breakpoint is set.
   line breakpoint there, or clears the one there. With the keys in this pane,
   Step into runs `BASICSTEP`, Step over `BASICLINE` and Step out `BASICOUT`.
 - **Watches** lists the variables while the machine is stopped in a running
-  program. The Automatic section has the ones the statement being run uses.
+  program. The Automatic section has the ones the statement being run uses,
+  then in italics the ones the statement just run used, so a step past
+  `I = I + 1` lists I there too; a value that changed since the last stop is in
+  the changed color.
   `W` with a variable or array element as Applesoft writes it, such as `A$`,
   `N%` or `X(2,3)`, watches it, as it does a plain name the stopped program
   has, unless a symbol has the name; text typed in the add row is read the
