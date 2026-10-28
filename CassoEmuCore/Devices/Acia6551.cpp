@@ -2,6 +2,7 @@
 
 #include "Acia6551.h"
 #include "IAciaEndpoint.h"
+#include "Devices/Serial/SerialLineFormat.h"
 #include "Core/MachineConfig.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
@@ -9,26 +10,6 @@
 #include "Debugger/Events/ICommEventSink.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Shell/HostInputGate.h"
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  s_kBaudRates
-//
-//  Bits per second for control-register baud codes 1-15, from the 6551
-//  datasheet's baud-rate generator table. Code 0 is not in the table: it
-//  selects the crystal divided by 16 (GetBaudRate).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr double  s_kBaudRates[] =
-{
-    0.0,     50.0,    75.0,    109.92,  134.58,  150.0,   300.0,   600.0,
-    1200.0,  1800.0,  2400.0,  3600.0,  4800.0,  7200.0,  9600.0,  19200.0,
-};
 
 
 
@@ -422,6 +403,21 @@ void Acia6551::EnqueueLoopedBackByte (Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ReceiveFromHostNow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::ReceiveFromHostNow (Byte value, Byte errors)
+{
+    m_rxQueue.PushEntry (value, errors);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetInputJournal
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -441,7 +437,8 @@ void Acia6551::SetInputJournal (InputJournal * journal, uint16_t chipIndex)
 //  ApplyInput
 //
 //  A journaled byte goes back into the receive queue where the emulation
-//  thread took it live, ahead of the receiver's tick.
+//  thread took it live, ahead of the receiver's tick, with the receive
+//  errors in the record's data.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -453,7 +450,7 @@ bool Acia6551::ApplyInput (const InputRecord & record)
 
     if (isApplied)
     {
-        m_rxQueue.Push (&record.value, 1);
+        m_rxQueue.PushEntry (record.value, (Byte) record.data);
     }
 
     return isApplied;
@@ -546,11 +543,14 @@ void Acia6551::NoteLines()
 //
 //  Acia6551::EmitComm
 //
+//  A received byte's receive errors go in the entry's reg.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Acia6551::EmitComm (
     IoEventKind  kind,
-    Byte         value)
+    Byte         value,
+    Byte         errors)
 {
     IoEvent  event = IoEvent();
 
@@ -565,6 +565,7 @@ void Acia6551::EmitComm (
     event.address = m_baseAddress;
     event.chip    = m_commPort;
     event.value   = value;
+    event.reg     = errors;
     event.control = m_control;
     event.command = m_command;
     event.lines   = GetLineBits();
@@ -675,6 +676,21 @@ bool Acia6551::IsRtsOn() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GetLineFormat
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SerialLineFormat Acia6551::GetLineFormat() const
+{
+    return SerialLineFormat::FromRegisters (m_control, m_command);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetTransmitCharacterCycles
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -696,24 +712,13 @@ double Acia6551::GetTransmitCharacterCycles() const
 //
 //  GetBaudRate
 //
-//  Code 0 runs at the crystal divided by 16: 115,200 baud on the 1.8432 MHz
-//  crystal the //c and the Super Serial Card use.
+//  SerialLineFormat's table; code 0 runs at the crystal divided by 16.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 double Acia6551::GetBaudRate (int code)
 {
-    constexpr double  kExternalDivisor = 16.0;
-    double            rate             = static_cast<double> (kCrystalHz) / kExternalDivisor;
-
-
-
-    if (code > 0 && code < static_cast<int> (size (s_kBaudRates)))
-    {
-        rate = s_kBaudRates[code];
-    }
-
-    return rate;
+    return SerialLineFormat::GetBaudRate (code);
 }
 
 
@@ -1077,6 +1082,7 @@ void Acia6551::AdvanceReceiver (int64_t fixedCycles)
 {
     HRESULT  hr         = S_OK;
     Byte     value      = 0;
+    Byte     errors     = 0;
     size_t   queued     = m_rxQueue.GetCount();
     bool     dtrOn      = IsDtrOn();
     bool     startedNow = false;
@@ -1100,9 +1106,9 @@ void Acia6551::AdvanceReceiver (int64_t fixedCycles)
 
     while (m_rxActive && m_rxRemaining <= 0)
     {
-        if (m_rxQueue.TryPop (value))
+        if (m_rxQueue.TryPop (value, errors))
         {
-            LandReceivedByte (value);
+            LandReceivedByte (value, errors);
         }
 
         if (m_rxQueue.GetCount() == 0)
@@ -1129,17 +1135,19 @@ Error:
 //  LandReceivedByte
 //
 //  Moves one byte into the receive data register, masked to the word
-//  length. A byte landing over an unread one sets overrun and replaces it.
-//  In echo mode the byte is also sent back out when the shift register is
-//  idle.
+//  length. Its parity and framing errors replace the last byte's, as the
+//  6551 reports them per character. A byte landing over an unread one, or
+//  one the PC lost bytes before, sets overrun. In echo mode the byte is also
+//  sent back out when the shift register is idle.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::LandReceivedByte (Byte value)
+void Acia6551::LandReceivedByte (Byte value, Byte errors)
 {
-    constexpr int  kByteBits = 8;
-    int            wordBits  = GetWordLengthBits();
-    Byte           mask      = static_cast<Byte> ((1u << wordBits) - 1);
+    constexpr int   kByteBits  = 8;
+    constexpr Byte  kCharError = kStatusParityError | kStatusFramingError;
+    int             wordBits   = GetWordLengthBits();
+    Byte            mask       = static_cast<Byte> ((1u << wordBits) - 1);
 
 
 
@@ -1155,9 +1163,10 @@ void Acia6551::LandReceivedByte (Byte value)
     }
 
     m_rxData  = static_cast<Byte> (value & mask);
-    m_status |= kStatusRxFull;
+    m_status  = static_cast<Byte> ((m_status & ~kCharError) | (errors & kCharError) | kStatusRxFull);
+    m_status |= errors & kRxErrorOverrun;
 
-    EmitComm (IoEventKind::SerialReceived, m_rxData);
+    EmitComm (IoEventKind::SerialReceived, m_rxData, errors);
 
     if (IsRxIrqEnabled())
     {
@@ -1265,42 +1274,20 @@ Error:
 //
 //  GetCharacterFixedCycles
 //
-//  One character at `baud` in fixed-point CPU cycles: a start bit, the word,
-//  a parity bit when parity is enabled, and the stop bits. Two stop bits
-//  become one and a half with a 5-bit word and no parity. Counted in half
-//  bits so the half stop bit is exact.
+//  One character at `baud` in fixed-point CPU cycles, from the half bits the
+//  format has per character.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int64_t Acia6551::GetCharacterFixedCycles (double baud) const
 {
-    constexpr int  kMinWordBits      = 5;
-    int            wordBits          = GetWordLengthBits();
-    bool           parity            = (m_command & kCommandParityEnable) != 0;
-    bool           twoStop           = (m_control & kControlStopBits) != 0;
-    int            halfBits          = 2 * (1 + wordBits + (parity ? 1 : 0));
-    double         cycles            = 0.0;
+    int     halfBits = GetLineFormat().GetHalfBitsPerCharacter();
+    double  cycles   = static_cast<double> (m_cpuClockHz) * static_cast<double> (halfBits) / (2.0 * baud);
 
 
-
-    if (!twoStop)
-    {
-        halfBits += 2;
-    }
-    else if (wordBits == kMinWordBits && !parity)
-    {
-        halfBits += 3;
-    }
-    else
-    {
-        halfBits += 4;
-    }
-
-    cycles = static_cast<double> (m_cpuClockHz) * static_cast<double> (halfBits) / (2.0 * baud);
 
     return static_cast<int64_t> (llround (cycles * static_cast<double> (1LL << kFixedShift)));
 }
-
 
 
 
@@ -1367,7 +1354,7 @@ HRESULT Acia6551::SaveState (StateWriter & writer) const
 {
     writer.BeginSection (kStateTag, kStateVersion);
 
-    std::vector<Byte>  waiting;
+    std::vector<SerialByteQueue::Entry>  waiting;
 
 
 
@@ -1386,7 +1373,12 @@ HRESULT Acia6551::SaveState (StateWriter & writer) const
     writer.WriteBool   (m_rxActive);
     writer.WriteUInt64 ((uint64_t) m_rxRemaining);
     writer.WriteUInt32 ((uint32_t) waiting.size());
-    writer.WriteBytes  (waiting.data(), waiting.size());
+
+    for (const SerialByteQueue::Entry & entry : waiting)
+    {
+        writer.WriteByte (entry.value);
+        writer.WriteByte (entry.errors);
+    }
 
     writer.WriteBool (m_cts);
     writer.WriteBool (m_dsr);
@@ -1421,7 +1413,6 @@ HRESULT Acia6551::LoadState (StateReader & reader)
     uint64_t            remaining        = 0;
     uint32_t            count            = 0;
     bool                flag             = false;
-    std::vector<Byte>   waiting;
 
 
 
@@ -1457,9 +1448,7 @@ HRESULT Acia6551::LoadState (StateReader & reader)
         reader.ReadUInt32 (count);
         CBREx (count <= kMaxWaiting, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
 
-        waiting.resize (count);
-        reader.ReadBytes  (waiting.data(), waiting.size());
-        m_rxQueue.Push (waiting.data(), waiting.size());
+        LoadWaitingBytes (reader, version, count);
 
         reader.ReadBool (m_cts);
         reader.ReadBool (m_dsr);
@@ -1482,6 +1471,44 @@ HRESULT Acia6551::LoadState (StateReader & reader)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadWaitingBytes
+//
+//  The bytes waiting to be received: a byte each before version 3, a byte
+//  and its receive errors from version 3 on.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::LoadWaitingBytes (
+    StateReader  & reader,
+    uint16_t       version,
+    uint32_t       count)
+{
+    constexpr uint16_t  kFirstWithErrors = 3;
+    uint32_t            i                = 0;
+    Byte                value            = 0;
+    Byte                errors           = 0;
+
+
+
+    for (i = 0; i < count; i++)
+    {
+        reader.ReadByte (value);
+
+        if (version >= kFirstWithErrors)
+        {
+            reader.ReadByte (errors);
+        }
+
+        m_rxQueue.PushEntry (value, errors);
+    }
 }
 
 

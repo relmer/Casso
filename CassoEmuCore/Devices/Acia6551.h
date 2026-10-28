@@ -16,6 +16,7 @@ class HostInputGate;
 
 struct DeviceConfig;
 struct InputRecord;
+struct SerialLineFormat;
 
 enum class IoEventKind : uint8_t;
 
@@ -88,6 +89,11 @@ public:
     static constexpr Byte    kStatusDsr          = 0x40;
     static constexpr Byte    kStatusIrq          = 0x80;
 
+    // Receive errors a byte arrives with, in the status register's positions.
+    static constexpr Byte    kRxErrorParity      = kStatusParityError;
+    static constexpr Byte    kRxErrorFraming     = kStatusFramingError;
+    static constexpr Byte    kRxErrorOverrun     = kStatusOverrun;
+
     // Command register bits.
     static constexpr Byte    kCommandDtr           = 0x01;
     static constexpr Byte    kCommandRxIrqDisable  = 0x02;
@@ -154,6 +160,11 @@ public:
     // chip itself sent.
     void    EnqueueLoopedBackByte (Byte value);
 
+    // A byte with its receive errors put straight into the receive queue,
+    // without journaling: for an attachment's state at build time and when
+    // the machine drops its connections. Emulation thread.
+    void    ReceiveFromHostNow    (Byte value, Byte errors);
+
     // Reverse execution: the journal for the bytes taken from an attachment,
     // or null, with this chip's index among the machine's serial chips; the
     // gate checked before they are taken; and, in a replay, a journaled byte
@@ -176,6 +187,9 @@ public:
     bool    IsDtrOn    () const { return (m_command & kCommandDtr) != 0; }
     bool    IsRtsOn    () const;
 
+    // The format the control and command registers select.
+    SerialLineFormat  GetLineFormat () const;
+
     // Character time in CPU cycles for the transmitter's current format.
     double  GetTransmitCharacterCycles () const;
 
@@ -189,12 +203,13 @@ public:
     // already reported. The endpoint, the IRQ source and the clock are
     // wiring, bytes already handed to the endpoint are output and are not
     // taken back, and the interrupt controller saves whether the line is held.
-    // Version 1 has the four registers only.
+    // Version 1 has the four registers only, and version 2 no receive
+    // errors.
     HRESULT  SaveState (StateWriter & writer) const override;
     HRESULT  LoadState (StateReader & reader) override;
 
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', 'C', 'I', 'A');
-    static constexpr uint16_t  kStateVersion = 2;
+    static constexpr uint16_t  kStateVersion = 3;
 
     // IDiagnosticsProvider, for a port that is a device by itself, as each
     // of the //c's is: the id and title come from the builder. A card with
@@ -229,14 +244,15 @@ private:
     void    AdvanceTransmitter     (int64_t fixedCycles);
     void    TakeHostBytes          (uint32_t cycles);
     void    AdvanceReceiver        (int64_t fixedCycles);
-    void    LandReceivedByte       (Byte value);
+    void    LandReceivedByte       (Byte value, Byte errors);
+    void    LoadWaitingBytes       (StateReader & reader, uint16_t version, uint32_t count);
     void    ApplyPendingModemInputs();
     void    NotifyModemControl     ();
     int64_t GetCharacterFixedCycles (double baud) const;
     double  GetReceiveBaud         () const;
     Byte    GetLineBits            () const;
     void    NoteLines              ();
-    void    EmitComm               (IoEventKind kind, Byte value);
+    void    EmitComm               (IoEventKind kind, Byte value, Byte errors = 0);
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;

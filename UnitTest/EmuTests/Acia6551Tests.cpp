@@ -7,6 +7,9 @@
 #include "Core/ComponentRegistry.h"
 #include "Core/MemoryBus.h"
 #include "Core/MachineConfig.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
+#include "Debugger/Events/ICommEventSink.h"
 #include "ICpu.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -93,6 +96,69 @@ namespace Acia6551TestNs
         vector<Byte>    m_bytes;
     };
 
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  CommEventRecorder
+    //
+    //  The serial log entries a chip reports.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    class CommEventRecorder : public ICommEventSink
+    {
+    public:
+        void  OnCommEvent (const IoEvent & event, std::span<const Byte> bytes) override
+        {
+            (void) bytes;
+            m_events.push_back (event);
+        }
+
+        bool  HasReceived (Byte value, Byte errors) const
+        {
+            return std::any_of (m_events.begin(), m_events.end(), [value, errors] (const IoEvent & event)
+            {
+                return event.kind == IoEventKind::SerialReceived && event.value == value && event.reg == errors;
+            });
+        }
+
+    private:
+        std::vector<IoEvent>  m_events;
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  CopyState
+    //
+    //  One chip's machine state saved and loaded into another.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static HRESULT CopyState (const Acia6551 & from, Acia6551 & to)
+    {
+        HRESULT      hr = S_OK;
+        StateWriter  writer;
+
+
+
+        hr = from.SaveState (writer);
+        CHR (hr);
+
+        {
+            StateReader  reader (writer.GetBytes());
+
+            hr = to.LoadState (reader);
+            CHR (hr);
+        }
+
+    Error:
+        return hr;
+    }
 
 
 
@@ -420,6 +486,97 @@ namespace Acia6551TestNs
                             L"reading the data register clears overrun");
         }
 
+
+        TEST_METHOD (ErroredByteSetsItsErrorBitsAndAGoodByteClearsThem)
+        {
+            Acia6551    acia (kBase);
+            uint32_t    charCycles = 0;
+
+
+
+            acia.Write (kAddrCtrl, kCtrl9600);
+            acia.Write (kAddrCmd,  kCmdPolled);
+            charCycles = static_cast<uint32_t> (ceil (acia.GetTransmitCharacterCycles()));
+
+            acia.ReceiveFromHostNow (0x55, Acia6551::kRxErrorFraming | Acia6551::kRxErrorParity);
+            acia.ReceiveFromHostNow (0x66, 0);
+            acia.Tick (1);
+            acia.Tick (charCycles);
+
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusFramingError) != 0, L"framing error with the byte");
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusParityError)  != 0, L"parity error with the byte");
+            Assert::AreEqual<Byte> (0x55, acia.Read (kAddrData));
+
+            acia.Tick (charCycles);
+            Assert::IsTrue ((acia.GetStatus() & (Acia6551::kStatusFramingError | Acia6551::kStatusParityError)) == 0,
+                            L"a byte without errors clears both bits");
+            Assert::AreEqual<Byte> (0x66, acia.Read (kAddrData));
+        }
+
+
+        TEST_METHOD (HostOverrunSetsTheOverrunBitWithItsByte)
+        {
+            Acia6551    acia (kBase);
+            uint32_t    charCycles = 0;
+
+
+
+            acia.Write (kAddrCtrl, kCtrl9600);
+            acia.Write (kAddrCmd,  kCmdPolled);
+            charCycles = static_cast<uint32_t> (ceil (acia.GetTransmitCharacterCycles()));
+
+            acia.ReceiveFromHostNow (0x31, Acia6551::kRxErrorOverrun);
+            acia.Tick (1);
+            acia.Tick (charCycles);
+
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusOverrun) != 0, L"bytes lost on the PC side read as overrun");
+            Assert::AreEqual<Byte> (0x31, acia.Read (kAddrData));
+            Assert::IsTrue ((acia.GetStatus() & Acia6551::kStatusOverrun) == 0, L"reading the data register clears overrun");
+        }
+
+
+        TEST_METHOD (ReceiveErrorsAreInTheSerialLog)
+        {
+            Acia6551           acia (kBase);
+            CommEventRecorder  recorder;
+            uint32_t           charCycles = 0;
+
+
+
+            acia.SetCommEventSink (&recorder, 0);
+            acia.Write (kAddrCtrl, kCtrl9600);
+            acia.Write (kAddrCmd,  kCmdPolled);
+            charCycles = static_cast<uint32_t> (ceil (acia.GetTransmitCharacterCycles()));
+
+            acia.ReceiveFromHostNow (0x00, Acia6551::kRxErrorFraming);
+            acia.Tick (1);
+            acia.Tick (charCycles);
+
+            Assert::IsTrue (recorder.HasReceived (0x00, Acia6551::kRxErrorFraming));
+        }
+
+
+        TEST_METHOD (WaitingErrorsSurviveASaveAndLoad)
+        {
+            Acia6551    acia     (kBase);
+            Acia6551    restored (kBase);
+            uint32_t    charCycles = 0;
+            HRESULT     hr         = S_OK;
+
+
+
+            acia.Write (kAddrCtrl, kCtrl9600);
+            acia.Write (kAddrCmd,  kCmdPolled);
+            charCycles = static_cast<uint32_t> (ceil (acia.GetTransmitCharacterCycles()));
+            acia.ReceiveFromHostNow (0x12, Acia6551::kRxErrorParity);
+
+            hr = CopyState (acia, restored);
+            Assert::IsTrue (SUCCEEDED (hr));
+
+            restored.Tick (1);
+            restored.Tick (charCycles);
+            Assert::IsTrue ((restored.GetStatus() & Acia6551::kStatusParityError) != 0);
+        }
 
         TEST_METHOD (DtrOffPausesDelivery)
         {
