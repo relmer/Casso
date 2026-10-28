@@ -5680,11 +5680,9 @@ vector<DiskInspectorWindow::ToolItem> DiskInspectorWindow::GetToolItems (const D
 
     if (hasDisk)
     {
+        //  The range's room is reserved in Structure mode too, where its
+        //  controls are hidden, so a mode switch doesn't move any control.
         items.push_back ({ ToolId::Modes, scaler.ToPx (2 * s_kModeTabDip) });
-    }
-
-    if (hasDisk && m_context.isTimingMode)
-    {
         items.push_back ({ ToolId::Range, scaler.ToPx (s_kRangeDip) });
     }
 
