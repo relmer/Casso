@@ -563,6 +563,7 @@
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
+    <ClCompile Include="EmuTests\DeferredChangePromptsTests.cpp" />
     <ClCompile Include="EmuTests\SharedImageTests.cpp" />
     <ClCompile Include="EmuTests\Win32ImageWatcherTests.cpp" />
     <ClCompile Include="EmuTests\IntentChannelTests.cpp" />

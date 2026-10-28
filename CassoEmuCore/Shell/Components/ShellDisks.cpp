@@ -9,6 +9,7 @@
 #include "Shell/Components/ShellRenderer.h"
 #include "Shell/Components/ShellChrome.h"
 #include "Shell/Components/ShellSettings.h"
+#include "Shell/Components/ShellHistory.h"
 #include "Shell/EmulatorShellInternal.h"
 #include "AssetBootstrap.h"
 #include "Config/MonitorCatalog.h"
@@ -980,6 +981,90 @@ void ShellDisks::InstallChangeReporting()
     });
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::OnChangeReport
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::OnChangeReport (const ChangeNotice & notice)
+{
+    if (m_shell.m_history->IsBehindLiveForUi())
+    {
+        m_deferredChanges.Defer (DeferredChangePrompts::Kind::Report, notice.slot, notice.drive, notice.prompt);
+    }
+    else
+    {
+        ShowChangeBanner (notice);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::OnChangeQuestion
+//
+//  The store sets the bay's question as outstanding when it posts it, and
+//  doesn't post another question for the bay until the answer arrives, so a
+//  deferred question costs only the delay: a flush meanwhile writes the
+//  guest's version to a separate file and does not touch the changed file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::OnChangeQuestion (const ChangeNotice & notice)
+{
+    if (m_shell.m_history->IsBehindLiveForUi())
+    {
+        m_deferredChanges.Defer (DeferredChangePrompts::Kind::Question, notice.slot, notice.drive, notice.prompt);
+    }
+    else
+    {
+        AskAboutChange (notice);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::ShowDeferredChanges
+//
+//  Reports first, then each question in turn, in the order they arrived.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::ShowDeferredChanges()
+{
+    std::vector<DeferredChangePrompts::Entry>  deferred = m_deferredChanges.Take();
+
+
+
+    for (const DeferredChangePrompts::Entry & entry : deferred)
+    {
+        if (entry.kind == DeferredChangePrompts::Kind::Report)
+        {
+            ShowChangeBanner (ChangeNotice { entry.slot, entry.drive, entry.prompt });
+        }
+    }
+
+    for (const DeferredChangePrompts::Entry & entry : deferred)
+    {
+        if (entry.kind == DeferredChangePrompts::Kind::Question)
+        {
+            AskAboutChange (ChangeNotice { entry.slot, entry.drive, entry.prompt });
+        }
+    }
 }
 
 

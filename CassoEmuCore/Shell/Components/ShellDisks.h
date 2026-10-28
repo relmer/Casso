@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/ChangePrompt.h"
+#include "Devices/Disk/DeferredChangePrompts.h"
 #include "Devices/Disk/MountDiagnosis.h"
 #include "Shell/CpuCommandTargets.h"
 #include "Ui/Chrome/DriveWidget.h"
@@ -190,6 +191,13 @@ public:
     void  ShowChangeBanner (const ChangeNotice & notice);
     void  AskAboutChange   (const ChangeNotice & notice);
 
+    // A report or a question that arrives behind live in history is deferred
+    // until the machine is live. ShowDeferredChanges displays the deferred
+    // prompts once it is.
+    void  OnChangeReport      (const ChangeNotice & notice);
+    void  OnChangeQuestion    (const ChangeNotice & notice);
+    void  ShowDeferredChanges ();
+
     // Non-modal notice over the running machine: a disk changed outside Casso.
     //
     // IT DOES NOT CLEAR ITSELF, and that is the design rather than an
@@ -276,6 +284,8 @@ private:
     //  what was left when it arrived.
     int64_t                            m_changeBannerHideAtMs = 0;
     int64_t                            m_changeBannerTickMs   = 0;
+
+    DeferredChangePrompts              m_deferredChanges;
 
     std::unique_ptr<DiskManager>       m_diskManager;
 };

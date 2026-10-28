@@ -1603,7 +1603,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         if (carried != nullptr)
         {
-            m_disks->ShowChangeBanner (*carried);
+            m_disks->OnChangeReport (*carried);
             delete carried;
         }
 
@@ -1616,7 +1616,7 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
 
         if (carried != nullptr)
         {
-            m_disks->AskAboutChange (*carried);
+            m_disks->OnChangeQuestion (*carried);
             delete carried;
         }
 
@@ -1698,6 +1698,10 @@ DxuiMessageResult EmulatorShell::OnAppMessage (UINT msg, WPARAM wParam, LPARAM l
         }
 
         m_history->ResumeAfterHeldInput();
+
+        // Last, since a question is modal: news of disks changed outside
+        // Casso while the machine was behind live.
+        m_disks->ShowDeferredChanges();
 
         return DxuiMessageResult::Handled;
     }
