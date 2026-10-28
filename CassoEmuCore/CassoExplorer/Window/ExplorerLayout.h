@@ -65,7 +65,6 @@ public:
     static constexpr int   kStatusFreeDip   = 140;
     static constexpr int   kStatusDetailDip = 280;
     static constexpr int   kStatusZoomDip   = 64;
-    static constexpr UINT  kDrivePollMs     = 2000;
 
     //  The strip a pointer event goes to: the command bar over its band, the
     //  navigation toolbar anywhere else.

@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/ExplorerFileOps.h"
 #include "CassoExplorer/Window/ExplorerInput.h"
 #include "CassoExplorer/Window/ExplorerTips.h"
+#include "CassoExplorer/Window/ExplorerToolbars.h"
 #include "CassoExplorer/Window/ExplorerTreePane.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32IntentChannel.h"
@@ -137,34 +138,8 @@ public:
     static constexpr UINT      kTooltipTickMs  = 16;   // the menus' reveal runs on it too, so display rate
     static constexpr float     kNewTabGapDip   = 6.67f;   // the last tab to the + button
 
-    //  Explorer's navigation glyphs are smaller than Casso's toolbar icons:
-    //  15 pixels of ink at 120 DPI.
-    static constexpr float     kNavIconDip         = 12.0f;
-
-    //  Its back, forward, up and refresh buttons are 48 dip apart, center to
-    //  center, the first 34.67 dip from the window's left edge: measured at
-    //  150%. A 12 dip glyph, 16 dip either side and the toolbar's 4 dip gap.
-    static constexpr float     kNavButtonPadDip    = 16.0f;
-    static constexpr int       kNavBarPadDp        = 5;
-    static constexpr int       kNavAddressGapDp    = 8;      // from the refresh button to the address box
-
-    //  File Explorer's command bar, measured at 125%: buttons 48 dip apart
-    //  center to center, label cap height 11 px against the chrome font's 13,
-    //  and its 20-unit Fluent icons drawn one unit to the dip -- the scissors
-    //  are 20 pixels tall. A 20 dip square, 12 dip either side and the
-    //  toolbar's 4 dip gap keep the 48.
-    static constexpr float  kCommandBarIconDip       = 20.0f;
-    static constexpr float  kCommandBarPadDip        = 12.0f;
-    static constexpr float  kCommandBarLabeledDip    = 10.0f;   // a labeled button's pad before its icon, measured at 150%
-    static constexpr float  kCommandBarDropDip       = 0.67f;   // Explorer's buttons sit a pixel below the bar's middle at 150%
-    static constexpr float  kCommandBarLabelDip      = 12.0f;
-    static constexpr float  kCommandBarChevronGapDip = 6.0f;    // a drop-down's label to its chevron, measured at 150%
-    static constexpr float  kCommandBarIconGapDip    = 6.33f;   // a button's icon to its label, measured at 150%
-
     //  Explorer's tree and list text: 9 points, 12 dip.
     static constexpr float     kProseFontDip         = 12.0f;
-    static constexpr int       kCommandBarGroupGapDp = 9;    // 14 px at 150%, with the separator centered in it
-    static constexpr int       kCommandBarPadXDp     = 6;
 
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
@@ -263,7 +238,6 @@ private:
 
     static int64_t  GetNowMs();
 
-    DxuiToolbar          * m_commandBar      = nullptr;
     void  RecordSession       ();
     void  ShowMessage         (const std::wstring & text, UINT icon);
 
@@ -280,19 +254,11 @@ private:
     Win32HostDialogs                             m_dialogs;
     Win32ShellIcons                              m_shellIcons;
     Win32InfoTips                                m_infoTips;
-    Win32PackagedCommands                        m_packagedCommands;
     Win32ShellItemVerbs                          m_shellVerbs;
-    std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
 
 
-    std::unique_ptr<FolderWatch>              m_folderWatch;
     bool                                      m_applyingTheme       = false;
     std::vector<Win32IntentChannel::Reply>    m_pendingReplies;
-    ULONGLONG                                 m_folderFirstChangeMs = 0;   // 0: no change waiting
-    DWORD                                     m_driveMask           = 0;   // GetLogicalDrives at the last look
-    std::wstring                              m_quickAccessDir;            // where File Explorer keeps Quick access
-    int64_t                                   m_quickAccessStamp    = 0;   // its file's last write at the last look
-    int                                       m_cassoDriveCount     = 0;
     CassoExplorerCommands                     m_commands;
     DxuiLightTheme                            m_lightTheme;
     DxuiDarkTheme                             m_darkTheme;
@@ -302,26 +268,20 @@ private:
     RECT                                      m_client              = {};
 
 
-    //  Whether the status bar's detail has the CassoLink connections' pending operations.
-    bool  m_linkJobsShown = false;
-
     ExplorerPane                               m_focus             = ExplorerPane::Tree;
 
-    DxuiMenuBar          * m_menuBar         = nullptr;
     DxuiSplitter         * m_treeSplitter    = nullptr;
 
     //  Rename in place: an edit box laid over the row's name, as Explorer's
     //  F2 opens one. The row being renamed, or -1.
     DxuiSplitter    * m_previewSplitter    = nullptr;
     DxuiStatusBar   * m_status             = nullptr;
-    DxuiToolbar     * m_toolbar            = nullptr;
 
     DxuiTooltip              m_tooltip;
 
     //  Other launches' arguments, run once the send that brought each returns.
     std::vector<std::wstring>  m_pendingLaunches;
 
-    std::vector<ExplorerFileOps::UndoStep>  m_undo;   // newest last
     bool                                    m_caretOn      = true;   // the search caret as last drawn
     bool                                    m_tickArmed    = false;   // the animation tick is running
 
@@ -354,6 +314,7 @@ private:
     friend class ExplorerFileOps;
     friend class ExplorerInput;
     friend class ExplorerTips;
+    friend class ExplorerToolbars;
     friend class ExplorerTreePane;
     ExplorerLayout  m_layout { *this };
     ExplorerListPane  m_listPane { *this };
@@ -368,6 +329,7 @@ private:
     ExplorerFileOps  m_fileOps { *this };
     ExplorerInput  m_input { *this };
     ExplorerTips  m_tips { *this };
+    ExplorerToolbars  m_toolbars { *this };
     ExplorerTreePane  m_treePane { *this };
 };
 

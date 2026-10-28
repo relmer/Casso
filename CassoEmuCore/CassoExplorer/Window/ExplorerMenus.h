@@ -32,6 +32,13 @@ class ExplorerMenus
 public:
     explicit ExplorerMenus (CassoExplorerWindow & window);
 
+    //  The commands of the menu open now, alive for as long as it is open.
+    std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () { return m_menuCommands; }
+
+    //  The commands installed apps add to Explorer's menus, and New's choices,
+    //  read once.
+    void  StartPackagedCommands (HWND hwnd, UINT message) { m_packagedCommands.Start (hwnd, message); }
+
     static constexpr const wchar_t *  kExplorerIconFolder    = L"\\SystemApps\\MicrosoftWindows.Client.FileExp_cw5n1h2txyewy\\FileExplorerExtensions\\Assets\\images\\contrast-standard\\";
 
     //  A 5.25-inch floppy in File Explorer's icon hand: a 16-unit jacket with
@@ -105,6 +112,9 @@ private:
     friend class CassoExplorerWindow;
 
     CassoExplorerWindow  & m_window;
+
+    std::vector<std::shared_ptr<DxuiCommand>>  m_menuCommands;
+    Win32PackagedCommands                      m_packagedCommands;
 
     std::map<std::wstring, std::unique_ptr<std::string>>  m_menuSvgs;
     std::map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_openMenuImages;

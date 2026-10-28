@@ -236,7 +236,7 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
     ClientToScreen (m_window.GetHwnd(), &screen);
 
     for (CassoExplorerActions::Verb verb : iconVerbs)
@@ -259,7 +259,7 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
             }
         };
         iconCommands.push_back (command);
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
     }
 
     items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
@@ -280,8 +280,8 @@ void ExplorerPreviewArchive::ShowContextMenu (int x, int y)
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     });
-    m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-    m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+    m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+    m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
 
     DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
 }

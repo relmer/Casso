@@ -450,74 +450,6 @@ int ExplorerMenus::GetIconOrder (CassoExplorerActions::Verb verb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerMenus::SetCommandBarDropDowns
-//
-//  The rows of New, Sort, View and Theme. They are commands, so each reads
-//  whether it is enabled and checked when the menu draws.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerMenus::SetCommandBarDropDowns()
-{
-    std::vector<DxuiPopupMenuItem>  newItems;
-    std::vector<DxuiPopupMenuItem>  sortItems = m_window.m_listPane.GetMenus().GetSortChoices();
-    std::vector<DxuiPopupMenuItem>  viewItems = m_window.m_listPane.GetMenus().GetViewChoices();
-    std::vector<DxuiPopupMenuItem>  themeItems;
-
-
-
-    AddNewChoices (newItems, m_window.m_browser.GetLocation(), m_window.m_commands.Find (CassoExplorerCommands::kNewFolder),
-                   m_window.m_commands.Find (CassoExplorerCommands::kNewDisk));
-
-    //  Group by is at the foot of Explorer's Sort menu.
-    sortItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    sortItems.push_back (DxuiPopupMenuItem::ForSubmenu (m_window.m_commands.Find (CassoExplorerCommands::kGroupBy), m_window.m_listPane.GetMenus().GetGroupChoices()));
-
-    viewItems.push_back (DxuiPopupMenuItem::ForSeparator());
-    viewItems.push_back (DxuiPopupMenuItem::ForCommand (m_window.m_commands.Find (CassoExplorerCommands::kOptions)));
-
-    for (int id : { (int) CassoExplorerCommands::kThemeSkeuomorphic, (int) CassoExplorerCommands::kThemeRetroTerminal, (int) CassoExplorerCommands::kThemeDarkModern,
-                    (int) CassoExplorerCommands::kThemeDark, (int) CassoExplorerCommands::kThemeLight, (int) CassoExplorerCommands::kThemeSystem })
-    {
-        themeItems.push_back (DxuiPopupMenuItem::ForCommand (m_window.m_commands.Find (id)));
-    }
-
-    m_window.m_commandBar->SetDropDownItems (CassoExplorerCommands::kNew,   std::move (newItems));
-    m_window.m_commandBar->SetDropDownItems (CassoExplorerCommands::kSort,  std::move (sortItems));
-    m_window.m_commandBar->SetDropDownItems (CassoExplorerCommands::kView,  std::move (viewItems));
-    m_window.m_commandBar->SetDropDownItems (CassoExplorerCommands::kTheme, std::move (themeItems));
-
-    //  Each theme is shown as the pointer passes over its row; leaving the
-    //  menu without a choice puts back the one it opened on.
-    m_window.m_commandBar->SetDropDownSinks (CassoExplorerCommands::kTheme, [this] (int index) { m_window.m_layout.PreviewTheme (index); }, nullptr);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerMenus::ShowViewOnButton
-//
-//  The View button shows the current view's icon, as Explorer's does.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerMenus::ShowViewOnButton()
-{
-    if (m_window.m_commandBar != nullptr)
-    {
-        m_window.m_commandBar->SetEntryVectorIcon (CassoExplorerCommands::kView, CassoExplorerCommands::GetViewButtonIcon (m_window.m_listPane.GetColumns().GetView()));
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerMenus::AddPinMenuCommand
 //
 //  The shell carries the change out, so File Explorer's Quick access changes
@@ -539,7 +471,7 @@ void ExplorerMenus::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, c
         m_window.m_browser.RefreshShellRoots();
         m_window.m_treePane.RefreshTree();
     });
-    m_window.m_menuCommands.back()->menuSvg = GetMenuSvg (pinned ? L"windows.unpinfromhome" : L"windows.pintohome");
+    m_menuCommands.back()->menuSvg = GetMenuSvg (pinned ? L"windows.unpinfromhome" : L"windows.pintohome");
 }
 
 
@@ -566,8 +498,8 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
     if (withOpen && location.kind == Location::Kind::HostFolder)
     {
         AddMenuCommand (items, GetVerbLabel (CassoExplorerActions::Verb::Open), [this, location]() { m_window.m_addressBar.GoToLocation (location); }, L"Enter");
-        m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenFile;
-        m_window.m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.openfolder");
+        m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenFile;
+        m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.openfolder");
     }
 
     AddMenuCommand (items, L"Open in new &tab", [this, location]()
@@ -575,13 +507,13 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
         m_window.m_browser.OpenInNewTab (location);
         m_window.m_listPane.FillList();
     });
-    m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-    m_window.m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.opennewtab");
+    m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+    m_menuCommands.back()->menuSvg   = GetMenuSvg (L"windows.opennewtab");
 
     if (location.kind == Location::Kind::HostFolder || location.kind == Location::Kind::DiskImage)
     {
         AddMenuCommand (items, L"Open in new &window", [this, path = location.path]() { m_window.m_tabStrip.OpenInNewWindow (path); });
-        m_window.m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.opennewwindow");
+        m_menuCommands.back()->menuSvg = GetMenuSvg (L"windows.opennewwindow");
     }
 
     if (location.kind != Location::Kind::HostFolder)
@@ -591,7 +523,7 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 
     AddPinMenuCommand (items, location.path);
 
-    if (m_window.m_packagedCommands.GetStartPinEntry (location.path, startPin))
+    if (m_packagedCommands.GetStartPinEntry (location.path, startPin))
     {
         AddPackagedEntry (items, startPin, { location.path });
     }
@@ -614,7 +546,7 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const Location & target,
                                    std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk)
 {
-    std::vector<Win32PackagedCommands::NewChoice>  choices = m_window.m_packagedCommands.GetNewChoices();
+    std::vector<Win32PackagedCommands::NewChoice>  choices = m_packagedCommands.GetNewChoices();
     bool                                           host    = target.kind == Location::Kind::HostFolder;
     bool                                           types   = false;
 
@@ -630,7 +562,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         if (host && _wcsicmp (choice.verb.c_str(), Win32PackagedCommands::kNewLinkVerb) == 0)
         {
             AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
-            m_window.m_menuCommands.back()->menuSvg = GetMenuSvg (L"link");
+            m_menuCommands.back()->menuSvg = GetMenuSvg (L"link");
         }
     }
 
@@ -653,7 +585,7 @@ void ExplorerMenus::AddNewChoices (std::vector<DxuiPopupMenuItem> & items, const
         }
 
         AddMenuCommand (items, choice.title.c_str(), [this, target, verb = choice.verb]() { RunNewChoice (target, verb); });
-        m_window.m_menuCommands.back()->menuImage = m_window.m_shellIcons.GetForExtension (choice.verb);
+        m_menuCommands.back()->menuImage = m_window.m_shellIcons.GetForExtension (choice.verb);
     }
 }
 
@@ -680,7 +612,7 @@ void ExplorerMenus::RunNewChoice (const Location & target, const std::wstring & 
 
     m_window.m_addressBar.GoToLocation (target);
 
-    hr = m_window.m_packagedCommands.CreateNew (m_window.GetHwnd(), target.path, verb, created);
+    hr = m_packagedCommands.CreateNew (m_window.GetHwnd(), target.path, verb, created);
 
     if (FAILED (hr))
     {
@@ -725,7 +657,7 @@ void ExplorerMenus::AddMenuCommand (std::vector<DxuiPopupMenuItem> & items, cons
     command->dispatch    = std::move (dispatch);
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
-    m_window.m_menuCommands.push_back (std::move (command));
+    m_menuCommands.push_back (std::move (command));
 }
 
 
@@ -771,7 +703,7 @@ void ExplorerMenus::AddPackagedCommands (std::vector<DxuiPopupMenuItem> & items)
 
 bool ExplorerMenus::AddWindowsCommands (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
 {
-    std::vector<Win32PackagedCommands::Entry>  entries = m_window.m_packagedCommands.GetWindowsEntries (paths, kind);
+    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetWindowsEntries (paths, kind);
 
 
 
@@ -826,7 +758,7 @@ bool ExplorerMenus::GetSelectionKind (std::vector<std::wstring> & outPaths, Win3
 
 void ExplorerMenus::AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind)
 {
-    std::vector<Win32PackagedCommands::Entry>  entries = m_window.m_packagedCommands.GetEntries (paths, kind);
+    std::vector<Win32PackagedCommands::Entry>  entries = m_packagedCommands.GetEntries (paths, kind);
 
 
 
@@ -878,19 +810,19 @@ void ExplorerMenus::AddPackagedEntry (std::vector<DxuiPopupMenuItem> & items, co
         }
 
         items.push_back (DxuiPopupMenuItem::ForSubmenu (command, std::move (children)));
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_menuCommands.push_back (std::move (command));
         return;
     }
 
     //  A static verb runs through the shell's own menu for the items, by name.
     command->dispatch = [this, entry, paths]()
     {
-        HRESULT  hr = entry.command ? m_window.m_packagedCommands.Invoke (m_window.GetHwnd(), entry, paths)
+        HRESULT  hr = entry.command ? m_packagedCommands.Invoke (m_window.GetHwnd(), entry, paths)
                                     : m_window.m_shellVerbs.RunItemVerb (m_window.GetHwnd(), paths, entry.verb.c_str());
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     };
 
     items.push_back (DxuiPopupMenuItem::ForCommand (command));
-    m_window.m_menuCommands.push_back (std::move (command));
+    m_menuCommands.push_back (std::move (command));
 }

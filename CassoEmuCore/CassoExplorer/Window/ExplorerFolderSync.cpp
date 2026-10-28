@@ -182,16 +182,16 @@ void ExplorerFolderSync::RefreshQuickAccessIfChanged()
 
 
 
-    if (m_window.m_quickAccessDir.empty())
+    if (m_quickAccessDir.empty())
     {
         return;
     }
 
-    stamp = GetQuickAccessStamp (m_window.m_quickAccessDir);
+    stamp = GetQuickAccessStamp (m_quickAccessDir);
 
-    if (stamp != m_window.m_quickAccessStamp)
+    if (stamp != m_quickAccessStamp)
     {
-        m_window.m_quickAccessStamp = stamp;
+        m_quickAccessStamp = stamp;
         m_window.m_browser.RefreshShellRoots();
         m_window.m_treePane.RefreshTree();
     }
@@ -248,12 +248,12 @@ void ExplorerFolderSync::CheckDrives()
 
 
 
-    if (mask == m_window.m_driveMask)
+    if (mask == m_driveMask)
     {
         return;
     }
 
-    m_window.m_driveMask = mask;
+    m_driveMask = mask;
 
     m_window.m_browser.GetTreeModel().SetDrives (CassoExplorerShell::GetDriveRoots());
     m_window.m_browser.GetTreeModel().Invalidate (TreeModel::kThisPcRootId);
@@ -302,7 +302,7 @@ void ExplorerFolderSync::UpdateWatchedFolders()
 
 
 
-    if (m_window.m_folderWatch == nullptr)
+    if (m_folderWatch == nullptr)
     {
         return;
     }
@@ -342,12 +342,12 @@ void ExplorerFolderSync::UpdateWatchedFolders()
         folders.push_back (m_window.m_context.baseDir);
     }
 
-    if (!m_window.m_quickAccessDir.empty())
+    if (!m_quickAccessDir.empty())
     {
-        folders.push_back (m_window.m_quickAccessDir);
+        folders.push_back (m_quickAccessDir);
     }
 
-    m_window.m_folderWatch->SetWatched (folders);
+    m_folderWatch->SetWatched (folders);
 }
 
 
@@ -475,7 +475,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
 
 
-    if (m_window.m_folderWatch == nullptr)
+    if (m_folderWatch == nullptr)
     {
         return;
     }
@@ -488,7 +488,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
         return;
     }
 
-    if (!m_window.m_folderWatch->TakeChanged (changed))
+    if (!m_folderWatch->TakeChanged (changed))
     {
         return;
     }
@@ -536,4 +536,113 @@ void ExplorerFolderSync::RefreshChangedFolders()
     m_window.m_previewPane.FillPreview();
     m_window.m_layout.FillStatus();
     m_window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::StartWatch
+//
+//  Posting is all that happens on the watcher's thread; the settle timer and
+//  the re-read run here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::StartWatch()
+{
+    if (m_window.m_context.watcher == nullptr)
+    {
+        return;
+    }
+
+    m_folderWatch = std::make_unique<FolderWatch> (*m_window.m_context.watcher);
+
+    m_folderWatch->SetOnChanged ([this] ()
+    {
+        PostMessageW (m_window.GetHwnd(), CassoExplorerWindow::kFolderChangedMessage, 0, 0);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::StartPolling
+//
+//  The drives attached at the start, polled for others, and the folder of
+//  File Explorer's Quick access, with its file's last write.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::StartPolling()
+{
+    PWSTR    recent = nullptr;
+    HRESULT  hr     = S_OK;
+
+
+
+    m_driveMask = GetLogicalDrives();
+    SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kDriveTimerId, kDrivePollMs, nullptr);
+
+    hr = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
+
+    if (SUCCEEDED (hr))
+    {
+        m_quickAccessDir   = std::wstring (recent) + L"\\AutomaticDestinations";
+        m_quickAccessStamp = GetQuickAccessStamp (m_quickAccessDir);
+    }
+
+    CoTaskMemFree (recent);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::OnFolderChanged
+//
+//  A burst of changes settles before a re-read, for no longer than
+//  kFolderMaxSettleMs from its first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::OnFolderChanged()
+{
+    ULONGLONG  now = GetTickCount64();
+
+
+
+    if (m_firstChangeMs == 0)
+    {
+        m_firstChangeMs = now;
+    }
+
+    if (now - m_firstChangeMs < CassoExplorerWindow::kFolderMaxSettleMs)
+    {
+        SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId, CassoExplorerWindow::kFolderSettleMs, nullptr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFolderSync::OnSettleTimer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFolderSync::OnSettleTimer()
+{
+    KillTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId);
+    m_firstChangeMs = 0;
+    RefreshChangedFolders();
 }

@@ -387,7 +387,7 @@ void ExplorerTabStrip::ShowTabContextMenu (int x, int y, int index)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     m_window.m_menus.AddMenuCommand (items, L"&Close tab", [this, tab]() { CloseTabAt (tab); }, L"Ctrl+W");
 
@@ -413,8 +413,8 @@ void ExplorerTabStrip::ShowTabContextMenu (int x, int y, int index)
         m_window.m_listPane.FillList();
     });
 
-    m_window.m_menuCommands[1]->isEnabled = [count]() { return count > 1; };
-    m_window.m_menuCommands[2]->isEnabled = [tab, count]() { return tab + 1 < count; };
+    m_window.m_menus.GetMenuCommands()[1]->isEnabled = [count]() { return count > 1; };
+    m_window.m_menus.GetMenuCommands()[2]->isEnabled = [tab, count]() { return tab + 1 < count; };
 
     DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
 }

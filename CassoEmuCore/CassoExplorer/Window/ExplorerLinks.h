@@ -103,6 +103,9 @@ public:
     void         LayoutListActions    ();
     bool         OnListActionMouse    (const DxuiMouseEvent & ev);
     bool         IsFirewallMessage    () const { return m_listActionFirewall; }
+
+    //  The status bar's detail has the pending operations, until they finish.
+    void         MarkJobsShown        () { m_linkJobsShown = true; }
     RECT         GetListActionRect    () const;
     RECT         GetListActionAltRect () const;
     std::string  GetBootstrapLink     () const;
@@ -125,6 +128,7 @@ private:
     DxuiButton * m_listAction         = nullptr;
     DxuiButton * m_listActionAlt      = nullptr;
     bool         m_listActionFirewall = false;
+    bool         m_linkJobsShown      = false;
     std::string  m_listActionLink;
     bool         m_listActionConnects = false;
 

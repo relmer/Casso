@@ -1273,7 +1273,7 @@ void ExplorerDragDrop::ShowDropMenu()
         return;
     }
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     if (m_pendingDrop.fromImage)
     {

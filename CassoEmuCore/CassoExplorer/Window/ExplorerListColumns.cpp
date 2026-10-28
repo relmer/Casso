@@ -264,7 +264,7 @@ void ExplorerListColumns::ApplyFolderView()
     m_viewKey = key;
     m_view    = m_window.m_prefs.folderViews.GetView (key, type);
     m_pane.m_list->SetView (m_view);
-    m_window.m_menus.ShowViewOnButton();
+    m_window.m_toolbars.ShowViewOnButton();
     m_pane.SizeListIcons();
 
     //  Each folder keeps its own sort and grouping, as Explorer's do; one

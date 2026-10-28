@@ -908,18 +908,18 @@ void ExplorerFileOps::PushUndo (UndoStep step)
 
 
 
-    m_window.m_undo.push_back (std::move (step));
+    m_undo.push_back (std::move (step));
 
-    if (m_window.m_undo.size() > s_kMaxSteps)
+    if (m_undo.size() > s_kMaxSteps)
     {
         std::error_code  ignored;
 
-        if (!m_window.m_undo.front().savedDir.empty())
+        if (!m_undo.front().savedDir.empty())
         {
-            std::filesystem::remove_all (m_window.m_undo.front().savedDir, ignored);
+            std::filesystem::remove_all (m_undo.front().savedDir, ignored);
         }
 
-        m_window.m_undo.erase (m_window.m_undo.begin());
+        m_undo.erase (m_undo.begin());
     }
 }
 
@@ -974,14 +974,14 @@ void ExplorerFileOps::UndoLast()
 
 
 
-    if (m_window.m_undo.empty())
+    if (m_undo.empty())
     {
         MessageBeep (MB_OK);
         return;
     }
 
-    step = std::move (m_window.m_undo.back());
-    m_window.m_undo.pop_back();
+    step = std::move (m_undo.back());
+    m_undo.pop_back();
 
     switch (step.kind)
     {
@@ -1052,7 +1052,7 @@ void ExplorerFileOps::UndoLast()
                 }
                 else
                 {
-                    m_window.m_undo.push_back (std::move (step));
+                    m_undo.push_back (std::move (step));
                 }
             }
 
@@ -1063,7 +1063,7 @@ void ExplorerFileOps::UndoLast()
     //  Canceled at the shell's prompt, the step can be undone later.
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
-        m_window.m_undo.push_back (std::move (step));
+        m_undo.push_back (std::move (step));
     }
     else if (FAILED (hr))
     {
@@ -1464,7 +1464,7 @@ void ExplorerFileOps::AskCassoToDescribe()
 
     if (target == nullptr)
     {
-        m_window.m_cassoDriveCount = GetDefaultMachineDriveCount();
+        m_cassoDriveCount = GetDefaultMachineDriveCount();
         return;
     }
 

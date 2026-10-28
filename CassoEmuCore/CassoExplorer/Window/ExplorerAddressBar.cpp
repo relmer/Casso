@@ -665,7 +665,7 @@ void ExplorerAddressBar::ShowAddressMenu (int index, const RECT & anchor)
     }
 
     m_window.m_browser.GetFolderChildren (m_addressSegments[(size_t) index].location, children);
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     for (const BrowserModel::AddressSegment & child : children)
     {
@@ -681,7 +681,7 @@ void ExplorerAddressBar::ShowAddressMenu (int index, const RECT & anchor)
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())
@@ -887,7 +887,7 @@ void ExplorerAddressBar::ShowAddressContextMenu (int x, int y)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     //  Explorer's two both put the path on as text; neither puts the folder.
     m_window.m_menus.AddMenuCommand (items, L"&Copy address", [this, address]() { DxuiClipboard::SetText (m_window.GetHwnd(), address); });
@@ -1032,7 +1032,7 @@ void ExplorerAddressBar::ShowAddressOverflowMenu (const RECT & anchor)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     for (i = (std::min) (m_address->GetFirstShown(), (int) m_addressSegments.size()) - 1; i >= 0; i--)
     {
@@ -1047,7 +1047,7 @@ void ExplorerAddressBar::ShowAddressOverflowMenu (const RECT & anchor)
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())
@@ -1237,7 +1237,7 @@ void ExplorerAddressBar::ShowAddressRootsMenu (const RECT & anchor)
 
 
     IGNORE_RETURN_VALUE (hr, S_OK);
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     for (const IShellItemVerbs::ShellFolderItem & folder : folders)
     {
@@ -1267,7 +1267,7 @@ void ExplorerAddressBar::ShowAddressRootsMenu (const RECT & anchor)
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())
@@ -1305,7 +1305,7 @@ void ExplorerAddressBar::ShowHistoryMenu (bool forward, const RECT & anchor)
     stack = forward ? m_window.m_browser.GetBrowserModel().GetActiveTab().forward
                     : m_window.m_browser.GetBrowserModel().GetActiveTab().back;
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     for (i = 0; i < stack.size(); i++)
     {
@@ -1322,7 +1322,7 @@ void ExplorerAddressBar::ShowHistoryMenu (bool forward, const RECT & anchor)
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
     }
 
     if (!items.empty())

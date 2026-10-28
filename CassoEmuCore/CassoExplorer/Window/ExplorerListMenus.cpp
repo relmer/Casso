@@ -40,7 +40,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     if (column >= 0)
     {
@@ -86,7 +86,7 @@ void ExplorerListMenus::ShowListHeaderMenu (int x, int y, int column)
         };
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
     }
 
     DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));
@@ -123,7 +123,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
     m_window.m_fileOps.AskCassoToDescribe();
 
     //  The background's menu opens on the view's own choices, as Explorer's
@@ -137,10 +137,10 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     //  Explorer's Undo, with the step it reverses in its label, while there
     //  is one: on the background's menu only, at the head of the group New
     //  and Properties are in, as in File Explorer.
-    if (background && !m_window.m_undo.empty())
+    if (background && m_window.m_fileOps.CanUndo())
     {
-        m_window.m_menus.AddMenuCommand (items, ExplorerFileOps::GetUndoLabel (m_window.m_undo.back().kind), [this]() { m_window.m_fileOps.UndoLast(); }, L"Ctrl+Z");
-        m_window.m_menuCommands.back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.undo");
+        m_window.m_menus.AddMenuCommand (items, ExplorerFileOps::GetUndoLabel (m_window.m_fileOps.GetLastUndo().kind), [this]() { m_window.m_fileOps.UndoLast(); }, L"Ctrl+Z");
+        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.undo");
         undoRow                                 = items.size();
     }
 
@@ -225,7 +225,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             command->dispatch = [this, verb]() { m_window.m_dispatch.RunVerb (verb); };
 
             iconCommands.push_back (command);
-            m_window.m_menuCommands.push_back (std::move (command));
+            m_window.m_menus.GetMenuCommands().push_back (std::move (command));
             continue;
         }
 
@@ -254,7 +254,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                 newDisk = command;
             }
 
-            m_window.m_menuCommands.push_back (std::move (command));
+            m_window.m_menus.GetMenuCommands().push_back (std::move (command));
             continue;
         }
 
@@ -276,7 +276,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             }
 
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (newChoices)));
-            m_window.m_menuCommands.push_back (std::move (parent));
+            m_window.m_menus.GetMenuCommands().push_back (std::move (parent));
             newChoices.clear();
         }
 
@@ -303,7 +303,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         //  described yet is given the benefit of the doubt.
         if (verb == CassoExplorerActions::Verb::InsertDrive2)
         {
-            command->isEnabled = [this]() { return m_window.m_cassoDriveCount != 1; };
+            command->isEnabled = [this]() { return m_window.m_fileOps.GetCassoDriveCount() != 1; };
         }
 
         if (verb == CassoExplorerActions::Verb::Paste)
@@ -321,7 +321,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         }
 
         items.push_back (DxuiPopupMenuItem::ForCommand (command));
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
 
         if (verb == CassoExplorerActions::Verb::Format)
         {
@@ -338,13 +338,13 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                 child->dispatch = [this, raw]() { m_window.m_dispatch.RunRawVerb (raw); };
 
                 advanced.push_back (DxuiPopupMenuItem::ForCommand (child));
-                m_window.m_menuCommands.push_back (std::move (child));
+                m_window.m_menus.GetMenuCommands().push_back (std::move (child));
             }
 
             parent->label = L"&Advanced";
             parent->menuGlyph = s_kpszMdl2Setting;
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (advanced)));
-            m_window.m_menuCommands.push_back (std::move (parent));
+            m_window.m_menus.GetMenuCommands().push_back (std::move (parent));
         }
     }
 
@@ -376,8 +376,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     if (background && (shown.kind == Location::Kind::HostFolder || m_window.m_browser.IsImageLocation()) && !SearchQuery::IsId (shown.path))
     {
         m_window.m_menus.AddMenuCommand (items, L"P&roperties", [this, shown]() { m_window.m_fileOps.ShowLocationProperties (shown); }, L"Alt+Enter");
-        m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
-        m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
+        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
     }
 
     if (background && shown.kind == Location::Kind::HostFolder && !SearchQuery::IsId (shown.path))
@@ -396,8 +396,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_window.m_folderSync.RefreshAfterHostChange();
         });
-        m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     //  A deleted item has no path to copy, and the bin itself describes it.
@@ -405,8 +405,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
     {
         items.push_back (DxuiPopupMenuItem::ForSeparator());
         m_window.m_menus.AddMenuCommand (items, L"P&roperties", [this]() { m_window.m_dispatch.RunRecycleBinVerb (CassoExplorerActions::Verb::Open); });
-        m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
-        m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
+        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
     }
     else if (!m_window.m_browser.GetSelectedRows().empty())
     {
@@ -427,7 +427,7 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
         }
 
         m_window.m_menus.AddMenuCommand (items, L"Copy as &path", [this]() { m_window.m_fileOps.CopySelectedPaths(); }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
-        m_window.m_menuCommands.back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.copyaspath");
+        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.copyaspath");
 
         if (m_window.m_browser.GetSelectedRows().size() == 1)
         {
@@ -438,14 +438,14 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
                     m_window.m_fileOps.ShowRowProperties (m_window.m_browser.GetSelectedRows()[0]);
                 }
             }, L"Alt+Enter");
-            m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
-            m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
+            m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+            m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
         }
         else if (!selectedPaths.empty())
         {
             m_window.m_menus.AddMenuCommand (items, L"P&roperties", [this, selectedPaths]() { m_window.m_fileOps.ShowHostProperties (selectedPaths); }, L"Alt+Enter");
-            m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
-            m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
+            m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+            m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
         }
     }
 
@@ -495,8 +495,8 @@ void ExplorerListMenus::ShowListContextMenu (int x, int y, int group)
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     //  The menu takes the focus look from the list while it is open, as
@@ -578,7 +578,7 @@ void ExplorerListMenus::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
     parent->menuGlyph = s_kpszMdl2OpenWith;
     parent->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.openwith");
     items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (children)));
-    m_window.m_menuCommands.push_back (std::move (parent));
+    m_window.m_menus.GetMenuCommands().push_back (std::move (parent));
 }
 
 
@@ -725,9 +725,9 @@ void ExplorerListMenus::AddViewMenus (std::vector<DxuiPopupMenuItem> & items)
     items.push_back (DxuiPopupMenuItem::ForSubmenu (sort,  GetSortChoices()));
     items.push_back (DxuiPopupMenuItem::ForSubmenu (group, GetGroupChoices()));
 
-    m_window.m_menuCommands.push_back (std::move (view));
-    m_window.m_menuCommands.push_back (std::move (sort));
-    m_window.m_menuCommands.push_back (std::move (group));
+    m_window.m_menus.GetMenuCommands().push_back (std::move (view));
+    m_window.m_menus.GetMenuCommands().push_back (std::move (sort));
+    m_window.m_menus.GetMenuCommands().push_back (std::move (group));
 }
 
 
@@ -766,12 +766,12 @@ void ExplorerListMenus::AddCopyAsMenu (std::vector<DxuiPopupMenuItem> & items)
         child->dispatch = [this, style]() { m_window.m_fileOps.CopyEntriesToClipboard (style); };
 
         choices.push_back (DxuiPopupMenuItem::ForCommand (child));
-        m_window.m_menuCommands.push_back (std::move (child));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (child));
     }
 
     parent->label = L"Cop&y as";
     parent->menuGlyph = s_kpszMdl2Copy;
     parent->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.copy");
     items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
-    m_window.m_menuCommands.push_back (std::move (parent));
+    m_window.m_menus.GetMenuCommands().push_back (std::move (parent));
 }

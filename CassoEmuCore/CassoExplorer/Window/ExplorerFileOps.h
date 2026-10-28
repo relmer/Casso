@@ -39,6 +39,10 @@ public:
     bool  OnRenameMouse (const DxuiMouseEvent & ev);
     void  OnRenameKey   (const DxuiKeyEvent & ev);
 
+    //  How many drives the Casso the window targets has, from its reply.
+    void  SetCassoDriveCount (int count) { m_cassoDriveCount = count; }
+    int   GetCassoDriveCount () const { return m_cassoDriveCount; }
+
     static constexpr int  kMaxCatalogName = 30;
     static constexpr int  kRestoreRetries = 5;
 
@@ -67,6 +71,11 @@ public:
     void                              PushUndo                  (UndoStep step);
     void                              UndoLast                  ();
     static const wchar_t *            GetUndoLabel              (UndoStep::Kind kind);
+
+    //  The file operations that can be undone, newest last.
+    bool                              CanUndo                   () const { return !m_undo.empty(); }
+    const UndoStep &                  GetLastUndo               () const { return m_undo.back(); }
+
     void                              PasteHere                 (const std::wstring & folder);
     void                              BeginTreeRename           (const std::wstring & id);
     void                              ShowHostProperties        (const std::vector<std::wstring> & paths);
@@ -101,6 +110,9 @@ private:
 
     Win32ProcessLauncher  m_launcher;
     int                   m_defaultDriveCount = -1;   // the default machine's, once read
+    int                   m_cassoDriveCount   = 0;    // the drives the Casso the window targets has
+    std::vector<UndoStep> m_undo;                     // newest last
+
     //  Rename in place: the box over the name, and the list row being renamed,
     //  or -1, or the tree node.
     DxuiTextInput  * m_renameBox    = nullptr;

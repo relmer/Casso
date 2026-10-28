@@ -113,11 +113,11 @@ void ExplorerListPane::Configure()
         m_window.m_browser.SetSelectedRows (m_list->GetSelectedRows());
         m_window.m_previewPane.FillPreview();
         m_window.m_layout.FillStatus();
-        m_window.m_layout.UpdateCommandBar();
+        m_window.m_toolbars.UpdateCommandBar();
     });
 
     m_list->SetView (m_columns.GetView());
-    m_window.m_menus.ShowViewOnButton();
+    m_window.m_toolbars.ShowViewOnButton();
 
     m_list->SetOnSortColumn ([this] (int column)
     {
@@ -719,7 +719,7 @@ void ExplorerListPane::FillList()
     //  view's size.
     m_columns.ApplyFolderView();
 
-    m_window.m_layout.UpdateCommandBar();
+    m_window.m_toolbars.UpdateCommandBar();
 
     //  A file's size or date may have changed with the listing.
     m_window.m_infoTips.Clear();
@@ -752,7 +752,7 @@ void ExplorerListPane::FillList()
     {
         m_listLocation = m_window.m_browser.GetLocation();
         m_window.m_addressBar.OnLocationChanged (m_listLocation);
-        m_window.m_menus.SetCommandBarDropDowns();
+        m_window.m_toolbars.SetCommandBarDropDowns();
 
         m_list->SetTopRow (0);
         m_list->SetLeftPx (0);
@@ -1068,7 +1068,7 @@ bool ExplorerListPane::SelectRowNamed (const std::wstring & name)
             //  count and the command bar follow the new selection.
             m_window.m_previewPane.FillPreview();
             m_window.m_layout.FillStatus();
-            m_window.m_layout.UpdateCommandBar();
+            m_window.m_toolbars.UpdateCommandBar();
             return true;
         }
     }

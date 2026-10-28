@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "CassoExplorer/Model/FolderWatch.h"
+
 
 class CassoLinkConnections;
 class FirewallMonitor;
@@ -28,6 +30,17 @@ class ExplorerFolderSync
 {
 public:
     explicit ExplorerFolderSync (CassoExplorerWindow & window);
+
+    //  How often the drives are polled for one attached or removed.
+    static constexpr UINT  kDrivePollMs = 2000;
+
+    //  The watch on the folders on display, and the polls for drives and
+    //  Quick access; a change posted by the watch, and its settle timer.
+    void  StartWatch    ();
+    void  StartPolling  ();
+    void  OnFolderChanged ();
+    void  OnSettleTimer ();
+    bool  IsWatching    () const { return m_folderWatch != nullptr; }
 
     //  File Explorer's Quick access, pinned and frequent folders alike, is the
     //  jump list of this application id, in the Recent folder's
@@ -56,6 +69,12 @@ private:
     friend class CassoExplorerWindow;
 
     CassoExplorerWindow  & m_window;
+
+    std::unique_ptr<FolderWatch>  m_folderWatch;
+    ULONGLONG                     m_firstChangeMs    = 0;   // 0: no change waiting
+    DWORD                         m_driveMask        = 0;   // GetLogicalDrives at the last look
+    std::wstring                  m_quickAccessDir;         // where File Explorer keeps Quick access
+    int64_t                       m_quickAccessStamp = 0;   // its file's last write at the last look
 
     std::string                               m_knownFoldersText;          // KnownFolders.json as last read
 };

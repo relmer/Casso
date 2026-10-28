@@ -794,7 +794,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     //  A known folder that is not there offers only its removal; every other
     //  command acts on a folder that cannot be opened.
@@ -824,7 +824,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
                 m_window.Invalidate();
             }
         });
-        m_window.m_menuCommands.back()->menuSvg = m_window.m_menus.GetMenuSvg (node->expanded ? L"windows.collapse" : L"windows.expand");
+        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (node->expanded ? L"windows.collapse" : L"windows.expand");
     }
 
     //  The open rows follow Collapse in its group, with no Open, as in File
@@ -844,7 +844,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::InsertDrive2),   [this, image]() { m_window.m_fileOps.InsertIntoDrive (image, 2); });
         m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::OpenInNewCasso), [this, image]() { m_window.m_fileOps.OpenInNewCasso (image); });
         m_window.m_menus.AddMenuCommand (items, ExplorerMenus::GetVerbLabel (CassoExplorerActions::Verb::ExtractFiles),   [this, image]() { m_window.m_dispatch.ExtractImageFiles (image); });
-        m_window.m_menuCommands.back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.compressedfile.extract");
+        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.compressedfile.extract");
     }
 
     if (hasFolder && m_window.m_browser.CanRemoveFromCasso (id))
@@ -868,7 +868,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             IGNORE_RETURN_VALUE (hr, S_OK);
             m_window.m_folderSync.RefreshAfterHostChange();
         });
-        m_window.m_menuCommands.back()->menuSvg = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::EmptyRecycleBin));
+        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::EmptyRecycleBin));
     }
     else if (hasLocation && location.kind != Location::Kind::Root && location.kind != Location::Kind::AppleDrive)
     {
@@ -883,7 +883,7 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
         {
             DxuiClipboard::SetText (m_window.GetHwnd(), L"\"" + BrowserModel::FormatAddress (location) + L"\"");
         }, L"Ctrl+Shift+C", s_kpszMdl2CopyPath);
-        m_window.m_menuCommands.back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.copyaspath");
+        m_window.m_menus.GetMenuCommands().back()->menuSvg = m_window.m_menus.GetMenuSvg (L"windows.copyaspath");
 
         if (location.kind == Location::Kind::HostFolder)
         {
@@ -906,14 +906,14 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
             parent->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.newitem");
             items.push_back (DxuiPopupMenuItem::ForSubmenu (parent, std::move (choices)));
 
-            m_window.m_menuCommands.push_back (std::move (parent));
-            m_window.m_menuCommands.push_back (std::move (newFolder));
-            m_window.m_menuCommands.push_back (std::move (newDisk));
+            m_window.m_menus.GetMenuCommands().push_back (std::move (parent));
+            m_window.m_menus.GetMenuCommands().push_back (std::move (newFolder));
+            m_window.m_menus.GetMenuCommands().push_back (std::move (newDisk));
         }
 
         m_window.m_menus.AddMenuCommand (items, L"P&roperties", [this, location]() { m_window.m_fileOps.ShowLocationProperties (location); }, L"Alt+Enter");
-        m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2Repair;
-        m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
+        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2Repair;
+        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (L"windows.properties");
     }
 
     //  A folder on the disk has the commands installed apps add, then the
@@ -933,8 +933,8 @@ void ExplorerTreePane::ShowTreeContextMenu (int x, int y, const std::wstring & i
 
             IGNORE_RETURN_VALUE (hr, S_OK);
         });
-        m_window.m_menuCommands.back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
-        m_window.m_menuCommands.back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
+        m_window.m_menus.GetMenuCommands().back()->menuGlyph = s_kpszMdl2OpenInNewWindow;
+        m_window.m_menus.GetMenuCommands().back()->menuSvg   = m_window.m_menus.GetMenuSvg (ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb::MoreOptions));
     }
 
     if (!items.empty())
@@ -1016,7 +1016,7 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
             IGNORE_RETURN_VALUE (hr, S_OK);
         };
         iconCommands.push_back (command);
-        m_window.m_menuCommands.push_back (std::move (command));
+        m_window.m_menus.GetMenuCommands().push_back (std::move (command));
     }
 
     items.push_back (DxuiPopupMenuItem::ForIconRow (std::move (iconCommands)));
@@ -1042,7 +1042,7 @@ void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     AddNavPaneToggle (items, L"Show This &PC",          &CassoExplorerPrefs::navShowThisPc);
     AddNavPaneToggle (items, L"Show &Network",          &CassoExplorerPrefs::navShowNetwork);
@@ -1083,7 +1083,7 @@ void ExplorerTreePane::AddNavPaneToggle (std::vector<DxuiPopupMenuItem> & items,
             RevealLocationInTree();
         }
     });
-    m_window.m_menuCommands.back()->isChecked = [this, option]() { return IsNavOptionOn (option); };
+    m_window.m_menus.GetMenuCommands().back()->isChecked = [this, option]() { return IsNavOptionOn (option); };
 }
 
 

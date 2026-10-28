@@ -1563,11 +1563,11 @@ void ExplorerLinks::RefreshLinkViews()
     if (!jobs.empty())
     {
         m_window.m_status->SetText (ExplorerLayout::kStatusDetail, jobs);
-        m_window.m_linkJobsShown = true;
+        m_linkJobsShown = true;
     }
-    else if (m_window.m_linkJobsShown)
+    else if (m_linkJobsShown)
     {
-        m_window.m_linkJobsShown = false;
+        m_linkJobsShown = false;
         m_window.m_layout.FillStatus();
     }
 

@@ -343,9 +343,8 @@ void CassoExplorerWindow::OnCreate()
     m_previewSplitter = previewSplitter;
     m_status          = CreateChild<DxuiStatusBar>();
     m_tabStrip.Create();
-    m_toolbar         = CreateChild<DxuiToolbar>();
+    m_toolbars.Create();
     m_addressBar.Create();
-    m_menuBar         = CreateChild<DxuiMenuBar>();
 
     //  Explorer's status bar runs on from the list above it, with no lines.
     m_status->SetDividers (false);
@@ -353,35 +352,7 @@ void CassoExplorerWindow::OnCreate()
 
     m_fileOps.Create();
 
-    m_toolbar->SetTextRenderer (GetTextRenderer());
-    m_toolbar->SetPopupHost    (GetPopupHost());
-    m_toolbar->SetEntries      (m_commands.BuildToolbarEntries());
-
-    m_commandBar = CreateChild<DxuiToolbar>();
-    m_commandBar->SetTextRenderer (GetTextRenderer());
-    m_commandBar->SetPopupHost    (GetPopupHost());
-
-    //  Explorer's flat buttons, on this bar and the others.
-    m_toolbar->SetFlatStyle    (true);
-    m_commandBar->SetFlatStyle (true);
-
-    m_commandBar->EnableSeeMore   (s_kpszMdl2More, L"See more", &CassoExplorerIcons::s_kMore);
-    m_commandBar->SetEntries      (m_commands.BuildCommandBarEntries());
-    m_commandBar->SetIconFace     (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
-                                   ? DxuiToolbar::kFluentIconFace
-                                   : DxuiToolbar::kMdl2IconFace);
-    m_commandBar->SetIconDip      (kCommandBarIconDip);
-    m_commandBar->SetChevronOnIcons (true);
-    m_commandBar->SetGroupSeparators (true);
-    m_commandBar->SetButtonPadDip    (kCommandBarPadDip);
-    m_commandBar->SetLabeledLeadDip  (kCommandBarLabeledDip);
-    m_commandBar->SetContentDropDip  (kCommandBarDropDip);
-    m_commandBar->SetChevronGapDip   (kCommandBarChevronGapDip);
-    m_commandBar->SetIconGapDip      (kCommandBarIconGapDip);
-    m_commandBar->SetLabelFontDip    (kCommandBarLabelDip);
-    m_commandBar->SetGroupGapDp      (kCommandBarGroupGapDp);
-    m_commandBar->SetBarPadDp        (kCommandBarPadXDp);
-    m_menus.SetCommandBarDropDowns();
+    m_toolbars.SetCommandBarDropDowns();
     m_tooltip.SetPopupHost     (GetPopupHost());
     m_tooltip.SetFollowPointer (true);
 
@@ -401,20 +372,6 @@ void CassoExplorerWindow::OnCreate()
         anchor = { pointer.x, pointer.y, pointer.x + 1, pointer.y + 1 };
         m_tips.ShowHoverTip (ExplorerTips::TipOwner::Menu, anchor, ExplorerMenus::GetIconButtonTip (*command));
     });
-
-    //  Explorer's navigation glyphs are in Windows 11's Segoe Fluent Icons.
-    //  Without that font, use MDL2, which has the same code points; text in a
-    //  missing font renders as nothing.
-    m_toolbar->SetIconFace (DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace)
-                            ? DxuiToolbar::kFluentIconFace
-                            : DxuiToolbar::kMdl2IconFace);
-    m_toolbar->SetIconDip       (kNavIconDip);
-    m_toolbar->SetButtonPadDip  (kNavButtonPadDip);
-    m_toolbar->SetBarPadDp      (kNavBarPadDp);
-    m_toolbar->SetGroupGapDp    (kNavAddressGapDp);
-
-    m_menuBar->SetPopupHost (GetPopupHost());
-    m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
 
     //  Drawn by the shell at the pixel size a row's icon is laid out at, and
     //  handed to the browser before the first nodes and rows are built.
@@ -877,18 +834,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
     if (msg == kFolderChangedMessage)
     {
-        ULONGLONG  now = GetTickCount64();
-
-        if (m_folderFirstChangeMs == 0)
-        {
-            m_folderFirstChangeMs = now;
-        }
-
-        if (now - m_folderFirstChangeMs < kFolderMaxSettleMs)
-        {
-            SetTimer (GetHwnd(), kFolderTimerId, kFolderSettleMs, nullptr);
-        }
-
+        m_folderSync.OnFolderChanged();
         return DxuiMessageResult::Handled;
     }
 
@@ -966,7 +912,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     //  New's file types join the command bar's New once the shell lists them.
     if (msg == kNewChoicesMessage)
     {
-        m_menus.SetCommandBarDropDowns();
+        m_toolbars.SetCommandBarDropDowns();
 
         return DxuiMessageResult::Handled;
     }
@@ -995,7 +941,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         switch (reply.kind)
         {
             case Win32IntentChannel::ReplyKind::MachineDescription:
-                m_cassoDriveCount = reply.driveCount;
+                m_fileOps.SetCassoDriveCount (reply.driveCount);
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertDone:
@@ -1065,15 +1011,12 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     {
         m_addressBar.CloseSuggestions();
 
-        for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_previewPane.GetToolbar() })
-        {
-            bar->CloseMenu();
-        }
+        m_toolbars.CloseMenus();
     }
 
     //  Applying a theme repaints the whole window and its title bar, so it is
     //  done only when the colors Windows reports are different.
-    if (active && m_menuBar != nullptr && !m_dispatch.IsChecked (CassoExplorerCommands::kThemeLight) && !m_dispatch.IsChecked (CassoExplorerCommands::kThemeDark))
+    if (active && m_toolbars.IsCreated() && !m_dispatch.IsChecked (CassoExplorerCommands::kThemeLight) && !m_dispatch.IsChecked (CassoExplorerCommands::kThemeDark))
     {
         DxuiWindowsThemeColors &                    colors     = DxuiWindowsThemeColors::Instance();
         bool                                        wasDark    = colors.IsDarkMode();
@@ -1104,7 +1047,7 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     //  Without a watcher -- an unwatchable share, or a host that supplied
     //  none -- the browser shows what it read when it read it, and the next
     //  navigation picks up the rest.
-    if (active && m_listPane.GetControl() != nullptr && m_folderWatch == nullptr && m_browser.GetBrowserModel().HasTabs())
+    if (active && m_listPane.GetControl() != nullptr && !m_folderSync.IsWatching() && m_browser.GetBrowserModel().HasTabs())
     {
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -1206,9 +1149,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     if (timerId == kFolderTimerId)
     {
-        KillTimer (GetHwnd(), kFolderTimerId);
-        m_folderFirstChangeMs = 0;
-        m_folderSync.RefreshChangedFolders();
+        m_folderSync.OnSettleTimer();
 
         return DxuiMessageResult::Handled;
     }
@@ -1231,11 +1172,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  Menus slide open and submenus wait out a delay, both on ticks the host
     //  supplies; Casso supplies them from its frame loop, and this window from
     //  its timer.
-    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewPane.GetToolbar().WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
+    if (m_toolbars.WantsTick() || m_previewPane.GetToolbar().WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
     {
-        m_menuBar->TickMenus (GetNowMs());
-        m_toolbar->TickMenus (GetNowMs());
-        m_commandBar->TickMenus (GetNowMs());
+        m_toolbars.TickMenus (GetNowMs());
         m_previewPane.GetToolbar().TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
         Invalidate();
@@ -1315,8 +1254,8 @@ void CassoExplorerWindow::ArmTick()
 bool CassoExplorerWindow::IsTickWanted() const
 {
     return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_addressBar.WantsTick() || m_tabStrip.IsSliding()
-        || m_menuBar->IsOpen() || m_toolbar->IsMenuOpen() || m_commandBar->IsMenuOpen() || m_previewPane.GetToolbar().IsMenuOpen()
-        || m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewPane.GetToolbar().WantsTick()
+        || m_toolbars.IsMenuOpen() || m_previewPane.GetToolbar().IsMenuOpen()
+        || m_toolbars.WantsTick() || m_previewPane.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
         || m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch;
 }

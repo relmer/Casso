@@ -52,8 +52,7 @@ void ExplorerLayout::ConfigureWidgets()
 
     //  CassoExplorer has no menu bar: Explorer's command bar takes its place. The
     //  strip stays, empty and hidden, so its Alt handling finds nothing.
-    m_window.m_menuBar->SetItems   ({});
-    m_window.m_menuBar->SetVisible (false);
+    m_window.m_toolbars.Configure();
     m_window.m_treePane.Configure();
 
     m_window.m_listPane.Configure();
@@ -61,7 +60,7 @@ void ExplorerLayout::ConfigureWidgets()
 
     //  The commands installed apps add to Explorer's menus, and New's
     //  choices, read once.
-    m_window.m_packagedCommands.Start (m_window.GetHwnd(), CassoExplorerWindow::kNewChoicesMessage);
+    m_window.m_menus.StartPackagedCommands (m_window.GetHwnd(), CassoExplorerWindow::kNewChoicesMessage);
 
     m_window.m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
     m_window.m_treeSplitter->SetOnMoved ([this] (int dip)
@@ -90,17 +89,7 @@ void ExplorerLayout::ConfigureWidgets()
     m_window.m_browser.GetTypedPaths().Reset (m_window.m_prefs.typedPaths);
     m_window.m_listPane.GetColumns().ApplyStoredColumnWidths();
 
-    //  Posting is all that happens on the watcher's thread; the settle timer
-    //  and the re-read run here.
-    if (m_window.m_context.watcher != nullptr)
-    {
-        m_window.m_folderWatch = std::make_unique<FolderWatch> (*m_window.m_context.watcher);
-
-        m_window.m_folderWatch->SetOnChanged ([this] ()
-        {
-            PostMessageW (m_window.GetHwnd(), CassoExplorerWindow::kFolderChangedMessage, 0, 0);
-        });
-    }
+    m_window.m_folderSync.StartWatch();
 
     //  Deletions made anywhere reach the bin, so its list follows them.
     m_window.m_shellVerbs.WatchRecycleBin (m_window.GetHwnd(), CassoExplorerWindow::kRecycleBinMessage);
@@ -150,21 +139,7 @@ void ExplorerLayout::ConfigureWidgets()
     m_window.m_browser.RestoreTabs (std::move (m_window.m_context.request.tabs), m_window.m_context.request.activeTab);
     m_window.m_browser.LeaveMissingLocation();
 
-    m_window.m_driveMask = GetLogicalDrives();
-    SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kDriveTimerId, kDrivePollMs, nullptr);
-
-    {
-        PWSTR    recent   = nullptr;
-        HRESULT  hrRecent = SHGetKnownFolderPath (FOLDERID_Recent, 0, nullptr, &recent);
-
-        if (SUCCEEDED (hrRecent))
-        {
-            m_window.m_quickAccessDir   = std::wstring (recent) + L"\\AutomaticDestinations";
-            m_window.m_quickAccessStamp = ExplorerFolderSync::GetQuickAccessStamp (m_window.m_quickAccessDir);
-        }
-
-        CoTaskMemFree (recent);
-    }
+    m_window.m_folderSync.StartPolling();
 
     m_window.m_treePane.OnFocusChanged (true);
 
@@ -249,26 +224,10 @@ void ExplorerLayout::ApplyTheme()
 
     m_window.SetTheme (m_window.m_theme);
 
-    if (m_window.m_menuBar != nullptr)
+    m_window.m_toolbars.ApplyTheme (*m_window.m_theme);
+
+    if (m_window.m_toolbars.IsCreated())
     {
-        m_window.m_menuBar->SetStripColors    (m_window.m_theme->navStrip, m_window.m_theme->navHover, m_window.m_theme->navItemText);
-        m_window.m_menuBar->SetDropdownColors (m_window.m_theme->dropdownBg, m_window.m_theme->dropdownHover, m_window.m_theme->dropdownItemText,
-                                               m_window.m_theme->dropdownAccel, m_window.m_theme->panelEdge, m_window.m_theme->buttonBorder);
-    }
-
-    if (m_window.m_toolbar != nullptr)
-    {
-        //  Explorer's command bar is the list body's color, not the strip's
-        //  above it, with a border line above and below it.
-        m_window.m_toolbar->SetStripColors (m_window.m_theme->navStrip, m_window.m_theme->navItemText);
-        m_window.m_toolbar->SetEdgeColor   (m_window.m_theme->Border());
-
-        if (m_window.m_commandBar != nullptr)
-        {
-            m_window.m_commandBar->SetStripColors (m_window.m_theme->ContentBackground(), m_window.m_theme->navItemText);
-            m_window.m_commandBar->SetEdgeColor   (m_window.m_theme->Border());
-        }
-
         m_window.m_tooltip.SetTheme (*m_window.m_theme);
         m_window.m_addressBar.ApplyTheme (m_window.m_theme);
     }
@@ -314,15 +273,12 @@ void ExplorerLayout::RecomputeLayout()
 
 
 
-    if (m_window.m_menuBar == nullptr || m_window.m_client.bottom <= m_window.m_client.top)
+    if (!m_window.m_toolbars.IsCreated() || m_window.m_client.bottom <= m_window.m_client.top)
     {
         return;
     }
 
-    //  The toolbar's band thickness follows the responsive mode it plans for
-    //  the width, so plan it before the bands are docked.
-    m_window.m_toolbar->PlanForWidth    (m_window.m_client.right - m_window.m_client.left, m_window.m_scaler);
-    m_window.m_commandBar->PlanForWidth (m_window.m_client.right - m_window.m_client.left, m_window.m_scaler);
+    m_window.m_toolbars.PlanForWidth (m_window.m_client.right - m_window.m_client.left);
 
     m_window.m_tabBand.SetThickness     (m_window.m_scaler.ToPx (kTabHeightDip));
     m_window.m_menuBand.SetThickness    ((int) std::floor (m_window.m_scaler.ToPxf (kCommandBarDip)));
@@ -340,16 +296,12 @@ void ExplorerLayout::RecomputeLayout()
 
     m_window.m_tabStrip.Layout (m_window.m_tabBand.GetBounds());
 
-    m_window.m_commandBar->SetHostClientRect (m_window.m_client);
-    m_window.m_commandBar->Layout (m_window.m_menuBand.GetBounds(), m_window.m_scaler);
-
-    m_window.m_toolbar->SetHostClientRect (m_window.m_client);
-    m_window.m_toolbar->Layout (m_window.m_toolbarBand.GetBounds(), m_window.m_scaler);
+    m_window.m_toolbars.Layout (m_window.m_menuBand.GetBounds(), m_window.m_toolbarBand.GetBounds());
 
     panes = FitPanes (MulDiv (body.right - body.left, (int) DxuiDpiScaler::kBaseDpi, (int) m_window.m_scaler.GetDpi()),
                       m_window.m_prefs.treeWidthDip, preview ? m_window.m_prefs.previewWidthDip : 0);
 
-    m_window.m_addressBar.Layout (m_window.m_toolbar->GetFreeRect(), m_window.m_toolbarBand.GetBounds(), body.right - body.left - m_window.m_scaler.ToPx (panes.tree));
+    m_window.m_addressBar.Layout (m_window.m_toolbars.GetFreeRect(), m_window.m_toolbarBand.GetBounds(), body.right - body.left - m_window.m_scaler.ToPx (panes.tree));
 
     m_window.m_tooltip.SetDpi (m_window.m_scaler.GetDpi());
     m_window.m_tooltip.SetViewportSize (m_window.m_client.right - m_window.m_client.left, m_window.m_client.bottom - m_window.m_client.top);
@@ -408,56 +360,6 @@ void ExplorerLayout::RecomputeLayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerLayout::UpdateCommandBar
-//
-//  The Recycle Bin, and an archive selected or open, have buttons of their
-//  own on the command bar, after View, as Explorer's.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ExplorerLayout::UpdateCommandBar()
-{
-    using Extra = CassoExplorerCommands::CommandBarExtra;
-
-    Extra  extra = Extra::None;
-
-
-
-    if (m_window.m_browser.GetLocation().kind == Location::Kind::RecycleBin)
-    {
-        extra = Extra::RecycleBin;
-    }
-    else if (m_window.m_browser.IsAppleDriveLocation() || m_window.m_links.IsOnLinkedMachine())
-    {
-        extra = Extra::AppleDrive;
-    }
-    else if (!m_window.m_browser.GetExtractTarget().empty())
-    {
-        extra = Extra::Archive;
-    }
-
-    if (extra == m_commandBarExtra)
-    {
-        return;
-    }
-
-    m_commandBarExtra = extra;
-
-    //  Explorer's own icons for the buttons, in the theme's set.
-    m_window.m_commands.SetSvg (CassoExplorerCommands::kEmptyRecycleBin, m_window.m_menus.GetMenuSvg (L"windows.recyclebin.empty"));
-    m_window.m_commands.SetSvg (CassoExplorerCommands::kRestoreItems,    m_window.m_menus.GetMenuSvg (L"windows.recyclebin.restoreall"));
-    m_window.m_commands.SetSvg (CassoExplorerCommands::kExtractAll,      m_window.m_menus.GetMenuSvg (L"windows.compressedfile.extract"));
-    m_window.m_commandBar->SetEntries (m_window.m_commands.BuildCommandBarEntries (extra));
-    m_window.m_commandBar->Layout     (m_window.m_menuBand.GetBounds(), m_window.m_scaler);
-    m_window.Invalidate();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ExplorerLayout::FillStatus
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,7 +380,7 @@ void ExplorerLayout::FillStatus()
     if (m_window.m_context.links != nullptr && !m_window.m_context.links->GetPendingJobs().empty())
     {
         detail                   = CassoLinkConnections::DescribeJobs (m_window.m_context.links->GetPendingJobs());
-        m_window.m_linkJobsShown = true;
+        m_window.m_links.MarkJobsShown();
     }
 
     m_window.m_status->SetText (kStatusCount,    status.selection);

@@ -45,8 +45,8 @@ void ExplorerInput::SetFocusPane (ExplorerPane pane)
     m_window.m_listPane.OnFocusChanged     (pane == ExplorerPane::List);
     m_window.m_tabStrip.OnFocusChanged     (pane == ExplorerPane::Tabs);
     m_window.m_addressBar.OnFocusChanged   (pane);
-    m_window.m_toolbar->SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
-    m_window.m_commandBar->SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
+    m_window.m_toolbars.GetNavToolbar().SetFocusIndex      (pane == ExplorerPane::Toolbar ? m_toolbarFocus : -1);
+    m_window.m_toolbars.GetCommandBar().SetFocusIndex   (pane == ExplorerPane::CommandBar ? m_commandBarFocus : -1);
     m_window.m_previewPane.OnFocusChanged  (pane);
 
     m_window.Invalidate();
@@ -134,16 +134,16 @@ void ExplorerInput::SetFocusStop (const FocusStop & stop)
 
 bool ExplorerInput::RouteCommandBarKey (const DxuiKeyEvent & ev)
 {
-    int  count = m_window.m_commandBar->GetEntryCount();
+    int  count = m_window.m_toolbars.GetCommandBar().GetEntryCount();
     int  step  = (ev.vk == VK_RIGHT) ? 1 : -1;
     int  at    = m_commandBarFocus;
     int  tries = 0;
 
 
 
-    if (m_window.m_commandBar->OwnsKeyboard())
+    if (m_window.m_toolbars.GetCommandBar().OwnsKeyboard())
     {
-        return m_window.m_commandBar->HandleKey (ev.vk);
+        return m_window.m_toolbars.GetCommandBar().HandleKey (ev.vk);
     }
 
     switch (ev.vk)
@@ -151,7 +151,7 @@ bool ExplorerInput::RouteCommandBarKey (const DxuiKeyEvent & ev)
         case VK_RETURN:
         case VK_SPACE:
         case VK_DOWN:
-            m_window.m_commandBar->ActivateFocused();
+            m_window.m_toolbars.GetCommandBar().ActivateFocused();
             return true;
 
         case VK_LEFT:
@@ -195,7 +195,7 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
 
 
 
-    for (int i = 0; i < m_window.m_toolbar->GetEntryCount(); i++)
+    for (int i = 0; i < m_window.m_toolbars.GetNavToolbar().GetEntryCount(); i++)
     {
         enabled.push_back (m_window.m_dispatch.IsToolbarEntryAvailable (i));
     }
@@ -205,7 +205,7 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
         previewEnabled.push_back (m_window.m_dispatch.IsEnabled (id));
     }
 
-    for (int i = 0; i < m_window.m_commandBar->GetEntryCount(); i++)
+    for (int i = 0; i < m_window.m_toolbars.GetCommandBar().GetEntryCount(); i++)
     {
         commandEnabled.push_back (m_window.m_dispatch.IsCommandBarEntryAvailable (i));
     }
@@ -229,7 +229,7 @@ std::vector<FocusStop> ExplorerInput::BuildFocusStops() const
 
 bool ExplorerInput::RouteToolbarKey (bool preview, const DxuiKeyEvent & ev)
 {
-    DxuiToolbar &  toolbar = preview ? m_window.m_previewPane.GetToolbar() : *m_window.m_toolbar;
+    DxuiToolbar &  toolbar = preview ? m_window.m_previewPane.GetToolbar() : m_window.m_toolbars.GetNavToolbar();
 
 
 
@@ -280,9 +280,9 @@ void ExplorerInput::StepToolbarFocus (bool preview, bool forward)
     }
     else
     {
-        for (int i = 0; i < m_window.m_toolbar->GetEntryCount(); i++)
+        for (int i = 0; i < m_window.m_toolbars.GetNavToolbar().GetEntryCount(); i++)
         {
-            ids.push_back (m_window.m_toolbar->GetEntryCommandId (i));
+            ids.push_back (m_window.m_toolbars.GetNavToolbar().GetEntryCommandId (i));
         }
     }
 
@@ -330,20 +330,7 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    //  A command bar menu leaves the mouse with the window, so a press
-    //  anywhere but the bar that opened it closes it here, as a click outside
-    //  a menu does.
-    if (ev.kind == DxuiMouseEventKind::Down)
-    {
-        for (DxuiToolbar * bar : { m_window.m_commandBar, m_window.m_toolbar, &m_window.m_previewPane.GetToolbar() })
-        {
-            if (bar->IsMenuOpen() && !CassoExplorerWindow::Contains (bar->GetBounds(), point))
-            {
-                bar->CloseMenu();
-                m_window.Invalidate();
-            }
-        }
-    }
+    m_window.m_toolbars.CloseMenusOutside (ev);
 
     //  A five-button mouse's back and forward buttons move through the tab's
     //  history wherever the pointer is, as in Explorer.
@@ -389,7 +376,7 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_window.m_menuBar->OnMouse (ev))
+    if (m_window.m_toolbars.OnMenuBarMouse (ev))
     {
         return true;
     }
@@ -401,32 +388,15 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
 
     if (m_window.m_previewPane.GetToolbar().IsVisible()
         && (CassoExplorerWindow::Contains (m_window.m_previewPane.GetToolbar().GetBounds(), point) || ev.kind == DxuiMouseEventKind::Up)
-        && RouteToolbarMouse (m_window.m_previewPane.GetToolbar(), ev))
+        && m_window.m_toolbars.RouteToolbarMouse (m_window.m_previewPane.GetToolbar(), ev))
     {
         m_window.Invalidate();
         return true;
     }
 
-    //  The strip under the pointer takes the event and drives the tooltip; the
-    //  other still sees a move, so its hover clears when the pointer crosses.
+    if (m_window.m_toolbars.OnMouse (ev))
     {
-        DxuiToolbar &  under = GetToolbarUnder (m_window.m_menuBand.GetBounds(), point, *m_window.m_toolbar, *m_window.m_commandBar);
-        DxuiToolbar &  other = (&under == m_window.m_commandBar) ? *m_window.m_toolbar : *m_window.m_commandBar;
-
-        if (ev.kind == DxuiMouseEventKind::Move)
-        {
-            other.OnToolbarMouseMove (ev.positionDip.x, ev.positionDip.y);
-        }
-        else if (ev.kind == DxuiMouseEventKind::Leave)
-        {
-            other.OnToolbarMouseLeave();
-        }
-
-        if (RouteToolbarMouse (under, ev) || (ev.kind == DxuiMouseEventKind::Up && RouteToolbarMouse (other, ev)))
-        {
-            m_window.Invalidate();
-            return true;
-        }
+        return true;
     }
 
     if (m_window.m_treeSplitter->OnMouse (ev) || (m_window.m_previewSplitter->IsVisible() && m_window.m_previewSplitter->OnMouse (ev)))
@@ -632,14 +602,9 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    if (m_window.m_menuBar->IsOpen() || m_window.m_menuBar->HasFocus())
+    if (m_window.m_toolbars.TryMenuBarKey (ev, handled))
     {
-        return m_window.m_menuBar->OnKey (ev);
-    }
-
-    if (ev.alt && ev.vk >= 0x20 && ev.vk <= 0x7E && m_window.m_menuBar->HandleAltKey ((wchar_t) ev.vk))
-    {
-        return true;
+        return handled;
     }
 
     if (m_window.m_focus == ExplorerPane::List && m_window.m_listPane.OnShortcutKey (ev))
@@ -725,113 +690,4 @@ IDxuiControl * ExplorerInput::GetFocusedControl() const
         case ExplorerPane::Preview: return m_window.m_previewPane.GetFocusedControl();
         default:            return nullptr;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerInput::GetToolbarUnder
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiToolbar & ExplorerInput::GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar)
-{
-    return CassoExplorerWindow::Contains (commandBarBand, point) ? commandBar : navToolbar;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ExplorerInput::RouteToolbarMouse
-//
-//  The toolbar takes its pointer input through its own calls rather than
-//  OnMouse. A move always reaches it, so its hover clears when the pointer
-//  leaves; it is consumed only over the strip. The tooltip follows the hover.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExplorerInput::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEvent & ev)
-{
-    int              x      = ev.positionDip.x;
-    int              y      = ev.positionDip.y;
-    bool             took   = false;
-    RECT             anchor = {};
-    const wchar_t *  tip    = nullptr;
-    int64_t          nowMs  = CassoExplorerWindow::GetNowMs();
-
-
-
-    switch (ev.kind)
-    {
-        case DxuiMouseEventKind::Move:
-            took = toolbar.OnToolbarMouseMove (x, y);
-            tip  = took ? toolbar.GetTooltipAt (x, y, anchor) : nullptr;
-
-            //  A button clicked stays quiet until the pointer has left it, as
-            //  Explorer's command bar does, rather than tipping again over the
-            //  menu it opened.
-            if (m_tipMuted && CassoExplorerWindow::Contains (m_tipMuteRect, ev.positionDip))
-            {
-                tip = nullptr;
-            }
-            else
-            {
-                m_tipMuted = false;
-            }
-
-            if (tip != nullptr && *tip != L'\0')
-            {
-                m_window.m_tips.ShowHoverTip (ExplorerTips::TipOwner::Toolbar, anchor, tip);
-            }
-            else
-            {
-                m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::Toolbar);
-            }
-
-            break;
-
-        case DxuiMouseEventKind::Down:
-            took = ev.button == DxuiMouseButton::Left && toolbar.OnToolbarLButtonDown (x, y);
-
-            //  A right-click on Back or Forward lists where each would go, as
-            //  Explorer's does.
-            if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassoExplorerCommands::kBack, anchor) && CassoExplorerWindow::Contains (anchor, ev.positionDip))
-            {
-                m_window.m_addressBar.ShowHistoryMenu (false, anchor);
-                took = true;
-            }
-            else if (ev.button == DxuiMouseButton::Right && toolbar.TryGetEntryRect (CassoExplorerCommands::kForward, anchor) && CassoExplorerWindow::Contains (anchor, ev.positionDip))
-            {
-                m_window.m_addressBar.ShowHistoryMenu (true, anchor);
-                took = true;
-            }
-
-            if (took)
-            {
-                m_window.m_tooltip.HideImmediate();
-                m_tipMuted = toolbar.GetTooltipAt (x, y, m_tipMuteRect) != nullptr;
-            }
-
-            break;
-
-        case DxuiMouseEventKind::Up:
-            took = ev.button == DxuiMouseButton::Left && toolbar.OnToolbarLButtonUp (x, y);
-            break;
-
-        case DxuiMouseEventKind::Leave:
-            toolbar.OnToolbarMouseLeave();
-            m_window.m_tips.HideHoverTip (ExplorerTips::TipOwner::Toolbar);
-            break;
-
-        default:
-            break;
-    }
-
-    return took;
 }

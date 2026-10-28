@@ -60,7 +60,7 @@ void ExplorerPreview::Create()
     m_previewToolbar->SetFlatStyle    (true);
     m_previewToolbar->SetTextRenderer (m_window.GetTextRenderer());
     m_previewToolbar->SetPopupHost    (m_window.GetPopupHost());
-    m_previewToolbar->SetIconDip      (CassoExplorerWindow::kNavIconDip);
+    m_previewToolbar->SetIconDip      (ExplorerToolbars::kNavIconDip);
     m_previewToolbar->SetVisible      (false);
 
     m_find.Create();
@@ -333,7 +333,7 @@ bool ExplorerPreview::OnMessageMouse (const DxuiMouseEvent & ev)
         std::vector<DxuiPopupMenuItem>  items;
 
         m_window.m_input.SetFocusPane (ExplorerPane::Preview);
-        m_window.m_menuCommands.clear();
+        m_window.m_menus.GetMenuCommands().clear();
         m_window.m_menus.AddMenuCommand (items, L"&Copy",       [this]() { m_previewMessage->Copy(); });
         m_window.m_menus.AddMenuCommand (items, L"Select &all", [this]() { m_previewMessage->SelectAll(); m_window.Invalidate(); });
         DxuiContextMenu::Show (*m_window.GetPopupHost(), point.x, point.y, std::move (items));
@@ -1487,14 +1487,14 @@ void ExplorerPreview::ShowPictureContextMenu (int x, int y)
 
 
 
-    m_window.m_menuCommands.clear();
+    m_window.m_menus.GetMenuCommands().clear();
 
     for (bool asColor : { true, false })
     {
         m_window.m_menus.AddMenuCommand (items, asColor ? L"&Color" : L"&Monochrome", [this, asColor]() { ShowPictureForm (asColor); });
 
-        m_window.m_menuCommands.back()->radio     = true;
-        m_window.m_menuCommands.back()->isChecked = [color, asColor]() { return color == asColor; };
+        m_window.m_menus.GetMenuCommands().back()->radio     = true;
+        m_window.m_menus.GetMenuCommands().back()->isChecked = [color, asColor]() { return color == asColor; };
     }
 
     DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items));

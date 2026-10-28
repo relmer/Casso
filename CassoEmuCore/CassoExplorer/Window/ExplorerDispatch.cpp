@@ -106,11 +106,11 @@ Error:
 
 bool ExplorerDispatch::IsToolbarEntryAvailable (int index) const
 {
-    int  id = m_window.m_toolbar->GetEntryCommandId (index);
+    int  id = m_window.m_toolbars.GetNavToolbar().GetEntryCommandId (index);
 
 
 
-    if (!m_window.m_toolbar->IsEntryShown (index))
+    if (!m_window.m_toolbars.GetNavToolbar().IsEntryShown (index))
     {
         return false;
     }
@@ -130,11 +130,11 @@ bool ExplorerDispatch::IsToolbarEntryAvailable (int index) const
 
 bool ExplorerDispatch::IsCommandBarEntryAvailable (int index) const
 {
-    int  id = m_window.m_commandBar->GetEntryCommandId (index);
+    int  id = m_window.m_toolbars.GetCommandBar().GetEntryCommandId (index);
 
 
 
-    if (!m_window.m_commandBar->IsEntryShown (index))
+    if (!m_window.m_toolbars.GetCommandBar().IsEntryShown (index))
     {
         return false;
     }
@@ -197,7 +197,7 @@ bool ExplorerDispatch::IsEnabled (int id) const
         case CassoExplorerCommands::kGroup8:            return m_window.m_previewPane.IsHexPreviewShowing();
         case CassoExplorerCommands::kNextTab:
         case CassoExplorerCommands::kPreviousTab:       return model.GetTabCount() > 1;
-        case CassoExplorerCommands::kUndo:              return !m_window.m_undo.empty();
+        case CassoExplorerCommands::kUndo:              return m_window.m_fileOps.CanUndo();
         case CassoExplorerCommands::kCutItems:          return m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Cut);
         case CassoExplorerCommands::kCopyItems:         return m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Copy) || m_window.m_listPane.GetMenus().IsListVerbOffered (CassoExplorerActions::Verb::Get) || m_window.m_browser.AreSelectedRowsSearchMatches();
         case CassoExplorerCommands::kPasteItems:        return (m_window.m_browser.IsVolumeLocation() || m_window.m_browser.GetLocation().kind == Location::Kind::HostFolder)
@@ -318,7 +318,7 @@ void ExplorerDispatch::Dispatch (int id)
     if (id >= CassoExplorerCommands::kViewFirst && id < CassoExplorerCommands::kViewFirst + CassoExplorerPrefs::kViewCount)
     {
         m_window.m_listPane.GetColumns().SetView ((DxuiListView::View) (id - CassoExplorerCommands::kViewFirst));
-        m_window.m_menus.ShowViewOnButton();
+        m_window.m_toolbars.ShowViewOnButton();
         m_window.m_listPane.SizeListIcons();
         m_window.m_listPane.FillList();
         m_window.Invalidate();
