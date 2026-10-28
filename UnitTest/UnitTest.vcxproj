@@ -552,6 +552,8 @@
     <ClCompile Include="EmuTests\BlankDiskBuilderTests.cpp" />
     <ClCompile Include="EmuTests\ProDosVolumeTests.cpp" />
     <ClCompile Include="EmuTests\WozLoaderTests.cpp" />
+    <ClCompile Include="EmuTests\WozLoaderMetadataTests.cpp" />
+    <ClCompile Include="EmuTests\WozLoaderReservationTests.cpp" />
     <ClCompile Include="EmuTests\FluxTrackTests.cpp" />
     <ClCompile Include="EmuTests\FluxTestImages.cpp" />
     <ClCompile Include="EmuTests\DurableCommitTests.cpp" />
@@ -568,6 +570,9 @@
     <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\DiskStoreMountTests.cpp" />
+    <ClCompile Include="EmuTests\DiskStoreSalvageTests.cpp" />
+    <ClCompile Include="EmuTests\DiskStoreSaveTests.cpp" />
     <ClCompile Include="EmuTests\ImageIdentityTests.cpp" />
     <ClCompile Include="EmuTests\ExternalChangePolicyTests.cpp" />
     <ClCompile Include="EmuTests\SharedImageTests.cpp" />
@@ -607,6 +612,8 @@
     <ClCompile Include="Cassque\RefreshAnchorTests.cpp" />
     <ClInclude Include="Cassque\FakeFolderWatcher.h" />
     <ClInclude Include="EmuTests\OwnerThreadStandIn.h" />
+    <ClInclude Include="EmuTests\DiskStoreTestSupport.h" />
+    <ClInclude Include="EmuTests\WozLoaderTestSupport.h" />
     <ClInclude Include="EmuTests\DiskManagerRig.h" />
     <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
     <ClCompile Include="Cassque\DragPayloadTests.cpp" />
