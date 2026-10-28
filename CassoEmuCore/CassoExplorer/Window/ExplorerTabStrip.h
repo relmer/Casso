@@ -3,7 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/ICassoExplorerHost.h"
- CassoExplorerWindow;
+class CassoExplorerWindow;
 
 
 

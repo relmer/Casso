@@ -4,7 +4,7 @@
 
 #include "CassoExplorer/ICassoExplorerHost.h"
 #include "CassoExplorer/Window/ExplorerPane.h"
- CassoExplorerWindow;
+class CassoExplorerWindow;
 
 
 
