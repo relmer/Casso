@@ -49,6 +49,9 @@ public:
     // Caller-owned; registered for the life of the machine.
     void AddCard (IExpansionRomCard * card);
 
+    // The slot of the card whose expansion ROM is selected; 0 for none.
+    int  GetSelectedSlot () const;
+
 private:
     void DeselectAll ();
 

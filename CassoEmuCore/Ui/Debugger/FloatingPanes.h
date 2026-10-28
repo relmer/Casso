@@ -171,10 +171,15 @@ public:
     static std::wstring  GetMonitorKey (const RECT & rectPx);
 
 private:
+    //  A point outside every dock site, where a drag over another floating
+    //  window is taken to be.
+    static constexpr POINT  s_kOffSite = { INT_MIN / 2, INT_MIN / 2 };
+
     void          Float          (const std::wstring & window);
     void          Dock           (const std::wstring & window);
     void          PlaceUnderGrab (const std::wstring & pane);
     void          OnDrag         (const std::wstring & window, POINT screenPx, bool ended);
+    bool          IsOverAnotherWindow (const std::wstring & window, POINT screenPx) const;
     void          ShowDragMarks  ();
     void          HideDragMarks  ();
     void          DropCarriedTab (const std::wstring & pane);

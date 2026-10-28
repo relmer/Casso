@@ -2,7 +2,10 @@
 
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/Reverse/InputJournal.h"
+#include "Core/MachineConfig.h"
 #include "Devices/Acia6551.h"
+#include "Devices/IAciaEndpoint.h"
+#include "Shell/ScratchReplayMachine.h"
 #include "HResultAssert.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -35,6 +38,15 @@ static constexpr Word      s_kSerialStore       = 0x0300;
 TEST_CLASS (ReverseSerialTests)
 {
 public:
+
+    //  An attachment that stores every byte the port sends.
+    class CapturingEndpoint : public IAciaEndpoint
+    {
+    public:
+        void  OnByteTransmitted (Byte value) override { bytes.push_back (value); }
+
+        std::vector<Byte>  bytes;
+    };
 
     struct Sample
     {
@@ -171,7 +183,146 @@ public:
     }
 
 
+    //  A change made in the past makes the machine live there. The bytes the
+    //  port took from the host after that point go to the receiver again,
+    //  so the guest gets them without the host sending them again.
+    TEST_METHOD (AResumeFromThePastReceivesTheBytesTakenSince)
+    {
+        static constexpr Byte  kBytes[] = { 'H', 'E', 'L', 'L', 'O' };
+        static constexpr Word  kStored  = 0x0300;
+        TestMachine            machine    ("Apple2c");
+        ReverseController      controller (machine);
+        ReverseResult          result;
+        HRESULT                hr         = S_OK;
+        uint64_t               point      = 0;
+        size_t                 i          = 0;
+
+
+
+        PrepareReceiver (machine);
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start");
+
+        RecordSession (machine, false);
+        point = machine.GetCpu()->GetTotalCycles();
+
+        machine.GetRefs().serialChips[0]->EnqueueReceivedBytes (kBytes, sizeof (kBytes));
+        RecordSession (machine, false);
+
+        Assert::AreEqual (kBytes[4], machine.GetMemoryBus().ReadByte (kStored + 4), L"the guest received them live");
+
+        hr = controller.SeekToCycle (point, result);
+        AssertSucceeded (hr, L"SeekToCycle");
+        Assert::AreNotEqual (kBytes[0], machine.GetMemoryBus().ReadByte (kStored), L"and not yet at the point");
+
+        hr = controller.OnMachineChanged();
+        AssertSucceeded (hr, L"OnMachineChanged");
+
+        RecordSession (machine, false);
+
+        for (i = 0; i < sizeof (kBytes); i++)
+        {
+            Assert::AreEqual (kBytes[i], machine.GetMemoryBus().ReadByte ((Word) (kStored + i)), L"each byte, in order, received again");
+        }
+    }
+
+
+    //  What the guest sends was sent live: a seek back and a seek to the live
+    //  end, both replays, send nothing to the attachment, and the machine
+    //  sends again once it runs live.
+    TEST_METHOD (AReplaySendsNothingToTheAttachment)
+    {
+        TestMachine          machine    ("Apple2c");
+        ReverseController    controller (machine);
+        CapturingEndpoint    capture;
+        ReverseResult        result;
+        HRESULT              hr         = S_OK;
+        size_t               sent       = 0;
+
+
+
+        PrepareSender (machine);
+        machine.GetRefs().serialChips[0]->SetEndpoint (&capture);
+
+        hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+        AssertSucceeded (hr, L"Start");
+
+        RecordSession (machine, false);
+        sent = capture.bytes.size();
+        Assert::IsTrue (sent > 0, L"live, the port sends");
+
+        hr = controller.SeekToPosition (controller.GetOldestPosition(), result);
+        AssertSucceeded (hr, L"SeekToPosition oldest");
+
+        hr = controller.SeekToCycle (UINT64_MAX, result);
+        AssertSucceeded (hr, L"SeekToCycle live");
+
+        Assert::AreEqual (sent, capture.bytes.size(), L"the replays send nothing");
+
+        machine.RunCycles (s_kSerialSliceCycles);
+        Assert::IsTrue (capture.bytes.size() > sent, L"live again, the port sends");
+
+        machine.GetRefs().serialChips[0]->SetEndpoint (nullptr);
+    }
+
+
+    //  The heat map's and the call record's replays run on a scratch machine
+    //  built from the running machine's config, attachments and all, and
+    //  what it sends was sent live.
+    TEST_METHOD (AScratchReplayMachineIsMuted)
+    {
+        ScratchReplayMachine  scratch;
+        MachineConfig         config;
+        HRESULT               hr      = S_OK;
+
+
+
+        TestMachine::LoadConfig ("Apple2c", config);
+        scratch.SetMachine (config, L"Apple2c");
+
+        hr = scratch.Build();
+        AssertSucceeded (hr, L"Build");
+
+        Assert::IsTrue (scratch.GetMachine()->IsOutputMuted(), L"the scratch machine is muted");
+    }
+
+
 private:
+
+    //  Port 1 at 9600 baud, eight bits and DTR on; the loop sends X each
+    //  time the transmitter is empty, counting up.
+    static void PrepareSender (TestMachine & machine)
+    {
+        static constexpr Byte  kLoop[] =
+        {
+            0x78,                   // 0800  SEI
+            0xA2, 0x00,             // 0801  LDX #$00
+            0xA9, 0x0B,             // 0803  LDA #$0B
+            0x8D, 0x9A, 0xC0,       // 0805  STA $C09A    command: DTR on, receive IRQ off
+            0xA9, 0x1E,             // 0808  LDA #$1E
+            0x8D, 0x9B, 0xC0,       // 080A  STA $C09B    control: 9600 baud, 8 bits
+            0xAD, 0x99, 0xC0,       // 080D  LDA $C099    status
+            0x29, 0x10,             // 0810  AND #$10     transmitter empty
+            0xF0, 0xF9,             // 0812  BEQ $080D
+            0x8E, 0x98, 0xC0,       // 0814  STX $C098    send X
+            0xE8,                   // 0817  INX
+            0x4C, 0x0D, 0x08,       // 0818  JMP $080D
+        };
+        size_t  i = 0;
+
+
+
+        machine.PowerCycle();
+
+        for (i = 0; i < sizeof (kLoop); i++)
+        {
+            machine.GetMemoryBus().WriteByte (static_cast<Word> (s_kSerialProgram + i), kLoop[i]);
+        }
+
+        machine.GetCpu()->SetPC (s_kSerialProgram);
+    }
+
 
     //  Port 1 set to 9600 baud, eight bits, DTR on and its receive interrupt
     //  off; the loop then stores each byte it receives at $0300,X.

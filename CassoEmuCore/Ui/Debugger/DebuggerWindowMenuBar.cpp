@@ -810,7 +810,7 @@ Error:
 std::optional<std::wstring> DebuggerWindow::RunTextDialog (const std::wstring & title, const std::wstring & label, const std::wstring & placeholder,
                                                            TextDialog::CheckFn check)
 {
-    return TextDialog::RunModal (GetHwnd(), m_theme, title, label, placeholder, std::move (check));
+    return TextDialog::RunModal (GetRoutingHwnd(), m_theme, title, label, placeholder, std::move (check));
 }
 
 
@@ -825,7 +825,7 @@ std::optional<std::wstring> DebuggerWindow::RunTextDialog (const std::wstring & 
 
 std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, const std::wstring & label)
 {
-    return ByteDialog::RunModal (GetHwnd(), m_theme, title, label);
+    return ByteDialog::RunModal (GetRoutingHwnd(), m_theme, title, label);
 }
 
 
@@ -840,7 +840,7 @@ std::optional<Byte> DebuggerWindow::RunByteDialog (const std::wstring & title, c
 
 std::optional<MemoryFileDialog::Fields> DebuggerWindow::RunMemoryFileDialog (const std::wstring & path, bool isSave, const MemoryFileDialog::Fields & initial)
 {
-    return MemoryFileDialog::RunModal (GetHwnd(), m_theme, path, isSave, initial);
+    return MemoryFileDialog::RunModal (GetRoutingHwnd(), m_theme, path, isSave, initial);
 }
 
 

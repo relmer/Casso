@@ -116,13 +116,16 @@ namespace DebuggerTests
         //  runs in one machine and by free runs in another, is the same.
         static void AssertFreeRunRecordsTheSame (const char * start, const std::vector<std::string> & labels)
         {
-            Rig      stepped;
-            auto     running = std::make_unique<Rig>();
-            Program  program = Load (stepped, start);
+            //  Two rigs are more than code analysis allows a function's stack.
+            std::unique_ptr<Rig>  steppedOwner = std::make_unique<Rig>();
+            std::unique_ptr<Rig>  runningOwner = std::make_unique<Rig>();
+            Rig                 & stepped      = *steppedOwner;
+            Rig                 & running      = *runningOwner;
+            Program               program      = Load (stepped, start);
 
 
 
-            Load (*running, start);
+            Load (running, start);
 
             for (const std::string & label : labels)
             {
@@ -131,9 +134,9 @@ namespace DebuggerTests
 
 
                 RunTo     (stepped, address);
-                FreeRunTo (*running, address);
+                FreeRunTo (running, address);
 
-                Assert::IsTrue (stepped.RunOk ("CALLS").text == running->RunOk ("CALLS").text, L"the free run recorded the same chain");
+                Assert::IsTrue (stepped.RunOk ("CALLS").text == running.RunOk ("CALLS").text, L"the free run recorded the same chain");
             }
         }
 

@@ -103,7 +103,8 @@ public:
     static constexpr uint64_t kGapCycles            = 52;
 
     static constexpr uint32_t kStateTag             = IMachineState::MakeTag ('D', '2', 'A', 'M');
-    static constexpr uint16_t kStateVersion         = 3;
+    static constexpr uint16_t kStateVersion         = 4;
+    static constexpr uint16_t kFixedFieldVersion    = 4;   // the first saving each field's whole buffer
 
     Disk2AddressMarkWatcher() = default;
 
@@ -192,7 +193,7 @@ private:
     static bool      TryDecode  (const DataField & field, std::array<Byte, 256> & outBytes, bool & outIsGood);
 
     static HRESULT   SaveField  (StateWriter & writer, const DataField & field);
-    static HRESULT   LoadField  (StateReader & reader, DataField & field);
+    static HRESULT   LoadField  (StateReader & reader, DataField & field, uint16_t version);
 
     static uint8_t Decode4and4 (uint8_t hi, uint8_t lo) noexcept
     {

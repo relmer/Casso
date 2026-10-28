@@ -113,6 +113,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "debuggerInputLogOptions",
     "debuggerVideoLogOptions",
     "debuggerSoundLogOptions",
+    "debuggerSerialLogOptions",
+    "debuggerNetworkLogOptions",
     "debuggerEchoActions",
     "debuggerOpenViews",
     "debuggerTextZoomPercent",
@@ -1307,6 +1309,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("debuggerInputLogOptions",    JsonValue (debugger.inputLogOptions));
     root.emplace_back ("debuggerVideoLogOptions",    JsonValue (debugger.videoLogOptions));
     root.emplace_back ("debuggerSoundLogOptions",    JsonValue (debugger.soundLogOptions));
+    root.emplace_back ("debuggerSerialLogOptions",   JsonValue (debugger.serialLogOptions));
+    root.emplace_back ("debuggerNetworkLogOptions",  JsonValue (debugger.networkLogOptions));
     root.emplace_back ("debuggerEchoActions",        JsonValue (debugger.echoActions));
     root.emplace_back ("debuggerOpenViews",  JsonValue (debugger.openViews));
     root.emplace_back ("debuggerTextZoomPercent", JsonValue ((double) debugger.textZoomPercent));
@@ -1588,6 +1592,8 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     debugger.inputLogOptions    = GetStringOpt (v, "debuggerInputLogOptions",    debugger.inputLogOptions);
     debugger.videoLogOptions    = GetStringOpt (v, "debuggerVideoLogOptions",    debugger.videoLogOptions);
     debugger.soundLogOptions    = GetStringOpt (v, "debuggerSoundLogOptions",    debugger.soundLogOptions);
+    debugger.serialLogOptions   = GetStringOpt (v, "debuggerSerialLogOptions",   debugger.serialLogOptions);
+    debugger.networkLogOptions  = GetStringOpt (v, "debuggerNetworkLogOptions",  debugger.networkLogOptions);
 
     debugger.echoActions = TryGetBoolOpt (v, "debuggerEchoActions", debugger.echoActions);
 

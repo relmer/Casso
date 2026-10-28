@@ -167,6 +167,7 @@
     <ClCompile Include="EmuTests\SanitizerCanaryTests.cpp" />
     <ClCompile Include="EmuTests\DiskManagerDriveStatusTests.cpp" />
     <ClCompile Include="UiTests\StoragePageTests.cpp" />
+    <ClCompile Include="UiTests\DialogOwnerTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecorderTests.cpp" />
     <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
     <ClCompile Include="UiTests\TapeDeckWidgetTests.cpp" />
@@ -232,6 +233,8 @@
     <ClCompile Include="DebuggerTests\HeatMapRangeSetsTests.cpp" />
     <ClCompile Include="DebuggerTests\HeatMapRangesPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryMapTests.cpp" />
+    <ClCompile Include="DebuggerTests\SerialWaveformTests.cpp" />
+    <ClCompile Include="DebuggerTests\CommGraphTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchTableTests.cpp" />
@@ -291,7 +294,7 @@
     <ClCompile Include="DebuggerTests\SourceStepTests.cpp" />
     <ClCompile Include="DebuggerTests\StepFilterTests.cpp" />
     <ClCompile Include="DebuggerTests\CallHistoryShellTests.cpp" />
-    <ClCompile Include="DebuggerTests\HistoryNetworkFenceTests.cpp" />
+    <ClCompile Include="DebuggerTests\HistoryNetworkTests.cpp" />
     <ClCompile Include="DebuggerTests\ShellDebuggerViewStateTests.cpp" />
     <ClCompile Include="DebuggerTests\DialogOkTests.cpp" />
     <ClCompile Include="EmuTests\AutoStateShellTests.cpp" />
@@ -775,7 +778,6 @@
     <ClCompile Include="UiTests\AutoMountTests.cpp" />
     <ClCompile Include="UiTests\SettingsPanelStateTests.cpp" />
     <ClCompile Include="UiTests\SerialCardNoticeTests.cpp" />
-    <ClCompile Include="UiTests\DialogBodyContentTests.cpp" />
     <ClCompile Include="UiTests\SerialCardPageTests.cpp" />
     <ClCompile Include="UiTests\SscSettingsModelTests.cpp" />
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
@@ -1083,10 +1085,21 @@
     <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
+    <ClInclude Include="HResultAssert.h" />
+    <ClInclude Include="UiTests\InMemoryFileSystem.h" />
+    <ClInclude Include="DebuggerTests\ControllerRig.h" />
+    <ClInclude Include="DebuggerTests\FakeDiagnosticsProvider.h" />
+    <ClInclude Include="DebuggerTests\HandlerTestRig.h" />
+    <ClInclude Include="DebuggerTests\InMemoryPipeTransport.h" />
+    <ClInclude Include="DebuggerTests\MockDebugTarget.h" />
+    <ClInclude Include="DebuggerTests\MockExpressionContext.h" />
+    <ClInclude Include="DebuggerTests\MockNamedPipeApi.h" />
+    <ClInclude Include="DebuggerTests\UnreadableStackTarget.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
     <ClInclude Include="EmuTests\EmbeddedMachineJson.h" />
     <ClInclude Include="EmuTests\ReverseSessionRig.h" />
     <ClInclude Include="EmuTests\ThreadAllocationCounter.h" />
+    <ClInclude Include="EmuTests\EventCacheRebuild.h" />
     <ClInclude Include="EmuTests\InlineWorkQueue.h" />
     <ClInclude Include="EmuTests\TestMachine.h" />
     <ClInclude Include="EmuTests\FixtureProvider.h" />
@@ -1105,7 +1118,6 @@
     <ClInclude Include="EmuTests\TextScreenScraper.h" />
     <ClInclude Include="EmuTests\KeystrokeInjector.h" />
     <ClInclude Include="EmuTests\MachineIdle.h" />
-    <ClInclude Include="EmuTests\FakeHostCapsLock.h" />
     <ClInclude Include="ControllerTests\RecordingGamePortSink.h" />
     <ClInclude Include="ControllerTests\FakeControllerBackend.h" />
     <ClInclude Include="EmuTests\FakeImageWatcher.h" />
@@ -1117,6 +1129,10 @@
     <ClInclude Include="Dxui\MockDxuiTextRenderer.h" />
     <ClInclude Include="Dxui\MockDxuiTheme.h" />
     <ClInclude Include="EmuTests\WarpRenderHarness.h" />
+    <ClInclude Include="EmuTests\FakeDiskFileIo.h" />
+    <ClInclude Include="EmuTests\FixtureRomSource.h" />
+    <ClInclude Include="EmuTests\FluxTestImages.h" />
+    <ClInclude Include="EmuTests\InspectorTrackBuilder.h" />
     <ClInclude Include="NetworkTests\FakeHostSocket.h" />
     <ClInclude Include="NetworkTests\FakeHostNetwork.h" />
     <ClInclude Include="NetworkTests\W5100Driver.h" />

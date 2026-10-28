@@ -14,11 +14,19 @@ struct SoftSwitch;
 //
 //  IoEvent
 //
-//  One entry in the video log or the sound log: the machine's cycle count
-//  at the access, the beam position then, and what happened. A video entry
-//  has the mode bits that went on and off; a Mockingboard entry the chip,
-//  the register and the byte written. Fixed in size, so an event cache
-//  stores them without allocating.
+//  One entry in the video, sound, serial or network log: the machine's cycle
+//  count at the access, the beam position then, and what happened. A video
+//  entry has the mode bits that went on and off; a Mockingboard entry the
+//  chip, the register and the byte written.
+//
+//  A serial entry has the port in `chip`, its 6551's base in `address`, the
+//  byte in `value`, and the control and command registers and the line
+//  levels (the kLine bits) as they were. A byte sent is stamped where its
+//  start bit begins, and a byte received where its stop bit ends. A network
+//  entry has the socket in `chip`; a state change the new status in `value`
+//  and the old in `reg`, and data sent or received its length in `length`,
+//  the bytes in the cache entry. Fixed in size, so an event cache stores
+//  them without allocating.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +36,14 @@ enum class IoEventKind : uint8_t
     Speaker,
     ViaWrite,
     AyWrite,
+    SerialSettings,
+    SerialLines,
+    SerialSent,
+    SerialReceived,
+    SerialOverrun,
+    SocketState,
+    SocketSent,
+    SocketReceived,
 };
 
 struct IoEvent
@@ -43,6 +59,10 @@ struct IoEvent
     Byte         chip         = 0;
     Byte         reg          = 0;
     Byte         value        = 0;
+    Byte         control      = 0;
+    Byte         command      = 0;
+    Byte         lines        = 0;
+    uint16_t     length       = 0;
 
     bool  operator== (const IoEvent & other) const = default;
 };
@@ -82,6 +102,14 @@ public:
     static constexpr uint16_t  kAltCharset = 0x40;
     static constexpr uint16_t  k80Store    = 0x80;
 
+    //  A serial entry's line levels, each bit set while that line is on.
+    static constexpr Byte  kLineDtr = 0x01;
+    static constexpr Byte  kLineRts = 0x02;
+    static constexpr Byte  kLineCts = 0x04;
+    static constexpr Byte  kLineDsr = 0x08;
+    static constexpr Byte  kLineDcd = 0x10;
+    static constexpr Byte  kLineIrq = 0x20;
+
     //  The accesses that can change the video mode: any access to
     //  $C050-$C05F (the display switches and, on the //e, double hi-res with
     //  annunciator 3), and a write to $C000-$C00F (80STORE, 80COL and
@@ -113,6 +141,10 @@ public:
     //  What one entry did, as its line in a listing ends: the modes a video
     //  switch turned on and off, "speaker", or a Mockingboard register write.
     static std::string  FormatEvent   (const IoEvent & entry);
+
+    //  A serial entry's port: "Slot 2" for a card, "Port 1" for one of the
+    //  //c's built-in ports.
+    static std::string  GetSerialPortName (Byte port);
 
 private:
     static constexpr Byte  kRegisterMask = 0x0F;

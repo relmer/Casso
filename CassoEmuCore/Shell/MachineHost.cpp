@@ -26,6 +26,7 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 #include "Devices/Acia6551.h"
 
@@ -122,7 +123,9 @@ void MachineHost::SetOutputMuted (bool isMuted)
 //
 //  The speaker and the printer card hold their own flag. The Disk II's
 //  drive sounds go out through its audio sink, which is held here and
-//  detached while muted. Muting twice, or unmuting twice, changes nothing.
+//  detached while muted. The serial chips are muted with the printer, since
+//  what they send goes to a file or another machine. Muting twice, or
+//  unmuting twice, changes nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +137,11 @@ void MachineHost::SetOutputMuted (bool isSoundMuted, bool isPrinterMuted)
     }
 
     m_isPrinterMuted = isPrinterMuted;
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->SetOutputMuted (isPrinterMuted);
+    }
 
     if (isSoundMuted == m_isSoundMuted)
     {
@@ -567,6 +575,14 @@ void MachineHost::AttachInputJournal()
         m_refs.serialChips[i]->SetInputJournal  (journal, (uint16_t) i);
         m_refs.serialChips[i]->SetHostInputGate (&m_hostInputGate);
     }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->SetInputJournal  (journal);
+        m_refs.uthernet->SetHostInputGate (&m_hostInputGate);
+    }
+
+    AttachCommEventSink (m_commSink);
 }
 
 
@@ -621,7 +637,68 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
         isApplied = m_refs.serialChips[record.detail]->ApplyInput (record);
     }
 
+    if (!isApplied && m_refs.uthernet != nullptr)
+    {
+        isApplied = m_refs.uthernet->ApplyInput (record);
+    }
+
     return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::DropHostConnections
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::DropHostConnections()
+{
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->DropHostConnections();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ResyncHostConnections
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ResyncHostConnections (size_t cursor)
+{
+    size_t                          index = 0;
+    std::vector<std::vector<Byte>>  bytes (m_refs.serialChips.size());
+
+
+
+    for (index = cursor; index < m_inputJournal.GetEndIndex(); index++)
+    {
+        const InputRecord  & record = m_inputJournal.GetRecord (index);
+
+        if (record.kind == InputKind::AciaByte && record.detail < bytes.size())
+        {
+            bytes[record.detail].push_back (record.value);
+        }
+    }
+
+    for (index = 0; index < bytes.size(); index++)
+    {
+        m_refs.serialChips[index]->RequeueReceivedBytes (bytes[index]);
+    }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->ResyncHostConnections (&m_inputJournal, cursor);
+    }
 }
 
 
@@ -2061,6 +2138,40 @@ void MachineHost::AttachObservers (const MachineObservers & observers, ObserverS
     {
         m_memoryBus->SetIoAccessSink (slot, (observers.ioFilter != nullptr) ? observers.io : nullptr, (observers.ioFilter != nullptr) ? *observers.ioFilter : IoAccessFilter());
     }
+
+    if (slot == ObserverSlot::History)
+    {
+        AttachCommEventSink (observers.comm);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::AttachCommEventSink
+//
+//  Each serial chip, numbered as the input journal numbers it, and the
+//  network card. AttachInputJournal calls this again, for the devices of a
+//  machine the builder switched to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::AttachCommEventSink (ICommEventSink * sink)
+{
+    m_commSink = sink;
+
+    for (Acia6551 * acia : m_refs.serialChips)
+    {
+        acia->SetCommEventSink (sink);
+    }
+
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->SetCommEventSink (sink);
+    }
 }
 
 
@@ -2084,6 +2195,8 @@ std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders()
         m_refs.diskController,
         m_refs.mockingboard,
         m_refs.printerCard,
+        m_refs.superSerialCard,
+        m_refs.uthernet,
     };
 
 
@@ -2093,6 +2206,16 @@ std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders()
         if (device != nullptr)
         {
             providers.push_back (device);
+        }
+    }
+
+    //  A 6551 that is a port by itself, as each of the //c's is; a card's
+    //  is in the card's panel.
+    for (const Acia6551 * acia : m_refs.serialChips)
+    {
+        if (!acia->GetDiagnosticsId().empty())
+        {
+            providers.push_back (acia);
         }
     }
 

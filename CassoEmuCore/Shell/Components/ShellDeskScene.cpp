@@ -4560,8 +4560,8 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
         // cursor is the only pointer there is, and the bottom edge must
         // summon the strip -- Active gated the reveal off for the whole
         // session on a machine whose mouse is built in.
-        inputs.guestPointer  = m_shell.m_input->IsPaddleCaptured()    ? GuestPointerMode::Paddle
-                             : m_shell.m_input->IsGuestMouseLive()    ? GuestPointerMode::Mouse
+        inputs.guestPointer  = m_shell.m_input->GetMouseInput().IsPaddleCaptured()    ? GuestPointerMode::Paddle
+                             : m_shell.m_input->GetMouseInput().IsGuestMouseLive()    ? GuestPointerMode::Mouse
                              :                       GuestPointerMode::None;
         inputs.anyDriveActive = anyDriveLive;
 
@@ -4569,9 +4569,9 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
 
         if (effects.releaseCapture)
         {
-            if (m_shell.m_input->IsPaddleCaptured())
+            if (m_shell.m_input->GetMouseInput().IsPaddleCaptured())
             {
-                m_shell.m_input->StopPaddleCapture();
+                m_shell.m_input->GetMouseInput().StopPaddleCapture();
             }
             else
             {
@@ -4581,7 +4581,7 @@ void ShellDeskScene::TickStrip (bool anyDriveLive)
 
         if (effects.restoreCapture == GuestPointerMode::Paddle)
         {
-            m_shell.m_input->StartPaddleCapture();
+            m_shell.m_input->GetMouseInput().StartPaddleCapture();
         }
         else if (effects.restoreCapture == GuestPointerMode::Mouse)
         {

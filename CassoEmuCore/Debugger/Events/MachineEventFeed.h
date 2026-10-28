@@ -5,6 +5,8 @@
 #include "Core/IIoAccessSink.h"
 #include "Debugger/Events/DebugEventCache.h"
 #include "Debugger/Events/DebugEventJob.h"
+#include "Debugger/Events/ICommEventSink.h"
+#include "Debugger/Events/IIoEventSource.h"
 #include "Debugger/Events/IoEventDecoder.h"
 #include "Debugger/IoEventLog.h"
 #include "Devices/IInputEventSink.h"
@@ -41,7 +43,7 @@ class MachineHost;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MachineEventFeed : public IDisk2EventSink, public IInputEventSink, public IIoAccessSink
+class MachineEventFeed : public IDisk2EventSink, public IInputEventSink, public IIoAccessSink, public ICommEventSink
 {
 public:
     using DiskEntry     = DebugEventEntry<Disk2Event>;
@@ -52,18 +54,22 @@ public:
     //  Where each kind of event goes; a kind with none is dropped.
     struct Caches
     {
-        DebugEventCache<Disk2Event>  * disk  = nullptr;
-        DebugEventCache<InputEvent>  * input = nullptr;
-        DebugEventCache<IoEvent>     * video = nullptr;
-        DebugEventCache<IoEvent>     * sound = nullptr;
+        DebugEventCache<Disk2Event>  * disk    = nullptr;
+        DebugEventCache<InputEvent>  * input   = nullptr;
+        DebugEventCache<IoEvent>     * video   = nullptr;
+        DebugEventCache<IoEvent>     * sound   = nullptr;
+        DebugEventCache<IoEvent>     * serial  = nullptr;
+        DebugEventCache<IoEvent>     * network = nullptr;
     };
 
     struct Entries
     {
-        std::vector<DiskEntry>   * disk  = nullptr;
-        std::vector<InputEntry>  * input = nullptr;
-        std::vector<IoEntry>     * video = nullptr;
-        std::vector<IoEntry>     * sound = nullptr;
+        std::vector<DiskEntry>   * disk    = nullptr;
+        std::vector<InputEntry>  * input   = nullptr;
+        std::vector<IoEntry>     * video   = nullptr;
+        std::vector<IoEntry>     * sound   = nullptr;
+        std::vector<IoEntry>     * serial  = nullptr;
+        std::vector<IoEntry>     * network = nullptr;
     };
 
     void  AttachToCaches  (MachineHost & machine, const Caches & caches, RecordingTest isRecording);
@@ -107,6 +113,10 @@ public:
     // IIoAccessSink
     void  OnIoAccess       (Word address, Byte value, bool isWrite) override;
 
+    // ICommEventSink: a serial entry goes to the serial log and a socket's to
+    // the network log.
+    void  OnCommEvent      (const IoEvent & event, std::span<const Byte> bytes) override;
+
 private:
     void  Attach      (MachineHost & machine);
     bool  IsRecording () const;
@@ -114,21 +124,25 @@ private:
     void  EmitInput   (InputEventType type, Word address, Byte value, uint8_t flags);
     void  EmitIo      (const IoEvent & event);
 
-    MachineHost                    * m_machine    = nullptr;
-    const uint64_t                 * m_position   = nullptr;
-    DebugEventCache<Disk2Event>    * m_diskCache  = nullptr;
-    DebugEventCache<InputEvent>    * m_inputCache = nullptr;
-    std::vector<DiskEntry>         * m_diskOut    = nullptr;
-    std::vector<InputEntry>        * m_inputOut   = nullptr;
-    DebugEventCache<IoEvent>       * m_videoCache = nullptr;
-    DebugEventCache<IoEvent>       * m_soundCache = nullptr;
-    std::vector<IoEntry>           * m_videoOut   = nullptr;
-    std::vector<IoEntry>           * m_soundOut   = nullptr;
-    RecordingTest                    m_isRecording;
-    IoEventDecoder                   m_decoder;
-    IoEventDecoder::Events           m_ioEvents;
-    IoAccessFilter                   m_ioFilter;
-    int                              m_drive      = 0;
+    MachineHost                  * m_machine      = nullptr;
+    const uint64_t               * m_position     = nullptr;
+    DebugEventCache<Disk2Event>  * m_diskCache    = nullptr;
+    DebugEventCache<InputEvent>  * m_inputCache   = nullptr;
+    std::vector<DiskEntry>       * m_diskOut      = nullptr;
+    std::vector<InputEntry>      * m_inputOut     = nullptr;
+    DebugEventCache<IoEvent>     * m_videoCache   = nullptr;
+    DebugEventCache<IoEvent>     * m_soundCache   = nullptr;
+    std::vector<IoEntry>         * m_videoOut     = nullptr;
+    std::vector<IoEntry>         * m_soundOut     = nullptr;
+    DebugEventCache<IoEvent>     * m_serialCache  = nullptr;
+    DebugEventCache<IoEvent>     * m_networkCache = nullptr;
+    std::vector<IoEntry>         * m_serialOut    = nullptr;
+    std::vector<IoEntry>         * m_networkOut   = nullptr;
+    RecordingTest                  m_isRecording;
+    IoEventDecoder                 m_decoder;
+    IoEventDecoder::Events         m_ioEvents;
+    IoAccessFilter                 m_ioFilter;
+    int                            m_drive        = 0;
 };
 
 
@@ -171,12 +185,12 @@ private:
 class IoEventProbe : public IDebugEventProbe<IoEvent>
 {
 public:
-    explicit IoEventProbe (bool isVideo) : m_isVideo (isVideo) {}
+    explicit IoEventProbe (IoLogKind kind) : m_kind (kind) {}
 
     HRESULT  Attach (MachineHost & machine, std::vector<DebugEventEntry<IoEvent>> & entries) override;
     void     Detach (MachineHost & machine) override;
 
 private:
     MachineEventFeed  m_feed;
-    bool              m_isVideo = false;
+    IoLogKind         m_kind = IoLogKind::Video;
 };

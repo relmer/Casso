@@ -187,7 +187,7 @@ These are Casso's own additions to AppleWin's set:
 | `PAUSE` | stops a running machine |
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
 | `SWITCHES` | lists the soft switches and whether each is on |
-| `MAP` | shows, for each address range, where reads and writes go now -- main or auxiliary RAM, ROM, language card bank 1 or 2, slot or internal ROM -- as the language card, auxiliary memory and ROM switches set them |
+| `MAP` | shows, for each address range, where reads and writes go now -- main or auxiliary RAM, ROM, language card bank 1 or 2, slot or internal ROM -- as the language card, auxiliary memory and ROM switches set them. $C800-$CEFF is the ROM of the slot whose card is selected there, or unused (floating bus) when no card is |
 | `STACK` | shows the stack pointer and the stack page above it |
 | `PATCH addr value...` | writes bytes the way a memory window edit does: into RAM, or into ROM so the machine runs the patched code; it will not write an I/O address, which is what `OUT` is for |
 
@@ -244,6 +244,11 @@ The beam is also what a read that drives no data returns. On the ][, ][+ and //e
 Symbol tables give addresses names in disassembly and in expressions. Casso
 builds the Monitor, Applesoft, DOS 3.3 and ProDOS tables in, adding the
 //e and //c memory soft switches on those machines.
+
+The registers of the Super Serial Card, the Uthernet II and the //c's serial
+ports have no symbols. Hover over an operand at one of them in the
+disassembly for a tip with the register's description, under the card's name
+and slot: "Super Serial Card, slot 2: 6551 status register".
 
 ```
 SYM LOAD "game.dbg"       load into the User table
@@ -906,6 +911,32 @@ A speaker toggle costs about fourteen nanoseconds of host time, so a program
 playing a note runs one to three percent slower at maximum speed, and a loop
 that toggles the speaker as fast as a 6502 can about a sixth slower. Other
 I/O, a keyboard poll among it, costs nothing measurable.
+
+## Serial and network logs
+
+The serial log has the traffic of each 6551: the Super Serial Card's and the
+//c's two ports. The network log has the Uthernet II's sockets. Each opens from
+the View menu, or from the serial and Uthernet II panels' menus.
+
+Each pane has a graph across the top and a list under it. The serial log's
+graph has a lane for each of TxD, RxD, RTS, CTS, DTR, DSR, DCD and the
+interrupt line. TxD and RxD are drawn bit by bit: each byte's start bit, data
+bits low bit first, parity bit and stop bits, laid out from the word length,
+parity and stop bits in force and the baud rate, as the 6551 times them. A
+line rests at mark. The network log's graph has a lane for each socket,
+colored by its state, with a tick up for each send and down for each receive.
+
+The bar has a toggle for each lane, and Zoom in and Zoom out. The graph ends
+just after the newest row, or centers on the row the keyboard is on; the
+serial graph is of that row's port. Rest the pointer on the graph for the state
+of each lane turned on: on or off for a control line, mark or space for a data
+line with which bit of which byte it is, and for a socket its state and the
+bytes it has sent and received.
+
+The list has a row for each byte a port sent or received, or each send and
+receive of a socket, with the bytes as text and in hex. Reads of the 6551's
+status register make no entry. Both logs are rebuilt from history, as the
+video and sound logs are, so they follow a rewind or a seek.
 ## The debugger window
 
 **Debug > Debugger...** opens the window beside the emulator, as do F12, F7
@@ -1026,10 +1057,20 @@ stopped there; clicking the live end goes live, also stopped. The timeline
 docks and floats, and its place is restored, as the command bar's is.
 Floating, it is as long as it was docked, and dragging either end resizes it.
 
-No step back or seek can cross a time the Uthernet II was in use. Its open
-connections are on the host, and no replay can open them again. While the
-card has a socket or a connection open, history is off. Once all are closed,
-recording starts again, and the timeline begins there.
+History covers the Uthernet II in use. What the network sends the card is
+stored in history as it arrives, and a step back or a seek replays it from
+there. A replay sends nothing to the network and receives nothing from it.
+A change made in the past makes the machine live there. Each connection
+that matches a socket the program has open at that point stays open, so a
+session goes on without connecting again. A connection the other end has
+closed since reads as closed by it, and a socket whose connection is gone
+reads as closed by the remote end. A connection the program has no socket
+for at that point is closed. What the network sent between that point and
+where the machine had run to is delivered again, ahead of anything new, and
+the same goes for a serial port. This includes a program that runs a TCP/IP
+stack on socket 0 in MACRAW mode. What the program sent in that time was
+delivered to the other end, so it can get it twice. Loading a state file
+closes every connection.
 
 ### The status bar
 
@@ -1566,7 +1607,8 @@ character wider, so a box's edge does not crowd the addresses or the text.
 
 **View > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
 and its memory map, the video switches, the keyboard, the Mockingboard, the
-printer card, the cassette deck and the clock. Each opens as a pane showing its registers and
+printer card, the Super Serial Card, the //c's two serial ports, the Uthernet II,
+the cassette deck and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the
 device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same

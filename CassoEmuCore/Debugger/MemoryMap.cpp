@@ -20,7 +20,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<MemoryMapRange> MemoryMap::Build (const std::vector<SoftSwitch> & switches)
+std::vector<MemoryMapRange> MemoryMap::Build (const std::vector<SoftSwitch> & switches, std::optional<int> expansionSlot)
 {
     std::vector<MemoryMapRange>  ranges;
     bool                         ramRd    = false;
@@ -75,11 +75,12 @@ std::vector<MemoryMapRange> MemoryMap::Build (const std::vector<SoftSwitch> & sw
         Add (ranges, 0xC100, 0xC2FF, slots, kNothing);
         Add (ranges, 0xC300, 0xC3FF, slot3, kNothing);
         Add (ranges, 0xC400, 0xC7FF, slots, kNothing);
-        Add (ranges, 0xC800, 0xCFFF, c8,    kNothing);
+        AddExpansion (ranges, expansionSlot, c8);
     }
     else
     {
-        Add (ranges, 0xC100, 0xCFFF, kSlotRom, kNothing);
+        Add          (ranges, 0xC100, 0xC7FF, kSlotRom, kNothing);
+        AddExpansion (ranges, expansionSlot, kSlotRom);
     }
 
     if (hasLc)
@@ -170,4 +171,29 @@ void MemoryMap::Add (std::vector<MemoryMapRange> & ranges, Word first, Word last
     }
 
     ranges.push_back ({ first, last, read, write });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMap::AddExpansion
+//
+//  $C800-$CFFF, which reads read when that is not the slots' ROM or the
+//  selected slot is not known.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryMap::AddExpansion (std::vector<MemoryMapRange> & ranges, std::optional<int> expansionSlot, const std::string & read)
+{
+    if (read != kSlotRom || !expansionSlot.has_value())
+    {
+        Add (ranges, 0xC800, 0xCFFF, read, kNothing);
+        return;
+    }
+
+    Add (ranges, 0xC800, 0xCEFF, *expansionSlot != 0 ? std::format ("slot {} ROM", *expansionSlot) : std::string (kFloatingBus), kNothing);
+    Add (ranges, 0xCF00, 0xCFFF, kFloatingBus, kNothing);
 }

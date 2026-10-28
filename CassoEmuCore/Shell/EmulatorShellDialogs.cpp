@@ -343,6 +343,43 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ChooseDialogOwner
+//
+//  A modal owned by the emulator window comes up behind a debugger window
+//  that fills the screen, and the debugger window stays enabled under it.
+//  Owned by the window the user is in, it comes up over that one and
+//  disables it. A floating pane's window is owned by the debugger window,
+//  so the root owner is the one taken. A window of another thread or
+//  process, or one a modal has already disabled, means the fallback.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND EmulatorShell::ChooseDialogOwner (HWND foreground, HWND fallback)
+{
+    HWND  owner = fallback;
+    HWND  root  = nullptr;
+
+
+
+    if (foreground != nullptr && GetWindowThreadProcessId (foreground, nullptr) == GetCurrentThreadId())
+    {
+        root = GetAncestor (foreground, GA_ROOTOWNER);
+
+        if (root != nullptr && IsWindowEnabled (root))
+        {
+            owner = root;
+        }
+    }
+
+    return owner;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ShowSimpleDialogViaDxui
 //
 //  Translates a renderable DialogDefinition into a MessageDialog whose
@@ -473,13 +510,13 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 
     params.title                    = def.title;
     params.hInstance                = m_hInstance;
-    params.ownerHwnd                = m_hwnd;
+    params.ownerHwnd                = ChooseDialogOwner (GetForegroundWindow(), m_hwnd);
     params.initialSizeDip           = { widthDip, heightDip };
     params.resizable                = false;
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
-    // Centered on the emulator window rather than on the OS cascade, which
+    // Centered on its owner rather than on the OS cascade, which
     // ignores the owner: the Help modals opened at the cascade's top-left
     // corner, half off the window that raised them. A modal belongs where
     // the user is already looking.

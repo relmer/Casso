@@ -5,6 +5,9 @@
 #include "Devices/Network/IW5100Backend.h"
 #include "Devices/Network/W5100Registers.h"
 
+class StateReader;
+class StateWriter;
+
 
 
 
@@ -39,8 +42,45 @@ public:
     // Power-on: every register to its reset value and the pointer to 0.
     void  HardwareReset      ();
 
+    // The chip's memory, its buffer layout and the address pointer. The
+    // backend's host sockets are not part of it.
+    void     SaveState       (StateWriter & writer) const;
+    HRESULT  LoadState       (StateReader & reader);
+
+    // While a log is set, each change the backend makes through the calls
+    // below is appended to it, so ApplyChanges makes the same changes again.
+    // A TX commit has the bytes it sent, which ApplyChanges ignores.
+    enum class Change : Byte
+    {
+        SocketStatus,
+        SocketInterrupt,
+        Destination,
+        Unreachable,
+        CommitTx,
+        AppendRx,
+    };
+
+    struct LoggedChange
+    {
+        Change                 change = Change::SocketStatus;
+        int                    socket = 0;
+        uint64_t               first  = 0;
+        uint64_t               second = 0;
+        std::span<const Byte>  bytes;
+    };
+
+    void     SetChangeLog    (std::string * log) { m_changeLog = log; }
+    HRESULT  ApplyChanges    (std::string_view log);
+
+    // The change at `at` in a log, with `at` moved past it.
+    static HRESULT  ReadChange (std::string_view log, size_t & at, LoggedChange & outChange);
+
     bool  IsInterruptPending () const;
     Word  GetAddressPointer  () const { return m_pointer; }
+
+    // A common register as a read returns it, for the debugger: the pointer
+    // does not move and nothing is cleared.
+    Byte  PeekCommon         (Word address) const { return ReadCommon (address); }
 
     // Internal space, with the register side effects of an IDM_DR access.
     Byte  ReadInternal       (Word address);
@@ -50,6 +90,7 @@ public:
     Byte      GetSocketMode        (int socket) const;
     Byte      GetSocketProtocol    (int socket) const;
     Byte      GetSocketStatus      (int socket) const;
+    Byte      GetSocketInterrupt   (int socket) const;
     void      SetSocketStatus      (int socket, Byte status);
     void      RaiseSocketInterrupt (int socket, Byte bits);
     uint16_t  GetSourcePort        (int socket) const;
@@ -109,9 +150,15 @@ private:
     Word      GetRxReceivedSize    (int socket) const;
     Byte      ReadLatchedWord      (int socket, Word offset, Word value);
 
-    std::vector<Byte>                           m_mem     = std::vector<Byte> (kMemorySize);
-    std::array<SocketState, kSocketCount>       m_sockets = {};
-    Word                                        m_pointer = 0;
-    IW5100Backend                             * m_backend = nullptr;
-    NullW5100Backend                            m_nullBackend;
+    void      LogChange            (Change change, int socket, uint64_t first, uint64_t second, std::span<const Byte> bytes = {});
+
+    static void      AppendLogValue (std::string & log, uint64_t value);
+    static uint64_t  ReadLogValue   (std::string_view log, size_t offset);
+
+    std::vector<Byte>                        m_mem         = std::vector<Byte> (kMemorySize);
+    std::array<SocketState, kSocketCount>    m_sockets     = {};
+    Word                                     m_pointer     = 0;
+    IW5100Backend                          * m_backend     = nullptr;
+    std::string                            * m_changeLog   = nullptr;
+    NullW5100Backend                         m_nullBackend;
 };

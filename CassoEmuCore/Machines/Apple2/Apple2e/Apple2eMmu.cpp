@@ -10,6 +10,7 @@
 #include "Devices/RomDevice.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
+#include "Machines/Apple2/Common/ExpansionRomBus.h"
 
 
 
@@ -738,6 +739,7 @@ DiagnosticsMemoryMap Apple2eMmu::GetMemoryMap() const
         }
     }
 
+    map.expansionSlot = (m_intCxRom || m_intC8Rom) ? 0 : GetExpansionSlot();
     return map;
 }
 
@@ -778,9 +780,11 @@ MemorySource Apple2eMmu::GetRamSource (const Byte * page) const
 //
 //  Apple2eMmu::GetCxxxSource
 //
-//  INTCXROM puts the internal ROM over every slot; with it off, $C300 still
-//  reads internal ROM unless SLOTC3ROM is on, and $C800-$CFFF is internal
-//  while INTC8ROM holds.
+//  INTCXROM, or a machine with no slots, puts the internal ROM over every
+//  slot; with INTCXROM off, $C300 reads internal ROM unless SLOTC3ROM is on,
+//  and $C800-$CFFF is internal while INTC8ROM is on. Otherwise $C800-$CEFF
+//  is the selected card's ROM, and $CF00-$CFFF, which deselects every card,
+//  reads the floating bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -788,10 +792,11 @@ MemorySource Apple2eMmu::GetCxxxSource (int page) const
 {
     constexpr int  kSlot3Page    = 0xC3;
     constexpr int  kExpansionRom = 0xC8;
+    constexpr int  kDeselectPage = 0xCF;
 
 
 
-    if (m_intCxRom)
+    if (m_intCxRom || !m_cxxxRouter.HasExternalSlots())
     {
         return MemorySource::Rom;
     }
@@ -801,12 +806,39 @@ MemorySource Apple2eMmu::GetCxxxSource (int page) const
         return m_slotC3Rom ? MemorySource::SlotRom : MemorySource::Rom;
     }
 
+    if (page >= kExpansionRom && m_intC8Rom)
+    {
+        return MemorySource::Rom;
+    }
+
     if (page >= kExpansionRom)
     {
-        return m_intC8Rom ? MemorySource::Rom : MemorySource::SlotRom;
+        return (page < kDeselectPage && GetExpansionSlot() != 0) ? MemorySource::SlotRom : MemorySource::None;
     }
 
     return MemorySource::SlotRom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2eMmu::GetExpansionSlot
+//
+//  The slot of the card whose expansion ROM is selected; 0 for none, and on
+//  a machine with no card that has one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int Apple2eMmu::GetExpansionSlot() const
+{
+    const ExpansionRomBus  * bus = m_cxxxRouter.GetExpansionRomBus();
+
+
+
+    return (bus != nullptr) ? bus->GetSelectedSlot() : 0;
 }
 
 

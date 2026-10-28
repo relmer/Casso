@@ -417,7 +417,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
-    m_chrome->AdoptFrameRateReadout (m_host->GetRoot());
+    m_chrome->GetFrameRateReadout().AdoptFrameRateReadout (m_host->GetRoot());
     m_scene->AdoptOverlays (m_host->GetRoot());
     m_chrome->AdoptToolbar (m_host->GetRoot());
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
@@ -494,7 +494,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // reads, so a click dispatches through HandleCommand like a menu row;
     // the volume group drives the master output gain and persists in
     // GlobalUserPrefs through the coalescing save below.
-    m_chrome->BuildToolbar (m_printer->GetLed());
+    m_chrome->GetToolbarEntries().BuildToolbar (m_printer->GetLed());
 
     // Mouse mode routes through the same toggle the band selector used, so
     // the leave-time release of a held guest button runs identically. It is
@@ -507,9 +507,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // The theme + monitor-color pickers, and the catalog behind the first of
     // them. Both option lists render through the host popup pool for the same
     // reason the menu bar's does: they hang off the strip over the viewport.
-    m_chrome->WireToolbarPickers();
-    m_chrome->RefreshToolbarThemeList();
-    m_chrome->SyncToolbarState();
+    m_chrome->GetToolbarEntries().WireToolbarPickers();
+    m_chrome->GetToolbarEntries().RefreshToolbarThemeList();
+    m_chrome->GetToolbarEntries().SyncToolbarState();
     m_chrome->GetMainMenu().SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -526,24 +526,24 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_chrome->GetMainMenu().GetCommands().SetPlayerPickedFn (
         [this] (size_t player, const PlayerEntry & entry)
         {
-            m_input->PickPlayer (player, entry);
+            m_input->GetControllers().PickPlayer (player, entry);
         });
 
     m_chrome->GetMainMenu().GetCommands().SetPlayerModeFn (
         [this] (size_t player, PlayerMode mode)
         {
-            m_input->SetPlayerMode (player, mode);
+            m_input->GetControllers().SetPlayerMode (player, mode);
         });
 
     m_chrome->GetMainMenu().GetCommands().SetProfilePickedFn (
         [this] (const ControllerUnitKey & unit, const std::string & profileName)
         {
-            m_input->PickControllerProfile (unit, profileName);
+            m_input->GetControllers().PickControllerProfile (unit, profileName);
         });
 
     m_chrome->GetMainMenu().GetCommands().SetNewProfileFn ([this] (const ControllerUnitKey & unit)
     {
-        m_input->StartNewControllerProfile (unit);
+        m_input->GetControllers().StartNewControllerProfile (unit);
     });
 
     m_chrome->GetMainMenu().SetEnableQuery ([this] (WORD commandId) -> bool
@@ -724,21 +724,7 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
 
-    //  A snap layout, Win+arrow or a monitor going away places the window
-    //  without the OS drag loop, so this is the only report of it. Inside the
-    //  loop the rect changes once per pixel and the end of it is the
-    //  placement. SaveWindowPlacement refuses anything that is not a settled
-    //  windowed rect, which is what kept the transitions out before.
-    if (!m_inSizeMove)
-    {
-        WindowTrace::LogWindow ("place.change", "main", m_hwnd, "outside the OS drag loop");
-        m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
-    }
-
-    if (m_chrome->GetMainMenu().IsOpen())
-    {
-        m_chrome->GetMainMenu().Hide();
-    }
+    m_window->OnMoved();
 
     return DxuiMessageResult::NotHandled;
 }
@@ -755,7 +741,7 @@ DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 
 void EmulatorShell::OnEnterSizeMove()
 {
-    m_inSizeMove = true;
+    m_window->OnEnterSizeMove();
 }
 
 
@@ -766,25 +752,11 @@ void EmulatorShell::OnEnterSizeMove()
 //
 //  EmulatorShell::OnExitSizeMove
 //
-//  WHERE THE WINDOW'S PLACEMENT IS PERSISTED, and the only place a move or a
-//  drag-resize is.
-//
-//  It used to be saved from OnMove and OnSize, which fire for a PROGRAMMATIC
-//  SetWindowPos exactly as they do for the user: a script that positioned the
-//  window to photograph it, or any tool that nudged it, silently overwrote the
-//  size and place the user had chosen. The OS drag loop runs only for a real
-//  drag of the caption or a border, so its end is the moment that means "the
-//  user put it here".
-//
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnExitSizeMove()
 {
-    m_inSizeMove = false;
-    WindowTrace::LogWindow ("move.end", "main", m_hwnd, "the OS drag loop ended");
-
-    m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
+    m_window->OnExitSizeMove();
 }
 
 
@@ -942,7 +914,7 @@ int EmulatorShell::RunMessageLoop()
         {
             // The sheet may have created, renamed or deleted profiles, and
             // the command bar's profile list is built from them.
-            m_input->SyncPaddleSourceList();
+            m_input->GetControllers().SyncPaddleSourceList();
         }
 
         // Process pending messages, bounded by the drain deadline (see banner):
@@ -1246,13 +1218,13 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 {
     if (!active)
     {
-        m_input->StopPaddleCapture();
+        m_input->GetMouseInput().StopPaddleCapture();
     }
 
     // Controller input follows the application, not one window: the Settings
     // sheet is Casso too, and XInput was measured still delivering while
     // another application was in front, so the gate has to be ours.
-    m_input->SetControllersActive (active);
+    m_input->GetControllers().SetControllersActive (active);
 
     return DxuiMessageResult::NotHandled;
 }
@@ -1269,7 +1241,7 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 
 DxuiMessageResult EmulatorShell::OnKillFocus()
 {
-    m_input->StopPaddleCapture();
+    m_input->GetMouseInput().StopPaddleCapture();
 
     // Losing keyboard focus means the matching WM_KEYUPs will never arrive
     // here -- whatever window took focus gets them. Release the guest keyboard
@@ -1303,18 +1275,18 @@ DxuiMessageResult EmulatorShell::OnCancelMode()
     //  other cancel -- a modal, a secure desktop, a real takeover -- releases
     //  the pointer as it always did, which is what keeps a hidden cursor from
     //  being stranded behind someone else's window.
-    if (m_input->IsPaddleCaptured()
+    if (m_input->GetMouseInput().IsPaddleCaptured()
         && GetForegroundWindow() == m_hwnd
         && !m_chrome->IsMenuOpen()
-        && m_chrome->TakeCaptureReflowEcho (ChangeBannerNowMs()))
+        && m_chrome->GetStandInBar().TakeCaptureReflowEcho (ChangeBannerNowMs()))
     {
         SetCapture (m_hwnd);
-        m_input->ClipPaddleCursorToClient();
+        m_input->GetMouseInput().ClipPaddleCursorToClient();
 
         return DxuiMessageResult::Handled;
     }
 
-    m_input->StopPaddleCapture();
+    m_input->GetMouseInput().StopPaddleCapture();
     return DxuiMessageResult::NotHandled;
 }
 
@@ -1326,68 +1298,11 @@ DxuiMessageResult EmulatorShell::OnCancelMode()
 //
 //  EmulatorShell::OnGetMinMax
 //
-//  Clamps the window's minimum track size so the bottom drive bar can
-//  never be dragged up into the menu strip / NC area. The floor is the
-//  client size for a minimum emulator viewport (the chrome-band dock
-//  adds the live title / nav / drive-bar insets), widened so no menu
-//  title clips, then translated to a window size by the live NC overhead.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
 {
-    HRESULT            hr          = S_OK;
-    DxuiMessageResult  result      = DxuiMessageResult::NotHandled;
-    RECT               rcClient    = {};
-    RECT               rcWindow    = {};
-    SIZE               minClient   = {};
-    int                menuWidthPx = 0;
-    int                ncOverheadW = 0;
-    int                ncOverheadH = 0;
-
-
-
-    BAIL_OUT_IF (info == nullptr || m_hwnd == nullptr, S_OK);
-
-    // Client size for the minimum center: the chrome-band dock adds the
-    // live title / nav / drive-bar insets around the requested viewport.
-    minClient = m_chrome->GetClientSizeForCenterPx (m_scaler.ToPx (s_kMinCenterWidthDp),
-                                                    m_scaler.ToPx (s_kMinCenterHeightDp));
-
-    // Never narrower than the menu strip's content so every title stays
-    // on-strip. The width is physical client px, the same space as minClient.
-    menuWidthPx = m_chrome->GetMainMenu().GetMenuStripContentWidthPx() + m_scaler.ToPx (s_kMenuRightPadDp);
-
-    if (minClient.cx < menuWidthPx)
-    {
-        minClient.cx = menuWidthPx;
-    }
-
-    // Translate the client floor to a window floor via the live NC overhead
-    // (the custom chrome keeps this small -- just the resize borders -- but
-    // it is non-zero).
-    if (GetClientRect (m_hwnd, &rcClient) && GetWindowRect (m_hwnd, &rcWindow))
-    {
-        ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
-        ncOverheadH = (rcWindow.bottom - rcWindow.top)  - (rcClient.bottom - rcClient.top);
-    }
-
-    info->ptMinTrackSize.x = minClient.cx + ncOverheadW;
-    info->ptMinTrackSize.y = minClient.cy + ncOverheadH;
-
-    //  Once per change: the OS asks this on every pointer tick of a drag.
-    if (info->ptMaxSize.x != m_lastMaxSize.x || info->ptMaxSize.y != m_lastMaxSize.y)
-    {
-        m_lastMaxSize = info->ptMaxSize;
-        WindowTrace::LogRect ("minmax", "main", info->ptMaxPosition.x, info->ptMaxPosition.y,
-                              info->ptMaxSize.x, info->ptMaxSize.y,
-                              "the maximized rect the OS offers");
-    }
-
-    result = DxuiMessageResult::Handled;
-
-Error:
-    return result;
+    return m_window->ClampMinMax (info);
 }
 
 
@@ -1398,208 +1313,11 @@ Error:
 //
 //  OnSize
 //
-//  The authoritative chrome layout pass. Everything positioned in the window
-//  is settled here, in a dependency order that is not interchangeable:
-//
-//    1. back-buffer size    the CRT post-process needs the new dimensions
-//    2. UiShell + menu bar  top-anchored chrome
-//    3. viewport layout     settles the desk-scene scale and band heights
-//    4. drive widgets       positioned INSIDE the band step 3 just sized
-//    5. joystick / switch   the remaining band occupants
-//    6. hit-test rects      re-registered from the final geometry
-//
-//  Step 3 before step 4 is the fix for widgets that lagged one resize behind:
-//  laying the widgets against the previous scale left them disagreeing with
-//  the band they sit in until the next size event.
-//
-//  The swap chain is NOT resized here. DxuiHwndSource::HandleSize already did
-//  it, along with recreating the back-buffer RTV and D2D target, before this
-//  ran -- the renderer no longer owns the swap chain and only needs to be
-//  told the new size.
-//
-//  Machines with no Disk II controller collapse both drive widgets to empty
-//  rects rather than skipping the layout, because an empty rect is also what
-//  makes the drag-drop overlay treat the whole window as a drop target. The
-//  joystick button still lays out: joystick input does not depend on disks.
-//  On a //c, the external drive is re-hidden after layout because the shared
-//  layout helper un-hides both.
-//
-//  The disk-presence and //c-ness this size accounts for are recorded here
-//  precisely because OnSize is authoritative -- it fires on real WM_SIZE only,
-//  never per frame -- so ReflowChromeForMachineChange can read the pre-switch
-//  values and grow or shrink the window by the band delta after a machine
-//  change that produces no WM_SIZE of its own.
-//
-//  The synchronous repaint at the end is what keeps an interactive drag-resize
-//  from showing stale or black frames: RunMessageLoop is blocked inside the OS
-//  modal resize loop and cannot present, so this drives the paint directly.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 {
-    int       width     = static_cast<int> (widthPx);
-    int       renderH   = static_cast<int> (heightPx);
-
-
-
-    UNREFERENCED_PARAMETER (widthPx);
-
-    m_chrome->SetInLayout (true);
-
-    // A resize restretches the window; drop any open menu so its
-    // window-anchored popup is not left stranded.
-    if (m_chrome->GetMainMenu().IsOpen())
-    {
-        m_chrome->GetMainMenu().Hide();
-    }
-
-    // The host (DxuiHwndSource::HandleSize) already resized its swap
-    // chain and recreated the back-buffer RTV + D2D target before this
-    // OnSize fired. The renderer no longer owns the swap chain; it just
-    // needs the new back-buffer dimensions for the CRT post-process.
-    m_renderer->GetD3D().SetBackBufferSize (static_cast<int> (width), renderH);
-
-    {
-        UINT  dpi           = GetDpiForWindow (m_hwnd);
-        RECT  menuBarBounds = {};
-        HRESULT  hrUiR           = m_uiShell.OnResize (m_renderer->GetD3D().GetBackBufferWidth(),
-                                                       m_renderer->GetD3D().GetBackBufferHeight(),
-                                                       dpi);
-
-        IGNORE_RETURN_VALUE (hrUiR, S_OK);
-
-        // THE SCALER TAKES THE WINDOW'S DPI BEFORE ANYTHING IS LAID OUT. A
-        // move to a monitor of another DPI resizes the window from inside the
-        // host's WM_DPICHANGED, so this WM_SIZE arrives before OnDpiChanged
-        // has updated the scaler. Laying out at the old DPI against a caption
-        // already at the new one overlapped the menu strip and the command
-        // bar, and nothing laid them out again until the next resize.
-        if (dpi != 0)
-        {
-            m_scaler.SetDpi (dpi);
-        }
-
-        // Fullscreen presentation (FR-014): the picture owns the whole client
-        // and every chrome element collapses, whichever theme is on. The
-        // windowed path below is the one that restores everything --
-        // including the host caption -- when fullscreen exits, because this
-        // OnSize runs on both transitions.
-        if (m_renderer->GetD3D().IsFullscreen())
-        {
-            m_chrome->SetChromeHiddenForFullscreenScene (true);
-            m_chrome->UpdateViewportLayout (static_cast<int> (width), renderH);
-            m_chrome->RecordSizedFor (m_chromeFacts.hasDiskController, MachineHasCaseSwitches());
-        }
-        else
-        {
-
-        // Chrome visibility FIRST: the caption height feeds the menu bar's
-        // anchor, and a hidden caption reports zero.
-        m_chrome->SetChromeHiddenForFullscreenScene (false);
-
-        menuBarBounds = { 0, m_host->GetCaptionHeightPx(), static_cast<int> (width), m_host->GetCaptionHeightPx() };
-        m_chrome->GetMainMenu().Layout (menuBarBounds, m_scaler);
-
-        // Settle the desk-scene scale (monitor fit + scaled band heights) for
-        // THIS size before laying the drive widgets, so widgets and band agree
-        // instead of the widgets lagging one resize behind.
-        m_chrome->UpdateViewportLayout (static_cast<int> (width), renderH);
-
-        {
-            RECT  vr            = m_chrome->ComputeViewportRect (static_cast<int> (width), renderH);
-            RECT  driveRect     = m_chrome->GetDriveBandBounds();
-            int   bottomInsetPx = renderH - driveRect.top;   // drive band height only
-            bool  fHasDisk      = m_chromeFacts.hasDiskController;
-
-            (void) vr;                                        // dock side-effect: bands arranged
-
-            if (DeskSceneActive())
-            {
-                // The 3D scene owns the drives; nothing to lay out. The hit
-                // registry is refreshed below with the rest of the chrome.
-            }
-            else if (fHasDisk)
-            {
-                m_chrome->LayoutDriveWidgetsInCommandBar (m_disks->GetDriveChrome(), bottomInsetPx, static_cast<int> (width), renderH, dpi,
-                                                          m_chrome->GetSceneScale(), m_disks->ShouldShowExternalDrive() ? 2 : 1);
-
-                // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
-                // widgets. Re-collapse the external one when it is an optional
-                // //c drive the user has not connected, so only the internal
-                // drive shows.
-                if (!m_disks->ShouldShowExternalDrive())
-                {
-                    m_disks->GetDriveChrome()[1].Hide();
-                }
-            }
-            else
-            {
-                // Machine has no Disk II controller (e.g. stripped Apple II
-                // config). Collapse the drive widget rects so DriveWidget
-                // paints nothing and the drag-drop overlay's empty-rect
-                // path treats the whole window as the drop target. The
-                // joystick-mode button still paints -- joystick input is
-                // independent of disk presence.
-                m_disks->GetDriveChrome()[0].Hide();
-                m_disks->GetDriveChrome()[1].Hide();
-            }
-
-            // OnSize is the authoritative layout (only fires on a real WM_SIZE,
-            // never per-frame), so record the disk-presence + //c-ness this
-            // window size now accounts for. ReflowChromeForMachineChange reads
-            // these pre-switch values to grow/shrink the window by the band delta.
-            m_chrome->RecordSizedFor (fHasDisk, MachineHasCaseSwitches());
-            m_chrome->LayoutDriveBandSurface (!DeskSceneActive(), RECT{ 0, driveRect.top, static_cast<int> (width), renderH });
-
-            m_chrome->LayoutSwitchBar (dpi);
-
-            if (DeskSceneActive())
-            {
-                m_scene->SyncSceneDriveChrome();
-            }
-            else
-            {
-                m_uiShell.GetHitTester().Clear();
-                if (fHasDisk)
-                {
-                    m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[0].GetBodyRect(), DxuiHitSlot::Custom, 0 });
-                    if (m_disks->ShouldShowExternalDrive())
-                    {
-                        m_uiShell.GetHitTester().Register (DxuiHitRect { m_disks->GetDriveChrome()[1].GetBodyRect(), DxuiHitSlot::Custom, 1 });
-                    }
-                }
-
-                m_tapeDeck->RegisterTapeDropTarget();
-            }
-        }
-
-        }   // windowed chrome path
-    }
-
-    // (Viewport layout already settled above, before the drive widgets.)
-
-    m_renderer->StageFramebufferForResize();
-
-    // Repaint immediately at the new size through the host pump. The
-    // host already resized its swap chain in HandleSize; driving a
-    // synchronous WM_PAINT here avoids a stale / black frame during an
-    // interactive drag-resize (when RunMessageLoop is blocked in the OS
-    // modal resize loop).
-    InvalidateRect (m_hwnd, nullptr, FALSE);
-    UpdateWindow   (m_hwnd);
-
-    // A MAXIMIZE OR RESTORE THE USER ASKED FOR, carried out. Those never
-    // enter the OS drag loop, so OnExitSizeMove cannot see them; the flag
-    // is what says this one was theirs rather than a programmatic
-    // ShowWindow, which produces an identical WM_SIZE.
-    if (m_window->TakeUserStateChange())
-    {
-        WindowTrace::LogWindow ("state.change", "main", m_hwnd, "a maximize or restore the user asked for");
-        m_window->SavePlacement (m_renderer->GetD3D().IsFullscreen());
-    }
-
-    m_chrome->SetInLayout (false);
+    m_window->LayOutForSize (widthPx, heightPx);
 
     return DxuiMessageResult::NotHandled;
 }
@@ -2107,7 +1825,7 @@ DxuiMessageResult EmulatorShell::OnInputAppMessage (UINT msg)
     // writing it to the prefs both belong here, not on the controller thread.
     if (msg == WM_APP_CONTROLLER_PICK)
     {
-        m_input->ApplyPendingControllerPick();
+        m_input->GetControllers().ApplyPendingControllerPick();
         return DxuiMessageResult::Handled;
     }
 
@@ -2149,7 +1867,7 @@ void EmulatorShell::ApplyPostedGamePortInput()
 
     if (m_debugger->TakeJoyportSyncOwed())
     {
-        m_input->SyncJoyport();
+        m_input->GetControllers().SyncJoyport();
     }
 
     // Input set aside behind live lands now: confirmed at a read, or never
@@ -2212,7 +1930,7 @@ void EmulatorShell::ReflectMachineChange()
     // default pointer mode, both on the CPU thread, which defers their UI
     // reflection here. Sync the selector state on the UI thread; it is
     // idempotent when nothing changed.
-    m_input->SyncPaddleSourceList();
+    m_input->GetControllers().SyncPaddleSourceList();
 }
 
 

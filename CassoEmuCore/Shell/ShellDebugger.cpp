@@ -267,495 +267,6 @@ void ShellDebugger::DetachDebugger()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetDebuggerKeyScheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerKeyScheme()
-{
-    return m_settings.keyScheme;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerKeyScheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerKeyScheme (const std::string & name)
-{
-    m_settings.keyScheme = name;
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerTheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerTheme()
-{
-    return m_settings.theme;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerTheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerTheme (const std::string & name)
-{
-    m_settings.theme = name;
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetReverseOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-ReverseOptions ShellDebugger::GetReverseOptions()
-{
-    ReverseOptions  options;
-
-
-
-    options.isRecording = m_settings.reverseRecording;
-    options.budgetMb    = m_settings.reverseBudgetMb;
-    return options;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetReverseOptions
-//
-//  Saved, and posted to the CPU thread, which owns the reverse host and
-//  applies them at once.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetReverseOptions (const ReverseOptions & options)
-{
-    m_settings.reverseRecording = options.isRecording;
-    m_settings.reverseBudgetMb  = options.budgetMb;
-    m_host.SaveSettings();
-
-    m_host.PostCommand (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (options.isRecording, options.budgetMb));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerLayout()
-{
-    return m_settings.layout;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerLayout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerLayout (const std::string & text)
-{
-    if (m_settings.layout == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.layout = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerClosedPanes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerClosedPanes()
-{
-    return m_settings.closedPanes;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerClosedPanes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerClosedPanes (const std::string & text)
-{
-    if (m_settings.closedPanes == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.closedPanes = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerCommandBarDock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerCommandBarDock()
-{
-    return m_settings.commandBarDock;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerCommandBarDock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerCommandBarDock (const std::string & text)
-{
-    if (m_settings.commandBarDock == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.commandBarDock = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerTimelineDock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerTimelineDock()
-{
-    return m_settings.timelineDock;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerTimelineDock
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerTimelineDock (const std::string & text)
-{
-    if (m_settings.timelineDock == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.timelineDock = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerFocusedPane
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerFocusedPane()
-{
-    return m_settings.focusedPane;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerFocusedPane
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerFocusedPane (const std::string & text)
-{
-    if (m_settings.focusedPane == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.focusedPane = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsDebuggerEchoingActions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDebugger::IsDebuggerEchoingActions()
-{
-    return m_settings.echoActions;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerEchoingActions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerEchoingActions (bool isEchoing)
-{
-    if (m_settings.echoActions == isEchoing)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-        m_settings.echoActions = isEchoing;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerTextZoomPercent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int ShellDebugger::GetDebuggerTextZoomPercent()
-{
-    return m_settings.textZoomPercent;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerTextZoomPercent
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerTextZoomPercent (int percent)
-{
-    if (m_settings.textZoomPercent == percent)
-    {
-        return;
-    }
-
-    m_settings.textZoomPercent = percent;
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerDisassemblyOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerDisassemblyOptions()
-{
-    return m_settings.disassemblyOptions;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerDisassemblyOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerDisassemblyOptions (const std::string & text)
-{
-    if (m_settings.disassemblyOptions == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.disassemblyOptions = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerHeatMapOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerHeatMapOptions()
-{
-    return m_settings.heatMapOptions;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerHeatMapOptions
-//
-//  UI thread. The CPU thread is told every time, since the window sends its
-//  options as it opens, when the machine has only the defaults; the setting
-//  is saved only when it changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerHeatMapOptions (const std::string & text)
-{
-    m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap options " + text);
-
-    if (m_settings.heatMapOptions == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.heatMapOptions = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ResetDebuggerHeatMap
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -778,257 +289,6 @@ void ShellDebugger::ResetDebuggerHeatMap()
 void ShellDebugger::SendDebuggerHeatMapRequest (const std::string & words)
 {
     m_cpuManager.PostCommand (IDM_DEBUG_VIEW, "heatmap " + words);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerHeatMapRanges
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerHeatMapRanges()
-{
-    return m_settings.heatMapRanges;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerHeatMapRanges
-//
-//  UI thread. The ranges are the window's alone, read against the symbols
-//  each snapshot carries, so the CPU thread is told nothing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerHeatMapRanges (const std::string & text)
-{
-    if (m_settings.heatMapRanges == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.heatMapRanges = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerOpenViews
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerOpenViews()
-{
-    return m_settings.openViews;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerOpenViews
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerOpenViews (const std::string & text)
-{
-    if (m_settings.openViews == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.openViews = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerPlacementKey
-//
-//  Saving and restoring must agree on the key. The topology key names the
-//  monitor arrangement and nothing else, so the debugger window carries its
-//  placement with it across screens.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerPlacementKey() const
-{
-    return WindowPlacementProfile::BuildTopologyKey();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  TryGetDebuggerPlacement
-//
-//  Where the debugger window was left on this monitor arrangement. A
-//  placement that no longer lands on any monitor is declined, so a window
-//  saved on a screen since removed opens at its default place.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellDebugger::TryGetDebuggerPlacement (RECT & rectPx)
-{
-    WindowPlacementProfile::Bounds  bounds;
-    WindowPlacementProfile          profile  = m_host.GetWindowPlacements();
-    std::string                     key      = GetDebuggerPlacementKey();
-    RECT                            saved    = {};
-
-
-
-    WindowTrace::Log ("restore.lookup", "debugger", "key=" + key);
-
-    //  THE KEY STANDS FOR THE MONITOR ARRANGEMENT, and an arrangement
-    //  differing by a screen not yet attached at startup is a different key
-    //  with nothing under it. Rather than open at a default the user never chose,
-    //  any placement they made under another arrangement is taken, so long as
-    //  it still lands on a screen.
-    if (!profile.TryLoad (key, bounds, WindowPlacementProfile::Target::Debugger))
-    {
-        for (const auto & [otherKey, other] : profile.GetAll (WindowPlacementProfile::Target::Debugger))
-        {
-            RECT  candidate = RECT { other.x, other.y, other.x + other.w, other.y + other.h };
-
-            if (other.w > 0 && other.h > 0 && MonitorFromRect (&candidate, MONITOR_DEFAULTTONULL) != nullptr)
-            {
-                WindowTrace::LogRect ("restore.other", "debugger", candidate, "saved under key=" + otherKey);
-                rectPx = candidate;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    saved = RECT { bounds.x, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h };
-
-    if (MonitorFromRect (&saved, MONITOR_DEFAULTTONULL) == nullptr)
-    {
-        return false;
-    }
-
-    rectPx = saved;
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerPlacement
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerPlacement (const RECT & rectPx)
-{
-    WindowPlacementProfile          profile = m_host.GetWindowPlacements();
-    WindowPlacementProfile::Bounds  bounds;
-    std::string                     key     = GetDebuggerPlacementKey();
-
-
-
-    bounds.x = rectPx.left;
-    bounds.y = rectPx.top;
-    bounds.w = (int) (rectPx.right - rectPx.left);
-    bounds.h = (int) (rectPx.bottom - rectPx.top);
-
-    WindowTrace::LogRect ("save.prefs", "debugger", rectPx, "key=" + key);
-    profile.Save (key, bounds, WindowPlacementProfile::Target::Debugger);
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FindDebuggerSource
-//
-//  A folder where a file was found goes into the preferences, so they are
-//  saved; the next search, in this session or another, looks there first.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SourceLookup ShellDebugger::FindDebuggerSource (const DebugSourceFile & record, const std::wstring & debugFilePath,
-                                                const std::string & programKey)
-{
-    SourcePathList  paths   (m_settings);
-    SourceService   service (m_host.GetUiFileSystem(), paths);
-    SourceLookup    lookup  = service.Find (record, debugFilePath, programKey);
-
-
-
-    if (lookup.match == SourceMatch::Exact || lookup.match == SourceMatch::Unverified)
-    {
-        m_host.SaveSettings();
-    }
-
-    return lookup;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  MatchDroppedDebuggerSource
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SourceLookup ShellDebugger::MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
-                                                        const std::string & programKey, int & recordIndex)
-{
-    SourcePathList  paths   (m_settings);
-    SourceService   service (m_host.GetUiFileSystem(), paths);
-    SourceLookup    lookup  = service.MatchDropped (files, path, programKey, recordIndex);
-
-
-
-    if (recordIndex >= 0)
-    {
-        m_host.SaveSettings();
-    }
-
-    return lookup;
 }
 
 
@@ -1297,11 +557,15 @@ void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
     deltas.input.clear();
     deltas.video.clear();
     deltas.sound.clear();
+    deltas.serial.clear();
+    deltas.network.clear();
 
-    deltas.disk.swap  (m_eventLogsPending.disk);
-    deltas.input.swap (m_eventLogsPending.input);
-    deltas.video.swap (m_eventLogsPending.video);
-    deltas.sound.swap (m_eventLogsPending.sound);
+    deltas.disk.swap    (m_eventLogsPending.disk);
+    deltas.input.swap   (m_eventLogsPending.input);
+    deltas.video.swap   (m_eventLogsPending.video);
+    deltas.sound.swap   (m_eventLogsPending.sound);
+    deltas.serial.swap  (m_eventLogsPending.serial);
+    deltas.network.swap (m_eventLogsPending.network);
 }
 
 
@@ -1992,6 +1256,7 @@ void ShellDebugger::PublishDebuggerView()
     bool                  isDue      = false;
     bool                  isBreaking = false;
     bool                  isTaken    = true;
+    bool                  isStepping = false;
     DebugViewInput        input;
     DebuggerViewSnapshot  live;
 
@@ -2024,6 +1289,26 @@ void ShellDebugger::PublishDebuggerView()
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
         isTaken = !m_isDebugViewFresh;
+    }
+
+    //  A step or a trace run un-pauses the machine until it lands. A view
+    //  built in between has a running machine's rows, without the trace's
+    //  next instructions, and the view after it puts them back: a flash in
+    //  the trace pane. Such a run gets no view for one build interval from
+    //  the first pass during it, so a long trace run refreshes as a run
+    //  does.
+    isStepping = m_debugRunDriver != nullptr && m_debugRunDriver->IsSilent();
+
+    if (isStepping && !m_wasStepping)
+    {
+        m_steppingSince = now;
+    }
+
+    m_wasStepping = isStepping;
+
+    if (isStepping && now - m_steppingSince < DebuggerViewState::kBuildIntervalMs)
+    {
+        return;
     }
 
     isDue = DebuggerViewState::IsBuildDue (m_isDebugViewDirty, m_cpuManager.IsPaused(), m_wasPausedAtDebugBuild,
@@ -2625,10 +1910,14 @@ void ShellDebugger::ServiceEventLogs()
     InputLogDelta  input;
     IoLogDelta     video;
     IoLogDelta     sound;
-    bool           isDisk  = false;
-    bool           isInput = false;
-    bool           isVideo = false;
-    bool           isSound = false;
+    IoLogDelta     serial;
+    IoLogDelta     network;
+    bool           isDisk    = false;
+    bool           isInput   = false;
+    bool           isVideo   = false;
+    bool           isSound   = false;
+    bool           isSerial  = false;
+    bool           isNetwork = false;
 
 
 
@@ -2655,9 +1944,11 @@ void ShellDebugger::ServiceEventLogs()
     isDisk  = m_eventLogs.TakeDelta (disk);
     isInput = m_eventLogs.TakeDelta (input);
     isVideo = m_eventLogs.TakeDelta (DebugLogKind::Video, video);
-    isSound = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
+    isSound   = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
+    isSerial  = m_eventLogs.TakeDelta (DebugLogKind::Serial, serial);
+    isNetwork = m_eventLogs.TakeDelta (DebugLogKind::Network, network);
 
-    if (isDisk || isInput || isVideo || isSound)
+    if (isDisk || isInput || isVideo || isSound || isSerial || isNetwork)
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
@@ -2680,6 +1971,16 @@ void ShellDebugger::ServiceEventLogs()
         {
             m_eventLogsPending.sound.push_back (std::move (sound));
         }
+
+        if (isSerial)
+        {
+            m_eventLogsPending.serial.push_back (std::move (serial));
+        }
+
+        if (isNetwork)
+        {
+            m_eventLogsPending.network.push_back (std::move (network));
+        }
     }
 }
 
@@ -2687,102 +1988,3 @@ void ShellDebugger::ServiceEventLogs()
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerEventLogOptions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerEventLogOptions (DebugLogKind kind)
-{
-    const std::string  * options = m_settings.GetLogOptions ((int) kind);
-
-
-
-    return (options != nullptr) ? *options : std::string();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerEventLogOptions
-//
-//  Saved only when it changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerEventLogOptions (
-    DebugLogKind          kind,
-    const std::string   & text)
-{
-    std::string  * options = m_settings.GetLogOptions ((int) kind);
-
-
-
-    if (options == nullptr || *options == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        *options = text;
-    }
-
-    m_host.SaveSettings();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetDebuggerWindowState
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string ShellDebugger::GetDebuggerWindowState (const std::string & name)
-{
-    auto  found = m_settings.windowState.find (name);
-
-
-
-    return (found != m_settings.windowState.end()) ? found->second : std::string();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetDebuggerWindowState
-//
-//  Saved only when it changed.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::SetDebuggerWindowState (const std::string & name, const std::string & text)
-{
-    if (GetDebuggerWindowState (name) == text)
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_projectMutex);
-
-
-
-        m_settings.windowState[name] = text;
-    }
-
-    m_host.SaveSettings();
-}

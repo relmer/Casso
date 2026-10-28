@@ -1,5 +1,7 @@
 #include "Pch.h"
 
+#include "Core/TextEncoding.h"
+#include "Debugger/IoEventLog.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 
@@ -388,6 +390,12 @@ void InputLogPane::FormatEvent (
             outAddress = L"Mouse";
             outValue   = (value != 0) ? L"DOWN" : L"UP";
             outMeaning = L"HOST mouse button " + outValue;
+            break;
+
+        case InputEventType::HostSerialByte:
+            outAddress = TextEncoding::NarrowToWide (IoEventLog::GetSerialPortName ((Byte) address));
+            outValue   = EventLogText::FormatByteChar (value);
+            outMeaning = L"HOST serial byte " + outValue;
             break;
 
         case InputEventType::KbdDataRead:

@@ -27,6 +27,7 @@ public:
 
     void        OnByteTransmitted     (Byte value) override;
     void        OnModemControlChanged (bool dtr, bool rts) override;
+    bool        IsLoopback            () const override { return true; }
 
 private:
     Acia6551 *    m_acia = nullptr;

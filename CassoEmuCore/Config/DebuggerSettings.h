@@ -81,11 +81,13 @@ struct DebuggerSettings
     std::string  inputLogOptions;
     std::string  videoLogOptions;
     std::string  soundLogOptions;
+    std::string  serialLogOptions;
+    std::string  networkLogOptions;
 
     // A log's options by its kind, or null for a kind past the logs here.
     std::string * GetLogOptions (int kind)
     {
-        std::string *  logs[] = { &diskLogOptions, &inputLogOptions, &videoLogOptions, &soundLogOptions };
+        std::string *  logs[] = { &diskLogOptions, &inputLogOptions, &videoLogOptions, &soundLogOptions, &serialLogOptions, &networkLogOptions };
 
 
         return (kind >= 0 && kind < (int) std::size (logs)) ? logs[kind] : nullptr;

@@ -201,6 +201,41 @@ namespace FloatingPanesRoutingTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
+    //  TwoWindowHost
+    //
+    //  A host whose dock site has "code" docked and "regs" and "stack"
+    //  floating in two separate windows, each with a mock control.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class TwoWindowHost : public GroupHost
+    {
+    public:
+        TwoWindowHost()
+        {
+            DxuiPaneLayout  layout = DxuiPaneLayout::MakeSingle (L"code");
+
+
+
+            layout.Add (L"regs",  L"");
+            layout.Add (L"stack", L"");
+            (void) layout.Float (L"regs",  L"", RECT { 0, 0, 300, 200 });
+            (void) layout.Float (L"stack", L"", RECT { 0, 0, 300, 200 });
+
+            site.SetPaneLayout (layout);
+        }
+
+        const DxuiTheme *  GetTheme() const override { return isThemed ? &theme : nullptr; }
+
+        bool  isThemed = true;   // off during a drag, so no drop marks are drawn in an overlay
+    };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
     //  FloatingPanesRoutingTests
     //
     //  A command from a floating window's key map runs under that window's
@@ -380,6 +415,73 @@ namespace FloatingPanesRoutingTests
         //  A caption drag that ends over the dock site saves the layout, as
         //  one that ends outside it does, and a resize saves it with the
         //  window's final size, not its size after the first step.
+        //  A floating window dragged over another floating window: the
+        //  docked pane the other window covers offers no target, so a drop
+        //  there docks nothing and the dragged window stays floating. With
+        //  the other window moved off, a drop at the same point docks it.
+        TEST_METHOD (ADockedPaneUnderAnotherFloatingWindowOffersNoTarget)
+        {
+            TwoWindowHost       host;
+            FloatingPanes       floats (host);
+            DxuiDpiScaler       scaler;
+            DxuiDockedWindow  * dragged = nullptr;
+            DxuiDockedWindow  * cover   = nullptr;
+            POINT               middle  = { 500, 300 };
+
+
+
+            host.floats = &floats;
+            scaler.SetDpi (96);
+            host.site.Layout (RECT { 0, 0, 1000, 600 }, scaler);
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            dragged = floats.Find (L"regs");
+            cover   = floats.Find (L"stack");
+            Assert::IsNotNull (dragged, L"regs floats in a window");
+            Assert::IsNotNull (cover,   L"stack floats in another");
+
+            host.isThemed = false;
+            cover->SetScreenRect (RECT { 300, 150, 700, 450 });
+
+            Drop (*dragged, middle);
+            Assert::IsTrue (host.site.GetPaneLayout().IsFloating (L"regs"), L"a drop over the other window docks nothing");
+
+            cover->SetScreenRect (RECT { 2000, 2000, 2400, 2300 });
+
+            Drop (*dragged, middle);
+            Assert::IsFalse (host.site.GetPaneLayout().IsFloating (L"regs"), L"with the window moved off, the same drop docks it");
+        }
+
+
+        //  While a floating pane's event is routed, its window is the one a
+        //  dialog the pane opens goes over; outside a route there is none, and
+        //  the debugger window is used.
+        TEST_METHOD (TheRoutedWindowIsTheFloatingPanesWhileItsEventRuns)
+        {
+            DockingHost         host;
+            FloatingPanes       floats (host);
+            DxuiDockedWindow  * window = nullptr;
+
+
+
+            host.floats = &floats;
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"regs floats in a window");
+
+            {
+                FloatingPanes::RouteScope  scope (floats, L"regs");
+
+                Assert::IsTrue (floats.GetRoutedHwnd() == window->GetHwnd(), L"the floating window, during the route");
+            }
+
+            Assert::IsNull (floats.GetRoutedHwnd(), L"none outside it");
+        }
+
+
         TEST_METHOD (EveryCaptionDragSavesTheLayout)
         {
             DockingHost          host;
@@ -441,6 +543,26 @@ namespace FloatingPanesRoutingTests
 
             Assert::IsTrue (host.saves > 0, L"the end of a resize saves the layout");
             Assert::IsTrue (EqualRect (&host.savedRect, &rect) != FALSE, L"with the window's final rect");
+        }
+
+
+    private:
+
+        //  The window moved by its title bar and let go with the pointer at
+        //  a point, its move loop's messages sent as the system sends them.
+        static void Drop (DxuiDockedWindow & window, POINT cursor)
+        {
+            bool  isDown = false;
+
+
+
+            window.SetPointerReader ([&] (POINT & cursorPx) { cursorPx = cursor; return isDown; });
+
+            SendMessageW (window.GetHwnd(), WM_ENTERSIZEMOVE, 0, 0);
+            isDown = true;
+            window.RunModalLoopTick();
+            isDown = false;
+            SendMessageW (window.GetHwnd(), WM_EXITSIZEMOVE, 0, 0);
         }
     };
 }

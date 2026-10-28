@@ -57,8 +57,10 @@ void ScratchReplayMachine::SetMachine (
 //
 //  As the headless factory builds a machine, again whenever the running
 //  machine's configuration changed: a Prng and a video timing model before
-//  the devices. Its disk store never writes a file, and replays only. A
-//  machine that does not build is dropped, so the next replay tries again.
+//  the devices. Its disk store never writes a file, and replays only. Its
+//  output is muted: its replays repeat sound, printing and serial output
+//  made live. A machine that does not build is dropped, and the next replay
+//  builds it again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +104,7 @@ HRESULT ScratchReplayMachine::Build()
 
     //  A scratch machine's disks have no file: its saves write nothing.
     m_machine->GetDiskStore().SetFileBacked (false);
+    m_machine->SetOutputMuted (true);
 
     m_replayer = std::make_unique<Replayer> (*m_machine, m_noKeyframes);
     m_replayer->SetOverMountedMedia (true);

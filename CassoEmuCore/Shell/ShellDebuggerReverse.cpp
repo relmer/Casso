@@ -13,7 +13,6 @@
 #include "Machines/Apple2/Apple2e/Apple2eKeyboard.h"
 #include "Machines/Apple2/Common/AppleMouse.h"
 #include "Machines/Apple2/Common/AppleSpeaker.h"
-#include "Machines/Apple2/Common/UthernetCard.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
 #include "resource.h"
 
@@ -170,7 +169,7 @@ void ShellDebugger::ApplyReverseOptions (
         //  a replay's note would stay in the title.
         UpdateReplayCaption();
     }
-    else if (!wasOn && !m_isNetworkFenced)
+    else if (!wasOn)
     {
         StartReverseRecording();
     }
@@ -273,10 +272,6 @@ void ShellDebugger::RunReverseCommand (
 
 
     BAIL_OUT_IF (m_reverseHost == nullptr || cpu == nullptr, S_OK);
-
-    //  A socket opened since the last frame: the replay would run the
-    //  instructions that opened it.
-    FenceHistoryForNetwork();
     BAIL_OUT_IF (!m_reverseHost->IsRecording(), S_OK);
 
     //  The debugger's status bar reads these while the replay runs, since no
@@ -1084,50 +1079,11 @@ void ShellDebugger::RecordHistoryFrame (bool isUserMaximumSpeed)
 
 
 
-    FenceHistoryForNetwork();
-
     if (m_reverseHost != nullptr)
     {
         hr = m_reverseHost->OnFrame (isUserMaximumSpeed);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FenceHistoryForNetwork
-//
-//  CPU thread, ahead of each frame and each reverse command. The Uthernet
-//  II's open sockets and flows are host state that no keyframe has and no
-//  replay can make again, so history is off while any is open: the history
-//  so far is dropped, and recording starts again once the card is idle.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellDebugger::FenceHistoryForNetwork()
-{
-    UthernetCard  * card     = m_machine.GetRefs().uthernet;
-    bool            isActive = card != nullptr && card->IsActive();
-    bool            isOn     = m_reverseHost != nullptr && m_reverseHost->IsRecording();
-
-
-
-    if (isActive && isOn)
-    {
-        StopReverseRecording();
-        m_eventLogs.Start (nullptr);
-        UpdateReplayCaption();
-    }
-    else if (!isActive && m_isNetworkFenced && m_isReverseOn && !isOn)
-    {
-        StartReverseRecording();
-    }
-
-    m_isNetworkFenced = isActive;
 }
 
 

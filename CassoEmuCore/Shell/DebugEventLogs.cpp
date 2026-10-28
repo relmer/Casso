@@ -3,6 +3,7 @@
 #include "Debugger/Reverse/InputJournal.h"
 #include "Debugger/Reverse/KeyframeStore.h"
 #include "Debugger/Reverse/ReverseController.h"
+#include "Devices/Acia6551.h"
 #include "Shell/DebugEventLogs.h"
 #include "Shell/MachineHost.h"
 
@@ -21,8 +22,10 @@ DebugEventLogs::DebugEventLogs (MachineHost & machine) :
     m_history (machine),
     m_disk    (m_history, std::make_unique<DiskEventProbe>()),
     m_input   (m_history, std::make_unique<InputEventProbe>()),
-    m_video   (m_history, std::make_unique<IoEventProbe> (true)),
-    m_sound   (m_history, std::make_unique<IoEventProbe> (false))
+    m_video   (m_history, std::make_unique<IoEventProbe> (IoLogKind::Video)),
+    m_sound   (m_history, std::make_unique<IoEventProbe> (IoLogKind::Sound)),
+    m_serial  (m_history, std::make_unique<IoEventProbe> (IoLogKind::Serial)),
+    m_network (m_history, std::make_unique<IoEventProbe> (IoLogKind::Network))
 {
 }
 
@@ -72,11 +75,15 @@ void DebugEventLogs::Start (ReverseController * controller)
     m_input.cache.Reset (position);
     m_video.cache.Reset (position);
     m_sound.cache.Reset (position);
+    m_serial.cache.Reset (position);
+    m_network.cache.Reset (position);
 
-    m_disk.isResetDue  = m_disk.isOpen;
-    m_input.isResetDue = m_input.isOpen;
-    m_video.isResetDue = m_video.isOpen;
-    m_sound.isResetDue = m_sound.isOpen;
+    m_disk.isResetDue    = m_disk.isOpen;
+    m_input.isResetDue   = m_input.isOpen;
+    m_video.isResetDue   = m_video.isOpen;
+    m_sound.isResetDue   = m_sound.isOpen;
+    m_serial.isResetDue  = m_serial.isOpen;
+    m_network.isResetDue = m_network.isOpen;
 
     m_videoClearedAt = 0;
     m_soundClearedAt = 0;
@@ -87,11 +94,13 @@ void DebugEventLogs::Start (ReverseController * controller)
     m_input.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_video.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_sound.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_serial.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
+    m_network.runner.SetMachine (m_machine.GetConfig(), m_machine.GetCurrentMachineName());
     m_trace.Start (controller);
     m_profile.Start (controller);
 
     m_feed.AttachToCaches (m_machine,
-                           { &m_disk.cache, &m_input.cache, &m_video.cache, &m_sound.cache },
+                           { &m_disk.cache, &m_input.cache, &m_video.cache, &m_sound.cache, &m_serial.cache, &m_network.cache },
                            [this] () { return IsRecording(); });
     m_isStarted = true;
 
@@ -140,11 +149,15 @@ void DebugEventLogs::Stop()
     m_input.replayer.OnHistoryCut (0);
     m_video.replayer.OnHistoryCut (0);
     m_sound.replayer.OnHistoryCut (0);
+    m_serial.replayer.OnHistoryCut (0);
+    m_network.replayer.OnHistoryCut (0);
 
-    m_disk.wantedBefore  = 0;
-    m_input.wantedBefore = 0;
-    m_video.wantedBefore = 0;
-    m_sound.wantedBefore = 0;
+    m_disk.wantedBefore    = 0;
+    m_input.wantedBefore   = 0;
+    m_video.wantedBefore   = 0;
+    m_sound.wantedBefore   = 0;
+    m_serial.wantedBefore  = 0;
+    m_network.wantedBefore = 0;
 
     m_trace.Stop();
     m_profile.Stop();
@@ -169,6 +182,8 @@ bool DebugEventLogs::Pump()
     m_input.replayer.Pump();
     m_video.replayer.Pump();
     m_sound.replayer.Pump();
+    m_serial.replayer.Pump();
+    m_network.replayer.Pump();
 
     return m_trace.Pump();
 }
@@ -213,8 +228,10 @@ void DebugEventLogs::ForLog (DebugLogKind kind, Fn && fn)
     {
     case DebugLogKind::Disk:  fn (m_disk);  break;
     case DebugLogKind::Input: fn (m_input); break;
-    case DebugLogKind::Video: fn (m_video); break;
-    case DebugLogKind::Sound: fn (m_sound); break;
+    case DebugLogKind::Video:   fn (m_video);   break;
+    case DebugLogKind::Sound:   fn (m_sound);   break;
+    case DebugLogKind::Serial:  fn (m_serial);  break;
+    case DebugLogKind::Network: fn (m_network); break;
     }
 }
 
@@ -278,8 +295,10 @@ bool DebugEventLogs::IsOpen (DebugLogKind kind) const
     {
     case DebugLogKind::Disk:  return m_disk.isOpen;
     case DebugLogKind::Input: return m_input.isOpen;
-    case DebugLogKind::Video: return m_video.isOpen;
-    case DebugLogKind::Sound: return m_sound.isOpen;
+    case DebugLogKind::Video:   return m_video.isOpen;
+    case DebugLogKind::Sound:   return m_sound.isOpen;
+    case DebugLogKind::Serial:  return m_serial.isOpen;
+    case DebugLogKind::Network: return m_network.isOpen;
     }
 
     return false;
@@ -323,22 +342,30 @@ bool DebugEventLogs::TakeDelta (InputLogDelta & outDelta)
 //
 //  TakeDelta
 //
-//  The video log's or the sound log's.
+//  The video, sound, serial or network log's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DebugEventLogs::TakeDelta (DebugLogKind kind, IoLogDelta & outDelta)
 {
+    bool  isTaken = false;
+
+
+
     outDelta = IoLogDelta();
 
     FollowRewind();
 
-    if (kind != DebugLogKind::Video && kind != DebugLogKind::Sound)
+    switch (kind)
     {
-        return false;
+    case DebugLogKind::Video:   isTaken = BuildDelta (m_video,   outDelta); break;
+    case DebugLogKind::Sound:   isTaken = BuildDelta (m_sound,   outDelta); break;
+    case DebugLogKind::Serial:  isTaken = BuildDelta (m_serial,  outDelta); break;
+    case DebugLogKind::Network: isTaken = BuildDelta (m_network, outDelta); break;
+    default:                    break;
     }
 
-    return BuildDelta ((kind == DebugLogKind::Video) ? m_video : m_sound, outDelta);
+    return isTaken;
 }
 
 
@@ -357,6 +384,8 @@ void DebugEventLogs::SetWorkQueue (IWorkQueue * queue)
     m_input.runner.SetWorkQueue (queue);
     m_video.runner.SetWorkQueue (queue);
     m_sound.runner.SetWorkQueue (queue);
+    m_serial.runner.SetWorkQueue (queue);
+    m_network.runner.SetWorkQueue (queue);
 }
 
 
@@ -429,13 +458,17 @@ void DebugEventLogs::EndAt (uint64_t position)
     CutBack (m_input, position);
     CutBack (m_video, position);
     CutBack (m_sound, position);
+    CutBack (m_serial, position);
+    CutBack (m_network, position);
 
     if (isGap)
     {
-        m_disk.cache.MarkGap  (position, keyframes->GetInfo (count - 1).cycle);
-        m_input.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
-        m_video.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
-        m_sound.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
+        m_disk.cache.MarkGap    (position, keyframes->GetInfo (count - 1).cycle);
+        m_input.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
+        m_video.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
+        m_sound.cache.MarkGap   (position, keyframes->GetInfo (count - 1).cycle);
+        m_serial.cache.MarkGap  (position, keyframes->GetInfo (count - 1).cycle);
+        m_network.cache.MarkGap (position, keyframes->GetInfo (count - 1).cycle);
     }
 }
 
@@ -468,6 +501,8 @@ void DebugEventLogs::OnDrop (KeyframeDrop drop)
     m_input.replayer.OnHistoryCut (position);
     m_video.replayer.OnHistoryCut (position);
     m_sound.replayer.OnHistoryCut (position);
+    m_serial.replayer.OnHistoryCut (position);
+    m_network.replayer.OnHistoryCut (position);
     m_trace.OnHistoryChanged();
 }
 
@@ -486,6 +521,13 @@ void DebugEventLogs::ClearIoLog (IoLogKind kind)
     Log<IoEvent>  & log = (kind == IoLogKind::Video) ? m_video : m_sound;
 
 
+
+    //  VIDEOLOG and SOUNDLOG clear their logs; the serial and network logs
+    //  have no command.
+    if (kind == IoLogKind::Serial || kind == IoLogKind::Network)
+    {
+        return;
+    }
 
     if (kind == IoLogKind::Video)
     {
@@ -564,6 +606,8 @@ HRESULT DebugEventLogs::GetIoEntries (
     size_t           excess  = 0;
 
 
+
+    CBREx (kind == IoLogKind::Video || kind == IoLogKind::Sound, HRESULT_FROM_WIN32 (ERROR_NOT_SUPPORTED));
 
     FollowRewind();
 
@@ -1196,7 +1240,7 @@ bool DebugEventLogs::TryMakeResetRow (
 
 bool DebugEventLogs::TryMakeRow (
     const InputRecord  & record,
-    InputLogRow        & outRow)
+    InputLogRow        & outRow) const
 {
     constexpr Byte  kStrobe = 0x80;
     InputEvent &    event   = outRow.event;
@@ -1263,6 +1307,13 @@ bool DebugEventLogs::TryMakeRow (
         case InputKind::MouseButton:
             event.type             = InputEventType::HostMouseButton;
             event.payload.io.value = record.value;
+            break;
+
+        case InputKind::AciaByte:
+            isRow                    = record.detail < m_machine.GetRefs().serialChips.size();
+            event.type               = InputEventType::HostSerialByte;
+            event.payload.io.address = isRow ? m_machine.GetRefs().serialChips[record.detail]->GetCommPort() : 0;
+            event.payload.io.value   = record.value;
             break;
 
         default:

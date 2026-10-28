@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Devices/Network/W5100.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 
 using R = W5100Registers;
 
@@ -178,6 +180,249 @@ void W5100::HardwareReset()
     ResetRegisters();
     m_pointer = 0;
     m_backend->OnReset();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100::SaveState (StateWriter & writer) const
+{
+    writer.WriteBytes (m_mem.data(), m_mem.size());
+
+    for (const SocketState & socket : m_sockets)
+    {
+        writer.WriteWord   (socket.txBase);
+        writer.WriteUInt32 ((uint32_t) socket.txSize);
+        writer.WriteWord   (socket.rxBase);
+        writer.WriteUInt32 ((uint32_t) socket.rxSize);
+        writer.WriteWord   (socket.rxWrite);
+        writer.WriteWord   (socket.latch);
+    }
+
+    writer.WriteWord (m_pointer);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT W5100::LoadState (StateReader & reader)
+{
+    HRESULT   hr     = S_OK;
+    uint32_t  txSize = 0;
+    uint32_t  rxSize = 0;
+
+
+
+    reader.ReadBytes (m_mem.data(), m_mem.size());
+
+    for (SocketState & socket : m_sockets)
+    {
+        reader.ReadWord   (socket.txBase);
+        reader.ReadUInt32 (txSize);
+        reader.ReadWord   (socket.rxBase);
+        reader.ReadUInt32 (rxSize);
+        reader.ReadWord   (socket.rxWrite);
+        reader.ReadWord   (socket.latch);
+
+        socket.txSize = txSize;
+        socket.rxSize = rxSize;
+    }
+
+    reader.ReadWord (m_pointer);
+
+    CBREx (m_pointer < kMemorySize, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::LogChange
+//
+//  One change in the log: the change, the socket, two values and any
+//  bytes, the values eight bytes each and the bytes after their count.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100::LogChange (
+    Change                 change,
+    int                    socket,
+    uint64_t               first,
+    uint64_t               second,
+    std::span<const Byte>  bytes)
+{
+    if (m_changeLog == nullptr)
+    {
+        return;
+    }
+
+    m_changeLog->push_back ((char) change);
+    m_changeLog->push_back ((char) socket);
+    AppendLogValue (*m_changeLog, first);
+    AppendLogValue (*m_changeLog, second);
+    AppendLogValue (*m_changeLog, bytes.size());
+    m_changeLog->append (reinterpret_cast<const char *> (bytes.data()), bytes.size());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::AppendLogValue
+//
+//  Eight bytes, low byte first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void W5100::AppendLogValue (
+    std::string  & log,
+    uint64_t       value)
+{
+    for (int shift = 0; shift < 64; shift += 8)
+    {
+        log.push_back ((char) (value >> shift));
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::ApplyChanges
+//
+//  Makes each change in a log LogChange wrote, through the same calls,
+//  with no log set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT W5100::ApplyChanges (std::string_view log)
+{
+    HRESULT           hr        = S_OK;
+    size_t            at        = 0;
+    std::string     * saved     = m_changeLog;
+    bool              isApplied = false;
+    LoggedChange      logged;
+
+
+
+    m_changeLog = nullptr;
+
+    while (at < log.size())
+    {
+        hr = ReadChange (log, at, logged);
+        CHR (hr);
+
+        isApplied = true;
+
+        switch (logged.change)
+        {
+        case Change::SocketStatus:    SetSocketStatus      (logged.socket, (Byte) logged.first);                               break;
+        case Change::SocketInterrupt: RaiseSocketInterrupt (logged.socket, (Byte) logged.first);                               break;
+        case Change::Destination:     SetDestination       (logged.socket, (uint32_t) logged.first, (uint16_t) logged.second); break;
+        case Change::Unreachable:     SetUnreachable       ((uint32_t) logged.first, (uint16_t) logged.second);                break;
+        case Change::CommitTx:        CommitTx             (logged.socket, (size_t) logged.first);                             break;
+        case Change::AppendRx:        isApplied = TryAppendRx (logged.socket, logged.bytes);                                   break;
+        default:                      isApplied = false;                                                                       break;
+        }
+
+        CBREx (isApplied, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+    }
+
+Error:
+    m_changeLog = saved;
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::ReadChange
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT W5100::ReadChange (
+    std::string_view   log,
+    size_t           & at,
+    LoggedChange     & outChange)
+{
+    constexpr size_t  kHeader = 2 + 3 * sizeof (uint64_t);
+    HRESULT           hr      = S_OK;
+    uint64_t          count   = 0;
+    bool              isWhole = log.size() - at >= kHeader;
+
+
+
+    CBREx (isWhole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outChange.change = (Change) (Byte) log[at];
+    outChange.socket = (Byte) log[at + 1];
+    outChange.first  = ReadLogValue (log, at + 2);
+    outChange.second = ReadLogValue (log, at + 10);
+    count            = ReadLogValue (log, at + 18);
+    at              += kHeader;
+
+    isWhole = outChange.socket < kSocketCount && log.size() - at >= count;
+    CBREx (isWhole, HRESULT_FROM_WIN32 (ERROR_INVALID_DATA));
+
+    outChange.bytes = std::span<const Byte> (reinterpret_cast<const Byte *> (log.data() + at), (size_t) count);
+    at             += (size_t) count;
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  W5100::ReadLogValue
+//
+//  The eight bytes at `offset`, low byte first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t W5100::ReadLogValue (
+    std::string_view  log,
+    size_t            offset)
+{
+    uint64_t  value = 0;
+
+
+
+    for (int i = 0; i < 8; i++)
+    {
+        value |= (uint64_t) (Byte) log[offset + i] << (i * 8);
+    }
+
+    return value;
 }
 
 
@@ -872,11 +1117,18 @@ void W5100::CommitTx (
     int     socket,
     size_t  count)
 {
-    Word  read = GetSocketWord (socket, R::kSnTxRd);
+    Word               read = GetSocketWord (socket, R::kSnTxRd);
+    std::vector<Byte>  sent;
 
 
+
+    if (m_changeLog != nullptr)
+    {
+        CopyTx (socket, 0, count, sent);
+    }
 
     SetSocketWord (socket, R::kSnTxRd, (Word) (read + count));
+    LogChange (Change::CommitTx, socket, count, 0, sent);
 }
 
 
@@ -928,6 +1180,7 @@ bool W5100::TryAppendRx (
     }
 
     state.rxWrite = (Word) (state.rxWrite + bytes.size());
+    LogChange (Change::AppendRx, socket, 0, 0, bytes);
 
     return true;
 }
@@ -983,6 +1236,21 @@ Byte W5100::GetSocketStatus (int socket) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  W5100::GetSocketInterrupt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte W5100::GetSocketInterrupt (int socket) const
+{
+    return m_mem[GetSocketAddress (socket, R::kSnIr)];
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  W5100::SetSocketStatus
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -992,6 +1260,7 @@ void W5100::SetSocketStatus (
     Byte  status)
 {
     m_mem[GetSocketAddress (socket, R::kSnSr)] = status;
+    LogChange (Change::SocketStatus, socket, status, 0);
 }
 
 
@@ -1009,6 +1278,7 @@ void W5100::RaiseSocketInterrupt (
     Byte  bits)
 {
     m_mem[GetSocketAddress (socket, R::kSnIr)] |= bits;
+    LogChange (Change::SocketInterrupt, socket, bits, 0);
 }
 
 
@@ -1079,6 +1349,7 @@ void W5100::SetDestination (
     SetSocketWord (socket, R::kSnDipr,              (Word) (ipv4 >> 16));
     SetSocketWord (socket, (Word) (R::kSnDipr + 2), (Word) (ipv4 & 0xFFFF));
     SetSocketWord (socket, R::kSnDport,             port);
+    LogChange (Change::Destination, socket, ipv4, port);
 }
 
 
@@ -1115,6 +1386,7 @@ void W5100::SetUnreachable (
     SetWord (R::kUport,             port);
 
     m_mem[R::kIr] |= R::kIrUnreachable;
+    LogChange (Change::Unreachable, 0, ipv4, port);
 }
 
 

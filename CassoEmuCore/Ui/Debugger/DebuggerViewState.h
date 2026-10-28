@@ -258,6 +258,9 @@ struct DebuggerViewSnapshot
     CommandMode                  mode          = CommandMode::AppleWin;
     std::string                  machine;
 
+    //  The cards' and ports' bus registers, for the operand tips.
+    std::vector<DiagnosticsIoRegister>  ioRegisters;
+
     //  The CPU's instruction set, which the code pane assembles an edited
     //  instruction with, and the copy that owns it when the snapshot was
     //  built from a capture.

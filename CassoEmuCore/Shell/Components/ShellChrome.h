@@ -1,6 +1,10 @@
 #pragma once
 
 #include "Pch.h"
+#include "Shell/Components/ShellFrameRateReadout.h"
+#include "Shell/Components/ShellNotices.h"
+#include "Shell/Components/ShellStandInBar.h"
+#include "Shell/Components/ShellToolbarEntries.h"
 
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
@@ -57,7 +61,7 @@ public:
     // under the drive row; the frame rate readout after it; the toolbar and
     // the //c switch bar; and last the capture bar and the notices.
     void  AdoptMenuBar          (DxuiPanel & root);
-    void  AdoptFrameRateReadout (DxuiPanel & root);
+    ShellFrameRateReadout &  GetFrameRateReadout () { return m_frameRate; }
     void  AdoptToolbar          (DxuiPanel & root);
     void  AdoptBanners          (DxuiPanel & root);
 
@@ -69,11 +73,8 @@ public:
     // their labels with during Layout.
     void  SetTextRendererForMeasure (IDxuiTextRenderer * text);
 
-    // The toolbar's entries from the command table the menu reads, the volume
-    // flyout's sink and starting level, and the theme and monitor color
-    // pickers.
-    void  BuildToolbar       (PrinterStatusLed & printerLed);
-    void  WireToolbarPickers ();
+    // The toolbar's entries, built and updated to match the emulator.
+    ShellToolbarEntries &  GetToolbarEntries () { return m_toolbarEntries; }
 
     // Hides the toolbar, drive and switch bar tooltips at once.
     void  HideTooltipsNow ();
@@ -82,8 +83,7 @@ public:
     // to the window with the pointer, and that one cancel is ignored: Mark
     // stores when the dock happened (0 clears it), and TakeCaptureReflowEcho
     // is true, once, for a cancel within s_kCaptureReflowEchoMs of it.
-    void  MarkCaptureReflow     (int64_t nowMs) { m_captureReflowMs = nowMs; }
-    bool  TakeCaptureReflowEcho (int64_t nowMs);
+    void  MarkCaptureReflow     (int64_t nowMs) { m_captureBar.m_captureReflowMs = nowMs; }
 
     // OnSize's part: whether the layout pass is running, the disk presence
     // and //c the window size accounts for, the drive band's bounds, and the
@@ -93,11 +93,10 @@ public:
     RECT  GetDriveBandBounds     () const { return m_driveBand.GetBounds(); }
     void  LayoutDriveBandSurface (bool isVisible, const RECT & bounds);
 
-    // The present path's part: a capture band left docked after the grab
-    // ended (true once, then cleared), the tooltips' dwell timers, the band bounds
-    // and drive bar thickness, whether the drive tooltip is up, and the drive
-    // band's background.
-    bool  TakeStandInBandStale       ();
+    // The present path's part: the capture bar, the tooltips' dwell timers,
+    // the band bounds and drive bar thickness, whether the drive tooltip is
+    // up, and the drive band's background.
+    ShellStandInBar &  GetStandInBar () { return m_captureBar; }
     void  TickTooltips               (int64_t nowMs);
     RECT  GetSwitchBandBounds        () const { return m_switchBand.GetBounds(); }
     int   GetDriveBarThicknessDp     () const { return m_driveBarThicknessDp; }
@@ -109,7 +108,7 @@ public:
     // The idle frame loop's timeouts: true while a tooltip, the menu bar or
     // the toolbar animates, and when the next notice appears or expires.
     bool                    WantsAnimationTick   () const;
-    std::optional<int64_t>  GetNextNoticeChangeMs () const { return m_notices.GetNextChangeMs(); }
+    std::optional<int64_t>  GetNextNoticeChangeMs () const { return m_notifications.m_notices.GetNextChangeMs(); }
 
     // The left button: a press outside the menu strip closes an open menu,
     // and a press or release on the command toolbar or the //c switch bar is
@@ -165,10 +164,6 @@ public:
     // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
     void    ReflowChromeForMachineChange  ();
 
-    // How tall the bar is at a given width, for the band that reserves the
-    // room and the paint that fills it. One answer, so the two cannot
-    // disagree about whether the band is big enough.
-    int           GetStandInBarHeightPx (float widthPx) const;
 
     // Lays the flat drive row (and the recorder after it) into the drive band.
     // visibleCount is how many drives will be SHOWN, which is not always the
@@ -203,17 +198,11 @@ public:
     // //c switch strip -- so the glass-fill scene owns the whole client.
     void    SetChromeHiddenForFullscreenScene (bool hidden);
 
-    // The pointer-capture banner and the fullscreen top-edge chrome reveal,
-    // both driven from the per-frame UI upkeep.
-    void    SyncStandInBanner    ();
-    void    SyncFrameRateReadout ();
+    // The fullscreen top-edge chrome reveal, driven from the per-frame UI
+    // upkeep.
 
     void    TickFullscreenTopChrome();
 
-    // How tall the capture bar's band is right now: zero unless the pointer is
-    // held, and zero in fullscreen, where there are no bands at all and the
-    // bar rides under the toolbar reveal instead.
-    int     GetCaptureBandThicknessPx (int clientWidthPx) const;
 
     // Re-docks the chrome after the notice's band appears or goes.
     //
@@ -222,12 +211,10 @@ public:
     // to hold it: the picture gives up the height and takes it back.
     void    ReflowChromeForChangeBand ();
 
-    void  RefreshToolbarThemeList          ();
-    void  SyncToolbarState                 ();
 
     void  ShowNotice   (const std::wstring & text);
     void  PostNotice   (const std::wstring & text);
-    void  SyncNotice   ();
+    ShellNotices &  GetNotices () { return m_notifications; }
 
     // The lowest edge of whatever chrome is docked (or, in fullscreen,
     // revealed) at the top of the client, which is where an overlay that
@@ -255,6 +242,11 @@ public:
     static constexpr int64_t s_kCaptureReflowEchoMs = 750;
 
 private:
+    friend class ShellNotices;
+    friend class ShellStandInBar;
+    friend class ShellFrameRateReadout;
+    friend class ShellToolbarEntries;
+
     EmulatorShell  & m_shell;
 
     // Chrome surfaces. MainMenu owns the parity table for legacy IDM_*
@@ -272,11 +264,8 @@ private:
     // flyout -- are held by pointer from its entries. The light is the
     // printer component's.
     DxuiToolbar         m_toolbar;
-    VolumeFlyout        m_volumeFlyout;
+    ShellToolbarEntries m_toolbarEntries { m_shell, *this };
 
-    // Theme ids in the toolbar picker's row order, so a picked row resolves
-    // to the id ThemeManager wants. Rebuilt whenever the catalog is.
-    std::vector<std::string>  m_toolbarThemeIds;
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The
     // drive widgets and the (scaled part of the) drive band follow it so the
@@ -312,41 +301,14 @@ private:
     // cover their own bands, this covers the drive bar.
     DxuiSurface           m_driveBandSurface;
 
-    // "Press Esc to release the mouse and exit paddle mode", on screen for as
-    // long as the capture holds. The joystick button carries the same words, but
-    // it is chrome: fullscreen hides it, and a captured pointer with the
-    // cursor gone and no way out shown is how a user ends up killing the
-    // process. A message bar rather than a caption over the picture: it says
-    // something and asks nothing, which is what an info banner is, and the
-    // chrome under the command strip is the one place it covers nothing.
-    DxuiInfoBanner             m_standInBar;
+    // The pointer-capture bar.
+    ShellStandInBar                m_captureBar { m_shell, *this };
 
-    // An opaque panel behind it, the way the drive bar has one. The banner's
-    // own fill is a tint meant to sit on chrome, and the bar does not: it
-    // hangs over the picture, and over the desk scene the monitor read
-    // straight through the words.
-    DxuiSurface                m_standInBarSurface;
+    // The transient notices, as message bars across the top.
+    ShellNotices                   m_notifications { m_shell, *this };
 
-    // The transient notices: a screenshot's filename or the reason it failed,
-    // which write-protect mechanism a Disk menu command changed, a controller
-    // that left. Their own bars rather than the mouse-capture one's, because
-    // the two can be wanted at once and these expire on a timer while that one
-    // tracks a state. Several can be up at once, stacked in arrival order,
-    // each for its own full time.
-    //
-    // MESSAGE BARS ACROSS THE TOP, NOT A CAPTION ON THE PICTURE. The notice
-    // was shadowed text over the bottom of the viewport, which put a filename
-    // -- the one thing here that is never about the machine -- in the middle
-    // of the photograph. It now reads as the same kind of thing the
-    // pointer-capture bar is, and says so by looking like it.
-    //
-    // AN OVERLAY, THOUGH, WHERE THAT ONE DOCKS. The stack hangs under whatever
-    // docked chrome is at the top and covers a little of the picture instead.
-    DxuiNoticeStack                m_notices;
-
-    // The frames-per-second readout. Shadowed rather than a notice: it
-    // wants a corner, not the centered band a notification takes.
-    DxuiShadowedText           m_fpsReadout;
+    // The frames-per-second readout.
+    ShellFrameRateReadout      m_frameRate { m_shell, *this };
 
     // The fullscreen menu-bar-and-toolbar reveal, the drive strip's bargain
     // mirrored along the top edge: shown while the pointer is up there,
@@ -387,18 +349,6 @@ private:
     // notice band cannot ask for another from inside it. See
     // ReflowChromeForChangeBand.
     bool                     m_inChromeLayout = false;
-
-    // Set when a capture band was found standing with no capture behind it,
-    // and cleared by the re-dock at the top of the next frame. A flag rather
-    // than the re-dock itself, because the sync that spots it runs inside the
-    // frame the re-dock would repaint.
-    bool                     m_standInBandStale = false;
-
-    // When the capture's own band was last docked, on the monotonic clock.
-    // The resize that follows bounces WM_CANCELMODE back at whoever holds the
-    // pointer, and that one cancel is ours to ignore -- see OnCancelMode.
-    // Zeroed once it has been used, so exactly one is ever swallowed.
-    int64_t                  m_captureReflowMs = 0;
 
     ChromeBand               m_driveBand;
     ChromeBand               m_switchBand;

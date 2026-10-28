@@ -17,7 +17,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace HistoryNetworkFenceTests
+namespace HistoryNetworkTests
 {
     static constexpr Word      kStart       = 0x0800;
     static constexpr Word      kMode        = 0xC0B4;
@@ -176,46 +176,44 @@ namespace HistoryNetworkFenceTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  HistoryNetworkFenceTests
+    //  HistoryNetworkTests
     //
-    //  The Uthernet II's open sockets and flows are host state that no
-    //  keyframe has and no replay can make again, so history cannot cross a
-    //  time the card was in use. While it is, history is off; recording starts
-    //  again, with nothing from before, once the card is idle.
+    //  The network side's changes to the Uthernet II are journaled and a
+    //  replay makes them again from history, so history is on while the card
+    //  is in use, and a step back crosses a socket opening.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    TEST_CLASS (HistoryNetworkFenceTests)
+    TEST_CLASS (HistoryNetworkTests)
     {
     public:
 
-        TEST_METHOD (HistoryIsOffWhileASocketIsOpen)
+        TEST_METHOD (HistoryIsOnWhileASocketIsOpen)
         {
             ShellRig  rig;
-            uint64_t  closedAt = 0;
+            uint64_t  openedAt = 0;
 
 
 
             rig.RunFrames (3);
             Assert::IsTrue (rig.IsRecording(), L"history is on with the card idle");
 
+            openedAt = rig.shell->GetMachine().GetPosition();
             rig.OpenSocket();
             rig.RunFrames (3);
-            Assert::IsFalse (rig.IsRecording(), L"no history while the socket is open");
+            Assert::IsTrue (rig.IsRecording(), L"history is on while the socket is open");
 
             rig.CloseSocket();
-            closedAt = rig.shell->GetMachine().GetPosition();
-
             rig.RunFrames (3);
-            Assert::IsTrue (rig.IsRecording(), L"recording starts again once the card is idle");
-            Assert::IsTrue (rig.shell->GetDebugger().GetReverseHost()->GetController().GetOldestPosition() >= closedAt,
-                            L"history begins after the card was last in use");
+            Assert::IsTrue (rig.IsRecording(), L"and after it closes");
+            Assert::IsTrue (rig.shell->GetDebugger().GetReverseHost()->GetController().GetOldestPosition() < openedAt,
+                            L"history starts before the time the card was in use");
         }
 
 
-        //  A step back requested before the next frame, after a socket opened
-        //  mid-frame, must not replay the instructions that opened it.
-        TEST_METHOD (AStepBackAfterASocketOpensDoesNotMove)
+        //  A step back after a socket opened mid-frame replays the
+        //  instructions that opened it, from history.
+        TEST_METHOD (AStepBackAfterASocketOpensMoves)
         {
             ShellRig  rig;
             uint64_t  position = 0;
@@ -229,13 +227,14 @@ namespace HistoryNetworkFenceTests
 
             rig.Dispatch (IDM_DEBUG_REVERSE, CpuCommandDispatcher::FormatReversePayload (ReverseCommand::StepBack, 0));
 
-            Assert::AreEqual<uint64_t> (position, rig.shell->GetMachine().GetPosition(), L"the machine stays where it is");
-            Assert::IsFalse (rig.IsRecording(), L"and history is off");
+            Assert::IsTrue (rig.shell->GetMachine().GetPosition() < position, L"the machine steps back");
+            Assert::IsTrue (rig.IsRecording(), L"and history is on");
         }
 
 
-        //  Turning history on in Options while the card is in use waits for it.
-        TEST_METHOD (TurningHistoryOnWhileASocketIsOpenWaitsForTheCard)
+        //  Turning history on in Options while the card is in use starts it
+        //  at once.
+        TEST_METHOD (TurningHistoryOnWhileASocketIsOpenStartsIt)
         {
             ShellRig  rig;
 
@@ -247,11 +246,7 @@ namespace HistoryNetworkFenceTests
             rig.RunFrames (1);
 
             rig.Dispatch (IDM_DEBUG_REVERSE_OPTIONS, CpuCommandDispatcher::FormatReverseOptionsPayload (true, kBudgetMb));
-            Assert::IsFalse (rig.IsRecording(), L"not while the socket is open");
-
-            rig.CloseSocket();
-            rig.RunFrames (1);
-            Assert::IsTrue (rig.IsRecording(), L"once the card is idle");
+            Assert::IsTrue (rig.IsRecording(), L"history starts while the socket is open");
         }
     };
 }

@@ -6,15 +6,25 @@
 #include "Cpu.h"
 #include "Devices/Network/PacketCodec.h"
 #include "Devices/Network/VirtualSubnet.h"
+#include "Devices/Network/W5100Registers.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 
 #include "../NetworkTests/DhcpTestPackets.h"
 #include "../NetworkTests/FakeHostNetwork.h"
+#include "Debugger/Events/MachineEventFeed.h"
+#include "Debugger/Reverse/ReverseController.h"
+#include "EmuTests/EventCacheRebuild.h"
+#include "EmuTests/InlineWorkQueue.h"
+#include "EmuTests/ReverseSessionRig.h"
+#include "Shell/DebugEventLogs.h"
+#include "Shell/MachineStateFile.h"
+#include "HResultAssert.h"
 #include "TestMachine.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 using P = PacketCodec;
+using R = W5100Registers;
 
 
 
@@ -624,11 +634,19 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
                 Assert::AreNotEqual (kFailed, Peek (kDoneFlag), what);
                 Assert::IsTrue (spent < kCycleLimit, what);
 
+                if (onSlice)
+                {
+                    onSlice();
+                }
+
                 spent += m_machine.RunCycles (kSlice);
             }
         }
 
-        FakeHostNetwork  host;
+        TestMachine  & GetMachine() { return m_machine; }
+
+        FakeHostNetwork        host;
+        std::function<void()>  onSlice;     // called before each slice RunUntil runs
 
     private:
 
@@ -713,6 +731,379 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             Assert::IsTrue (guest.PeekBytes (kRecvBuffer, kLength) == reply, L"3 KB back, in order");
             Assert::IsTrue (peer->shutdownSent, L"DISCON shuts the host connection down");
         }
+
+
+        //  The replies from the host's sockets arrive from outside the
+        //  machine, so a replay has them only from history. The program
+        //  connects, sends and receives 3 KB each way while history is on;
+        //  after a seek back to each sample the machine must match its live
+        //  state there, and the peer must receive nothing more during the
+        //  seeks.
+        TEST_METHOD (ATcpSessionReplaysFromHistory)
+        {
+            constexpr size_t  kLength      = 3 * 1024;
+            constexpr size_t  kSampleEvery = 1;
+            constexpr size_t  kShuffle     = 7;
+
+            struct Sample
+            {
+                uint64_t           position = 0;
+                uint64_t           cycle    = 0;
+                std::vector<Byte>  state;
+            };
+
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            std::vector<Byte>                 outbound   = MakePattern (kLength, 0x21);
+            std::vector<Byte>                 reply      = MakePattern (kLength, 0x5A);
+            std::vector<Sample>               samples;
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            Sample                            last;
+            size_t                            slice      = 0;
+            size_t                            sent       = 0;
+            size_t                            i          = 0;
+            HRESULT                           hr         = S_OK;
+            auto                              take       = [&machine] ()
+            {
+                return Sample { machine.GetPosition(), machine.GetCpu()->GetTotalCycles(), ReverseSessionRig::Save (machine) };
+            };
+
+
+
+            guest.PokeBytes (kSendBuffer, outbound);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            guest.onSlice = [&] ()
+            {
+                if (slice++ % kSampleEvery == 0)
+                {
+                    samples.push_back (take());
+                }
+            };
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() == kLength; }, L"the guest sends 3 KB");
+
+            peer->inbound.assign (reply.begin(), reply.end());
+            guest.RunUntil ([&] { return guest.Peek (kDoneFlag) == kDone; }, L"the guest receives 3 KB and disconnects");
+
+            guest.onSlice = nullptr;
+            last          = take();
+            sent          = peer->sent.size();
+
+            Assert::IsTrue (guest.PeekBytes (kRecvBuffer, kLength) == reply, L"3 KB back, in order");
+            Assert::IsTrue (samples.size() > 4, std::format (L"the session spans several samples, not {}", samples.size()).c_str());
+
+            for (i = 0; i < samples.size(); i++)
+            {
+                const Sample  & sample = samples[(i * kShuffle) % samples.size()];
+
+                hr = controller.SeekToCycle (sample.cycle, result);
+                AssertSucceeded (hr, L"SeekToCycle");
+
+                Assert::AreEqual<uint64_t> (sample.position, result.position, L"the seek lands on the sampled boundary");
+                Assert::IsTrue (sample.state == ReverseSessionRig::Save (machine), std::format (L"the replayed state at position {} matches live", sample.position).c_str());
+            }
+
+            hr = controller.SeekToCycle (UINT64_MAX, result);
+            AssertSucceeded (hr, L"SeekToCycle live");
+
+            Assert::IsTrue (last.state == ReverseSessionRig::Save (machine), L"the live end matches");
+            Assert::AreEqual (sent, peer->sent.size(), L"a replay sends nothing to the peer");
+        }
+
+
+        //  The network log's cache has the entries a rebuild from history
+        //  makes: the socket's states, and the data it sent and received with
+        //  the bytes.
+        TEST_METHOD (TheNetworkCacheHasWhatARebuildGives)
+        {
+            constexpr size_t  kLength = 3 * 1024;
+
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            InlineWorkQueue                   queue;
+            DebugEventLogs                    logs       (machine);
+            std::vector<Byte>                      outbound = MakePattern (kLength, 0x31);
+            std::vector<Byte>                      reply    = MakePattern (kLength, 0x4C);
+            std::vector<DebugEventEntry<IoEvent>>  entries;
+            std::shared_ptr<FakeSocketState>       peer;
+            HRESULT                                hr       = S_OK;
+            size_t                                 events   = 0;
+            size_t                                 sent     = 0;
+            size_t                                 received = 0;
+
+
+
+            guest.PokeBytes (kSendBuffer, outbound);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            logs.SetWorkQueue (&queue);
+            logs.Start (&controller);
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() == kLength; }, L"the guest sends 3 KB");
+
+            peer->inbound.assign (reply.begin(), reply.end());
+            guest.RunUntil ([&] { return guest.Peek (kDoneFlag) == kDone; }, L"the guest receives 3 KB and disconnects");
+
+            hr = controller.GetKeyframes().WaitForPending();
+            AssertSucceeded (hr, L"WaitForPending");
+
+            EventCacheRebuild::AssertMatches<IoEvent> (machine, controller, logs.GetNetworkCache(), std::make_unique<IoEventProbe> (IoLogKind::Network), events);
+
+            logs.GetNetworkCache().CopySpan (0, UINT64_MAX, entries);
+
+            for (const DebugEventEntry<IoEvent> & entry : entries)
+            {
+                sent     += (entry.event.kind == IoEventKind::SocketSent)     ? entry.event.length : 0;
+                received += (entry.event.kind == IoEventKind::SocketReceived) ? entry.event.length : 0;
+            }
+
+            Assert::AreEqual (kLength, sent,     L"the log has every byte sent");
+            Assert::AreEqual (kLength, received, L"and every byte received");
+            Assert::IsTrue   (std::ranges::any_of (entries, [] (const DebugEventEntry<IoEvent> & e) { return e.event.kind == IoEventKind::SocketState && e.event.value == R::kSockEstablished; }), L"and the socket connecting");
+
+            logs.Stop();
+        }
+
+
+        //  A change made at a point in the past where the connection was open
+        //  makes the machine live there. The host's connection is the one the
+        //  guest's socket has, so it stays open, and the session goes on.
+        TEST_METHOD (AResumeFromThePastKeepsTheConnectionOpen)
+        {
+            constexpr size_t  kLength = 3 * 1024;
+
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::vector<Byte>                 reply      = MakePattern (kLength, 0x5A);
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            uint64_t                          connected  = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            connected = machine.GetCpu()->GetTotalCycles();
+            guest.RunUntil ([&] { return machine.GetCpu()->GetTotalCycles() > connected + 4 * kSlice; }, L"the session runs on");
+
+            hr = controller.SeekToCycle (connected, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+            Assert::IsTrue (controller.IsInHistory(), L"the machine is behind live");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            Assert::IsFalse  (controller.IsInHistory(), L"the machine is live where it stands");
+            Assert::AreEqual (R::kSockEstablished, chip.GetSocketStatus (0), L"the guest's socket is connected");
+            Assert::IsFalse  (peer->destroyed, L"and the host connection is open");
+
+            peer->inbound.assign (reply.begin(), reply.end());
+            guest.RunUntil ([&] { return guest.Peek (kDoneFlag) == kDone; }, L"the guest receives 3 KB and disconnects");
+
+            Assert::IsTrue (guest.PeekBytes (kRecvBuffer, kLength) == reply, L"3 KB back, in order, on the same connection");
+            Assert::IsTrue (peer->shutdownSent, L"DISCON shuts the host connection down");
+        }
+
+
+        //  The first part of the reply arrives after the point. After a
+        //  resume from the point, the guest receives that part again from
+        //  history, then the rest on the same connection.
+        TEST_METHOD (AResumeFromThePastReceivesWhatArrivedSince)
+        {
+            constexpr size_t  kLength = 3 * 1024;
+            constexpr size_t  kFirst  = 1024;
+
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            std::vector<Byte>                 reply      = MakePattern (kLength, 0x5A);
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            uint64_t                          sent       = 0;
+            uint64_t                          arrived    = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() == kLength; }, L"the guest sends 3 KB");
+            sent = machine.GetCpu()->GetTotalCycles();
+
+            peer->inbound.assign (reply.begin(), reply.begin() + kFirst);
+            guest.RunUntil ([&] { return peer->inbound.empty(); }, L"the first 1 KB arrives");
+
+            arrived = machine.GetCpu()->GetTotalCycles();
+            guest.RunUntil ([&] { return machine.GetCpu()->GetTotalCycles() > arrived + 4 * kSlice; }, L"the guest takes it");
+
+            hr = controller.SeekToCycle (sent, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            peer->inbound.assign (reply.begin() + kFirst, reply.end());
+            guest.RunUntil ([&] { return guest.Peek (kDoneFlag) == kDone; }, L"the guest receives 3 KB and disconnects");
+
+            Assert::IsTrue (guest.PeekBytes (kRecvBuffer, kLength) == reply, L"3 KB, in order: the first 1 KB from history");
+        }
+
+
+        //  At a point before the guest connected, the host's connection
+        //  doesn't match any socket the guest has, so it is closed.
+        TEST_METHOD (AResumeFromBeforeTheConnectClosesTheConnection)
+        {
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            uint64_t                          before     = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            before = machine.GetCpu()->GetTotalCycles();
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            hr = controller.SeekToCycle (before, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+            Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the socket is closed at that point");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the guest's socket is closed");
+            Assert::IsTrue   (peer->destroyed, L"and the host connection is closed");
+        }
+
+
+        //  At a point where the connection was open, after the peer has
+        //  closed it since, the guest's socket reads as closed by the peer.
+        TEST_METHOD (AResumeAfterThePeerClosedReadsAsClosedByThePeer)
+        {
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            uint64_t                          connected  = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            connected        = machine.GetCpu()->GetTotalCycles();
+            peer->inboundEof = true;
+            guest.RunUntil ([&] { return chip.GetSocketStatus (0) == R::kSockCloseWait; }, L"the peer closes");
+
+            hr = controller.SeekToCycle (connected, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+            Assert::AreEqual (R::kSockEstablished, chip.GetSocketStatus (0), L"the socket is connected at that point");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            Assert::AreEqual (R::kSockCloseWait, chip.GetSocketStatus (0), L"the guest's socket is closed by the peer");
+            Assert::IsTrue   ((chip.GetSocketInterrupt (0) & R::kSnIrDisconnect) != 0, L"with the disconnect interrupt");
+            Assert::IsFalse  (peer->destroyed, L"until the guest closes it");
+        }
+
+
+        //  A state file saved with a socket open has no host connection behind
+        //  it once loaded, so the socket reads as closed by the remote end,
+        //  and the connection the machine had before the load is closed.
+        TEST_METHOD (ALoadedStateFileClosesTheOpenSockets)
+        {
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::shared_ptr<FakeSocketState>  peer;
+            std::vector<Byte>                 bytes;
+            MachineStateContents              contents;
+            MachineStateError                 error;
+            uint64_t                          saved      = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            hr = MachineStateFile::Build (machine, bytes, error);
+            AssertSucceeded (hr, L"Build");
+
+            saved = machine.GetCpu()->GetTotalCycles();
+            guest.RunUntil ([&] { return machine.GetCpu()->GetTotalCycles() > saved + 4 * kSlice; }, L"the session runs on");
+
+            hr = MachineStateFile::Parse (bytes, contents, error);
+            AssertSucceeded (hr, L"Parse");
+
+            hr = MachineStateFile::Apply (machine, contents, error);
+            AssertSucceeded (hr, L"Apply");
+
+            Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the guest's socket is closed");
+            Assert::IsTrue   ((chip.GetSocketInterrupt (0) & R::kSnIrDisconnect) != 0, L"as closed by the remote end");
+            Assert::IsTrue   (peer->destroyed, L"the host connection is closed");
+        }
     };
 
 
@@ -770,6 +1161,9 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
 
             return frame;
         }
+
+        // After a seek, the guest's ring is as it was then.
+        void  RestartReceive() { m_consumed = guest.Peek (kRxCount); }
 
         Guest  guest;
 
@@ -934,6 +1328,91 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             }
 
             Assert::IsTrue (received == reply, L"1 KB back, byte for byte");
+        }
+
+
+        //  A resume from a point before the peer's data arrived: the NAT
+        //  sends it again from where the guest's stack was, and the peer
+        //  sends nothing more.
+        TEST_METHOD (AResumeFromThePastSendsTheGuestTheDataAgain)
+        {
+            constexpr uint32_t  kIsn       = 5000;
+            constexpr uint16_t  kGuestPort = 1025;
+            constexpr uint16_t  kMss       = 536;
+            constexpr uint16_t  kWindow    = 2048;
+            constexpr size_t    kLength    = 1024;
+
+            FramePump                         pump;
+            ReverseController                 controller (pump.guest.GetMachine());
+            std::vector<Byte>                 reply      = MakePattern (kLength, 0x4C);
+            std::vector<Byte>                 received;
+            std::shared_ptr<FakeSocketState>  peer;
+            TcpSegment                        segment;
+            TcpSegment                        incoming;
+            ReverseResult                     result;
+            uint32_t                          ourNext    = 0;
+            uint64_t                          point      = 0;
+            HRESULT                           hr         = S_OK;
+
+            auto  receiveAll = [&]
+            {
+                received.clear();
+
+                while (received.size() < kLength)
+                {
+                    pump.Receive ([&] (std::span<const Byte> f) { return TryParseTcpFrame (f, incoming) && !incoming.payload.empty(); }, L"data from the peer");
+
+                    Assert::AreEqual (ourNext + (uint32_t) received.size(), incoming.sequence, L"in sequence");
+
+                    received.insert (received.end(), incoming.payload.begin(), incoming.payload.end());
+                    segment.acknowledgment = ourNext + (uint32_t) received.size();
+                    pump.Send (MakeTcpFrame (segment));
+                }
+            };
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            segment.sourceIp        = VirtualSubnet::kGuestIp;
+            segment.destinationIp   = kLanPeer;
+            segment.sourcePort      = kGuestPort;
+            segment.destinationPort = kHttp;
+            segment.sequence        = kIsn;
+            segment.flags           = P::kTcpSyn;
+            segment.window          = kWindow;
+            segment.mss             = kMss;
+            pump.Send (MakeTcpFrame (segment));
+
+            pump.guest.RunUntil ([&] { return pump.guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the NAT connects");
+            peer          = pump.guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            pump.Receive ([&] (std::span<const Byte> f) { return TryParseTcpFrame (f, incoming) && incoming.flags == (P::kTcpSyn | P::kTcpAck); }, L"SYN-ACK");
+            ourNext = incoming.sequence + 1;
+
+            segment.mss            = 0;
+            segment.flags          = P::kTcpAck;
+            segment.sequence       = kIsn + 1;
+            segment.acknowledgment = ourNext;
+            pump.Send (MakeTcpFrame (segment));
+
+            point = pump.guest.GetMachine().GetCpu()->GetTotalCycles();
+
+            peer->inbound.assign (reply.begin(), reply.end());
+            receiveAll();
+            Assert::IsTrue (peer->inbound.empty(), L"the peer has sent all of it");
+
+            hr = controller.SeekToCycle (point, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            pump.RestartReceive();
+            receiveAll();
+
+            Assert::IsTrue (received == reply, L"1 KB again, from where the guest's stack was");
+            Assert::IsFalse (peer->destroyed, L"on the same host connection");
         }
     };
 }

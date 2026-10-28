@@ -5,6 +5,8 @@
 #include "Core/MachineConfig.h"
 #include "Core/StateReader.h"
 #include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
+#include "Debugger/Events/ICommEventSink.h"
 #include "Debugger/Reverse/InputJournal.h"
 #include "Shell/HostInputGate.h"
 
@@ -88,6 +90,8 @@ Byte Acia6551::Read (Word address)
         break;
     }
 
+    NoteLines();
+
     return result;
 }
 
@@ -153,15 +157,19 @@ void Acia6551::Write (Word address, Byte value)
 
     case kRegCommand:
         WriteCommand (value);
+        EmitComm (IoEventKind::SerialSettings, 0);
         break;
 
     case kRegControl:
         m_control = value;
+        EmitComm (IoEventKind::SerialSettings, 0);
         break;
 
     default:
         break;
     }
+
+    NoteLines();
 }
 
 
@@ -330,6 +338,8 @@ void Acia6551::Tick (uint32_t cycles)
     AdvanceTransmitter (fixedCycles);
     AdvanceReceiver    (fixedCycles);
 
+    NoteLines();
+
 Error:
     return;
 }
@@ -447,6 +457,116 @@ bool Acia6551::ApplyInput (const InputRecord & record)
     }
 
     return isApplied;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::SetCommEventSink
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::SetCommEventSink (ICommEventSink * sink)
+{
+    m_commSink   = sink;
+    m_notedLines = GetLineBits();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::GetLineBits
+//
+//  The lines on, as IoEventLog's kLine bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Acia6551::GetLineBits() const
+{
+    Byte  bits = 0;
+
+
+
+    bits |= IsDtrOn()                  ? IoEventLog::kLineDtr : 0;
+    bits |= IsRtsOn()                  ? IoEventLog::kLineRts : 0;
+    bits |= m_cts                      ? IoEventLog::kLineCts : 0;
+    bits |= m_dsr                      ? IoEventLog::kLineDsr : 0;
+    bits |= m_dcd                      ? IoEventLog::kLineDcd : 0;
+    bits |= (m_status & kStatusIrq)    ? IoEventLog::kLineIrq : 0;
+
+    return bits;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::NoteLines
+//
+//  A serial log entry for the lines, when they differ from the last one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::NoteLines()
+{
+    Byte  bits = 0;
+
+
+
+    if (m_commSink == nullptr)
+    {
+        return;
+    }
+
+    bits = GetLineBits();
+
+    if (bits != m_notedLines)
+    {
+        m_notedLines = bits;
+        EmitComm (IoEventKind::SerialLines, 0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::EmitComm
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::EmitComm (
+    IoEventKind  kind,
+    Byte         value)
+{
+    IoEvent  event = IoEvent();
+
+
+
+    if (m_commSink == nullptr)
+    {
+        return;
+    }
+
+    event.kind    = kind;
+    event.address = m_baseAddress;
+    event.chip    = m_commPort;
+    event.value   = value;
+    event.control = m_control;
+    event.command = m_command;
+    event.lines   = GetLineBits();
+
+    m_commSink->OnCommEvent (event, {});
 }
 
 
@@ -871,6 +991,8 @@ void Acia6551::TryLoadTransmitter()
     m_txRemaining = carry + GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
     m_status     |= kStatusTxEmpty;
 
+    EmitComm (IoEventKind::SerialSent, m_tsr);
+
     if (IsTxIrqEnabled())
     {
         RaiseIrq();
@@ -914,7 +1036,7 @@ void Acia6551::AdvanceTransmitter (int64_t fixedCycles)
         sent      = m_tsr;
         m_tsrBusy = false;
 
-        if (m_endpoint != nullptr)
+        if (m_endpoint != nullptr && (!m_isOutputMuted || m_endpoint->IsLoopback()))
         {
             m_endpoint->OnByteTransmitted (sent);
         }
@@ -1026,10 +1148,13 @@ void Acia6551::LandReceivedByte (Byte value)
     if (m_status & kStatusRxFull)
     {
         m_status |= kStatusOverrun;
+        EmitComm (IoEventKind::SerialOverrun, m_rxData);
     }
 
     m_rxData  = static_cast<Byte> (value & mask);
     m_status |= kStatusRxFull;
+
+    EmitComm (IoEventKind::SerialReceived, m_rxData);
 
     if (IsRxIrqEnabled())
     {
@@ -1041,6 +1166,8 @@ void Acia6551::LandReceivedByte (Byte value)
         m_tsr         = m_rxData;
         m_tsrBusy     = true;
         m_txRemaining = GetCharacterFixedCycles (GetBaudRate (m_control & kControlBaudMask));
+
+        EmitComm (IoEventKind::SerialSent, m_tsr);
     }
 }
 
@@ -1352,4 +1479,109 @@ HRESULT Acia6551::LoadState (StateReader & reader)
 
 Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiagnostics
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    AddDiagnostics (snapshot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::AddIoRegisters
+//
+//  A port that is a device by itself, as each of the //c's, under its
+//  title.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const
+{
+    AddRegisterDescriptions (registers, m_diagnosticsTitle);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Acia6551::AddRegisterDescriptions
+//
+//  The panel's labels for the registers. A write to the status register
+//  resets the chip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const
+{
+    registers.push_back ({ (Word) (m_baseAddress + kRegData),    owner + ": 6551 data register; read the received byte, write a byte to send" });
+    registers.push_back ({ (Word) (m_baseAddress + kRegStatus),  owner + ": 6551 status register; a write resets the chip" });
+    registers.push_back ({ (Word) (m_baseAddress + kRegCommand), owner + ": 6551 command register: parity, echo, transmit interrupt and DTR" });
+    registers.push_back ({ (Word) (m_baseAddress + kRegControl), owner + ": 6551 control register: baud rate, word length and stop bits" });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddDiagnostics
+//
+//  The three registers as a guest read returns them, without the side
+//  effects of the read, decoded bit by bit and into the format they set; then the
+//  modem lines, what is waiting and what is on the connector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Acia6551::AddDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup  registers { "6551", {} };
+    DiagnosticsGroup  lines     { "Modem lines", {} };
+    DiagnosticsGroup  traffic   { "Traffic", {} };
+    std::string       attached  = "none";
+
+
+
+    if (m_endpoint != nullptr)
+    {
+        attached = m_endpoint->IsLoopback() ? "loopback plug" : "attached";
+    }
+
+    registers.rows.push_back (MakeByteRow ("Status",  m_status,  { "IRQ", "DSR", "DCD", "TX EMPTY", "RX FULL", "OVERRUN", "FRAMING", "PARITY" }));
+    registers.rows.push_back (MakeByteRow ("Command", m_command, { "PMC1", "PMC0", "PME", "ECHO", "TIC1", "TIC0", "IRD", "DTR" }));
+    registers.rows.push_back (MakeByteRow ("Control", m_control, { "SBN", "WL1", "WL0", "RCS", "SBR3", "SBR2", "SBR1", "SBR0" }));
+    registers.rows.push_back (MakeTextRow ("Baud",        std::format ("{:g}", GetBaudRate (m_control & kControlBaudMask))));
+    registers.rows.push_back (MakeTextRow ("Word length", std::format ("{}", GetWordLengthBits())));
+    registers.rows.push_back (MakeTextRow ("Stop bits",   (m_control & kControlStopBits) ? "2" : "1"));
+    registers.rows.push_back (MakeHexRow  ("Received",    m_rxData, kByteDigits));
+
+    lines.rows.push_back (MakeFlagRow ("DTR", IsDtrOn()));
+    lines.rows.push_back (MakeFlagRow ("RTS", IsRtsOn()));
+    lines.rows.push_back (MakeFlagRow ("CTS", m_cts));
+    lines.rows.push_back (MakeFlagRow ("DSR", m_dsr));
+    lines.rows.push_back (MakeFlagRow ("DCD", m_dcd));
+
+    traffic.rows.push_back (MakeFlagRow ("Sending",       m_tsrBusy || m_tdrFull));
+    traffic.rows.push_back (MakeTextRow ("Bytes waiting", std::format ("{}", GetQueuedReceiveCount())));
+    traffic.rows.push_back (MakeTextRow ("Attachment",    attached));
+
+    snapshot.groups.push_back (std::move (registers));
+    snapshot.groups.push_back (std::move (lines));
+    snapshot.groups.push_back (std::move (traffic));
 }

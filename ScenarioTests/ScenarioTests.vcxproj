@@ -183,6 +183,7 @@
     <ClCompile Include="GuestVisibleNibWriteTests.cpp" />
     <ClCompile Include="IdleHistoryRateTests.cpp" />
     <ClCompile Include="HistoryRateTests.cpp" />
+    <ClCompile Include="LongRunReplayTests.cpp" />
     <ClCompile Include="DebugEventReplayRateTests.cpp" />
     <ClCompile Include="Disk2SectorEventTests.cpp" />
     <ClCompile Include="DiskReadProbeTests.cpp" />
@@ -218,6 +219,8 @@
     <ClCompile Include="..\UnitTest\EhmTestHelper.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\GuestSession.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostNetwork.cpp" />
+    <ClCompile Include="..\UnitTest\NetworkTests\FakeHostSocket.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\EmbeddedMachineJson.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\TestMachine.cpp" />
     <ClCompile Include="..\UnitTest\EmuTests\FixtureRomSource.cpp" />

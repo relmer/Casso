@@ -57,12 +57,15 @@ class CharacterRomData;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+class ICommEventSink;
+
 struct MachineObservers
 {
     IDisk2EventSink         *  disk     = nullptr;
     IInputEventSink         *  input    = nullptr;
     IIoAccessSink           *  io       = nullptr;
     const IoAccessFilter    *  ioFilter = nullptr;      // the I/O io takes; with none, io takes nothing
+    ICommEventSink          *  comm     = nullptr;      // the serial ports' and network card's events; History slot only
 };
 
 
@@ -272,9 +275,19 @@ public:
     //  calls AttachInputJournal again after a machine switch. For a replay,
     //  ApplyDeviceInput hands one such record back to its device; it
     //  returns false for a record no device here holds.
-    void  SetInputJournalOn  (bool isOn);
-    void  AttachInputJournal ();
-    bool  ApplyDeviceInput   (const InputRecord & record);
+    void  SetInputJournalOn   (bool isOn);
+    void  AttachInputJournal  ();
+    bool  ApplyDeviceInput    (const InputRecord & record);
+
+    //  A state file replaced the machine: the connections its devices have
+    //  on the host are from the state replaced, so each is closed.
+    void  DropHostConnections ();
+
+    //  The machine is live again at a point in the past, the journal's entry
+    //  `cursor` the first after it: each device brings its connections on
+    //  the host back in step with its restored state, and what the host sent
+    //  it after the point goes to the guest again.
+    void  ResyncHostConnections (size_t cursor);
 
     //  CPU thread, at the start of an execution slice: with the journal on,
     //  journals each host-written input that changed since it was last seen,
@@ -331,6 +344,7 @@ public:
     //  cache, or a rebuild's probe on a machine replaying history, the
     //  History slot (ObserverSlot).
     void  AttachObservers (const MachineObservers & observers, ObserverSlot slot = ObserverSlot::Panel);
+    void  AttachCommEventSink (ICommEventSink * sink);
 
 
     //  The disk store and every drive wired to it, between threads: the
@@ -526,5 +540,6 @@ private:
 
     InputJournal  m_inputJournal;
 
-    HostInputGate  m_hostInputGate;
+    HostInputGate     m_hostInputGate;
+    ICommEventSink  * m_commSink      = nullptr;   // the debugger's serial and network logs, attached again after a machine switch
 };

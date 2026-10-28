@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Debugger/DebugMemoryImage.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 #include "Debugger/HeatTypes.h"
 #include "Debugger/Reply.h"
 
@@ -46,6 +47,9 @@ struct DebugMachineInfo
     std::string               name;
     std::string               title;
     std::vector<std::string>  disks;
+
+    //  The cards' and ports' bus registers, for the operand tips.
+    std::vector<DiagnosticsIoRegister>  ioRegisters;
 };
 
 //  The Disk II controller's state, read from its getters, never through the
@@ -120,6 +124,10 @@ public:
     virtual Byte                ReadIo            (Word address) = 0;
     virtual void                WriteIo           (Word address, Byte value) = 0;
     virtual void                GetSoftSwitches   (std::vector<SoftSwitch> & switches) const = 0;
+
+    // The slot of the card whose $C800 expansion ROM is selected, 0 for
+    // none; false where that is not known.
+    virtual bool                TryGetExpansionRomSlot (int & slot) const { slot = 0; return false; }
 
     virtual void                SetRunObserver    (IRunObserver * observer) = 0;
     virtual HRESULT             StartRun          (const RunRequest & request) = 0;

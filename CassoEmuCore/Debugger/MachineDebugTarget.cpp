@@ -12,6 +12,7 @@
 #include "Machines/Apple2/Common/AppleSoftSwitchBank.h"
 #include "Machines/Apple2/Common/CassettePort.h"
 #include "Machines/Apple2/Common/Disk2Controller.h"
+#include "Machines/Apple2/Common/ExpansionRomBus.h"
 #include "Machines/Apple2/Common/LanguageCard.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
@@ -628,6 +629,38 @@ void MachineDebugTarget::GetSoftSwitches (std::vector<SoftSwitch> & switches) co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineDebugTarget::TryGetExpansionRomSlot
+//
+//  From the cards' shared expansion space. On a machine with slots the slot
+//  is 0 when no card's expansion ROM is selected, or no card has one. A
+//  machine with no slots returns false.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MachineDebugTarget::TryGetExpansionRomSlot (int & slot) const
+{
+    const Apple2eMmu       * mmu = m_host.GetMmu();
+    const ExpansionRomBus  * bus = m_host.GetRefs().expansionRomBus;
+
+
+
+    slot = 0;
+
+    if (mmu != nullptr && !mmu->GetCxxxRouter()->HasExternalSlots())
+    {
+        return false;
+    }
+
+    slot = (bus != nullptr) ? bus->GetSelectedSlot() : 0;
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineDebugTarget::SetRunObserver
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1075,8 +1108,9 @@ const Microcode * MachineDebugTarget::GetInstructionSet() const
 //
 //  MachineDebugTarget::GetMachineInfo
 //
-//  The machine's name and slot 6's two drives, with an empty entry for an
-//  empty drive. A machine with no Disk II controller has no drives.
+//  The machine's name, its devices' bus registers, and slot 6's two drives,
+//  with an empty entry for an empty drive. A machine with no Disk II
+//  controller has no drives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1090,6 +1124,11 @@ DebugMachineInfo MachineDebugTarget::GetMachineInfo() const
 
 
     info.name = TextEncoding::WideToNarrow (name);
+
+    for (const IDiagnosticsProvider * provider : GetDiagnosticsProviders())
+    {
+        provider->AddIoRegisters (info.ioRegisters);
+    }
 
     if (m_host.GetRefs().diskController == nullptr)
     {

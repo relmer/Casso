@@ -5,15 +5,19 @@
 #include "Core/MemoryDevice.h"
 #include "Core/IInterruptController.h"
 #include "Core/IMachineState.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/SerialByteQueue.h"
 
 class MemoryBus;
 class IAciaEndpoint;
+class ICommEventSink;
 class InputJournal;
 class HostInputGate;
 
 struct DeviceConfig;
 struct InputRecord;
+
+enum class IoEventKind : uint8_t;
 
 
 
@@ -59,7 +63,7 @@ struct InputRecord;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Acia6551 : public MemoryDevice, public IMachineState
+class Acia6551 : public MemoryDevice, public IMachineState, public IDiagnosticsProvider
 {
 public:
     // Slot I/O geometry: slot n decodes $C080 + n*16; the ACIA sits at
@@ -73,6 +77,10 @@ public:
     static constexpr Word  kRegCommand    = 2;
     static constexpr Word  kRegControl    = 3;
     static constexpr Word  kRegisterCount = 4;
+
+    // The serial log's port: a card's slot number, or a built-in port's
+    // number with this bit set.
+    static constexpr Byte  kCommPortBuiltIn = 0x80;
 
     // Status register bits.
     static constexpr Byte    kStatusParityError  = 0x01;
@@ -137,6 +145,10 @@ public:
     // Emulation thread only.
     void    SetEndpoint (IAciaEndpoint * endpoint);
 
+    // While muted, as in a replay of what was sent live, transmitted bytes
+    // go to a loopback plug only. Emulation thread.
+    void    SetOutputMuted (bool isMuted) { m_isOutputMuted = isMuted; }
+
     // Called by an attachment, from any thread.
     void    EnqueueReceivedBytes  (const Byte * bytes, size_t count);
     void    SetModemInputs        (bool cts, bool dsr, bool dcd);
@@ -146,6 +158,11 @@ public:
     // chip itself sent.
     void    EnqueueLoopedBackByte (Byte value);
 
+    // A resume from the past, on the emulation thread: the bytes the chip
+    // took from its attachment after the point go to the receiver again,
+    // behind the ones restored with the point.
+    void    RequeueReceivedBytes  (std::span<const Byte> bytes) { m_rxQueue.Push (bytes.data(), bytes.size()); }
+
     // Reverse execution: the journal for the bytes taken from an attachment,
     // or null, with this chip's index among the machine's serial chips; the
     // gate checked before they are taken; and, in a replay, a journaled byte
@@ -153,6 +170,13 @@ public:
     void    SetInputJournal  (InputJournal * journal, uint16_t chipIndex);
     void    SetHostInputGate (const HostInputGate * gate) { m_inputGate = gate; }
     bool    ApplyInput       (const InputRecord & record);
+
+    // The debugger's serial log: settings, line changes, each byte sent and
+    // received and each overrun go to `sink`, or nowhere when it is null,
+    // as this chip's port. Emulation thread.
+    void    SetCommEventSink (ICommEventSink * sink);
+    void    SetCommPort      (Byte port) { m_commPort = port; }
+    Byte    GetCommPort      () const    { return m_commPort; }
 
     // Inspectors for tests and board wiring.
     Byte    GetStatus  () const { return m_status; }
@@ -183,6 +207,20 @@ public:
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', 'C', 'I', 'A');
     static constexpr uint16_t  kStateVersion = 2;
 
+    // IDiagnosticsProvider, for a port that is a device by itself, as each
+    // of the //c's is: the id and title come from the builder. A card with
+    // a 6551 adds its rows to the card's panel through AddDiagnostics.
+    void         SetDiagnosticsName  (std::string id, std::string title) { m_diagnosticsId = std::move (id); m_diagnosticsTitle = std::move (title); }
+    std::string  GetDiagnosticsId    () const override { return m_diagnosticsId; }
+    std::string  GetDiagnosticsTitle () const override { return m_diagnosticsTitle; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+    void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
+
+    // The four registers, each description after owner: a card's name and
+    // slot, or a port's title.
+    void         AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const;
+    void         AddDiagnostics      (DiagnosticsSnapshot & snapshot) const;
+
 private:
     // Fixed point: cycle counts are stored scaled by 2^16 so pacing never
     // accumulates rounding.
@@ -207,6 +245,9 @@ private:
     void    NotifyModemControl     ();
     int64_t GetCharacterFixedCycles (double baud) const;
     double  GetReceiveBaud         () const;
+    Byte    GetLineBits            () const;
+    void    NoteLines              ();
+    void    EmitComm               (IoEventKind kind, Byte value);
 
     Word                     m_baseAddress = 0;
     Word                     m_ioEnd       = 0;
@@ -248,9 +289,17 @@ private:
     bool                      m_irqBound     = false;
     bool                      m_irqConnected = true;
 
-    IAciaEndpoint *           m_endpoint = nullptr;
+    IAciaEndpoint *           m_endpoint      = nullptr;
+    bool                      m_isOutputMuted = false;
 
     InputJournal         *    m_inputJournal = nullptr;
     uint16_t                  m_chipIndex    = 0;
     const HostInputGate  *    m_inputGate    = nullptr;
+
+    ICommEventSink       *    m_commSink     = nullptr;
+    Byte                      m_commPort     = 0;
+    Byte                      m_notedLines   = 0;       // the lines in the last serial log entry
+
+    std::string               m_diagnosticsId;
+    std::string               m_diagnosticsTitle;
 };

@@ -45,9 +45,12 @@ public:
 
     void DeselectExpansionRom() override { m_selected = false; }
 
+    int  GetSlot() const override { return m_slot; }
+
     Byte  m_romByte         = 0;
     Byte  m_pageByte        = 0x99;
     bool  m_selected        = false;
     Word  m_lastPageAddress = 0;
     Word  m_lastRomAddress  = 0;
+    int   m_slot            = 1;
 };

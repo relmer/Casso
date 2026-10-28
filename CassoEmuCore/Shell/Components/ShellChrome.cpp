@@ -294,243 +294,6 @@ void ShellChrome::SetChromeHiddenForFullscreenScene (bool hidden)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellChrome::SyncStandInBanner
-//
-//  A persistent way OUT, for as long as the pointer is held.
-//
-//  Paddle mode takes the mouse: the cursor is hidden and clipped to the
-//  window, and the only release is a key the user has to already know. The
-//  joystick button says so -- and fullscreen hides the joystick button, which
-//  leaves a captured pointer, no cursor, and nothing on screen to read. The
-//  notice goes away the moment the capture does.
-//
-//  A MESSAGE BAR IN THE CHROME, NOT A CAPTION ON THE PICTURE. It was shadowed
-//  text laid over the viewport, which reads as a caption only where there is
-//  something photographic under it -- and even on the desk scene the only
-//  places left to put it were on the drives, on their name strips, or in the
-//  middle of the CRT. The bar says the same words in the one place that is
-//  nobody else's: the chrome under the command strip, the same in every theme
-//  and in fullscreen.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::SyncStandInBanner()
-{
-    RECT   client = {};
-    RECT   rc     = {};
-    RECT   strip  = {};
-    LONG   top    = 0;
-    float  width  = 0.0f;
-
-
-
-    m_standInBar.SetText (m_shell.m_input->GetStandInBannerText());
-
-    if (m_standInBar.GetText().empty() || m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
-    {
-        m_standInBar.SetVisible        (false);
-        m_standInBarSurface.SetVisible (false);
-
-        //  A BAND LEFT BEHIND, NOTED FOR THE NEXT FRAME. The height is claimed
-        //  and released where the capture starts and ends, but the capture is
-        //  also dropped from OnCancelMode / OnKillFocus, which can fire from
-        //  INSIDE a layout pass -- and a re-dock asked for from in there is
-        //  refused, because the pass would be calling itself. Without this the
-        //  picture would stay short, under an empty strip, until some
-        //  unrelated resize came along.
-        //
-        //  FLAGGED, NOT DONE HERE: this runs inside the frame the re-dock
-        //  would repaint, and a layout pass drives a synchronous WM_PAINT.
-        //  TryPresentUiFrame acts on it at the top of the next frame, where
-        //  the change band's own expiry already re-docks from.
-        if (m_shell.m_hwnd != nullptr && !m_shell.m_renderer->GetD3D().IsFullscreen()
-            && m_standInBand.GetBounds().bottom > m_standInBand.GetBounds().top)
-        {
-            m_standInBandStale = true;
-        }
-
-        return;
-    }
-
-    //  THE GRAB, PUT BACK IF THE OS TOOK IT WITHOUT SAYING SO. Between the
-    //  band docking and any cancel the window manager decides to send, the
-    //  capture can go while everything the shell knows says it is still held.
-    //  OnCancelMode covers the cancel it can identify; this covers the rest,
-    //  by simply asking.
-    //
-    //  ONLY WHILE THE PADDLE HOLDS THE POINTER. This belongs to the capture,
-    //  not to the bar: the two were the same condition when the bar existed
-    //  only during a capture, and they stopped being the same when the bar
-    //  took on the arrow keys. Without the test it grabs the pointer and
-    //  clips the cursor to the client in keys mode, where nothing asked for
-    //  the mouse at all.
-    if (m_shell.m_input->IsPaddleCaptured() && GetCapture() != m_shell.m_hwnd && GetForegroundWindow() == m_shell.m_hwnd)
-    {
-        SetCapture (m_shell.m_hwnd);
-        m_shell.m_input->ClipPaddleCursorToClient();
-    }
-
-    //  A BAND THAT HAS NOT BEEN CLAIMED YET, ASKED FOR. The mirror of the
-    //  release above, and the case that only exists now that the bar is not
-    //  the capture's alone: entering a capture re-docked on its way in, so
-    //  the band was always there by the time this ran. The arrow keys turn
-    //  the bar on without any such moment -- restoring the saved input mode
-    //  at startup is the ordinary one -- and a bar laid into a band of no
-    //  height paints its border and its badge with the text clipped away,
-    //  which is a line across the chrome with a lone glyph sitting on it.
-    //
-    //  FLAGGED, NOT DONE HERE, for the same reason the release is: this runs
-    //  inside the frame a re-dock would repaint.
-    if (!m_shell.m_renderer->GetD3D().IsFullscreen()
-        && m_standInBand.GetBounds().bottom <= m_standInBand.GetBounds().top)
-    {
-        m_standInBandStale = true;
-    }
-
-    //  A DOCKED BAND WHEN THERE ARE BANDS: the dock gives it the client width
-    //  under the command strip and the picture gives up the height, the same
-    //  bargain the external-change notice makes. Taking the band's rect rather
-    //  than computing a second one is what keeps the bar and the picture from
-    //  disagreeing about where the chrome ends.
-    //
-    //  IN FULLSCREEN THERE ARE NO BANDS -- the picture owns the whole client --
-    //  so the bar hangs off the top edge instead, following the toolbar's
-    //  reveal down and back up so it stays under the command strip wherever
-    //  that strip currently is.
-    if (!m_shell.m_renderer->GetD3D().IsFullscreen())
-    {
-        rc = m_standInBand.GetBounds();
-    }
-    else
-    {
-        strip = m_toolbar.GetBounds();
-        top   = (m_toolbar.IsVisible() && strip.bottom > client.top) ? strip.bottom
-                                                                     : client.top;
-        width = (float) (client.right - client.left);
-
-        rc.left   = client.left;
-        rc.right  = client.right;
-        rc.top    = top;
-        rc.bottom = top + (LONG) m_standInBar.GetPreferredHeightPx (width, m_shell.m_scaler);
-    }
-
-    //  A RECT THAT HAS NOT BEEN LAID OUT YET IS SKIPPED, and nothing else is.
-    //  A band carries its thickness on the docked axis alone and is given its
-    //  width by the dock pass, so between a resize and that pass its rect is
-    //  a slab of NO WIDTH -- and a text box no wider than a glyph wraps every
-    //  character onto a line of its own, which is the bar's sentence running
-    //  down the edge of the window, one letter at a time.
-    //
-    //  NARROW IS NOT A REASON TO DISAPPEAR. A narrow bar is a taller bar: the
-    //  text wraps and the band grows to hold it, which is what the shared
-    //  measurement above is for. The only rect refused here is one with no
-    //  width at all, which is not a width the bar has to cope with -- it is
-    //  the dock not having run.
-    if (rc.right - rc.left <= 0 || rc.bottom - rc.top <= 0)
-    {
-        m_standInBar.SetVisible        (false);
-        m_standInBarSurface.SetVisible (false);
-
-        //  Ask for the dock the rect is waiting on, the same way the band's
-        //  own absence is asked for above.
-        if (m_shell.m_hwnd != nullptr && !m_shell.m_renderer->GetD3D().IsFullscreen())
-        {
-            m_standInBandStale = true;
-        }
-
-        return;
-    }
-
-    //  The band is short of what the text needs at this width: re-dock and
-    //  paint at the height there is, rather than showing nothing. A band
-    //  reserved from the same measurement cannot be short, so this is the
-    //  frame after a width change and no more than that.
-    if (rc.bottom - rc.top < GetStandInBarHeightPx ((float) (rc.right - rc.left))
-        && m_shell.m_hwnd != nullptr && !m_shell.m_renderer->GetD3D().IsFullscreen())
-    {
-        m_standInBandStale = true;
-    }
-
-    m_standInBarSurface.Layout     (rc, m_shell.m_scaler);
-    m_standInBarSurface.SetVisible (true);
-
-    m_standInBar.SetDpi     (m_shell.m_scaler.GetDpi());
-    m_standInBar.Layout     (rc, m_shell.m_scaler);
-    m_standInBar.SetVisible (true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellChrome::SyncFrameRateReadout
-//
-//  The frame rate over the picture, in the top-left corner.
-//
-//  COUNTED AT THE PRESENT, not here: DxuiHwndSource ticks its counter when
-//  a frame actually reaches the screen, so a paint the shell skipped is not
-//  a dropped frame and a present that waited on vsync reports the interval
-//  the user saw. This only reads the figure and places it.
-//
-//  One decimal, because whether the scene holds sixty is the question and a
-//  rounded integer answers it ambiguously at the boundary.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::SyncFrameRateReadout()
-{
-    RECT     client   = {};
-    RECT     rc       = {};
-    wchar_t  text[32] = {};
-
-
-
-    if (!m_shell.m_settings->GetPrefs().showFrameRate || m_shell.m_host == nullptr
-        || m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
-    {
-        m_fpsReadout.SetVisible (false);
-        return;
-    }
-
-    // ABOVE THE BOTTOM CHROME, not on it: hung from the client edge the
-    // readout straddles the switch bar, half over the scene and half over a
-    // shell band, reading as neither.
-    //
-    // MEASURED OFF THE CHROME, NEVER OFF THE SCENE. Anchored to the toolbar
-    // band this drifted up and down while the scene was being orbited: the
-    // bands report different bounds as the composition changes under them,
-    // so a readout hung off one wanders with the thing it is measuring. The
-    // switch bar does not move, and the client edge behind it does not
-    // either.
-    {
-        RECT  bar    = m_switchBand.GetBounds();
-        LONG  bottom = (!m_shell.m_renderer->GetD3D().IsFullscreen() && bar.bottom > bar.top)
-                     ? bar.top : client.bottom;
-
-        rc.left   = client.left + m_shell.m_scaler.ToPx (s_kFrameRateInsetDp);
-        rc.right  = rc.left + m_shell.m_scaler.ToPx (s_kFrameRateWidthDp);
-        rc.bottom = bottom - m_shell.m_scaler.ToPx (s_kFrameRateInsetDp);
-        rc.top    = rc.bottom - m_shell.m_scaler.ToPx (s_kFrameRateHeightDp);
-    }
-
-    swprintf_s (text, L"%.1f fps", m_shell.m_host->GetFramesPerSecond());
-
-    m_fpsReadout.SetText        (text);
-    m_fpsReadout.SetFontSizeDip (DxuiShadowedText::kFontDip);
-    m_fpsReadout.SetAlign       (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
-    m_fpsReadout.SetDpi         (m_shell.m_scaler.GetDpi());
-    m_fpsReadout.Layout         (rc, m_shell.m_scaler);
-    m_fpsReadout.SetVisible     (true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MirroredSlideStart
 //
 //  A slide start time that PRESERVES the current position when the direction
@@ -667,142 +430,6 @@ void ShellChrome::TickFullscreenTopChrome()
         if (t < 1.0f)
         {
             m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RefreshToolbarThemeList
-//
-//  Fills the toolbar's theme picker from the discovered catalog and keeps the
-//  parallel id vector that turns a picked row back into a theme id.
-//
-//  The rows are REPLACED only when the catalog itself changed. This runs from
-//  the theme-change listener, which also fires for every live preview -- and
-//  replacing the rows resets the selection, which would destroy the row the
-//  picker has to snap back to when the list is dismissed. An unchanged
-//  catalog therefore only moves the selection, which the toolbar in turn
-//  drops while its list is open.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::RefreshToolbarThemeList()
-{
-    std::vector<std::wstring>  displayNames;
-    std::vector<std::string>   ids;
-    std::string                activeName;
-    int                        activeIndex = -1;
-    int                        row         = 0;
-
-
-
-    if (m_shell.m_settings->GetThemeManager() == nullptr)
-    {
-        return;
-    }
-
-    activeName = m_shell.m_settings->GetThemeManager()->GetActiveThemeName();
-
-    for (const LoadedTheme & theme : m_shell.m_settings->GetThemeManager()->GetAvailableThemes())
-    {
-        if (theme.name == activeName)
-        {
-            activeIndex = row;
-        }
-
-        ids.push_back (theme.name);
-        displayNames.emplace_back (theme.name.begin(), theme.name.end());
-        row++;
-    }
-
-    // An OPEN picker is mid-preview and owns the index, so a sync from here is
-    // dropped rather than fighting the highlight the user is moving -- the
-    // preview itself arrives back here as a sync.
-    if (ids != m_toolbarThemeIds)
-    {
-        m_toolbarThemeIds = std::move (ids);
-        m_mainMenu.GetCommands().SetThemeNames (displayNames);
-        m_mainMenu.GetCommands().SetThemeIndex (activeIndex);
-        m_toolbar.SetDropDownItems (EmulatorCommands::kIdTheme, m_mainMenu.GetCommands().GetThemeItems());
-    }
-    else if (activeIndex >= 0 && !m_toolbar.IsMenuOpen())
-    {
-        m_mainMenu.GetCommands().SetThemeIndex (activeIndex);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncToolbarState
-//
-//  Pushes the state the toolbar mirrors rather than owns: which machine the
-//  Reset / Power tips talk about, which way the fullscreen button points, and
-//  where the two pickers sit. The pickers can be moved from the menu, from
-//  Settings and from a machine switch, so the sync runs every UI frame; the
-//  toolbar drops it while a list is open, since an open list is mid-preview
-//  and owns its own value until it closes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::SyncToolbarState()
-{
-    ColorMode  mode       = m_shell.m_renderer->GetColorMode();
-    RECT       client     = {};
-    int        colorIndex = 0;
-    int        themeIndex = -1;
-    int        row        = 0;
-
-
-
-    switch (mode)
-    {
-        case ColorMode::GreenMono: colorIndex = 1; break;
-        case ColorMode::AmberMono: colorIndex = 2; break;
-        case ColorMode::WhiteMono: colorIndex = 3; break;
-        default:                   colorIndex = 0; break;
-    }
-
-    if (m_shell.m_settings->GetThemeManager() != nullptr)
-    {
-        const std::string &  activeName = m_shell.m_settings->GetThemeManager()->GetActiveThemeName();
-
-        for (const std::string & id : m_toolbarThemeIds)
-        {
-            if (id == activeName)
-            {
-                themeIndex = row;
-            }
-
-            row++;
-        }
-    }
-
-    if (m_shell.m_hwnd != nullptr && GetClientRect (m_shell.m_hwnd, &client))
-    {
-        m_toolbar.SetHostClientRect (client);
-    }
-
-    m_mainMenu.GetCommands().SetMachineDisplayName (std::wstring (m_shell.m_machine.GetConfig().name.begin(), m_shell.m_machine.GetConfig().name.end()));
-    m_switchBar.SetMachineDisplayName (std::wstring (m_shell.m_machine.GetConfig().name.begin(), m_shell.m_machine.GetConfig().name.end()));
-    m_mainMenu.GetCommands().SetFullscreen (m_shell.m_renderer->GetD3D().IsFullscreen());
-
-    // An OPEN picker is mid-preview and owns its index; see RefreshToolbarThemeList.
-    if (!m_toolbar.IsMenuOpen())
-    {
-        m_mainMenu.GetCommands().SetMonitorColorIndex (colorIndex);
-
-        if (themeIndex >= 0)
-        {
-            m_mainMenu.GetCommands().SetThemeIndex (themeIndex);
         }
     }
 }
@@ -1017,7 +644,7 @@ void ShellChrome::SyncChromeBands()
     // picture keeps its own aspect and can be wider than the window.
     inputs.changeBandPx        = m_shell.m_disks->GetChangeBandThicknessPx (m_lastClientWidthPx)
                                + m_shell.m_serialCard->GetBandThicknessPx (m_lastClientWidthPx);
-    inputs.captureBandPx       = GetCaptureBandThicknessPx (m_lastClientWidthPx);
+    inputs.captureBandPx       = m_captureBar.GetCaptureBandThicknessPx (m_lastClientWidthPx);
 
     px = ChromeBandLayout::Compute (inputs, m_shell.m_scaler);
 
@@ -1137,7 +764,7 @@ RECT ShellChrome::ComputeViewportRect (int widthPx, int heightPx)
     //  while the toolbar and the picture followed the drag the bar arrived
     //  behind them, a step at a time. Everything that rides a band is laid
     //  out here, in the pass that gives the bands their rects.
-    SyncStandInBanner();
+    m_captureBar.SyncStandInBanner();
 
     return m_centerBand.GetBounds();
 }
@@ -1597,89 +1224,6 @@ void ShellChrome::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellChrome::GetCaptureBandThicknessPx
-//
-//  How tall the input-mode bar's band is.
-//
-//  ZERO WHILE A CONTROLLER OR NOTHING DRIVES THE GAME PORT, so every session
-//  that never falls back to the keys or the mouse is laid out as before.
-//
-//  MEASURED FROM A BANNER OF ITS OWN rather than the docked one. This is a
-//  const query and the docked bar is given its text by the layout pass; a
-//  height taken before that pass would measure whatever the last mode left
-//  behind. The two share the text and the DPI, so they measure alike.
-//
-//  ZERO IN FULLSCREEN TOO, where there are no bands at all: the picture owns
-//  the whole client and the bar hangs off the top edge under the toolbar
-//  reveal instead.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int ShellChrome::GetCaptureBandThicknessPx (int clientWidthPx) const
-{
-    if (m_shell.m_renderer->GetD3D().IsFullscreen() || clientWidthPx <= 0)
-    {
-        return 0;
-    }
-
-    return GetStandInBarHeightPx ((float) clientWidthPx);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellChrome::GetStandInBarHeightPx
-//
-//  How tall the input-mode bar is at a given width, and THE ONLY PLACE THAT
-//  ANSWERS IT. The band reserves the height and the paint checks it, and the
-//  two asking separately is how the bar came to vanish at particular widths:
-//  the reserve measured, the check estimated, and GetPreferredHeightPx is
-//  deliberately generous -- an average glyph width, rounded up so text never
-//  clips. Wherever the estimate wanted a line the measurement did not, the
-//  check called a perfectly good band too short.
-//
-//  MEASURED WHEN THERE IS A RENDERER TO ASK, because the bar centers its text
-//  and a centered banner picks its line width from that measurement. The
-//  estimate is the fallback for the moments before the renderer exists.
-//
-//  Zero only when there is no bar. A narrow bar is a TALLER bar -- the text
-//  wraps and the band grows -- never an absent one.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int ShellChrome::GetStandInBarHeightPx (float widthPx) const
-{
-    IDxuiTextRenderer *  text = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
-    std::wstring         line = m_shell.m_input->GetStandInBannerText();
-    DxuiInfoBanner       measure (line);
-
-
-
-    if (line.empty() || widthPx <= 0.0f)
-    {
-        return 0;
-    }
-
-    measure.SetCentered (true);
-    measure.SetDpi      (m_shell.m_scaler.GetDpi());
-
-    if (text != nullptr)
-    {
-        return (int) measure.GetMeasuredHeightPx (*text, widthPx, m_shell.m_scaler);
-    }
-
-    return (int) measure.GetPreferredHeightPx (widthPx, m_shell.m_scaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShellChrome::ReflowChromeForChangeBand
 //
 //  Re-docks everything after the notice appears or goes.
@@ -1729,154 +1273,6 @@ void ShellChrome::ReflowChromeForChangeBand()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShowNotice
-//
-//  Show a notice over the picture for a few seconds. UI thread only.
-//
-//  The text arrives already composed -- by CaptureOutcome::DescribeResult or
-//  WriteProtectChange::DescribeResult -- which is deliberate: every branch of
-//  what to say is decided in core where a test can reach it, and this
-//  function chooses no wording.
-//
-//  A notice already up keeps its full time; this one goes below it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::ShowNotice (const std::wstring & text)
-{
-    int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                          std::chrono::steady_clock::now().time_since_epoch()).count();
-
-
-
-    m_notices.Push (text, nowMs);
-
-    SyncNotice();
-
-    m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PostNotice
-//
-//  Hand a notice to the window from any thread. The notice is Dxui and Dxui
-//  asserts UI-thread affinity, so a caller on the CPU thread cannot show it
-//  directly. With no window there is nothing to show it over, and the notice
-//  is dropped: it only confirms a change the indicators already show.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::PostNotice (const std::wstring & text)
-{
-    wstring *  carried = nullptr;
-
-
-
-    if (m_shell.m_hwnd == nullptr)
-    {
-        return;
-    }
-
-    carried = new (std::nothrow) wstring (text);
-
-    if (carried != nullptr && !PostMessageW (m_shell.m_hwnd, WM_APP_SHOW_NOTICE, 0,
-                                             reinterpret_cast<LPARAM> (carried)))
-    {
-        delete carried;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SyncNotice
-//
-//  Lay the notice out while it is live, and drop it once it expires.
-//
-//  ACROSS THE TOP, UNDER EVERYTHING DOCKED THERE. The chrome at the top of
-//  the window is where this window puts what it has to say about itself, and
-//  a screenshot's filename is exactly that -- the one part of a capture that
-//  is about the application rather than about the machine. Put over the
-//  picture it lands on whatever the user just photographed, and read as a
-//  caption on it.
-//
-//  IT OVERLAYS RATHER THAN DOCKS, which is the one way it differs from the
-//  pointer-capture bar beside it. That bar tracks a state and is worth the
-//  height it takes from the picture; this one is up for four seconds, and a
-//  band that appears and vanishes on a timer would reflow the machine twice
-//  for every screenshot. So it hangs UNDER the last docked band and covers a
-//  strip of picture, dimmed by a scrim rather than hidden behind a panel.
-//
-//  Separate from the pointer-capture bar, not a reuse of it: a screenshot
-//  taken with the paddle captured must not replace the words telling the user
-//  how to get their cursor back.
-//
-//  AN EXPIRY OR A SLIDE ASKS FOR ITS OWN FRAMES. A notice leaving, and the
-//  ones below it moving up, change the picture with nothing else asking for
-//  a present; a paused machine would otherwise leave a stale notice up until
-//  something unrelated repainted. WaitForFrameOrMessage wakes for the next
-//  expiry for the same reason.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::SyncNotice()
-{
-    RECT                 client   = {};
-    RECT                 rc       = {};
-    IDxuiTextRenderer *  text     = (m_shell.m_host != nullptr) ? m_shell.m_host->GetTextRenderer() : nullptr;
-    float                width    = 0.0f;
-    size_t               countWas = m_notices.GetCount();
-    int64_t              nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                        std::chrono::steady_clock::now().time_since_epoch()).count();
-
-
-
-    //  The system's animation setting is read here and passed in, so the
-    //  stack moves notices at once when the user has turned animations off.
-    m_notices.SetAnimationsEnabled (DxuiSystemSettings::Instance().AreMenuAnimationsEnabled());
-    m_notices.Tick (nowMs);
-
-    if (m_notices.GetCount() != countWas || m_notices.IsAnimating (nowMs))
-    {
-        m_shell.m_renderer->GetD3D().MarkRedrawNeeded();
-    }
-
-    if (!m_notices.IsShowing (nowMs) || m_shell.m_hwnd == nullptr || !GetClientRect (m_shell.m_hwnd, &client))
-    {
-        m_notices.SetVisible (false);
-        return;
-    }
-
-    width = (float) (client.right - client.left);
-
-    rc.left  = client.left;
-    rc.right = client.right;
-    rc.top   = ComputeTopOverlayEdgePx (client);
-
-    //  Measured where there is a renderer to ask; the estimate is the
-    //  fallback for the frames before the renderer exists.
-    m_notices.SetDpi (m_shell.m_scaler.GetDpi());
-
-    rc.bottom = rc.top + (LONG) m_notices.MeasureHeightPx (text, width, m_shell.m_scaler);
-
-    m_notices.Layout     (rc, m_shell.m_scaler);
-    m_notices.SetVisible (true);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ComputeTopOverlayEdgePx
 //
 //  Where the picture starts, for something that wants to hang over the top of
@@ -1901,8 +1297,8 @@ LONG ShellChrome::ComputeTopOverlayEdgePx (const RECT & client) const
                                             &m_toolbar,
                                             &m_shell.m_disks->GetChangeBanner(),
                                             &m_shell.m_serialCard->GetBanner(),
-                                            &m_standInBarSurface,
-                                            &m_standInBar };
+                                            &m_captureBar.m_standInBarSurface,
+                                            &m_captureBar.m_standInBar };
     LONG                        top     = client.top;
     RECT                        rc      = {};
 
@@ -1949,18 +1345,18 @@ void ShellChrome::SetStandInOverlaysHidden (bool hidden)
     {
         m_shell.m_scene->GetCompass().SetVisible     (false);
         m_shell.m_scene->GetCompassHint().SetVisible      (false);
-        m_fpsReadout.SetVisible       (false);
+        m_frameRate.m_fpsReadout.SetVisible       (false);
         m_shell.m_scene->GetViewReadout().SetVisible (false);
         //  The pointer-capture bar is docked chrome in a window, and a
         //  Scene capture takes the viewport, so there it is already out of
         //  frame. In FULLSCREEN there are no bands and the bar hangs off the
         //  top edge, inside the picture -- which is the case this covers.
-        m_standInBar.SetVisible        (false);
-        m_standInBarSurface.SetVisible (false);
+        m_captureBar.m_standInBar.SetVisible        (false);
+        m_captureBar.m_standInBarSurface.SetVisible (false);
 
         //  Including the notices. Two captures inside a notice's few seconds
         //  would otherwise photograph the first one's filename.
-        m_notices.SetVisible (false);
+        m_notifications.m_notices.SetVisible (false);
     }
     else
     {
@@ -1970,10 +1366,10 @@ void ShellChrome::SetStandInOverlaysHidden (bool hidden)
         //  and the banner by whether the mouse is captured. Re-deriving is
         //  what keeps this from disagreeing with them.
         m_shell.m_scene->LayoutSceneCompass();
-        SyncFrameRateReadout();
+        m_frameRate.SyncFrameRateReadout();
         m_shell.m_scene->SyncSceneViewReadout();
-        SyncStandInBanner();
-        SyncNotice();
+        m_captureBar.SyncStandInBanner();
+        m_notifications.SyncNotice();
     }
 }
 
@@ -2318,33 +1714,6 @@ void ShellChrome::HideTooltipsNow()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellChrome::TakeCaptureReflowEcho
-//
-//  True for a cancel within s_kCaptureReflowEchoMs of the capture bar's dock,
-//  which then clears, so exactly one cancel is ignored.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellChrome::TakeCaptureReflowEcho (int64_t nowMs)
-{
-    bool  isEcho = m_captureReflowMs != 0 && nowMs - m_captureReflowMs <= s_kCaptureReflowEchoMs;
-
-
-
-    if (isEcho)
-    {
-        m_captureReflowMs = 0;
-    }
-
-    return isEcho;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShellChrome::RecordSizedFor
 //
 //  The disk presence and //c the window size accounts for. OnSize sets them
@@ -2401,21 +1770,6 @@ void ShellChrome::AdoptMenuBar (DxuiPanel & root)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellChrome::AdoptFrameRateReadout
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::AdoptFrameRateReadout (DxuiPanel & root)
-{
-    root.Adopt (m_fpsReadout);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShellChrome::AdoptToolbar
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2444,25 +1798,25 @@ void ShellChrome::AdoptBanners (DxuiPanel & root)
     //  The backing goes in FIRST: the root paints its children in the order
     //  they were adopted, so the panel lands under the words rather than over
     //  them.
-    m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
-    root.Adopt (m_standInBarSurface);
-    root.Adopt (m_standInBar);
+    m_captureBar.m_standInBarSurface.SetToken (DxuiSurface::Token::Background);
+    root.Adopt (m_captureBar.m_standInBarSurface);
+    root.Adopt (m_captureBar.m_standInBar);
 
     //  FIXED WORDS, SET ONCE. The bar has the same text every time it is up,
     //  and its band is measured from that text before the bar first appears,
     //  so the text is set before the first capture.
-    m_standInBar.SetSeverity (DxuiInfoBanner::Severity::Info);
+    m_captureBar.m_standInBar.SetSeverity (DxuiInfoBanner::Severity::Info);
 
     //  CENTERED, because this bar spans the window rather than sitting in a
     //  dialog: one short line against the leading edge of a wide strip looks
     //  like something that failed to lay out.
-    m_standInBar.SetCentered (true);
-    m_standInBar.SetVisible  (false);
+    m_captureBar.m_standInBar.SetCentered (true);
+    m_captureBar.m_standInBar.SetVisible  (false);
 
     //  THE NOTICES, ADOPTED AFTER THE CAPTURE BAR so that when both are up
     //  the notices are on top: they are the newer, and the older one is
     //  readable in the strip above them.
-    root.Adopt (m_notices);
+    root.Adopt (m_notifications.m_notices);
 }
 
 
@@ -2522,164 +1876,6 @@ void ShellChrome::SetTextRendererForMeasure (IDxuiTextRenderer * text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShellChrome::BuildToolbar
-//
-//  A toolbar click dispatches through the same command table as a menu row.
-//  The volume flyout drives the master output gain and saves the level in
-//  GlobalUserPrefs, deferred, since the slider reports every intermediate
-//  value and a save per report would rewrite the prefs file on each step of
-//  a drag.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::BuildToolbar (PrinterStatusLed & printerLed)
-{
-    GlobalUserPrefs &  prefs = m_shell.m_settings->GetPrefs();
-
-
-
-    m_mainMenu.GetCommands().BuildToolbar (m_toolbar, printerLed, m_volumeFlyout);
-
-    m_volumeFlyout.SetSink ([this] (float volume01, bool muted)
-    {
-        m_shell.m_settings->GetPrefs().masterVolume = volume01;
-        m_shell.m_settings->GetPrefs().masterMuted  = muted;
-        m_shell.m_audio->GetOutput().SetMasterGain (muted ? 0.0f : volume01);
-        m_mainMenu.GetCommands().SetMuted (muted);
-        m_shell.m_settings->SaveGlobalPrefsDeferred();
-    });
-
-    m_volumeFlyout.SetVolume (prefs.masterVolume, prefs.masterMuted);
-    m_mainMenu.GetCommands().SetMuted (prefs.masterMuted);
-    m_shell.m_audio->GetOutput().SetMasterGain (prefs.masterMuted ? 0.0f : prefs.masterVolume);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellChrome::WireToolbarPickers
-//
-//  The command bar's theme and monitor-color pickers, wired to the same
-//  live-apply channels the Settings panel uses, so a pick has the same effect
-//  in either.
-//
-//  A HIGHLIGHT PREVIEWS: it activates the theme (or the color treatment)
-//  without writing anything down, because moving the pointer down a list is
-//  not a choice. The toolbar replays that same sink with the row the list
-//  opened on when the list is dismissed, which is what snaps the chrome and
-//  the picture back.
-//
-//  A PICK COMMITS, and only a pick writes the prefs file: the theme into
-//  GlobalUserPrefs, the color mode into the machine's UI prefs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void ShellChrome::WireToolbarPickers()
-{
-    m_toolbar.SetPopupHost (m_shell.m_host.get());
-
-    //  A CLICK ON A MENU TITLE SWITCHES TO THAT MENU, rather than being spent
-    //  closing the drop-down that was open. The drop-down has the mouse
-    //  capture, so the click goes to it and not to the title, and every other
-    //  application on the desktop moves from one menu to the next on it.
-    //
-    //  Only the titles. Anywhere else the click closes the picker and stops
-    //  there, which is what a menu does everywhere: dismissing is not a
-    //  reason to fire the button that happened to be underneath.
-    m_toolbar.SetDropDownClickOutsideFn (
-        [this] (POINT screenPx)
-        {
-            POINT  client = screenPx;
-
-            if (m_shell.m_hwnd == nullptr || !ScreenToClient (m_shell.m_hwnd, &client))
-            {
-                return;
-            }
-
-            for (int i = 0; i < m_mainMenu.GetMenuCount(); i++)
-            {
-                RECT  title = m_mainMenu.GetMenuRect (i);
-
-                if (PtInRect (&title, client))
-                {
-                    m_mainMenu.Open (i, false);
-                    return;
-                }
-            }
-        });
-
-    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdTheme,
-        [this] (int index)
-        {
-            HRESULT  hrTheme = S_OK;
-            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
-
-            if (inRange)
-            {
-                hrTheme = m_shell.m_settings->ApplyThemeLive (m_toolbarThemeIds[index]);
-                IGNORE_RETURN_VALUE (hrTheme, S_OK);
-            }
-        },
-        [this] (int index)
-        {
-            HRESULT  hrTheme = S_OK;
-            bool     inRange = index >= 0 && index < (int) m_toolbarThemeIds.size();
-
-            if (inRange)
-            {
-                m_mainMenu.GetCommands().SetThemeIndex (index);
-                hrTheme = m_shell.m_settings->ApplyAndPersistTheme (m_toolbarThemeIds[index]);
-                IGNORE_RETURN_VALUE (hrTheme, S_OK);
-            }
-        });
-
-    m_toolbar.SetDropDownSinks (EmulatorCommands::kIdColor,
-        [this] (int index)
-        {
-            m_shell.m_renderer->SetColorModeLive (index);
-        },
-        [this] (int index)
-        {
-            m_mainMenu.GetCommands().SetMonitorColorIndex  (index);
-            m_shell.m_renderer->SetColorModeLive           (index);
-            m_shell.m_settings->PersistColorModeForMachine (index);
-        });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ShellChrome::TakeStandInBandStale
-//
-//  True, once, when SyncStandInBanner found a capture band standing with no
-//  capture behind it. The frame loop docks again at the top of the next frame,
-//  because docking again repaints and nothing has been composed yet.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ShellChrome::TakeStandInBandStale()
-{
-    bool  isStale = m_standInBandStale;
-
-
-
-    m_standInBandStale = false;
-
-    return isStale;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShellChrome::TickTooltips
 //
 //  Each tooltip's popup opens or closes once its open or close delay has
@@ -2712,4 +1908,34 @@ bool ShellChrome::WantsAnimationTick() const
            m_captionTooltip.WantsTick()   ||
            m_mainMenu.WantsTick()         ||
            m_toolbar.WantsTick();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::ShowNotice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::ShowNotice (const std::wstring & text)
+{
+    m_notifications.ShowNotice (text);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellChrome::PostNotice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellChrome::PostNotice (const std::wstring & text)
+{
+    m_notifications.PostNotice (text);
 }

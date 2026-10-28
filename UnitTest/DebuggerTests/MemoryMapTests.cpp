@@ -142,6 +142,43 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("nothing"),  ranges[3].write);
         }
 
+        //  With the slot whose expansion ROM is selected known, $C800-$CEFF
+        //  is that slot's ROM and $CF00-$CFFF reads the floating bus; with
+        //  none selected, the whole space reads it.
+        TEST_METHOD (TheExpansionRomIsTheSelectedSlots)
+        {
+            std::vector<MemoryMapRange>  selected = MemoryMap::Build ({}, 2);
+            std::vector<MemoryMapRange>  none     = MemoryMap::Build ({}, 0);
+            std::vector<MemoryMapRange>  internal = MemoryMap::Build ({ { "RAMRD", false }, { "INTC8ROM", true } }, 2);
+
+
+
+            Assert::AreEqual (std::string ("slot ROM"),   Find (selected, 0xC7FF).read);
+            Assert::AreEqual (std::string ("slot 2 ROM"), Find (selected, 0xC800).read);
+            Assert::AreEqual (std::string ("slot 2 ROM"), Find (selected, 0xCEFF).read);
+            Assert::AreEqual (std::string ("unused (floating bus)"), Find (selected, 0xCF00).read);
+            Assert::AreEqual (std::string ("unused (floating bus)"), Find (none,     0xC800).read);
+            Assert::AreEqual (std::string ("unused (floating bus)"), Find (none,     0xCFFF).read);
+            Assert::AreEqual (std::string ("internal ROM"), Find (internal, 0xC800).read, L"INTC8ROM is over every card");
+        }
+
+        TEST_METHOD (Map_ShowsTheSelectedExpansionRom)
+        {
+            HandlerRig<MemoryHandlers>  rig;
+            std::string                 all;
+
+
+
+            rig.target.expansionRomSlot = 2;
+
+            for (const std::string & text : rig.RunOk ("MAP").text)
+            {
+                all += text + "\n";
+            }
+
+            Assert::IsTrue (all.find ("$C800-$CEFF  slot 2 ROM") != std::string::npos, Widen (all).c_str());
+        }
+
         TEST_METHOD (Map_RunsInEveryMode)
         {
             HandlerRig<MemoryHandlers>  rig;

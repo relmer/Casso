@@ -38,12 +38,15 @@ struct MemoryMapRange
 //  none of its own, so each part of the map appears only where the machine
 //  has the hardware. Adjacent ranges with the same targets are merged.
 //
+//  With the slot whose expansion ROM is selected known, 0 for none,
+//  $C800-$CEFF is that slot's ROM and $CF00-$CFFF reads the floating bus.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class MemoryMap
 {
 public:
-    static std::vector<MemoryMapRange>  Build  (const std::vector<SoftSwitch> & switches);
+    static std::vector<MemoryMapRange>  Build  (const std::vector<SoftSwitch> & switches, std::optional<int> expansionSlot = std::nullopt);
     static std::vector<std::string>     Format (const std::vector<MemoryMapRange> & ranges);
 
     static constexpr const char *  kMainRam     = "main RAM";
@@ -53,8 +56,10 @@ public:
     static constexpr const char *  kSlotRom     = "slot ROM";
     static constexpr const char *  kIo          = "I/O";
     static constexpr const char *  kNothing     = "nothing";
+    static constexpr const char *  kFloatingBus = "unused (floating bus)";
 
 private:
     static bool  TryGetSwitch (const std::vector<SoftSwitch> & switches, const char * name, bool & value);
     static void  Add          (std::vector<MemoryMapRange> & ranges, Word first, Word last, const std::string & read, const std::string & write);
+    static void  AddExpansion (std::vector<MemoryMapRange> & ranges, std::optional<int> expansionSlot, const std::string & read);
 };

@@ -1,10 +1,12 @@
 #include "Pch.h"
 #include "../EhmTestHelper.h"
+#include "EmuTests/EventCacheRebuild.h"
 #include "EmuTests/InlineWorkQueue.h"
 #include "EmuTests/ReverseSessionRig.h"
 #include "Debugger/Events/DebugEventHistory.h"
 #include "Debugger/Events/MachineEventFeed.h"
 #include "Debugger/Reverse/ReverseController.h"
+#include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/IDisk2EventSink.h"
 #include "Shell/DebugEventLogs.h"
 #include "Shell/ScratchEventReplayer.h"
@@ -53,29 +55,6 @@ namespace DebugEventLogsTests
     }
 
 
-    //  Field by field where the event type has an equality operator: an
-    //  IoEvent has padding bytes, which no field sets, so two equal events can
-    //  differ there. The Disk II and input events contain unions, and are
-    //  compared byte for byte.
-    template <typename T>
-    static bool  IsSameEvent (const T & a, const T & b)
-    {
-        if constexpr (std::equality_comparable<T>)
-        {
-            return a == b;
-        }
-        else
-        {
-            return memcmp (&a, &b, sizeof (T)) == 0;
-        }
-    }
-
-
-    template <typename T>
-    static bool  IsSameEntry (const DebugEventEntry<T> & a, const DebugEventEntry<T> & b)
-    {
-        return a.kind == b.kind && a.position == b.position && a.cycle == b.cycle && IsSameEvent (a.event, b.event);
-    }
 
 
 
@@ -184,43 +163,14 @@ namespace DebugEventLogsTests
         template <typename T>
         static void  AssertCacheIsRebuilt (Session & session, const DebugEventCache<T> & cache, std::unique_ptr<IDebugEventProbe<T>> probe, size_t & outEvents)
         {
-            DebugEventHistory                        history  (session.machine);
-            std::vector<DebugEventBounds>            stretches;
-            DebugEventJob                            job;
-            ScratchEventReplayer<T>                  replayer (std::move (probe));
-            std::vector<DebugEventStretchResult<T>>  results;
-            std::vector<DebugEventEntry<T>>          live;
-            HRESULT                                  hr       = S_OK;
-            size_t                                   i        = 0;
+            AssertCacheIsRebuilt<T> (session.machine, session.controller, cache, std::move (probe), outEvents);
+        }
 
 
-
-            history.Attach (&session.controller.GetKeyframes());
-            history.GetStretches (stretches);
-            std::ranges::reverse (stretches);
-
-            hr = history.BuildJob (stretches, job);
-            AssertSucceeded (hr, L"BuildJob");
-
-            replayer.SetMachine (session.machine.GetConfig(), session.machine.GetCurrentMachineName());
-
-            hr = replayer.Rebuild (job, results);
-            AssertSucceeded (hr, L"Rebuild");
-
-            for (const DebugEventStretchResult<T> & result : results)
-            {
-                live.clear();
-                cache.CopySpan (result.startPosition, result.endPosition, live);
-
-                Assert::AreEqual (live.size(), result.entries.size(), std::format (L"the stretch from {}", result.startPosition).c_str());
-
-                for (i = 0; i < live.size(); i++)
-                {
-                    Assert::IsTrue (IsSameEntry (live[i], result.entries[i]), std::format (L"entry {} of the stretch from {}", i, result.startPosition).c_str());
-                }
-
-                outEvents += live.size();
-            }
+        template <typename T>
+        static void  AssertCacheIsRebuilt (TestMachine & machine, ReverseController & controller, const DebugEventCache<T> & cache, std::unique_ptr<IDebugEventProbe<T>> probe, size_t & outEvents)
+        {
+            EventCacheRebuild::AssertMatches<T> (machine, controller, cache, std::move (probe), outEvents);
         }
 
 
@@ -240,8 +190,8 @@ namespace DebugEventLogsTests
 
             AssertCacheIsRebuilt<Disk2Event> (session, session.logs.GetDiskCache(),  std::make_unique<DiskEventProbe>(),       disk);
             AssertCacheIsRebuilt<InputEvent> (session, session.logs.GetInputCache(), std::make_unique<InputEventProbe>(),      input);
-            AssertCacheIsRebuilt<IoEvent>    (session, session.logs.GetVideoCache(), std::make_unique<IoEventProbe> (true),  video);
-            AssertCacheIsRebuilt<IoEvent>    (session, session.logs.GetSoundCache(), std::make_unique<IoEventProbe> (false), sound);
+            AssertCacheIsRebuilt<IoEvent>    (session, session.logs.GetVideoCache(), std::make_unique<IoEventProbe> (IoLogKind::Video), video);
+            AssertCacheIsRebuilt<IoEvent>    (session, session.logs.GetSoundCache(), std::make_unique<IoEventProbe> (IoLogKind::Sound), sound);
 
             Assert::IsTrue   (disk > 0,  L"the loop ran the disk");
             Assert::IsTrue   (input > 0, L"and polled the keyboard and paddle");
@@ -311,6 +261,81 @@ namespace DebugEventLogsTests
             session.WaitForKeyframes();
 
             AssertRebuildsOnAWorkerAndThenHere (session);
+        }
+
+
+        //  A //c sends a byte through its first port's loopback plug and reads
+        //  it back, again and again: the serial log's cache has the entries a
+        //  rebuild from history makes, bytes sent and received and the
+        //  settings and lines among them.
+        TEST_METHOD (TheSerialCacheHasWhatARebuildGives)
+        {
+            static constexpr Byte  kProgram[] =
+            {
+                0xA9, 0x0B,             // LDA #$0B     DTR on, no interrupts
+                0x8D, 0x9A, 0xC0,       // STA $C09A
+                0xA9, 0x1E,             // LDA #$1E     9600 baud, 8 bits, 1 stop bit
+                0x8D, 0x9B, 0xC0,       // STA $C09B
+                0xA2, 0x00,             // LDX #$00
+                0x8E, 0x98, 0xC0,       // STX $C098    loop: send X
+                0xAD, 0x98, 0xC0,       // LDA $C098    and read what came back
+                0xE8,                   // INX
+                0xA0, 0x00,             // LDY #$00
+                0x88,                   // DEY          a character time and more
+                0xD0, 0xFD,             // BNE -3
+                0x4C, 0x0C, 0x08,       // JMP loop
+            };
+
+            TestMachine        machine    ("Apple2c");
+            ReverseController  controller (machine);
+            InlineWorkQueue    queue;
+            DebugEventLogs     logs       (machine);
+            HRESULT            hr         = S_OK;
+            size_t             serial     = 0;
+            size_t             i          = 0;
+            size_t             spent      = 0;
+
+
+
+            for (i = 0; i < std::size (kProgram); i++)
+            {
+                machine.GetMemoryBus().WriteByte ((Word) (0x0800 + i), kProgram[i]);
+            }
+
+            machine.GetCpu()->SetPC (0x0800);
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+            AssertSucceeded (hr, L"Start");
+
+            logs.SetWorkQueue (&queue);
+            logs.Start (&controller);
+
+            for (spent = 0; spent < 100 * kSliceCycles; )
+            {
+                spent += machine.StepOne();
+            }
+
+            hr = controller.GetKeyframes().WaitForPending();
+            AssertSucceeded (hr, L"WaitForPending");
+
+            AssertCacheIsRebuilt<IoEvent> (machine, controller, logs.GetSerialCache(), std::make_unique<IoEventProbe> (IoLogKind::Serial), serial);
+
+            Assert::IsTrue (serial > 100, L"the port sent and received bytes");
+            Assert::IsTrue (std::ranges::any_of (Entries (logs.GetSerialCache()), [] (const DebugEventEntry<IoEvent> & e) { return e.event.kind == IoEventKind::SerialReceived; }), L"received bytes are listed");
+            Assert::IsTrue (std::ranges::any_of (Entries (logs.GetSerialCache()), [] (const DebugEventEntry<IoEvent> & e) { return e.event.kind == IoEventKind::SerialSettings; }), L"so are the settings");
+
+            logs.Stop();
+        }
+
+
+        static std::vector<DebugEventEntry<IoEvent>>  Entries (const DebugEventCache<IoEvent> & cache)
+        {
+            std::vector<DebugEventEntry<IoEvent>>  entries;
+
+
+
+            cache.CopySpan (0, UINT64_MAX, entries);
+            return entries;
         }
 
 
@@ -596,6 +621,44 @@ namespace DebugEventLogsTests
             }
 
             Assert::AreEqual ((size_t) 1, gaps);
+        }
+
+
+        //  A byte a serial port takes from a host attachment is host input, a
+        //  row of the input log with the port and the byte.
+        TEST_METHOD (ABytePushedToASerialPortIsAHostRow)
+        {
+            static constexpr Byte  kByte      = 'A';
+            TestMachine            machine    ("Apple2c");
+            ReverseController      controller (machine);
+            DebugEventLogs         logs       (machine);
+            InputLogDelta          delta;
+            const InputLogRow    * row        = nullptr;
+            HRESULT                hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+            AssertSucceeded (hr, L"Start");
+
+            logs.Start   (&controller);
+            logs.SetOpen (DebugLogKind::Input, true);
+
+            machine.GetRefs().serialChips[1]->EnqueueReceivedBytes (&kByte, 1);
+            machine.RunCycles (kSliceCycles);
+
+            logs.TakeDelta (delta);
+            logs.Stop();
+
+            for (const InputLogRow & each : delta.newer)
+            {
+                row = (each.kind == DebugLogRowKind::Event && each.event.type == InputEventType::HostSerialByte) ? &each : row;
+            }
+
+            Assert::IsNotNull (row, L"the byte is a row");
+            Assert::IsTrue    (row->event.category == InputEventCategory::Host, L"of host input");
+            Assert::AreEqual<Byte>     (kByte, row->event.payload.io.value, L"with the byte");
+            Assert::AreEqual<uint16_t> (Acia6551::kCommPortBuiltIn | 2, row->event.payload.io.address, L"and the //c's port 2");
         }
 
 

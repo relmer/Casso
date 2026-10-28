@@ -2,6 +2,7 @@
 
 #include "Debugger/IoEventLog.h"
 #include "Debugger/Reply.h"
+#include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/VideoTiming.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -139,6 +140,25 @@ namespace DebuggerTests
             Assert::AreEqual (std::string ("cycle          150       +40         Mockingboard chip 1 AY R07 = $38"), lines[3]);
             Assert::AreEqual (std::string ("History recording paused here."),                                    lines[4]);
             Assert::AreEqual (std::string ("cycle          200            $C030  speaker"),                       lines[5], L"the gap starts the count again");
+        }
+
+
+        //  A serial entry's port is a card's slot, or one of the //c's two
+        //  built-in ports.
+        TEST_METHOD (ASerialPortIsACardsSlotOrABuiltInPort)
+        {
+            IoEvent  entry;
+
+
+
+            Assert::AreEqual (std::string ("Slot 2"), IoEventLog::GetSerialPortName (2));
+            Assert::AreEqual (std::string ("Port 1"), IoEventLog::GetSerialPortName (Acia6551::kCommPortBuiltIn | 1));
+            Assert::AreEqual (std::string ("Port 2"), IoEventLog::GetSerialPortName (Acia6551::kCommPortBuiltIn | 2));
+
+            entry.kind  = IoEventKind::SerialSent;
+            entry.chip  = 2;
+            entry.value = 0x41;
+            Assert::AreEqual (std::string ("Slot 2 sent $41"), IoEventLog::FormatEvent (entry));
         }
     };
 }

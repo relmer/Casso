@@ -76,9 +76,10 @@ public:
     // Cxxx-ROM routing (audit C8 carryover). Internal $C100-$CFFF ROM
     // bytes and slot ROM bytes are attached after Initialize; the MMU
     // owns the CxxxRomRouter device that is registered on the bus.
-    void               AttachInternalCxxxRom (vector<Byte> data);
-    void               AttachSlotRom         (int slot, vector<Byte> data);
-    CxxxRomRouter *    GetCxxxRouter         () { return &m_cxxxRouter; }
+    void                    AttachInternalCxxxRom (vector<Byte> data);
+    void                    AttachSlotRom         (int slot, vector<Byte> data);
+    CxxxRomRouter         * GetCxxxRouter         () { return &m_cxxxRouter; }
+    const CxxxRomRouter   * GetCxxxRouter         () const { return &m_cxxxRouter; }
 
     // The language card owns $D000-$FFFF and page-maps it for fast reads. ALTZP
     // flips the aux/main LC RAM side, so SetAltZp re-points its window through
@@ -114,8 +115,9 @@ private:
     void   ResolveHires20_3F   ();
     Byte * SelectMainRead      (int page);
     Byte * SelectMainWrite     (int page);
-    MemorySource  GetRamSource   (const Byte * page) const;
-    MemorySource  GetCxxxSource  (int page) const;
+    MemorySource  GetRamSource     (const Byte * page) const;
+    MemorySource  GetCxxxSource    (int page) const;
+    int           GetExpansionSlot () const;
 
     MemoryBus            *   m_bus         = nullptr;
     Byte                 *   m_mainRamPtr  = nullptr;

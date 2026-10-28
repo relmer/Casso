@@ -2,6 +2,7 @@
 
 #include "Debugger/IoEventLog.h"
 #include "Debugger/Reply.h"
+#include "Devices/Acia6551.h"
 
 
 
@@ -186,6 +187,10 @@ void IoEventLog::FormatEntry (
     case IoEventKind::AyWrite:
         line = std::format ("cycle {:>12}  {:>8}         {}", entry.cycle, sinceText, FormatEvent (entry));
         break;
+
+    default:
+        line = std::format ("cycle {:>12}  {}", entry.cycle, FormatEvent (entry));
+        break;
     }
 }
 
@@ -223,9 +228,61 @@ std::string IoEventLog::FormatEvent (const IoEvent & entry)
     case IoEventKind::AyWrite:
         text = std::format ("Mockingboard chip {} AY R{:02} = ${:02X}", entry.chip + 1, entry.reg, entry.value);
         break;
+
+    case IoEventKind::SerialSettings:
+        text = std::format ("{} command ${:02X} control ${:02X}", GetSerialPortName (entry.chip), entry.command, entry.control);
+        break;
+
+    case IoEventKind::SerialLines:
+        text = std::format ("{} lines ${:02X}", GetSerialPortName (entry.chip), entry.lines);
+        break;
+
+    case IoEventKind::SerialSent:
+        text = std::format ("{} sent ${:02X}", GetSerialPortName (entry.chip), entry.value);
+        break;
+
+    case IoEventKind::SerialReceived:
+        text = std::format ("{} received ${:02X}", GetSerialPortName (entry.chip), entry.value);
+        break;
+
+    case IoEventKind::SerialOverrun:
+        text = std::format ("{} overrun", GetSerialPortName (entry.chip));
+        break;
+
+    case IoEventKind::SocketState:
+        text = std::format ("socket {} state ${:02X} from ${:02X}", entry.chip, entry.value, entry.reg);
+        break;
+
+    case IoEventKind::SocketSent:
+        text = std::format ("socket {} sent {} bytes", entry.chip, entry.length);
+        break;
+
+    case IoEventKind::SocketReceived:
+        text = std::format ("socket {} received {} bytes", entry.chip, entry.length);
+        break;
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventLog::GetSerialPortName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string IoEventLog::GetSerialPortName (Byte port)
+{
+    if (port & Acia6551::kCommPortBuiltIn)
+    {
+        return std::format ("Port {}", port & ~Acia6551::kCommPortBuiltIn);
+    }
+
+    return std::format ("Slot {}", port);
 }
 
 

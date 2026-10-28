@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+struct DiagnosticsIoRegister;
 struct DiagnosticsRow;
 struct DiagnosticsSnapshot;
 
@@ -31,6 +32,10 @@ public:
     virtual std::string  GetDiagnosticsId    () const                          = 0;
     virtual std::string  GetDiagnosticsTitle () const                          = 0;
     virtual void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const = 0;
+
+    //  The device's bus registers, each with its description; empty by
+    //  default.
+    virtual void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const { (void) registers; }
 
     //  Rows in the forms every provider uses: on or off, a number in hex, and
     //  a byte in hex with a name for each bit, bit 7 first. An empty name
