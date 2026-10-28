@@ -126,6 +126,8 @@ rebuild. **Independent test**: set each attachment, apply, rebuild, read back.
 - [X] T041 Default the modem to X4, so `CONNECT` has the rate (owner decision 2026-10-28). *Done: `HayesModem::ResetSettings`; test `TheFactorySettingsReportTheBaudRateAndX0DoesNot`.*
 - [X] T042 Make an empty //c port device mean nothing, and list None and the loopback plug on both //c ports (owner decision 2026-10-28, research R9). *Done: `MachineBuilder::AttachSerialPort`, `SerialAttachmentView`; tests `TheApple2cPortsDefaultToNothing`, `ABuiltInPortListsNoneThenTheLoopbackPlug`. Tests of the plug use `TestMachine::PlugInSerialLoopbacks`.*
 - [ ] T043 Once 033 merges to master and master is merged here, default the //c's port 1 to 033's serial ImageWriter (owner decision 2026-10-28).
+- [X] T044 Lay out the serial connector above the switches on the Serial card page (owner decision 2026-10-28). *Done: `SerialCardPage::Layout`; test `TheConnectorIsAboveTheSwitches`.*
+- [ ] T045 Once 033 merges to master and master is merged here, apply a serial attachment change to the running machine with no reset (owner decision 2026-10-28), through 033's `SettingsConnectors` path, which applies a //c port's device live; build 047's attachments there and drop the serial terms from `RequiresReset`.
 
 ---
 
