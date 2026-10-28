@@ -24,8 +24,8 @@ class SerialLinkReports;
 //  guest sent, reads what arrived with the errors the driver latched, which
 //  go with the last byte read, and passes the status lines to the chip.
 //
-//  A rate the port cannot run at is replaced by its nearest, reported once
-//  per rate when they differ by more than kRateTolerance. A port that
+//  A rate the port cannot run at exactly is replaced by its nearest, which
+//  is reported once per rate. A port that
 //  fails, as an unplugged USB adapter does, is closed with DCD off, and
 //  opened again every kReopenSeconds of emulated time until it opens.
 //
@@ -36,7 +36,6 @@ class AciaComPortEndpoint : public IAciaEndpoint
 public:
     static constexpr uint32_t  kReopenSeconds     = 2;
     static constexpr size_t    kReceiveQueueLimit = 64;
-    static constexpr double    kRateTolerance     = 0.02;
 
     AciaComPortEndpoint (Acia6551           & acia,
                          IHostSerialPorts   * ports,

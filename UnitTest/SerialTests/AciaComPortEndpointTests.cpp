@@ -352,6 +352,24 @@ namespace AciaComPortEndpointTestNs
         }
 
 
+        //  A port that takes any whole rate runs 109.92 baud at 110, which is
+        //  reported; a rate the port has exactly is not.
+        TEST_METHOD (ARateOffByAnyAmountIsReported)
+        {
+            ComRig  rig;
+
+
+
+            Assert::AreEqual (std::string(), rig.GetReport(), L"9600 exactly");
+
+            rig.acia.Write (kAddrCtrl, 0x13);
+            rig.Run (Acia6551::kIdlePollCycles);
+
+            Assert::AreEqual (110.0, rig.port->formats.back().baud);
+            Assert::AreEqual (std::string ("109.92 baud is not available on COM3. It runs at 110 baud."), rig.GetReport());
+        }
+
+
         TEST_METHOD (AnAbsentPortIsReportedWithDcdOff)
         {
             ComRig  rig (kCmdPolled, "COM9");

@@ -249,8 +249,8 @@ Error:
 //
 //  AciaComPortEndpoint::ApplyFormat
 //
-//  The port runs at the nearest rate it has; a replacement off by more than
-//  kRateTolerance is reported the first time the guest sets that rate.
+//  The port runs at the nearest rate it has; a replacement is reported the
+//  first time the guest sets that rate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -261,11 +261,11 @@ HRESULT AciaComPortEndpoint::ApplyFormat()
     SerialLineFormat  applied     = m_format;
     uint32_t          rate        = ChooseRate (m_format.baud, m_rates, m_isAnyRate);
     uint32_t          key         = (uint32_t) llround (m_format.baud * kHundredths);
-    bool              isFar       = std::abs (rate - m_format.baud) > m_format.baud * kRateTolerance;
+    bool              isOff       = rate != m_format.baud;
 
 
 
-    if (isFar && !m_reportedRates.contains (key))
+    if (isOff && !m_reportedRates.contains (key))
     {
         m_reportedRates.insert (key);
         Report (std::format ("{:g} baud is not available on {}. It runs at {} baud.", m_format.baud, m_portName, rate));
