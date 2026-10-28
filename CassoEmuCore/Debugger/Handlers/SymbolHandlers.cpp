@@ -576,6 +576,7 @@ void SymbolHandlers::Clear (DebugSession & session, const DebugCommand & command
     TryGetTable (command, table);
     session.GetSymbols().Clear (table);
     session.ForgetSymbolLoads (table);
+    session.ForgetAddedSymbols (table);
 
     if (session.GetDebugFileTable() == table)
     {
@@ -626,6 +627,7 @@ void SymbolHandlers::Add (DebugSession & session, const DebugCommand & command, 
 
     TryGetTable (command, table);
     session.GetSymbols().Add (table, command.text, command.a1);
+    session.NoteAddedSymbol (table, command.text, command.a1);
     data.symbols.push_back ({ command.text, command.a1, table });
     reply.data = data;
 }
@@ -655,6 +657,7 @@ void SymbolHandlers::Remove (DebugSession & session, const DebugCommand & comman
         return;
     }
 
+    session.ForgetAddedSymbol (table, command.text);
     reply.data = MessageData { { std::format ("Removed {} from {}.", command.text, ReplyJson::GetSymbolTableName (table)) } };
 }
 

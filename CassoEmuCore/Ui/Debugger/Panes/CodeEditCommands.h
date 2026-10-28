@@ -53,8 +53,6 @@ private:
         std::wstring       text;
     };
 
-    void                 AddSymbolAt  (Word address);
-
     IDebuggerPaneHost    & m_host;
     const ICodeViews     & m_views;
     std::vector<Edit>      m_undo;

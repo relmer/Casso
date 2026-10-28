@@ -8,6 +8,7 @@
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerMenuCommand.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
+#include "Ui/Debugger/Panes/AddSymbolDialog.h"
 #include "Ui/Debugger/Panes/DebuggerPaneFrame.h"
 #include "Ui/Debugger/Panes/FlameGraphView.h"
 #include "Ui/Debugger/Panes/ProfileProgress.h"
@@ -956,11 +957,23 @@ bool ProfilerPane::TryGetTip (POINT clientPx, PaneTip & tip)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProfilerPane::AddMenuItems (DxuiListView * list, int, PaneMenuItems & items)
+bool ProfilerPane::AddMenuItems (DxuiListView * list, int row, PaneMenuItems & items)
 {
+    int                  entry   = (row >= 0 && (size_t) row < m_order.size()) ? (int) m_order[(size_t) row] : row;
+    std::optional<Word>  address;
+
+
+
     if (list != m_list)
     {
         return false;
+    }
+
+    address = GetRowAddress ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, entry);
+
+    if (address.has_value())
+    {
+        items.push_back ({ L"Add symbol here...", [this, at = *address] { AddSymbolDialog::Run (m_host, at); } });
     }
 
     items.push_back ({ m_isOn ? L"Stop profiling" : L"Start profiling", [this, on = m_isOn] { RunProfile (on ? "OFF" : "ON"); } });
@@ -968,6 +981,38 @@ bool ProfilerPane::AddMenuItems (DxuiListView * list, int, PaneMenuItems & items
     items.push_back ({ L"Save...", [this] { Save(); } });
     AddCopyItem (items);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::AddContentMenuItems
+//
+//  Over a flame graph bar, Add symbol here... for its routine; Top level
+//  has no address to name.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::AddContentMenuItems (POINT clientPx, PaneMenuItems & items)
+{
+    std::optional<size_t>  routine;
+
+
+
+    if (!m_host.IsRoutable (m_flameGraph) || !m_flameGraph->IsVisible() || !m_byOpcode.has_value())
+    {
+        return;
+    }
+
+    routine = m_flameGraph->FindRoutineAt (clientPx);
+
+    if (routine.has_value() && *routine < m_byOpcode->routines.size() && m_byOpcode->routines[*routine].kind != RoutineKind::Top)
+    {
+        items.push_back ({ L"Add symbol here...", [this, at = m_byOpcode->routines[*routine].address] { AddSymbolDialog::Run (m_host, at); } });
+    }
 }
 
 

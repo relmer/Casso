@@ -117,6 +117,18 @@ namespace DebuggerToolPanesTests
         using DebuggerWindow::GetPaneHostForTest;
         using DebuggerWindow::ShowPane;
 
+        //  The name typed in a text dialog, Add symbol's among them.
+        std::optional<std::wstring> RunTextDialog (const std::wstring &, const std::wstring &, const std::wstring &, TextDialog::CheckFn check) override
+        {
+            std::wstring  error;
+
+
+
+            return check (typed, error) ? std::optional<std::wstring> (typed) : std::nullopt;
+        }
+
+        std::wstring  typed;
+
         std::optional<std::vector<std::wstring>> RunStepFiltersDialog (const std::vector<std::wstring> & shown,
                                                                        std::function<bool (const std::wstring &, std::wstring &)> check) override
         {
@@ -457,6 +469,49 @@ namespace DebuggerToolPanesTests
 
             Assert::IsTrue (ProfilerPane::GetOrder (profile, View::Tree, 2, true)  == std::vector<size_t> { 0, 1, 2, 3 }, L"by total: PLOT before FILL");
             Assert::IsTrue (ProfilerPane::GetOrder (profile, View::Tree, 1, false) == std::vector<size_t> { 0, 1, 3, 2 }, L"by self, least first: FILL before PLOT, both under DRAW");
+        }
+
+
+        //  A routine's row has Add symbol here..., which adds a symbol at the
+        //  routine's address; Top level has no address, so its row doesn't
+        //  have the item.
+        TEST_METHOD (AProfilerRowsMenuAddsASymbolAtItsRoutine)
+        {
+            CassoTheme                     theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost              host;
+            ToolWindow                     window   (theme, host);
+            DxuiDpiScaler                  scaler;
+            auto                           snapshot = std::make_shared<DebuggerViewSnapshot>();
+            PaneMenuItems                  top;
+            PaneMenuItems                  draw;
+            const std::function<void()>  * add      = nullptr;
+
+
+
+            scaler.SetDpi (96);
+            window.OnCreate();
+            window.Layout (RECT { 0, 0, 1400, 900 }, scaler);
+
+            snapshot->profile = MakeRoutineProfile();
+            window.TakeSnapshot (snapshot);
+
+            //  Sorted by total: Top level, then DRAW.
+            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 0, top);
+            window.GetProfilerPane().AddMenuItems (window.GetProfilerPane().GetList(), 1, draw);
+
+            for (const auto & [label, run] : draw)
+            {
+                add = (label == L"Add symbol here...") ? &run : add;
+            }
+
+            Assert::IsTrue    (std::ranges::none_of (top, [] (const auto & item) { return item.first == L"Add symbol here..."; }), L"Top level has no address");
+            Assert::IsNotNull (add, L"DRAW's row has it");
+
+            window.typed = L"DRAWLINE";
+            (*add)();
+
+            Assert::IsFalse (host.commands.empty());
+            Assert::AreEqual (std::string ("SYM DRAWLINE = 6200"), host.commands.back());
         }
 
 

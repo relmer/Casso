@@ -69,18 +69,19 @@ public:
     //  The bar's commands, as last built.
     const std::vector<std::shared_ptr<DxuiCommand>> &  GetCommands () const { return m_commands; }
 
-    void                         CreateControls    () override;
-    void                         Configure         () override;
-    void                         AddToDock         (DxuiDockSite & dock) override;
-    std::vector<IDxuiControl *>  GetControls       () const override;
-    std::vector<DxuiToolbar *>   GetBars           () const override { return { m_bar.GetBar() }; }
-    void                         Apply             (const DebuggerViewSnapshot & snapshot) override;
-    void                         PlaceBar          () override { m_bar.Place(); BuildIfDue(); }
-    bool                         RouteBarMouse     (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
-    bool                         RouteContentMouse (const DxuiMouseEvent & ev) override;
-    const wchar_t              * GetBarTip         (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
-    bool                         TryGetTip         (POINT clientPx, PaneTip & tip) override;
-    bool                         AddMenuItems      (DxuiListView * list, int row, PaneMenuItems & items) override;
+    void                         CreateControls      () override;
+    void                         Configure           () override;
+    void                         AddToDock           (DxuiDockSite & dock) override;
+    std::vector<IDxuiControl *>  GetControls         () const override;
+    std::vector<DxuiToolbar *>   GetBars             () const override { return { m_bar.GetBar() }; }
+    void                         Apply               (const DebuggerViewSnapshot & snapshot) override;
+    void                         PlaceBar            () override { m_bar.Place(); BuildIfDue(); }
+    bool                         RouteBarMouse       (const DxuiMouseEvent & ev) override { return m_bar.RouteMouse (ev); }
+    bool                         RouteContentMouse   (const DxuiMouseEvent & ev) override;
+    const wchar_t              * GetBarTip           (POINT clientPx, RECT & anchor) const override { return m_bar.GetTip (clientPx, anchor); }
+    bool                         TryGetTip           (POINT clientPx, PaneTip & tip) override;
+    bool                         AddMenuItems        (DxuiListView * list, int row, PaneMenuItems & items) override;
+    void                         AddContentMenuItems (POINT clientPx, PaneMenuItems & items) override;
 
     //  The drop-down's words for a view.
     static const wchar_t *  GetViewLabel (View view);

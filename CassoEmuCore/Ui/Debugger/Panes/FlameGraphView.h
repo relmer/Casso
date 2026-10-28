@@ -57,7 +57,11 @@ public:
     //  A routine's color, one of a few hues by its place in the routines.
     static uint32_t  GetRoutineColor (size_t routine);
 
-    std::optional<size_t>  FindBarAt   (POINT point) const;
+    std::optional<size_t>  FindBarAt     (POINT point) const;
+
+    //  The routine of the bar at a point, an index in the profile's
+    //  routines, or none.
+    std::optional<size_t>  FindRoutineAt (POINT point) const;
     bool                   TryGetTipAt (POINT point, std::wstring & text) const;
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;

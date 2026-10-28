@@ -418,7 +418,8 @@ reads.
 A debug project, one for each program, has the debugger's configuration:
 
 - breakpoints and the name of each, watches, zero-page pointers, bookmarks,
-  data directives, step filters, loaded symbol files and which symbol tables
+  data directives, step filters, loaded symbol files, the symbols you added
+  with `SYM name = addr` or **Add symbol here...**, and which symbol tables
   are on;
 - the command mode, the `CD` directory, the instruction trace and trace file,
   the profiler, the stopwatch and where the trip count starts;
