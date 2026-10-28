@@ -91,7 +91,6 @@ private:
     OverlayChip              * m_alignChip        = nullptr;
     OverlayChip              * m_diffsChip        = nullptr;
     DxuiIconButton           * m_zoomOut          = nullptr;
-    DxuiLabel                * m_zoomReadout      = nullptr;
     DxuiIconButton           * m_zoomIn           = nullptr;
     DxuiDpiScaler              m_scaler;
     RECT                       m_areaPx           = {};

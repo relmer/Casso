@@ -152,7 +152,10 @@ float4 main (PSIn input) : SV_TARGET
     }
     else if (kind == kKindTaperedCapsule)
     {
+        //  Its position is in a plane's units, so the distance is turned
+        //  into pixels by how fast it changes across the screen.
         distance = DistanceToTaperedCapsule (input.local, input.shape.xy, input.shape.z, input.shape.w, input.edges.x, input.edges.y);
+        distance = distance / max (length (float2 (ddx (distance), ddy (distance))), kTinyLength);
     }
     else
     {

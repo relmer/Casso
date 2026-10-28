@@ -160,7 +160,13 @@ comparing two quarter tracks of one disk.
   they made plain? → A: The tracks are dimmed while one is on, every ring of
   a track's band is shaded, and the shading is near opaque (FR-161).
 - Q: Is the strip's zoom factor, as "×8", useful? → A: No; its readout
-  is the cells in view alone (FR-034).
+  is the cells in view alone (FR-034), and the platter's zoom group has no
+  readout (FR-025).
+- Q: Is the head marker part of the tilted scene? → A: Yes; it lies on the
+  disk and is foreshortened with it (FR-064, FR-152).
+- Q: After a state restore, what is "As inserted"? → A: The disk as it was
+  first inserted, not the restored disk; the rest of the restore is handled
+  as a reload (FR-069, FR-117).
 - Q: Can a selection be returned to? → A: Back and Forward step through the
   user's selections, with Alt+Left and Alt+Right, the mouse's back and
   forward buttons, and the Go menu (FR-164).
@@ -1871,8 +1877,8 @@ legend, and tilt the platter and back.
 - **FR-025**: The platter MUST zoom from fit to at least 600×, about the
   pointer, with the mouse wheel, the zoom group's "−" and "+" buttons, the
   View menu's "Zoom in", "Zoom out" and "Fit", and the plus, minus and 0
-  keys, and MUST pan by dragging. The zoom group MUST lie in a row, "−", the
-  zoom readout, then "+". A drag shorter than the Windows drag threshold MUST
+  keys, and MUST pan by dragging. The zoom group MUST be "−" then "+" in a
+  row, with no readout of the zoom. A drag shorter than the Windows drag threshold MUST
   count as a click. Double-click and 0 MUST return to fit, zooming back out
   to fit MUST recenter the disk, "Fit" MUST be unavailable at fit, panning
   MUST stop before the disk leaves the view, and the zoom group MUST be

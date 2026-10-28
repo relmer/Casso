@@ -19,7 +19,6 @@ static constexpr int      s_kGroupDip       = 36;
 static constexpr int      s_kPadDip         = 4;
 static constexpr int      s_kGapDip         = 2;
 static constexpr int      s_kIconDip        = 28;
-static constexpr int      s_kReadoutDip     = 44;
 static constexpr int      s_kSliderDip      = 120;
 static constexpr int      s_kInsetDip       = 4;
 static constexpr int64_t  s_kLegendReopenMs = 300;
@@ -81,7 +80,6 @@ void PlatterCorners::Create()
     m_alignChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Track alignment");
     m_diffsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
     m_zoomOut      = m_zoomGroup->CreateChild<DxuiIconButton>();
-    m_zoomReadout  = m_zoomGroup->CreateChild<DxuiLabel> (L"", DxuiTextRole::Body, DxuiTextHAlign::Center);
     m_zoomIn       = m_zoomGroup->CreateChild<DxuiIconButton>();
 
     m_legend->SetVisible (false);
@@ -170,7 +168,7 @@ int PlatterCorners::GetChipsWidthPx (const DxuiDpiScaler & scaler) const
 
 int PlatterCorners::GetZoomWidthPx (const DxuiDpiScaler & scaler) const
 {
-    return 2 * scaler.ToPx (s_kPadDip) + 2 * scaler.ToPx (s_kIconDip) + scaler.ToPx (s_kReadoutDip);
+    return 3 * scaler.ToPx (s_kPadDip) + 2 * scaler.ToPx (s_kIconDip);
 }
 
 
@@ -261,7 +259,6 @@ void PlatterCorners::Place()
     x = right - zoomW;
     m_zoomGroup->Layout   ({ x, bottom - group, right, bottom }, m_scaler);
     m_zoomOut->Layout     ({ x + pad, bottom - group + pad, x + pad + icon, bottom - pad }, m_scaler);
-    m_zoomReadout->Layout ({ x + pad + icon, bottom - group, right - pad - icon, bottom }, m_scaler);
     m_zoomIn->Layout      ({ right - pad - icon, bottom - group + pad, right - pad, bottom - pad }, m_scaler);
 }
 
@@ -313,7 +310,6 @@ void PlatterCorners::Update()
         SetOverlay (PlatterOverlay::Files, true);
     }
 
-    m_zoomReadout->SetText (std::format (L"{:.0f}{}", m_session.model.GetZoom(), s_kpszMultiplyX));
     m_zoomOut->SetEnabled  (!m_session.model.IsAtFit());
 
     if (!m_tiltSlider->IsDragging())
@@ -433,7 +429,6 @@ std::wstring PlatterCorners::GetTip (POINT pointPx, RECT & outAnchorPx) const
         { m_alignChip,    L"Mark where sector 0 and the longest sync start on each track",             nullptr },
         { m_diffsChip,    L"Mark the quarter tracks that differ",                                      nullptr },
         { m_zoomOut,      L"Zoom the platter out (minus)",                                             L"The whole disk is shown, so the platter cannot zoom out further" },
-        { m_zoomReadout,  L"The platter's zoom; 0 or a double-click on the disk returns to fit",       nullptr },
         { m_zoomIn,       L"Zoom the platter in (plus)",                                               nullptr },
     };
 

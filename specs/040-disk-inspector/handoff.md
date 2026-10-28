@@ -152,14 +152,9 @@ the owner.
 - T147: all gates passed 2026-10-26 (Debug 7003, Release 7001, scenarios 55,
   ARM64 Release, analysis clean); run again before the merge.
 - Blocked until 033 merges to master: T129 to T141 and T161.
-- The state-restore parts of T094 and T114. Merging 035 into 040 would tie
-  040's merge to 035's, 1,792 commits ahead of master. Instead 040 can take a
-  call, `DiskImageStore::NoteStateRestored`, that runs the reload path:
-  counts and marks start at zero, the media id changes so the inspector
-  analyzes the whole disk, and the applied-edit history clears. 035's
-  `MachineHost::LoadState` then makes that one call after the merge. Open
-  question: whether "As inserted" after a restore is the restored disk, as
-  after a reload, or the disk as first inserted.
+- The state-restore part of T114 is in 040 as `DiskImageStore::NoteStateRestored`
+  (T193); T194 is the one call 035's `MachineHost::LoadState` makes once both
+  branches are on master. "As inserted" stays the disk as first inserted.
 
 ## Known gaps
 

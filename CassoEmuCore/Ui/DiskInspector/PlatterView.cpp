@@ -32,6 +32,7 @@ static constexpr float    s_kHeadFarShare    = 1.5f;
 static constexpr float    s_kHeadMarginDip   = 9.0f;
 static constexpr uint32_t s_kHeadBodyAlpha   = 0x90000000u;
 static constexpr float    s_kHeadSightAlpha  = 0.75f;
+static constexpr float    s_kDotLength       = 0.01f;
 static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
 static constexpr float    s_kHeadShadowDip   = 6.0f;
 static constexpr uint32_t s_kHeadShadowArgb  = 0x40000000u;
@@ -983,18 +984,21 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //
 //  PlatterView::PaintHead
 //
-//  The head marker, drawn as a hard drive's head arm (FR-064, FR-152): a
-//  translucent arm with a rounded tip centered on the head, its sides
-//  tangent to the tip and widening out past the rim and off the view. In the tip, a ring with
-//  a margin of arm around it has a clear window over the platter under the
-//  head, and a crosshair in the window has its center exactly on the head's
-//  quarter track and angle, its lines along the radius and across it. The
-//  ring and crosshair are a little translucent, and the arm is one tapered
-//  capsule, so its translucent fill has no seams. Tilted,
-//  the arm has a soft shadow under it. The arm's edge, the ring and the
-//  crosshair indicate idle, reading or writing by color, and a blocked write
-//  adds a cross. The marker is drawn over everything and is not hit-tested,
-//  so the pointer acts on the platter under it.
+//  The head marker, drawn as a hard drive's head arm lying on the disk
+//  (FR-064, FR-152): a translucent arm with a rounded tip centered on the
+//  head, its sides tangent to the tip and widening out past the rim and off
+//  the view. In the tip, a ring with a margin of arm around it has a clear
+//  window over the platter under the head, and a crosshair in the window has
+//  its center exactly on the head's quarter track and angle, its lines along
+//  the radius and across it. The ring and crosshair are a little
+//  translucent, and the arm is one tapered capsule, so its translucent fill
+//  has no seams. Everything is laid out in the disk's plane and drawn
+//  through the projection's map at the head, so the tilted view
+//  foreshortens it with the disk; tilted, the arm has a soft shadow under
+//  it. The arm's edge, the ring and the crosshair indicate idle, reading or
+//  writing by color, and a blocked write adds a cross. The marker is drawn
+//  over everything and is not hit-tested, so the pointer acts on the
+//  platter under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1002,29 +1006,29 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
 {
     const DiskInspectorColors &  colors = m_context.palette.colors;
     POINT                        eyeAt  = {};
-    float                        outer  = view.outerRadiusPx + m_scaler.ToPxf (s_kHeadReachDip);
+    double                       angle  = 0.0;
+    double                       radius = 0.0;
     float                        ring   = m_scaler.ToPxf (s_kHeadEyeDip);
     float                        line   = m_scaler.ToPxf (s_kSelectOutlineDip);
     float                        rimW   = line * 2.0f;
     float                        hole   = ring - rimW;
     float                        tip    = ring + m_scaler.ToPxf (s_kHeadMarginDip);
-    float                        farW   = tip * s_kHeadFarShare;
+    float                        reach  = static_cast<float> (view.outerRadiusPx) + m_scaler.ToPxf (s_kHeadReachDip);
     float                        drop   = m_scaler.ToPxf (s_kHeadShadowDip);
     float                        cross  = hole * 0.7f;
     float                        gap    = std::max (hole * 0.18f, line);
-    float                        ex     = 0.0f;
-    float                        ey     = 0.0f;
-    float                        ox     = 0.0f;
-    float                        oy     = 0.0f;
     float                        ux     = 0.0f;
     float                        uy     = 0.0f;
     float                        len    = 0.0f;
-    float                        span   = 0.0f;
-    float                        slope  = 0.0f;
+    float                        farW   = 0.0f;
+    float                        onAxis = 0.0f;
+    float                        sx     = 0.0f;
+    float                        sy     = 0.0f;
+    float                        alpha  = painter.GetGlobalAlpha();
     uint32_t                     argb   = colors.headIdle;
     uint32_t                     body   = (theme.BackgroundElevated() & 0x00FFFFFFu) | s_kHeadBodyAlpha;
     uint32_t                     halo   = (theme.Background() & 0x00FFFFFFu) | s_kHeadHaloAlpha;
-    float                        alpha  = painter.GetGlobalAlpha();
+    std::array<float, 4>         map    = {};
 
 
 
@@ -1033,42 +1037,41 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
         return;
     }
 
-    //  The exact point, not the rounded pixel, so the crosshair's center is
-    //  on the head's track at any zoom.
-    PlatterGeometry::ProjectAt (view, m_context.head.turn, PlatterGeometry::GetRingMiddle (m_context.head.quarterTrack) * view.outerRadiusPx, ex, ey);
-    argb = (m_context.head.activity == HeadActivity::Reading) ? colors.headReading
-         : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
-                                                              : colors.headWriting;
+    argb   = (m_context.head.activity == HeadActivity::Reading) ? colors.headReading
+           : (m_context.head.activity == HeadActivity::Idle)    ? colors.headIdle
+                                                                : colors.headWriting;
+    angle  = (m_context.head.turn + view.rotation) * s_kTwoPi;
+    radius = PlatterGeometry::GetRingMiddle (m_context.head.quarterTrack) * view.outerRadiusPx;
 
-    //  Outward along the radius on screen. The arm widens from the tip to
-    //  farW past the rim, and runs on at that slope beyond the view's edge,
-    //  so its far end is never in view.
-    PlatterGeometry::ProjectAt (view, m_context.head.turn, outer, ox, oy);
-    span  = std::max (std::hypot (ox - ex, oy - ey), 1.0f);
-    len   = std::max (span, tip * 3.0f);
-    slope = (farW - tip) / len;
-    len   = std::max (len, 2.0f * (GetWidth() + GetHeight()));
-    farW  = tip + slope * len;
-    ux    = (ox - ex) / span;
-    uy    = (oy - ey) / span;
-    ox    = ex + ux * len;
-    oy    = ey + uy * len;
+    //  Outward along the radius, in the disk's plane, and the projection's
+    //  map at the head, from a step in the plane to a step on screen.
+    ux  = static_cast<float> (std::sin (angle));
+    uy  = static_cast<float> (-std::cos (angle));
+    map = GetPlaneMap (view, radius * ux, radius * uy, sx, sy);
+
+    //  The arm widens from the tip to farW past the rim, and runs on at that
+    //  slope beyond the view's edge, so its far end is never in view.
+    len    = std::max (reach - static_cast<float> (radius), tip * 3.0f);
+    farW   = tip * s_kHeadFarShare;
+    onAxis = std::max (std::hypot (map[0] * ux + map[2] * uy, map[1] * ux + map[3] * uy), 0.25f);
+    farW   = tip + (farW - tip) / len * std::max (len, 2.0f * (GetWidth() + GetHeight()) / onAxis);
+    len    = std::max (len, 2.0f * (GetWidth() + GetHeight()) / onAxis);
 
     if (view.tilt != 0.0f)
     {
-        painter.FillTaperedCapsule (ex, ey + drop, tip, ox, oy + drop, farW, hole, 0.0f, s_kHeadShadowArgb);
+        painter.FillTaperedCapsuleOnPlane (sx, sy + drop, map, ux * len, uy * len, tip, farW, hole, 0.0f, s_kHeadShadowArgb);
     }
 
-    painter.FillTaperedCapsule (ex, ey, tip, ox, oy, farW, hole, 0.0f, body);
-    painter.FillTaperedCapsule (ex, ey, tip, ox, oy, farW, 0.0f, line / 2.0f, argb);
+    painter.FillTaperedCapsuleOnPlane (sx, sy, map, ux * len, uy * len, tip, farW, hole, 0.0f, body);
+    painter.FillTaperedCapsuleOnPlane (sx, sy, map, ux * len, uy * len, tip, farW, 0.0f, line / 2.0f, argb);
 
     //  The window's ring and crosshair are a little translucent too.
     painter.SetGlobalAlpha (alpha * s_kHeadSightAlpha);
 
     //  The window's ring: a dark halo so it reads over any ring color, then
-    //  its rim.
-    OutlineCircle (painter, ex, ey, ring + line, rimW + line * 2.0f, halo);
-    OutlineCircle (painter, ex, ey, ring, rimW, argb);
+    //  its rim, each a circle in the plane.
+    painter.FillTaperedCapsuleOnPlane (sx, sy, map, ux * s_kDotLength, uy * s_kDotLength, ring + line, ring + line, 0.0f, rimW + line * 2.0f, halo);
+    painter.FillTaperedCapsuleOnPlane (sx, sy, map, ux * s_kDotLength, uy * s_kDotLength, ring, ring, 0.0f, rimW, argb);
 
     //  The crosshair, along the radius and across it, each line haloed and
     //  broken around the center, with a dot on the head's position.
@@ -1076,25 +1079,55 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     {
         for (float sign : { 1.0f, -1.0f })
         {
-            float  x0 = ex + sign * d[0] * gap;
-            float  y0 = ey + sign * d[1] * gap;
-            float  x1 = ex + sign * d[0] * hole;
-            float  y1 = ey + sign * d[1] * hole;
+            float  x0 = sx + sign * (map[0] * d[0] + map[2] * d[1]) * gap;
+            float  y0 = sy + sign * (map[1] * d[0] + map[3] * d[1]) * gap;
+            float  x1 = sx + sign * (map[0] * d[0] + map[2] * d[1]) * hole;
+            float  y1 = sy + sign * (map[1] * d[0] + map[3] * d[1]) * hole;
 
             painter.DrawLine (x0, y0, x1, y1, line * 1.5f, halo);
             painter.DrawLine (x0, y0, x1, y1, line / 2.0f, argb);
         }
     }
 
-    painter.FillCircle (ex, ey, line * 0.75f, argb);
+    painter.FillTaperedCapsuleOnPlane (sx, sy, map, ux * s_kDotLength, uy * s_kDotLength, line * 0.75f, line * 0.75f, 0.0f, 0.0f, argb);
 
     if (m_context.head.activity == HeadActivity::WriteBlocked)
     {
-        painter.DrawLine (ex - cross, ey - cross, ex + cross, ey + cross, line, argb);
-        painter.DrawLine (ex - cross, ey + cross, ex + cross, ey - cross, line, argb);
+        painter.DrawLine (sx - (map[0] + map[2]) * cross, sy - (map[1] + map[3]) * cross, sx + (map[0] + map[2]) * cross, sy + (map[1] + map[3]) * cross, line, argb);
+        painter.DrawLine (sx - (map[0] - map[2]) * cross, sy - (map[1] - map[3]) * cross, sx + (map[0] - map[2]) * cross, sy + (map[1] - map[3]) * cross, line, argb);
     }
 
     painter.SetGlobalAlpha (alpha);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlatterView::GetPlaneMap
+//
+//  Where a point of the disk's plane falls on screen, and the projection's
+//  map there from a step in the plane to a step on screen, by columns, from
+//  one-pixel steps along each axis.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::array<float, 4> PlatterView::GetPlaneMap (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY)
+{
+    float  xx = 0.0f;
+    float  xy = 0.0f;
+    float  yx = 0.0f;
+    float  yy = 0.0f;
+
+
+
+    PlatterGeometry::Project (view, dx,       dy,       outX, outY);
+    PlatterGeometry::Project (view, dx + 1.0, dy,       xx,   xy);
+    PlatterGeometry::Project (view, dx,       dy + 1.0, yx,   yy);
+
+    return { xx - outX, xy - outY, yx - outX, yy - outY };
 }
 
 

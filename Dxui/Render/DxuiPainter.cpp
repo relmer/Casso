@@ -1128,12 +1128,6 @@ void DxuiPainter::DrawLine (
 //
 //  FillTaperedCapsule
 //
-//  One quad covering both circles, cut by the tapered capsule's distance
-//  function in the pixel shader, so the whole capsule is filled once: a
-//  translucent color has no seams or overlaps inside it. The hole and the
-//  rim go to the shader in the first two edge slots, unused by this kind
-//  otherwise.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPainter::FillTaperedCapsule (
@@ -1147,10 +1141,49 @@ void DxuiPainter::FillTaperedCapsule (
     float     rimPx,
     uint32_t  argbColor)
 {
-    float   left   = fminf (x0 - r0, x1 - r1) - kShapeFringePx;
-    float   top    = fminf (y0 - r0, y1 - r1) - kShapeFringePx;
-    float   right  = fmaxf (x0 + r0, x1 + r1) + kShapeFringePx;
-    float   bottom = fmaxf (y0 + r0, y1 + r1) + kShapeFringePx;
+    FillTaperedCapsuleOnPlane (x0, y0, { 1.0f, 0.0f, 0.0f, 1.0f }, x1 - x0, y1 - y0, r0, r1, holeRadiusPx, rimPx, argbColor);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillTaperedCapsuleOnPlane
+//
+//  One quad covering the capsule on screen, cut by the tapered capsule's
+//  distance function in the pixel shader, so the whole capsule is filled
+//  once: a translucent color has no seams or overlaps inside it. Each of the
+//  quad's corners has its position in the plane, which the map makes affine in
+//  screen position, and the shader turns the plane distance into pixels by
+//  its screen derivatives. The hole and the rim go to the shader in the
+//  first two edge slots, unused by this kind otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillTaperedCapsuleOnPlane (
+    float                         x0,
+    float                         y0,
+    const std::array<float, 4> &  planeToScreen,
+    float                         bx,
+    float                         by,
+    float                         r0,
+    float                         r1,
+    float                         hole,
+    float                         rim,
+    uint32_t                      argbColor)
+{
+    float   a      = planeToScreen[0];
+    float   c      = planeToScreen[1];
+    float   b      = planeToScreen[2];
+    float   d      = planeToScreen[3];
+    float   det    = a * d - b * c;
+    float   left   = FLT_MAX;
+    float   top    = FLT_MAX;
+    float   right  = -FLT_MAX;
+    float   bottom = -FLT_MAX;
+    float   reach  = std::max (r0, r1);
     Vertex  tl     = MakeVertex (argbColor, m_globalAlpha);
     Vertex  tr;
     Vertex  bl;
@@ -1160,29 +1193,49 @@ void DxuiPainter::FillTaperedCapsule (
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (r0 <= 0.0f && r1 <= 0.0f)
+    if ((r0 <= 0.0f && r1 <= 0.0f) || std::fabs (det) < 1.0e-6f)
     {
         return;
     }
 
-    tl.shape0 = x1 - x0;
-    tl.shape1 = y1 - y0;
+    //  The screen box around the plane box of both circles.
+    for (float px : { std::min (0.0f, bx) - reach, std::max (0.0f, bx) + reach })
+    {
+        for (float py : { std::min (0.0f, by) - reach, std::max (0.0f, by) + reach })
+        {
+            left   = std::min (left,   x0 + a * px + b * py);
+            right  = std::max (right,  x0 + a * px + b * py);
+            top    = std::min (top,    y0 + c * px + d * py);
+            bottom = std::max (bottom, y0 + c * px + d * py);
+        }
+    }
+
+    left   -= kShapeFringePx;
+    top    -= kShapeFringePx;
+    right  += kShapeFringePx;
+    bottom += kShapeFringePx;
+
+    tl.shape0 = bx;
+    tl.shape1 = by;
     tl.shape2 = r0;
     tl.shape3 = r1;
-    tl.edge0  = holeRadiusPx;
-    tl.edge1  = rimPx;
+    tl.edge0  = hole;
+    tl.edge1  = rim;
     tl.kind   = (float) ShapeKind::TaperedCapsule;
-    tl.localX = left - x0;
-    tl.localY = top  - y0;
 
     tr = tl;
     bl = tl;
     br = tl;
 
-    tr.localX += right - left;
-    bl.localY += bottom - top;
-    br.localX += right - left;
-    br.localY += bottom - top;
+    //  Each corner's place in the plane, through the inverse map.
+    for (Vertex * v : { &tl, &tr, &bl, &br })
+    {
+        float  sx = ((v == &tl || v == &bl) ? left : right)  - x0;
+        float  sy = ((v == &tl || v == &tr) ? top  : bottom) - y0;
+
+        v->localX = ( d * sx - b * sy) / det;
+        v->localY = (-c * sx + a * sy) / det;
+    }
 
     PushQuad (left, top, right - left, bottom - top, tl, tr, bl, br);
 }

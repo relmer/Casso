@@ -76,6 +76,7 @@ private:
     const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
+    static std::array<float, 4>  GetPlaneMap (const PlatterPlacement & view, double dx, double dy, float & outX, float & outY);
     bool           OnTiltMouse    (const DxuiMouseEvent & ev);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
     static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);

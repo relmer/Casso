@@ -98,6 +98,8 @@ public:
                                float thicknessPx, uint32_t argbColor) override;
     void    FillTaperedCapsule (float x0, float y0, float r0, float x1, float y1, float r1,
                                 float holeRadiusPx, float rimPx, uint32_t argbColor) override;
+    void    FillTaperedCapsuleOnPlane (float x0, float y0, const std::array<float, 4> & planeToScreen, float bx, float by, float r0, float r1,
+                                       float hole, float rim, uint32_t argbColor) override;
 
     HRESULT End            (ID3D11RenderTargetView * pRtv);
     void    DrawCustom     (const RECT & rectPx, const DxuiCustomDraw & draw) override;

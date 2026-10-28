@@ -127,6 +127,16 @@ public:
     virtual void  FillTaperedCapsule (float x0, float y0, float r0, float x1, float y1, float r1, float holeRadiusPx, float rimPx, uint32_t argbColor)
     { (void) x0; (void) y0; (void) r0; (void) x1; (void) y1; (void) r1; (void) holeRadiusPx; (void) rimPx; (void) argbColor; }
 
+    // The same capsule laid on a plane: (x0, y0) is where its first circle's
+    // center falls on screen, (bx, by) is its second circle's center and the
+    // radii, hole and rim are lengths, all in the plane's units, and
+    // planeToScreen is the 2x2 map from a step in the plane to a step on
+    // screen, by columns (x then y). A tilted plane's map draws the capsule
+    // foreshortened as the plane is.
+    virtual void  FillTaperedCapsuleOnPlane (float x0, float y0, const std::array<float, 4> & planeToScreen, float bx, float by, float r0, float r1,
+                                             float hole, float rim, uint32_t argbColor)
+    { (void) x0; (void) y0; (void) planeToScreen; (void) bx; (void) by; (void) r0; (void) r1; (void) hole; (void) rim; (void) argbColor; }
+
     virtual void  FillEllipse       (float cxPx, float cyPx,
                                      float radiusXPx, float radiusYPx,
                                      uint32_t argbColor)
