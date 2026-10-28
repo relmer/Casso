@@ -44,6 +44,8 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  dropdownItemText         = 0;
     uint32_t  dropdownAccel            = 0;
     uint32_t  dropdownHover            = 0;
+    uint32_t  dropdownBorder           = 0;
+    uint32_t  dropdownDivider          = 0;
     uint32_t  link                     = 0;
     uint32_t  linkHover                = 0;
     uint32_t  panelBg                  = 0;
@@ -155,6 +157,8 @@ struct DxuiTheme : public IDxuiTheme
         theme.dropdownItemText          = 0xFFF0F0F0;
         theme.dropdownAccel             = 0xFFB8C0CA;
         theme.dropdownHover             = 0xFF3D6FB5;
+        theme.dropdownBorder            = 0xFF3A3D42;
+        theme.dropdownDivider           = 0xFF3A3D42;
         theme.link                      = 0xFF6FB8FF;
         theme.linkHover                 = 0xFFA8D2FF;
         theme.panelBg                   = 0xFF1E2024;
@@ -194,6 +198,8 @@ struct DxuiTheme : public IDxuiTheme
         theme.dropdownItemText          = 0xFF1A1A1A;
         theme.dropdownAccel             = 0xFF606060;
         theme.dropdownHover             = 0xFFCFE2FF;
+        theme.dropdownBorder            = 0xFFC8C8C8;
+        theme.dropdownDivider           = 0xFFE0E0E0;
         theme.link                      = 0xFF1A6FD0;
         theme.linkHover                 = 0xFF0A4FA0;
         theme.panelBg                   = 0xFFF6F6F6;

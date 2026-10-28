@@ -81,6 +81,8 @@ struct CassoTheme : public DxuiTheme
         theme.dropdownItemText    = 0xFFF3EAD7;
         theme.dropdownAccel       = 0xFFB8C0CA;
         theme.dropdownHover       = 0xFF34475F;
+        theme.dropdownBorder      = 0xFF334050;
+        theme.dropdownDivider     = 0xFF334050;
         theme.driveLabel          = 0xFFE6E2D8;
         theme.ledIdle             = 0xFF1A0606;
         theme.ledPresent          = 0xFF1A0606;
@@ -128,6 +130,8 @@ struct CassoTheme : public DxuiTheme
         theme.dropdownItemText          = 0xFFF0F0F0;
         theme.dropdownAccel             = 0xFFB8C0CA;
         theme.dropdownHover             = 0xFF3D6FB5;
+        theme.dropdownBorder            = 0xFF3A3D42;
+        theme.dropdownDivider           = 0xFF3A3D42;
         theme.driveLabel                = 0xFFE6E2D8;
         theme.ledIdle                   = 0xFF06121A;
         theme.ledPresent                = 0xFF06121A;
@@ -175,6 +179,8 @@ struct CassoTheme : public DxuiTheme
         theme.dropdownItemText          = 0xFFB7FCB9;
         theme.dropdownAccel             = 0xFF6DA875;
         theme.dropdownHover             = 0xFF1F4A28;
+        theme.dropdownBorder            = 0xFF2A5C30;
+        theme.dropdownDivider           = 0xFF2A5C30;
         theme.driveLabel                = 0xFFB7FCB9;
         theme.ledIdle                   = 0xFF071907;
         theme.ledPresent                = 0xFF071907;

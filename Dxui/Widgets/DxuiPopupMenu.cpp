@@ -1674,8 +1674,18 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
     // Rounded at the overlay radius. A hosted menu's card is also drawn by
     // its popup host at this same radius and rect; a square fill here would
     // paint the host's rounded corners back to square.
-    painter.FillRoundedRect    (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
-    painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
+    painter.FillRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), pal.bg);
+
+    // THE SHADOW IS THE EDGE. A hosted menu sits on the card its popup host
+    // drew under a shadow, and that falloff already lifts the card off what
+    // is behind it; an outline over it reads as a bright wire around the
+    // menu, which no system flyout has. The in-window fallback has no host
+    // and so no shadow, and there the outline is the only thing separating
+    // the menu from the panel under it, so it stays.
+    if (m_activePopup == nullptr)
+    {
+        painter.OutlineRoundedRect (left, top, width, height, m_scaler.ToPxf (DxuiTheme::kOverlayCornerRadiusDip), (float) kBorderDip, pal.border);
+    }
 
     for (int i = 0; i < (int) m_rows.size(); i++)
     {
