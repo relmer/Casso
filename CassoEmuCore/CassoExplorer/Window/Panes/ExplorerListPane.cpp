@@ -25,6 +25,7 @@
 #include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -1401,8 +1402,8 @@ void ExplorerListPane::RestoreView (const RefreshAnchor::After & after)
 
 void ExplorerListPane::StartLoaders()
 {
-    m_listIcons.LoadInBackground (m_context.window.GetHwnd(), (UINT) ExplorerMessage::IconsLoaded);
-    m_contentDetails.Start (m_context.window.GetHwnd(), (UINT) ExplorerMessage::ContentDetails);
+    m_listIcons.LoadInBackground (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerIconsLoaded);
+    m_contentDetails.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerContentDetails);
 }
 
 

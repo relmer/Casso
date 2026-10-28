@@ -15,6 +15,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -1110,7 +1111,7 @@ void ExplorerDragDrop::HandleDrop (IDataObject * data, int tag, POINT screen)
         m_pendingDrop.sourceKind   = source.kind;
         m_pendingDrop.catalogPaths = source.catalogPaths;
 
-        posted = PostMessageW (m_context.window.GetHwnd(), (UINT) ExplorerMessage::DropMenu, 0, 0);
+        posted = PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerDropMenu, 0, 0);
         IGNORE_RETURN_VALUE (posted, TRUE);
         return;
     }

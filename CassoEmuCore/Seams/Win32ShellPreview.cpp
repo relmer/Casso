@@ -2,6 +2,7 @@
 
 #include "Seams/Win32ShellPreview.h"
 #include "Core/ThreadName.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -72,7 +73,7 @@ HRESULT Win32ShellPreview::Start (HWND owner, UINT message)
     ok = SetLayeredWindowAttributes (m_host, 0, 255, LWA_ALPHA);
     CWR (ok);
 
-    for (UINT helperMessage : { Win32PreviewHelper::kReadyMessage, Win32PreviewHelper::kResultMessage })
+    for (UINT helperMessage : { (UINT) AppMessage::PreviewHelperReady, (UINT) AppMessage::PreviewHelperResult })
     {
         ok = ChangeWindowMessageFilterEx (owner, helperMessage, MSGFLT_ALLOW, nullptr);
         CWR (ok);
@@ -455,7 +456,7 @@ void Win32ShellPreview::RunSender()
 
         if (FAILED (hr))
         {
-            PostMessageW (m_owner, Win32PreviewHelper::kResultMessage, (WPARAM) send.header.request, (LPARAM) hr);
+            PostMessageW (m_owner, (UINT) AppMessage::PreviewHelperResult, (WPARAM) send.header.request, (LPARAM) hr);
         }
     }
 }
@@ -483,7 +484,7 @@ bool Win32ShellPreview::OnHelperMessage (UINT msg, WPARAM wParam, LPARAM lParam)
 
 
 
-    if (msg == Win32PreviewHelper::kReadyMessage)
+    if (msg == (UINT) AppMessage::PreviewHelperReady)
     {
         if (slot >= 0 && slot < Win32PreviewHelper::kSlotCount && m_helpers[(size_t) slot].process != nullptr)
         {
@@ -506,7 +507,7 @@ bool Win32ShellPreview::OnHelperMessage (UINT msg, WPARAM wParam, LPARAM lParam)
         return true;
     }
 
-    if (msg != Win32PreviewHelper::kResultMessage)
+    if (msg != (UINT) AppMessage::PreviewHelperResult)
     {
         return false;
     }
@@ -610,7 +611,7 @@ void Win32ShellPreview::PostPictureJob (const Job & job)
 
 
 
-    if (m_threadId != 0 && PostThreadMessageW (m_threadId, s_kLoadMessage, 0, (LPARAM) copy))
+    if (m_threadId != 0 && PostThreadMessageW (m_threadId, (UINT) AppMessage::ShellPreviewLoad, 0, (LPARAM) copy))
     {
         return;
     }
@@ -784,7 +785,7 @@ void Win32ShellPreview::Run()
 
     while (GetMessageW (&msg, nullptr, 0, 0) > 0)
     {
-        if (msg.hwnd == nullptr && msg.message == s_kLoadMessage)
+        if (msg.hwnd == nullptr && msg.message == (UINT) AppMessage::ShellPreviewLoad)
         {
             std::unique_ptr<Job>  job ((Job *) msg.lParam);
 

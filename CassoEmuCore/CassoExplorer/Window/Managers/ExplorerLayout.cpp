@@ -17,6 +17,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 #include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -59,7 +60,7 @@ void ExplorerLayout::ConfigureWidgets()
 
     //  The commands installed apps add to Explorer's menus, and New's
     //  choices, read once.
-    m_context.menus.StartPackagedCommands (m_context.window.GetHwnd(), (UINT) ExplorerMessage::NewChoices);
+    m_context.menus.StartPackagedCommands (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerNewChoices);
 
     m_treeSplitter->SetOrientation (DxuiSplitter::Orientation::Vertical);
     m_treeSplitter->SetOnMoved ([this] (int dip)

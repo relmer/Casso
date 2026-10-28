@@ -28,20 +28,16 @@
 //  itself by the primary monitor's scale.
 //
 //  The owner sends loads and unloads as WM_COPYDATA; the helper posts
-//  kReadyMessage once its window exists and kResultMessage for each load, and
-//  exits when the owner's window is gone.
+//  AppMessage::PreviewHelperReady to the owner once its window exists, with
+//  the slot in wParam and the window in lParam, and
+//  AppMessage::PreviewHelperResult for each load, with the load's number in
+//  wParam and its HRESULT in lParam. It exits when the owner's window is gone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class Win32PreviewHelper
 {
 public:
-    //  Posted to the owner: the helper's window, with the slot in wParam and
-    //  the window in lParam; and a load's outcome, with the load's number in
-    //  wParam and its HRESULT in lParam.
-    static constexpr UINT  kReadyMessage  = WM_APP + 0x3B;
-    static constexpr UINT  kResultMessage = WM_APP + 0x3C;
-
     static constexpr const wchar_t *  kSwitch = L"--preview-host";
 
     //  A helper at low integrity, and one at the owner's own level.
@@ -89,8 +85,6 @@ private:
 
     static constexpr ULONG_PTR  s_kLoadCopyId      = 0x43455031;
     static constexpr ULONG_PTR  s_kUnloadCopyId    = 0x43455032;
-    static constexpr UINT       s_kRunLoadMessage  = WM_APP + 1;
-    static constexpr UINT       s_kUnloadMessage   = WM_APP + 2;
     static constexpr UINT       s_kOwnerCheckMs    = 2000;
     static constexpr UINT       s_kSendTimeoutMs   = 2000;
 

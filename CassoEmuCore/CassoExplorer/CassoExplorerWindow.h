@@ -16,37 +16,6 @@ struct CassoExplorerSessionWindow;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerMessage
-//
-//  The Casso Explorer window's private messages. WM_APP + 0x3B and 0x3C are
-//  Win32PreviewHelper's, which it posts to the same window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-enum class ExplorerMessage : UINT
-{
-    Reply          = WM_APP + 0x31,
-    FolderChanged  = WM_APP + 0x32,
-    RunCommand     = WM_APP + 0x33,
-    DropMenu       = WM_APP + 0x34,
-    IconsLoaded    = WM_APP + 0x35,
-    InfoTip        = WM_APP + 0x36,
-    RecycleBin     = WM_APP + 0x37,
-    ShellListed    = WM_APP + 0x38,
-    ContentDetails = WM_APP + 0x39,
-    ShellPreview   = WM_APP + 0x3A,
-    NewChoices     = WM_APP + 0x3D,
-    CassoLink      = WM_APP + 0x3E,
-    RunningCasso   = WM_APP + 0x3F,
-    Launch         = WM_APP + 0x41,
-};
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CassoExplorerWindow
 //
 //  The browser's top-level window: menu bar, tree, splitter, file list,

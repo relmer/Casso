@@ -94,7 +94,6 @@ private:
         std::wstring                    path;
     };
 
-    static constexpr UINT   s_kLoadMessage  = WM_APP + 1;
     static constexpr DWORD  s_kStopWaitMs   = 1000;
 
     static constexpr const wchar_t *  s_kpszHostClass = L"CassoExplorerPreviewHost";

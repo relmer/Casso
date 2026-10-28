@@ -6,6 +6,7 @@
 #include "CassoExplorer/Model/PreviewDecoder.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/CassoExplorerBrowser.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -34,7 +35,7 @@ PreviewShellView::PreviewShellView (ExplorerPreviewManager & manager, ExplorerCo
 
 void PreviewShellView::Configure()
 {
-    HRESULT  hr = m_shellPreview.Start (m_context.window.GetHwnd(), (UINT) ExplorerMessage::ShellPreview);
+    HRESULT  hr = m_shellPreview.Start (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerShellPreview);
 
 
 

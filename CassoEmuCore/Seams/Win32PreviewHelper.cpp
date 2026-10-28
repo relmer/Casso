@@ -2,6 +2,7 @@
 
 #include "Seams/Win32PreviewHelper.h"
 #include "Core/AppTimerIds.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -229,7 +230,7 @@ int Win32PreviewHelper::Run (HWND owner, int slot)
 
     SetTimer (state.window, (UINT_PTR) AppTimerId::PreviewHelperOwner, s_kOwnerCheckMs, nullptr);
 
-    posted = PostMessageW (owner, kReadyMessage, (WPARAM) slot, (LPARAM) state.window);
+    posted = PostMessageW (owner, (UINT) AppMessage::PreviewHelperReady, (WPARAM) slot, (LPARAM) state.window);
     CWR (posted);
 
     while (GetMessageW (&msg, nullptr, 0, 0) > 0)
@@ -289,19 +290,19 @@ LRESULT CALLBACK Win32PreviewHelper::WindowProc (HWND hwnd, UINT msg, WPARAM wPa
         case WM_COPYDATA:
             return ((HWND) wParam == state->owner && ReadCopy (*state, *(const COPYDATASTRUCT *) lParam)) ? TRUE : FALSE;
 
-        case s_kRunLoadMessage:
+        case (UINT) AppMessage::PreviewHelperRunLoad:
             if (state->hasLoad)
             {
                 state->hasLoad = false;
                 UnloadHandler (*state);
 
                 hr = ShowHandler (*state);
-                PostMessageW (state->owner, kResultMessage, (WPARAM) state->header.request, (LPARAM) hr);
+                PostMessageW (state->owner, (UINT) AppMessage::PreviewHelperResult, (WPARAM) state->header.request, (LPARAM) hr);
             }
 
             return 0;
 
-        case s_kUnloadMessage:
+        case (UINT) AppMessage::PreviewHelperUnload:
             UnloadHandler (*state);
             InvalidateRect (hwnd, nullptr, TRUE);
             return 0;
@@ -364,7 +365,7 @@ bool Win32PreviewHelper::ReadCopy (State & state, const COPYDATASTRUCT & copy)
     if (copy.dwData == s_kUnloadCopyId)
     {
         state.hasLoad = false;
-        PostMessageW (state.window, s_kUnloadMessage, 0, 0);
+        PostMessageW (state.window, (UINT) AppMessage::PreviewHelperUnload, 0, 0);
         return true;
     }
 
@@ -380,7 +381,7 @@ bool Win32PreviewHelper::ReadCopy (State & state, const COPYDATASTRUCT & copy)
     state.background = state.header.background;
     state.hasLoad    = true;
 
-    PostMessageW (state.window, s_kRunLoadMessage, 0, 0);
+    PostMessageW (state.window, (UINT) AppMessage::PreviewHelperRunLoad, 0, 0);
 
     return true;
 }

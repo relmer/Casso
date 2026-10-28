@@ -11,6 +11,7 @@
 #include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 #include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 #include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "Core/AppMessages.h"
 
 
 
@@ -577,7 +578,7 @@ void ExplorerFolderSync::StartWatch()
 
     m_folderWatch->SetOnChanged ([this] ()
     {
-        PostMessageW (m_context.window.GetHwnd(), (UINT) ExplorerMessage::FolderChanged, 0, 0);
+        PostMessageW (m_context.window.GetHwnd(), (UINT) AppMessage::ExplorerFolderChanged, 0, 0);
     });
 }
 

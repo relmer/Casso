@@ -7,6 +7,7 @@
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/MainMenu.h"
 #include "../IDriveCommandSink.h"
+#include "Ui/Chrome/ChromeMetrics.h"
 
 
 class DxuiHwndSource;
