@@ -212,4 +212,58 @@ public:
 
         Assert::AreEqual (3u, SectorAccess::CountAll ({ { 0, 10, 1 }, { 20, 30, 2 } }));
     }
+
+
+
+    TEST_METHOD (AnAddressFieldTakenFromTheLatchCountsAsAScan)
+    {
+        DiskAccessLog  log;
+        uint32_t       cell = 4000;
+
+
+
+        for (int pass = 0; pass < 2; pass++)
+        {
+            cell = 4000;
+
+            for (Byte nibble : { Byte (0xD5), Byte (0xAA), Byte (0x96), Byte (0xFF), Byte (0xFE), Byte (0xAA), Byte (0xAA), Byte (0xAB), Byte (0xAB), Byte (0xFE), Byte (0xFE) })
+            {
+                log.ObserveRead (20, nibble, cell, kTrackCells);
+                cell += 8;
+            }
+        }
+
+        Assert::AreEqual (static_cast<size_t> (1), log.GetScans()[20].size(), L"the same field twice");
+        Assert::AreEqual (4000u, log.GetScans()[20][0].start, L"from the D5");
+        Assert::AreEqual (2u,    log.GetScans()[20][0].count);
+        Assert::IsTrue   (log.GetReads()[20].empty(), L"a scan is not a read");
+
+        log.Clear();
+        Assert::IsTrue (log.GetScans()[20].empty());
+    }
+
+
+
+    TEST_METHOD (ScansMapToTheSectorsWhoseAddressFieldTheyCover)
+    {
+        DiskAnalysis           analysis;
+        const TrackAnalysis *  track  = nullptr;
+        vector<CellSpan>       scans;
+        vector<uint32_t>       counts;
+
+
+
+        AnalyzeDsk (analysis);
+        track = analysis.tracks[static_cast<size_t> (analysis.entries[0].slot)].get();
+
+        const LocatedField &  addr7 = track->fields[static_cast<size_t> (track->sectors[7].addressField)];
+
+        scans.push_back ({ addr7.startCell, addr7.startCell + 11 * 8, 4 });
+        counts = SectorAccess::Count (AccessKind::Scans, *track, scans);
+
+        for (size_t s = 0; s < track->sectors.size(); s++)
+        {
+            Assert::AreEqual (s == 7 ? 4u : 0u, counts[s], L"only the address field scanned");
+        }
+    }
 };

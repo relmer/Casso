@@ -14,6 +14,65 @@
 
 vector<uint32_t> SectorAccess::CountReads (const TrackAnalysis & track, const vector<CellSpan> & spans)
 {
+    return CountHalfCovered (track, spans, false);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorAccess::CountScans
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<uint32_t> SectorAccess::CountScans (const TrackAnalysis & track, const vector<CellSpan> & spans)
+{
+    return CountHalfCovered (track, spans, true);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorAccess::Count
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<uint32_t> SectorAccess::Count (AccessKind kind, const TrackAnalysis & track, const vector<CellSpan> & spans)
+{
+    vector<uint32_t>  counts;
+
+
+
+    switch (kind)
+    {
+        case AccessKind::Writes: counts = CountWrites (track, spans); break;
+        case AccessKind::Scans:  counts = CountScans  (track, spans); break;
+        default:                 counts = CountReads  (track, spans); break;
+    }
+
+    return counts;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SectorAccess::CountHalfCovered
+//
+//  How many spans cover at least half of each sector's address field or
+//  data field.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+vector<uint32_t> SectorAccess::CountHalfCovered (const TrackAnalysis & track, const vector<CellSpan> & spans, bool isAddress)
+{
     vector<uint32_t>  counts (track.sectors.size(), 0);
     uint32_t          length = track.measurements.lengthCells;
 
@@ -21,13 +80,13 @@ vector<uint32_t> SectorAccess::CountReads (const TrackAnalysis & track, const ve
 
     for (size_t s = 0; s < track.sectors.size(); s++)
     {
-        int  dataField = track.sectors[s].dataField;
+        int  f = isAddress ? track.sectors[s].addressField : track.sectors[s].dataField;
 
         for (const CellSpan & span : spans)
         {
-            if (dataField >= 0)
+            if (f >= 0)
             {
-                const LocatedField &  field  = track.fields[static_cast<size_t> (dataField)];
+                const LocatedField &  field  = track.fields[static_cast<size_t> (f)];
                 uint32_t              fieldW = (field.endCell >= field.startCell) ? field.endCell - field.startCell : field.endCell + length - field.startCell;
 
                 counts[s] += (GetOverlap (length, span.start, span.end, field.startCell, field.endCell) * 2 >= std::max (fieldW, 1u)) ? span.count : 0;

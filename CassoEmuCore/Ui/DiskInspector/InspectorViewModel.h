@@ -4,6 +4,7 @@
 
 #include "Devices/Disk/Inspector/DiskAnalysis.h"
 #include "Ui/DiskInspector/PlatterRenderer.h"
+#include "Ui/DiskInspector/SelectionHistory.h"
 
 
 
@@ -75,6 +76,12 @@ public:
     void  SelectBytes        (int firstByte, int byteCount, bool isTextColumn);
     void  ExtendBytes        (int toByte);
     void  SelectAllBytes     ();
+
+    //  The selection as a whole, and the history of the user's selections
+    //  for Back and Forward (FR-164).
+    InspectorSelection  GetSelection     () const;
+    void                RestoreSelection (const InspectorSelection & selection);
+    SelectionHistory &  GetHistory       () { return m_history; }
 
     int                    GetQuarterTrack     () const { return m_quarterTrack; }
     int                    GetSectorIndex      () const { return m_sectorIndex; }
@@ -180,4 +187,5 @@ private:
     View                  m_flightTo;
     double                m_flightStartMs = 0.0;
     bool                  m_isFlying      = false;
+    SelectionHistory      m_history;
 };

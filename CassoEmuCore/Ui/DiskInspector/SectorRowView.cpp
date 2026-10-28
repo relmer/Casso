@@ -147,16 +147,18 @@ bool SectorRowView::GetTooltip (POINT pointPx, std::wstring & outText, RECT & ou
         hits        = (m_context.findMarks != nullptr) ? m_context.findMarks->GetSectorHits (track, GetPassingOrder (*track)[position]) : 0;
         outText    += (hits > 0) ? L"\n" + m_context.findMarks->FormatHitLine (hits) : L"";
 
-        //  How many times the guest read and wrote the sector (FR-161).
+        //  How many times the guest read, wrote and scanned the sector (FR-161).
         if (m_context.drive != nullptr && m_context.drive->access != nullptr)
         {
             int       qt     = m_context.model->GetQuarterTrack();
             size_t    s      = static_cast<size_t> (GetPassingOrder (*track)[position]);
             uint32_t  reads  = SectorAccess::CountReads  (*track, m_context.drive->access->reads[static_cast<size_t> (qt)])[s];
             uint32_t  writes = SectorAccess::CountWrites (*track, m_context.drive->access->writes[static_cast<size_t> (qt)])[s];
+            uint32_t  scans  = SectorAccess::CountScans  (*track, m_context.drive->access->scans[static_cast<size_t> (qt)])[s];
 
             outText += (reads > 0)  ? std::format (L"\nRead {} {}", reads, reads == 1 ? L"time" : L"times") : L"";
             outText += (writes > 0) ? std::format (L"\nWritten {} {}", writes, writes == 1 ? L"time" : L"times") : L"";
+            outText += (scans > 0)  ? std::format (L"\nScanned {} {}", scans, scans == 1 ? L"time" : L"times") : L"";
         }
     }
     else if (hasTip)

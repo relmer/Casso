@@ -333,6 +333,17 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_XBUTTONUP. HIWORD (wParam) is XBUTTON1 for a mouse's back button
+    // or XBUTTON2 for its forward button; lParam packs the (x, y)
+    // client-coordinate point. NotHandled lets DefWindowProc turn the
+    // release into WM_APPCOMMAND.
+    virtual DxuiMessageResult  OnXButtonUp      (WPARAM wParam, LPARAM lParam)
+    {
+        UNREFERENCED_PARAMETER (wParam);
+        UNREFERENCED_PARAMETER (lParam);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_ACTIVATEAPP (active = wParam != 0), WM_SETFOCUS, WM_KILLFOCUS,
     // and WM_CANCELMODE. Surfaced so a consumer can release a live mouse
     // capture (e.g. paddle-input mode) when the app loses the

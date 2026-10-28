@@ -54,6 +54,8 @@ struct InspectorCommands
     Command          legend;
 
     //  Go
+    Command  back;
+    Command  forward;
     Command  goTo;
     Command  goToHead;
     Command  followHead;

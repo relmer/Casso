@@ -146,6 +146,16 @@ comparing two quarter tracks of one disk.
   track (FR-033, FR-035).
 - Q: Which view shows when the window opens? → A: Sectors, whichever view
   was selected when the window closed (FR-160).
+- Q: What does a click on a sector's label in the strip do? → A: It selects
+  the sector and the platter flies to it; a range dragged out on the strip
+  is flown to the same way (FR-165).
+- Q: Can a selection be returned to? → A: Back and Forward step through the
+  user's selections, with Alt+Left and Alt+Right, the mouse's back and
+  forward buttons, and the Go menu (FR-164).
+- Q: Can a sector read once be distinguished from one read often, and from
+  one only passed over? → A: Reads, Writes and a new Scans overlay are heat
+  maps scaled by count, and Scans marks each address field the guest read
+  while searching for a sector (FR-031, FR-161).
 
 ## Scope
 
@@ -1892,13 +1902,14 @@ legend, and tilt the platter and back.
   dimmed"; and while the Files overlay is on, the color of each file map role.
   The legend MUST NOT take room from the platter.
 - **FR-031**: The platter's overlays MUST be compact on/off chips in its
-  bottom left corner, in the order "Files", in Casso "Reads" and "Writes",
-  "Track alignment", and while comparing "Differences", each also a checked
+  bottom left corner, in the order "Files", in Casso "Reads", "Writes" and
+  "Scans", "Track alignment", and while comparing "Differences", each also a checked
   item of the View menu. "Track alignment" MUST mark each track's sector 0
   address field and its longest sync run, so their angles can be compared
   across tracks. "Reads" MUST mark each sector the guest has read since the
-  disk was inserted, and "Writes" each sector the guest has written, by the
-  rules of FR-161.
+  disk was inserted, "Writes" each sector the guest has written, and "Scans"
+  each sector whose address field the guest has read while searching for a
+  sector, by the rules of FR-161.
 
 **Track header and strip**
 
@@ -3096,7 +3107,8 @@ legend, and tilt the platter and back.
     "Narrower timing range", "Zoom in" (+), "Zoom out" (-), "Fit" (0),
     "Flat" and "Tilted" as a choice, each overlay of FR-031 as a checked
     item, each view of FR-160 that is present as a choice, and "Legend".
-  - *Go*: "Go to..." (Ctrl+G), in Casso "Go to head" and "Follow head",
+  - *Go*: "Back" (Alt+Left) and "Forward" (Alt+Right, FR-164), "Go to..."
+    (Ctrl+G), in Casso "Go to head" and "Follow head",
     "Previous sector" and "Next sector", "Previous quarter track" and "Next
     quarter track", "Previous track" and "Next track", while comparing
     "Previous difference" and "Next difference", and "Next pane" (F6).
@@ -3129,15 +3141,19 @@ legend, and tilt the platter and back.
 - **FR-161**: In Casso, a sector MUST count as read when the guest takes the
   nibbles of its data field from the drive, from the data prologue through
   the data epilogue, and as written when the guest writes over any part of
-  its address or data field. Casso MUST record where on each quarter track
-  each read and write happened, so the inspector can determine which sector each
+  its address or data field, and as scanned when the guest takes the
+  nibbles of its address field from the drive, from the address prologue
+  through the field's eight nibbles. Casso MUST record where on each quarter track
+  each read, write and scan happened, so the inspector can determine which sector each
   covered, not just the sector number in the data, which a protected disk
   may repeat. A read or write outside every sector's fields MUST mark the
   quarter track instead. The marks MUST start empty at the times FR-068
-  resets its counts. On the platter, "Reads" MUST mark each read sector's
-  arc and "Writes" each written sector's arc, each in a distinct color, with
-  the count in the sector's tooltip, and the sector buttons and the Sectors
-  view's header MUST show "Read N times" and "Written N times".
+  resets its counts. On the platter, "Reads", "Writes" and "Scans" MUST each
+  shade the arcs of the sectors accessed that way as a heat map in a
+  distinct color: more opaque the more times a sector was accessed, on a log
+  scale against the most-accessed sector on the disk, with a sector accessed
+  once plainly marked. The sector buttons and the Sectors view's header
+  MUST include "Read N times", "Written N times" and "Scanned N times".
 - **FR-162**: The window's code MUST be divided into component classes, each
   owning its controls and their state: the menu bar and toolbar, the
   platter's corner controls, the view selector and each view, the comparison
@@ -3155,6 +3171,18 @@ legend, and tilt the platter and back.
   hidden when there is no disk. Hovering, clicking and dragging on the
   platter outside the groups MUST act on the platter, and over a group on
   the group.
+- **FR-164**: Back and Forward MUST step through the user's selections on
+  the disk in the window, in the order they were made, with Alt+Left and
+  Alt+Right, with a mouse's back and forward buttons, and from the Go menu.
+  A selection made after stepping back MUST replace the ones ahead of it. A
+  selection Back or Forward steps to MUST be drawn like any other selection,
+  the platter flying to a sector on another track or another part of the
+  turn (FR-038). The history MUST start over when the disk in the window
+  changes.
+- **FR-165**: A click on a sector's bracket in the strip (FR-033) MUST select
+  that sector, and the platter MUST fly to it (FR-038). A range of nibbles
+  dragged out on the strip (FR-043) MUST be flown to on the platter the same
+  way.
 
 **Preservation, later release**
 

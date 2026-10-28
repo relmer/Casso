@@ -529,6 +529,7 @@
     <ClCompile Include="Ui\DiskInspector\Components\TrackColumn.cpp" />
     <ClCompile Include="Ui\DiskInspector\FloatingGroup.cpp" />
     <ClCompile Include="Ui\DiskInspector\NibbleSections.cpp" />
+    <ClCompile Include="Ui\DiskInspector\SelectionHistory.cpp" />
     <ClCompile Include="Ui\DiskInspector\OverlayChip.cpp" />
     <ClCompile Include="Ui\DiskInspector\SectorAccess.cpp" />
     <ClCompile Include="Ui\DiskInspector\PlatterOverlays.cpp" />
@@ -1058,6 +1059,7 @@
     <ClInclude Include="Ui\DiskInspector\Components\TrackColumn.h" />
     <ClInclude Include="Ui\DiskInspector\FloatingGroup.h" />
     <ClInclude Include="Ui\DiskInspector\NibbleSections.h" />
+    <ClInclude Include="Ui\DiskInspector\SelectionHistory.h" />
     <ClInclude Include="Ui\DiskInspector\OverlayChip.h" />
     <ClInclude Include="Ui\DiskInspector\SectorAccess.h" />
     <ClInclude Include="Ui\DiskInspector\PlatterOverlays.h" />

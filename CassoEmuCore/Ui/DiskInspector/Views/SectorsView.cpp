@@ -136,13 +136,14 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
         items.insert (items.end(), owners.begin(), owners.end());
     }
 
-    //  How many times the guest read and wrote the sector (FR-161).
+    //  How many times the guest read, wrote and scanned the sector (FR-161).
     if (m_context.drive != nullptr && m_context.drive->access != nullptr && &sector >= track.sectors.data() && &sector < track.sectors.data() + track.sectors.size())
     {
         size_t    qt     = static_cast<size_t> (m_context.model->GetQuarterTrack());
         size_t    s      = static_cast<size_t> (&sector - track.sectors.data());
         uint32_t  reads  = SectorAccess::CountReads  (track, m_context.drive->access->reads[qt])[s];
         uint32_t  writes = SectorAccess::CountWrites (track, m_context.drive->access->writes[qt])[s];
+        uint32_t  scans  = SectorAccess::CountScans  (track, m_context.drive->access->scans[qt])[s];
 
         if (reads > 0)
         {
@@ -152,6 +153,11 @@ float SectorsView::PaintHeader (IDxuiTextRenderer & text, const IDxuiTheme & the
         if (writes > 0)
         {
             items.push_back ({ L"Written", std::format (L"{} {}", writes, writes == 1 ? L"time" : L"times") });
+        }
+
+        if (scans > 0)
+        {
+            items.push_back ({ L"Scanned", std::format (L"{} {}", scans, scans == 1 ? L"time" : L"times") });
         }
     }
 

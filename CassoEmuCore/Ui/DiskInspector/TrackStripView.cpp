@@ -692,6 +692,42 @@ int TrackStripView::GetSectorParts (const TrackAnalysis & track, const StripGeom
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  TrackStripView::GetSectorAtX
+//
+//  The sector whose bracket is under a point, or -1.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int TrackStripView::GetSectorAtX (const TrackAnalysis & track, float xPx) const
+{
+    StripGeometry                g      = MakeGeometry();
+    std::array<StripSegment, 2>  parts  = {};
+    int                          found  = -1;
+    int                          count  = 0;
+    double                       a      = 0;
+    double                       b      = 0;
+
+
+
+    for (int s = 0; s < static_cast<int> (track.sectors.size()) && found < 0; s++)
+    {
+        count = GetSectorParts (track, g, s, a, b, parts);
+
+        for (int k = 0; k < count; k++)
+        {
+            found = (xPx >= parts[k].x0 && xPx < parts[k].x1) ? s : found;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  TrackStripView::GetSectorLabel
 //
 //  A sector's label in its bracket: its state's symbol and "Sector $N", or
@@ -747,6 +783,7 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
     double                 fraction  = (p.x - m_boundsDip.left) / std::max (GetWidth(), 1.0f);
     double                 newSpan   = 0;
     int                    nibble    = -1;
+    int                    sector    = -1;
     int64_t                now       = static_cast<int64_t> (GetTickCount64());
     bool                   isMoved   = false;
 
@@ -770,7 +807,22 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             break;
 
         case DxuiMouseEventKind::Down:
-            if (isInside && ev.button == DxuiMouseButton::Left)
+            if (isInside && ev.button == DxuiMouseButton::Left && !ev.shift && p.y < GetBarRect().top)
+            {
+                //  A click on a sector's bracket selects the sector, and the
+                //  platter flies to it.
+                UpdateTurns (*track);
+                sector    = GetSectorAtX (*track, static_cast<float> (p.x));
+                isHandled = sector >= 0;
+
+                if (sector >= 0)
+                {
+                    m_context.model->SelectSector (m_context.model->GetQuarterTrack(), sector);
+                    NotifySelection();
+                    m_context.model->StartFlight (InspectorMarquee::GetClockMs());
+                }
+            }
+            else if (isInside && ev.button == DxuiMouseButton::Left)
             {
                 m_isPressed    = true;
                 m_isPanning    = false;
@@ -850,6 +902,12 @@ bool TrackStripView::OnMouse (const DxuiMouseEvent & ev)
             if (m_isPressed && !m_isPanning)
             {
                 NotifySelection();
+            }
+
+            //  A range dragged out on the strip is flown to on the platter.
+            if (m_isSelecting && isMoved)
+            {
+                m_context.model->StartFlight (InspectorMarquee::GetClockMs());
             }
 
             m_isPressed    = false;

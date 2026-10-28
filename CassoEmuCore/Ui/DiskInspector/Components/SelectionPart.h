@@ -35,6 +35,9 @@ public:
     void       StepKeyTarget      (int step);
     RECT       GetKeyTargetBounds () const;
     void       StepSector         (int delta, bool isToEnd);
+    void       StepHistory        (bool isForward);
+    void       RecordSelection    (bool isHeadSelecting);
+    bool       OnHistoryButton    (const DxuiMouseEvent & ev);
     void       SelectAll          ();
     void       ExtendSelection    (WPARAM vk);
     void       Copy               ();

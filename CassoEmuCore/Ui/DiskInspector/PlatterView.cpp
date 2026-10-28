@@ -157,12 +157,17 @@ void PlatterView::PaintDisk (IDxuiPainter & painter, const IDxuiTheme & theme, c
 
     if (m_context.isReadsOverlay && m_context.drive != nullptr)
     {
-        m_overlays->PaintAccess (painter, view, false);
+        m_overlays->PaintAccess (painter, view, AccessKind::Reads);
     }
 
     if (m_context.isWritesOverlay && m_context.drive != nullptr)
     {
-        m_overlays->PaintAccess (painter, view, true);
+        m_overlays->PaintAccess (painter, view, AccessKind::Writes);
+    }
+
+    if (m_context.isScansOverlay && m_context.drive != nullptr)
+    {
+        m_overlays->PaintAccess (painter, view, AccessKind::Scans);
     }
 
     //  The ring under the pointer, unless the pointer is on the selection,

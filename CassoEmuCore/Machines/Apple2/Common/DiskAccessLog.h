@@ -28,17 +28,20 @@ struct CellSpan
 //
 //  DiskAccessLog
 //
-//  Where on each quarter track of one drive the guest read a data field and
-//  where it wrote, as cell positions (FR-161). A read is a data field the
-//  guest took from the latch, from its D5 AA AD prologue through its body
-//  and the DE AA of its epilogue when the guest checks it, after which the
-//  guest skips cells before its next nibble, as RWTS and the boot PROM do
-//  while they decode the field. A guest searching for
-//  an address field takes every nibble that passes, data fields included,
-//  with no gap. A write is a run of nibbles the guest loaded into the
-//  latch while writing, each close after the one before. The same stretch
-//  read or written again counts again. Cleared when the drive's disk
-//  changes, with the visit counts (FR-068).
+//  Where on each quarter track of one drive the guest read a data field,
+//  where it wrote and which address fields it scanned, as cell positions
+//  (FR-161). A read is a data field the guest took from the latch, from its
+//  D5 AA AD prologue through its body and the DE AA of its epilogue when
+//  the guest checks it, after which the guest skips cells before its next
+//  nibble, as RWTS and the boot PROM do while they decode the field. A
+//  guest searching for an address field takes every nibble that passes,
+//  data fields included, with no gap. A scan is an address field the guest
+//  took from the latch, from its D5 AA 96 prologue through its eight
+//  nibbles, as it does while it searches for a sector. A write is a run of
+//  nibbles the guest loaded into the latch while writing, each close after
+//  the one before. The same stretch read, written or scanned again counts
+//  again. Cleared when the drive's disk changes, with the visit counts
+//  (FR-068).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +67,9 @@ public:
     //  Write nibbles further apart than this start another run.
     static constexpr uint32_t  kWriteGapCells  = 64;
 
+    //  An address field's nibbles between its prologue and epilogue.
+    static constexpr uint32_t  kAddressNibbles = 8;
+
     void  Clear        ();
     void  ObserveRead  (int quarterTrack, uint8_t nibble, uint32_t cell, uint32_t trackCells);
     void  EndRead      ();
@@ -72,6 +78,7 @@ public:
 
     const Spans &  GetReads      () const { return m_reads; }
     const Spans &  GetWrites     () const { return m_writes; }
+    const Spans &  GetScans      () const { return m_scans; }
     uint64_t       GetGeneration () const { return m_generation; }
 
     //  Counts one more access of a stretch: on a stretch already listed that
@@ -83,6 +90,7 @@ private:
 
     Spans     m_reads;
     Spans     m_writes;
+    Spans     m_scans;
     uint64_t  m_generation   = 0;
     int       m_readTrack    = -1;
     uint8_t   m_prev[2]      = {};
@@ -91,6 +99,9 @@ private:
     uint32_t  m_dataStart    = 0;
     uint32_t  m_dataCount    = 0;
     bool      m_isClosed     = false;
+    bool      m_isInAddress  = false;
+    uint32_t  m_addressStart = 0;
+    uint32_t  m_addressCount = 0;
     int       m_writeTrack   = -1;
     uint32_t  m_writeStart   = 0;
     uint32_t  m_writeLast    = 0;

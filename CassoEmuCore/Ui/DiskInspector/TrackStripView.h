@@ -24,7 +24,9 @@ class InspectorTip;
 //  parts across the index (FR-033, FR-036). The wheel zooms
 //  about the pointer; a drag selects nibbles, as a drag does elsewhere, and
 //  Shift and a drag or the horizontal wheel pans; a click selects the nibble
-//  and its sector (FR-037).
+//  and its sector (FR-037). A click on a sector's bracket selects the
+//  sector, and the platter flies to it, as it does to a range dragged out
+//  on the strip (FR-165).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,6 +73,7 @@ private:
                                          float x0, float x1) const;
     int            GetSectorParts  (const TrackAnalysis & track, const StripGeometry & g, int sectorIndex, double & outStart, double & outEnd,
                                     std::array<StripSegment, 2> & outParts) const;
+    int            GetSectorAtX    (const TrackAnalysis & track, float xPx) const;
     float          GetSectorLabel  (IDxuiTextRenderer & text, const AnalyzedSector & sector, float widthPx, std::wstring & outLabel) const;
     static std::wstring  GetNibbleKindLabel (NibbleKind kind);
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;

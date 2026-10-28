@@ -32,11 +32,12 @@ enum class HeadActivity
 };
 
 
-//  Where the guest read and wrote on each quarter track (FR-161).
+//  Where the guest read, wrote and scanned on each quarter track (FR-161).
 struct DriveAccess
 {
     DiskAccessLog::Spans  reads;
     DiskAccessLog::Spans  writes;
+    DiskAccessLog::Spans  scans;
 };
 
 

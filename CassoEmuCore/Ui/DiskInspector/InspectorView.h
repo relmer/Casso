@@ -65,6 +65,7 @@ struct InspectorViewContext
     const DriveHeadState      * drive             = nullptr;
     bool                        isReadsOverlay    = false;
     bool                        isWritesOverlay   = false;
+    bool                        isScansOverlay    = false;
     const DiskComparison      * comparison        = nullptr;
     const DiskAnalysis        * analysisB         = nullptr;
     const TrackAnalysis       * trackB            = nullptr;

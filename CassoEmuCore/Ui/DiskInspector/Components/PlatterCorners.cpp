@@ -77,6 +77,7 @@ void PlatterCorners::Create()
     m_filesChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Files");
     m_readsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Reads");
     m_writesChip   = m_chipsGroup->CreateChild<OverlayChip> (L"Writes");
+    m_scansChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Scans");
     m_alignChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Track alignment");
     m_diffsChip    = m_chipsGroup->CreateChild<OverlayChip> (L"Differences");
     m_zoomOut      = m_zoomGroup->CreateChild<DxuiIconButton>();
@@ -113,6 +114,7 @@ void PlatterCorners::Create()
     m_filesChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Files,       isOn); });
     m_readsChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Reads,       isOn); });
     m_writesChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Writes,     isOn); });
+    m_scansChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Scans,       isOn); });
     m_alignChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Alignment,   isOn); });
     m_diffsChip->SetOnChange ([this] (bool isOn) { SetOverlay (PlatterOverlay::Differences, isOn); });
 
@@ -144,7 +146,7 @@ int PlatterCorners::GetChipsWidthPx (const DxuiDpiScaler & scaler) const
 
 
 
-    for (const OverlayChip * chip : { m_filesChip, m_readsChip, m_writesChip, m_alignChip, m_diffsChip })
+    for (const OverlayChip * chip : { m_filesChip, m_readsChip, m_writesChip, m_scansChip, m_alignChip, m_diffsChip })
     {
         if (chip->IsVisible() && text != nullptr)
         {
@@ -249,7 +251,7 @@ void PlatterCorners::Place()
     m_chipsGroup->Layout ({ left, bottom - group, left + chipsW, bottom }, m_scaler);
     x = left + pad;
 
-    for (OverlayChip * chip : { m_filesChip, m_readsChip, m_writesChip, m_alignChip, m_diffsChip })
+    for (OverlayChip * chip : { m_filesChip, m_readsChip, m_writesChip, m_scansChip, m_alignChip, m_diffsChip })
     {
         w = (chip->IsVisible() && text != nullptr) ? chip->GetWidthPx (*text, m_scaler) : 0;
         chip->Layout ({ x, bottom - group + pad, x + w, bottom - pad }, m_scaler);
@@ -294,10 +296,12 @@ void PlatterCorners::Update()
 
     m_readsChip->SetVisible (isReads);
     m_writesChip->SetVisible (isReads);
+    m_scansChip->SetVisible  (isReads);
     m_diffsChip->SetVisible (isDiffs);
     m_filesChip->SetOn (m_session.context.isFilesOverlay);
     m_readsChip->SetOn (m_session.context.isReadsOverlay);
     m_writesChip->SetOn (m_session.context.isWritesOverlay);
+    m_scansChip->SetOn  (m_session.context.isScansOverlay);
     m_alignChip->SetOn (m_isAlignment);
     m_diffsChip->SetOn (m_session.context.isDiffsOverlay);
 
@@ -423,8 +427,9 @@ std::wstring PlatterCorners::GetTip (POINT pointPx, RECT & outAnchorPx) const
         { m_tilt,         s_kpszTiltTip,                                                               nullptr },
         { m_tiltSlider,   L"Tilt angle",                                                               nullptr },
         { m_filesChip,    L"Color each sector's data field by its role in the file map",               nullptr },
-        { m_readsChip,    L"Mark each sector the guest has read since the disk was inserted",   nullptr },
-        { m_writesChip,   L"Mark each sector the guest has written since the disk was inserted", nullptr },
+        { m_readsChip,    L"Shade each sector by how many times the guest read its data since the disk was inserted",           nullptr },
+        { m_writesChip,   L"Shade each sector by how many times the guest wrote it since the disk was inserted",                nullptr },
+        { m_scansChip,    L"Shade each sector by how many times the guest read its address field while searching for a sector", nullptr },
         { m_alignChip,    L"Mark where sector 0 and the longest sync start on each track",             nullptr },
         { m_diffsChip,    L"Mark the quarter tracks that differ",                                      nullptr },
         { m_zoomOut,      L"Zoom the platter out (minus)",                                             L"The whole disk is shown, so the platter cannot zoom out further" },
@@ -473,6 +478,7 @@ bool PlatterCorners::IsOverlayOn (PlatterOverlay overlay) const
         case PlatterOverlay::Files:       isOn = m_session.context.isFilesOverlay; break;
         case PlatterOverlay::Reads:       isOn = m_session.context.isReadsOverlay; break;
         case PlatterOverlay::Writes:      isOn = m_session.context.isWritesOverlay; break;
+        case PlatterOverlay::Scans:       isOn = m_session.context.isScansOverlay;  break;
         case PlatterOverlay::Alignment:   isOn = m_isAlignment;                    break;
         case PlatterOverlay::Differences: isOn = m_session.context.isDiffsOverlay; break;
     }
@@ -497,6 +503,7 @@ void PlatterCorners::SetOverlay (PlatterOverlay overlay, bool isOn)
         case PlatterOverlay::Files:       m_session.context.isFilesOverlay = isOn; m_filesChip->SetOn (isOn); break;
         case PlatterOverlay::Reads:       m_session.context.isReadsOverlay = isOn; m_readsChip->SetOn (isOn); break;
         case PlatterOverlay::Writes:      m_session.context.isWritesOverlay = isOn; m_writesChip->SetOn (isOn); break;
+        case PlatterOverlay::Scans:       m_session.context.isScansOverlay  = isOn; m_scansChip->SetOn  (isOn); break;
         case PlatterOverlay::Alignment:   m_isAlignment = isOn; m_platter.SetAlignmentShown (isOn); m_alignChip->SetOn (isOn); break;
         case PlatterOverlay::Differences: m_session.context.isDiffsOverlay = isOn; m_diffsChip->SetOn (isOn); break;
     }
@@ -674,6 +681,7 @@ void PlatterCorners::GetPrefs (DiskInspectorPrefs & inOut) const
     inOut.isFiles     = m_session.context.isFilesOverlay;
     inOut.isReads     = m_session.context.isReadsOverlay;
     inOut.isWrites    = m_session.context.isWritesOverlay;
+    inOut.isScans     = m_session.context.isScansOverlay;
 }
 
 
@@ -697,5 +705,6 @@ void PlatterCorners::ApplyPrefs (const DiskInspectorPrefs & prefs)
     SetOverlay (PlatterOverlay::Files,     prefs.isFiles);
     SetOverlay (PlatterOverlay::Reads,     prefs.isReads);
     SetOverlay (PlatterOverlay::Writes,    prefs.isWrites);
+    SetOverlay (PlatterOverlay::Scans,     prefs.isScans);
     SetOverlay (PlatterOverlay::Alignment, prefs.isAlignment);
 }

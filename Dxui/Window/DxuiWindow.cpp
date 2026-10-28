@@ -588,6 +588,27 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnXButtonUp
+//
+//  A mouse's back or forward button released, as an Up event.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiWindow::OnXButtonUp (WPARAM wParam, LPARAM lParam)
+{
+    return DispatchMouse (DxuiMouseEventKind::Up,
+                          (HIWORD (wParam) == XBUTTON1) ? DxuiMouseButton::Back : DxuiMouseButton::Forward,
+                          (int) (short) LOWORD (lParam),
+                          (int) (short) HIWORD (lParam),
+                          0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouseMove
 //
 ////////////////////////////////////////////////////////////////////////////////

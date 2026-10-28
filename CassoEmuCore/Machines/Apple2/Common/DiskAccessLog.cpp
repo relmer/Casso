@@ -9,6 +9,7 @@
 static constexpr uint8_t  s_kPrologue0 = 0xD5;
 static constexpr uint8_t  s_kPrologue1 = 0xAA;
 static constexpr uint8_t  s_kDataMark  = 0xAD;
+static constexpr uint8_t  s_kAddrMark  = 0x96;
 static constexpr uint8_t  s_kEpilogue0 = 0xDE;
 static constexpr uint8_t  s_kEpilogue1 = 0xAA;
 
@@ -34,9 +35,15 @@ void DiskAccessLog::Clear()
         spans.clear();
     }
 
+    for (vector<CellSpan> & spans : m_scans)
+    {
+        spans.clear();
+    }
+
     m_readTrack    = -1;
     m_isInData     = false;
     m_isClosed     = false;
+    m_isInAddress  = false;
     m_writeTrack   = -1;
     m_generation++;
 }
@@ -56,7 +63,8 @@ void DiskAccessLog::Clear()
 //  another quarter track, ends the field: it counts as read when it is
 //  closed, or when it is open with its body taken and the gap comes before
 //  kMaxOpenNibbles. A next nibble close behind a closed field drops it, as
-//  does a field that runs past kMaxDataNibbles.
+//  does a field that runs past kMaxDataNibbles. A D5 AA 96 and the
+//  kAddressNibbles after it count as a scan of that address field.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,9 +90,10 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
 
     if (!isSame)
     {
-        m_readTrack = quarterTrack;
-        m_prev[0]   = 0;
-        m_prev[1]   = 0;
+        m_isInAddress = false;
+        m_readTrack   = quarterTrack;
+        m_prev[0]     = 0;
+        m_prev[1]     = 0;
     }
 
     if (isValid && m_isInData)
@@ -106,6 +115,19 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
         m_isClosed  = false;
         m_dataStart = m_prevCell[0];
         m_dataCount = 0;
+    }
+
+    if (isValid && m_isInAddress && ++m_addressCount == kAddressNibbles)
+    {
+        Add (m_scans[static_cast<size_t> (quarterTrack)], m_addressStart, cell);
+        m_isInAddress = false;
+        m_generation++;
+    }
+    else if (isValid && m_prev[0] == s_kPrologue0 && m_prev[1] == s_kPrologue1 && nibble == s_kAddrMark)
+    {
+        m_isInAddress  = true;
+        m_addressStart = m_prevCell[0];
+        m_addressCount = 0;
     }
 
     m_prev[0]     = m_prev[1];

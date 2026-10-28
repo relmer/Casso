@@ -97,6 +97,13 @@ void InspectorViewModel::SetAnalysis (const DiskAnalysis * analysis)
         m_firstNibble = -1;
         m_nibbleCount = 0;
     }
+
+    //  The first sector selected on a disk starts its history, so Back
+    //  returns to it.
+    if (m_history.IsEmpty() && m_sectorIndex >= 0)
+    {
+        m_history.Record (GetSelection());
+    }
 }
 
 
@@ -376,6 +383,56 @@ void InspectorViewModel::ExtendBytes (int toByte)
 void InspectorViewModel::SelectAllBytes()
 {
     SelectBytes (0, DiskFieldFormat::kSectorBytes, m_isTextColumn);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::GetSelection
+//
+////////////////////////////////////////////////////////////////////////////////
+
+InspectorSelection InspectorViewModel::GetSelection() const
+{
+    return { m_quarterTrack, m_sectorIndex, m_firstNibble, m_nibbleCount, m_firstByte, m_byteCount, m_isTextColumn };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InspectorViewModel::RestoreSelection
+//
+//  The quarter track and sector, then the nibbles or the bytes in that
+//  sector. A part missing from the analysis is left unselected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InspectorViewModel::RestoreSelection (const InspectorSelection & selection)
+{
+    if (selection.sectorIndex >= 0)
+    {
+        SelectSector (selection.quarterTrack, selection.sectorIndex);
+    }
+    else
+    {
+        SelectQuarterTrack (selection.quarterTrack);
+        ClearSelection();
+    }
+
+    if (selection.firstNibble >= 0)
+    {
+        SelectNibbles (selection.quarterTrack, selection.firstNibble, selection.nibbleCount);
+    }
+    else if (selection.firstByte >= 0)
+    {
+        SelectBytes (selection.firstByte, selection.byteCount, selection.isTextColumn);
+    }
 }
 
 

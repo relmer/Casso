@@ -733,6 +733,7 @@ void DiskInspectorWindow::BuildCommands()
     {
         overlay (L"&Reads", PlatterOverlay::Reads, [this] () { return m_session.context.hasDisk && m_session.IsWindowDiskA(); });
         overlay (L"&Writes", PlatterOverlay::Writes, [this] () { return m_session.context.hasDisk && m_session.IsWindowDiskA(); });
+        overlay (L"S&cans",  PlatterOverlay::Scans,  [this] () { return m_session.context.hasDisk && m_session.IsWindowDiskA(); });
     }
 
     overlay (L"Track &alignment", PlatterOverlay::Alignment, hasDisk);
@@ -754,6 +755,10 @@ void DiskInspectorWindow::BuildCommands()
     }
 
     //  Go
+    c.back                          = make (L"&Back", L"Alt+Left", [this] () { m_selection->StepHistory (false); });
+    c.back->isEnabled               = [this] () { return m_session.model.GetHistory().CanGoBack(); };
+    c.forward                       = make (L"For&ward", L"Alt+Right", [this] () { m_selection->StepHistory (true); });
+    c.forward->isEnabled            = [this] () { return m_session.model.GetHistory().CanGoForward(); };
     c.goTo                          = make (L"&Go to...", L"Ctrl+G", [this] () { m_dialogs->OpenGoTo(); });
     c.goTo->isEnabled               = hasDisk;
     c.previousSector                = make (L"Previous &sector", L"Left", [this] () { m_selection->StepSector (-1, false); });
@@ -1287,6 +1292,11 @@ bool DiskInspectorWindow::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
+    if (m_selection->OnHistoryButton (ev))
+    {
+        return true;
+    }
+
     POINT  p           = ev.positionDip;
     int    width       = m_boundsDip.right - m_boundsDip.left;
     bool   isCovered   = m_notes->IsCovered (p) && ev.kind != DxuiMouseEventKind::Leave;
@@ -1459,6 +1469,11 @@ bool DiskInspectorWindow::OnKey (const DxuiKeyEvent & ev)
         //  edit (FR-107, FR-158).
         isHandled = RunCommand (ev.vk == 'Z' ? m_commands.undoApplied : m_commands.redoApplied);
     }
+    else if (ev.kind == DxuiKeyEventKind::Down && ev.alt && !ev.ctrl && !ev.shift && (ev.vk == VK_LEFT || ev.vk == VK_RIGHT))
+    {
+        //  Alt+Left and Alt+Right step through the selections (FR-164).
+        isHandled = RunCommand (ev.vk == VK_LEFT ? m_commands.back : m_commands.forward);
+    }
     else if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_F2 && !ev.ctrl && !ev.alt && !ev.shift)
     {
         isHandled = RunCommand (m_commands.editSector);
@@ -1630,6 +1645,7 @@ void DiskInspectorWindow::OnSelection()
         m_session.model.StartFlight (InspectorMarquee::GetClockMs());
     }
 
+    m_selection->RecordSelection (m_hostLink->IsHeadSelecting());
     m_flownQuarterTrack = m_session.model.GetQuarterTrack();
     m_flownSector       = m_session.model.GetSectorIndex();
 

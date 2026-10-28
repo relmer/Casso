@@ -22,6 +22,7 @@ enum class PlatterOverlay
     Files,
     Reads,
     Writes,
+    Scans,
     Alignment,
     Differences,
 };
@@ -86,6 +87,7 @@ private:
     OverlayChip              * m_filesChip        = nullptr;
     OverlayChip              * m_readsChip        = nullptr;
     OverlayChip              * m_writesChip       = nullptr;
+    OverlayChip              * m_scansChip        = nullptr;
     OverlayChip              * m_alignChip        = nullptr;
     OverlayChip              * m_diffsChip        = nullptr;
     DxuiIconButton           * m_zoomOut          = nullptr;

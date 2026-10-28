@@ -79,6 +79,84 @@ void SelectionPart::StepSector (int delta, bool isToEnd)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SelectionPart::StepHistory
+//
+//  Back or Forward through the user's selections (FR-164). The selection
+//  stepped to is not added to the history again.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SelectionPart::StepHistory (bool isForward)
+{
+    SelectionHistory &  history   = m_session.model.GetHistory();
+    InspectorSelection  selection;
+    bool                isMoved   = isForward ? history.GoForward (selection) : history.GoBack (selection);
+
+
+
+    if (isMoved)
+    {
+        m_session.model.RestoreSelection (selection);
+        m_session.isSteppingHistory = true;
+m_host.OnSelection();
+        m_session.isSteppingHistory = false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectionPart::RecordSelection
+//
+//  The user's selection is added to the history for Back and Forward
+//  (FR-164), unless Back, Forward or Follow head made it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SelectionPart::RecordSelection (bool isHeadSelecting)
+{
+    if (!m_session.isSteppingHistory && !isHeadSelecting && (m_session.model.GetSector() != nullptr || m_session.model.GetFirstNibble() >= 0))
+    {
+        m_session.model.GetHistory().Record (m_session.model.GetSelection());
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectionPart::OnHistoryButton
+//
+//  The mouse's back and forward buttons step through the selections
+//  (FR-164).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SelectionPart::OnHistoryButton (const DxuiMouseEvent & ev)
+{
+    bool  isHistory = ev.button == DxuiMouseButton::Back || ev.button == DxuiMouseButton::Forward;
+
+
+
+    if (isHistory && ev.kind == DxuiMouseEventKind::Up && m_session.context.hasDisk)
+    {
+        StepHistory (ev.button == DxuiMouseButton::Forward);
+    }
+
+    return isHistory;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SelectionPart::IsStripKey
 //
 ////////////////////////////////////////////////////////////////////////////////

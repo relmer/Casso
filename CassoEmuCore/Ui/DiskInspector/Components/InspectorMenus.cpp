@@ -144,6 +144,9 @@ void InspectorMenus::Rebuild()
     add (c.legend);
     menu (L"&View");
 
+    add (c.back);
+    add (c.forward);
+    separator();
     add (c.goTo);
     add (c.goToHead);
     add (c.followHead);

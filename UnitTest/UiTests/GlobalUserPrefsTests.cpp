@@ -197,6 +197,7 @@ public:
         orig.diskInspector.timingRange   = 0.1;
         orig.diskInspector.isAlignment   = true;
         orig.diskInspector.isReads       = true;
+        orig.diskInspector.isScans       = true;
         orig.diskInspector.isShowDeleted = true;
         orig.diskInspector.isFollowHead  = true;
         orig.diskInspector.zoom          = 1.25;
@@ -219,6 +220,7 @@ public:
         Assert::IsTrue   (loaded.diskInspector.isAlignment);
         Assert::IsFalse  (loaded.diskInspector.isFiles);
         Assert::IsTrue   (loaded.diskInspector.isReads);
+        Assert::IsTrue   (loaded.diskInspector.isScans);
         Assert::IsTrue   (loaded.diskInspector.isShowDeleted);
         Assert::IsTrue   (loaded.diskInspector.isFollowHead);
         Assert::AreEqual (1.25,  loaded.diskInspector.zoom);

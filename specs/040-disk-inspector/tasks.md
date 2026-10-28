@@ -440,3 +440,10 @@ Commit after each phase (constitution, Commit Discipline), with
 - [ ] T184 Add tests hosting each new component with a fake `IInspectorComponentHost`: toolbar choices, corner groups, view selector presence and order, menu items enabled and disabled, per Constitution II, FR-158, FR-160, FR-163 (missing)
 - [X] T185 Add tests of FR-161's mapping, and a scenario test that CATALOG, RUN and SAVE on a DOS 3.3 disk mark exactly the sectors a trace of DOS's reads and writes covers, per FR-161, SC-035 (missing)
 - [ ] T186 Check on screen at the opening size and maximized on a 1600×1067 DIP work area that the toolbar, the view selector and 16 sector buttons each take one row, nothing is clipped, and all 16 rows of a sector's bytes are visible; walk every command by keyboard through the menus and the corner groups, per SC-034, SC-030, SC-011, FR-059 (missing)
+
+## Phase 21: Strip brackets, history and access heat maps
+
+- [X] T187 Bracket each sector in the strip's label row with its state's symbol and "Sector $N", label stretches "Address" and "Data", label the strip "Track 17.25", and select Sectors whenever the window first shows a disk without saving the selected view, in `TrackStripView.cpp`, `StripControls.cpp` and `DiskInspectorWindow.cpp`, per FR-033, FR-035, FR-080, FR-160
+- [X] T188 Select a sector and fly the platter to it on a click on its bracket, and fly to a range dragged out on the strip, in `TrackStripView.cpp`, per FR-165
+- [X] T189 Add `SelectionHistory` with tests, Back and Forward in the Go menu with Alt+Left and Alt+Right, and the mouse's back and forward buttons through `WM_XBUTTONUP` in Dxui, per FR-164
+- [X] T190 Record scans of address fields in `DiskAccessLog`, add the "Scans" overlay, "Scanned N times" on the sector buttons and the Sectors header, and shade "Reads", "Writes" and "Scans" by count on a log scale, with tests, per FR-031, FR-161

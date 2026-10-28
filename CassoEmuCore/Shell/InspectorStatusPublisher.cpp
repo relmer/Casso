@@ -123,6 +123,7 @@ DriveHeadState InspectorStatusPublisher::Build (const Disk2Controller * controll
 
             access->reads  = controller->GetAccessLog (drive).GetReads();
             access->writes = controller->GetAccessLog (drive).GetWrites();
+            access->scans  = controller->GetAccessLog (drive).GetScans();
             state.access   = access;
         }
     }
