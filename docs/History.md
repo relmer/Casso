@@ -41,6 +41,10 @@ change a disk, reset, edit memory in the debugger) and history forks there:
 what happened after that point becomes a branch, and the machine runs on from
 the change. There is no question first, and no history is lost.
 
+If a disk's file changes outside Casso while the machine is behind live, the
+"Disk modified outside Casso" message appears once the machine is live again.
+Behind live, the screen is drawn with each disk as it was at that moment.
+
 ## Branches
 
 A fork is a mark on the timeline, a line with a branch rising from it, and a

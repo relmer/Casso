@@ -48,6 +48,7 @@ This feature adds history to the emulator window, makes it non-destructive (a ch
 - Q: Does the user need to set the keyframe interval? -> A: No. It trades seek speed against memory, which the program can choose, and a change could not apply to history already recorded. The interval is fixed at 10 video frames; the general preferences have only on or off and the memory budget.
 - Q: How far does a click of History > Rewind move? -> A: Ten seconds, as a video player's skip does, and a History > Forward command moves ten seconds toward the live end. Each stops at the oldest point or the live end. Holding F2 keeps the smooth rewind, and Step back stays one instruction.
 - Q: How is a fork mark drawn? -> A: As a horizontal branch: a line, and a second line that curves up from it and runs on beside it, drawn by the program since the glyph font has none. No points are marked on the lines, since a fork has nothing like a commit.
+- Q: When a disk image file changes outside Casso while the machine is behind live, when does the "Disk modified outside Casso" prompt appear? -> A: Once the machine is live: at the live end, or after a change behind live forks and makes that point live. Behind live, the emulated past is drawn with each disk as it was then, so news about the files now is deferred. The deferred reports are displayed first, then each question in turn; a later prompt for the same drive replaces an earlier one.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -157,7 +158,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - A branch switch while the debugger is stopped at a breakpoint: the switch is a seek; the debugger displays the new position as it does after any seek.
 - The pointer near the bottom edge while the guest uses the mouse (an Apple mouse card): the rewind bar opens only while the host pointer is over the bottom band, and the guest never receives a click on the bar.
 - The rewind key pressed while a modal dialog is open: ignored, as other emulator keys are.
-- A disk image file changed outside Casso while history has versions of it: the existing "Disk modified outside Casso" prompt runs; inserting the changed disk is a disk change, which forks history at the position on screen when the machine is behind live, as an eject does.
+- A disk image file changed outside Casso while history has versions of it: the existing "Disk modified outside Casso" prompt runs at once while the machine is live, and is deferred until the machine is live while it is behind live (FR-021a), so inserting the changed disk always happens live and forks nothing.
 - History saved in an earlier session whose disks no longer match the files at launch: the stretch captured with other disks is drawn past a gap mark and can be viewed and replayed. A change made in that stretch is ignored with a notice instead of forking, so no fork can write a disk version from before the file changed outside Casso.
 - Exit while behind live: the disks are written at the live end of the active branch, and the next launch returns to the position on screen, paused.
 - The Uthernet II in use (a socket or connection open): its connections are host state no replay can open again, so history is dropped and recording is off until the card is idle, then starts again there. This is not the user's setting: no confirmation is displayed, and the setting is not changed.
@@ -201,6 +202,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **FR-019**: While the user is behind live without forking, the writes that the drive motor stopping, a reset and a power cycle would make MUST stay deferred, as today, and nothing MUST be written during a replay.
 - **FR-020**: A forced write while behind live that does not fork (a machine switch or exit) MUST write the version at the live end of the active branch, never the version of the moment on screen. An eject behind live is a change: it forks history (FR-009), and FR-018 then writes the disk as it is at the fork.
 - **FR-021**: Switching to a branch that had a different disk in a drive MUST put that branch's disk in the drive; FR-018 MUST apply to each disk separately.
+- **FR-021a**: A report or a question about a disk image file changed outside Casso that arrives while the machine is behind live MUST be deferred until the machine is live, then displayed: the reports first, then each question in turn. A later prompt of the same kind for the same drive MUST replace an earlier one.
 
 **Persistence**
 

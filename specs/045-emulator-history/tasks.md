@@ -197,6 +197,7 @@
 - [X] T083 Remove the keyframe interval setting (spec Clarifications 2026-10-27, FR-008): the History page's interval slider, `HistorySettings::intervalFrames`, `ReverseOptions::intervalFrames` and the `reverseIntervalFrames` read and write; history starts at `KeyframeSettings::kDefaultFrames` Done; `GlobalUserPrefsTests` checks the old key is kept for older builds.
 - [X] T084 History > Rewind 10 seconds and History > Forward 10 seconds (FR-007, FR-007a): `ReverseCommand::SkipBack` and `SkipForward`, `ReverseController::kSkipCycles`, `IDM_HISTORY_FORWARD` Done; `ReverseHostTests::TheSkipsStopAtTheEndsOfHistory` and the menu rules in `ShellHistoryTests`.
 - [X] T085 Draw a fork mark as a horizontal branch (FR-010): `DxuiStripMarkArt`, `Dxui/Widgets/DxuiBranchArt.h/.cpp` and `DxuiImageStrip::PaintBranchArt` Done; `DxuiImageStripMarkTests` covers the art's pixels and the badge.
+- [X] T086 Defer the "Disk modified outside Casso" report and question until the machine is live (FR-021a): `Devices/Disk/DeferredChangePrompts.h/.cpp`, `ShellDisks::OnChangeReport`, `OnChangeQuestion` and `ShowDeferredChanges`, called from `WM_APP_GAMEPORT_FLUSH` once live Done; `DeferredChangePromptsTests`.
 - [ ] T082 Draft the CHANGELOG `[Unreleased]` entries (one terse line each, under Added and Changed) and the README feature line, run Check-Prose, and give them to the owner for approval before the master merge
 
 ---
