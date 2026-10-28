@@ -3,6 +3,9 @@
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 
 
 
@@ -259,4 +262,124 @@ void SuperSerialCard::SetSwitches (const SscSwitches & switches)
 {
     m_switches = switches;
     m_acia.SetIrqConnected (m_switches.IsIrqConnected());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SaveState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SuperSerialCard::SaveState (StateWriter & writer) const
+{
+    HRESULT  hr = S_OK;
+
+
+
+    writer.BeginSection (kStateTag, kStateVersion);
+
+    writer.WriteBool (m_expansionSelected);
+
+    hr = m_acia.SaveState (writer);
+    CHR (hr);
+
+    hr = writer.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadState
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SuperSerialCard::LoadState (StateReader & reader)
+{
+    HRESULT   hr      = S_OK;
+    uint16_t  version = 0;
+
+
+
+    hr = reader.BeginSection (kStateTag, kStateVersion, version);
+    CHR (hr);
+
+    reader.ReadBool (m_expansionSelected);
+
+    hr = m_acia.LoadState (reader);
+    CHR (hr);
+
+    hr = reader.EndSection();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDiagnostics
+//
+//  The switch bytes as the guest reads them, with the floating bus as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SuperSerialCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup  group { "Card", {} };
+
+
+
+    group.rows.push_back (MakeTextRow ("Slot",          std::format ("{}", m_slot)));
+    group.rows.push_back (MakeHexRow  ("SW1",           m_switches.GetDipSwitch1Byte (0), kByteDigits));
+    group.rows.push_back (MakeHexRow  ("SW2",           m_switches.GetDipSwitch2Byte (m_acia.IsCtsTrue(), 0), kByteDigits));
+    group.rows.push_back (MakeFlagRow ("IRQ connected", m_switches.IsIrqConnected()));
+    group.rows.push_back (MakeFlagRow ("Expansion ROM", m_expansionSelected, "the firmware is at $C800-$CEFF"));
+    group.rows.push_back (MakeFlagRow ("Firmware",      HasFirmware()));
+
+    if (!m_attachmentProblem.empty())
+    {
+        group.rows.push_back (MakeTextRow ("Problem", m_attachmentProblem));
+    }
+
+    snapshot.groups.push_back (std::move (group));
+
+    m_acia.AddDiagnostics (snapshot);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SuperSerialCard::AddIoRegisters
+//
+//  The two switch blocks and the 6551, under the card's name and slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SuperSerialCard::AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const
+{
+    std::string  owner = std::format ("{}, slot {}", GetDiagnosticsTitle(), m_slot);
+
+
+
+    registers.push_back ({ (Word) (m_ioStart + kDipSwitch1Offset), owner + ": SW1, the first block of DIP switches" });
+    registers.push_back ({ (Word) (m_ioStart + kDipSwitch2Offset), owner + ": SW2, the second block of DIP switches and the CTS line" });
+    m_acia.AddRegisterDescriptions (registers, owner);
 }

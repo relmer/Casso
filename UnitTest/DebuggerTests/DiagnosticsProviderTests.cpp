@@ -1,11 +1,15 @@
 #include "Pch.h"
 
 #include "Debugger/IDiagnosticsProvider.h"
+#include "Debugger/MachineDebugTarget.h"
 #include "EmuTests/TestMachine.h"
 #include "Machines/Apple2/Common/AppleKeyboard.h"
 #include "Machines/Apple2/Common/CassetteDiagnostics.h"
 #include "Machines/Apple2/Common/MockingboardCard.h"
 #include "Machines/Apple2/Common/PrinterCard.h"
+#include "Machines/Apple2/Common/SuperSerialCard.h"
+#include "Machines/Apple2/Common/UthernetCard.h"
+#include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
@@ -94,6 +98,32 @@ namespace DebuggerTests
             }
 
             return ids;
+        }
+
+
+        static const IDiagnosticsProvider * FindProvider (const MachineHost & machine, const std::string & id)
+        {
+            for (const IDiagnosticsProvider * provider : machine.GetDiagnosticsProviders())
+            {
+                if (provider->GetDiagnosticsId() == id)
+                {
+                    return provider;
+                }
+            }
+
+            return nullptr;
+        }
+
+
+        static void EnableSlotDevice (MachineConfig & config, const char * device)
+        {
+            for (SlotConfig & slot : config.slots)
+            {
+                if (slot.device == device)
+                {
+                    slot.enabled = true;
+                }
+            }
         }
 
 
@@ -207,6 +237,52 @@ namespace DebuggerTests
 
             Assert::AreEqual (std::string ("off"), FindRow (off, "ALTZP").value);
             Assert::IsTrue   (std::get<DiagnosticsMemoryMap> (off.visual).pages[0x00].read == MemorySource::Main);
+        }
+
+
+        //  $C800-$CEFF is the ROM of the card that an access to its $Cs00
+        //  page selected, and nothing once $CFFF deselects it.
+        TEST_METHOD (TheMemoryMapHasTheSlotWhoseRomIsAtC800)
+        {
+            TestMachine           machine ("Apple2e", [] (MachineConfig & config) { EnableSlotDevice (config, kpszSuperSerialCardDevice); });
+            MachineDebugTarget    target  (machine);
+            DiagnosticsMemoryMap  map;
+            int                   slot    = -1;
+
+
+
+            machine.GetMemoryBus().ReadByte (0xC200);
+            map = std::get<DiagnosticsMemoryMap> (Snapshot (*machine.GetMmu()).visual);
+
+            Assert::AreEqual (2, map.expansionSlot);
+            Assert::IsTrue   (map.pages[0xC8].read == MemorySource::SlotRom);
+            Assert::IsTrue   (map.pages[0xCE].read == MemorySource::SlotRom);
+            Assert::IsTrue   (map.pages[0xCF].read == MemorySource::None, L"$CF00-$CFFF deselects the card");
+            Assert::IsTrue   (target.TryGetExpansionRomSlot (slot));
+            Assert::AreEqual (2, slot);
+
+            machine.GetMemoryBus().ReadByte (0xCFFF);
+            map = std::get<DiagnosticsMemoryMap> (Snapshot (*machine.GetMmu()).visual);
+
+            Assert::AreEqual (0, map.expansionSlot);
+            Assert::IsTrue   (map.pages[0xC8].read == MemorySource::None, L"no card drives $C800");
+            Assert::IsTrue   (target.TryGetExpansionRomSlot (slot));
+            Assert::AreEqual (0, slot);
+        }
+
+
+        //  The //c has no slots, so its whole $C100-$CFFF is internal ROM.
+        TEST_METHOD (TheIIcMapsItsCxxxSpaceToItsRom)
+        {
+            TestMachine           machine ("Apple2c");
+            DiagnosticsMemoryMap  map     = std::get<DiagnosticsMemoryMap> (Snapshot (*machine.GetMmu()).visual);
+
+
+
+            for (size_t page : { 0xC1, 0xC3, 0xC8, 0xCF })
+            {
+                Assert::IsTrue (map.pages[page].read == MemorySource::Rom, std::format (L"page ${:02X}", page).c_str());
+            }
         }
 
 
@@ -450,6 +526,136 @@ namespace DebuggerTests
             Assert::IsTrue   (IsBitSet (FindRow (snapshot, "Status"), "READY"));
             Assert::AreEqual (std::string ("off"), FindRow (snapshot, "Used").value);
             Assert::AreEqual (std::string ("1"),   FindRow (snapshot, "Slot").value);
+        }
+
+
+        //  The card's slot and latch, and its 6551's registers as the guest
+        //  wrote them, decoded.
+        TEST_METHOD (TheSerialCardPanelShowsTheCardAndIts6551)
+        {
+            TestMachine                   machine ("Apple2e", [] (MachineConfig & config) { EnableSlotDevice (config, kpszSuperSerialCardDevice); });
+            const IDiagnosticsProvider  * card    = FindProvider (machine, "serial-card");
+            DiagnosticsSnapshot           snapshot;
+
+
+
+            Assert::IsNotNull (card, L"the card has a panel");
+
+            machine.GetMemoryBus().WriteByte (0xC0AA, 0x0B);
+            machine.GetMemoryBus().WriteByte (0xC0AB, 0x1E);
+
+            snapshot = Snapshot (*card);
+
+            Assert::AreEqual (std::string ("2"),    FindRow (snapshot, "Slot").value);
+            Assert::AreEqual (std::string ("$0B"),  FindRow (snapshot, "Command").value);
+            Assert::IsTrue   (IsBitSet (FindRow (snapshot, "Command"), "DTR"));
+            Assert::AreEqual (std::string ("$1E"),  FindRow (snapshot, "Control").value);
+            Assert::AreEqual (std::string ("9600"), FindRow (snapshot, "Baud").value);
+            Assert::AreEqual (std::string ("8"),    FindRow (snapshot, "Word length").value);
+            Assert::IsTrue   (IsBitSet (FindRow (snapshot, "Status"), "TX EMPTY"));
+            Assert::AreEqual (std::string ("on"),   FindRow (snapshot, "DTR").value);
+        }
+
+
+        //  The //c's two built-in ports, each 6551 a panel.
+        TEST_METHOD (TheIIcHasAPanelForEachSerialPort)
+        {
+            TestMachine                   machine ("Apple2c");
+            const IDiagnosticsProvider  * port1   = FindProvider (machine, "serial-port-1");
+            const IDiagnosticsProvider  * port2   = FindProvider (machine, "serial-port-2");
+
+
+
+            Assert::IsNotNull (port1, L"port 1");
+            Assert::IsNotNull (port2, L"port 2");
+
+            machine.GetMemoryBus().WriteByte (0xC09A, 0x0B);
+
+            Assert::AreEqual (std::string ("$0B"), FindRow (Snapshot (*port1), "Command").value, L"port 1 is $C098");
+            Assert::AreEqual (std::string ("$00"), FindRow (Snapshot (*port2), "Command").value, L"port 2 is not");
+            Assert::AreEqual (std::string ("loopback plug"), FindRow (Snapshot (*port1), "Attachment").value);
+        }
+
+
+        //  Each card's bus registers at its slot's addresses, with the panel's
+        //  labels for them, and the //c's two ports at theirs.
+        TEST_METHOD (TheCardsDescribeTheirRegistersForTips)
+        {
+            TestMachine         cards ("Apple2e", [] (MachineConfig & config)
+            {
+                EnableSlotDevice (config, kpszSuperSerialCardDevice);
+                EnableSlotDevice (config, "uthernet2");
+            });
+            TestMachine         iic   ("Apple2c");
+            MachineDebugTarget  cardTarget (cards);
+            MachineDebugTarget  iicTarget  (iic);
+            DebugMachineInfo    cardInfo   = cardTarget.GetMachineInfo();
+            DebugMachineInfo    iicInfo    = iicTarget.GetMachineInfo();
+
+
+
+            Assert::AreEqual (std::string ("Super Serial Card, slot 2: SW1, the first block of DIP switches"), Describe (cardInfo, 0xC0A1));
+            Assert::AreEqual (std::string ("Super Serial Card, slot 2: 6551 status register; a write resets the chip"), Describe (cardInfo, 0xC0A9));
+            Assert::AreEqual (std::string ("Uthernet II, slot 3: W5100 mode register"), Describe (cardInfo, 0xC0B4));
+            Assert::AreEqual (std::string(), Describe (cardInfo, 0xC0A4), L"no register there");
+            Assert::AreEqual (std::string ("Serial port 1: 6551 data register; read the received byte, write a byte to send"), Describe (iicInfo, 0xC098));
+            Assert::AreEqual (std::string ("Serial port 2: 6551 control register: baud rate, word length and stop bits"), Describe (iicInfo, 0xC0AB));
+        }
+
+
+        static std::string Describe (const DebugMachineInfo & info, Word address)
+        {
+            for (const DiagnosticsIoRegister & each : info.ioRegisters)
+            {
+                if (each.address == address)
+                {
+                    return each.description;
+                }
+            }
+
+            return {};
+        }
+
+
+        //  The W5100's mode, addresses and sockets, as the guest set them.
+        TEST_METHOD (TheUthernetPanelShowsTheChipAndItsSockets)
+        {
+            TestMachine                   machine ("Apple2e", [] (MachineConfig & config) { EnableSlotDevice (config, "uthernet2"); });
+            const IDiagnosticsProvider  * card    = FindProvider (machine, "uthernet");
+            MemoryBus                   & bus     = machine.GetMemoryBus();
+            DiagnosticsSnapshot           snapshot;
+            Byte                          ip[]    = { 192, 168, 1, 10 };
+
+
+
+            Assert::IsNotNull (card, L"the card has a panel");
+
+            bus.WriteByte (0xC0B4, 0x03);
+            bus.WriteByte (0xC0B5, 0x00);
+            bus.WriteByte (0xC0B6, 0x0F);
+
+            for (Byte each : ip)
+            {
+                bus.WriteByte (0xC0B7, each);
+            }
+
+            bus.WriteByte (0xC0B5, 0x05);
+            bus.WriteByte (0xC0B6, 0x00);
+            bus.WriteByte (0xC0B7, 0x02);
+            bus.WriteByte (0xC0B6, 0x04);
+            bus.WriteByte (0xC0B7, 0x19);
+            bus.WriteByte (0xC0B7, 0x66);
+            bus.WriteByte (0xC0B6, 0x01);
+            bus.WriteByte (0xC0B7, 0x01);
+
+            snapshot = Snapshot (*card);
+
+            Assert::AreEqual (std::string ("3"),            FindRow (snapshot, "Slot").value);
+            Assert::IsTrue   (IsBitSet (FindRow (snapshot, "Mode"), "IND"));
+            Assert::AreEqual (std::string ("192.168.1.10"), FindRow (snapshot, "IP address").value);
+            Assert::AreEqual (std::string ("UDP, port 6502"), FindRow (snapshot, "Socket 1").value);
+            Assert::AreEqual (std::string ("closed"),       FindRow (snapshot, "Socket 0").value);
+            Assert::AreEqual (std::string ("on"),           FindRow (snapshot, "In use").value);
         }
 
 

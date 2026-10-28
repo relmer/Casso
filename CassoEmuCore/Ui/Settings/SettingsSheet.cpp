@@ -277,7 +277,7 @@ HRESULT SettingsSheet::OpenModeless (
                 // After Compose, and not from an after-paint hook: a window
                 // that composes never runs one. The finished 2D frame is on
                 // the back buffer now, which is what the scene draws over.
-                RenderThemePreviewScene (backBufferRtv, widthPx, heightPx);
+                m_themeScene.Render (backBufferRtv, widthPx, heightPx);
             });
     }
 
@@ -314,7 +314,7 @@ HRESULT SettingsSheet::OpenModeless (
     // Disk page play (>) buttons audition the drive sounds live.
     m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)
     {
-        AuditionDriveSound (drive, kind, centered);
+        m_audition.Audition (drive, kind, centered);
     });
 
     // Staged picks: the machine + theme selectors defer their real apply to
@@ -571,7 +571,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->GetInput().PickPlayer (player, entry);
+                m_emuShell->GetInput().GetControllers().PickPlayer (player, entry);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
@@ -583,7 +583,7 @@ HRESULT SettingsSheet::OpenModeless (
 
 
 
-                m_emuShell->GetInput().SetPlayerMode (player, mode);
+                m_emuShell->GetInput().GetControllers().SetPlayerMode (player, mode);
 
                 current = service->GetSnapshot();
                 m_controllersState.SetPlayers (current.entries, current.slots, current.axisCount);
@@ -734,7 +734,7 @@ HRESULT SettingsSheet::OpenModeless (
     // live-preview edits, plus the drive-audio baseline so OnCancel can undo a
     // play-button audition that pushed dialed values live to the engine.
     m_apply.SnapshotBaselines();
-    SnapshotDriveAudioBaseline();
+    m_audition.SnapshotBaseline();
 
     // Modeless: show + return immediately. The emulator keeps running behind
     // the sheet; the host loop pumps ProcessDialogMessage and destroys us via
@@ -912,7 +912,7 @@ HRESULT SettingsSheet::OnOk()
 void SettingsSheet::OnCancel()
 {
     m_apply.Cancel (m_preview);
-    RevertDriveAuditionIfDirty();
+    m_audition.RevertIfDirty();
 }
 
 
@@ -1043,7 +1043,7 @@ void SettingsSheet::OnDialogTick()
     UpdateDiskTabVisibility();
     UpdateSerialTabVisibility();
     UpdateNetworkTabVisibility();
-    UpdateTabSparkles();
+    m_sparkle.Update();
     UpdateTickInterval();
 
     // The Machine tab's tree, a machine switch and Cancel all change the
@@ -1128,9 +1128,9 @@ void SettingsSheet::UpdateTickInterval()
         wanted = m_controllersPage->GetPollIntervalMs();
     }
 
-    if (IsAnyTabSweeping())
+    if (m_sparkle.IsAnySweeping())
     {
-        wanted = std::min (wanted, kSparkleTickMs);
+        wanted = std::min (wanted, SettingsTabSparkle::kTickMs);
     }
 
     if (wanted != m_tickMs)
@@ -1138,183 +1138,6 @@ void SettingsSheet::UpdateTickInterval()
         m_tickMs = wanted;
         SetDialogTickIntervalMs (m_tickMs);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RenderThemePreviewScene
-//
-//  Draws the desk scene into the theme preview's mock window, so a skeuo theme
-//  previews as what it actually is. The 2D paint deliberately left the screen
-//  and the drive row out for exactly this.
-//
-//  The models load a SECOND time here. The shell's scene belongs to the
-//  emulator window's device and this sheet is its own window with its own
-//  device, so there is nothing to borrow -- and a few thousand triangles is a
-//  cheap price for not advertising a presentation the app retired.
-//
-//  Clipped, because the theme dropdown is allowed to cover the preview and
-//  this pass runs after the whole panel tree. The scissor crops rather than
-//  re-projects: shrinking the viewport instead would squash the scene into
-//  whatever is left.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int widthPx, int heightPx)
-{
-    ThemePage::PreviewSceneRequest  request;
-    DeskSceneComposition            comp;
-    HRESULT                         hr       = S_OK;
-    int                             fbW      = 0;
-    int                             fbH      = 0;
-    const uint32_t                * fbPixels = nullptr;
-    CrtUvRect                       uv       = { 0.0f, 0.0f, 1.0f, 1.0f };
-    RECT                            viewport = {};
-
-
-
-    if (m_themePage == nullptr || rtv == nullptr || widthPx <= 0 || heightPx <= 0)
-    {
-        return;
-    }
-
-    request = m_themePage->TakeSceneRequest();
-
-    // This pass runs after the panel tree, outside the sheet's page clip, so
-    // a scrolled preview has to be cropped to the viewport here as well.
-    if (IsPageScrollable())
-    {
-        viewport = GetPageViewportPx();
-
-        if (IntersectRect (&request.clipPx, &request.clipPx, &viewport) == FALSE)
-        {
-            return;
-        }
-    }
-
-    if (request.mode == ThemePage::PreviewSceneMode::None ||
-        request.rectPx.right <= request.rectPx.left ||
-        request.clipPx.bottom <= request.clipPx.top)
-    {
-        return;
-    }
-
-    // First frame that wants it: stand the scene up. Tried-once, because a
-    // device that cannot carry it will not start working later, and retrying
-    // every frame would just burn the failure over and over.
-    if (!m_previewSceneReady && !m_previewSceneTried)
-    {
-        m_previewSceneTried = true;
-
-        if (GetPopupHost() != nullptr)
-        {
-            hr = m_previewScene.Initialize (GetPopupHost()->GetDevice(), GetPopupHost()->GetContext());
-
-            if (SUCCEEDED (hr))
-            {
-                HRESULT  hrModels = LoadPreviewSceneModels();
-
-                m_previewSceneReady = SUCCEEDED (hrModels);
-            }
-        }
-    }
-
-    if (!m_previewSceneReady)
-    {
-        return;
-    }
-
-    // The machine can change under a staged pick, and the desk wears what the
-    // machine wore.
-    if (m_emuShell != nullptr && m_emuShell->GetDisks().MachineHasBuiltInDrive() != m_previewSceneIsC)
-    {
-        hr = LoadPreviewSceneModels();
-        IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    // The DPI does not set the scene's size -- SolveComposition contain-fits
-    // the scene's corners to the viewport and never consults it -- so this
-    // only feeds the layout's own dp-based reservations.
-    hr = (request.mode == ThemePage::PreviewSceneMode::Full)
-       ? DeskSceneLayout::Compute      (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp)
-       : DeskSceneLayout::ComputeStrip (request.rectPx, request.dpi, 2, m_previewScene.Metrics(), comp);
-
-    if (FAILED (hr) || hr == S_FALSE)
-    {
-        return;
-    }
-
-    m_previewScene.SetComposition (comp);
-    m_previewScene.SetClipRect    (&request.clipPx);
-
-    if (request.mode == ThemePage::PreviewSceneMode::Full)
-    {
-        // The picture comes from the emulator's framebuffer bytes: this
-        // device has no CRT chain of its own, and the preview already has the
-        // pixels for the flat blit it used to do.
-        fbPixels = m_themePage->FramebufferPixels (fbW, fbH);
-
-        if (fbPixels != nullptr && fbW > 0 && fbH > 0)
-        {
-            hr = m_previewScene.UploadPicture (fbPixels, fbW, fbH);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-
-        hr = m_previewScene.Render (rtv, m_previewScene.PictureSrv(), uv, fbW, fbH);
-    }
-    else
-    {
-        hr = m_previewScene.RenderStrip (rtv, comp);
-    }
-
-    m_previewScene.SetClipRect (nullptr);
-
-    IGNORE_RETURN_VALUE (hr, S_OK);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  LoadPreviewSceneModels
-//
-//  The same pairing rule the shell uses: the //c gets its platinum monitor
-//  over matching drives, everything else the beige Monitor II over Disk IIs.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT SettingsSheet::LoadPreviewSceneModels()
-{
-    HRESULT  hr  = S_OK;
-    bool     isC = (m_emuShell != nullptr) && m_emuShell->GetDisks().MachineHasBuiltInDrive();
-
-
-
-    // The shell has already parsed and baked the pair this machine wears, and
-    // the result is device-independent, so take it rather than doing all of
-    // that again on the way into the Theme tab.
-    CBRA (m_emuShell != nullptr);
-
-    {
-        bool  shellHasModels = m_emuShell->GetDeskScene().GetScene().HasModels();
-
-        CBRA (shellHasModels);
-    }
-
-    hr = m_previewScene.AdoptModelsFrom (m_emuShell->GetDeskScene().GetScene());
-    CHRA (hr);
-
-    m_previewScene.SetPowerLampOn (true);
-    m_previewSceneIsC = isC;
-
-Error:
-    return hr;
 }
 
 
@@ -1624,111 +1447,11 @@ void SettingsSheet::UpdateSerialTabVisibility()
 
     if (turnedOn)
     {
-        StartTabSparkle (m_serialPageIndex);
+        m_sparkle.Start (m_serialPageIndex);
     }
 
 Error:
     return;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  StartTabSparkle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::StartTabSparkle (int pageIndex)
-{
-    if (pageIndex >= 0 && DxuiSystemSettings::Instance().AreAnimationsEnabled())
-    {
-        m_tabSparkleStartMs[pageIndex] = (int64_t) GetTickCount64();
-        UpdateTickInterval();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetTabSparkleProgress
-//
-//  The current sweep's progress over a page's tab, 0 to 1, or nothing
-//  between sweeps, once the tab has been opened, or while it is hidden.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<float> SettingsSheet::GetTabSparkleProgress (int pageIndex) const
-{
-    std::optional<float>  progress;
-    int64_t               phase   = 0;
-    auto                  start   = m_tabSparkleStartMs.find (pageIndex);
-    bool                  running = start != m_tabSparkleStartMs.end() && IsPageVisible (pageIndex) &&
-                                    GetActiveIndex() != pageIndex;
-
-
-
-    if (running)
-    {
-        phase = ((int64_t) GetTickCount64() - start->second) % kSparklePeriodMs;
-
-        if (phase < DxuiShimmer::kSweepMs)
-        {
-            progress = (float) phase / (float) DxuiShimmer::kSweepMs;
-        }
-    }
-
-    return progress;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsAnyTabSweeping
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SettingsSheet::IsAnyTabSweeping() const
-{
-    bool  sweeping = false;
-
-
-
-    for (const auto & [pageIndex, startMs] : m_tabSparkleStartMs)
-    {
-        sweeping = sweeping || GetTabSparkleProgress (pageIndex).has_value();
-    }
-
-    return sweeping;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  UpdateTabSparkles
-//
-//  Opening a sparkling tab ends its sparkle for good, as does hiding it
-//  again by turning its card off.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::UpdateTabSparkles()
-{
-    std::erase_if (m_tabSparkleStartMs, [this] (const auto & entry)
-    {
-        return !IsPageVisible (entry.first) || GetActiveIndex() == entry.first;
-    });
 }
 
 
@@ -1745,83 +1468,9 @@ void SettingsSheet::UpdateTabSparkles()
 
 void SettingsSheet::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    std::optional<float>  progress;
-
-
-
     DxuiPropertySheet::Paint (painter, text, theme);
 
-    for (const auto & [pageIndex, startMs] : m_tabSparkleStartMs)
-    {
-        progress = GetTabSparkleProgress (pageIndex);
-
-        if (progress.has_value())
-        {
-            PaintTabSparkle (text, pageIndex, *progress);
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintTabSparkle
-//
-//  DxuiShimmer over a page's tab label, drawn where and as the tab strip
-//  draws it; the glints span only the label text's width.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::PaintTabSparkle (IDxuiTextRenderer & text, int pageIndex, float progress)
-{
-    constexpr float  kGlintDip = 2.5f;
-
-
-
-    HRESULT                    hr      = S_OK;
-    const DxuiTabStrip::Tab *  tab     = FindTabOfPage (pageIndex);
-    DxuiDpiScaler              scaler;
-    float                      fontPx  = 0.0f;
-    float                      padX    = 0.0f;
-    float                      x       = 0.0f;
-    float                      y       = 0.0f;
-    float                      w       = 0.0f;
-    float                      h       = 0.0f;
-    float                      labelW  = 0.0f;
-    float                      labelH  = 0.0f;
-
-
-
-    BAIL_OUT_IF (tab == nullptr, S_OK);
-
-    scaler.SetDpi (GetDpi());
-    fontPx = scaler.ToPxf (DxuiTabStrip::kLabelFontDip);
-    padX   = scaler.ToPxf (DxuiTabStrip::kLabelPadXDip);
-    x      = (float) tab->rect.left + padX;
-    y      = (float) tab->rect.top;
-    w      = (float) (tab->rect.right - tab->rect.left) - padX * 2.0f;
-    h      = (float) (tab->rect.bottom - tab->rect.top);
-
-    hr = text.MeasureString (tab->label.c_str(), fontPx, DxuiTheme::kBodyFace, labelW, labelH);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    labelW = std::min (labelW, w);
-
-    DxuiShimmer::Paint (text, x, y, w, h, x + (w - labelW) * 0.5f, labelW, fontPx, scaler.ToPxf (kGlintDip), progress, m_tabSparkleGlints,
-                        [&] (uint32_t argb)
-                        {
-                            HRESULT  drawHr = S_OK;
-
-                            drawHr = text.DrawString (tab->label.c_str(), x, y, w, h, argb, fontPx, DxuiTheme::kBodyFace,
-                                                      DxuiTextHAlign::Center, DxuiTextVAlign::Center);
-                            IGNORE_RETURN_VALUE (drawHr, S_OK);
-                        });
-
-Error:
-    return;
+    m_sparkle.PaintAll (text);
 }
 
 
@@ -1986,7 +1635,7 @@ void SettingsSheet::UpdateNetworkTabVisibility()
 
     if (want)
     {
-        StartTabSparkle (m_networkPageIndex);
+        m_sparkle.Start (m_networkPageIndex);
     }
 }
 
@@ -2287,165 +1936,6 @@ LPCWSTR SettingsSheet::GetCursorForPoint (POINT clientPx) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AuditionDriveSound
-//
-//  Disk page play (>) button handler. Pushes the current drive-audio
-//  settings to the engine and fires a one-shot test of the given sound.
-//  Flags the audition dirty so OnCancel restores the mixer to the
-//  dialog-open baseline (RevertDriveAuditionIfDirty).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
-{
-    char                     test[16] = {};
-    float                    pan0     = 0.0f;
-    float                    pan1     = 0.0f;
-    const SettingsUiPrefs  & prefs    = m_state.GetPrefs();
-
-
-
-    if (m_emuShell == nullptr)
-    {
-        return;
-    }
-
-    pan0 = prefs.driveOnePan;
-    pan1 = prefs.driveTwoPan;
-    if (centered)
-    {
-        if (drive == 0) { pan0 = 0.0f; }
-        else            { pan1 = 0.0f; }
-    }
-
-    PushDriveAudioToEngine (prefs.driveMotorVolume,
-                            prefs.driveHeadVolume,
-                            prefs.driveDoorVolume,
-                            pan0,
-                            pan1,
-                            prefs.floppyMechanism);
-
-    // The push above changed the live engine mixer; remember to undo it if the
-    // dialog is canceled without persisting.
-    m_driveAuditionDirty = true;
-
-    sprintf_s (test, "%d,%d", drive, kind);
-    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_TEST, test);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SnapshotDriveAudioBaseline / RevertDriveAuditionIfDirty
-//
-//  A play (>) audition pushes the staged drive-audio (volumes / pan /
-//  mechanism) straight to the engine mixer for preview. Snapshot the as-opened
-//  values at Show; on Cancel, re-push them so an audition that was never
-//  committed does not leave the mixer on the dialed values. OK persists the
-//  staged config through the normal apply path, so no revert is needed there.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::SnapshotDriveAudioBaseline()
-{
-    const SettingsUiPrefs &  prefs = m_state.GetPrefs();
-
-
-
-    m_baselineDriveMotorVol = prefs.driveMotorVolume;
-    m_baselineDriveHeadVol  = prefs.driveHeadVolume;
-    m_baselineDriveDoorVol  = prefs.driveDoorVolume;
-    m_baselineDriveOnePan   = prefs.driveOnePan;
-    m_baselineDriveTwoPan   = prefs.driveTwoPan;
-    m_baselineMechanism     = prefs.floppyMechanism;
-    m_driveAuditionDirty    = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RevertDriveAuditionIfDirty
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::RevertDriveAuditionIfDirty()
-{
-    if (!m_driveAuditionDirty)
-    {
-        return;
-    }
-
-    PushDriveAudioToEngine (m_baselineDriveMotorVol,
-                            m_baselineDriveHeadVol,
-                            m_baselineDriveDoorVol,
-                            m_baselineDriveOnePan,
-                            m_baselineDriveTwoPan,
-                            m_baselineMechanism);
-    m_driveAuditionDirty = false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PushDriveAudioToEngine
-//
-//  Posts volumes + pan + mechanism to the engine command queue. The
-//  mechanism is reloaded only when it differs from what the engine last
-//  loaded, avoiding a redundant WAV reload.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void SettingsSheet::PushDriveAudioToEngine (
-    float                motor,
-    float                head,
-    float                door,
-    float                pan0,
-    float                pan1,
-    const std::string  & mechanism)
-{
-    char  vol[32] = {};
-    char  pan[32] = {};
-
-
-
-    if (m_emuShell == nullptr)
-    {
-        return;
-    }
-
-    sprintf_s (vol, "%d,%d,%d",
-               (int) std::lround (motor * 100.0f),
-               (int) std::lround (head  * 100.0f),
-               (int) std::lround (door  * 100.0f));
-    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_VOLUMES, vol);
-
-    if (mechanism != m_lastAuditionMechanism)
-    {
-        m_emuShell->PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
-        m_lastAuditionMechanism = mechanism;
-    }
-
-    sprintf_s (pan, "%d,%d",
-               (int) std::lround (pan0 * 100.0f),
-               (int) std::lround (pan1 * 100.0f));
-    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_PAN, pan);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  MakeHistoryOptions
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2498,7 +1988,3 @@ void SettingsSheet::CommitHistoryOptions()
         IGNORE_RETURN_VALUE (isSaved, false);
     }
 }
-
-
-
-

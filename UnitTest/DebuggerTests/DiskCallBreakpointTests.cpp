@@ -217,20 +217,23 @@ namespace DebuggerTests
 
         TEST_METHOD (ADriverCallStopsOnlyForItsDrive)
         {
-            auto       driveOne = std::make_unique<CallRig>();   // heap: two rigs overflow the frame (C6262)
-            auto       driveTwo = std::make_unique<CallRig>();
-            StopEvent  stop;
+            //  Two rigs are more than code analysis allows a function's stack.
+            std::unique_ptr<CallRig>  driveOneOwner = std::make_unique<CallRig>();
+            std::unique_ptr<CallRig>  driveTwoOwner = std::make_unique<CallRig>();
+            CallRig                 & driveOne      = *driveOneOwner;
+            CallRig                 & driveTwo      = *driveTwoOwner;
+            StopEvent                 stop;
 
 
 
-            LoadDriverCall (driveOne->rig, 0xE0);
-            driveOne->rig.RunOk ("BPDISK D1 DRIVER READ");
-            driveOne->rig.RunOk ("BP 807");
-            Assert::AreEqual (kCallEnd, Go (driveOne->rig).pc, L"unit $E0 is drive 2");
+            LoadDriverCall (driveOne.rig, 0xE0);
+            driveOne.rig.RunOk ("BPDISK D1 DRIVER READ");
+            driveOne.rig.RunOk ("BP 807");
+            Assert::AreEqual (kCallEnd, Go (driveOne.rig).pc, L"unit $E0 is drive 2");
 
-            LoadDriverCall (driveTwo->rig, 0xE0);
-            driveTwo->rig.RunOk ("BPDISK D2 DRIVER BLOCK 2 READ");
-            stop = Go (driveTwo->rig);
+            LoadDriverCall (driveTwo.rig, 0xE0);
+            driveTwo.rig.RunOk ("BPDISK D2 DRIVER BLOCK 2 READ");
+            stop = Go (driveTwo.rig);
 
             Assert::IsTrue   (stop.reason == StopReason::Disk);
             Assert::AreEqual (kRoutine,  stop.pc);

@@ -10,6 +10,9 @@
 #include "SettingsApplyController.h"
 #include "SettingsPreviewController.h"
 #include "SettingsCompositor.h"
+#include "SettingsDriveAudition.h"
+#include "SettingsPreviewScene.h"
+#include "SettingsTabSparkle.h"
 #include "Ui/Scene/DeskScene.h"
 #include "ColorPickerOverlay.h"
 #include "GeneralPage.h"
@@ -138,6 +141,10 @@ protected:
     LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
 
 private:
+    friend class SettingsDriveAudition;
+    friend class SettingsPreviewScene;
+    friend class SettingsTabSparkle;
+
     //  Set OK to "OK (reboot)" when committing would power-cycle the machine
     //  (staged machine change or a reset-requiring hardware edit), else "OK".
     void  RefreshOkLabel ();
@@ -157,23 +164,6 @@ private:
     bool  TrySyncControllersPlayers ();
     void  ActivateControllersPage   ();
 
-    // Drive-sound audition for the Machine page's play (>) buttons. Ported
-    // verbatim from SettingsPanel: push the current volumes / pan / mechanism
-    // to the engine and post the one-shot test command. Self-contained (needs
-    // only the emulator shell + staged prefs); the cancel-revert bookkeeping
-    // lands with the commit controller in a later slice.
-    void  AuditionDriveSound    (int drive, int kind, bool centered);
-    void  PushDriveAudioToEngine (float motor, float head, float door,
-                                  float pan0, float pan1,
-                                  const std::string & mechanism);
-
-    // Snapshot the as-opened drive-audio values (call at Show) and, on Cancel,
-    // undo a play-button audition that pushed dialed values live to the engine.
-    // A play (>) audition pushes staged volumes / pan / mechanism straight to
-    // the engine mixer for preview; without this the mixer would keep those
-    // auditioned values after Cancel even though nothing was persisted.
-    void  SnapshotDriveAudioBaseline ();
-    void  RevertDriveAuditionIfDirty ();
 
     UserConfigStore * m_ucs      = nullptr;
     GlobalUserPrefs * m_prefs    = nullptr;
@@ -197,23 +187,8 @@ private:
     // the borrowed device is still alive.
     SettingsCompositor        m_compositor;
 
-    // The theme preview's own desk scene. It cannot borrow the shell's: that
-    // one lives on the EMULATOR window's device, and this sheet is a separate
-    // window with a device of its own. So the models load a second time here,
-    // which is cheap (a few thousand triangles) next to showing the user a
-    // presentation the app no longer uses.
-    //
-    // Drawn from inside the compose hook rather than an after-paint hook,
-    // because a window that composes never runs the after-paint hook at all
-    // -- the compose hook owns the back buffer. Right after Compose is
-    // exactly where the finished 2D frame is sitting on it.
-    DeskScene                 m_previewScene;
-    bool                      m_previewSceneReady   = false;
-    bool                      m_previewSceneTried   = false;
-    bool                      m_previewSceneIsC     = false;
-
-    void     RenderThemePreviewScene (ID3D11RenderTargetView * rtv, int widthPx, int heightPx);
-    HRESULT  LoadPreviewSceneModels  ();
+    // The theme preview's desk scene, drawn from the compose hook.
+    SettingsPreviewScene      m_themeScene { *this };
 
     // Drive the compositor's per-frame transparency state (active flag +
     // emulator-overlap rect + focused-control rect) and invalidate while a
@@ -226,20 +201,8 @@ private:
     // between edits.
     void  RaiseOwnerBehindSheet ();
 
-    // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
-    // redundant WAV reload when it hasn't changed.
-    std::string               m_lastAuditionMechanism;
-
-    // Drive-audio engine state as the dialog opened + whether a play-button
-    // audition has since pushed dialed values live, so OnCancel can restore the
-    // mixer to the baseline (SnapshotDriveAudioBaseline / RevertDriveAuditionIfDirty).
-    bool                      m_driveAuditionDirty    = false;
-    float                     m_baselineDriveMotorVol = 0.0f;
-    float                     m_baselineDriveHeadVol  = 0.0f;
-    float                     m_baselineDriveDoorVol  = 0.0f;
-    float                     m_baselineDriveOnePan   = 0.0f;
-    float                     m_baselineDriveTwoPan   = 0.0f;
-    std::string               m_baselineMechanism;
+    // The drive-sound audition behind the (>) buttons.
+    SettingsDriveAudition     m_audition { *this };
 
     // True while a Display control is driving the live-preview blur/reveal, so
     // OnDialogTick keeps recomposing (and stops once a keyboard preview idles
@@ -314,24 +277,8 @@ private:
     bool           DownloadSerialFirmware (const std::wstring & intro);
     void           SetSerialCardEnabled   (bool enabled);
 
-    // A tab appearing among the others is easy to miss, so when turning a
-    // card on adds its tab, StartTabSparkle makes the tab's label shimmer as
-    // the update indicator's text does, one sweep every kSparklePeriodMs,
-    // until the tab is opened or hidden again. Not with animations turned
-    // off. Keyed by page index; any number of tabs can sparkle at once.
-    static constexpr UINT     kSparkleTickMs   = 16;
-    static constexpr int64_t  kSparklePeriodMs = 5000;
-
-    static_assert (DxuiShimmer::kSweepMs < kSparklePeriodMs, "a sweep ends before the next starts");
-
-    std::map<int, int64_t>  m_tabSparkleStartMs;
-    DxuiSweepGlints         m_tabSparkleGlints = DxuiShimmer::MakeEvenSweepGlints();
-
-    void                  StartTabSparkle       (int pageIndex);
-    std::optional<float>  GetTabSparkleProgress (int pageIndex) const;
-    bool                  IsAnyTabSweeping      () const;
-    void                  UpdateTabSparkles     ();
-    void                  PaintTabSparkle       (IDxuiTextRenderer & text, int pageIndex, float progress);
+    // The shimmer over a tab that turning a card on adds.
+    SettingsTabSparkle      m_sparkle { *this };
 
     // The dialog tick last asked for: the Controllers page's live rate while
     // it is shown, the default otherwise.

@@ -36,4 +36,6 @@ public:
     virtual Byte ReadExpansionRom       (Word address) = 0;
 
     virtual void DeselectExpansionRom   () = 0;
+
+    virtual int  GetSlot                () const = 0;
 };

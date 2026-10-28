@@ -1280,6 +1280,12 @@ bool DebugEventLogs::TryMakeRow (
             event.payload.io.value = record.value;
             break;
 
+        case InputKind::AciaByte:
+            event.type               = InputEventType::HostSerialByte;
+            event.payload.io.address = record.detail;
+            event.payload.io.value   = record.value;
+            break;
+
         default:
             isRow = false;
             break;

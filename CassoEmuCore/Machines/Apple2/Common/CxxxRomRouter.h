@@ -71,6 +71,7 @@ public:
     // //c ROM jumps straight into $C800 with those switches clear. On the //e
     // this stays false and the full slot/expansion arbitration applies.
     void SetNoExternalSlots (bool v) { m_noExternalSlots = v; }
+    bool HasExternalSlots   () const { return !m_noExternalSlots; }
 
     // Register an active I/O device (e.g. a Mockingboard) that owns a
     // slot's $Cn00 page. When slot cards are visible (INTCXROM=0) reads
@@ -101,6 +102,8 @@ public:
     // which is when the motherboard asserts I/O STROBE'. Caller-owned; with
     // null, the range reads as the floating bus.
     void SetExpansionRomBus (ExpansionRomBus * bus) { m_expansionRomBus = bus; }
+
+    const ExpansionRomBus * GetExpansionRomBus () const { return m_expansionRomBus; }
 
 private:
     Byte           ResolveByte            (Word address) const;

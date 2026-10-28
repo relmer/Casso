@@ -28,6 +28,7 @@ public:
     Cpu6502Registers         registers        = { 0x0300, 0, 0, 0, 0xFF, 0x30 };
     std::vector<Byte>        memory           = std::vector<Byte> (0x10000, 0);
     std::vector<SoftSwitch>  softSwitches;
+    int                      expansionRomSlot = -1;
     const Microcode        * instructionSet   = nullptr;
     DebugCpuKind             cpuKind          = DebugCpuKind::M65C02;
     DebugMachineInfo         machineInfo      = { "Apple //e Enhanced", "", {} };
@@ -110,6 +111,7 @@ public:
     void WriteIo (Word address, Byte) override       { ioWrites.push_back (address); }
 
     void GetSoftSwitches (std::vector<SoftSwitch> & switches) const override { switches = softSwitches; }
+    bool TryGetExpansionRomSlot (int & slot) const override { slot = expansionRomSlot; return expansionRomSlot >= 0; }
 
     void    SetRunObserver   (IRunObserver * value) override         { observer = value; }
     HRESULT StartRun         (const RunRequest & request) override   { runs.push_back (request); return startRunResult; }

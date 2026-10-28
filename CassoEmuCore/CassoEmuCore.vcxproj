@@ -347,6 +347,7 @@
     <ClCompile Include="Debugger\Reverse\Replayer.cpp" />
     <ClCompile Include="Debugger\Reverse\ReplayDiskCopier.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseStepSearch.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
     <ClCompile Include="Debugger\Reverse\DivergenceGate.cpp" />
     <ClCompile Include="Debugger\Reverse\HeldInputWatch.cpp" />
@@ -354,6 +355,7 @@
     <ClCompile Include="Debugger\Reverse\ReverseStopTest.cpp" />
     <ClCompile Include="Shell\ShellDebuggerReverse.cpp" />
     <ClCompile Include="Shell\ShellDebuggerProject.cpp" />
+    <ClCompile Include="Shell\ShellDebuggerPrefs.cpp" />
     <ClCompile Include="Shell\TraceHistory.cpp" />
     <ClCompile Include="Shell\ProfileHistory.cpp" />
     <ClCompile Include="Ui\Debugger\Panes\ProfileProgress.cpp" />
@@ -674,6 +676,9 @@
     <ClCompile Include="Ui\Settings\SettingsCompositor.cpp" />
     <ClCompile Include="Ui\Settings\SettingsMachineCatalog.cpp" />
     <ClCompile Include="Ui\Settings\SettingsSheet.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsTabSparkle.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsPreviewScene.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsDriveAudition.cpp" />
     <ClCompile Include="Ui\Settings\SettingsSheetSize.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
@@ -731,6 +736,10 @@
     <ClCompile Include="Shell\Window\EmulatorWindow.cpp" />
     <ClCompile Include="Shell\Window\EmulatorWindowInput.cpp" />
     <ClCompile Include="Shell\Components\ShellChrome.cpp" />
+    <ClCompile Include="Shell\Components\ShellFrameRateReadout.cpp" />
+    <ClCompile Include="Shell\Components\ShellNotices.cpp" />
+    <ClCompile Include="Shell\Components\ShellStandInBar.cpp" />
+    <ClCompile Include="Shell\Components\ShellToolbarEntries.cpp" />
     <ClCompile Include="Shell\Components\ShellRenderer.cpp" />
     <ClCompile Include="Shell\Components\ShellWindow.cpp" />
     <ClCompile Include="Ui\Chrome\ChromeBand.cpp" />
@@ -739,6 +748,8 @@
     <ClCompile Include="Shell\ShellDebugger.cpp" />
     <ClCompile Include="Shell\EmulatorShellDebuggerHost.cpp" />
     <ClCompile Include="Shell\Components\ShellInput.cpp" />
+    <ClCompile Include="Shell\Components\ShellControllers.cpp" />
+    <ClCompile Include="Shell\Components\ShellMouseInput.cpp" />
     <ClCompile Include="Shell\EmulatorShellInputHost.cpp" />
     <ClCompile Include="Shell\Components\ShellDisks.cpp" />
     <ClCompile Include="Shell\EmulatorShellPrefs.cpp" />
@@ -1025,6 +1036,7 @@
     <ClInclude Include="Debugger\Reverse\Replayer.h" />
     <ClInclude Include="Debugger\Reverse\ReplayDiskCopier.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseStepSearch.h" />
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
     <ClInclude Include="Debugger\Reverse\ReverseHost.h" />
     <ClInclude Include="Debugger\Reverse\DivergenceGate.h" />
@@ -1095,6 +1107,7 @@
     <ClInclude Include="Debugger\ITapeControl.h" />
     <ClInclude Include="Debugger\IRunObserver.h" />
     <ClInclude Include="Debugger\IRunDriver.h" />
+    <ClInclude Include="Debugger\HeatTypes.h" />
     <ClInclude Include="Core\EmuCpu.h" />
     <ClInclude Include="Core\ICycleSink.h" />
     <ClInclude Include="Core\IFloatingBusSource.h" />
@@ -1263,6 +1276,7 @@
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />
     <ClInclude Include="Devices\Disk\WriteProtectChange.h" />
+    <ClInclude Include="Devices\Disk\BayChange.h" />
     <ClInclude Include="Machines\Apple2\Common\IVideoTiming.h" />
     <ClInclude Include="Machines\Apple2\Common\VideoScanner.h" />
     <ClInclude Include="Machines\Apple2\Common\VideoTiming.h" />
@@ -1369,7 +1383,7 @@
     <ClInclude Include="Config\CrtResolver.h" />
     <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
-    <ClInclude Include="UiUi\UiCommandTypes.h" />
+    <ClInclude Include="Ui\UiCommandTypes.h" />
     <ClInclude Include="Ui\ColorUtil.h" />
     <ClInclude Include="Machines\MachineDefinition.h" />
     <ClInclude Include="Machines\MachineDefinitions.h" />
@@ -1437,6 +1451,9 @@
     <ClInclude Include="Ui\Settings\SettingsMachineCatalog.h" />
     <ClInclude Include="Ui\Settings\SettingsCompositor.h" />
     <ClInclude Include="Ui\Settings\SettingsSheet.h" />
+    <ClInclude Include="Ui\Settings\SettingsTabSparkle.h" />
+    <ClInclude Include="Ui\Settings\SettingsPreviewScene.h" />
+    <ClInclude Include="Ui\Settings\SettingsDriveAudition.h" />
     <ClInclude Include="Ui\Settings\SettingsSheetSize.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
@@ -1480,17 +1497,24 @@
     <ClInclude Include="D3DRenderer.h" />
     <ClInclude Include="Shell\EmulatorShell.h" />
     <ClInclude Include="Shell\ShellDebugger.h" />
+    <ClInclude Include="Shell\ShellDebuggerPrefs.h" />
     <ClInclude Include="Shell\IDebuggerHost.h" />
     <ClInclude Include="Shell\IHistoryClient.h" />
     <ClInclude Include="Shell\EmulatorShellDebuggerHost.h" />
     <ClInclude Include="Config\DebuggerSettings.h" />
     <ClInclude Include="Shell\DebuggerSliceHooks.h" />
     <ClInclude Include="Shell\Components\ShellInput.h" />
+    <ClInclude Include="Shell\Components\ShellControllers.h" />
+    <ClInclude Include="Shell\Components\ShellMouseInput.h" />
     <ClInclude Include="Shell\IInputHost.h" />
     <ClInclude Include="Shell\EmulatorShellInputHost.h" />
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="Shell\Components\ShellAudio.h" />
     <ClInclude Include="Shell\Components\ShellChrome.h" />
+    <ClInclude Include="Shell\Components\ShellFrameRateReadout.h" />
+    <ClInclude Include="Shell\Components\ShellNotices.h" />
+    <ClInclude Include="Shell\Components\ShellStandInBar.h" />
+    <ClInclude Include="Shell\Components\ShellToolbarEntries.h" />
     <ClInclude Include="Shell\Components\ShellRenderer.h" />
     <ClInclude Include="Shell\Components\ShellWindow.h" />
     <ClInclude Include="Ui\Chrome\ChromeBand.h" />
@@ -1505,6 +1529,8 @@
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="Shaders\ShaderResourceIds.h" />
     <ClInclude Include="Machines\IMachine.h" />
     <ClInclude Include="Machines\Apple2\Apple2\Apple2.h" />
     <ClInclude Include="Machines\Apple2\Apple2Plus\Apple2Plus.h" />
@@ -1529,6 +1555,7 @@
     <ClInclude Include="Config\MacAddress.h" />
     <ClInclude Include="Config\NetworkCardSettings.h" />
     <ClInclude Include="Config\HistorySettings.h" />
+    <ClInclude Include="Config\CrtPresets.h" />
     <ClInclude Include="Devices\Network\IGuestPacketSink.h" />
     <ClInclude Include="Devices\Network\VirtualSubnet.h" />
     <ClInclude Include="Devices\Network\PacketCodec.h" />
@@ -1540,6 +1567,7 @@
     <ClInclude Include="Devices\Network\VirtualNetwork.h" />
     <ClInclude Include="Devices\Network\W5100SocketBridge.h" />
     <ClInclude Include="Machines\Apple2\Common\UthernetCard.h" />
+    <ClInclude Include="Machines\Apple2\Common\ReadEdges.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
   </ItemGroup>
   <ItemGroup>

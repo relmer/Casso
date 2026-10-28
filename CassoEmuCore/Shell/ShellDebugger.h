@@ -14,6 +14,7 @@
 #include "Shell/IHistoryClient.h"
 #include "Shell/ScratchCallReplayer.h"
 #include "Shell/ScratchHeatReplayer.h"
+#include "Shell/ShellDebuggerPrefs.h"
 #include "Ui/Debugger/DebuggerActions.h"
 #include "Ui/Debugger/DebuggerViewState.h"
 #include "Ui/Debugger/DebuggerWindow.h"
@@ -202,8 +203,8 @@ public:
     void    SetDebuggerTraceTop      (std::optional<uint64_t> first) override;
     void    SendDebuggerEventLogRequest (DebugLogKind kind, const std::string & request) override;
     void    TakeDebuggerEventLogs       (DebugLogDeltas & deltas) override;
-    std::string  GetDebuggerEventLogOptions (DebugLogKind kind) override;
-    void         SetDebuggerEventLogOptions (DebugLogKind kind, const std::string & text) override;
+    std::string  GetDebuggerEventLogOptions (DebugLogKind kind) override { return m_prefs.GetDebuggerEventLogOptions (kind); }
+    void         SetDebuggerEventLogOptions (DebugLogKind kind, const std::string & text) override { m_prefs.SetDebuggerEventLogOptions (kind, text); }
     void    SetDebuggerHeatMapShown  (bool shown) override;
     void    SetDebuggerHeatColumnsShown (bool shown) override;
     void    SetDebuggerBasicShown    (bool isVisible) override;
@@ -211,59 +212,66 @@ public:
     void    ScrollDebuggerCode       (int lines, int view) override;
     void    OnDebuggerWindowClosed   () override;
     void    DetachDebugger           () override;
-    std::string  GetDebuggerKeyScheme () override;
-    void         SetDebuggerKeyScheme (const std::string & name) override;
-    std::string  GetDebuggerTheme     () override;
+    std::string  GetDebuggerKeyScheme () override { return m_prefs.GetDebuggerKeyScheme(); }
+    void         SetDebuggerKeyScheme (const std::string & name) override { m_prefs.SetDebuggerKeyScheme (name); }
+    std::string  GetDebuggerTheme     () override { return m_prefs.GetDebuggerTheme(); }
     bool         IsBeamOverlayOn      () override { return m_isBeamOverlayOn.load (memory_order_acquire); }
     void         SetBeamOverlayOn     (bool on) override;
-    void         SetDebuggerTheme     (const std::string & name) override;
+    void         SetDebuggerTheme     (const std::string & name) override { m_prefs.SetDebuggerTheme (name); }
     ReverseOptions  GetReverseOptions () override;
     void            SetReverseOptions (const ReverseOptions & options) override;
     bool            IsReplayingHistory () override;
     ReplayProgress  GetReplayProgress  () override;
     void            StopReplay         () override;
-    std::string  GetDebuggerLayout    () override;
-    void         SetDebuggerLayout    (const std::string & text) override;
-    std::string  GetDebuggerClosedPanes () override;
-    void         SetDebuggerClosedPanes (const std::string & text) override;
-    std::string  GetDebuggerCommandBarDock () override;
-    void         SetDebuggerCommandBarDock (const std::string & text) override;
-    std::string  GetDebuggerTimelineDock   () override;
-    void         SetDebuggerTimelineDock   (const std::string & text) override;
+    std::string  GetDebuggerLayout    () override { return m_prefs.GetDebuggerLayout(); }
+    void         SetDebuggerLayout    (const std::string & text) override { m_prefs.SetDebuggerLayout (text); }
+    std::string  GetDebuggerClosedPanes () override { return m_prefs.GetDebuggerClosedPanes(); }
+    void         SetDebuggerClosedPanes (const std::string & text) override { m_prefs.SetDebuggerClosedPanes (text); }
+    std::string  GetDebuggerCommandBarDock () override { return m_prefs.GetDebuggerCommandBarDock(); }
+    void         SetDebuggerCommandBarDock (const std::string & text) override { m_prefs.SetDebuggerCommandBarDock (text); }
+    std::string  GetDebuggerTimelineDock   () override { return m_prefs.GetDebuggerTimelineDock(); }
+    void         SetDebuggerTimelineDock   (const std::string & text) override { m_prefs.SetDebuggerTimelineDock (text); }
 
     HistoryThumbnails *  GetHistoryThumbnails () override;
     void                 SeekHistoryCycle     (uint64_t cycle, bool isInterim) override;
     bool                 IsHistorySeekBusy    () const override;
-    std::string  GetDebuggerFocusedPane () override;
-    void         SetDebuggerFocusedPane (const std::string & text) override;
-    bool         IsDebuggerEchoingActions  () override;
-    void         SetDebuggerEchoingActions (bool isEchoing) override;
-    std::string  GetDebuggerWindowState (const std::string & name) override;
+    std::string  GetDebuggerFocusedPane () override { return m_prefs.GetDebuggerFocusedPane(); }
+    void         SetDebuggerFocusedPane (const std::string & text) override { m_prefs.SetDebuggerFocusedPane (text); }
+    bool         IsDebuggerEchoingActions  () override { return m_prefs.IsDebuggerEchoingActions(); }
+    void         SetDebuggerEchoingActions (bool isEchoing) override { m_prefs.SetDebuggerEchoingActions (isEchoing); }
+    std::string  GetDebuggerWindowState (const std::string & name) override { return m_prefs.GetDebuggerWindowState (name); }
     std::map<std::string, std::string>  GetProjectWindowStrings () const;
     void         SetProjectWindowStrings (const std::map<std::string, std::string> & strings);
-    void         SetDebuggerWindowState (const std::string & name, const std::string & text) override;
-    int          GetDebuggerTextZoomPercent () override;
-    void         SetDebuggerTextZoomPercent (int percent) override;
-    std::string  GetDebuggerDisassemblyOptions () override;
-    void         SetDebuggerDisassemblyOptions (const std::string & text) override;
-    std::string  GetDebuggerHeatMapOptions () override;
-    void         SetDebuggerHeatMapOptions (const std::string & text) override;
+    void         SetDebuggerWindowState (const std::string & name, const std::string & text) override { m_prefs.SetDebuggerWindowState (name, text); }
+    int          GetDebuggerTextZoomPercent () override { return m_prefs.GetDebuggerTextZoomPercent(); }
+    void         SetDebuggerTextZoomPercent (int percent) override { m_prefs.SetDebuggerTextZoomPercent (percent); }
+    std::string  GetDebuggerDisassemblyOptions () override { return m_prefs.GetDebuggerDisassemblyOptions(); }
+    void         SetDebuggerDisassemblyOptions (const std::string & text) override { m_prefs.SetDebuggerDisassemblyOptions (text); }
+    std::string  GetDebuggerHeatMapOptions () override { return m_prefs.GetDebuggerHeatMapOptions(); }
+    void         SetDebuggerHeatMapOptions (const std::string & text) override { m_prefs.SetDebuggerHeatMapOptions (text); }
     void         ResetDebuggerHeatMap      () override;
     void         SendDebuggerHeatMapRequest (const std::string & words) override;
-    std::string  GetDebuggerHeatMapRanges  () override;
-    void         SetDebuggerHeatMapRanges  (const std::string & text) override;
-    std::string  GetDebuggerOpenViews () override;
-    void         SetDebuggerOpenViews (const std::string & text) override;
+    std::string  GetDebuggerHeatMapRanges  () override { return m_prefs.GetDebuggerHeatMapRanges(); }
+    void         SetDebuggerHeatMapRanges  (const std::string & text) override { m_prefs.SetDebuggerHeatMapRanges (text); }
+    std::string  GetDebuggerOpenViews () override { return m_prefs.GetDebuggerOpenViews(); }
+    void         SetDebuggerOpenViews (const std::string & text) override { m_prefs.SetDebuggerOpenViews (text); }
     bool         TakeDebuggerProjectState () override;
     bool         TryGetDebuggerProject    (DebugProject & project) override;
     void         SetDebuggerStartupCommands (const std::vector<DebugProject::StartupCommand> & commands) override;
-    std::string  GetDebuggerPlacementKey () const;
-    bool         TryGetDebuggerPlacement (RECT & rectPx) override;
-    void         SetDebuggerPlacement    (const RECT & rectPx) override;
+    bool         TryGetDebuggerPlacement (RECT & rectPx) override { return m_prefs.TryGetDebuggerPlacement (rectPx); }
+    void         SetDebuggerPlacement    (const RECT & rectPx) override { m_prefs.SetDebuggerPlacement (rectPx); }
     SourceLookup FindDebuggerSource   (const DebugSourceFile & record, const std::wstring & debugFilePath,
-                                       const std::string & programKey) override;
+                                       const std::string & programKey) override
+    {
+        return m_prefs.FindDebuggerSource (record, debugFilePath, programKey);
+    }
+
     SourceLookup MatchDroppedDebuggerSource (const std::vector<DebugSourceFile> & files, const std::wstring & path,
-                                             const std::string & programKey, int & recordIndex) override;
+                                             const std::string & programKey, int & recordIndex) override
+    {
+        return m_prefs.MatchDroppedDebuggerSource (files, path, programKey, recordIndex);
+    }
+
     bool         DoesDebuggerFileExist      (const std::wstring & path) override;
 
 public:
@@ -365,6 +373,9 @@ private:
     // of the same restore, so the user is not offered a merge.
     std::optional<ProjectScope>                               m_restoredScope;
 
+    // The debugger window's preferences, written under the project mutex.
+    ShellDebuggerPrefs                                        m_prefs { m_host, m_cpuManager, m_settings, m_projectMutex };
+
     void            OpenProjectStore    ();
     ProjectScope    GetProjectScope     ();
     void            NoteBootDisk        ();
@@ -403,6 +414,8 @@ private:
     bool                             m_wasPausedAtDebugBuild = false;
     bool                             m_wasHeatRebuilding     = false;   // the last build's heat map awaited its rebuilt heat
     bool                             m_wasCallRebuilding     = false;   // the last build's call stack awaited its rebuilt record
+    bool                             m_wasStepping           = false;   // a step or a trace run was under way at the last pass
+    ULONGLONG                        m_steppingSince         = 0;       // the first pass during it
 
     // While the window is closed and BRKUNINIT keeps the heat map on, how
     // often it is folded, and when it last was.

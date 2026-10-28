@@ -127,6 +127,15 @@ public:
     HRESULT  LoadAcceleratorTable       (HINSTANCE hInstance);
     bool     TranslateAcceleratorMessage (MSG & msg);
 
+    // The shell's window message handlers for a move, the OS drag loop, the
+    // minimum track size and a resize, which lays the chrome out for the
+    // new size.
+    void               OnMoved         ();
+    void               OnEnterSizeMove ();
+    void               OnExitSizeMove  ();
+    DxuiMessageResult  ClampMinMax     (MINMAXINFO * info);
+    void               LayOutForSize   (UINT widthPx, UINT heightPx);
+
 
 private:
     EmulatorShell  & m_shell;
@@ -163,4 +172,9 @@ private:
 
     // The per-monitor placement persistence, backed by GlobalUserPrefs JSON.
     std::unique_ptr<WindowManager>            m_windowManager;
+
+    // Inside the OS drag loop, where a move's placement is saved at its end;
+    // and the maximized size the OS last offered, logged once per change.
+    bool                                 m_inSizeMove      = false;
+    POINT                                m_lastMaxSize     = { 0, 0 };
 };

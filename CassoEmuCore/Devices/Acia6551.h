@@ -5,6 +5,7 @@
 #include "Core/MemoryDevice.h"
 #include "Core/IInterruptController.h"
 #include "Core/IMachineState.h"
+#include "Debugger/IDiagnosticsProvider.h"
 #include "Devices/SerialByteQueue.h"
 
 class MemoryBus;
@@ -59,7 +60,7 @@ struct InputRecord;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Acia6551 : public MemoryDevice, public IMachineState
+class Acia6551 : public MemoryDevice, public IMachineState, public IDiagnosticsProvider
 {
 public:
     // Slot I/O geometry: slot n decodes $C080 + n*16; the ACIA sits at
@@ -187,6 +188,20 @@ public:
     static constexpr uint32_t  kStateTag     = IMachineState::MakeTag ('A', 'C', 'I', 'A');
     static constexpr uint16_t  kStateVersion = 2;
 
+    // IDiagnosticsProvider, for a port that is a device by itself, as each
+    // of the //c's is: the id and title come from the builder. A card with
+    // a 6551 adds its rows to the card's panel through AddDiagnostics.
+    void         SetDiagnosticsName  (std::string id, std::string title) { m_diagnosticsId = std::move (id); m_diagnosticsTitle = std::move (title); }
+    std::string  GetDiagnosticsId    () const override { return m_diagnosticsId; }
+    std::string  GetDiagnosticsTitle () const override { return m_diagnosticsTitle; }
+    void         GetDiagnostics      (DiagnosticsSnapshot & snapshot) const override;
+    void         AddIoRegisters      (std::vector<DiagnosticsIoRegister> & registers) const override;
+
+    // The four registers, each description after owner: a card's name and
+    // slot, or a port's title.
+    void         AddRegisterDescriptions (std::vector<DiagnosticsIoRegister> & registers, const std::string & owner) const;
+    void         AddDiagnostics      (DiagnosticsSnapshot & snapshot) const;
+
 private:
     // Fixed point: cycle counts are stored scaled by 2^16 so pacing never
     // accumulates rounding.
@@ -258,4 +273,7 @@ private:
     InputJournal         *    m_inputJournal = nullptr;
     uint16_t                  m_chipIndex    = 0;
     const HostInputGate  *    m_inputGate    = nullptr;
+
+    std::string               m_diagnosticsId;
+    std::string               m_diagnosticsTitle;
 };

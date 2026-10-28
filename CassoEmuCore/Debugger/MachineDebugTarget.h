@@ -45,6 +45,7 @@ public:
     Byte                ReadIo            (Word address) override;
     void                WriteIo           (Word address, Byte value) override;
     void                GetSoftSwitches   (std::vector<SoftSwitch> & switches) const override;
+    bool                TryGetExpansionRomSlot (int & slot) const override;
 
     void                SetRunObserver    (IRunObserver * observer) override;
     HRESULT             StartRun          (const RunRequest & request) override;

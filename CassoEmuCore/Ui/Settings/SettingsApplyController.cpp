@@ -514,7 +514,7 @@ void SettingsApplyController::CommitApply()
                     }
                 }
 
-                m_emuShell->GetInput().SyncPaddleSourceList();
+                m_emuShell->GetInput().GetControllers().SyncPaddleSourceList();
             }
         }
 

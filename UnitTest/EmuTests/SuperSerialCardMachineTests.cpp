@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Core/MachineConfig.h"
+#include "Core/StateReader.h"
+#include "Core/StateWriter.h"
 #include "Core/TextEncoding.h"
 #include "Devices/Acia6551.h"
 #include "Devices/AciaEndpoints.h"
@@ -134,6 +136,47 @@ namespace SuperSerialCardMachineTestNs
 
                 (void) bus.ReadByte (0xCFFF);
                 Assert::IsFalse (card->IsExpansionRomSelected(), L"$CFFF deselects");
+            }
+        }
+
+
+        //  A saved machine has the card's 6551 and its expansion-ROM latch,
+        //  so a load, or a replay from a keyframe, puts both back.
+        TEST_METHOD (TheMachineStateHasTheCardsAciaAndLatch)
+        {
+            for (const char * id : { "Apple2Plus", "Apple2e" })
+            {
+                TestMachine        machine (id, EnableCard);
+                SuperSerialCard  * card     = machine.GetRefs().superSerialCard;
+                MemoryBus        & bus      = machine.GetMemoryBus();
+                std::wstring       name     = TextEncoding::NarrowToWide (id);
+                StateWriter        writer;
+                HRESULT            hr       = S_OK;
+
+
+
+                machine.PowerCycle();
+                Assert::AreEqual (S_OK, card->SetFirmware (MakeIdFirmware()));
+
+                bus.WriteByte (0xC0AA, 0x0B);
+                (void) bus.ReadByte (0xC205);
+                Assert::IsTrue (card->IsExpansionRomSelected(), name.c_str());
+
+                hr = machine.SaveState (writer);
+                Assert::AreEqual (S_OK, hr, (name + L": SaveState").c_str());
+
+                bus.WriteByte (0xC0AA, 0x00);
+                (void) bus.ReadByte (0xCFFF);
+
+                {
+                    StateReader  reader (writer.GetBytes());
+
+                    hr = machine.LoadState (reader);
+                    Assert::AreEqual (S_OK, hr, (name + L": LoadState").c_str());
+                }
+
+                Assert::AreEqual<Byte> (0x0B, card->GetAcia().GetCommand(), (name + L": the 6551's command register").c_str());
+                Assert::IsTrue (card->IsExpansionRomSelected(), (name + L": the expansion-ROM latch").c_str());
             }
         }
 

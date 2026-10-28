@@ -235,7 +235,7 @@ void MemoryMapBar::PlaceRuns()
     {
         int  end = first + 1;
 
-        while (end < pages && GetSourceOf (end, false) == GetSourceOf (first, false) && GetSourceOf (end, true) == GetSourceOf (first, true))
+        while (end < pages && IsSameRun (first, end, false) && IsSameRun (first, end, true))
         {
             end++;
         }
@@ -256,7 +256,7 @@ void MemoryMapBar::PlaceRuns()
         {
             int  end = first + 1;
 
-            while (end < pages && GetSourceOf (end, isWrite) == GetSourceOf (first, isWrite))
+            while (end < pages && IsSameRun (first, end, isWrite))
             {
                 end++;
             }
@@ -434,6 +434,79 @@ MemorySource MemoryMapBar::GetSourceOf (int page, bool isWrite) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MemoryMapBar::IsInExpansionRom
+//
+//  A page of the selected card's ROM at $C800-$CEFF, which is a run apart
+//  from the slot pages at $C100-$C7FF.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryMapBar::IsInExpansionRom (int page, bool isWrite) const
+{
+    constexpr int  kExpansionPage = 0xC8;
+
+
+
+    return m_map.expansionSlot != 0 && page >= kExpansionPage && GetSourceOf (page, isWrite) == MemorySource::SlotRom;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::IsSameRun
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool MemoryMapBar::IsSameRun (int page, int other, bool isWrite) const
+{
+    return GetSourceOf (page, isWrite) == GetSourceOf (other, isWrite) && IsInExpansionRom (page, isWrite) == IsInExpansionRom (other, isWrite);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetRunLabel
+//
+//  The name drawn in the run starting at first: the source's, or for the
+//  expansion ROM the slot's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryMapBar::GetRunLabel (int first, bool isWrite) const
+{
+    return IsInExpansionRom (first, isWrite) ? std::format (L"Slot {} ROM", m_map.expansionSlot) : std::wstring (GetSourceLabel (GetSourceOf (first, isWrite)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryMapBar::GetRunDescription
+//
+//  The run's source in its tip: the memory map key's words, or for the
+//  expansion ROM the slot's.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring MemoryMapBar::GetRunDescription (int first, bool isWrite) const
+{
+    return IsInExpansionRom (first, isWrite) ? std::format (L"Slot {} ROM", m_map.expansionSlot) : std::wstring (GetSourceDescription (GetSourceOf (first, isWrite)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MemoryMapBar::TryGetTipAt
 //
 //  Over a run of pages from one source, in either strip: the source and the
@@ -479,7 +552,7 @@ bool MemoryMapBar::TryGetTipAt (POINT point, std::wstring & text) const
 
     source = GetSourceOf (run->first, isWrite);
     text   = std::format (L"{}  ${:04X}-${:04X}",
-                          (source == MemorySource::None) ? (isWrite ? L"Not written" : L"Not read") : GetSourceDescription (source),
+                          (source == MemorySource::None) ? std::wstring (isWrite ? L"Not written" : L"Unused (floating bus)") : GetRunDescription (run->first, isWrite),
                           run->first * 0x100, run->end * 0x100 - 1);
     return true;
 }
@@ -572,7 +645,7 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
         MemorySource     source = GetSourceOf (first, isWrite);
         int              end    = first + 1;
         uint32_t         color  = (source == MemorySource::None) ? theme.Divider() : GetColorOf (source);
-        const wchar_t  * label  = (source == MemorySource::None) ? (isWrite ? L"Not written" : L"Not mapped") : GetSourceLabel (source);
+        std::wstring     label  = (source == MemorySource::None) ? (isWrite ? L"Not written" : L"Floating bus") : GetRunLabel (first, isWrite);
         uint32_t         ink    = (source == MemorySource::None) ? theme.ForegroundMuted() : DxuiColor::ChooseInkFor (color, 0xFF000000u, 0xFFFFFFFFu);
         float            fitted = size;
         float            y      = GetPageY (first, isWrite);
@@ -581,7 +654,7 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
         float            h      = 0.0f;
         HRESULT          fit    = E_FAIL;
 
-        while (end < (int) DiagnosticsMemoryMap::kPageCount && GetSourceOf (end, isWrite) == source)
+        while (end < (int) DiagnosticsMemoryMap::kPageCount && IsSameRun (first, end, isWrite))
         {
             end++;
         }
@@ -589,18 +662,18 @@ void MemoryMapBar::PaintStrip (IDxuiPainter & painter, IDxuiTextRenderer & text,
         height = GetPageY (end, isWrite) - y;
         painter.FillRect (x, y, strip, height, color);
 
-        fit = (*label != L'\0') ? text.MeasureString (label, size, font.face, w, h) : E_FAIL;
+        fit = !label.empty() ? text.MeasureString (label.c_str(), size, font.face, w, h) : E_FAIL;
 
         //  A run kMinRunDip tall, the I/O page's, takes the name a size down.
         if (SUCCEEDED (fit) && h + pad * 2.0f > height)
         {
             fitted = size * std::max (0.6f, (height - pad * 2.0f) / std::max (h, 1.0f));
-            fit    = text.MeasureString (label, fitted, font.face, w, h);
+            fit    = text.MeasureString (label.c_str(), fitted, font.face, w, h);
         }
 
         if (SUCCEEDED (fit) && h <= height && w + pad * 2.0f <= strip)
         {
-            hr = text.DrawString (label, x, y, strip, height, ink, fitted, font.face,
+            hr = text.DrawString (label.c_str(), x, y, strip, height, ink, fitted, font.face,
                                   DxuiTextHAlign::Center, DxuiTextVAlign::Center, DxuiFontWeight::Normal, false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
@@ -657,7 +730,7 @@ void MemoryMapBar::PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & the
 
     for (int page = 0; page < (int) DiagnosticsMemoryMap::kPageCount; page++)
     {
-        if (page == 0 || GetSourceOf (page, isWrite) != GetSourceOf (page - 1, isWrite))
+        if (page == 0 || !IsSameRun (page - 1, page, isWrite))
         {
             draw (std::format (L"${:04X}", page * 0x100), std::clamp (GetPageY (page, isWrite) - line / 2.0f, top, lowest));
         }

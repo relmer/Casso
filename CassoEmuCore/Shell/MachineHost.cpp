@@ -26,6 +26,7 @@
 #include "Machines/Apple2/Common/SiriusJoyport.h"
 #include "Machines/Apple2/Common/CharacterRomData.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 #include "Devices/Acia6551.h"
 
@@ -2058,6 +2059,8 @@ std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders()
         m_refs.diskController,
         m_refs.mockingboard,
         m_refs.printerCard,
+        m_refs.superSerialCard,
+        m_refs.uthernet,
     };
 
 
@@ -2067,6 +2070,16 @@ std::vector<const IDiagnosticsProvider *> MachineHost::GetDiagnosticsProviders()
         if (device != nullptr)
         {
             providers.push_back (device);
+        }
+    }
+
+    //  A 6551 that is a port by itself, as each of the //c's is; a card's
+    //  is in the card's panel.
+    for (const Acia6551 * acia : m_refs.serialChips)
+    {
+        if (!acia->GetDiagnosticsId().empty())
+        {
+            providers.push_back (acia);
         }
     }
 

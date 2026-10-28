@@ -109,17 +109,18 @@ DebuggerViewSnapshot DebuggerViewState::Build (DebugSession & session, bool isPa
 DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, bool isPaused, IParallelRunner * runner) const
 {
     static constexpr char         kFlagNames[]   = "NV-BDIZC";
-    DebuggerViewSnapshot          snapshot;
-    const Cpu6502Registers        r              = session.GetTarget().GetRegisters();
-    const VideoPosition           video          = session.GetTarget().GetVideoPosition();
-    const StackData               stack          = RegisterHandlers::MakeStackData (session.GetTarget());
-    const WatchListData           watches        = WatchHandlers::MakeList (session, WatchListKind::Watch, false);
-    const WatchListData           pointers       = WatchHandlers::MakeList (session, WatchListKind::ZeroPage);
-    const WatchListData           bookmarks      = WatchHandlers::MakeList (session, WatchListKind::Bookmark);
-    BreakpointListData            breakpoints;
-    DebugDiskState                diskState;
-    InlineParallelRunner          inlineRunner;
-    IParallelRunner             & run            = (runner != nullptr) ? *runner : inlineRunner;
+    DebuggerViewSnapshot      snapshot;
+    const Cpu6502Registers    r            = session.GetTarget().GetRegisters();
+    const VideoPosition       video        = session.GetTarget().GetVideoPosition();
+    const DebugMachineInfo    machineInfo  = session.GetTarget().GetMachineInfo();
+    const StackData           stack        = RegisterHandlers::MakeStackData (session.GetTarget());
+    const WatchListData       watches      = WatchHandlers::MakeList (session, WatchListKind::Watch, false);
+    const WatchListData       pointers     = WatchHandlers::MakeList (session, WatchListKind::ZeroPage);
+    const WatchListData       bookmarks    = WatchHandlers::MakeList (session, WatchListKind::Bookmark);
+    BreakpointListData        breakpoints;
+    DebugDiskState            diskState;
+    InlineParallelRunner      inlineRunner;
+    IParallelRunner         & run          = (runner != nullptr) ? *runner : inlineRunner;
     const IParallelRunner::Job    jobs[]         = { [this, &session, &snapshot] { BuildCodeViews   (session, snapshot); },
                                                      [this, &session, &snapshot] { BuildMemoryPanes (session, snapshot); },
                                                      [this, &session, &snapshot] { BuildTrace       (session, snapshot); } };
@@ -138,7 +139,8 @@ DebuggerViewSnapshot DebuggerViewState::BuildCaptured (DebugSession & session, b
     snapshot.canRedoBreakpoints  = m_breakpointHistory.CanRedo();
     snapshot.undoBreakpointsText = m_breakpointHistory.GetUndoText();
     snapshot.redoBreakpointsText = m_breakpointHistory.GetRedoText();
-    snapshot.machine        = session.GetTarget().GetMachineInfo().name;
+    snapshot.machine        = machineInfo.name;
+    snapshot.ioRegisters    = machineInfo.ioRegisters;
     snapshot.symbolSources  = DescribeSymbolSources (session.GetSymbols());
     snapshot.heatMapSymbols = GetHeatMapSymbols (session.GetSymbols());
 

@@ -390,6 +390,12 @@ void InputLogPane::FormatEvent (
             outMeaning = L"HOST mouse button " + outValue;
             break;
 
+        case InputEventType::HostSerialByte:
+            outAddress = std::format (L"Serial {}", address + 1);
+            outValue   = EventLogText::FormatByteChar (value);
+            outMeaning = L"HOST serial byte " + outValue;
+            break;
+
         case InputEventType::KbdDataRead:
             outAddress = std::format (L"${:04X}", address);
             outValue   = std::format (L"${:02X}", value);

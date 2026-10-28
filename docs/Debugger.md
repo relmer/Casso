@@ -187,7 +187,7 @@ These are Casso's own additions to AppleWin's set:
 | `PAUSE` | stops a running machine |
 | `BUDGET n` | limits every later run to `n` cycles (decimal); `BUDGET 0` removes the limit |
 | `SWITCHES` | lists the soft switches and whether each is on |
-| `MAP` | shows, for each address range, where reads and writes go now -- main or auxiliary RAM, ROM, language card bank 1 or 2, slot or internal ROM -- as the language card, auxiliary memory and ROM switches set them |
+| `MAP` | shows, for each address range, where reads and writes go now -- main or auxiliary RAM, ROM, language card bank 1 or 2, slot or internal ROM -- as the language card, auxiliary memory and ROM switches set them. $C800-$CEFF is the ROM of the slot whose card is selected there, or unused (floating bus) when no card is |
 | `STACK` | shows the stack pointer and the stack page above it |
 | `PATCH addr value...` | writes bytes the way a memory window edit does: into RAM, or into ROM so the machine runs the patched code; it will not write an I/O address, which is what `OUT` is for |
 
@@ -244,6 +244,11 @@ The beam is also what a read that drives no data returns. On the ][, ][+ and //e
 Symbol tables give addresses names in disassembly and in expressions. Casso
 builds the Monitor, Applesoft, DOS 3.3 and ProDOS tables in, adding the
 //e and //c memory soft switches on those machines.
+
+The registers of the Super Serial Card, the Uthernet II and the //c's serial
+ports have no symbols. Hover over an operand at one of them in the
+disassembly for a tip with the register's description, under the card's name
+and slot: "Super Serial Card, slot 2: 6551 status register".
 
 ```
 SYM LOAD "game.dbg"       load into the User table
@@ -1568,7 +1573,8 @@ character wider, so a box's edge does not crowd the addresses or the text.
 
 **View > Device panels** lists the machine's devices: the Disk II controller, the //e MMU
 and its memory map, the video switches, the keyboard, the Mockingboard, the
-printer card, the cassette deck and the clock. Each opens as a pane showing its registers and
+printer card, the Super Serial Card, the //c's two serial ports, the Uthernet II,
+the cassette deck and the clock. Each opens as a pane showing its registers and
 state, with the disk head position, the memory map, or level meters where the
 device has them. `PANEL LIST`, `PANEL name` (or `PANEL OPEN name` or
 `PANEL name OPEN`) and `PANEL CLOSE name` (or `PANEL name CLOSE`) do the same

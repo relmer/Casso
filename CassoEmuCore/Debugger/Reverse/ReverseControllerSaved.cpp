@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Debugger/Reverse/ReverseController.h"
+#include "Debugger/Reverse/ReverseStepSearch.h"
 
 #include "Debugger/Reverse/InputJournal.h"
 #include "Shell/MachineHost.h"
@@ -106,7 +107,7 @@ HRESULT ReverseController::StartFromSaved (
     CHR (hr);
 
     m_steps.reserve         (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
-    m_stackPointers.reserve (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
+    m_search->ReserveStackLevels (static_cast<size_t> (kept.intervalCycles / kMinInstructionCycles) + kStepSlack);
 
     m_machine.SetPosition (saved.segments[0].info.liveEndPosition);
 

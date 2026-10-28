@@ -1476,9 +1476,10 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
         name    = line.label;
         address = line.address;
     }
-    else if (column == (int) DisassemblyCells::kInstructionColumn && line.shownOperand != line.memoryOperand)
+    else if (column == (int) DisassemblyCells::kInstructionColumn)
     {
-        for (char ch : line.shownOperand)
+        //  The operand text differs from the address only for a symbol.
+        for (char ch : (line.shownOperand != line.memoryOperand) ? line.shownOperand : std::string())
         {
             if (std::isalnum ((unsigned char) ch) || ch == '_')
             {
@@ -1503,9 +1504,17 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
         }
     }
 
-    if (name.empty() || !list->GetCellTextRectPx (row, (size_t) column, anchor))
+    if (!list->GetCellTextRectPx (row, (size_t) column, anchor))
     {
         return false;
+    }
+
+    //  An operand with no symbol at a card's or port's register has the
+    //  register's description.
+    if (name.empty())
+    {
+        OffsetRect (&anchor, bounds.left, bounds.top);
+        return column == (int) DisassemblyCells::kInstructionColumn && TryGetIoRegisterTip (m_host.GetLatestSnapshot()->ioRegisters, address, text);
     }
 
     about = SymbolDescriptions::Find (name);
@@ -1518,4 +1527,31 @@ bool DisassemblyGroup::TryGetSymbolTip (POINT clientPx, RECT & anchor, std::wstr
 
     OffsetRect (&anchor, bounds.left, bounds.top);
     return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisassemblyGroup::TryGetIoRegisterTip
+//
+//  "$C0A9" and the register's description on the line below, for an
+//  address with one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DisassemblyGroup::TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegister> & registers, Word address, std::wstring & text)
+{
+    for (const DiagnosticsIoRegister & each : registers)
+    {
+        if (each.address == address)
+        {
+            text = std::format (L"${:04X}\n{}", address, TextEncoding::NarrowToWide (each.description));
+            return true;
+        }
+    }
+
+    return false;
 }

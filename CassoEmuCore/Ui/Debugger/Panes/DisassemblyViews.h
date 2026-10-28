@@ -165,6 +165,7 @@ public:
     //  Over a name in a view -- a line's label, or the symbol an operand is
     //  written with -- its address and what it is.
     bool                             TryGetSymbolTip  (POINT clientPx, RECT & anchor, std::wstring & text) const;
+    static bool                      TryGetIoRegisterTip (const std::vector<DiagnosticsIoRegister> & registers, Word address, std::wstring & text);
 
 private:
     void                             UpdateChanges  (const DebuggerViewSnapshot & snapshot);

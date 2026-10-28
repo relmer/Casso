@@ -454,6 +454,34 @@ namespace FloatingPanesRoutingTests
         }
 
 
+        //  While a floating pane's event is routed, its window is the one a
+        //  dialog the pane opens goes over; outside a route there is none, and
+        //  the debugger window is used.
+        TEST_METHOD (TheRoutedWindowIsTheFloatingPanesWhileItsEventRuns)
+        {
+            DockingHost         host;
+            FloatingPanes       floats (host);
+            DxuiDockedWindow  * window = nullptr;
+
+
+
+            host.floats = &floats;
+
+            floats.MarkSyncNeeded();
+            floats.Sync();
+            window = floats.Find (L"regs");
+            Assert::IsNotNull (window, L"regs floats in a window");
+
+            {
+                FloatingPanes::RouteScope  scope (floats, L"regs");
+
+                Assert::IsTrue (floats.GetRoutedHwnd() == window->GetHwnd(), L"the floating window, during the route");
+            }
+
+            Assert::IsNull (floats.GetRoutedHwnd(), L"none outside it");
+        }
+
+
         TEST_METHOD (EveryCaptionDragSavesTheLayout)
         {
             DockingHost          host;

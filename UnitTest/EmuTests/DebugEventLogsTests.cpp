@@ -4,6 +4,7 @@
 #include "Debugger/Events/DebugEventHistory.h"
 #include "Debugger/Events/MachineEventFeed.h"
 #include "Debugger/Reverse/ReverseController.h"
+#include "Devices/Acia6551.h"
 #include "Machines/Apple2/Common/IDisk2EventSink.h"
 #include "Shell/DebugEventLogs.h"
 #include "Shell/ScratchEventReplayer.h"
@@ -577,6 +578,44 @@ namespace DebugEventLogsTests
             }
 
             Assert::AreEqual ((size_t) 1, gaps);
+        }
+
+
+        //  A byte a serial port takes from a host attachment is host input, a
+        //  row of the input log with the port and the byte.
+        TEST_METHOD (ABytePushedToASerialPortIsAHostRow)
+        {
+            static constexpr Byte  kByte      = 'A';
+            TestMachine            machine    ("Apple2c");
+            ReverseController      controller (machine);
+            DebugEventLogs         logs       (machine);
+            InputLogDelta          delta;
+            const InputLogRow    * row        = nullptr;
+            HRESULT                hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+            AssertSucceeded (hr, L"Start");
+
+            logs.Start   (&controller);
+            logs.SetOpen (DebugLogKind::Input, true);
+
+            machine.GetRefs().serialChips[1]->EnqueueReceivedBytes (&kByte, 1);
+            machine.RunCycles (kSliceCycles);
+
+            logs.TakeDelta (delta);
+            logs.Stop();
+
+            for (const InputLogRow & each : delta.newer)
+            {
+                row = (each.kind == DebugLogRowKind::Event && each.event.type == InputEventType::HostSerialByte) ? &each : row;
+            }
+
+            Assert::IsNotNull (row, L"the byte is a row");
+            Assert::IsTrue    (row->event.category == InputEventCategory::Host, L"of host input");
+            Assert::AreEqual<Byte>     (kByte, row->event.payload.io.value, L"with the byte");
+            Assert::AreEqual<uint16_t> (1,     row->event.payload.io.address, L"and the port's index");
         }
 
 

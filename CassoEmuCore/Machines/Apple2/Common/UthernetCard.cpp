@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Machines/Apple2/Common/UthernetCard.h"
+#include "Debugger/DiagnosticsSnapshot.h"
 #include "Config/NetworkCardSettings.h"
 #include "Core/MachineConfig.h"
 
@@ -278,4 +279,139 @@ void UthernetCard::UpdateIrq()
     }
 
     m_irqAsserted = pending;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::GetDiagnostics
+//
+//  The registers are read from the chip's memory, never through the bus, so
+//  the address pointer does not move.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::GetDiagnostics (DiagnosticsSnapshot & snapshot) const
+{
+    DiagnosticsGroup                               card    { "Card", {} };
+    DiagnosticsGroup                               chip    { "W5100", {} };
+    DiagnosticsGroup                               sockets { "Sockets", {} };
+    std::array<Byte, W5100Registers::kMacLength>   mac     = {};
+    int                                            socket  = 0;
+
+
+
+    m_chip.GetSourceMac (mac);
+
+    card.rows.push_back (MakeTextRow ("Slot",   std::format ("{}", m_slot)));
+    card.rows.push_back (MakeFlagRow ("In use", IsActive(), "a socket or a host connection is open, so history is off"));
+
+    chip.rows.push_back (MakeByteRow ("Mode",        m_chip.PeekCommon (W5100Registers::kMr), { "RST", "", "", "PB", "PPPoE", "", "AI", "IND" }));
+    chip.rows.push_back (MakeTextRow ("MAC",         std::format ("{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])));
+    chip.rows.push_back (MakeTextRow ("IP address",  FormatIp (W5100Registers::kSipr)));
+    chip.rows.push_back (MakeTextRow ("Gateway",     FormatIp (W5100Registers::kGar)));
+    chip.rows.push_back (MakeTextRow ("Subnet mask", FormatIp (W5100Registers::kSubr)));
+    chip.rows.push_back (MakeByteRow ("Interrupt",   m_chip.PeekCommon (W5100Registers::kIr), { "CONFLICT", "UNREACH", "PPPoE", "", "S3", "S2", "S1", "S0" }));
+
+    for (socket = 0; socket < W5100::kSocketCount; socket++)
+    {
+        sockets.rows.push_back (MakeTextRow (std::format ("Socket {}", socket), FormatSocket (socket)));
+    }
+
+    snapshot.groups.push_back (std::move (card));
+    snapshot.groups.push_back (std::move (chip));
+    snapshot.groups.push_back (std::move (sockets));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::AddIoRegisters
+//
+//  The W5100's four indirect-mode registers, under the card's name and
+//  slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::AddIoRegisters (std::vector<DiagnosticsIoRegister> & registers) const
+{
+    std::string  owner = std::format ("{}, slot {}", GetDiagnosticsTitle(), m_slot);
+
+
+
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectMode),        owner + ": W5100 mode register" });
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectAddressHigh), owner + ": W5100 address register, high byte" });
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectAddressLow),  owner + ": W5100 address register, low byte" });
+    registers.push_back ({ (Word) (m_ioStart + W5100Registers::kIndirectData),        owner + ": W5100 data register: the byte at the address register's address" });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::FormatIp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string UthernetCard::FormatIp (Word address) const
+{
+    return std::format ("{}.{}.{}.{}",
+                        m_chip.PeekCommon (address),
+                        m_chip.PeekCommon ((Word) (address + 1)),
+                        m_chip.PeekCommon ((Word) (address + 2)),
+                        m_chip.PeekCommon ((Word) (address + 3)));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UthernetCard::FormatSocket
+//
+//  The socket's state by its W5100 name, and its port once it is open.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string UthernetCard::FormatSocket (int socket) const
+{
+    Byte         status = m_chip.GetSocketStatus (socket);
+    std::string  name;
+
+
+
+    switch (status)
+    {
+    case W5100Registers::kSockClosed:      name = "closed";       break;
+    case W5100Registers::kSockInit:        name = "TCP, open";    break;
+    case W5100Registers::kSockListen:      name = "TCP, listening"; break;
+    case W5100Registers::kSockSynSent:     name = "TCP, connecting"; break;
+    case W5100Registers::kSockSynReceived: name = "TCP, accepting"; break;
+    case W5100Registers::kSockEstablished: name = "TCP, connected"; break;
+    case W5100Registers::kSockFinWait:
+    case W5100Registers::kSockClosing:
+    case W5100Registers::kSockTimeWait:
+    case W5100Registers::kSockCloseWait:
+    case W5100Registers::kSockLastAck:     name = "TCP, closing"; break;
+    case W5100Registers::kSockUdp:         name = "UDP";          break;
+    case W5100Registers::kSockIpRaw:       name = "IP raw";       break;
+    case W5100Registers::kSockMacRaw:      name = "MAC raw";      break;
+    default:                               name = std::format ("status ${:02X}", status); break;
+    }
+
+    if (status == W5100Registers::kSockClosed || status == W5100Registers::kSockMacRaw)
+    {
+        return name;
+    }
+
+    return std::format ("{}, port {}", name, m_chip.GetSourcePort (socket));
 }

@@ -511,6 +511,11 @@ public:
 
     void  SetKeyOwnerFn (KeyOwnerFn fn)  { m_keyOwnerFn = std::move (fn); }
 
+    //  The window a modal goes over: the top-level window that owns the
+    //  foreground window when that is an enabled window of this thread, such
+    //  as the debugger window, else the fallback, the emulator window.
+    static HWND  ChooseDialogOwner (HWND foreground, HWND fallback);
+
 private:
 
     // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
@@ -584,6 +589,10 @@ private:
     // friend declarations are the pragmatic seam; no new global state is
     // introduced.
     friend class ShellChrome;
+    friend class ShellFrameRateReadout;
+    friend class ShellNotices;
+    friend class ShellStandInBar;
+    friend class ShellToolbarEntries;
     friend class ShellRenderer;
     friend class ShellWindow;
     friend class ShellDeskScene;
@@ -707,15 +716,6 @@ private:
     std::unique_ptr<DxuiHwndSource>  m_host;
 
     RECT                             m_viewportBoundsPx  = {};
-
-    // True between WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE. Inside the OS drag
-    // loop the window changes once per pixel and the end of the loop is the
-    // placement; outside it -- a snap layout, Win+arrow, a monitor removed --
-    // one change is one placement, and nothing else reports those.
-    bool                     m_inSizeMove     = false;
-    // The last maximized size the OS offered, so the trace prints a change
-    // rather than a line per pointer tick.
-    POINT                    m_lastMaxSize    = { 0, 0 };
 
 
     // Tools waiting on an insert or a reload, and hand-offs whose folder is

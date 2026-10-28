@@ -91,6 +91,7 @@ enum class InputEventType : uint8_t
     HostPaste       = 11,   // a pasted character
     HostMouseMove   = 12,   // payload.motion
     HostMouseButton = 13,   // payload.io.value: 1 down, 0 up
+    HostSerialByte  = 14,   // payload.io.address: the serial chip's index, payload.io.value: the byte
 };
 
 

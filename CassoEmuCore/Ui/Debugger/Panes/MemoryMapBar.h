@@ -81,13 +81,17 @@ private:
         float  bottom = 0.0f;
     };
 
-    void          PlaceRuns   ();
-    float         GetAxisY    (int page) const;
-    static void   ShareHeight (std::vector<Run> & runs, float top, float height, float minimum);
-    const Run *   FindRunAt   (float y, bool isWrite) const;
-    MemorySource  GetSourceOf (int page, bool isWrite) const;
-    void          PaintStrip  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
-    void          PaintBounds (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
+    void          PlaceRuns         ();
+    float         GetAxisY          (int page) const;
+    static void   ShareHeight       (std::vector<Run> & runs, float top, float height, float minimum);
+    const Run *   FindRunAt         (float y, bool isWrite) const;
+    MemorySource  GetSourceOf       (int page, bool isWrite) const;
+    bool          IsInExpansionRom  (int page, bool isWrite) const;
+    bool          IsSameRun         (int page, int other, bool isWrite) const;
+    std::wstring  GetRunLabel       (int first, bool isWrite) const;
+    std::wstring  GetRunDescription (int first, bool isWrite) const;
+    void          PaintStrip        (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
+    void          PaintBounds       (IDxuiTextRenderer & text, const IDxuiTheme & theme, bool isWrite) const;
 
     DiagnosticsMemoryMap               m_map;
     DxuiDpiScaler                      m_scaler;
