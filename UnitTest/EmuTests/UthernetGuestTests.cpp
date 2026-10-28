@@ -1163,7 +1163,7 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
         }
 
         // After a seek, the guest's ring is as it was then.
-        void  RestartReceive () { m_consumed = guest.Peek (kRxCount); }
+        void  RestartReceive() { m_consumed = guest.Peek (kRxCount); }
 
         Guest  guest;
 

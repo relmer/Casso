@@ -244,8 +244,7 @@ void TcpNat::NoteRewindSegment (
 void TcpNat::Rewind (uint64_t now)
 {
     static const TcpNatConnection::RewindPoint  s_kNone;
-
-    auto  it = m_connections.begin();
+    auto                                        it      = m_connections.begin();
 
 
 
