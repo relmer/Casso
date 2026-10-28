@@ -26,30 +26,25 @@ class PreviewFindBar
 public:
     PreviewFindBar (ExplorerPreviewManager & preview, ExplorerContext & context);
 
-    void  Create             ();
-    void  HandleFocusChanged (ExplorerPane focus);
-    bool  HandleBoxKey       (ExplorerPane focus, const DxuiKeyEvent & ev);
-    bool  IsCaretOn          (ExplorerPane focus) const;
+    void                  Create       ();
+    bool                  IsCaretOn    (ExplorerPane focus) const;
+    DxuiToolbarEditBox  * GetSearchBox () { return &m_searchBox; }
+    DxuiToolbarEditBox  * GetGoToBox   () { return &m_goToBox; }
+    bool                  FocusGoTo    ();
+    bool                  FocusFind    ();
+    bool                  CanFindNext  () const;
+    void                  FindNext     (bool incremental = false);
+    void                  GoToTyped    (const std::wstring & text);
 
-    DxuiToolbarEditBox *  GetSearchBox () { return &m_searchBox; }
-    DxuiToolbarEditBox *  GetGoToBox   () { return &m_goToBox; }
-
-    //  Focus to a box while the hex view is visible. Each returns whether focus
-    //  moved.
-    bool  FocusGoTo       ();
-    bool  FocusFind       ();
-
-    bool  CanFindNext         () const;
-    void  FindNext            (bool incremental = false);
-    void  GoToTyped           (const std::wstring & text);
+    void  HandleFocusChanged  (ExplorerPane focus);
+    bool  HandleBoxKey        (ExplorerPane focus, const DxuiKeyEvent & ev);
     void  HandleSearchChanged (const std::wstring & text);
 
 private:
     ExplorerPreviewManager  & m_preview;
     ExplorerContext         & m_context;
-
-    DxuiToolbarEditBox     m_searchBox;
-    DxuiToolbarEditBox     m_goToBox;
+    DxuiToolbarEditBox        m_searchBox;
+    DxuiToolbarEditBox        m_goToBox;
 
     //  The last search, as typed and as the bytes it matches.
     std::vector<Byte>      m_findBytes;

@@ -33,7 +33,6 @@ public:
     virtual void                           SaveSession     ()                                  = 0;
     virtual void                           ArmTick         ()                                  = 0;
     virtual void                           CloseWindow     ()                                  = 0;
-
     template <typename T, typename... Args>
     T *  CreateChild (Args &&... args) { return GetChildPanel().template CreateChild<T> (std::forward<Args> (args)...); }
 };

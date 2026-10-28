@@ -36,36 +36,21 @@ public:
     static constexpr int    kFindBoxMaxDip        = 720;
     static constexpr float  kFindBoxShare         = 0.3f;
 
-    //  The widgets, as children of the window, and their handlers once the
-    //  window has its HWND.
-    void  Create    ();
-    void  Configure ();
-
-    //  The two boxes in the toolbar's free span of the strip, the search box
-    //  sized from the width right of the tree.
-    void         Layout         (const RECT & free, const RECT & strip, int rightOfTreePx);
-    static RECT  GetAddressRect (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
-    void         ApplyTheme     (const DxuiTheme * theme) { m_suggest.SetTheme (theme); }
-
-    //  The address's lead icon and the search box's text for a new location.
-    void  HandleLocationChanged (const Location & location);
-
-    //  Pointer events: a press closes the suggestions, ahead of the window's
-    //  other routing; the boxes have the rest in the toolbar's row.
-    void     CloseSuggestionsOnPress (const DxuiMouseEvent & ev);
-    void     CloseSuggestions        () { m_suggest.Close(); }
-    bool     HandleMouse             (const DxuiMouseEvent & ev);
-    LPCWSTR  GetCursorForPoint       (POINT clientPx) const;
+    void         Create                  ();
+    void         Configure               ();
+    void         Layout                  (const RECT & free, const RECT & strip, int rightOfTreePx);
+    static RECT  GetAddressRect          (const RECT & free, const RECT & strip, const DxuiDpiScaler & scaler);
+    void         ApplyTheme              (const DxuiTheme * theme) { m_suggest.SetTheme (theme); }
+    void         CloseSuggestionsOnPress (const DxuiMouseEvent & ev);
+    void         CloseSuggestions        () { m_suggest.Close(); }
+    LPCWSTR      GetCursorForPoint       (POINT clientPx) const;
 
     //  Keys, and focus. The address being edited has its keys first.
-    bool  IsEditing          () const { return m_address->IsEditing(); }
-    bool  HandleKey          (const DxuiKeyEvent & ev) { return m_address->OnKey (ev); }
-    void  HandleFocusChanged (ExplorerPane focus);
-    void  ShowFocusCue       () { m_address->SetFocusCue (true); }
-    bool  IsCaretOn          () const { return m_findBox->IsCaretOn(); }
-
-    bool  WantsTick      () const { return m_address->WantsTick(); }
-    bool  Tick           (int64_t nowMs);
+    bool  IsEditing    () const { return m_address->IsEditing(); }
+    void  ShowFocusCue () { m_address->SetFocusCue (true); }
+    bool  IsCaretOn    () const { return m_findBox->IsCaretOn(); }
+    bool  WantsTick    () const { return m_address->WantsTick(); }
+    bool  Tick         (int64_t nowMs);
 
     //  Editing the address from a command, and the typed address dropped.
     void                                       BeginEdit               () { m_address->BeginEdit(); }
@@ -84,29 +69,27 @@ public:
     void                                       SearchLocation          (const std::wstring & query);
     void                                       LeaveSearch             ();
     std::wstring                               GetCassoSearchScope     ();
-    bool                                       HandleFindBoxKey        (const DxuiKeyEvent & ev);
     void                                       ShowAddressHistoryMenu  (const RECT & anchor);
+    void                                       ShowAddressSuggestions  (const std::wstring & typed);
+    std::vector<std::wstring>                  GetAddressHistory       () const;
+    static std::vector<std::wstring>           GetCompletions          (const std::wstring & typed);
+    void                                       ShowAddressContextMenu  (int x, int y);
+    static std::vector<std::wstring>           ReadExplorerTypedPaths  ();
+    static void                                WriteExplorerTypedPath  (const std::wstring & path);
+    void                                       ShowHistoryMenu         (bool forward, const RECT & anchor);
+    static std::wstring                        EscapeMnemonics         (const std::wstring & text);
+    static BrowserModel::AddressRoot           GetProfileRoot          ();
 
-    //  The list under the address bar: the history when nothing is typed,
-    //  what the typed path could go on to be once something is.
-    void                       ShowAddressSuggestions (const std::wstring & typed);
-    bool                       HandleAddressKey       (WPARAM vk);
-    std::vector<std::wstring>  GetAddressHistory      () const;
-
-    static std::vector<std::wstring>  GetCompletions         (const std::wstring & typed);
-    void                              ShowAddressContextMenu (int x, int y);
-    static std::vector<std::wstring>  ReadExplorerTypedPaths ();
-    static void                       WriteExplorerTypedPath (const std::wstring & path);
-    void                              ShowHistoryMenu        (bool forward, const RECT & anchor);
-
-    static std::wstring               EscapeMnemonics (const std::wstring & text);
-    static BrowserModel::AddressRoot  GetProfileRoot  ();
+    void  HandleLocationChanged (const Location & location);
+    bool  HandleMouse           (const DxuiMouseEvent & ev);
+    bool  HandleKey             (const DxuiKeyEvent & ev) { return m_address->OnKey (ev); }
+    void  HandleFocusChanged    (ExplorerPane focus);
+    bool  HandleFindBoxKey      (const DxuiKeyEvent & ev);
+    bool  HandleAddressKey      (WPARAM vk);
 
 private:
-
     ExplorerContext  & m_context;
-
-    DxuiAddressBar                             * m_address = nullptr;
+    DxuiAddressBar   * m_address = nullptr;
 
     //  Explorer's search box, at the address bar's right: a search over the
     //  folder shown and below it.

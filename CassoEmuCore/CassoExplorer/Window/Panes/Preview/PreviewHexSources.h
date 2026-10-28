@@ -23,7 +23,6 @@ class PreviewBytes : public IDxuiHexSource
 {
 public:
     void  SetBytes (const std::vector<Byte> * bytes) { m_bytes = bytes; }
-
     uint64_t  GetByteCount() const override
     {
         return (m_bytes != nullptr) ? (uint64_t) m_bytes->size() : 0;
@@ -66,26 +65,19 @@ class PreviewFileBytes : public IDxuiHexSource
 public:
     ~PreviewFileBytes() override { Close(); }
 
-    bool  Open  (const std::wstring & path);
-    void  Close ();
-
-    //  Which character set the start of the file is text in, if any.
-    HostCharset  GetCharset () const;
-
-    const std::wstring &  GetPath  () const { return m_path; }
-
-    //  Whether the file at the path has the size and write time it had
-    //  when opened; false once another program changed or replaced it.
-    bool                  IsCurrent () const;
-
-    //  Why the last Open failed, or S_OK.
-    HRESULT               GetError () const { return m_error; }
-
-    uint64_t  GetByteCount () const override { return m_size; }
-    void      ReadBytes    (uint64_t offset, std::span<uint8_t> out) const override;
-
     static constexpr size_t  kWindowBytes     = 1024 * 1024;
     static constexpr size_t  kTextSampleBytes = 64 * 1024;
+
+    bool                  Open       (const std::wstring & path);
+    void                  Close      ();
+    HostCharset           GetCharset () const;
+    const std::wstring  & GetPath    () const { return m_path; }
+    bool                  IsCurrent  () const;
+
+    //  Why the last Open failed, or S_OK.
+    HRESULT   GetError     () const { return m_error; }
+    uint64_t  GetByteCount () const override { return m_size; }
+    void      ReadBytes    (uint64_t offset, std::span<uint8_t> out) const override;
 
 private:
     void  ReadAt (uint64_t offset, std::span<uint8_t> out) const;

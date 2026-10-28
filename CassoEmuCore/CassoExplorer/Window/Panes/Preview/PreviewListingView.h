@@ -28,26 +28,25 @@ public:
 
     static constexpr int  kRowHeightDip = 18;   // one line of fixed-width text, not a file listing's roomier row
 
-    void  Create               () override;
-    void  Configure            () override;
-    void  Layout               (const RECT & content) override;
-    void  Hide                 () override;
-    bool  UpdateScrollbarHover (POINT at) override;
-    bool  TickScrollbars       (int64_t nowMs) override;
+    void                  Create               () override;
+    void                  Configure            () override;
+    void                  Layout               (const RECT & content) override;
+    void                  Hide                 () override;
+    bool                  UpdateScrollbarHover (POINT at) override;
+    bool                  TickScrollbars       (int64_t nowMs) override;
+    void                  Fill                 (const PreviewContent & preview, bool columns);
+    void                  SetVisible           (bool visible);
+    LPCWSTR               GetCursorForPoint    (POINT clientPx) const;
+    bool                  TryGetScrollbarMenu  (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
+    DxuiListView        * GetList              () const { return m_list; }
+    PreviewArchiveView  & GetArchive           ()       { return m_archive; }
+    bool                  IsArchive            () const { return m_isArchive; }
 
-    void     Fill                (const PreviewContent & preview, bool columns);
-    void     SetVisible          (bool visible);
     bool     HandleCapturedMouse (const DxuiMouseEvent & ev);
     bool     HandleMouse         (const DxuiMouseEvent & ev);
     bool     HandleShortcutKey   (const DxuiKeyEvent & ev);
     bool     HandleKey           (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
     void     HandleFocusChanged  (bool focused)            { m_list->OnFocusChanged (focused); }
-    LPCWSTR  GetCursorForPoint   (POINT clientPx) const;
-    bool     TryGetScrollbarMenu (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
-
-    DxuiListView        * GetList    () const { return m_list; }
-    PreviewArchiveView  & GetArchive ()       { return m_archive; }
-    bool                  IsArchive  () const { return m_isArchive; }
 
 private:
     DxuiListView        * m_list      = nullptr;

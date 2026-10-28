@@ -186,6 +186,10 @@ void ExplorerMenus::ApplyMenuSvgs()
 //
 //  ExplorerMenus::GetVerbMenuSvgName
 //
+//  File Explorer's own menu icons, read from its package on this machine
+//  for the theme in use, or null where it has none; Casso's own art for a
+//  name that starts with "casso.". Held for the window's life.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb verb)
@@ -225,6 +229,10 @@ const wchar_t * ExplorerMenus::GetVerbMenuSvgName (CassoExplorerActions::Verb ve
 //  item -- its own yellow folder for a folder -- so a folder or disk image,
 //  which opens here, carries Casso Explorer's, and any other file the icon
 //  of the program Windows opens it in. Drawn at the menu's icon size.
+//
+//  The icon of the program that opens an item, for its Open row: Casso
+//  Explorer's own for what it browses, the file's default program's for
+//  anything else; null when there is none. Held for the window's life.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,6 +304,8 @@ std::shared_ptr<const DxuiIconImage> ExplorerMenus::GetOpenMenuImage (bool brows
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerMenus::GetIconButtonTip
+//
+//  An icon-row button's tip, as Explorer words it: "Cut (Ctrl+X)".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -455,6 +465,8 @@ int ExplorerMenus::GetIconOrder (CassoExplorerActions::Verb verb)
 //  The shell carries the change out, so File Explorer's Quick access changes
 //  with Casso Explorer's, and the pane reads the list again after it.
 //
+//  Pin to Quick access, or Unpin, for a folder, as Explorer's menus have it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerMenus::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder)
@@ -485,6 +497,8 @@ void ExplorerMenus::AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, c
 //  File Explorer's rows for a folder, in its order: Open in new tab, Open in
 //  new window, then Quick access's and Start's pins. A disk image opens in a
 //  tab or a window too, and has no pins.
+//
+//  Open in new tab and new window, and the pins, for a folder or image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -540,6 +554,8 @@ void ExplorerMenus::AddOpenRows (std::vector<DxuiPopupMenuItem> & items, const L
 //  File Explorer's order: Folder and Shortcut, then the file types the shell
 //  offers. A disk image is Casso's own and follows Shortcut. Inside an image
 //  only a folder can be made.
+//
+//  New's choices for a location, as File Explorer's New lists them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

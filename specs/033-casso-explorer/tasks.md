@@ -1331,10 +1331,13 @@ waits for this phase, so it is tested once.
   brace initializers; the fixer has `-Paths`. Every file where this
   branch's lines broke them is swept. The rest of the tree, which CI's
   `-Mode Tree` reports, is swept before the master merge.
-- [ ] T288 Order every header in the window and its components: friends,
+- [X] T288 Order every header in the window and its components: friends,
   constructor and destructor, public, protected, private, with the `OnXxx`
   handlers together; move the declarations' comments to the
   implementations; align every block.
+  Done: nested types and aliases lead each section, since a constructor's
+  signature can use them; data members are in their original order. A comment over a
+  method whose body is in a .cpp is in that function's banner.
 - [ ] T289 The gate of T280, and one review agent, as T281.
 
 **Dependencies**: in order. T214 follows T289.

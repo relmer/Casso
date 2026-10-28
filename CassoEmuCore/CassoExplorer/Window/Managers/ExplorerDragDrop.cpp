@@ -47,6 +47,9 @@ void ExplorerDragDrop::SetIconDpi (UINT dpi)
 //
 //  The tree received the press and not the release, which the drag loop takes.
 //
+//  A drag from a node in the tree: a linked Apple's whole drive, or a
+//  folder or disk image on the PC, which drags as Explorer's does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerDragDrop::BeginTreeDrag (const Location & location)
@@ -117,6 +120,8 @@ void ExplorerDragDrop::BeginDiskDrag (const std::wstring & driveId)
 //
 //  ExplorerDragDrop::GetRowDragImage
 //
+//  The first selected row's icon at the drag image's size.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<const DxuiIconImage> ExplorerDragDrop::GetRowDragImage()
@@ -136,6 +141,9 @@ std::shared_ptr<const DxuiIconImage> ExplorerDragDrop::GetRowDragImage()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerDragDrop::TryGetAppleDropDrive
+//
+//  The linked Apple's drive a drop would land on: a drive's node or row,
+//  or the drive in the list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,6 +206,9 @@ bool ExplorerDragDrop::TryGetAppleDropDrive (int tag, POINT screen, Location & o
 //  shows. On the tree: the image or directory node under the pointer. A host
 //  folder takes no drop here; Explorer is for that.
 //
+//  Drag-in: the image location under a drop point, what a drop there
+//  would do, and the drop.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerDragDrop::TryGetDropLocation (int tag, POINT screen, Location & outLocation)
@@ -247,6 +258,10 @@ bool ExplorerDragDrop::TryGetDropLocation (int tag, POINT screen, Location & out
 //
 //  A folder row or tree node on the host, or, on the list's empty space, the
 //  host folder the list shows.
+//
+//  A host folder under the drag takes it as Explorer would: the drag goes
+//  to the folder's own shell drop target, which copies or moves it with
+//  Explorer's progress, conflict and undo handling.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -379,6 +394,9 @@ bool ExplorerDragDrop::IsProgramPath (const std::wstring & path)
 //  ExplorerDragDrop::GetDraggedPaths
 //
 //  The paths in a drag's file list; empty when the drag has no file list.
+//
+//  The files in a drag, and whether a drop on a folder or item would
+//  put them back where they are or onto themselves.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

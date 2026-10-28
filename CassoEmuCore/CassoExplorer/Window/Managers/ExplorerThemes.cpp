@@ -173,6 +173,9 @@ void ExplorerThemes::Apply()
 //  The theme on a row of the Theme menu, in the menu's order, applied while
 //  the pointer is over it. A row past the end, or none, changes nothing.
 //
+//  The theme on a row of the Theme menu, in the menu's order; a theme by
+//  its preferences name, written to them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerThemes::Preview (int index)

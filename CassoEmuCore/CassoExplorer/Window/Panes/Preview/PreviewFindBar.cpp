@@ -145,6 +145,9 @@ bool PreviewFindBar::IsCaretOn (ExplorerPane focus) const
 //  Focus moves to the Go to box while the hex view is visible. Returns
 //  whether it moved.
 //
+//  Focus to a box while the hex view is visible. Each returns whether focus
+//  moved.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewFindBar::FocusGoTo()

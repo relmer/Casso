@@ -17,6 +17,7 @@
 
 struct ExplorerTextStyle
 {
+public:
     std::optional<DxuiTextRole>    role;
     std::optional<float>           fontDip;    // 0 is the control's default size
     std::optional<DxuiFontWeight>  weight;

@@ -214,6 +214,8 @@ void ExplorerLayout::RecomputeLayout()
 //  A pane's message wraps at a reading width, centered in the pane, rather
 //  than running the whole width of a wide window.
 //
+//  The part of a pane a message wraps within.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT ExplorerLayout::GetMessageRect (const RECT & pane) const
@@ -292,6 +294,10 @@ ExplorerLayout::PaneWidths ExplorerLayout::FitPanes (int bodyDip, int treeDip, i
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerLayout::GetListRowHeightPx
+//
+//  File Explorer's list row, measured at nine scales from 100% to 350%:
+//  twice 14 dip rounded up, and a pixel more at any scale that is not a
+//  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

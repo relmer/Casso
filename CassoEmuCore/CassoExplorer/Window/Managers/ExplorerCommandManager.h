@@ -35,11 +35,10 @@ public:
     //  so the refresh can be seen.
     static constexpr UINT  kRefreshBlankMs        = 100;
 
-    //  A verb's label as a window's title: no access key, no trailing dots.
-    static std::wstring  GetVerbTitle (CassoExplorerActions::Verb verb);
-
     //  The raw read and write pickers' own history, apart from other pickers.
     static constexpr GUID  s_kRawPickerGuid = { 0xe347dd39, 0x4a18, 0x4a0d, { 0x93, 0x4a, 0xfd, 0x63, 0xb7, 0x9c, 0xba, 0x3e } };
+
+    static std::wstring    GetVerbTitle               (CassoExplorerActions::Verb verb);
     int                    ChooseFormatDefault        (const std::wstring & image);
     void                   ExtractAll                 ();
     void                   Dispatch                   (int id);
@@ -59,6 +58,5 @@ public:
     void                   ExtractImageFiles          (const std::wstring & imagePath);
 
 private:
-
     ExplorerContext  & m_context;
 };

@@ -231,6 +231,8 @@ Error:
 //
 //  CassoExplorerWindow::GetPlacement
 //
+//  The window's placement in the preferences' terms.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 CassoExplorerPrefs::Placement CassoExplorerWindow::GetPlacement() const
@@ -280,6 +282,8 @@ CassoExplorerPrefs::Placement CassoExplorerWindow::GetPlacement() const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CassoExplorerWindow::GetSessionWindow
+//
+//  This window as the session writes it: its placement and every tab.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -437,6 +441,9 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 //  CassoExplorerWindow::OnThemeChanged
 //
+//  Windows changed its light or dark setting or its accent: Follow
+//  system takes the new one at once, and every theme takes the accent.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::OnThemeChanged()
@@ -501,6 +508,8 @@ void CassoExplorerWindow::OnWindowClose()
 //
 //  CassoExplorerWindow::CloseForApp
 //
+//  Closed by the app, which has saved the session already.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoExplorerWindow::CloseForApp()
@@ -548,6 +557,9 @@ DxuiMessageResult CassoExplorerWindow::OnEndSession (bool ending)
 //  Saved as each change is made, so a window that never closes cleanly -- a
 //  crash, a process ended from outside, Windows signing out -- still opens
 //  where it was left.
+//
+//  Saves the typed paths, the session and the preferences now,
+//  rather than only on a clean exit.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -914,6 +926,8 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CassoExplorerWindow::TakeLinkNotifications
+//
+//  CassoLink posts its changes to one window; this one, from now on.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

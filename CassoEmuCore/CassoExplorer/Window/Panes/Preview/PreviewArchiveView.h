@@ -26,21 +26,19 @@ class PreviewArchiveView
 public:
     PreviewArchiveView (PreviewListingView & listing, ExplorerContext & context);
 
-    //  True when the event is taken here.
-    bool  HandleMouse     (const DxuiMouseEvent & ev, POINT point);
     void  OpenRow         (int row);
     void  CopySelection   (bool cut);
     void  DeleteSelection ();
 
+    bool  HandleMouse     (const DxuiMouseEvent & ev, POINT point);
+
 private:
-    //  The selected files, as the shell's ids for them.
     std::vector<std::wstring>  GetSelectedIds  () const;
     void                       ShowContextMenu (int x, int y);
 
     PreviewListingView  & m_listing;
     ExplorerContext     & m_context;
-
-    bool   m_dragArmed = false;   // a left press on a file, which may become a drag
-    bool   m_menuArmed = false;   // a right press on one, whose menu opens on release
-    POINT  m_pressAt   = {};
+    bool                  m_dragArmed = false;   // a left press on a file, which may become a drag
+    bool                  m_menuArmed = false;   // a right press on one, whose menu opens on release
+    POINT                 m_pressAt   = {};
 };

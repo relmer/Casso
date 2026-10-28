@@ -589,6 +589,9 @@ void ExplorerListMenus::AddOpenWithMenu (std::vector<DxuiPopupMenuItem> & items)
 //
 //  ExplorerListMenus::IsListVerbOffered
 //
+//  Whether the selection's menu has the verb, which the command bar's
+//  buttons and the list's keys follow.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerListMenus::IsListVerbOffered (CassoExplorerActions::Verb verb) const
@@ -610,6 +613,9 @@ bool ExplorerListMenus::IsListVerbOffered (CassoExplorerActions::Verb verb) cons
 //
 //  One row for each column in the list here, in Explorer's order, then the
 //  sort direction.
+//
+//  The rows of the Sort, Group by and View menus, shared by the command
+//  bar and the list's background menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

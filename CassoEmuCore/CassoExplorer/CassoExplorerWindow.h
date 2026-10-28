@@ -81,7 +81,7 @@ enum class ExplorerMessage : UINT
 //  child's current bounds, which a splitter changes on every drag.
 //
 //  Each area is a component class with the state it uses and a reference to
-//  the window: the panes in CassoExplorer/Window/Panes/, and the managers in
+//  the window's ExplorerContext: the panes in CassoExplorer/Window/Panes/, and the managers in
 //  CassoExplorer/Window/Managers/. The window has the widgets, its messages
 //  and timers, and the session.
 //
@@ -95,8 +95,6 @@ public:
     CassoExplorerWindow (CassoExplorerBrowser & browser, CassoExplorerActions & actions, CassoExplorerPrefs & prefs, Context context);
     ~CassoExplorerWindow() override;
 
-    HRESULT  Open (HINSTANCE instance, const std::wstring & title, int showCommand);
-
     //  A second launch hands its path to the window already open, in a
     //  WM_COPYDATA with this id and the full path as UTF-16 text.
     static constexpr ULONG_PTR  kOpenPathCopyId = 0x43454F50;   // 'CEOP'
@@ -104,59 +102,13 @@ public:
     //  A second launch with no window of its own to front sends its whole
     //  command line to the running app, in a WM_COPYDATA with this id and the
     //  arguments as UTF-16 text, its path made full.
-    static constexpr ULONG_PTR  kLaunchCopyId   = 0x43454C41;   // 'CELA'
+    static constexpr ULONG_PTR  kLaunchCopyId  = 0x43454C41;   // 'CELA'
+    static constexpr UINT       kTooltipTickMs = 16;   // the menus' reveal runs on it too, so display rate
 
-    //  The window's placement in the preferences' terms.
-    CassoExplorerPrefs::Placement  GetPlacement () const override;
-
-    //  This window as the session writes it: its placement and every tab.
-    CassoExplorerSessionWindow     GetSessionWindow () const;
-
-    //  Saves the typed paths, the session and the preferences now,
-    //  rather than only on a clean exit.
-    void  SaveSession() override;
-
-    HWND                 GetHwnd         () const override                   { return DxuiWindow::GetHwnd(); }
-    void                 Invalidate      () override                         { DxuiWindow::Invalidate(); }
-    DxuiHwndSource     * GetPopupHost    () const override                   { return DxuiWindow::GetPopupHost(); }
-    IDxuiTextRenderer  * GetTextRenderer () const override                   { return DxuiWindow::GetTextRenderer(); }
-    void                 SetTheme        (const IDxuiTheme * theme) override { DxuiWindow::SetTheme (theme); }
-    DxuiPanel          & GetChildPanel   () override                         { return *this; }
-    void                 ShowMessage     (const std::wstring & text, UINT icon) override;
-    void                 ShowAbout       () override;
-    void                 ArmTick         () override;
-    void                 CloseWindow     () override                         { OnWindowClose(); }
-
-    ExplorerTabManager & GetTabManager       ()                              { return m_tabManager; }
-    CassoLinkManager   & GetCassoLinkManager ()                              { return m_cassoLinkManager; }
-
-    static int64_t  GetNowMs();
-
-    //  CassoLink posts its changes to one window; this one, from now on.
-    void  TakeLinkNotifications();
-
-    //  Closed by the app, which has saved the session already.
-    void  CloseForApp();
-
-    void    Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void    Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool    OnMouse           (const DxuiMouseEvent & ev) override  { return m_input.HandleMouse (ev); }
-    bool    OnKey             (const DxuiKeyEvent & ev) override    { return m_input.HandleKey (ev); }
-    LPCWSTR GetCursorForPoint (POINT clientPx) const override       { return m_input.GetCursorForPoint (clientPx); }
-
-    //  Windows changed its light or dark setting or its accent: Follow
-    //  system takes the new one at once, and every theme takes the accent.
-    void    OnThemeChanged    () override;
-    static constexpr UINT      kTooltipTickMs  = 16;   // the menus' reveal runs on it too, so display rate
     //  Loaded at this size and scaled down by the caption, as Casso's is.
-    static constexpr int       kCaptionIconPx      = 32;
-
-    static constexpr int    kMinWindowWidthDip   = 200;
-    static constexpr int    kCascadeStepDip      = 32;   // a second window's offset from the saved placement
-
-private:
-
-public:
+    static constexpr int  kCaptionIconPx     = 32;
+    static constexpr int  kMinWindowWidthDip = 200;
+    static constexpr int  kCascadeStepDip    = 32;   // a second window's offset from the saved placement
 
     //  How long to let a burst settle before re-reading. Copying a hundred
     //  files reports a hundred changes; re-reading once at the end is both
@@ -169,10 +121,36 @@ public:
     static constexpr int       kDropTagTree          = 1;
     static constexpr int       kDropTagTabs          = 2;
 
-protected:
-    void  OnCreate        () override;
-    void  OnWindowClose   () override;
+    HRESULT                          Open                  (HINSTANCE instance, const std::wstring & title, int showCommand);
+    CassoExplorerPrefs::Placement    GetPlacement          () const override;
+    CassoExplorerSessionWindow       GetSessionWindow      () const;
+    void                             SaveSession           () override;
+    HWND                             GetHwnd               () const override                   { return DxuiWindow::GetHwnd(); }
+    void                             Invalidate            () override                         { DxuiWindow::Invalidate(); }
+    DxuiHwndSource                 * GetPopupHost          () const override                   { return DxuiWindow::GetPopupHost(); }
+    IDxuiTextRenderer              * GetTextRenderer       () const override                   { return DxuiWindow::GetTextRenderer(); }
+    void                             SetTheme              (const IDxuiTheme * theme) override { DxuiWindow::SetTheme (theme); }
+    DxuiPanel                      & GetChildPanel         () override                         { return *this; }
+    void                             ShowMessage           (const std::wstring & text, UINT icon) override;
+    void                             ShowAbout             () override;
+    void                             ArmTick               () override;
+    void                             CloseWindow           () override                         { OnWindowClose(); }
+    ExplorerTabManager             & GetTabManager         ()                              { return m_tabManager; }
+    CassoLinkManager               & GetCassoLinkManager   ()                              { return m_cassoLinkManager; }
+    static int64_t                   GetNowMs              ();
+    void                             TakeLinkNotifications ();
+    void                             CloseForApp           ();
+    void                             Layout                (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void                             Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    LPCWSTR                          GetCursorForPoint     (POINT clientPx) const override       { return m_input.GetCursorForPoint (clientPx); }
 
+    bool    OnMouse           (const DxuiMouseEvent & ev) override  { return m_input.HandleMouse (ev); }
+    bool    OnKey             (const DxuiKeyEvent & ev) override    { return m_input.HandleKey (ev); }
+    void    OnThemeChanged    () override;
+
+protected:
+    void               OnCreate        () override;
+    void               OnWindowClose   () override;
     DxuiMessageResult  OnCopyData      (WPARAM sender, LPARAM data) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
@@ -185,32 +163,28 @@ protected:
 private:
     //  Stands for a separator in a list of command ids.
     static constexpr int  kSeparatorId = 0;
-    bool  IsTickWanted        () const;
 
+    bool  IsTickWanted        () const;
     void  RecordSession       ();
 
-
-    CassoExplorerBrowser                       & m_browser;
-    CassoExplorerActions                       & m_actions;
-    CassoExplorerPrefs                         & m_prefs;
-    FolderOptions                                m_explorerOptions;
-    bool                                         m_opened          = false;
-    bool                                         m_inSizeMove      = false;
-    Context                                      m_context;
-    Win32HostDialogs                             m_dialogs;
-    Win32ShellIcons                              m_shellIcons;
-    Win32InfoTips                                m_infoTips;
-    Win32ShellItemVerbs                          m_shellVerbs;
-
-
-    std::vector<Win32IntentChannel::Reply>     m_pendingReplies;
-    CassoExplorerCommands                      m_commands;
-    const DxuiTheme                          * m_theme           = nullptr;
-    DxuiDpiScaler                              m_scaler;
-    std::vector<std::wstring>                  m_pendingLaunches;   // other launches' arguments, run once the send that brought each returns
-    bool                                       m_caretOn         = true;    // the search caret as last drawn
-    bool                                       m_tickArmed       = false;   // the animation tick is running
-
+    CassoExplorerBrowser                    & m_browser;
+    CassoExplorerActions                    & m_actions;
+    CassoExplorerPrefs                      & m_prefs;
+    FolderOptions                             m_explorerOptions;
+    bool                                      m_opened          = false;
+    bool                                      m_inSizeMove      = false;
+    Context                                   m_context;
+    Win32HostDialogs                          m_dialogs;
+    Win32ShellIcons                           m_shellIcons;
+    Win32InfoTips                             m_infoTips;
+    Win32ShellItemVerbs                       m_shellVerbs;
+    std::vector<Win32IntentChannel::Reply>    m_pendingReplies;
+    CassoExplorerCommands                     m_commands;
+    const DxuiTheme                         * m_theme           = nullptr;
+    DxuiDpiScaler                             m_scaler;
+    std::vector<std::wstring>                 m_pendingLaunches;   // other launches' arguments, run once the send that brought each returns
+    bool                                      m_caretOn         = true;   // the search caret as last drawn
+    bool                                      m_tickArmed       = false;   // the animation tick is running
     ExplorerContext                            m_explorer        { .window           = *this,
                                                                    .browser          = m_browser,
                                                                    .actions          = m_actions,
@@ -241,7 +215,6 @@ private:
                                                                    .statusBar        = m_statusBar,
                                                                    .toolbars         = m_toolbars,
                                                                    .treePane         = m_treePane };
-
     ExplorerLayout          m_layout           { m_explorer };
     ExplorerListPane        m_listPane         { m_explorer };
     ExplorerFolderSync      m_folderSync       { m_explorer };

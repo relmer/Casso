@@ -31,6 +31,10 @@ ExplorerToolbars::ExplorerToolbars (ExplorerContext & context)
 //  Each bar is created where it falls in the window's paint order; Create
 //  then sets them up.
 //
+//  The bars, as children of the window, each created where it falls in the
+//  window's paint order; their setup; and their settings once the window
+//  has its HWND.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerToolbars::CreateNavBar()
@@ -222,6 +226,10 @@ void ExplorerToolbars::Layout (const RECT & commandBand, const RECT & navBand)
 //  A command bar menu leaves the mouse with the window, so a press anywhere
 //  but the bar that opened it closes it, as a click outside a menu does.
 //
+//  Pointer events. A press outside a bar with a menu open closes it, ahead
+//  of the window's other routing; the menu bar is ahead of the address
+//  bar, and the two bars after it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerToolbars::CloseMenusOutside (const DxuiMouseEvent & ev)
@@ -387,6 +395,9 @@ void ExplorerToolbars::TickMenus (int64_t nowMs)
 //
 //  ExplorerToolbars::GetToolbarUnder
 //
+//  The strip a pointer event goes to: the command bar over its band, the
+//  navigation toolbar anywhere else.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiToolbar & ExplorerToolbars::GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar)
@@ -498,6 +509,8 @@ bool ExplorerToolbars::RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouse
 //
 //  The Recycle Bin, and an archive selected or open, have buttons of their
 //  own on the command bar, after View, as Explorer's.
+//
+//  The location's buttons, the drop-downs and the View button's icon.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

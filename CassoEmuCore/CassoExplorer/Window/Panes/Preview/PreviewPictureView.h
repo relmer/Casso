@@ -24,27 +24,26 @@ class PreviewPictureView : public PreviewView
 public:
     PreviewPictureView (ExplorerPreviewManager & manager, ExplorerContext & context);
 
+    void                       Create               () override;
+    void                       Configure            () override;
+    void                       Layout               (const RECT & content) override;
+    void                       Hide                 () override;
+    bool                       UpdateScrollbarHover (POINT at) override;
+    bool                       TickScrollbars       (int64_t nowMs) override;
+    void                       Fill                 (const PreviewContent & preview, bool picture, bool keepShellPicture);
+    void                       ShowFramebuffer      (const std::vector<uint32_t> & bgra, int width, int height);
+    void                       Clear                ();
+    void                       SetVisible           (bool visible);
+    void                       SetZoom              (float zoom);
+    LPCWSTR                    GetCursorForPoint    (POINT clientPx) const;
+    bool                       TryGetScrollbarMenu  (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
+    PicturePreview::Monitor    GetMonitor           () const;
+    const ThemeCrtDefaults   * GetCrtDefaults       ();
+    void                       UpdateCrtPicture     (bool force);
+    void                       SelectMonitor        (PicturePreview::Monitor monitor);
+    void                       ShowForm             (bool color);
 
-    void  Create               () override;
-    void  Configure            () override;
-    void  Layout               (const RECT & content) override;
-    void  Hide                 () override;
-    bool  UpdateScrollbarHover (POINT at) override;
-    bool  TickScrollbars       (int64_t nowMs) override;
-
-    void                      Fill                (const PreviewContent & preview, bool picture, bool keepShellPicture);
-    void                      ShowFramebuffer     (const std::vector<uint32_t> & bgra, int width, int height);
-    void                      Clear               ();
-    void                      SetVisible          (bool visible);
-    void                      SetZoom             (float zoom);
     bool                      HandleMouse         (const DxuiMouseEvent & ev);
-    LPCWSTR                   GetCursorForPoint   (POINT clientPx) const;
-    bool                      TryGetScrollbarMenu (const DxuiMouseEvent & ev, std::vector<DxuiPopupMenuItem> & outItems) const;
-    PicturePreview::Monitor   GetMonitor          () const;
-    const ThemeCrtDefaults  * GetCrtDefaults      ();
-    void                      UpdateCrtPicture    (bool force);
-    void                      SelectMonitor       (PicturePreview::Monitor monitor);
-    void                      ShowForm            (bool color);
 
 private:
     void  ShowContextMenu (int x, int y);

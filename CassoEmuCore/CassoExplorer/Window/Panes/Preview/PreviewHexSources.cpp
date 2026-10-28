@@ -64,6 +64,9 @@ bool PreviewFileBytes::Open (const std::wstring & path)
 //  By the path, not the open handle: a save that writes a new file and
 //  renames it over this one: the handle is then on the old file.
 //
+//  Whether the file at the path has the size and write time it had
+//  when opened; false once another program changed or replaced it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PreviewFileBytes::IsCurrent() const
@@ -109,6 +112,8 @@ void PreviewFileBytes::Close()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PreviewFileBytes::GetCharset
+//
+//  Which character set the start of the file is text in, if any.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

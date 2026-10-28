@@ -27,13 +27,6 @@ class ExplorerMenus
 public:
     explicit ExplorerMenus (ExplorerContext & context);
 
-    //  The commands of the menu open now, alive for as long as it is open.
-    std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () { return m_menuCommands; }
-
-    //  The commands installed apps add to Explorer's menus, and New's choices,
-    //  read once.
-    void  StartPackagedCommands (HWND hwnd, UINT message) { m_packagedCommands.Start (hwnd, message); }
-
     static constexpr const wchar_t *  kExplorerIconFolder    = L"\\SystemApps\\MicrosoftWindows.Client.FileExp_cw5n1h2txyewy\\FileExplorerExtensions\\Assets\\images\\contrast-standard\\";
 
     //  A 5.25-inch floppy in File Explorer's icon hand: a 16-unit jacket with
@@ -49,13 +42,14 @@ public:
         "</svg>";
     static constexpr int       kMenuIconDip        = 16;     // DxuiPopupMenu's row icon
 
-    //  Pin to Quick access, or Unpin, for a folder, as Explorer's menus have it.
-    void  AddPinMenuCommand (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
+    //  The commands of the menu open now, alive for as long as it is open.
+    std::vector<std::shared_ptr<DxuiCommand>> &  GetMenuCommands () { return m_menuCommands; }
 
-    //  Open in new tab and new window, and the pins, for a folder or image.
-    void  AddOpenRows       (std::vector<DxuiPopupMenuItem> & items, const Location & location, bool withOpen);
-
-    //  New's choices for a location, as File Explorer's New lists them.
+    //  The commands installed apps add to Explorer's menus, and New's choices,
+    //  read once.
+    void  StartPackagedCommands (HWND hwnd, UINT message) { m_packagedCommands.Start (hwnd, message); }
+    void  AddPinMenuCommand     (std::vector<DxuiPopupMenuItem> & items, const std::wstring & folder);
+    void  AddOpenRows           (std::vector<DxuiPopupMenuItem> & items, const Location & location, bool withOpen);
     void  AddNewChoices     (std::vector<DxuiPopupMenuItem> & items, const Location & target,
                              std::shared_ptr<const DxuiCommand> folder, std::shared_ptr<const DxuiCommand> disk);
     void  RunNewChoice      (const Location & target, const std::wstring & verb);
@@ -72,44 +66,28 @@ public:
     void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
     bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
     bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
-
-    void  ShowListHeaderMenu  (int x, int y, int column);
-    void  ShowListContextMenu (int x, int y, int group = -1);
-
+    void                            ShowListHeaderMenu     (int x, int y, int column);
+    void                            ShowListContextMenu    (int x, int y, int group = -1);
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"", const wchar_t * menuGlyph = nullptr);
-    void                    AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
-    static const wchar_t  * GetVerbGlyph           (CassoExplorerActions::Verb verb);
-    static int              GetIconOrder           (CassoExplorerActions::Verb verb);
-    void                    ShowViewOnButton       ();
-    bool                    IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
-    void                    AddCopyAsMenu          (std::vector<DxuiPopupMenuItem> & items);
-    void                    SetCommandBarDropDowns ();
-
-    static const wchar_t  * GetVerbLabel     (CassoExplorerActions::Verb verb);
-    static const wchar_t  * GetVerbMenuGlyph (CassoExplorerActions::Verb verb);
-
-    //  File Explorer's own menu icons, read from its package on this machine
-    //  for the theme in use, or null where it has none; Casso's own art for a
-    //  name that starts with "casso.". Held for the window's life.
-    static const wchar_t *  GetVerbMenuSvgName (CassoExplorerActions::Verb verb);
-
-    //  An icon-row button's tip, as Explorer words it: "Cut (Ctrl+X)".
-    static std::wstring     GetIconButtonTip   (const DxuiCommand & command);
-    void                    ApplyMenuSvgs      ();
-    const std::string *     GetMenuSvg         (const wchar_t * name);
-
-    //  The icon of the program that opens an item, for its Open row: Casso
-    //  Explorer's own for what it browses, the file's default program's for
-    //  anything else; null when there is none. Held for the window's life.
-    std::shared_ptr<const DxuiIconImage>  GetOpenMenuImage (bool browsable, const std::wstring & path);
+    void                                    AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
+    static const wchar_t                  * GetVerbGlyph           (CassoExplorerActions::Verb verb);
+    static int                              GetIconOrder           (CassoExplorerActions::Verb verb);
+    void                                    ShowViewOnButton       ();
+    bool                                    IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
+    void                                    AddCopyAsMenu          (std::vector<DxuiPopupMenuItem> & items);
+    void                                    SetCommandBarDropDowns ();
+    static const wchar_t                  * GetVerbLabel           (CassoExplorerActions::Verb verb);
+    static const wchar_t                  * GetVerbMenuGlyph       (CassoExplorerActions::Verb verb);
+    static const wchar_t                  * GetVerbMenuSvgName     (CassoExplorerActions::Verb verb);
+    static std::wstring                     GetIconButtonTip       (const DxuiCommand & command);
+    void                                    ApplyMenuSvgs          ();
+    const std::string                     * GetMenuSvg             (const wchar_t * name);
+    std::shared_ptr<const DxuiIconImage>    GetOpenMenuImage       (bool browsable, const std::wstring & path);
 
 private:
-
     ExplorerContext  & m_context;
-
     std::vector<std::shared_ptr<DxuiCommand>>  m_menuCommands;
     Win32PackagedCommands                      m_packagedCommands;
-
     std::map<std::wstring, std::unique_ptr<std::string>>  m_menuSvgs;
     std::map<std::wstring, std::shared_ptr<const DxuiIconImage>>  m_openMenuImages;
 };

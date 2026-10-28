@@ -35,6 +35,9 @@ ExplorerListPane::ExplorerListPane (ExplorerContext & context)
 //
 //  The list, and the message an empty folder or image has in its place.
 //
+//  The list and its message, as children of the window, and their
+//  settings and handlers once the window has its HWND.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListPane::Create()
@@ -228,6 +231,8 @@ void ExplorerListPane::Layout (const RECT & rect)
 //  otherwise; the firewall's message ends at the middle, with the actions
 //  below it.
 //
+//  The message aligned for a link's buttons below it, or for none.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListPane::AlignMessage (bool aboveActions)
@@ -248,6 +253,9 @@ void ExplorerListPane::AlignMessage (bool aboveActions)
 //  right press waits for its release to open the menu, or drags the
 //  selection when it moves far enough first; a left press on a row drags
 //  the selection once it moves; and the list mid-drag has every event.
+//
+//  Pointer events: a press the list started is ahead of the panes under
+//  the pointer; a press over the list is after the tree's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -422,6 +430,8 @@ bool ExplorerListPane::HandleMouse (const DxuiMouseEvent & ev)
 //  ExplorerListPane::HandleCharKey
 //
 //  A character typed at the list jumps to a row.
+//
+//  Keys while the list has focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1171,6 +1181,8 @@ void ExplorerListPane::HandleShellListed (const std::wstring & key)
 //  apart from either: it holds nothing at all, where an empty folder says
 //  nothing about the rest of the disk.
 //
+//  What an empty list says, for the kind of thing being looked at.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ExplorerListPane::GetEmptyLocationMessage (Location::Kind kind)
@@ -1365,6 +1377,9 @@ void ExplorerListPane::RestoreView (const RefreshAnchor::After & after)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerListPane::StartLoaders
+//
+//  The icons and the Content view's details, read on background threads;
+//  each thread posts to the window when some are in.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -26,23 +26,19 @@ class ExplorerThemes
 public:
     explicit ExplorerThemes (ExplorerContext & context);
 
-    void  ChooseInitial            ();
-    void  Apply                    ();
-    void  AdoptSystemColors        ();
+    void         ChooseInitial     ();
+    void         Apply             ();
+    void         AdoptSystemColors ();
+    void         Preview           (int index);
+    void         Select            (const char * name);
+    static bool  IsCassoThemeName  (const std::string & name);
+
     void  HandleSystemThemeChanged ();
-
-    //  The theme on a row of the Theme menu, in the menu's order; a theme by
-    //  its preferences name, written to them.
-    void  Preview (int index);
-    void  Select  (const char * name);
-
-    static bool  IsCassoThemeName (const std::string & name);
 
 private:
     ExplorerContext  & m_context;
-
-    DxuiLightTheme         m_lightTheme;
-    DxuiDarkTheme          m_darkTheme;
-    CassoTheme             m_cassoTheme;
-    bool                   m_applying = false;   // a theme being applied, which sends a theme change to the window
+    DxuiLightTheme     m_lightTheme;
+    DxuiDarkTheme      m_darkTheme;
+    CassoTheme         m_cassoTheme;
+    bool               m_applying   = false;   // a theme being applied, which sends a theme change to the window
 };

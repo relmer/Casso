@@ -42,6 +42,9 @@ ExplorerFileOps::ExplorerFileOps (ExplorerContext & context)
 //  The rename box, an edit box laid over a list row's name or a tree node's
 //  label, as Explorer's F2 opens one.
 //
+//  The rename box, as a child of the window, and the pointer and keys while
+//  a rename is open.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerFileOps::Create()
@@ -1408,6 +1411,9 @@ Error:
 //  settings, merged into its configuration as Casso merges them. The prefs
 //  file is only read: a delta Casso would migrate is merged as it is, which
 //  is also Casso's own fallback when a migration fails.
+//
+//  A machine's configuration with the user's changes to it from Casso's
+//  prefs file merged in, as Casso merges them; the file is only read.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

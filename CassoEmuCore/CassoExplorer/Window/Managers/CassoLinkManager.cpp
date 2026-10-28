@@ -46,6 +46,14 @@ CassoLinkManager::CassoLinkManager (ExplorerContext & context)
 //  connect to it, or allow it through Windows Firewall on private or on all
 //  networks.
 //
+//  The list's button under its message: Connect for a link the user
+//  disconnected, Bootstrap the Apple for a serial link whose Apple is
+//  not replying, or Allow in Windows Firewall for a connection the
+//  firewall blocks. On a public network the second button beside it is
+//  Make this network private.
+//  The buttons under the list's message for a link, and whether the
+//  message is the firewall's.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkManager::CreateListActions()
@@ -296,6 +304,9 @@ Error:
 //  when the disk is the link disk the Apple started from: writing over it
 //  does not end the link, but no disk is left to start it from again.
 //
+//  An image onto a linked Apple's drive: the drive is checked for the
+//  link disk, the user confirms, and the write is queued.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkManager::StartImageWrite (const Location & drive, const std::wstring & imagePath)
@@ -365,6 +376,10 @@ void CassoLinkManager::StartImageWrite (const Location & drive, const std::wstri
 //  CassoLinkManager::TryGetSelectedLinkDrive
 //
 //  A drive row's path is the drive's id.
+//
+//  The drive of the one drive row selected while the list is on a linked
+//  machine. The image commands run on it, and dragging it drags its disk,
+//  as for the drive's node in the tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -726,6 +741,9 @@ bool CassoLinkManager::TryGetConnectionEntry (const std::wstring & name, LinkTre
 //  with the one it drew rather than relying on Update's result, which only
 //  the first window to poll after a change would see.
 //
+//  The firewall read again on the drive poll, the views redrawn when it
+//  changed, and the elevated helper's result once it exits.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkManager::PollFirewall()
@@ -857,6 +875,10 @@ std::string CassoLinkManager::GetBootstrapConnection() const
 //
 //  An empty name adds a link. An edited link is stopped, as its settings
 //  are no longer the ones its port was opened with.
+//
+//  The CassoLink connections: added or edited through the link dialog, removed,
+//  or disconnected, which closes the link's port. Each change is saved
+//  at once.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1538,6 +1560,9 @@ void CassoLinkManager::HandleConnectionChanged()
 //  The links' roots and drives are listed again where they are in the tree,
 //  and the list and preview are refreshed when the location is on a link.
 //
+//  A CassoLink operation finished or a link changed state: the tree, the
+//  list and the status bar are brought up to date.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CassoLinkManager::RefreshCassoLinkViews()
@@ -1668,6 +1693,8 @@ bool CassoLinkManager::IsConnectionRemoved (const std::wstring & link) const
 //
 //  A root whose Casso has exited is removed; when the list is on it, the
 //  list goes to This PC.
+//
+//  The running Cassos read again, at start and when their folder changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

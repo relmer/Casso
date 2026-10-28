@@ -293,6 +293,10 @@ void ExplorerFolderSync::CheckDrives()
 //  and every host folder the tree has open, since those are the folders whose
 //  contents are on screen.
 //
+//  The host folders worth watching: the one the list is showing and every
+//  one the tree has open. Cheap enough to call after anything that could
+//  have changed either.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerFolderSync::UpdateWatchedFolders()
@@ -464,6 +468,8 @@ bool ExplorerFolderSync::RefreshOpenTreeFolders (const std::vector<std::wstring>
 //  or removed elsewhere in the folder is no reason to lose the selection or to
 //  move what is on screen.
 //
+//  Re-reads whatever the watcher reported, once the burst has settled.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerFolderSync::RefreshChangedFolders()
@@ -549,6 +555,9 @@ void ExplorerFolderSync::RefreshChangedFolders()
 //
 //  Posting is all that happens on the watcher's thread; the settle timer and
 //  the re-read run here.
+//
+//  The watch on the folders on display, and the polls for drives and
+//  Quick access; a change posted by the watch, and its settle timer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

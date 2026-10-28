@@ -21,11 +21,10 @@ struct ExplorerContext;
 class ExplorerTips
 {
 public:
-    explicit ExplorerTips (ExplorerContext & context);
-
-
     //  Which part of the window the hover tooltip belongs to.
     enum class TipOwner { None, Toolbar, Tree, List, Status, Menu };
+
+    explicit ExplorerTips (ExplorerContext & context);
 
     void  ShowHoverTip        (TipOwner owner, const RECT & anchor, const std::wstring & text,
                                float maxWidthDip = DxuiTooltip::kDefaultMaxTextWidthDip);
@@ -40,11 +39,9 @@ public:
     void  Tick          (int64_t nowMs);
 
 private:
-
     ExplorerContext  & m_context;
-
-    DxuiTooltip  m_tooltip;
-    POINT        m_listTipPoint  = {};   // where the pointer last was over the list
-    bool         m_listTipActive = false;
-    TipOwner     m_tipOwner      = TipOwner::None;
+    DxuiTooltip        m_tooltip;
+    POINT              m_listTipPoint  = {};   // where the pointer last was over the list
+    bool               m_listTipActive = false;
+    TipOwner           m_tipOwner      = TipOwner::None;
 };

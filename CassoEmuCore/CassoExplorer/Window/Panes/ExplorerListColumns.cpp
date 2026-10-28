@@ -30,6 +30,8 @@ ExplorerListColumns::ExplorerListColumns (ExplorerListPane & pane, ExplorerConte
 //
 //  ExplorerListColumns::ShowChosenColumns
 //
+//  Every column the user chose made visible, for the location in the list.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListColumns::ShowChosenColumns()
@@ -74,6 +76,9 @@ void ExplorerListColumns::SetChosen (size_t column, bool chosen)
 //
 //  Chosen for this folder alone, as Explorer remembers it.
 //
+//  A view chosen for the folder on display, and written to the preferences
+//  for it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerListColumns::SetView (DxuiListView::View view)
@@ -92,6 +97,9 @@ void ExplorerListColumns::SetView (DxuiListView::View view)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerListColumns::IsListColumnShown
+//
+//  Whether a list column is visible: the user's choice from the header's
+//  menu, and the catalog's two columns only inside a disk image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,6 +193,9 @@ void ExplorerListColumns::ApplyColumnOrder()
 //  A host folder by its path, a place inside a disk image by the image and
 //  the directory, and a root by its id.
 //
+//  The folder the list shows, as FolderViews keys it, and its type when
+//  asked for, which a host folder costs a read of its desktop.ini.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ExplorerListColumns::GetFolderViewKey (FolderViews::FolderType * outType) const
@@ -243,6 +254,9 @@ std::wstring ExplorerListColumns::GetFolderViewKey (FolderViews::FolderType * ou
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerListColumns::ApplyFolderView
+//
+//  The list in the view of the folder it now shows, when that folder is
+//  not the one the view was last set for.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +361,8 @@ void ExplorerListColumns::RememberFolderSort()
 //  the tree is listed again under them, and true is returned so the caller
 //  relists the folder.
 //
+//  Explorer's folder options read again; true when one changed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExplorerListColumns::ReadFolderOptions()
@@ -380,6 +396,8 @@ bool ExplorerListColumns::ReadFolderOptions()
 //
 //  The widths from the last run, where there are any. A stored zero means the
 //  column was never given a width of its own and still fits itself.
+//
+//  The file list's column widths from the last run.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

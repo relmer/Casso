@@ -31,12 +31,12 @@ public:
     void  Configure () override;
     void  Layout    (const RECT & content) override;
     void  Hide      () override;
+    void  Update    (const PreviewContent & preview, const RECT & content);
+    void  ShowBytes ();
+    bool  IsPicture () const                                 { return m_isPicture; }
 
-    void  Update              (const PreviewContent & preview, const RECT & content);
     void  HandleResult        ();
-    void  ShowBytes           ();
     bool  HandleHelperMessage (UINT msg, WPARAM wParam, LPARAM lParam) { return m_shellPreview.OnHelperMessage (msg, wParam, lParam); }
-    bool  IsPicture           () const                                 { return m_isPicture; }
 
 private:
     void  Unload ();

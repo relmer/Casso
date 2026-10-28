@@ -1249,6 +1249,8 @@ int ExplorerCommandManager::ChooseFormatDefault (const std::wstring & image)
 //
 //  ExplorerCommandManager::GetVerbTitle
 //
+//  A verb's label as a window's title: no access key, no trailing dots.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring ExplorerCommandManager::GetVerbTitle (CassoExplorerActions::Verb verb)

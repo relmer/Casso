@@ -23,6 +23,19 @@ struct ExplorerContext;
 class ExplorerLayout
 {
 public:
+    //  The strip a pointer event goes to: the command bar over its band, the
+    //  navigation toolbar anywhere else.
+    //  The panes' widths in a body this wide, from the widths the user left
+    //  them at. The list gives up width first, down to its minimum; then the
+    //  preview, down to its own; then the tree. Past all three minimums the
+    //  three shrink together. A preview width of zero is a hidden preview.
+    struct PaneWidths
+    {
+        int  tree    = 0;
+        int  list    = 0;
+        int  preview = 0;
+    };
+
     explicit ExplorerLayout (ExplorerContext & context);
 
     //  Explorer's tabs are 33 dip tall. Its strip is 9 dip taller because it is
@@ -44,59 +57,34 @@ public:
     //  The widest a pane's message runs before it wraps.
     static constexpr int     kMessageWidthDip = 400;
 
-
-    //  The strip a pointer event goes to: the command bar over its band, the
-    //  navigation toolbar anywhere else.
-    //  The panes' widths in a body this wide, from the widths the user left
-    //  them at. The list gives up width first, down to its minimum; then the
-    //  preview, down to its own; then the tree. Past all three minimums the
-    //  three shrink together. A preview width of zero is a hidden preview.
-    struct PaneWidths
-    {
-        int  tree    = 0;
-        int  list    = 0;
-        int  preview = 0;
-    };
-
-    static PaneWidths  FitPanes (int bodyDip, int treeDip, int previewDip);
-
-    //  File Explorer's list row, measured at nine scales from 100% to 350%:
-    //  twice 14 dip rounded up, and a pixel more at any scale that is not a
-    //  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.
-    static int  GetListRowHeightPx (UINT dpi);
-
-    void  ConfigureWidgets ();
-    void  RecomputeLayout  ();
-    void  UpdateCommandBar ();
-
-    //  The part of a pane a message wraps within.
-    RECT  GetMessageRect (const RECT & pane) const;
-
-    static bool            Contains (const RECT & rect, POINT point);
-    static DxuiMouseEvent  ToLocal  (const DxuiMouseEvent & ev, const RECT & bounds);
-
-    void  DockBands    ();
-    void  SetSplitters (DxuiSplitter * treeSplitter, DxuiSplitter * previewSplitter);
-    void  SetClient    (const RECT & client) { m_client = client; }
-
-    DxuiSplitter    * GetTreeSplitter    () const { return m_treeSplitter; }
-    DxuiSplitter    * GetPreviewSplitter () const { return m_previewSplitter; }
-    const RECT      & GetClient          () const { return m_client; }
-    DxuiDockLayout  & GetDock            ()       { return m_dock; }
-    DxuiLayoutBand  & GetTabBand         ()       { return m_tabBand; }
-    DxuiLayoutBand  & GetMenuBand        ()       { return m_menuBand; }
-    DxuiLayoutBand  & GetToolbarBand     ()       { return m_toolbarBand; }
-    DxuiLayoutBand  & GetStatusBand      ()       { return m_statusBand; }
-    DxuiLayoutBand  & GetBodyBand        ()       { return m_bodyBand; }
-    DxuiHitTester   & GetDropHits        ()       { return m_dropHits; }
+    static PaneWidths        FitPanes           (int bodyDip, int treeDip, int previewDip);
+    static int               GetListRowHeightPx (UINT dpi);
+    void                     ConfigureWidgets   ();
+    void                     RecomputeLayout    ();
+    void                     UpdateCommandBar   ();
+    RECT                     GetMessageRect     (const RECT & pane) const;
+    static bool              Contains           (const RECT & rect, POINT point);
+    static DxuiMouseEvent    ToLocal            (const DxuiMouseEvent & ev, const RECT & bounds);
+    void                     DockBands          ();
+    void                     SetSplitters       (DxuiSplitter * treeSplitter, DxuiSplitter * previewSplitter);
+    void                     SetClient          (const RECT & client) { m_client = client; }
+    DxuiSplitter           * GetTreeSplitter    () const { return m_treeSplitter; }
+    DxuiSplitter           * GetPreviewSplitter () const { return m_previewSplitter; }
+    const RECT             & GetClient          () const { return m_client; }
+    DxuiDockLayout         & GetDock            ()       { return m_dock; }
+    DxuiLayoutBand         & GetTabBand         ()       { return m_tabBand; }
+    DxuiLayoutBand         & GetMenuBand        ()       { return m_menuBand; }
+    DxuiLayoutBand         & GetToolbarBand     ()       { return m_toolbarBand; }
+    DxuiLayoutBand         & GetStatusBand      ()       { return m_statusBand; }
+    DxuiLayoutBand         & GetBodyBand        ()       { return m_bodyBand; }
+    DxuiHitTester          & GetDropHits        ()       { return m_dropHits; }
 
 private:
     ExplorerContext  & m_context;
-
-    DxuiHitTester                             m_dropHits;
-    DxuiSplitter                            * m_treeSplitter    = nullptr;
-    DxuiSplitter                            * m_previewSplitter = nullptr;
-    RECT                                      m_client          = {};
+    DxuiHitTester      m_dropHits;
+    DxuiSplitter     * m_treeSplitter    = nullptr;
+    DxuiSplitter     * m_previewSplitter = nullptr;
+    RECT               m_client          = {};
 
     //  The window's edges, docked. Each band is stamped with the thickness
     //  its widget needs and comes back with the rect that widget is laid

@@ -29,6 +29,9 @@ ExplorerTreePane::ExplorerTreePane (ExplorerContext & context)
 //
 //  ExplorerTreePane::Create
 //
+//  The tree, as a child of the window, and its settings, handlers and
+//  roots once the window has its HWND.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerTreePane::Create()
@@ -151,6 +154,10 @@ void ExplorerTreePane::Layout (const RECT & rect)
 //
 //  A tree name cut off by the splitter is drawn whole while the pointer is
 //  over it, and hidden on any other event.
+//
+//  Pointer events. The label tip follows every move; a drag armed on a
+//  node or one under way, and the hover's end, are ahead of the list's
+//  hit test; a press over the tree is after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -303,6 +310,8 @@ bool ExplorerTreePane::HandleMouse (const DxuiMouseEvent & ev)
 //  File Explorer's keys for Copy as path and Properties, on the selected
 //  node. Returns whether the keys are those two; outHandled is whether the
 //  node had a path to act on.
+//
+//  Keys, and focus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -495,6 +504,10 @@ bool ExplorerTreePane::TryGetRenameRect (const std::wstring & id, RECT & outRect
 //  navigation pane does when a window opens on a folder.
 //  Each path component is matched against the child labels without regard to
 //  case, since a restored path need not match the case on disk.
+//
+//  The location's node revealed: opened to, highlighted and scrolled into
+//  view. RefreshTree re-reads the tree, keeping what was open,
+//  highlighted and on screen; ReloadChildren re-reads one node's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1036,6 +1049,8 @@ void ExplorerTreePane::AddTreeIconRow (std::vector<DxuiPopupMenuItem> & items, c
 //  The pane's own options, as Explorer's menu below its last node has them,
 //  each kept across runs.
 //
+//  The menu below the tree's last node, and the pane options it sets.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerTreePane::ShowTreeEmptyMenu (int x, int y)
@@ -1138,6 +1153,8 @@ bool ExplorerTreePane::IsNavOptionOn (CassoExplorerPrefs::NavOption option) cons
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerTreePane::ApplyNavPaneOptions
+//
+//  The pane options, from the preferences.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

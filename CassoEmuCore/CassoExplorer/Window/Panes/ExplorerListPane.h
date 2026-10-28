@@ -34,57 +34,32 @@ public:
 
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
-    //  The list and its message, as children of the window, and their
-    //  settings and handlers once the window has its HWND.
     void  Create             ();
     void  Configure          ();
     void  Layout             (const RECT & rect);
     RECT  GetListMessageRect () const;
-
-    //  The message aligned for a link's buttons below it, or for none.
-    void  AlignMessage (bool aboveActions);
+    void  AlignMessage       (bool aboveActions);
 
     //  The columns and views, and the menus.
-    ExplorerListColumns &  GetColumns () { return m_columns; }
-    ExplorerListMenus   &  GetMenus   () { return m_menus; }
-
-    void  FillList              ();
-    void  HandleShellListed     (const std::wstring & key);
-    bool  SelectRowNamed        (const std::wstring & name);
-    void  SizeListIcons         ();
-    void  RefreshListIcons      ();
-    void  RefreshContentDetails ();
-
-    //  The icons and the Content view's details, read on background threads;
-    //  each thread posts to the window when some are in.
-    void                                     StartLoaders                ();
-    void                                     HandleIconsLoaded           ();
-    void                                     HandleContentDetailsArrived ();
-    bool                                     TryApplyContentDetails      (int row, DxuiListView::Cell & name);
-    const std::vector<DxuiListView::Cell>  & GetListRowCells             (int row);
-
-    //  What an empty list says, for the kind of thing being looked at.
-    static std::wstring  GetEmptyLocationMessage (Location::Kind kind);
-
-    //  Pointer events: a press the list started is ahead of the panes under
-    //  the pointer; a press over the list is after the tree's.
-    bool  HandleCapturedMouse (const DxuiMouseEvent & ev);
-    bool  HandleMouse         (const DxuiMouseEvent & ev);
-    void  UpdateTip           (const DxuiMouseEvent & ev, POINT point);
-    void  RefreshTip          ();
-
-    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu     (const DxuiMouseEvent & ev) const;
-    bool                            UpdateScrollbarHover (POINT at) { return m_list->SetScrollbarHover (at); }
-    LPCWSTR                         GetCursorForPoint    (POINT clientPx) const;
-
-    //  Keys while the list has focus.
-    bool            HandleCharKey      (const DxuiKeyEvent & ev);
-    bool            HandleShortcutKey  (const DxuiKeyEvent & ev);
-    bool            HandleKey          (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
-    void            HandleFocusChanged (bool focused) { m_list->OnFocusChanged (focused); }
-    IDxuiControl  * GetControl         () const { return m_list; }
-    DxuiListView  * GetListView        () const { return m_list; }
-    RECT            GetBounds          () const { return m_list->GetBounds(); }
+    ExplorerListColumns                    & GetColumns              () { return m_columns; }
+    ExplorerListMenus                      & GetMenus                () { return m_menus; }
+    void                                     FillList                ();
+    bool                                     SelectRowNamed          (const std::wstring & name);
+    void                                     SizeListIcons           ();
+    void                                     RefreshListIcons        ();
+    void                                     RefreshContentDetails   ();
+    void                                     StartLoaders            ();
+    bool                                     TryApplyContentDetails  (int row, DxuiListView::Cell & name);
+    const std::vector<DxuiListView::Cell>  & GetListRowCells         (int row);
+    static std::wstring                      GetEmptyLocationMessage (Location::Kind kind);
+    void                                     UpdateTip               (const DxuiMouseEvent & ev, POINT point);
+    void                                     RefreshTip              ();
+    std::vector<DxuiPopupMenuItem>           GetScrollbarMenu        (const DxuiMouseEvent & ev) const;
+    bool                                     UpdateScrollbarHover    (POINT at) { return m_list->SetScrollbarHover (at); }
+    LPCWSTR                                  GetCursorForPoint       (POINT clientPx) const;
+    IDxuiControl                           * GetControl              () const { return m_list; }
+    DxuiListView                           * GetListView             () const { return m_list; }
+    RECT                                     GetBounds               () const { return m_list->GetBounds(); }
 
     //  Rows cut to the clipboard and not yet pasted, drawn dimmed.
     void  SetCutPaths   (std::vector<std::wstring> paths) { m_cutPaths = std::move (paths); }
@@ -111,8 +86,17 @@ public:
     void  SetContentHidden (bool hidden) { m_list->SetContentHidden (hidden); }
     bool  Tick             (int64_t nowMs);
 
-private:
+    void  HandleShellListed           (const std::wstring & key);
+    void  HandleIconsLoaded           ();
+    void  HandleContentDetailsArrived ();
+    bool  HandleCapturedMouse         (const DxuiMouseEvent & ev);
+    bool  HandleMouse                 (const DxuiMouseEvent & ev);
+    bool  HandleCharKey               (const DxuiKeyEvent & ev);
+    bool  HandleShortcutKey           (const DxuiKeyEvent & ev);
+    bool  HandleKey                   (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
+    void  HandleFocusChanged          (bool focused) { m_list->OnFocusChanged (focused); }
 
+private:
     //  A right press, which opens the menu on its release or drags the
     //  selection when it moves far enough first.
     struct RightPress
@@ -123,16 +107,14 @@ private:
         POINT  start   = {};
     };
 
-    ExplorerContext  & m_context;
-
+    ExplorerContext      & m_context;
     DxuiListView         * m_list           = nullptr;
     DxuiLabel            * m_listMessage    = nullptr;
     bool                   m_listMessageTop = false;   // a search's message, at the list's top
-
-    Win32ShellIcons      m_listIcons;
-    Win32ContentDetails  m_contentDetails;
-    Location             m_listLocation;
-    size_t               m_listTabCount   = 0;   // the tabs when FillList last saved the session
+    Win32ShellIcons        m_listIcons;
+    Win32ContentDetails    m_contentDetails;
+    Location               m_listLocation;
+    size_t                 m_listTabCount   = 0;   // the tabs when FillList last saved the session
 
     //  The list's rows, built as it first asks for each; see GetListRowCells.
     std::vector<std::vector<DxuiListView::Cell>>  m_rowCells;
@@ -144,13 +126,11 @@ private:
     //  rest.
     std::vector<std::wstring>  m_rowProblems;
     std::vector<std::wstring>  m_cutPaths;
-
-    bool        m_dragArmed     = false;   // a press on a row, which drags the selection once it moves
-    POINT       m_dragStart     = {};
-    RightPress  m_rightPress;
-    POINT       m_listTipPoint  = {};      // where the pointer last was over the list
-    bool        m_listTipActive = false;
-
-    ExplorerListColumns  m_columns { *this, m_context };
-    ExplorerListMenus    m_menus   { *this, m_context };
+    bool                       m_dragArmed     = false;   // a press on a row, which drags the selection once it moves
+    POINT                      m_dragStart     = {};
+    RightPress                 m_rightPress;
+    POINT                      m_listTipPoint  = {};   // where the pointer last was over the list
+    bool                       m_listTipActive = false;
+    ExplorerListColumns        m_columns       { *this, m_context };
+    ExplorerListMenus          m_menus         { *this, m_context };
 };

@@ -27,6 +27,8 @@ PreviewArchiveView::PreviewArchiveView (PreviewListingView & listing, ExplorerCo
 //
 //  PreviewArchiveView::GetSelectedIds
 //
+//  The selected files, as the shell's ids for them.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::wstring> PreviewArchiveView::GetSelectedIds() const
@@ -59,6 +61,8 @@ std::vector<std::wstring> PreviewArchiveView::GetSelectedIds() const
 //  moves drags them out, for the shell to extract where they land, and a
 //  right-click opens the shell's menu for them, Extract All among its verbs.
 //  Selection itself is the list's. True when the event is taken here.
+//
+//  True when the event is taken here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

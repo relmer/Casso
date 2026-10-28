@@ -28,6 +28,9 @@ ExplorerAddressBar::ExplorerAddressBar (ExplorerContext & context)
 //
 //  ExplorerAddressBar::Create
 //
+//  The widgets, as children of the window, and their handlers once the
+//  window has its HWND.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerAddressBar::Create()
@@ -137,6 +140,9 @@ void ExplorerAddressBar::Configure()
 //  end, 30% of the width right of the tree and a little in from the edge,
 //  as Explorer's does, and the address the rest.
 //
+//  The two boxes in the toolbar's free span of the strip, the search box
+//  sized from the width right of the tree.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerAddressBar::Layout (const RECT & free, const RECT & strip, int rightOfTreePx)
@@ -199,6 +205,8 @@ RECT ExplorerAddressBar::GetAddressRect (const RECT & free, const RECT & strip, 
 //  search's results. For a search's results, a restored tab's among them,
 //  the box has the query, over the folder that was searched.
 //
+//  The address's lead icon and the search box's text for a new location.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerAddressBar::HandleLocationChanged (const Location & location)
@@ -238,6 +246,9 @@ void ExplorerAddressBar::HandleLocationChanged (const Location & location)
 //  The suggestions have no capture, so a press anywhere else in the window
 //  closes them; a press in the address bar edits the path or, on the caret,
 //  closes them there.
+//
+//  Pointer events: a press closes the suggestions, ahead of the window's
+//  other routing; the boxes have the rest in the toolbar's row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -735,6 +746,9 @@ void ExplorerAddressBar::ShowAddressHistoryMenu (const RECT & anchor)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerAddressBar::ShowAddressSuggestions
+//
+//  The list under the address bar: the history when nothing is typed,
+//  what the typed path could go on to be once something is.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

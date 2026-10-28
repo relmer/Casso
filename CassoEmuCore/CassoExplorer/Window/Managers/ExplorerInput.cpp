@@ -28,6 +28,9 @@ ExplorerInput::ExplorerInput (ExplorerContext & context)
 //
 //  ExplorerInput::SetFocusPane
 //
+//  Keyboard focus. The toolbar is one pane, with its focused button in
+//  m_toolbarFocus.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerInput::SetFocusPane (ExplorerPane pane)
@@ -682,6 +685,9 @@ bool ExplorerInput::HandleKey (const DxuiKeyEvent & ev)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerInput::GetFocusedControl
+//
+//  The focused pane's control, where routing of a standard command such as
+//  Copy or Select all starts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

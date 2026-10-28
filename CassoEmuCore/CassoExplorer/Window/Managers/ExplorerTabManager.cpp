@@ -29,6 +29,9 @@ ExplorerTabManager::ExplorerTabManager (ExplorerContext & context)
 //
 //  ExplorerTabManager::Create
 //
+//  The strip, as a child of the window, and its settings and handlers
+//  once the window has its HWND.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerTabManager::Create()
@@ -121,6 +124,10 @@ void ExplorerTabManager::Layout (const RECT & rect)
 //
 //  A pointer leaving the strip by any edge, or the window, ends the tab's
 //  hover.
+//
+//  Pointer events: the hover is cleared when the pointer moves off the
+//  strip, ahead of the window's other routing; the strip has the rest over
+//  it and while a tab is dragged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,6 +309,8 @@ void ExplorerTabManager::OpenInNewWindow (const std::wstring & path)
 //
 //  ExplorerTabManager::OpenPathInNewTab
 //
+//  Opens a folder, a disk image, or a file's folder in a new tab.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
@@ -394,6 +403,10 @@ void ExplorerTabManager::OpenPathInNewTab (const std::wstring & path)
 //  Explorer's tab menu. With one tab there are no others to close, and the
 //  last tab has none to its right, so those rows are disabled rather than
 //  doing nothing.
+//
+//  The tab strip's menu, and the pieces the menus share: one command row,
+//  Copy as path over the selection, and Properties, which is Windows' own
+//  sheet for a host item and the catalog details for an entry in an image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -538,6 +551,10 @@ void ExplorerTabManager::SwitchToTab (size_t index)
 //
 //  The card moves with the pointer from the first move of the drag. Torn
 //  off, the tab may be over another window's strip, which opens a gap.
+//
+//  A tab dragged off the strip: the card that moves with the pointer, the
+//  other window's strip it is over, and where it goes on the drop -- into
+//  that window, or into a window of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -906,6 +923,9 @@ void ExplorerTabManager::TearOffTab (int index, POINT screen)
 //  A window left with no tabs closes. Its last tab stays in it until then,
 //  since a window always has a location open.
 //
+//  A tab closed by its button, its menu or Ctrl+W, or moved to another
+//  window. The last tab closes the window, as File Explorer's does.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerTabManager::CloseTabAt (size_t index)
@@ -930,6 +950,10 @@ void ExplorerTabManager::CloseTabAt (size_t index)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExplorerTabManager::IsOverTabStrip
+//
+//  A tab dragged from another window of the app: whether the point is
+//  over this window's tab strip, the gap it opens while it is, and the
+//  tab arriving on the drop, at the gap.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

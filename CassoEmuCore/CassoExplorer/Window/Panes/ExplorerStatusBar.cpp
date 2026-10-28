@@ -29,6 +29,8 @@ ExplorerStatusBar::ExplorerStatusBar (ExplorerContext & context)
 //
 //  Explorer's status bar runs on from the list above it, with no lines.
 //
+//  The bar, as a child of the window, and its fields.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ExplorerStatusBar::Create()
@@ -64,6 +66,9 @@ void ExplorerStatusBar::Configure()
 //  ExplorerStatusBar::HandleZoomClick
 //
 //  A click on the zoom level puts it back to 100%.
+//
+//  Pointer events: a click on the zoom is ahead of the window's other
+//  routing, one on the CassoLink line after the panes' captures.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

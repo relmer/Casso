@@ -52,6 +52,7 @@ struct FolderOptions;
 
 struct CassoExplorerWindowContext
 {
+public:
     IFileSystem                * fs          = nullptr;
     std::wstring                 baseDir;
     std::wstring                 titlePrefix;
@@ -79,6 +80,7 @@ struct CassoExplorerWindowContext
 
 struct ExplorerContext
 {
+public:
     IExplorerWindow             & window;
     CassoExplorerBrowser        & browser;
     CassoExplorerActions        & actions;
@@ -92,22 +94,21 @@ struct ExplorerContext
     CassoExplorerCommands       & commands;
     DxuiDpiScaler               & scaler;
     const DxuiTheme *           & theme;
-
-    ExplorerLayout          & layout;
-    ExplorerListPane        & listPane;
-    ExplorerFolderSync      & folderSync;
-    CassoLinkManager        & cassoLinkManager;
-    ExplorerDragDrop        & dragDrop;
-    ExplorerTabManager      & tabManager;
-    ExplorerPreviewManager  & preview;
-    ExplorerAddressBar      & addressBar;
-    ExplorerMenus           & menus;
-    ExplorerCommandManager  & commandManager;
-    ExplorerFileOps         & fileOps;
-    ExplorerInput           & input;
-    ExplorerTips            & tips;
-    ExplorerThemes          & themes;
-    ExplorerStatusBar       & statusBar;
-    ExplorerToolbars        & toolbars;
-    ExplorerTreePane        & treePane;
+    ExplorerLayout              & layout;
+    ExplorerListPane            & listPane;
+    ExplorerFolderSync          & folderSync;
+    CassoLinkManager            & cassoLinkManager;
+    ExplorerDragDrop            & dragDrop;
+    ExplorerTabManager          & tabManager;
+    ExplorerPreviewManager      & preview;
+    ExplorerAddressBar          & addressBar;
+    ExplorerMenus               & menus;
+    ExplorerCommandManager      & commandManager;
+    ExplorerFileOps             & fileOps;
+    ExplorerInput               & input;
+    ExplorerTips                & tips;
+    ExplorerThemes              & themes;
+    ExplorerStatusBar           & statusBar;
+    ExplorerToolbars            & toolbars;
+    ExplorerTreePane            & treePane;
 };
