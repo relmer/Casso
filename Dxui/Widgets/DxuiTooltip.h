@@ -113,6 +113,12 @@ public:
     //  past the last, is drawn in the tip's text color. Set before the
     //  request it goes with; a change of colors raises the tip again.
     void  SetLineColors (std::vector<uint32_t> argbs) { m_lineArgbs = std::move (argbs); }
+
+    //  A square of color before each line, for a key to colors drawn
+    //  elsewhere: one for each line from the top, zero for none. Every line
+    //  is indented by the squares' width, and the tip is laid out as a
+    //  table. Set before the request it goes with, as the line colors are.
+    void  SetLineSwatches (std::vector<uint32_t> argbs) { m_lineSwatches = std::move (argbs); }
     static HRESULT  LayOutTable (const std::wstring & text, float gapPx, const MeasureFn & measure, TableLayout & table);
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
     void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
@@ -261,7 +267,9 @@ private:
     void  RenderPopup        (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
     //  The table's parts drawn from its top-left, in pixels.
-    void  DrawTable          (IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
+    void  DrawTable          (IDxuiPainter & painter, IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const;
+    bool  IsTableTip         () const { return IsTable (m_text) || !m_lineSwatches.empty(); }
+    float GetSwatchIndentPx  (float lineHeight) const;
 
     //  The table laid out with `text` measuring the parts at the tip's font.
     HRESULT  LayOutTableWith (IDxuiTextRenderer & text, TableLayout & table) const;
@@ -301,4 +309,6 @@ private:
     int                      m_showCount         = 0;
     std::vector<uint32_t>    m_lineArgbs;
     std::vector<uint32_t>    m_shownLineArgbs;
+    std::vector<uint32_t>    m_lineSwatches;
+    std::vector<uint32_t>    m_shownLineSwatches;
 };

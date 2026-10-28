@@ -449,7 +449,7 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 
     if (m_visible)
     {
-        bool  changed = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs ||
+        bool  changed = wasAtPointer != isAtPointer || (text != m_text) || m_lineArgbs != m_shownLineArgbs || m_lineSwatches != m_shownLineSwatches ||
                         anchor.left   != m_anchor.left  ||
                         anchor.top    != m_anchor.top   ||
                         anchor.right  != m_anchor.right ||
@@ -832,6 +832,7 @@ void DxuiTooltip::ShowPopup()
     if (shows)
     {
         m_shownLineArgbs            = m_lineArgbs;
+        m_shownLineSwatches         = m_lineSwatches;
         showParams.ownerHwnd        = owner;
         showParams.anchorRectScreen = GetScreenAnchor();
         showParams.placement        = DxuiPopupPlacement::Below;
@@ -931,7 +932,7 @@ void DxuiTooltip::MeasureBoxPx (
 
 
 
-    if (IsTable (m_text) && m_activePopup != nullptr)
+    if (IsTableTip() && m_activePopup != nullptr)
     {
         TableLayout  table;
 
@@ -940,7 +941,7 @@ void DxuiTooltip::MeasureBoxPx (
             return m_activePopup->MeasureTextWrapped (part.c_str(), fontPx, GetFace(), s_kNoWrapPx, w, h);
         }, table);
 
-        textWPx = table.width;
+        textWPx = table.width + GetSwatchIndentPx (table.lineHeight);
         textHPx = table.lineHeight * (float) table.lines.size();
     }
     else
@@ -1150,7 +1151,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
     float        boxLeft   = 0.0f;
     float        boxTop    = 0.0f;
     RECT         anchor    = {};
-    bool         isTable   = IsTable (m_text);
+    bool         isTable   = IsTableTip();
     TableLayout  table;
 
 
@@ -1165,7 +1166,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
         hr = LayOutTableWith (const_cast<IDxuiTextRenderer &> (text), table);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        textW = table.width;
+        textW = table.width + GetSwatchIndentPx (table.lineHeight);
         textH = table.lineHeight * (float) table.lines.size();
     }
     else
@@ -1212,7 +1213,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 
     if (isTable)
     {
-        DrawTable (text, table, boxLeft + padX, boxTop + padY);
+        DrawTable (painter, text, table, boxLeft + padX, boxTop + padY);
         return;
     }
 
@@ -1302,7 +1303,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
     painter.OutlineRoundedRect (0.0f, 0.0f, width, height, GetCornerRadiusPx(), borderPx, m_borderArgb);
 
-    if (IsTable (m_text))
+    if (IsTableTip())
     {
         TableLayout  table;
 
@@ -1310,7 +1311,7 @@ void DxuiTooltip::RenderPopup (IDxuiPainter & painter, IDxuiTextRenderer & text)
 
         if (SUCCEEDED (hr))
         {
-            DrawTable (text, table, padX, padY);
+            DrawTable (painter, text, table, padX, padY);
         }
 
         return;
@@ -1450,12 +1451,24 @@ HRESULT DxuiTooltip::LayOutTableWith (IDxuiTextRenderer & text, TableLayout & ta
 //
 //  DrawTable
 //
+//  A line's swatch is a square a little shorter than the line, centered on
+//  it, in the indent before the text.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::DrawTable (IDxuiTextRenderer & text, const TableLayout & table, float left, float top) const
+void DxuiTooltip::DrawTable (
+    IDxuiPainter             & painter,
+    IDxuiTextRenderer        & text,
+    const TableLayout        & table,
+    float                      left,
+    float                      top) const
 {
+    constexpr float  kSwatchShare = 0.6f;
+
     HRESULT  hr     = S_OK;
     float    fontPx = m_scaler.ToPxf (m_fontDip);
+    float    indent = GetSwatchIndentPx (table.lineHeight);
+    float    side   = std::round (table.lineHeight * kSwatchShare);
     float    y      = top;
     float    x      = 0.0f;
     float    w      = 0.0f;
@@ -1467,16 +1480,43 @@ void DxuiTooltip::DrawTable (IDxuiTextRenderer & text, const TableLayout & table
         const std::vector<std::wstring>  & parts = table.lines[line];
         uint32_t                           argb  = (line < m_lineArgbs.size() && m_lineArgbs[line] != 0) ? m_lineArgbs[line] : m_textArgb;
 
+        if (line < m_lineSwatches.size() && m_lineSwatches[line] != 0)
+        {
+            painter.FillRect    (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, m_lineSwatches[line]);
+            painter.OutlineRect (left, y + std::round ((table.lineHeight - side) / 2.0f), side, side, 1.0f, m_borderArgb);
+        }
+
         for (size_t c = 0; c < parts.size(); c++)
         {
             bool  isSpan = parts.size() == 1;
 
             x  = isSpan ? 0.0f        : table.columnX[c];
             w  = isSpan ? table.width : table.width - table.columnX[c];
-            hr = text.DrawString (parts[c].c_str(), left + x, y, w, table.lineHeight, argb, fontPx, GetFace());
+            hr = text.DrawString (parts[c].c_str(), left + indent + x, y, w, table.lineHeight, argb, fontPx, GetFace());
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
 
         y += table.lineHeight;
     }
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetSwatchIndentPx
+//
+//  The room before a line for its swatch and the gap after it, a line's
+//  height; none when the tip has no swatches.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiTooltip::GetSwatchIndentPx (float lineHeight) const
+{
+    constexpr float  kIndentShare = 1.0f;
+
+    return m_lineSwatches.empty() ? 0.0f : std::round (lineHeight * kIndentShare);
 }

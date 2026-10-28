@@ -317,6 +317,42 @@ public:
         Assert::AreEqual ((size_t) 6, text.Calls().size(), L"three parts on each of two lines");
     }
 
+    //  A line with a swatch has a square of its color before it, inside
+    //  the line; every line's text moves right by the same indent, so the
+    //  lines without one stay lined up with the rest.
+    TEST_METHOD (ASwatchIsDrawnBeforeItsLine)
+    {
+        constexpr uint32_t    kBlue  = 0xFF5B9BD5;
+        DxuiTooltip           t;
+        MockDxuiPainter       painter;
+        MockDxuiTextRenderer  text;
+        float                 swatchX = -1.0f;
+        float                 headX   = -1.0f;
+        float                 lineX   = -1.0f;
+
+
+
+        t.SetPointerLocator (FindNoPointer);
+        t.SetLineSwatches   ({ 0, kBlue });
+        t.RequestShowNow    (MakeRect (0, 0, 10, 10), L"Frame 9\nPLOT", 0);
+        t.Paint             (painter, text);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            swatchX = (call.kind == RecordedPaintKind::FillRect && call.argb == kBlue) ? call.x : swatchX;
+        }
+
+        for (const RecordedTextCall & call : text.Calls())
+        {
+            headX = (call.text == L"Frame 9") ? call.x : headX;
+            lineX = (call.text == L"PLOT")    ? call.x : lineX;
+        }
+
+        Assert::IsTrue   (swatchX >= 0.0f, L"the blue line's swatch is drawn");
+        Assert::IsTrue   (lineX > swatchX, L"after its swatch");
+        Assert::AreEqual (headX, lineX, L"the line without one indented the same");
+    }
+
     TEST_METHOD (LayOutTable_LinesUpTheColumnsOfEveryLine)
     {
         DxuiTooltip::TableLayout  table;

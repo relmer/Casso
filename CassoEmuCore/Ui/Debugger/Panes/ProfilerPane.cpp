@@ -641,7 +641,7 @@ bool ProfilerPane::TryGetTip (POINT clientPx, PaneTip & tip)
 {
     tip.kind = PaneTip::Kind::Pointer;
 
-    if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, tip.text))
+    if (m_host.IsRoutable (m_timeline) && m_timeline->TryGetTipAt (clientPx, tip.text, tip.lineSwatches))
     {
         return true;
     }

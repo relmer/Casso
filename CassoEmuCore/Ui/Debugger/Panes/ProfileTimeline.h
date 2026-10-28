@@ -32,10 +32,16 @@ public:
     //  Where a frame's bar is, as an index in the frames, or none.
     std::optional<size_t>  FindFrameAt (POINT point) const;
 
-    //  The frame's number and cycles, then its routines by their cycles.
-    static std::wstring  GetFrameTip (const ProfileFrameEntry & frame, const std::vector<ProfileRoutineEntry> & routines);
+    //  The frame's number and cycles, then its routines by their cycles, and
+    //  for each line the color its routine is drawn in, otherArgb for the
+    //  routines drawn together, 0 for the frame's line.
+    static std::wstring  GetFrameTip (const ProfileFrameEntry & frame, const std::vector<ProfileRoutineEntry> & routines,
+                                      uint32_t otherArgb, std::vector<uint32_t> & swatches);
 
-    bool  TryGetTipAt (POINT point, std::wstring & text) const;
+    //  The color of a routine's share of a bar.
+    static uint32_t      GetShareColor (size_t routine, uint32_t otherArgb);
+
+    bool  TryGetTipAt (POINT point, std::wstring & text, std::vector<uint32_t> & swatches) const;
 
     void                Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void                Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -52,4 +58,5 @@ private:
     std::vector<ProfileFrameEntry>    m_frames;
     std::vector<ProfileRoutineEntry>  m_routines;
     DxuiDpiScaler                     m_scaler;
+    uint32_t                          m_otherArgb = 0xFF808080;   // the theme's divider color, as last painted
 };

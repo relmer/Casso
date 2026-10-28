@@ -509,8 +509,9 @@ namespace DebuggerToolPanesTests
 
         TEST_METHOD (AFramesTipListsItsRoutinesByCycles)
         {
-            ProfileData   profile = MakeRoutineProfile();
-            std::wstring  tip     = ProfileTimeline::GetFrameTip (profile.frames[0], profile.routines);
+            ProfileData            profile  = MakeRoutineProfile();
+            std::vector<uint32_t>  swatches;
+            std::wstring           tip      = ProfileTimeline::GetFrameTip (profile.frames[0], profile.routines, 0xFF808080, swatches);
             std::wstring  head    = std::format (L"Frame 9: {} cycles\nPLOT: {} cycles (74.4%)\nTop level: {} cycles", DebuggerStatusText::FormatCount (4030),
                                                  DebuggerStatusText::FormatCount (3000), DebuggerStatusText::FormatCount (1000));
 
@@ -519,6 +520,10 @@ namespace DebuggerToolPanesTests
             //  The counts have the locale's thousands separators.
             Assert::IsTrue (tip.starts_with (head), tip.c_str());
             Assert::IsTrue (tip.ends_with   (L"Other routines: 30 cycles"), tip.c_str());
+
+            //  A swatch in the bar's color before each routine, none before
+            //  the frame's line.
+            Assert::IsTrue (swatches == std::vector<uint32_t> { 0, FlameGraphView::GetRoutineColor (0), FlameGraphView::GetRoutineColor (2), 0xFF808080 });
         }
 
 

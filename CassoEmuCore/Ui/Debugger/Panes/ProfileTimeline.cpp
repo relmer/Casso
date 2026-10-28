@@ -94,7 +94,11 @@ std::optional<size_t> ProfileTimeline::FindFrameAt (POINT point) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, const std::vector<ProfileRoutineEntry> & routines)
+std::wstring ProfileTimeline::GetFrameTip (
+    const ProfileFrameEntry                 & frame,
+    const std::vector<ProfileRoutineEntry>  & routines,
+    uint32_t                                  otherArgb,
+    std::vector<uint32_t>                   & swatches)
 {
     std::vector<std::pair<size_t, uint64_t>>  shares = frame.shares;
     uint64_t                                  total  = frame.other;
@@ -114,6 +118,8 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
                                             DebuggerStatusText::FormatCount (frame.index + frame.count - 1), DebuggerStatusText::FormatCount (total))
                              : std::format (L"Frame {}: {} cycles", DebuggerStatusText::FormatCount (frame.index), DebuggerStatusText::FormatCount (total));
 
+    swatches.assign (1, 0);
+
     for (size_t i = 0; i < shares.size(); i++)
     {
         if (i >= kTipRoutines)
@@ -124,14 +130,34 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
 
         text += std::format (L"\n{}: {} cycles ({:.1f}%)", TextEncoding::NarrowToWide (routines[shares[i].first].GetName()),
                              DebuggerStatusText::FormatCount (shares[i].second), 100.0 * (double) shares[i].second / (double) std::max<uint64_t> (total, 1));
+        swatches.push_back (GetShareColor (shares[i].first, otherArgb));
     }
 
     if (rest != 0)
     {
         text += std::format (L"\nOther routines: {} cycles", DebuggerStatusText::FormatCount (rest));
+        swatches.push_back (otherArgb);
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfileTimeline::GetShareColor
+//
+//  The kColoredRoutines hottest routines have the flame graph's colors, and
+//  the rest, SIZE_MAX among them, the color drawn for them together.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t ProfileTimeline::GetShareColor (size_t routine, uint32_t otherArgb)
+{
+    return (routine < kColoredRoutines) ? FlameGraphView::GetRoutineColor (routine) : otherArgb;
 }
 
 
@@ -144,7 +170,10 @@ std::wstring ProfileTimeline::GetFrameTip (const ProfileFrameEntry & frame, cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ProfileTimeline::TryGetTipAt (POINT point, std::wstring & text) const
+bool ProfileTimeline::TryGetTipAt (
+    POINT                    point,
+    std::wstring           & text,
+    std::vector<uint32_t>  & swatches) const
 {
     std::optional<size_t>  frame = FindFrameAt (point);
 
@@ -155,7 +184,7 @@ bool ProfileTimeline::TryGetTipAt (POINT point, std::wstring & text) const
         return false;
     }
 
-    text = GetFrameTip (m_frames[*frame], m_routines);
+    text = GetFrameTip (m_frames[*frame], m_routines, m_otherArgb, swatches);
     return true;
 }
 
@@ -204,6 +233,7 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
         return;
     }
 
+    m_otherArgb = theme.Divider();
     painter.FillRect ((float) m_boundsDip.left, bottom - 1.0f, (float) (m_boundsDip.right - m_boundsDip.left), 1.0f, theme.Divider());
 
     for (size_t i = 0; i < m_frames.size(); i++)
@@ -235,7 +265,7 @@ void ProfileTimeline::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, c
             }
 
             y -= tall;
-            painter.FillRect (x, y, width, tall, (routine == SIZE_MAX) ? theme.Divider() : FlameGraphView::GetRoutineColor (routine));
+            painter.FillRect (x, y, width, tall, GetShareColor (routine, m_otherArgb));
         }
     }
 }
