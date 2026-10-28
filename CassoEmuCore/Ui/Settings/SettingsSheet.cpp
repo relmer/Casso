@@ -14,6 +14,7 @@
 #include "Shell/Components/ShellPrinter.h"
 #include "Shell/Components/ShellSerialCard.h"
 #include "Ui/Settings/SerialCardPage.h"
+#include "Ui/Settings/SerialPortsPage.h"
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
 #include "AssetBootstrap.h"
@@ -108,6 +109,7 @@ void SettingsSheet::OnBuildPages()
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
     m_printingPage = CreatePage<PrintingPage> (L"Printing");
     m_serialPage   = CreatePage<SerialCardPage> (L"Serial card");
+    m_serialPortsPage = CreatePage<SerialPortsPage> (L"Serial ports");
     m_networkPage  = CreatePage<NetworkPage>  (L"Network");
     m_shotsPage    = CreatePage<ScreenshotsPage> (L"Screenshots");
     m_controllersPage = CreatePage<ControllersPage> (L"Controllers");
@@ -281,6 +283,7 @@ HRESULT SettingsSheet::OpenModeless (
     // an enabled Disk ][ controller. Remember its page index for the toggle.
     m_diskPageIndex   = IndexOfPage (m_diskPage);
     m_serialPageIndex = IndexOfPage (m_serialPage);
+    m_serialPortsPageIndex = IndexOfPage (m_serialPortsPage);
 
     // The Network tab likewise exists only while the staged config has the
     // Uthernet II turned on.
@@ -517,6 +520,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_displayPage->SetPopupHost  (GetPopupHost());
     m_printingPage->SetPopupHost (GetPopupHost());
     m_serialPage->SetPopupHost   (GetPopupHost());
+    m_serialPortsPage->SetPopupHost (GetPopupHost());
     m_networkPage->SetPopupHost  (GetPopupHost());
     m_shotsPage->SetPopupHost    (GetPopupHost());
     m_controllersPage->SetPopupHost (GetPopupHost());
@@ -650,31 +654,13 @@ HRESULT SettingsSheet::OpenModeless (
 
         IGNORE_RETURN_VALUE (downloaded, false);
     });
-    m_serialPage->SetOnBrowse ([this] (bool forOutput, std::string & inOutPath) -> bool
-    {
-        FileDialogSpec  spec;
-        fs::path        picked;
-        bool            isPicked = false;
-        HRESULT         hr       = S_OK;
+    m_serialPage->SetOnBrowse    ([this] (bool forOutput, std::string & inOutPath) { return BrowseSerialFile (forOutput, inOutPath); });
+    m_serialPage->SetSerialPorts (&m_emuShell->GetHostSerialPorts());
 
-        spec.filters = { { L"All files", L"*.*" } };
-
-        if (!inOutPath.empty())
-        {
-            spec.initialFolder   = fs::path (inOutPath).parent_path();
-            spec.defaultFileName = fs::path (inOutPath).filename().wstring();
-        }
-
-        hr = forOutput ? m_emuShell->GetHostDialogs().PickFileToSave (GetHwnd(), spec, picked, isPicked)
-                       : m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
-
-        if (SUCCEEDED (hr) && isPicked)
-        {
-            inOutPath = picked.string();
-        }
-
-        return SUCCEEDED (hr) && isPicked;
-    });
+    // Serial ports page, on a //c: the same pickers and the PC's COM ports.
+    m_serialPortsPage->SetState       (&m_state);
+    m_serialPortsPage->SetOnBrowse    ([this] (bool forOutput, std::string & inOutPath) { return BrowseSerialFile (forOutput, inOutPath); });
+    m_serialPortsPage->SetSerialPorts (&m_emuShell->GetHostSerialPorts());
 
     m_shotsPage->SetDefaultFolder (ScreenshotCapture::DefaultFolder().wstring());
     m_shotsPage->SetPrefs (&prefs);
@@ -718,6 +704,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
     m_serialPage->Rebuild();
+    m_serialPortsPage->Rebuild();
     m_displayPage->Rebuild();
     m_networkPage->Rebuild();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
@@ -1034,6 +1021,7 @@ void SettingsSheet::OnDialogTick()
     UpdateDiskTabVisibility();
     UpdateSerialTabVisibility();
     UpdateNetworkTabVisibility();
+    UpdateSerialPortsTabVisibility();
     m_sparkle.Update();
     UpdateTickInterval();
 
@@ -1427,6 +1415,7 @@ void SettingsSheet::UpdateSerialTabVisibility()
     if (turnedOn)
     {
         m_serialPage->Rebuild();
+    m_serialPortsPage->Rebuild();
     }
 
     // The user turned this card on a moment ago and waited for its download,
@@ -1594,6 +1583,82 @@ void SettingsSheet::SetSerialCardEnabled (bool enabled)
         IGNORE_RETURN_VALUE (hr, S_OK);
         m_hardwarePage->Rebuild();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateSerialPortsTabVisibility
+//
+//  The Serial ports tab is present only while the staged machine has
+//  built-in serial ports, as the Network tab follows the Uthernet II.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateSerialPortsTabVisibility()
+{
+    bool  want = m_state.HasBuiltInSerialPorts();
+
+
+
+    if (m_serialPortsPageIndex < 0 || want == m_serialPortsTabVisible)
+    {
+        return;
+    }
+
+    m_serialPortsTabVisible = want;
+    SetPageVisible (m_serialPortsPageIndex, want);
+
+    if (want)
+    {
+        m_serialPortsPage->Rebuild();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BrowseSerialFile
+//
+//  The file a serial file attachment sends into or reads from, through the
+//  shell's file dialogs. False when none was picked.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::BrowseSerialFile (
+    bool           forOutput,
+    std::string  & inOutPath)
+{
+    FileDialogSpec  spec;
+    fs::path        picked;
+    bool            isPicked = false;
+    HRESULT         hr       = S_OK;
+
+
+
+    spec.filters = { { L"All files", L"*.*" } };
+
+    if (!inOutPath.empty())
+    {
+        spec.initialFolder   = fs::path (inOutPath).parent_path();
+        spec.defaultFileName = fs::path (inOutPath).filename().wstring();
+    }
+
+    hr = forOutput ? m_emuShell->GetHostDialogs().PickFileToSave (GetHwnd(), spec, picked, isPicked)
+                   : m_emuShell->GetHostDialogs().PickFileToOpen (GetHwnd(), spec, picked, isPicked);
+
+    if (SUCCEEDED (hr) && isPicked)
+    {
+        inOutPath = picked.string();
+    }
+
+    return SUCCEEDED (hr) && isPicked;
 }
 
 

@@ -484,6 +484,9 @@ private:
     // interface, and a test hands its own in.
     IHostDialogs &  GetHostDialogs () noexcept { return m_hostDialogs; }
 
+    //  The PC's COM ports, which the serial pages list.
+    IHostSerialPorts &  GetHostSerialPorts () noexcept { return m_hostSerialPorts; }
+
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
     // HandleChromeFocusKey owns all keydown handling while the ring is active

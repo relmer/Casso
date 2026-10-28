@@ -33,6 +33,7 @@ class PrintingPage;
 class DiskPage;
 class ScreenshotsPage;
 class SerialCardPage;
+class SerialPortsPage;
 
 
 
@@ -226,6 +227,7 @@ private:
     DisplayPage      * m_displayPage     = nullptr;
     PrintingPage     * m_printingPage    = nullptr;
     SerialCardPage   * m_serialPage      = nullptr;
+    SerialPortsPage  * m_serialPortsPage = nullptr;
     NetworkPage      * m_networkPage     = nullptr;
     ScreenshotsPage  * m_shotsPage       = nullptr;
     ControllersPage  * m_controllersPage = nullptr;
@@ -259,6 +261,15 @@ private:
     bool           m_serialTabVisible = true;
 
     void           UpdateSerialTabVisibility ();
+
+    // The Serial ports tab, present while the staged machine has built-in
+    // serial ports, as the //c does; and the file picker both serial pages
+    // use.
+    int            m_serialPortsPageIndex  = -1;
+    bool           m_serialPortsTabVisible = true;
+
+    void           UpdateSerialPortsTabVisibility ();
+    bool           BrowseSerialFile               (bool forOutput, std::string & inOutPath);
     bool           IsSerialFirmwareMissing   () const;
     std::wstring   GetSerialFirmwareStatus   () const;
 

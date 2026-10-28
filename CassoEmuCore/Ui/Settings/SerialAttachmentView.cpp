@@ -496,7 +496,8 @@ void SerialAttachmentView::ShowError (bool isShown)
 //
 //  SerialAttachmentView::OnAttachPicked
 //
-//  The path stays with the file attachments only.
+//  The path stays with the file attachments only. A COM port with none
+//  chosen takes the first one present, which is the one the list shows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -519,6 +520,13 @@ void SerialAttachmentView::OnAttachPicked (int choice)
     }
 
     SyncControls();
+
+    if (IsDevice (kpszSerialComPort) && m_choice.options.comPort.empty() && !m_comPortNames.empty())
+    {
+        m_choice.options.comPort = m_comPortNames.front();
+        SyncControls();
+    }
+
     ShowError (false);
     Report();
 }

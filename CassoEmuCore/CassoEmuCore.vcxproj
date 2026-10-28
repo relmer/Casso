@@ -127,6 +127,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Ui\Settings\SerialPortsPage.cpp" />
     <ClCompile Include="Ui\Settings\SerialAttachmentView.cpp" />
     <ClCompile Include="Seams\Win32HostSerialPorts.cpp" />
     <ClCompile Include="Seams\Win32HostSerialPort.cpp" />
@@ -803,6 +804,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Ui\Settings\SerialPortsPage.h" />
     <ClInclude Include="Ui\Settings\SerialAttachmentChoice.h" />
     <ClInclude Include="Ui\Settings\SerialAttachmentView.h" />
     <ClInclude Include="Seams\Win32HostSerialPorts.h" />
