@@ -2374,3 +2374,11 @@ With a queue that runs nothing until the test drains it: a spin-down save is pos
 1. **A completion applied late.** A completion waits for the next drain, at most a frame while the machine runs. A paused machine drains from the service pass.
 2. **A quit while a save is in flight.** `FlushAllForShutdown` waits, with a deadline, for every job posted before it.
 3. **A completion for a medium that reverse execution swapped out.** `SeatMedia` swaps media without a save. The completion compares the bay's image id, and a retained disk's dirty state is left as it is, as today.
+
+### As built (2026-10-28)
+
+**Measured** (tasks.md T153): the store's thread spends 0.057 ms in a spin-down save with the queue, the serialization alone, against 11.6 ms on a loopback share and 1.6 ms on an NVMe SSD without it. The queued figure does not depend on the media.
+
+**Saves posted without a wait:** the spin-down (`SaveAllUnlessHeld`), the soft reset and the power cycle. **Finished in the completion:** an eject, and the insert command's mount (`DiskManager::StartMountInSlot6`). **The reload** posts its file work as one job per bay.
+
+**Saves the caller waits for**, with their file work on the I/O thread and at most 30 s: the machine switch's `FlushAll`, the state load's `MountRestored`, the remount after a switch, the startup mounts, both write-protect changes, salvage, the copy an answer chooses, shutdown and the update installer's save. Each changes the machine as a whole or follows a dialog, and runs once per user action.
