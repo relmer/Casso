@@ -482,7 +482,7 @@ void ExplorerFolderSync::RefreshChangedFolders()
 
     //  Not while a rename is open or a button is down: the rows under either
     //  would change. The changes wait, and the timer tries again.
-    if (m_window.IsRenaming() || m_window.m_dragArmed || m_window.m_list->IsInteracting() || m_window.m_treePane.IsInteracting())
+    if (m_window.m_fileOps.IsRenaming() || m_window.m_dragArmed || m_window.m_list->IsInteracting() || m_window.m_treePane.IsInteracting())
     {
         SetTimer (m_window.GetHwnd(), CassoExplorerWindow::kFolderTimerId, CassoExplorerWindow::kFolderSettleMs, nullptr);
         return;

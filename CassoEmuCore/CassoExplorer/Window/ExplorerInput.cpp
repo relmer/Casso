@@ -368,22 +368,9 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         }
     }
 
-    if (m_window.IsRenaming())
+    if (m_window.m_fileOps.OnRenameMouse (ev))
     {
-        if (CassoExplorerWindow::Contains (m_window.m_renameBox->GetBounds(), point) || (ev.kind != DxuiMouseEventKind::Down && ev.kind != DxuiMouseEventKind::Wheel))
-        {
-            m_window.m_renameBox->OnMouse (ev);
-            m_window.Invalidate();
-
-            if (CassoExplorerWindow::Contains (m_window.m_renameBox->GetBounds(), point))
-            {
-                return true;
-            }
-        }
-        else
-        {
-            m_window.m_fileOps.EndRename (true);
-        }
+        return true;
     }
 
     //  A click on the zoom level puts it back to 100%.
@@ -704,20 +691,10 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
         return true;
     }
 
-    //  A rename in place takes every key: Enter keeps the name, Escape puts
-    //  the old one back.
-    if (m_window.IsRenaming())
+    //  A rename in place has every key.
+    if (m_window.m_fileOps.IsRenaming())
     {
-        if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
-        {
-            m_window.m_fileOps.EndRename (ev.vk == VK_RETURN);
-        }
-        else
-        {
-            m_window.m_renameBox->OnKey (ev);
-        }
-
-        m_window.Invalidate();
+        m_window.m_fileOps.OnRenameKey (ev);
         return true;
     }
 
@@ -786,7 +763,7 @@ bool ExplorerInput::OnKey (const DxuiKeyEvent & ev)
 
     //  Ctrl+Z on the files undoes the last file operation; in a text box it is
     //  the box's own, which has the keys before this.
-    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_window.m_focus == ExplorerPane::List || m_window.m_focus == ExplorerPane::Tree) && !m_window.IsRenaming())
+    if (ev.ctrl && !ev.alt && !ev.shift && ev.vk == 'Z' && (m_window.m_focus == ExplorerPane::List || m_window.m_focus == ExplorerPane::Tree) && !m_window.m_fileOps.IsRenaming())
     {
         m_window.m_fileOps.UndoLast();
         return true;

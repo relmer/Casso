@@ -385,12 +385,7 @@ void CassoExplorerWindow::OnCreate()
     m_status->SetDividers (false);
     m_status->SetLeadDip  (kStatusLeadDip);
 
-    m_renameBox       = CreateChild<DxuiTextInput>();
-
-    m_renameBox->SetVisible      (false);
-    m_renameBox->SetOverText     (true);
-    m_renameBox->SetHwnd         (GetHwnd());
-    m_renameBox->SetTextRenderer (GetTextRenderer());
+    m_fileOps.Create();
 
     m_toolbar->SetTextRenderer (GetTextRenderer());
     m_toolbar->SetPopupHost    (GetPopupHost());

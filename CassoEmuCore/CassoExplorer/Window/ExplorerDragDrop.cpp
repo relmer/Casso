@@ -27,6 +27,22 @@ ExplorerDragDrop::ExplorerDragDrop (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerDragDrop::SetIconDpi
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerDragDrop::SetIconDpi (UINT dpi)
+{
+    m_dragIcons.SetDpi    (dpi);
+    m_dragIcons.SetSizePx (MulDiv (kDragImageDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerDragDrop::BeginTreeDrag
 //
 //  The tree received the press and not the release, which the drag loop takes.
@@ -45,7 +61,7 @@ void ExplorerDragDrop::BeginTreeDrag (const Location & location)
     if (location.kind != Location::Kind::AppleDrive)
     {
         hr = m_window.m_shellVerbs.DragItems ({ location.path }, DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK,
-                                              (location.kind == Location::Kind::DiskImage) ? m_window.m_dragIcons.GetForKind (IShellIcons::Kind::DiskImage).get() : nullptr);
+                                              (location.kind == Location::Kind::DiskImage) ? m_dragIcons.GetForKind (IShellIcons::Kind::DiskImage).get() : nullptr);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
         m_window.m_folderSync.RefreshAfterHostChange();
@@ -87,7 +103,7 @@ void ExplorerDragDrop::BeginDiskDrag (const std::wstring & driveId)
     got = GetCursorPos (&start);
     IGNORE_RETURN_VALUE (got, TRUE);
 
-    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY, start, effect, nullptr, m_window.m_dragIcons.GetForKind (IShellIcons::Kind::DiskImage).get());
+    hr = DxuiDragDropSource::Begin (std::move (formats), DROPEFFECT_COPY, start, effect, nullptr, m_dragIcons.GetForKind (IShellIcons::Kind::DiskImage).get());
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     m_window.Invalidate();
@@ -110,7 +126,7 @@ std::shared_ptr<const DxuiIconImage> ExplorerDragDrop::GetRowDragImage()
 
 
 
-    return found ? BrowserCells::GetRowIcon (m_window.m_browser.GetRows()[(size_t) selected[0]], m_window.m_browser.GetLocation(), m_window.m_dragIcons) : nullptr;
+    return found ? BrowserCells::GetRowIcon (m_window.m_browser.GetRows()[(size_t) selected[0]], m_window.m_browser.GetLocation(), m_dragIcons) : nullptr;
 }
 
 

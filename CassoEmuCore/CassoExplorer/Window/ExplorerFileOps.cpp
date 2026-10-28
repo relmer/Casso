@@ -36,6 +36,93 @@ ExplorerFileOps::ExplorerFileOps (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerFileOps::Create
+//
+//  The rename box, an edit box laid over a list row's name or a tree node's
+//  label, as Explorer's F2 opens one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::Create()
+{
+    m_renameBox = m_window.CreateChild<DxuiTextInput>();
+
+    m_renameBox->SetVisible      (false);
+    m_renameBox->SetOverText     (true);
+    m_renameBox->SetHwnd         (m_window.GetHwnd());
+    m_renameBox->SetTextRenderer (m_window.GetTextRenderer());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::OnRenameMouse
+//
+//  While a rename is open, the box has the events over it, and moves and
+//  releases anywhere; a press or the wheel elsewhere commits the name.
+//  Returns whether the event was over the box.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerFileOps::OnRenameMouse (const DxuiMouseEvent & ev)
+{
+    bool  over = CassoExplorerWindow::Contains (m_renameBox->GetBounds(), ev.positionDip);
+
+
+
+    if (!IsRenaming())
+    {
+        return false;
+    }
+
+    if (!over && (ev.kind == DxuiMouseEventKind::Down || ev.kind == DxuiMouseEventKind::Wheel))
+    {
+        EndRename (true);
+        return false;
+    }
+
+    m_renameBox->OnMouse (ev);
+    m_window.Invalidate();
+
+    return over;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerFileOps::OnRenameKey
+//
+//  A rename in place has every key: Enter commits the new name, and Escape
+//  puts the old one back.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerFileOps::OnRenameKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind == DxuiKeyEventKind::Down && (ev.vk == VK_RETURN || ev.vk == VK_ESCAPE))
+    {
+        EndRename (ev.vk == VK_RETURN);
+    }
+    else
+    {
+        m_renameBox->OnKey (ev);
+    }
+
+    m_window.Invalidate();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerFileOps::BeginRename
 //
 //  Over the name, with the name selected up to its extension, as Explorer
@@ -85,22 +172,22 @@ void ExplorerFileOps::BeginRename()
         InflateRect (&cell, 0, -m_window.m_scaler.ToPx (DxuiListView::s_kRowBoxInsetYDip));
     }
 
-    m_window.m_renameBox->SetMaxLength (host ? MAX_PATH : kMaxCatalogName);
-    m_window.m_renameBox->SetText      (name);
-    m_window.m_renameBox->Layout       (cell, m_window.m_scaler);
-    m_window.m_renameBox->SetVisible   (true);
-    m_window.m_renameBox->SetFocused   (true);
-    m_window.m_renameBox->SelectAll();
+    m_renameBox->SetMaxLength (host ? MAX_PATH : kMaxCatalogName);
+    m_renameBox->SetText      (name);
+    m_renameBox->Layout       (cell, m_window.m_scaler);
+    m_renameBox->SetVisible   (true);
+    m_renameBox->SetFocused   (true);
+    m_renameBox->SelectAll();
 
     dot = host ? name.find_last_of (L'.') : std::wstring::npos;
 
     //  The stem only, so typing keeps the type.
     if (dot != std::wstring::npos && dot > 0 && !m_window.m_browser.GetRows()[(size_t) row].isDirectory)
     {
-        m_window.m_renameBox->SetSelection (0, dot);
+        m_renameBox->SetSelection (0, dot);
     }
 
-    m_window.m_renameRow = row;
+    m_renameRow = row;
     m_window.Invalidate();
 }
 
@@ -129,7 +216,7 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
         return;
     }
 
-    if (m_window.IsRenaming())
+    if (IsRenaming())
     {
         EndRename (false);
     }
@@ -139,12 +226,12 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
         return;
     }
 
-    m_window.m_renameBox->SetMaxLength (MAX_PATH);
-    m_window.m_renameBox->SetText      (std::filesystem::path (path).filename().wstring());
-    m_window.m_renameBox->Layout       (label, m_window.m_scaler);
-    m_window.m_renameBox->SetVisible   (true);
-    m_window.m_renameBox->SetFocused   (true);
-    m_window.m_renameBox->SelectAll();
+    m_renameBox->SetMaxLength (MAX_PATH);
+    m_renameBox->SetText      (std::filesystem::path (path).filename().wstring());
+    m_renameBox->Layout       (label, m_window.m_scaler);
+    m_renameBox->SetVisible   (true);
+    m_renameBox->SetFocused   (true);
+    m_renameBox->SelectAll();
 
     m_renameTreeId = id;
     m_window.Invalidate();
@@ -165,18 +252,18 @@ void ExplorerFileOps::BeginTreeRename (const std::wstring & id)
 void ExplorerFileOps::EndRename (bool commit)
 {
     HRESULT       hr      = S_OK;
-    int           row     = m_window.m_renameRow;
-    std::wstring  newName = m_window.m_renameBox->GetText();
+    int           row     = m_renameRow;
+    std::wstring  newName = m_renameBox->GetText();
     std::wstring  oldName;
     std::wstring  path;
     std::wstring  treeId  = m_renameTreeId;
 
 
 
-    m_window.m_renameRow = -1;
+    m_renameRow = -1;
     m_renameTreeId.clear();
-    m_window.m_renameBox->SetFocused (false);
-    m_window.m_renameBox->SetVisible (false);
+    m_renameBox->SetFocused (false);
+    m_renameBox->SetVisible (false);
     m_window.Invalidate();
 
     //  A folder renamed from its node in the tree, as in File Explorer.

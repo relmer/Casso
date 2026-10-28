@@ -31,6 +31,14 @@ class ExplorerFileOps
 public:
     explicit ExplorerFileOps (CassoExplorerWindow & window);
 
+    //  The rename box, as a child of the window, and the pointer and keys while
+    //  a rename is open.
+    void  Create        ();
+    bool  IsRenaming    () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
+    int   GetRenameRow  () const { return m_renameRow; }
+    bool  OnRenameMouse (const DxuiMouseEvent & ev);
+    void  OnRenameKey   (const DxuiKeyEvent & ev);
+
     static constexpr int  kMaxCatalogName = 30;
     static constexpr int  kRestoreRetries = 5;
 
@@ -93,6 +101,10 @@ private:
 
     Win32ProcessLauncher  m_launcher;
     int                   m_defaultDriveCount = -1;   // the default machine's, once read
-    std::wstring          m_renameTreeId;
-    int                   m_restoreTicks      = 0;
+    //  Rename in place: the box over the name, and the list row being renamed,
+    //  or -1, or the tree node.
+    DxuiTextInput  * m_renameBox    = nullptr;
+    int              m_renameRow    = -1;
+    std::wstring     m_renameTreeId;
+    int              m_restoreTicks = 0;
 };

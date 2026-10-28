@@ -32,7 +32,6 @@ class ExplorerListPane
 public:
     explicit ExplorerListPane (CassoExplorerWindow & window);
 
-    static constexpr int       kDragImageDip       = 96;       // a dragged item's icon, as File Explorer draws it
     static constexpr const wchar_t *  kNoSearchMatches = L"No items match your search.";
 
     //  How far below the list's top a search's message sits: File Explorer's,

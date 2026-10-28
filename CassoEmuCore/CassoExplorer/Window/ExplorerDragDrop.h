@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Seams/Win32ShellIcons.h"
+
 #include "CassoExplorer/CassoExplorerActions.h"
 
 class CassoLinkConnections;
@@ -30,6 +32,11 @@ class ExplorerDragDrop
 {
 public:
     explicit ExplorerDragDrop (CassoExplorerWindow & window);
+
+    //  A dragged item's icon, as File Explorer draws it, and the DPI it is
+    //  drawn at, the list's.
+    static constexpr int  kDragImageDip = 96;
+    void  SetIconDpi (UINT dpi);
 
     //  How long a drag rests on a collapsed tree node before it opens,
     //  measured against File Explorer's: between 970 and 1,090 ms.
@@ -114,6 +121,8 @@ private:
     friend class CassoExplorerWindow;
 
     CassoExplorerWindow  & m_window;
+
+    Win32ShellIcons        m_dragIcons;   // drawn as each drag starts, so not in the background
 
     DxuiDragDropTarget                        m_dropTarget;
     ComPtr<IDropTarget>                       m_hostDrop;   // the host folder the drag is over, if any

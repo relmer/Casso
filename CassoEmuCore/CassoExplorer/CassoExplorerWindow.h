@@ -254,7 +254,6 @@ protected:
     DxuiMessageResult  OnEndSession (bool ending) override;
 
 private:
-    bool                              IsRenaming                () const { return m_renameRow >= 0 || !m_fileOps.m_renameTreeId.empty(); }
     void  ShowAbout();
 
     //  Stands for a separator in a list of command ids.
@@ -280,7 +279,6 @@ private:
     Context                                      m_context;
     Win32HostDialogs                             m_dialogs;
     Win32ShellIcons                              m_shellIcons;
-    Win32ShellIcons                              m_dragIcons;   // drawn as each drag starts, so not in the background
     Win32InfoTips                                m_infoTips;
     Win32PackagedCommands                        m_packagedCommands;
     Win32ShellItemVerbs                          m_shellVerbs;
@@ -327,8 +325,6 @@ private:
 
     //  Rename in place: an edit box laid over the row's name, as Explorer's
     //  F2 opens one. The row being renamed, or -1.
-    DxuiTextInput   * m_renameBox          = nullptr;
-    int               m_renameRow          = -1;
     DxuiLabel       * m_listMessage        = nullptr;
     bool              m_listMessageTop     = false;
     DxuiButton      * m_listAction         = nullptr;

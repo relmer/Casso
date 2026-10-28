@@ -43,7 +43,7 @@ void ExplorerListPane::FillList()
     m_window.m_links.ReleaseIdleLinks();
 
     //  The rows are about to change under it.
-    if (m_window.m_renameRow >= 0)
+    if (m_window.m_fileOps.GetRenameRow() >= 0)
     {
         m_window.m_fileOps.EndRename (false);
     }
@@ -460,8 +460,7 @@ void ExplorerListPane::SizeListIcons()
     m_listIcons.SetSizePx ((m_window.m_listView == DxuiListView::View::Details) ? MulDiv (DxuiTreeView::s_kIconDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi)
                                                                         : DxuiListItemLayout::GetItemIconPx (m_window.m_listView, dpi));
 
-    m_window.m_dragIcons.SetDpi    (dpi);
-    m_window.m_dragIcons.SetSizePx (MulDiv (kDragImageDip, (int) dpi, (int) DxuiDpiScaler::kBaseDpi));
+    m_window.m_dragDrop.SetIconDpi (dpi);
 }
 
 
