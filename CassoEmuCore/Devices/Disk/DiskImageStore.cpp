@@ -1110,22 +1110,7 @@ Error:
 
 HRESULT DiskImageStore::ReadImageFile (const string & path, vector<Byte> & bytes) const
 {
-    HRESULT   hr = S_OK;
-
-
-
-    if (m_imageReader)
-    {
-        hr = m_imageReader (path, bytes);
-        CHR (hr);
-        BAIL_OUT_IF (true, S_OK);
-    }
-
-    hr = ReadFileBytes (path, bytes);
-    CHR (hr);
-
-Error:
-    return hr;
+    return GetFileOps().Read (path, bytes);
 }
 
 
@@ -1851,20 +1836,7 @@ void DiskImageStore::SetFileWriteProtect (int slot, int drive, bool isReadOnly, 
 
 ImageIdentity DiskImageStore::ReadIdentity (const string & path) const
 {
-    ImageIdentity  identity;
-
-
-
-    if (m_identityReader)
-    {
-        identity = m_identityReader (path);
-    }
-    else
-    {
-        identity = ImageIdentity::ReadFromFileSystem (path);
-    }
-
-    return identity;
+    return GetFileOps().ReadIdentity (path);
 }
 
 
@@ -2027,6 +1999,30 @@ uint64_t DiskImageStore::GetInvocationTag()
 
 
     return s_kInvocationTag;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskImageStore::GetFileOps
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DiskFileOps DiskImageStore::GetFileOps() const
+{
+    DiskFileOps  ops;
+
+
+
+    ops.flushSink      = m_flushSink;
+    ops.imageReader    = m_imageReader;
+    ops.identityReader = m_identityReader;
+    ops.fileIo         = m_fileIo;
+
+    return ops;
 }
 
 

@@ -15,6 +15,8 @@
 #include "BayStatus.h"
 #include "IImageWatcher.h"
 #include "DiskStoreTypes.h"
+#include "DiskFileOps.h"
+#include "DiskIoQueue.h"
 #include "DiskStoreText.h"
 #include "DiskStoreReload.h"
 #include "DiskStoreSave.h"
@@ -292,6 +294,14 @@ public:
     //  the quiet period is the only debounce.
     void          SetFileIo (IDiskFileIo * fileIo) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_fileIo = fileIo; }
 
+    //  Where the store's file I/O runs, the inline queue when null. The queue
+    //  is the caller's and must outlive the store's use of it.
+    void          SetIoQueue (IDiskIoQueue * queue) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_ioQueue = (queue != nullptr) ? queue : &m_inlineQueue; }
+
+    //  Applies the results of finished file I/O, on the thread with the
+    //  store's token.
+    void          DrainIo () { ASSERT_THREAD_OWNERSHIP (m_ownership); m_ioQueue->DrainCompletions(); }
+
     //  False for a store whose disks have no file to save to, such as a
     //  scratch machine's: its saves write nothing and clear the dirty bits.
     void          SetFileBacked (bool isFileBacked) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_isFileBacked = isFileBacked; }
@@ -492,6 +502,7 @@ private:
     friend class DiskStoreSave;
     friend class DiskStoreSalvage;
     friend class DiskStoreMedia;
+    friend class DiskFileOps;
 
     using Entry = DiskBayEntry;
 
@@ -522,6 +533,9 @@ private:
     //  The identity `path` has right now: through the seam when one is
     //  installed, and from the filesystem when none is.
     ImageIdentity  ReadIdentity (const string & path) const;
+
+    //  The seams set on the store, as the value a job copies.
+    DiskFileOps    GetFileOps () const;
 
     //  The tag in this process's commit temporaries, taken once.
     static uint64_t  GetInvocationTag();
@@ -581,6 +595,9 @@ private:
 
     //  Starts at 1, so the first publish builds the bay table.
     uint64_t                 m_statusGeneration = 1;
+
+    InlineDiskIoQueue        m_inlineQueue;
+    IDiskIoQueue *           m_ioQueue = &m_inlineQueue;
 
     DiskStoreReload          m_reload  { *this };
     DiskStoreSave            m_save    { *this };

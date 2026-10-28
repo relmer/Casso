@@ -570,6 +570,7 @@
     <ClCompile Include="EmuTests\FluxSectorAccessTests.cpp" />
     <ClCompile Include="EmuTests\DamagedDiskMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskImageStoreTests.cpp" />
+    <ClCompile Include="EmuTests\DiskIoQueueTests.cpp" />
     <ClCompile Include="EmuTests\DiskStoreMountTests.cpp" />
     <ClCompile Include="EmuTests\DiskStoreSalvageTests.cpp" />
     <ClCompile Include="EmuTests\DiskStoreSaveTests.cpp" />
@@ -612,6 +613,7 @@
     <ClCompile Include="Cassque\RefreshAnchorTests.cpp" />
     <ClInclude Include="Cassque\FakeFolderWatcher.h" />
     <ClInclude Include="EmuTests\OwnerThreadStandIn.h" />
+    <ClInclude Include="EmuTests\DeferredDiskIoQueue.h" />
     <ClInclude Include="EmuTests\DiskStoreTestSupport.h" />
     <ClInclude Include="EmuTests\WozLoaderTestSupport.h" />
     <ClInclude Include="EmuTests\DiskManagerRig.h" />

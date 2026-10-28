@@ -446,33 +446,7 @@ bool DiskStoreSave::IsRecoveryCopyIntact (const Entry & entry)
 
 HRESULT DiskStoreSave::WriteNewRecoveryImage (const Entry & entry, const vector<Byte> & wozBytes, string & outPath)
 {
-    HRESULT  hr          = S_OK;
-    int      attempt     = 0;
-    bool     isDone      = false;
-    bool     isNameFixed = m_store.m_flushSink && m_store.m_fileIo == nullptr;
-    bool     isFree      = false;
-    bool     isTaken     = false;
-
-
-
-    for (attempt = 0; !isDone && attempt < DiskImageStore::kMaxRecoveryNameAttempts; attempt++)
-    {
-        outPath = DiskImageStore::MakeRecoveryPath (entry.path, attempt);
-        isFree  = isNameFixed || !DoesPathExist (outPath);
-
-        if (isFree)
-        {
-            hr      = CommitFile (outPath, wozBytes, CommitMode::CreateNew);
-            isTaken = hr == HRESULT_FROM_WIN32 (ERROR_ALREADY_EXISTS) || hr == HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS);
-            isDone  = isNameFixed || !isTaken;
-        }
-    }
-
-    CBREx (isDone, HRESULT_FROM_WIN32 (ERROR_FILE_EXISTS));
-    CHR (hr);
-
-Error:
-    return hr;
+    return m_store.GetFileOps().WriteNewRecoveryImage (entry.path, wozBytes, m_store.m_flushSink && m_store.m_fileIo == nullptr, outPath);
 }
 
 
@@ -842,16 +816,7 @@ void DiskStoreSave::RecordCommittedFile (Entry & entry, const vector<Byte> & sav
 
 bool DiskStoreSave::DoesPathExist (const string & path) const
 {
-    std::error_code  ec;
-
-
-
-    if (m_store.m_fileIo != nullptr)
-    {
-        return m_store.m_fileIo->Exists (path);
-    }
-
-    return fs::exists (fs::path (path), ec);
+    return m_store.GetFileOps().Exists (path);
 }
 
 
@@ -872,31 +837,7 @@ bool DiskStoreSave::DoesPathExist (const string & path) const
 
 HRESULT DiskStoreSave::FindFreePreservedPath (const string & imagePath, string & outPath) const
 {
-    HRESULT  hr      = S_OK;
-    string   stamp   = PreservedCopy::MakeStamp (m_store.m_timestamp ? m_store.m_timestamp() : time (nullptr));
-    bool     isFree  = false;
-    int      attempt = 0;
-
-
-
-    for (attempt = 0; attempt < PreservedCopy::kMaxAttempts; attempt++)
-    {
-        string  candidate = PreservedCopy::MakePath (imagePath, stamp, attempt);
-
-        if (!DoesPathExist (candidate))
-        {
-            outPath = candidate;
-            isFree  = true;
-            break;
-        }
-    }
-
-    //  Ninety-nine names taken in one second is not a collision any more, it is
-    //  something else going wrong, and inventing a hundredth would not help.
-    CBR (isFree);
-
-Error:
-    return hr;
+    return m_store.GetFileOps().FindFreePreservedPath (imagePath, PreservedCopy::MakeStamp (m_store.m_timestamp ? m_store.m_timestamp() : time (nullptr)), outPath);
 }
 
 
@@ -919,26 +860,7 @@ Error:
 
 HRESULT DiskStoreSave::CommitFile (const string & path, const vector<Byte> & bytes, CommitMode mode)
 {
-    HRESULT               hr       = S_OK;
-    Win32DiskFileIo       localIo;
-    IDiskFileIo         & fileIo   = (m_store.m_fileIo != nullptr) ? *m_store.m_fileIo : localIo;
-    CommitPlan::Progress  progress = {};
-
-
-
-    if (m_store.m_flushSink)
-    {
-        hr = m_store.m_flushSink (path, bytes);
-        CHR (hr);
-    }
-    else
-    {
-        hr = DurableCommit::Commit (fileIo, path, bytes, DiskImageStore::GetInvocationTag(), mode, progress);
-        CHR (hr);
-    }
-
-Error:
-    return hr;
+    return m_store.GetFileOps().Commit (path, bytes, mode);
 }
 
 
