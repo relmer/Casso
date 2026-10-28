@@ -577,7 +577,7 @@ void ShellWindow::ApplyAppIconToWindow (HWND target)
 //  The thread check is not defensive coding -- SwitchMachine legitimately
 //  calls this from the CPU thread, while DxuiHwndSource::SetTitle mutates the
 //  caption bar and asserts the UI thread. An off-thread call therefore posts
-//  WM_APP_DXUI_UPDATE_TITLE and returns; the message loop calls back here on
+//  AppMessage::ShellUpdateTitle and returns; the message loop calls back here on
 //  the right thread. (That same message doubles as the machine-switch signal
 //  to reflow the chrome -- see RunMessageLoop.)
 //
@@ -610,12 +610,12 @@ void ShellWindow::UpdateWindowTitle()
 
     // SwitchMachine calls this on the CPU thread; DxuiHwndSource::SetTitle
     // mutates the caption bar and asserts the UI thread. Bounce off-thread
-    // callers through the message loop (WM_APP_DXUI_UPDATE_TITLE handler above).
+    // callers through the message loop (AppMessage::ShellUpdateTitle handler above).
     isOffThread = GetWindowThreadProcessId (m_shell.m_hwnd, nullptr) != GetCurrentThreadId();
 
     if (isOffThread)
     {
-        PostMessageW (m_shell.m_hwnd, WM_APP_DXUI_UPDATE_TITLE, 0, 0);
+        PostMessageW (m_shell.m_hwnd, (UINT) AppMessage::ShellUpdateTitle, 0, 0);
     }
 
     BAIL_OUT_IF (isOffThread, S_OK);

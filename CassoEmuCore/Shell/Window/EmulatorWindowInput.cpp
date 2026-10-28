@@ -3833,7 +3833,7 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         // during SwitchMachine, and the selector sync measures text through
         // the Dxui renderer, which is UI-thread-only (DxuiAssertUiThread
         // fired on a //c -> //e switch). Both paths already sync on the UI
-        // thread afterwards: a machine switch posts WM_APP_DXUI_UPDATE_TITLE,
+        // thread afterwards: a machine switch posts AppMessage::ShellUpdateTitle,
         // whose handler runs ReflowChromeForMachineChange, and the launch
         // path lays out the chrome later in Initialize.
         m_pointerMode = InputMappingMode::Mouse;
@@ -3841,7 +3841,7 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         // SyncSelectorState touches Dxui (text measurement) and asserts the
         // UI thread. On a machine switch this runs
         // on the CPU thread, so defer the chrome reflection to the post-switch
-        // handler on the UI thread (WM_APP_DXUI_UPDATE_TITLE, posted by the
+        // handler on the UI thread (AppMessage::ShellUpdateTitle, posted by the
         // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
         // (launch, or before the window exists) reflect it immediately.
         bool  offUiThread = (m_hwnd != nullptr) &&
