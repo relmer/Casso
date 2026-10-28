@@ -419,7 +419,7 @@ int DxuiHexLayout::GetLineDigits() const
 
 uint64_t DxuiHexLayout::GetLineModeTarget (WPARAM vk, bool ctrl) const
 {
-    uint64_t  row    = GetRowOfOffset (m_caret);
+    uint64_t  row    = GetRowOfOffset (m_view.m_selection.GetCaret());
     uint64_t  start  = 0;
     uint64_t  end    = 0;
     uint64_t  line   = 0;
@@ -437,7 +437,7 @@ uint64_t DxuiHexLayout::GetLineModeTarget (WPARAM vk, bool ctrl) const
         return last;
     }
 
-    column = m_caret - start;
+    column = m_view.m_selection.GetCaret() - start;
     length = GetShownLength (start, end);
 
     switch (vk)
@@ -510,13 +510,13 @@ void DxuiHexLayout::RecomputeRowWidth()
     m_view.m_bytesPerRow = values * m_view.m_grouping;
 
     ClampTopRow();
-    m_view.SetLeftPx (m_leftPx);
+    m_view.SetLeftPx (m_view.m_scroll.GetLeftPx());
 
     //  Only a new row width moves the caret's row; after any other layout the
     //  scroll is where the user put it.
-    if (m_hasSelection && changed)
+    if (m_view.m_selection.HasSelection() && changed)
     {
-        m_view.EnsureByteVisible (m_caret);
+        m_view.EnsureByteVisible (m_view.m_selection.GetCaret());
     }
 }
 
@@ -874,9 +874,9 @@ int DxuiHexLayout::GetColumnStartCell (DxuiHexViewTypes::Column column) const
 RECT DxuiHexLayout::GetCellRect (int cellX, uint64_t row, int cellCount) const
 {
     RECT      rect  = {};
-    int64_t   rowUp = (int64_t) (row - m_topRow);
+    int64_t   rowUp = (int64_t) (row - m_view.m_scroll.GetTopRow());
     LONG      top   = m_view.m_boundsDip.top + (LONG) (rowUp * m_cellHeightDip);
-    LONG      left  = m_view.m_boundsDip.left + m_view.m_scaler.ToPx (m_padDip) + (LONG) (cellX * m_view.m_cellWidthDip) - m_leftPx;
+    LONG      left  = m_view.m_boundsDip.left + m_view.m_scaler.ToPx (m_padDip) + (LONG) (cellX * m_view.m_cellWidthDip) - m_view.m_scroll.GetLeftPx();
 
 
 
@@ -904,7 +904,7 @@ bool DxuiHexLayout::IsRowVisible (uint64_t row) const
 
 
 
-    return (row >= m_topRow) && (row < (m_topRow + (uint64_t) cap));
+    return (row >= m_view.m_scroll.GetTopRow()) && (row < (m_view.m_scroll.GetTopRow() + (uint64_t) cap));
 }
 
 
@@ -919,7 +919,7 @@ bool DxuiHexLayout::IsRowVisible (uint64_t row) const
 
 void DxuiHexLayout::ClampTopRow()
 {
-    m_topRow = (std::min) (m_topRow, GetMaxTopRow());
+    m_view.m_scroll.SetTopRow (m_view.m_scroll.GetTopRow());
 }
 
 
@@ -1025,14 +1025,14 @@ DxuiHexViewTypes::HitResult DxuiHexLayout::HitTestPoint (POINT clientDip) const
     }
 
     rowUp = (int) ((clientDip.y - m_view.m_boundsDip.top) / cellH);
-    cellX = (int) ((clientDip.x - m_view.m_boundsDip.left - m_view.m_scaler.ToPx (m_padDip) + m_leftPx) / cellW);
+    cellX = (int) ((clientDip.x - m_view.m_boundsDip.left - m_view.m_scaler.ToPx (m_padDip) + m_view.m_scroll.GetLeftPx()) / cellW);
 
     if (rowUp >= GetRowCap())
     {
         return result;
     }
 
-    row = m_topRow + (uint64_t) rowUp;
+    row = m_view.m_scroll.GetTopRow() + (uint64_t) rowUp;
 
     if (row >= GetRowCount())
     {

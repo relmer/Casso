@@ -230,6 +230,8 @@
     <ClCompile Include="Widgets\DxuiHexView.cpp" />
     <ClCompile Include="Widgets\HexView\DxuiHexLayout.cpp" />
     <ClCompile Include="Widgets\HexView\DxuiHexPainter.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexScroll.cpp" />
+    <ClCompile Include="Widgets\HexView\DxuiHexSelection.cpp" />
     <ClCompile Include="Core\DxuiClipboard.cpp" />
     <ClCompile Include="Core\DxuiStandardCommand.cpp" />
     <ClCompile Include="Core\DxuiIconImage.cpp" />
@@ -354,6 +356,8 @@
     <ClInclude Include="Widgets\DxuiHexView.h" />
     <ClInclude Include="Widgets\HexView\DxuiHexLayout.h" />
     <ClInclude Include="Widgets\HexView\DxuiHexPainter.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexScroll.h" />
+    <ClInclude Include="Widgets\HexView\DxuiHexSelection.h" />
     <ClInclude Include="Widgets\HexView\DxuiHexViewTypes.h" />
     <ClInclude Include="Core\DxuiClipboard.h" />
     <ClInclude Include="Core\DxuiStandardCommand.h" />

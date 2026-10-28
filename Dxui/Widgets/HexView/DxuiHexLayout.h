@@ -25,6 +25,8 @@ class DxuiHexLayout
 public:
     explicit DxuiHexLayout (DxuiHexView & view);
 
+    int  GetPadDip () const { return m_padDip; }
+
     uint64_t  GetRowCount     () const;
     int       GetRowCap       () const;
     uint64_t  GetMaxTopRow    () const;
@@ -113,9 +115,5 @@ private:
     mutable uint64_t               m_spanLine       = 1;
     mutable bool                   m_spanStarts     = true;
     int                            m_cellHeightDip  = 0;
-    uint64_t                       m_topRow         = 0;
-    bool                           m_hasSelection   = false;
-    uint64_t                       m_caret          = 0;
     int                            m_padDip         = 0;
-    int                            m_leftPx         = 0;
 };

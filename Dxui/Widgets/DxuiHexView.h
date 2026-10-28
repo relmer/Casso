@@ -3,6 +3,8 @@
 #include "Pch.h"
 #include "Widgets/HexView/DxuiHexLayout.h"
 #include "Widgets/HexView/DxuiHexPainter.h"
+#include "Widgets/HexView/DxuiHexSelection.h"
+#include "Widgets/HexView/DxuiHexScroll.h"
 #include "Widgets/DxuiScrollbar.h"
 
 
@@ -126,11 +128,11 @@ public:
     //  Rows the source fills, and rows the bounds can show.
     uint64_t  GetRowCount     () const { return m_layout.GetRowCount(); }
     int       GetRowCap       () const { return m_layout.GetRowCap(); }
-    uint64_t  GetTopRow       () const { return m_layout.m_topRow; }
+    uint64_t  GetTopRow       () const { return m_scroll.GetTopRow(); }
     uint64_t  GetMaxTopRow    () const { return m_layout.GetMaxTopRow(); }
-    void      SetTopRow       (uint64_t row);
-    void      ScrollRows      (int64_t delta);
-    void      EnsureByteVisible (uint64_t offset);
+    void      SetTopRow       (uint64_t row) { m_scroll.SetTopRow (row); }
+    void      ScrollRows      (int64_t delta) { m_scroll.ScrollRows (delta); }
+    void      EnsureByteVisible (uint64_t offset) { m_scroll.EnsureByteVisible (offset); }
 
     //  Where a byte is drawn, in the same DIPs as the bounds. An off-screen
     //  byte or an absent column comes back empty.
@@ -140,18 +142,18 @@ public:
 
     //  Selection. `SelectByte` starts a new run, `ExtendSelectionTo` moves the
     //  moving end of it, and the anchor stays where the run began.
-    void  SelectByte       (uint64_t offset, Column column);
-    void  ExtendSelectionTo (uint64_t offset);
-    void  SelectAll        ();
-    void  ClearSelection   ();
+    void  SelectByte       (uint64_t offset, Column column) { m_selection.SelectByte (offset, column); }
+    void  ExtendSelectionTo (uint64_t offset) { m_selection.ExtendSelectionTo (offset); }
+    void  SelectAll        () { m_selection.SelectAll(); }
+    void  ClearSelection   () { m_selection.ClearSelection(); }
 
-    bool      HasSelection       () const { return m_layout.m_hasSelection; }
-    bool      IsByteSelected     (uint64_t offset) const;
-    uint64_t  GetSelectionFirst  () const;
-    uint64_t  GetSelectionLast   () const;
-    uint64_t  GetSelectionCount  () const;
-    uint64_t  GetSelectionAnchor () const { return m_anchor; }
-    uint64_t  GetCaret           () const { return m_layout.m_caret; }
+    bool      HasSelection       () const { return m_selection.HasSelection(); }
+    bool      IsByteSelected     (uint64_t offset) const { return m_selection.IsByteSelected (offset); }
+    uint64_t  GetSelectionFirst  () const { return m_selection.GetSelectionFirst(); }
+    uint64_t  GetSelectionLast   () const { return m_selection.GetSelectionLast(); }
+    uint64_t  GetSelectionCount  () const { return m_selection.GetSelectionCount(); }
+    uint64_t  GetSelectionAnchor () const { return m_selection.GetAnchor(); }
+    uint64_t  GetCaret           () const { return m_selection.GetCaret(); }
 
     void          SetTextEncoding (TextEncoding encoding) { m_encoding = encoding; m_layout.ResetLineIndex(); }
     TextEncoding  GetTextEncoding () const                { return m_encoding; }
@@ -173,16 +175,16 @@ public:
 
     //  The active column. A click sets it, and it determines the format Copy
     //  produces.
-    Column  GetActiveColumn () const { return m_activeColumn; }
-    void    SetActiveColumn (Column column);
+    Column  GetActiveColumn () const { return m_selection.GetActiveColumn(); }
+    void    SetActiveColumn (Column column) { m_selection.SetActiveColumn (column); }
 
     //  Puts the caret on a byte and scrolls to it.
     void  GoToOffset (uint64_t offset);
 
     //  Copies the selection to the clipboard in the active column's format.
     //  With nothing selected, the clipboard is not changed.
-    void          CopySelection () const;
-    std::wstring  GetSelectionText () const;
+    void          CopySelection () const { m_selection.CopySelection(); }
+    std::wstring  GetSelectionText () const { return m_selection.GetSelectionText(); }
 
     //  The characters the text column displays for a run of bytes, and the
     //  hex digits the hex column displays for it. Painting and Copy use the
@@ -193,18 +195,18 @@ public:
     //  Told after any change to the selection, including its loss.
     void  SetOnSelectionChanged (std::function<void ()> fn) { m_onSelectionChanged = std::move (fn); }
 
-    bool  IsDragging () const { return m_dragging || m_vertScroll.IsDragging() || m_horzScroll.IsDragging(); }
+    bool  IsDragging () const { return m_selection.IsDragging() || m_scroll.IsDragging(); }
 
     //  Rows wider than the view scroll sideways, so the text column can always
     //  be reached whatever the columns and grouping.
     bool  IsHorzScrollbarVisible () const { return m_layout.GetContentWidthPx() > m_layout.GetViewWidthPx(); }
-    int   GetLeftPx              () const { return m_layout.m_leftPx; }
+    int   GetLeftPx              () const { return m_scroll.GetLeftPx(); }
 
     //  Whether a point is on a scrollbar, and the hover that widens one.
-    bool  IsOverScrollbar   (POINT pt) const override { return m_vertScroll.HitTest (pt.x, pt.y) || m_horzScroll.HitTest (pt.x, pt.y); }
-    bool  SetScrollbarHover (POINT pt)                { return ((int) m_vertScroll.SetHover (m_vertScroll.HitTest (pt.x, pt.y), pt) | (int) m_horzScroll.SetHover (m_horzScroll.HitTest (pt.x, pt.y), pt)) != 0; }
-    bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_vertScroll.Tick (nowMs) | (int) m_horzScroll.Tick (nowMs)) != 0; }
-    void  SetLeftPx              (int leftPx);
+    bool  IsOverScrollbar   (POINT pt) const override { return m_scroll.m_vertScroll.HitTest (pt.x, pt.y) || m_scroll.m_horzScroll.HitTest (pt.x, pt.y); }
+    bool  SetScrollbarHover (POINT pt)                { return ((int) m_scroll.m_vertScroll.SetHover (m_scroll.m_vertScroll.HitTest (pt.x, pt.y), pt) | (int) m_scroll.m_horzScroll.SetHover (m_scroll.m_horzScroll.HitTest (pt.x, pt.y), pt)) != 0; }
+    bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_scroll.m_vertScroll.Tick (nowMs) | (int) m_scroll.m_horzScroll.Tick (nowMs)) != 0; }
+    void  SetLeftPx              (int leftPx) { m_scroll.SetLeftPx (leftPx); }
     bool  IsScrollbarVisible () const { return m_layout.GetRowCount() > (uint64_t) (std::max) (m_layout.GetRowCap(), 0); }
 
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
@@ -215,7 +217,7 @@ public:
 
     //  Windows' scrollbar menu when the point is on one of the bars, in the
     //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
-    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt);
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt) { return m_scroll.GetScrollbarMenu (pt); }
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
     bool  OnKey   (const DxuiKeyEvent   & ev) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -238,18 +240,13 @@ private:
 
     //  Moves the caret to `offset`, extending the run when `extend` is set and
     //  starting a new one otherwise, then brings it into view.
-    void  MoveCaretTo (uint64_t offset, bool extend);
-    void  NotifySelectionChanged ();
     uint64_t  GetLastOffset () const;
 
     static constexpr int  s_kSelectionMarginDip = 2;
 
     static constexpr int  s_kScrollbarWidthDip  = 10;
 
-    void  SyncScrollbar ();
-    void  ScrollToBarPos ();
 
-    void  KeepCaretInView   ();
 
     const IDxuiHexSource  * m_source        = nullptr;
     uint64_t                m_originAddress = 0;
@@ -260,18 +257,9 @@ private:
     bool                    m_breakLines    = false;
 
     int                            m_cellWidthDip   = 0;
-    uint64_t                       m_anchor         = 0;
-    Column                         m_activeColumn   = Column::Hex;
     HWND                           m_hwnd           = nullptr;
-    bool                           m_dragging       = false;
-    uint64_t                       m_pressFirst     = 0;      // the value a press in the value column took
-    uint64_t                       m_pressLast      = 0;
-    float                          m_wheelRows      = 0.0f;   // a touchpad's part notches, until they make a row
-    float                          m_wheelPx        = 0.0f;
     TextEncoding                   m_encoding       = TextEncoding::Ascii;
     DxuiDpiScaler                  m_scaler;
-    DxuiScrollbar                  m_vertScroll;
-    DxuiScrollbar                  m_horzScroll;
     ContextMenuFn                  m_onContextMenu;
     BuildMenuFn                    m_onBuildMenu;
     SettingsFn                     m_onSettings;
@@ -280,7 +268,11 @@ private:
     //  The view's parts, each with the state it uses.
     friend class DxuiHexLayout;
     friend class DxuiHexPainter;
+    friend class DxuiHexSelection;
+    friend class DxuiHexScroll;
     DxuiHexLayout  m_layout { *this };
     DxuiHexPainter  m_painter { *this };
+    DxuiHexSelection  m_selection { *this };
+    DxuiHexScroll  m_scroll { *this };
 };
 
