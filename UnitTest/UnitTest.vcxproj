@@ -151,6 +151,8 @@
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="SerialTests\SerialGuestTests.cpp" />
+    <ClCompile Include="SerialTests\AciaTcpEndpointTests.cpp" />
     <ClCompile Include="SerialTests\TcpSerialLinkTests.cpp" />
     <ClCompile Include="SerialTests\TelnetCodecTests.cpp" />
     <ClCompile Include="NetworkTests\FakeHostNameLookup.cpp" />

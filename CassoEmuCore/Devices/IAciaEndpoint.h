@@ -59,6 +59,13 @@ public:
         (void) format;
     }
 
+    // The chip finished attaching this endpoint: its lines are the defaults
+    // and DTR, RTS and the format have been passed. A host link sets the
+    // lines it starts with and opens its connection here.
+    virtual void OnAttached ()
+    {
+    }
+
     // A plug that returns what is sent to the chip itself. Its bytes stay
     // in the machine, so a muted chip passes them to it.
     virtual bool IsLoopback () const

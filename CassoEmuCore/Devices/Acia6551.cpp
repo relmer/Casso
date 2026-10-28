@@ -387,6 +387,7 @@ void Acia6551::SetEndpoint (IAciaEndpoint * endpoint)
         m_notifiedBreak = false;
         m_endpoint->OnModemControlChanged (m_notifiedDtr, m_notifiedRts);
         NoteFormat();
+        m_endpoint->OnAttached();
     }
 
     TryLoadTransmitter();

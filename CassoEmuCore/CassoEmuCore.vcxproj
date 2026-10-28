@@ -127,6 +127,7 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Devices\Serial\AciaTcpEndpoint.cpp" />
     <ClCompile Include="Devices\Serial\TcpSerialLink.cpp" />
     <ClCompile Include="Devices\Serial\TelnetCodec.cpp" />
     <ClCompile Include="Seams\Win32HostNameLookup.cpp" />
@@ -796,6 +797,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Devices\Serial\AciaTcpEndpoint.h" />
     <ClInclude Include="Devices\Serial\TcpSerialLink.h" />
     <ClInclude Include="Devices\Serial\TelnetCodec.h" />
     <ClInclude Include="Seams\Win32HostNameLookup.h" />

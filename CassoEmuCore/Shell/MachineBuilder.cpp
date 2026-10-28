@@ -13,6 +13,7 @@
 #include "Devices/Acia6551.h"
 #include "Devices/AciaByteSourceEndpoint.h"
 #include "Devices/AciaEndpoints.h"
+#include "Devices/Serial/AciaTcpEndpoint.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -2200,8 +2201,6 @@ std::unique_ptr<IAciaEndpoint> MachineBuilder::CreateSerialAttachment (
 
 
 
-    (void) portTitle;
-
     if (port.device == kpszSerialLoopback)
     {
         endpoint = std::make_unique<AciaLoopbackEndpoint> (&acia);
@@ -2232,6 +2231,17 @@ std::unique_ptr<IAciaEndpoint> MachineBuilder::CreateSerialAttachment (
         {
             outProblem = "Cannot read " + port.path + " for the serial connector.";
         }
+    }
+    else if (port.device == kpszSerialTcp)
+    {
+        endpoint = std::make_unique<AciaTcpEndpoint> (acia,
+                                                      m_services.hostNetwork,
+                                                      m_host.GetSerialLinkReports(),
+                                                      portTitle,
+                                                      AciaTcpEndpoint::Settings { port.serial.host,
+                                                                                  port.serial.tcpPort,
+                                                                                  port.serial.listen,
+                                                                                  port.serial.IsTelnetOn (false) });
     }
     else
     {
