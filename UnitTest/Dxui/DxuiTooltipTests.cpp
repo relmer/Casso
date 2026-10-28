@@ -322,7 +322,7 @@ public:
     //  lines without one stay lined up with the rest.
     TEST_METHOD (ASwatchIsDrawnBeforeItsLine)
     {
-        constexpr uint32_t    kBlue  = 0xFF5B9BD5;
+        constexpr uint32_t    kBlue   = 0xFF5B9BD5;
         DxuiTooltip           t;
         MockDxuiPainter       painter;
         MockDxuiTextRenderer  text;

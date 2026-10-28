@@ -1464,14 +1464,13 @@ void DxuiTooltip::DrawTable (
     float                      top) const
 {
     constexpr float  kSwatchShare = 0.6f;
-
-    HRESULT  hr     = S_OK;
-    float    fontPx = m_scaler.ToPxf (m_fontDip);
-    float    indent = GetSwatchIndentPx (table.lineHeight);
-    float    side   = std::round (table.lineHeight * kSwatchShare);
-    float    y      = top;
-    float    x      = 0.0f;
-    float    w      = 0.0f;
+    HRESULT          hr           = S_OK;
+    float            fontPx       = m_scaler.ToPxf (m_fontDip);
+    float            indent       = GetSwatchIndentPx (table.lineHeight);
+    float            side         = std::round (table.lineHeight * kSwatchShare);
+    float            y            = top;
+    float            x            = 0.0f;
+    float            w            = 0.0f;
 
 
 
@@ -1504,7 +1503,6 @@ void DxuiTooltip::DrawTable (
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetSwatchIndentPx
@@ -1517,6 +1515,8 @@ void DxuiTooltip::DrawTable (
 float DxuiTooltip::GetSwatchIndentPx (float lineHeight) const
 {
     constexpr float  kIndentShare = 1.0f;
+
+
 
     return m_lineSwatches.empty() ? 0.0f : std::round (lineHeight * kIndentShare);
 }
