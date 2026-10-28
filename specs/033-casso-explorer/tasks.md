@@ -1292,13 +1292,16 @@ waits for this phase, so it is tested once.
   `CassoEmuCore/Core/AppTimerIds.h`, so no two can collide, and the
   window's private messages in an `enum class` in
   `CassoEmuCore/CassoExplorer/CassoExplorerWindow.h`.
-- [ ] T283 Rename `ExplorerLinks` to `CassoLinkManager`, with Connection
+- [X] T283 Rename `ExplorerLinks` to `CassoLinkManager`, with Connection
   for a configured endpoint (`EditConnection`, `RemoveConnection`),
   `ExplorerDispatch` to `ExplorerCommandManager` and `ExplorerTabStrip` to
   `ExplorerTabManager`. Put the UI elements in
   `CassoEmuCore/CassoExplorer/Window/Panes/` and the helpers in
   `CassoEmuCore/CassoExplorer/Window/Managers/`. A class that is not a
   Dxui control takes routed events as `HandleMouse` and `HandleKey`.
+  Done: every component's `OnXxx` became `HandleXxx`. Panes has the address
+  bar, list pane and columns, preview and its parts, status bar, toolbars,
+  tree pane and `ExplorerPane`; Managers has the rest.
 - [ ] T284 Replace the components' friendship with the window by
   `ExplorerContext`: the shared services, the components' public
   interfaces, and the window's own operations through an interface the

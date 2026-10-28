@@ -2,23 +2,23 @@
 
 #include "Pch.h"
 
-#include "CassoExplorer/Window/ExplorerLayout.h"
-#include "CassoExplorer/Window/ExplorerListPane.h"
-#include "CassoExplorer/Window/ExplorerFolderSync.h"
-#include "CassoExplorer/Window/ExplorerLinks.h"
-#include "CassoExplorer/Window/ExplorerDragDrop.h"
-#include "CassoExplorer/Window/ExplorerTabStrip.h"
-#include "CassoExplorer/Window/ExplorerPreview.h"
-#include "CassoExplorer/Window/ExplorerAddressBar.h"
-#include "CassoExplorer/Window/ExplorerMenus.h"
-#include "CassoExplorer/Window/ExplorerDispatch.h"
-#include "CassoExplorer/Window/ExplorerFileOps.h"
-#include "CassoExplorer/Window/ExplorerInput.h"
-#include "CassoExplorer/Window/ExplorerStatusBar.h"
-#include "CassoExplorer/Window/ExplorerThemes.h"
-#include "CassoExplorer/Window/ExplorerTips.h"
-#include "CassoExplorer/Window/ExplorerToolbars.h"
-#include "CassoExplorer/Window/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/Window/Panes/ExplorerPreview.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerThemes.h"
+#include "CassoExplorer/Window/Managers/ExplorerTips.h"
+#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 #include "Seams/Win32HostDialogs.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32InfoTips.h"
@@ -83,11 +83,10 @@ enum class ExplorerMessage : UINT
 //  The window is laid out by hand: the dock layout sizes a slab from the
 //  child's current bounds, which a splitter changes on every drag.
 //
-//  Each area is a component class in CassoExplorer/Window/, with the state
-//  it uses and a reference to the window: the layout, the list pane, folder
-//  sync, links, drag and drop, the tab strip, the preview pane, the address
-//  bar, menus, dispatch, file operations, input and tips. The window has the
-//  widgets, its messages and timers, and the session.
+//  Each area is a component class with the state it uses and a reference to
+//  the window: the panes in CassoExplorer/Window/Panes/, and the managers in
+//  CassoExplorer/Window/Managers/. The window has the widgets, its messages
+//  and timers, and the session.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,8 +158,8 @@ public:
 
     void    Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void    Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool    OnMouse           (const DxuiMouseEvent & ev) override  { return m_input.OnMouse (ev); }
-    bool    OnKey             (const DxuiKeyEvent & ev) override    { return m_input.OnKey (ev); }
+    bool    OnMouse           (const DxuiMouseEvent & ev) override  { return m_input.HandleMouse (ev); }
+    bool    OnKey             (const DxuiKeyEvent & ev) override    { return m_input.HandleKey (ev); }
     LPCWSTR GetCursorForPoint (POINT clientPx) const override       { return m_input.GetCursorForPoint (clientPx); }
 
     //  Windows changed its light or dark setting or its accent: Follow
@@ -274,15 +273,15 @@ private:
     friend class ExplorerListColumns;
     friend class ExplorerListMenus;
     friend class ExplorerFolderSync;
-    friend class ExplorerLinks;
+    friend class CassoLinkManager;
     friend class ExplorerDragDrop;
-    friend class ExplorerTabStrip;
+    friend class ExplorerTabManager;
     friend class ExplorerPreview;
     friend class ExplorerPreviewArchive;
     friend class ExplorerPreviewFind;
     friend class ExplorerAddressBar;
     friend class ExplorerMenus;
-    friend class ExplorerDispatch;
+    friend class ExplorerCommandManager;
     friend class ExplorerFileOps;
     friend class ExplorerInput;
     friend class ExplorerStatusBar;
@@ -293,13 +292,13 @@ private:
     ExplorerLayout  m_layout { *this };
     ExplorerListPane  m_listPane { *this };
     ExplorerFolderSync  m_folderSync { *this };
-    ExplorerLinks  m_links { *this };
+    CassoLinkManager  m_cassoLinkManager { *this };
     ExplorerDragDrop  m_dragDrop { *this };
-    ExplorerTabStrip  m_tabStrip { *this };
+    ExplorerTabManager  m_tabManager { *this };
     ExplorerPreview  m_previewPane { *this };
     ExplorerAddressBar  m_addressBar { *this };
     ExplorerMenus  m_menus { *this };
-    ExplorerDispatch  m_dispatch { *this };
+    ExplorerCommandManager  m_commandManager { *this };
     ExplorerFileOps  m_fileOps { *this };
     ExplorerInput  m_input { *this };
     ExplorerTips  m_tips { *this };
