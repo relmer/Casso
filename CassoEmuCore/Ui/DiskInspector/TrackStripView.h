@@ -18,10 +18,10 @@ class InspectorTip;
 //  TrackStripView
 //
 //  The selected track unrolled: each nibble a run of its kind's color, as
-//  wide as its cells, with its value once it fits, each sector's hex number
-//  over its address prologue in its state's color and symbol, and the
-//  selected sector outlined from its address prologue to the end of its data
-//  epilogue, in two parts across the index (FR-033, FR-036). The wheel zooms
+//  wide as its cells, with its value once it fits, each sector bracketed
+//  from its address prologue to the end of its data epilogue and labeled in
+//  its state's color and symbol, and the selected sector outlined, in two
+//  parts across the index (FR-033, FR-036). The wheel zooms
 //  about the pointer; a drag selects nibbles, as a drag does elsewhere, and
 //  Shift and a drag or the horizontal wheel pans; a click selects the nibble
 //  and its sector (FR-037).
@@ -68,7 +68,11 @@ private:
     void           PaintLabels  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g);
     void           PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTheme & theme, const TrackAnalysis & track, const StripGeometry & g, bool isInLabelRow);
     float          GetLabelRowClearance (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g, const NibbleSection & section,
-                                         const StripSegment & part, float x0, float x1) const;
+                                         float x0, float x1) const;
+    int            GetSectorParts  (const TrackAnalysis & track, const StripGeometry & g, int sectorIndex, double & outStart, double & outEnd,
+                                    std::array<StripSegment, 2> & outParts) const;
+    float          GetSectorLabel  (IDxuiTextRenderer & text, const AnalyzedSector & sector, float widthPx, std::wstring & outLabel) const;
+    static std::wstring  GetNibbleKindLabel (NibbleKind kind);
     int            GetSeamSegments (const TrackAnalysis & track, const StripGeometry & g, std::array<StripSegment, 2> & outParts) const;
     bool           IsOverSeam      (const TrackAnalysis & track, float xPx) const;
     bool           BuildTip        (POINT pointPx, InspectorTip & outTip) const;

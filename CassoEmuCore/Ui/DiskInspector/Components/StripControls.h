@@ -16,8 +16,8 @@ class TrackStripView;
 //
 //  StripControls
 //
-//  The row under the strip: at its left end the strip's label, "Track 17.25
-//  · one turn from the index", then the readout of the zoom, the cells in
+//  The row under the strip: at its left end the strip's label, "Track
+//  17.25", then the readout of the zoom, the cells in
 //  view and the selection, and at its right end "−", "+" and "Whole track"
 //  (FR-033, FR-034).
 //

@@ -1929,9 +1929,6 @@ void DiskInspectorWindow::GetPrefs (DiskInspectorPrefs & inOut) const
         inOut.isMaximized = placement.showCmd == SW_SHOWMAXIMIZED || IsZoomed (GetHwnd());
     }
 
-    inOut.isDiskGroup   = m_session.isDiskGroup;
-    inOut.trackTab      = m_session.trackTab;
-    inOut.diskTab       = (m_session.diskTab == kTabDifferences) ? kTabTracks : m_session.diskTab;
     inOut.zoom         = m_zoom;
     inOut.tilt          = m_session.model.GetTilt();
     inOut.lastDrive     = m_session.drive;
@@ -1972,10 +1969,6 @@ void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
         SetWindowPlacement (GetHwnd(), &placement);
     }
 
-    m_session.trackTab = std::clamp (prefs.trackTab, 0, kTrackTabCount - 1);
-    m_session.diskTab  = std::clamp (prefs.diskTab,  0, kDiskTabCount  - 1);
-    m_session.diskTab  = (m_session.diskTab == kTabDifferences) ? kTabTracks : m_session.diskTab;
-
     for (IInspectorComponent * component : m_components)
     {
         component->ApplyPrefs (prefs);
@@ -1983,15 +1976,6 @@ void DiskInspectorWindow::ApplyPrefs (const DiskInspectorPrefs & prefs)
 
     SetZoom (prefs.zoom);
     m_session.model.SetTilt (prefs.tilt);
-
-    if (prefs.isDiskGroup)
-    {
-        ShowDiskTab (m_session.diskTab);
-    }
-    else
-    {
-        ShowTrackTab (m_session.trackTab);
-    }
 }
 
 

@@ -194,9 +194,6 @@ public:
         orig.diskInspector.h             = 1000;
         orig.diskInspector.isMaximized   = true;
         orig.diskInspector.isTimingMode  = true;
-        orig.diskInspector.isDiskGroup   = true;
-        orig.diskInspector.trackTab      = 2;
-        orig.diskInspector.diskTab       = 3;
         orig.diskInspector.timingRange   = 0.1;
         orig.diskInspector.isAlignment   = true;
         orig.diskInspector.isReads       = true;
@@ -218,9 +215,6 @@ public:
         Assert::AreEqual (1000,  loaded.diskInspector.h);
         Assert::IsTrue   (loaded.diskInspector.isMaximized);
         Assert::IsTrue   (loaded.diskInspector.isTimingMode);
-        Assert::IsTrue   (loaded.diskInspector.isDiskGroup);
-        Assert::AreEqual (2,     loaded.diskInspector.trackTab);
-        Assert::AreEqual (3,     loaded.diskInspector.diskTab);
         Assert::AreEqual (0.1,   loaded.diskInspector.timingRange);
         Assert::IsTrue   (loaded.diskInspector.isAlignment);
         Assert::IsFalse  (loaded.diskInspector.isFiles);

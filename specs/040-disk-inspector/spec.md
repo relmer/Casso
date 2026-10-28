@@ -137,6 +137,16 @@ comparing two quarter tracks of one disk.
   the window calls in turn, with the shared state in a model the components
   take by reference; no source file over about 2,000 lines (FR-162).
 
+### Session 2026-10-28
+
+- Q: How does the strip show which sector a field belongs to? → A: Each
+  sector is bracketed above the bar from its address prologue to the end of
+  its data epilogue, with its state's symbol and "Sector $N". The stretch
+  labels read just "Address" and "Data", and the strip's label reads just the
+  track (FR-033, FR-035).
+- Q: Which view shows when the window opens? → A: Sectors, whichever view
+  was selected when the window closed (FR-160).
+
 ## Scope
 
 **Image formats.** Every 5.25" disk image format Casso mounts in a Disk II
@@ -1907,8 +1917,11 @@ legend, and tilt the platter and back.
   filling the band; in Timing mode the line MUST be drawn as a waveform over
   the colored bands, its area below the line shaded. The strip MUST mark the
   longest sync run as the likely
-  write seam. A label at the strip's left end MUST read, for example,
-  "Track 17.25 · one turn from the index".
+  write seam. A label at the strip's left end MUST read the track, for
+  example "Track 17.25". Above the bar, each sector MUST be bracketed from
+  its address prologue to the end of its data epilogue and labeled at the
+  left of the bracket's visible part with its state's symbol and "Sector
+  $N", or the symbol and "$N" where only that fits.
 - **FR-034**: The strip MUST zoom from the whole track down to about 20
   cells across, about the pointer, with the mouse wheel, the "−", "+" and
   "Whole track" buttons and the keyboard, and MUST pan with Shift and a drag,
@@ -1919,8 +1932,8 @@ legend, and tilt the platter and back.
   Shift+drag to pan, double-click for the whole track", and the zoom MUST stay the same
   when another track is selected or the same track is analyzed again.
 - **FR-035**: At every zoom, each stretch of one kind in view that is wide
-  enough for its label MUST be labeled inside it with its kind and, where it
-  has one, its sector and size, as "Sync 20", "Address $0" and "Data $0",
+  enough for its label MUST be labeled inside it with its kind and, for a
+  sync run or other stretch, its size, as "Sync 20", "Address" and "Data",
   with the label inside the visible part of a stretch that runs past the
   strip's edge. As the strip zooms in, it MUST draw dividers between nibbles
   once a nibble is at least 4 pixels wide, and each nibble's hex value once
@@ -2381,8 +2394,8 @@ legend, and tilt the platter and back.
 - **FR-079**: Good and bad states, and address and data marks, MUST NOT
   differ by color alone; each MUST also differ in symbol or pattern.
 - **FR-080**: Each host MUST save, separately from the other, the window's
-  placement and size, the mode, the selected disk tab and track tab, and the
-  timing range. Casso MUST also save Follow head, the last drive and whether
+  placement and size, the mode and the timing range; the selected view is
+  not saved (FR-160). Casso MUST also save Follow head, the last drive and whether
   the window was open, and at launch MUST reopen the window on the last drive
   if it was open at exit. "Show deleted files", which overlays are on, the
   tilt of the tilted view (FR-151) and whether the walkthrough has been seen
@@ -3107,7 +3120,8 @@ legend, and tilt the platter and back.
   (FR-047), "Image" (FR-050), "Nibbles" (FR-041), "Flux" (FR-044, FR-046),
   then while comparing "Differences" (FR-121) and while Find has hits "Find
   results" (FR-056). The control MUST have no gap for a view that is not present. Sectors MUST be
-  selected when the window first shows a disk. Elsewhere in this spec, a
+  selected when the window first shows a disk, whichever view was selected
+  when it last closed. Elsewhere in this spec, a
   "tab" is one of these views: the Sector data tab is the Sectors view, the
   File map tab the Files view, the Findings tab the Issues view, the Flux
   timing tab the Flux view, and the Fields tab the field headers of the

@@ -29,6 +29,10 @@ static constexpr float  s_kLineInsetDip    = 3.0f;
 static constexpr float  s_kLineStepDip     = 2.0f;
 static constexpr float  s_kLineDip         = 1.5f;
 static constexpr float  s_kSeamRuleDip     = 3.0f;
+static constexpr float  s_kBracketDip      = 1.0f;
+static constexpr float  s_kBracketGapDip   = 3.0f;
+static constexpr float  s_kTickShare       = 0.45f;
+static constexpr double s_kTickTurn        = 0.0001;
 static constexpr uint32_t  s_kBandAlpha    = 0xB0000000u;
 static constexpr LPCWSTR   s_kpszSeamLabel = L"Write seam";
 static constexpr float     s_kFilesShare     = 0.3f;
@@ -134,9 +138,8 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
             if (w >= digitsW + m_scaler.ToPxf (s_kValuePadDip))
             {
-
-                label = std::format (L"{:02X} ", framed.nibbles[i].value)
-                      + InspectorText::FormatNibbleKind (track.nibbleKinds[i], i < track.isFailedChecksum.size() && track.isFailedChecksum[i] != 0);
+                label = GetNibbleKindLabel (track.nibbleKinds[i]) + std::format (L": {:02X}", framed.nibbles[i].value)
+                      + (i < track.isFailedChecksum.size() && track.isFailedChecksum[i] != 0 ? L", checksum failed" : L"");
                 text.MeasureString (label.c_str(), textPx, DxuiTheme::kMonoFace, textW, textH);
 
                 if (textW > w - m_scaler.ToPxf (s_kPadDip))
@@ -214,10 +217,10 @@ void TrackStripView::PaintTrack (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //  TrackStripView::PaintStretchLabels
 //
 //  Each stretch of one kind in view, labeled where the label fits: "Sync
-//  20", "Address $0", "Data $0" (FR-035). Centered inside the stretch while
-//  the bar has room; once nibble values fill the bar, in the label row at
-//  the left of the stretch's visible part, clear of the sector number and
-//  the write seam's label.
+//  20", "Address", "Data" (FR-035). Centered inside the stretch while the
+//  bar has room; once nibble values fill the bar, in the label row at the
+//  left of the stretch's visible part, clear of the sector label and the
+//  write seam's label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -255,10 +258,10 @@ void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTh
 
         switch (section.kind)
         {
-            case NibbleSectionKind::Sync:    label = std::format (L"Sync {}", section.count);                                          break;
-            case NibbleSectionKind::Address: label = L"Address " + (section.sector >= 0 ? InspectorFormat::FormatSector (static_cast<Byte> (section.sector)) : std::wstring (L"?")); break;
-            case NibbleSectionKind::Data:    label = L"Data " + (section.sector >= 0 ? InspectorFormat::FormatSector (static_cast<Byte> (section.sector)) : std::wstring (L"?"));    break;
-            default:                         label = std::format (L"Other {}", section.count);                                         break;
+            case NibbleSectionKind::Sync:    label = std::format (L"Sync {}", section.count);  break;
+            case NibbleSectionKind::Address: label = L"Address";                               break;
+            case NibbleSectionKind::Data:    label = L"Data";                                  break;
+            default:                         label = std::format (L"Other {}", section.count); break;
         }
 
         text.MeasureString (label.c_str(), textPx, DxuiTheme::kBodyFace, textW, textH);
@@ -270,7 +273,7 @@ void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTh
 
             if (isInLabelRow)
             {
-                clearW = GetLabelRowClearance (text, track, g, section, parts[k], x0, x1);
+                clearW = GetLabelRowClearance (text, track, g, section, x0, x1);
 
                 if (x1 - x0 >= clearW + textW + 2 * pad)
                 {
@@ -297,32 +300,45 @@ void TrackStripView::PaintStretchLabels (IDxuiTextRenderer & text, const IDxuiTh
 //  TrackStripView::GetLabelRowClearance
 //
 //  How far from the left of a stretch's visible part its label in the
-//  label row starts: past the sector number over an address field whose
-//  start is in view, and past the write seam's label over the seam.
+//  label row starts: past the sector label where the stretch's visible part
+//  starts where its sector's bracket does, and past the write seam's label
+//  over the seam.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 float TrackStripView::GetLabelRowClearance (IDxuiTextRenderer & text, const TrackAnalysis & track, const StripGeometry & g, const NibbleSection & section,
-                                            const StripSegment & part, float x0, float x1) const
+                                            float x0, float x1) const
 {
-    std::array<StripSegment, 2>  seams  = {};
-    int                          count  = GetSeamSegments (track, g, seams);
-    float                        textPx = m_scaler.ToPxf (s_kLabelDip);
-    float                        pad    = m_scaler.ToPxf (s_kPadDip);
-    float                        clearW = 0;
-    float                        textW  = 0;
-    float                        textH  = 0;
-    std::wstring                 mark;
+    std::array<StripSegment, 2>  seams    = {};
+    std::array<StripSegment, 2>  brackets = {};
+    int                          count    = GetSeamSegments (track, g, seams);
+    int                          inView   = 0;
+    float                        textPx   = m_scaler.ToPxf (s_kLabelDip);
+    float                        pad      = m_scaler.ToPxf (s_kPadDip);
+    float                        gap      = m_scaler.ToPxf (s_kBracketGapDip);
+    float                        clearW   = 0;
+    float                        labelW   = 0;
+    float                        textW    = 0;
+    float                        textH    = 0;
+    double                       a        = 0;
+    double                       b        = 0;
+    std::wstring                 label;
 
 
 
-    if (section.kind == NibbleSectionKind::Address && section.sectorIndex >= 0 && part.x0 >= x0)
+    if (section.sectorIndex >= 0)
     {
-        const AnalyzedSector &  sector = track.sectors[static_cast<size_t> (section.sectorIndex)];
+        inView = GetSectorParts (track, g, section.sectorIndex, a, b, brackets);
 
-        mark = std::wstring (DiskInspectorPalette::GetStateSymbol (sector.state)) + L" " + InspectorFormat::FormatSector (sector.sector).substr (1);
-        text.MeasureString (mark.c_str(), textPx, DxuiTheme::kBodyFace, textW, textH);
-        clearW = std::max (clearW, part.x0 + textW - x0);
+        for (int j = 0; j < inView; j++)
+        {
+            labelW = GetSectorLabel (text, track.sectors[static_cast<size_t> (section.sectorIndex)], brackets[j].x1 - brackets[j].x0 - 2 * gap, label);
+
+            if (labelW > 0 && std::abs (brackets[j].x0 - x0) < 1.0f)
+            {
+                clearW = std::max (clearW, gap + labelW);
+            }
+        }
     }
 
     text.MeasureString (s_kpszSeamLabel, textPx, DxuiTheme::kBodyFace, textW, textH);
@@ -545,8 +561,9 @@ int TrackStripView::GetSeamSegments (const TrackAnalysis & track, const StripGeo
 //
 //  TrackStripView::PaintLabels
 //
-//  Each sector's number over its address prologue, and the selected sector
-//  outlined.
+//  Each sector bracketed in the label row from its address prologue to the
+//  end of its data epilogue, with its state's symbol and "Sector $N" at the
+//  left of the bracket's visible part, and the selected sector outlined.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -554,12 +571,17 @@ void TrackStripView::PaintLabels (IDxuiPainter & painter, IDxuiTextRenderer & te
 {
     RECT                         bar      = GetBarRect();
     std::array<StripSegment, 2>  parts    = {};
+    std::array<StripSegment, 2>  ticks    = {};
     int                          count    = 0;
     int                          k        = 0;
     size_t                       s        = 0;
     float                        rowTop   = static_cast<float> (m_boundsDip.top);
-    float                        rowH     = static_cast<float> (bar.top - m_boundsDip.top);
+    float                        line     = m_scaler.ToPxf (s_kBracketDip);
+    float                        ruleY    = static_cast<float> (bar.top) - line - 1.0f;
+    float                        tickTop  = rowTop + (ruleY - rowTop) * s_kTickShare;
+    float                        gap      = m_scaler.ToPxf (s_kBracketGapDip);
     float                        thick    = m_scaler.ToPxf (s_kOutlineDip);
+    float                        labelW   = 0;
     double                       a        = 0;
     double                       b        = 0;
     std::wstring                 label;
@@ -569,31 +591,140 @@ void TrackStripView::PaintLabels (IDxuiPainter & painter, IDxuiTextRenderer & te
     for (s = 0; s < track.sectors.size(); s++)
     {
         const AnalyzedSector &  sector = track.sectors[s];
-        const LocatedField &    first  = track.fields[sector.addressField];
-        const LocatedField &    last   = track.fields[sector.dataField >= 0 ? sector.dataField : sector.addressField];
 
-        a     = m_turns[first.firstNibble];
-        b     = (last.firstNibble + last.nibbleCount < static_cast<int> (m_turns.size())) ? m_turns[last.firstNibble + last.nibbleCount] : m_turns.back();
-        label = std::wstring (DiskInspectorPalette::GetStateSymbol (sector.state)) + L" " + InspectorFormat::FormatSector (sector.sector).substr (1);
-
-        count = g.GetSegments (a, 0.0001, parts);
+        count = GetSectorParts (track, g, static_cast<int> (s), a, b, parts);
 
         for (k = 0; k < count; k++)
         {
-            text.DrawString (label.c_str(), parts[k].x0, rowTop, m_scaler.ToPxf (60), rowH, m_context.palette.GetStateColor (sector.state),
-                             m_scaler.ToPxf (s_kLabelDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+            painter.DrawLine (parts[k].x0, ruleY, parts[k].x1, ruleY, line, theme.ForegroundMuted());
+            labelW = GetSectorLabel (text, sector, parts[k].x1 - parts[k].x0 - 2 * gap, label);
+
+            if (labelW > 0)
+            {
+                text.DrawString (label.c_str(), parts[k].x0 + gap, rowTop, parts[k].x1 - parts[k].x0 - gap, ruleY - rowTop, m_context.palette.GetStateColor (sector.state),
+                                 m_scaler.ToPxf (s_kLabelDip), DxuiTheme::kBodyFace, DxuiTextHAlign::Left, DxuiTextVAlign::Center, DxuiFontWeight::SemiBold, false);
+            }
+        }
+
+        //  A tick at each end of the bracket that is in view.
+        for (double at : { a, b - s_kTickTurn })
+        {
+            for (k = 0; k < g.GetSegments (at, s_kTickTurn, ticks); k++)
+            {
+                float  x = (at == a) ? ticks[k].x0 : ticks[k].x1;
+
+                painter.DrawLine (x, tickTop, x, ruleY + line / 2, line, theme.ForegroundMuted());
+            }
         }
 
         if (static_cast<int> (s) == m_context.model->GetSectorIndex())
         {
-            count = g.GetSegments (a, b - a - std::floor (b - a), parts);
-
             for (k = 0; k < count; k++)
             {
                 painter.OutlineRect (parts[k].x0, static_cast<float> (bar.top), parts[k].x1 - parts[k].x0, static_cast<float> (bar.bottom - bar.top), thick, theme.Accent());
             }
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetNibbleKindLabel
+//
+//  A nibble's kind as its value's label in the bar: the kind as the legend
+//  lists it, with an address or data field's body as just "Address" or
+//  "Data".
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring TrackStripView::GetNibbleKindLabel (NibbleKind kind)
+{
+    std::wstring  label;
+
+
+
+    switch (kind)
+    {
+        case NibbleKind::AddressField: label = L"Address";                                    break;
+        case NibbleKind::DataField:    label = L"Data";                                       break;
+        default:                       label = InspectorText::FormatNibbleKind (kind, false); break;
+    }
+
+    return label;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetSectorParts
+//
+//  A sector's stretch from its address prologue to the end of its data
+//  epilogue, as turns and as its segments in view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int TrackStripView::GetSectorParts (const TrackAnalysis & track, const StripGeometry & g, int sectorIndex, double & outStart, double & outEnd,
+                                    std::array<StripSegment, 2> & outParts) const
+{
+    const AnalyzedSector &  sector = track.sectors[static_cast<size_t> (sectorIndex)];
+    const LocatedField &    first  = track.fields[sector.addressField];
+    const LocatedField &    last   = track.fields[sector.dataField >= 0 ? sector.dataField : sector.addressField];
+    int                     end    = last.firstNibble + last.nibbleCount;
+
+
+
+    outStart = m_turns[static_cast<size_t> (first.firstNibble)];
+    outEnd   = (end < static_cast<int> (m_turns.size())) ? m_turns[static_cast<size_t> (end)] : m_turns.back();
+
+    return g.GetSegments (outStart, outEnd - outStart - std::floor (outEnd - outStart), outParts);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TrackStripView::GetSectorLabel
+//
+//  A sector's label in its bracket: its state's symbol and "Sector $N", or
+//  the symbol and "$N" where that is all that fits in the width given.
+//  Returns the label's width, or 0 when neither fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float TrackStripView::GetSectorLabel (IDxuiTextRenderer & text, const AnalyzedSector & sector, float widthPx, std::wstring & outLabel) const
+{
+    std::wstring  symbol = DiskInspectorPalette::GetStateSymbol (sector.state);
+    std::wstring  number = InspectorFormat::FormatSector (sector.sector);
+    float         textPx = m_scaler.ToPxf (s_kLabelDip);
+    float         textW  = 0;
+    float         textH  = 0;
+    float         fitW   = 0;
+
+
+
+    outLabel.clear();
+
+    for (const std::wstring & label : { symbol + L" Sector " + number, symbol + L" " + number })
+    {
+        text.MeasureString (label.c_str(), textPx, DxuiTheme::kBodyFace, textW, textH);
+
+        if (outLabel.empty() && textW <= widthPx)
+        {
+            outLabel = label;
+            fitW     = textW;
+        }
+    }
+
+    return fitW;
 }
 
 

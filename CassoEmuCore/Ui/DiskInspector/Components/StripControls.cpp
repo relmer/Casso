@@ -117,7 +117,7 @@ void StripControls::Update()
     m_out->SetEnabled   (m_session.model.GetStripSpan() < 1.0);
     m_whole->SetEnabled (m_session.model.GetStripSpan() < 1.0);
 
-    m_label->SetText (std::format (L"Track {} {} one turn from the index", InspectorFormat::FormatQuarterTrack (m_session.model.GetQuarterTrack()), s_kpszMiddleDot));
+    m_label->SetText (L"Track " + InspectorFormat::FormatQuarterTrack (m_session.model.GetQuarterTrack()));
     m_readout->SetText (m_strip.GetReadout() + ((track != nullptr && m_session.model.GetNibbleCount() > 0)
                         ? L"    " + InspectorText::FormatSelection (*track, m_session.model.GetFirstNibble(), m_session.model.GetNibbleCount()) : L""));
 }

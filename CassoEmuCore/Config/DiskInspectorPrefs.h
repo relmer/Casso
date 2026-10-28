@@ -11,7 +11,7 @@
 //  DiskInspectorPrefs
 //
 //  The disk inspector window's saved state (FR-080): its placement and
-//  size, its mode, tabs and timing range, the overlays and "Show deleted
+//  size, its mode and timing range, the overlays and "Show deleted
 //  files", Follow head and its zoom, and in Casso the last drive and
 //  whether the window was open at exit. A width of zero indicates the
 //  state was never saved.
@@ -26,9 +26,6 @@ struct DiskInspectorPrefs
     int     h                 = 0;
     bool    isMaximized       = false;
     bool    isTimingMode      = false;
-    bool    isDiskGroup       = false;
-    int     trackTab          = 0;
-    int     diskTab           = 0;
     double  timingRange       = 0.05;
     bool    isAlignment       = false;
     bool    isFiles           = false;

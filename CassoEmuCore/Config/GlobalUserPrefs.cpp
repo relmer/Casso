@@ -1182,9 +1182,6 @@ JsonValue GlobalUserPrefs::ToJson() const
         inspector.emplace_back ("h",           JsonValue ((double) diskInspector.h));
         inspector.emplace_back ("maximized",   JsonValue (diskInspector.isMaximized));
         inspector.emplace_back ("timingMode",  JsonValue (diskInspector.isTimingMode));
-        inspector.emplace_back ("diskGroup",   JsonValue (diskInspector.isDiskGroup));
-        inspector.emplace_back ("trackTab",    JsonValue ((double) diskInspector.trackTab));
-        inspector.emplace_back ("diskTab",     JsonValue ((double) diskInspector.diskTab));
         inspector.emplace_back ("timingRange", JsonValue (diskInspector.timingRange));
         inspector.emplace_back ("alignment",   JsonValue (diskInspector.isAlignment));
         inspector.emplace_back ("files",       JsonValue (diskInspector.isFiles));
@@ -1441,9 +1438,6 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         diskInspector.h             = std::max (GetIntOpt (*inspectorObj, "h", diskInspector.h), 0);
         diskInspector.isMaximized   = TryGetBoolOpt (*inspectorObj, "maximized",   diskInspector.isMaximized);
         diskInspector.isTimingMode  = TryGetBoolOpt (*inspectorObj, "timingMode",  diskInspector.isTimingMode);
-        diskInspector.isDiskGroup   = TryGetBoolOpt (*inspectorObj, "diskGroup",   diskInspector.isDiskGroup);
-        diskInspector.trackTab      = GetIntOpt     (*inspectorObj, "trackTab",    diskInspector.trackTab);
-        diskInspector.diskTab       = GetIntOpt     (*inspectorObj, "diskTab",     diskInspector.diskTab);
         diskInspector.timingRange   = GetNumberOpt  (*inspectorObj, "timingRange", diskInspector.timingRange);
         diskInspector.isAlignment   = TryGetBoolOpt (*inspectorObj, "alignment",   diskInspector.isAlignment);
         diskInspector.isFiles       = TryGetBoolOpt (*inspectorObj, "files",       diskInspector.isFiles);
