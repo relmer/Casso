@@ -112,6 +112,10 @@ void SalvageDialogContent::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 //  Measuring rather than reserving is what keeps the spacing right for a path
 //  of any length.
 //
+//  MEASURED IN THE WEIGHT IT IS DRAWN IN. The path is semibold, and measured
+//  in the regular face it came out a line shorter than it drew, so the table
+//  below was placed over its last line.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 float SalvageDialogContent::DrawWrapped (IDxuiTextRenderer   &  text,
@@ -132,7 +136,7 @@ float SalvageDialogContent::DrawWrapped (IDxuiTextRenderer   &  text,
 
 
 
-    hr = text.MeasureStringWrapped (body.c_str(), fontPx, face, width, outW, outH);
+    hr = text.MeasureStringWrappedWeighted (body.c_str(), fontPx, face, weight, width, outW, outH);
 
     if (SUCCEEDED (hr) && outH > 0.0f)
     {

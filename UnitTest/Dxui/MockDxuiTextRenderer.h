@@ -105,6 +105,19 @@ public:
                                    float         & outWidthDip,
                                    float         & outHeightDip) override;
 
+    //  The wrapped measurement above. Each call's text and weight are added to
+    //  WrappedMeasures.
+    HRESULT  MeasureStringWrappedWeighted (const wchar_t * text,
+                                           float           fontSizeDip,
+                                           const wchar_t * fontFamily,
+                                           DxuiFontWeight  weight,
+                                           float           maxWidthDip,
+                                           float         & outWidthDip,
+                                           float         & outHeightDip) override;
+
+    //  Each weighted wrapped measurement's text and weight, in order.
+    const std::vector<std::pair<std::wstring, DxuiFontWeight>> &  WrappedMeasures() const { return m_wrappedMeasures; }
+
     //  Greedy word wrap: how many lines `text` needs in a box `maxWidthDip`
     //  wide, at `glyphWidthDip` per character. See the .cpp.
     static int  CountWrappedLines (const std::wstring & text,
@@ -133,10 +146,11 @@ public:
     int  GetLastFramebufferHeight () const { return m_lastFramebufferH; }
 
 private:
-    std::vector<RecordedTextCall>          m_calls;
-    std::vector<RecordedTextCall>          m_iconCalls;
-    std::map<std::wstring, SIZE>           m_cannedMetrics;
-    bool                                   m_measureReturnsZero = false;
-    int                                    m_lastFramebufferW   = 0;
-    int                                    m_lastFramebufferH   = 0;
+    std::vector<RecordedTextCall>                         m_calls;
+    std::vector<RecordedTextCall>                         m_iconCalls;
+    std::map<std::wstring, SIZE>                          m_cannedMetrics;
+    std::vector<std::pair<std::wstring, DxuiFontWeight>>  m_wrappedMeasures;
+    bool                                                  m_measureReturnsZero = false;
+    int                                                   m_lastFramebufferW   = 0;
+    int                                                   m_lastFramebufferH   = 0;
 };

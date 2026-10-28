@@ -265,6 +265,22 @@ public:
         return MeasureString (text, fontSizeDip, fontFamily, outWidthDip, outHeightDip);
     }
 
+    // Word-wrapped measurement in a given weight, for wrapped text drawn
+    // bold: a bold line is wider and can wrap where the regular face does
+    // not. The default forwards to the regular wrapped measure.
+    virtual HRESULT  MeasureStringWrappedWeighted (const wchar_t  * text,
+                                                   float            fontSizeDip,
+                                                   const wchar_t  * fontFamily,
+                                                   DxuiFontWeight   weight,
+                                                   float            maxWidthDip,
+                                                   float          & outWidthDip,
+                                                   float          & outHeightDip)
+    {
+        UNREFERENCED_PARAMETER (weight);
+
+        return MeasureStringWrapped (text, fontSizeDip, fontFamily, maxWidthDip, outWidthDip, outHeightDip);
+    }
+
     // Blit a premultiplied BGRA8 bitmap (e.g. the app icon harvested
     // from an HICON) into the target. Implementations cache the source
     // pixels in a GPU bitmap; callers should keep the buffer stable

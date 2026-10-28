@@ -299,6 +299,30 @@ HRESULT MockDxuiTextRenderer::MeasureStringWrapped (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MockDxuiTextRenderer::MeasureStringWrappedWeighted
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MockDxuiTextRenderer::MeasureStringWrappedWeighted (
+    const wchar_t * text,
+    float           fontSizeDip,
+    const wchar_t * fontFamily,
+    DxuiFontWeight  weight,
+    float           maxWidthDip,
+    float         & outWidthDip,
+    float         & outHeightDip)
+{
+    m_wrappedMeasures.emplace_back ((text != nullptr) ? text : L"", weight);
+
+    return MeasureStringWrapped (text, fontSizeDip, fontFamily, maxWidthDip, outWidthDip, outHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DrawIconBitmap
 //
 //  Records the destination and the first source pixel, the color of a line

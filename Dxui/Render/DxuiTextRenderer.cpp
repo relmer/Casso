@@ -2591,6 +2591,31 @@ HRESULT DxuiTextRenderer::MeasureStringWrapped (
     float          & outWidthDip,
     float          & outHeightDip)
 {
+    return MeasureStringWrappedWeighted (text, fontSizeDip, fontFamily, DxuiFontWeight::Normal, maxWidthDip, outWidthDip, outHeightDip);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MeasureStringWrappedWeighted
+//
+//  MeasureStringWrapped in a given weight, through the same cached layout the
+//  draw path uses for that weight, so bold text wraps where it draws.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::MeasureStringWrappedWeighted (
+    const wchar_t  * text,
+    float            fontSizeDip,
+    const wchar_t  * fontFamily,
+    DxuiFontWeight   weight,
+    float            maxWidthDip,
+    float          & outWidthDip,
+    float          & outHeightDip)
+{
     HRESULT                            hr              = S_OK;
     ComPtr<IDWriteTextLayout>          layout;
     IDWriteTextLayout                * rawLayout       = nullptr;
@@ -2608,7 +2633,7 @@ HRESULT DxuiTextRenderer::MeasureStringWrapped (
     CBRAEx (maxWidthDip > 0.0f, E_INVALIDARG);
     CBR (m_dwriteFactory);
 
-    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal,
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, weight,
                        DxuiTextHAlign::Left, DxuiTextVAlign::Top, true,
                        maxWidthDip, s_kUnboundedDip, &rawLayout);
     CHRA (hr);

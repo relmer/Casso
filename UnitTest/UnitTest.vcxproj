@@ -168,6 +168,7 @@
     <ClCompile Include="EmuTests\DiskManagerDriveStatusTests.cpp" />
     <ClCompile Include="UiTests\StoragePageTests.cpp" />
     <ClCompile Include="UiTests\DialogOwnerTests.cpp" />
+    <ClCompile Include="UiTests\SalvageDialogContentTests.cpp" />
     <ClCompile Include="EmuTests\TapeRecorderTests.cpp" />
     <ClCompile Include="EmuTests\TapeTurboGovernorTests.cpp" />
     <ClCompile Include="UiTests\TapeDeckWidgetTests.cpp" />
