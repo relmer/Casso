@@ -1082,6 +1082,7 @@
     <ClInclude Include="Debugger\ITapeControl.h" />
     <ClInclude Include="Debugger\IRunObserver.h" />
     <ClInclude Include="Debugger\IRunDriver.h" />
+    <ClInclude Include="Debugger\HeatTypes.h" />
     <ClInclude Include="Core\EmuCpu.h" />
     <ClInclude Include="Core\ICycleSink.h" />
     <ClInclude Include="Core\IFloatingBusSource.h" />
@@ -1250,6 +1251,7 @@
     <ClInclude Include="Devices\Disk\ExternalChangePolicy.h" />
     <ClInclude Include="Devices\Disk\MountedImageState.h" />
     <ClInclude Include="Devices\Disk\WriteProtectChange.h" />
+    <ClInclude Include="Devices\Disk\BayChange.h" />
     <ClInclude Include="Machines\Apple2\Common\IVideoTiming.h" />
     <ClInclude Include="Machines\Apple2\Common\VideoScanner.h" />
     <ClInclude Include="Machines\Apple2\Common\VideoTiming.h" />
@@ -1356,7 +1358,7 @@
     <ClInclude Include="Config\CrtResolver.h" />
     <ClInclude Include="Config\MonitorCatalog.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
-    <ClInclude Include="UiUi\UiCommandTypes.h" />
+    <ClInclude Include="Ui\UiCommandTypes.h" />
     <ClInclude Include="Ui\ColorUtil.h" />
     <ClInclude Include="Machines\MachineDefinition.h" />
     <ClInclude Include="Machines\MachineDefinitions.h" />
@@ -1486,6 +1488,8 @@
     <ClInclude Include="Shell\Components\ShellUpdater.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="EmbeddedMachineConfigs.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="Shaders\ShaderResourceIds.h" />
     <ClInclude Include="Machines\IMachine.h" />
     <ClInclude Include="Machines\Apple2\Apple2\Apple2.h" />
     <ClInclude Include="Machines\Apple2\Apple2Plus\Apple2Plus.h" />
@@ -1509,6 +1513,7 @@
     <ClInclude Include="Devices\Network\IW5100Backend.h" />
     <ClInclude Include="Config\MacAddress.h" />
     <ClInclude Include="Config\NetworkCardSettings.h" />
+    <ClInclude Include="Config\CrtPresets.h" />
     <ClInclude Include="Devices\Network\IGuestPacketSink.h" />
     <ClInclude Include="Devices\Network\VirtualSubnet.h" />
     <ClInclude Include="Devices\Network\PacketCodec.h" />
@@ -1520,6 +1525,7 @@
     <ClInclude Include="Devices\Network\VirtualNetwork.h" />
     <ClInclude Include="Devices\Network\W5100SocketBridge.h" />
     <ClInclude Include="Machines\Apple2\Common\UthernetCard.h" />
+    <ClInclude Include="Machines\Apple2\Common\ReadEdges.h" />
     <ClInclude Include="Ui\Settings\NetworkPage.h" />
   </ItemGroup>
   <ItemGroup>
