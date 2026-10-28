@@ -353,7 +353,8 @@ Error:
 //  future no longer follows from it, so it is dropped, and the changed state
 //  becomes a boundary keyframe, which a replay reaching it loads, since no
 //  replay from an earlier one would reproduce the change. The machine is live
-//  again where it stands.
+//  again at its position. From the past, its connections on the host are
+//  from later, so they are closed ahead of the keyframe.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,6 +376,7 @@ HRESULT ReverseController::OnMachineChanged()
     if (!m_isLive)
     {
         m_machine.GetInputJournal().Truncate (m_replayer.GetJournalCursor());
+        m_machine.DropHostConnections();
     }
 
     // By position: a power cycle restarts the cycle counter, and every

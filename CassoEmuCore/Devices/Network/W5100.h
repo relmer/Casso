@@ -67,6 +67,7 @@ public:
     Byte      GetSocketMode        (int socket) const;
     Byte      GetSocketProtocol    (int socket) const;
     Byte      GetSocketStatus      (int socket) const;
+    Byte      GetSocketInterrupt   (int socket) const;
     void      SetSocketStatus      (int socket, Byte status);
     void      RaiseSocketInterrupt (int socket, Byte bits);
     uint16_t  GetSourcePort        (int socket) const;

@@ -1034,6 +1034,9 @@ Floating, it is as long as it was docked, and dragging either end resizes it.
 History covers the Uthernet II in use. What the network sends the card is
 stored in history as it arrives, and a step back or a seek replays it from
 there. A replay sends nothing to the network and receives nothing from it.
+A change made in the past makes the machine live there, and the network has
+moved on since: the card's connections are closed, and each socket the
+program had open reads as closed by the remote end.
 
 ### The status bar
 

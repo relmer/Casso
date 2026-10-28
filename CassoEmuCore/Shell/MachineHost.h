@@ -272,9 +272,13 @@ public:
     //  calls AttachInputJournal again after a machine switch. For a replay,
     //  ApplyDeviceInput hands one such record back to its device; it
     //  returns false for a record no device here holds.
-    void  SetInputJournalOn  (bool isOn);
-    void  AttachInputJournal ();
-    bool  ApplyDeviceInput   (const InputRecord & record);
+    void  SetInputJournalOn   (bool isOn);
+    void  AttachInputJournal  ();
+    bool  ApplyDeviceInput    (const InputRecord & record);
+
+    //  The machine is live again at a point in the past: the connections
+    //  its devices have on the host are from later, so each is closed.
+    void  DropHostConnections ();
 
     //  CPU thread, at the start of an execution slice: with the journal on,
     //  journals each host-written input that changed since it was last seen,

@@ -488,6 +488,37 @@ bool UthernetCard::ApplyInput (const InputRecord & record)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UthernetCard::DropHostConnections
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void UthernetCard::DropHostConnections()
+{
+    int  socket = 0;
+
+
+
+    m_bridge.CloseAll();
+
+    for (socket = 0; socket < W5100::kSocketCount; socket++)
+    {
+        if (m_chip.GetSocketStatus (socket) != W5100Registers::kSockClosed)
+        {
+            m_chip.SetSocketStatus      (socket, W5100Registers::kSockClosed);
+            m_chip.RaiseSocketInterrupt (socket, W5100Registers::kSnIrDisconnect);
+        }
+    }
+
+    m_replayed.clear();
+    UpdateIrq();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UthernetCard::UpdateIrq
 //
 ////////////////////////////////////////////////////////////////////////////////

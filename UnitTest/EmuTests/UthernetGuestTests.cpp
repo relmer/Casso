@@ -6,6 +6,7 @@
 #include "Cpu.h"
 #include "Devices/Network/PacketCodec.h"
 #include "Devices/Network/VirtualSubnet.h"
+#include "Devices/Network/W5100Registers.h"
 #include "Machines/Apple2/Common/UthernetCard.h"
 
 #include "../NetworkTests/DhcpTestPackets.h"
@@ -18,6 +19,7 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 using P = PacketCodec;
+using R = W5100Registers;
 
 
 
@@ -811,6 +813,51 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
 
             Assert::IsTrue (last.state == ReverseSessionRig::Save (machine), L"the live end matches");
             Assert::AreEqual (sent, peer->sent.size(), L"a replay sends nothing to the peer");
+        }
+
+
+        //  A change made at a point in the past where the connection was open
+        //  makes the machine live there. The host's connection has moved on
+        //  since, so it is closed, and the guest's socket reads as closed by
+        //  the remote end.
+        TEST_METHOD (AResumeFromThePastClosesTheOpenSockets)
+        {
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            uint64_t                          connected  = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            connected = machine.GetCpu()->GetTotalCycles();
+            guest.RunUntil ([&] { return machine.GetCpu()->GetTotalCycles() > connected + 4 * kSlice; }, L"the session runs on");
+
+            hr = controller.SeekToCycle (connected, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+            Assert::IsTrue (controller.IsInHistory(), L"the machine is behind live");
+            Assert::AreNotEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the socket is open at that point");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            Assert::IsFalse  (controller.IsInHistory(), L"the machine is live where it stands");
+            Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the guest's socket is closed");
+            Assert::IsTrue   ((chip.GetSocketInterrupt (0) & R::kSnIrDisconnect) != 0, L"as closed by the remote end");
+            Assert::IsTrue   (peer->destroyed, L"the host connection is closed");
         }
     };
 

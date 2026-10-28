@@ -649,6 +649,27 @@ bool MachineHost::ApplyDeviceInput (const InputRecord & record)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MachineHost::DropHostConnections
+//
+//  The machine is live again at a point in the past, so the connections
+//  its devices have on the host are from later; each device closes them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::DropHostConnections()
+{
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->DropHostConnections();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MachineHost::SetHeldInputWatch
 //
 //  The devices whose reads see host input, pointed at the watch or at

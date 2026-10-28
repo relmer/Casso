@@ -112,6 +112,11 @@ public:
     void  SetHostInputGate (const HostInputGate * gate)     { m_inputGate = gate; }
     bool  ApplyInput       (const InputRecord & record);
 
+    // The machine is live again at a point in the past. The host's
+    // connections have moved on since, so each is closed, and each socket the
+    // guest has open reads as closed by the remote end.
+    void  DropHostConnections ();
+
 private:
     enum class BackendCall
     {
