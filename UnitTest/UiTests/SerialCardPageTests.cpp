@@ -75,4 +75,26 @@ public:
         Assert::AreEqual (SscSettingsModel::GetChoiceIndex (SscSetting::Mode, defaults), page.GetRowDropdown (0).GetSelectedIndex(),
                           L"the mode drop-down follows");
     }
+
+
+    //  The serial connector is laid out first, above the switches, so the
+    //  two most used settings, the connector and the mode, are at the top.
+    TEST_METHOD (TheConnectorIsAboveTheSwitches)
+    {
+        constexpr RECT                    kPage    = { 0, 0, 600, 2000 };
+        SettingsPanelState                state;
+        std::unique_ptr<SerialCardPage>   owned    = std::make_unique<SerialCardPage>();     // on the heap: the page is too big for a test's stack
+        SerialCardPage                  & page     = *owned;
+        JsonValue                         shipped  = ParseOrFail (kShipped);
+        DxuiDpiScaler                     scaler;
+
+
+
+        AssertSucceeded (state.LoadFromMachine ("X", shipped, shipped));
+
+        page.SetState (&state);
+        page.Layout   (kPage, scaler);
+
+        Assert::IsTrue (page.GetAttachDropdown().GetBounds().bottom <= page.GetRowDropdown (0).GetBounds().top, L"the connector above the mode");
+    }
 };

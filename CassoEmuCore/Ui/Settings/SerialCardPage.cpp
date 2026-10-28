@@ -162,9 +162,9 @@ void SerialCardPage::SetFirmwareStatus (const std::wstring & text, bool offerDow
 //  SerialCardPage::Layout
 //
 //  The firmware banner first, since its height follows its text; then the
-//  switch settings for the selected mode, each followed by its note when it
-//  has one, the drawing of the switches, and the serial connector with its
-//  note. Rows the mode does not use are hidden.
+//  serial connector with its note, the switch settings for the selected
+//  mode, each followed by its note when it has one, and the drawing of the
+//  switches. Rows the mode does not use are hidden.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,6 +205,10 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     {
         y += rowHeight;
     }
+
+    y += sectionGap;
+
+    y = m_attachment.Layout (x, y, labelWidth, noteWidth, { rowHeight, rowGap, sectionGap, noteHeight }, scaler);
 
     y += sectionGap;
 
@@ -249,10 +253,6 @@ void SerialCardPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_switchesView.Layout (MakeRect (controlsX, y, scaler.ToPx (SscSwitchesView::kWidthDip), scaler.ToPx (SscSwitchesView::kHeightDip)), scaler);
     y += scaler.ToPx (SscSwitchesView::kHeightDip) + sectionGap;
-
-    y = m_attachment.Layout (x, y, labelWidth, noteWidth, { rowHeight, rowGap, sectionGap, noteHeight }, scaler);
-
-    y += sectionGap;
 
     // Below everything, because it restores the whole page.
     m_restore.SetLabel (L"Restore defaults");
