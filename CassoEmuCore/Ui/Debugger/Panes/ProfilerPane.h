@@ -93,8 +93,25 @@ public:
     static std::wstring  FormatSeconds (double seconds);
 
     //  The address a row's activation moves the disassembly to: an address
-    //  row's, or a routine's start other than Top level's.
+    //  row's, or a routine's start other than Top level's. The row is an
+    //  index in the profile's entries, before any sort.
     static std::optional<Word>  GetRowAddress (const std::optional<ProfileData> & profile, View view, int row);
+
+    //  How a view's list is sorted: a column and its direction.
+    struct Sort
+    {
+        int   column     = 0;
+        bool  descending = true;
+    };
+
+    //  The sort a view opens with: the opcodes and the addresses by cycles,
+    //  the routines and the call tree by total, most first.
+    static Sort                 GetDefaultSort (View view);
+
+    //  The order of a view's rows as indexes in the profile's entries, by a
+    //  column, ties in the profile's order. The call tree sorts each
+    //  routine's callees among themselves, under their caller.
+    static std::vector<size_t>  GetOrder       (const ProfileData & profile, View view, int column, bool descending);
 
 private:
     void  Refresh        ();
@@ -103,6 +120,17 @@ private:
     void  SetViewMenu    ();
     void  RunProfile     (const char * words);
     void  Save           ();
+    void  SortBy         (int column);
+
+    //  A row's value in a column, to sort by: a number, or text for a name.
+    struct SortKey
+    {
+        uint64_t     number = 0;
+        std::string  text;
+    };
+
+    static bool     IsTextColumn (View view, int column);
+    static SortKey  GetSortKey   (const ProfileData & profile, View view, size_t entry, int column);
 
     PaneBarSlot                                  m_bar;
     ProfileTimeline                            * m_timeline    = nullptr;
@@ -117,6 +145,9 @@ private:
     FlameGraphView                             * m_flameGraph  = nullptr;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
     View                                         m_view        = View::Routines;
+    std::array<Sort, kViewCount>                 m_sorts       = { GetDefaultSort (View::Routines), GetDefaultSort (View::Tree), GetDefaultSort (View::Flame),
+                                                                   GetDefaultSort (View::Addresses), GetDefaultSort (View::Opcodes) };
+    std::vector<size_t>                          m_order;                // the list's rows as indexes in the profile's entries
     bool                                         m_isOn        = false;
     std::optional<ProfileData>                   m_byOpcode;
     std::optional<ProfileData>                   m_byAddress;

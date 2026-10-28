@@ -421,6 +421,45 @@ namespace DebuggerToolPanesTests
 
         //  Each bar is as wide as its total's share of its caller's; zoomed,
         //  the routine spans the width under its callers.
+        //  Each view opens sorted the way it is most read: routines and the
+        //  call tree by total, most first; any column sorts both ways, by
+        //  number or by name.
+        TEST_METHOD (TheProfilerListSortsByAnyColumn)
+        {
+            using View = ProfilerPane::View;
+
+            ProfileData  profile = MakeRoutineProfile();
+            auto         sort    = ProfilerPane::GetDefaultSort (View::Routines);
+
+
+
+            Assert::AreEqual (3, sort.column, L"Total");
+            Assert::IsTrue   (sort.descending);
+            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 3, true)  == std::vector<size_t> { 2, 3, 0, 1 }, L"Top level, DRAW, PLOT, FILL");
+            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, true)  == std::vector<size_t> { 0, 2, 1, 3 }, L"by self");
+            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 1, false) == std::vector<size_t> { 3, 1, 2, 0 }, L"by self, least first");
+            Assert::IsTrue   (ProfilerPane::GetOrder (profile, View::Routines, 0, false) == std::vector<size_t> { 3, 1, 0, 2 }, L"by name, ignoring case");
+
+            Assert::AreEqual (3, ProfilerPane::GetDefaultSort (View::Opcodes).column,   L"Cycles");
+            Assert::AreEqual (2, ProfilerPane::GetDefaultSort (View::Addresses).column, L"Cycles");
+        }
+
+
+        //  The call tree sorts each routine's callees among themselves, so
+        //  every routine stays under its caller.
+        TEST_METHOD (TheCallTreeSortsCalleesUnderTheirCaller)
+        {
+            using View = ProfilerPane::View;
+
+            ProfileData  profile = MakeRoutineProfile();
+
+
+
+            Assert::IsTrue (ProfilerPane::GetOrder (profile, View::Tree, 2, true)  == std::vector<size_t> { 0, 1, 2, 3 }, L"by total: PLOT before FILL");
+            Assert::IsTrue (ProfilerPane::GetOrder (profile, View::Tree, 1, false) == std::vector<size_t> { 0, 1, 3, 2 }, L"by self, least first: FILL before PLOT, both under DRAW");
+        }
+
+
         TEST_METHOD (TheFlameGraphLaysOutEachRoutineUnderItsCaller)
         {
             ProfileData                         profile = MakeRoutineProfile();

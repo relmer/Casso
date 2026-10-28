@@ -94,10 +94,12 @@ void ProfilerPane::CreateControls()
 void ProfilerPane::Configure()
 {
     m_list->SetActivateOnDoubleClick (true);
+    m_list->SetOnSortColumn          ([this] (int column) { SortBy (column); });
 
     m_list->SetOnActivateRow ([this] (int row)
     {
-        std::optional<Word>  address = GetRowAddress ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, row);
+        int                  entry   = (row >= 0 && (size_t) row < m_order.size()) ? (int) m_order[(size_t) row] : row;
+        std::optional<Word>  address = GetRowAddress ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, entry);
 
 
 
@@ -305,6 +307,245 @@ std::optional<Word> ProfilerPane::GetRowAddress (const std::optional<ProfileData
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ProfilerPane::GetDefaultSort
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfilerPane::Sort ProfilerPane::GetDefaultSort (View view)
+{
+    switch (view)
+    {
+    case View::Routines:  return { 3, true };
+    case View::Tree:      return { 2, true };
+    case View::Addresses: return { 2, true };
+    case View::Opcodes:   return { 3, true };
+    default:              return {};
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::IsTextColumn
+//
+//  A column of text sorts A first; a column of numbers, most first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ProfilerPane::IsTextColumn (View view, int column)
+{
+    switch (view)
+    {
+    case View::Addresses: return column == 1;
+    case View::Opcodes:   return column <= 1;
+    default:              return column == 0;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetSortKey
+//
+//  A share sorts as the count it is a share of. A routine never called,
+//  Top level, has no cycles per call and sorts as zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ProfilerPane::SortKey ProfilerPane::GetSortKey (
+    const ProfileData  & profile,
+    View                 view,
+    size_t               entry,
+    int                  column)
+{
+    SortKey  key;
+
+
+
+    if (view == View::Routines)
+    {
+        const ProfileRoutineEntry  & routine = profile.routines[entry];
+
+        switch (column)
+        {
+        case 0:  key.text   = SymbolTable::ToUpper (routine.GetName());                 break;
+        case 1:
+        case 2:  key.number = routine.self;                                             break;
+        case 3:
+        case 4:  key.number = routine.total;                                            break;
+        case 5:  key.number = routine.calls;                                            break;
+        default: key.number = (routine.calls != 0) ? routine.total / routine.calls : 0; break;
+        }
+    }
+    else if (view == View::Tree)
+    {
+        const ProfileTreeEntry  & node = profile.tree[entry];
+
+        switch (column)
+        {
+        case 0:  key.text   = SymbolTable::ToUpper (profile.routines[node.routine].GetName()); break;
+        case 1:  key.number = node.self;                                                      break;
+        case 4:  key.number = node.calls;                                                     break;
+        default: key.number = node.total;                                                     break;
+        }
+    }
+    else if (view == View::Addresses)
+    {
+        const ProfileAddressEntry  & address = profile.addresses[entry];
+
+        key.number = (column == 0) ? address.address : address.cycles;
+        key.text   = (column == 1) ? SymbolTable::ToUpper (address.symbol) : std::string();
+    }
+    else
+    {
+        const ProfileEntry  & opcode = profile.opcodes[entry];
+
+        key.number = (column == 2) ? opcode.count : opcode.cycles;
+        key.text   = (column == 0) ? opcode.mnemonic : (column == 1) ? opcode.mode : std::string();
+    }
+
+    return key;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::GetOrder
+//
+//  The call tree lists each node's callees after it, a level deeper, so a
+//  node's caller is the last node before it a level up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<size_t> ProfilerPane::GetOrder (
+    const ProfileData  & profile,
+    View                 view,
+    int                  column,
+    bool                 descending)
+{
+    std::vector<size_t>               order;
+    std::vector<std::vector<size_t>>  children;
+    std::vector<size_t>               roots;
+    std::vector<size_t>               callers;
+    size_t                            count    = 0;
+    bool                              isText   = IsTextColumn (view, column);
+    std::function<void (size_t)>      emit;
+    auto                              isBefore = [&] (size_t a, size_t b)
+    {
+        SortKey  keyA = GetSortKey (profile, view, a, column);
+        SortKey  keyB = GetSortKey (profile, view, b, column);
+
+
+
+        if (isText)
+        {
+            return descending ? keyB.text < keyA.text : keyA.text < keyB.text;
+        }
+
+        return descending ? keyB.number < keyA.number : keyA.number < keyB.number;
+    };
+
+
+
+    switch (view)
+    {
+    case View::Routines:  count = profile.routines.size();  break;
+    case View::Tree:      count = profile.tree.size();      break;
+    case View::Addresses: count = profile.addresses.size(); break;
+    case View::Opcodes:   count = profile.opcodes.size();   break;
+    default:              return order;
+    }
+
+    if (view != View::Tree)
+    {
+        for (size_t i = 0; i < count; i++)
+        {
+            order.push_back (i);
+        }
+
+        std::stable_sort (order.begin(), order.end(), isBefore);
+        return order;
+    }
+
+    children.resize (count);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        callers.resize (std::min (callers.size(), (size_t) std::max (profile.tree[i].depth, 0)));
+
+        if (callers.empty())
+        {
+            roots.push_back (i);
+        }
+        else
+        {
+            children[callers.back()].push_back (i);
+        }
+
+        callers.push_back (i);
+    }
+
+    emit = [&] (size_t node)
+    {
+        order.push_back (node);
+        std::stable_sort (children[node].begin(), children[node].end(), isBefore);
+
+        for (size_t child : children[node])
+        {
+            emit (child);
+        }
+    };
+
+    std::stable_sort (roots.begin(), roots.end(), isBefore);
+
+    for (size_t root : roots)
+    {
+        emit (root);
+    }
+
+    return order;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProfilerPane::SortBy
+//
+//  A click on the sorted column turns its order around; a click on another
+//  sorts by it, text A first and numbers most first.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ProfilerPane::SortBy (int column)
+{
+    Sort  & sort = m_sorts[(size_t) m_view];
+
+
+
+    sort.descending = (column == sort.column) ? !sort.descending : !IsTextColumn (m_view, column);
+    sort.column     = column;
+
+    Refresh();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ProfilerPane::Apply
 //
 //  A snapshot of a running machine has no profile; the last one read stays.
@@ -388,11 +629,33 @@ void ProfilerPane::BuildIfDue()
 
 void ProfilerPane::Refresh()
 {
-    bool  wasShown = !m_totals->GetText().empty();
+    const std::optional<ProfileData>              & profile  = (m_view == View::Addresses) ? m_byAddress : m_byOpcode;
+    const Sort                                    & sort     = m_sorts[(size_t) m_view];
+    bool                                            wasShown = !m_totals->GetText().empty();
+    std::vector<std::vector<DxuiListView::Cell>>    cells    = GetCells (profile, m_view, m_isOn);
+    std::vector<std::vector<DxuiListView::Cell>>    sorted;
 
 
 
-    m_list->SetRows (GetCells ((m_view == View::Addresses) ? m_byAddress : m_byOpcode, m_view, m_isOn));
+    m_order.clear();
+
+    if (profile.has_value() && m_view != View::Flame)
+    {
+        m_order = GetOrder (*profile, m_view, sort.column, sort.descending);
+    }
+
+    if (!m_order.empty() && m_order.size() == cells.size())
+    {
+        for (size_t entry : m_order)
+        {
+            sorted.push_back (std::move (cells[entry]));
+        }
+
+        cells = std::move (sorted);
+    }
+
+    m_list->SetSortIndicator (m_order.empty() ? -1 : sort.column, sort.descending);
+    m_list->SetRows          (std::move (cells));
     m_totals->SetText (GetTotalsText (m_byOpcode));
 
     if (wasShown != !m_totals->GetText().empty() && m_frame != nullptr)
