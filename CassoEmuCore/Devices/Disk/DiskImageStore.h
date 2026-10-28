@@ -251,6 +251,8 @@ public:
     //  one now, nothing is written and the result is ERROR_MEDIA_CHANGED.
     HRESULT       SalvageToFile (int slot, int drive, uint64_t mediaId, const string & path,
                                  DenibblizeReport & report);
+    void          SalvageToFile (int slot, int drive, uint64_t mediaId, const string & path,
+                                 DiskStoreSalvage::SalvageDone done);
     void          SoftReset         ();
     void          PowerCycle        ();
 

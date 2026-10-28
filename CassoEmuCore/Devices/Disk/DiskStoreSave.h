@@ -78,7 +78,7 @@ public:
     //  A Save as answer: a native copy at `savePath`, with the bay moved onto
     //  it, or, finishing an eject, a WOZ copy when the image does not
     //  serialize natively. outPath is the file written or attempted.
-    HRESULT       SaveAnswerCopy (Entry & entry, const string & savePath, bool isEjecting, string & outPath);
+    void          SaveAnswerCopy (Entry & entry, const string & savePath, bool isEjecting, PathDone done);
 
     // Preserves an image that could not be serialized to its own format,
     // beside the original and losslessly. Leaves the original untouched.
@@ -95,7 +95,9 @@ public:
     //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
     //  point of preserving it is that the file no longer holds this version.
     HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
-    void           SaveLoadedImage (Entry & entry, const string & path, PathDone done);
+    using CopyDone = std::function<void (HRESULT hr, const string & path, const ImageIdentity & identity)>;
+
+    void           SaveLoadedImage (Entry & entry, const string & path, CopyDone done);
 
     //  A preserved-copy path nothing is sitting at yet.
     //
@@ -195,7 +197,7 @@ private:
     void           RecordSave          (Entry & entry, const SaveJob & job);
     void           PreserveAfterChange (Entry & entry, const shared_ptr<SaveJob> & job);
     void           FinishPreserve      (const shared_ptr<SaveJob> & job, const string & original, bool isAsked,
-                                        HRESULT hrKeep, const string & triedPath);
+                                        HRESULT hrKeep, const string & triedPath, const ImageIdentity & identity);
     void           SaveUnserializable  (Entry & entry, const shared_ptr<SaveJob> & job);
     static void    RunRecoveryWork     (RecoveryJob & job, const DiskFileOps & ops);
     void           CompleteRecovery    (const shared_ptr<RecoveryJob> & job);

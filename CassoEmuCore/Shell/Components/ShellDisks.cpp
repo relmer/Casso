@@ -1683,12 +1683,33 @@ Error:
 //  ShellDisks::WriteSalvagedCopy
 //
 //  Writes the copy the user confirmed, while the drive has the medium that
-//  was assessed, and posts the result to the window, which reports it and
-//  offers to insert the copy.
+//  was assessed, on the store's I/O queue. The result is posted to the
+//  window, which reports it and offers to insert the copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ShellDisks::WriteSalvagedCopy (int drive, uint64_t mediaId, const std::string & path)
+{
+    m_shell.m_machine.GetDiskStore().SalvageToFile (6, drive, mediaId, path, [this, drive, path] (HRESULT hr, const DenibblizeReport & report)
+    {
+        PostSalvageDone (drive, path, hr, report);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShellDisks::PostSalvageDone
+//
+//  The salvaged copy's result, posted to the window from the copy's
+//  completion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ShellDisks::PostSalvageDone (int drive, const std::string & path, HRESULT hrCopy, const DenibblizeReport & report)
 {
     HRESULT           hr       = S_OK;
     SalvageOutcome *  outcome  = nullptr;
@@ -1700,9 +1721,10 @@ void ShellDisks::WriteSalvagedCopy (int drive, uint64_t mediaId, const std::stri
     outcome = new (std::nothrow) SalvageOutcome();
     CPR (outcome);
 
-    outcome->drive = drive;
-    outcome->path  = path;
-    outcome->hr    = m_shell.m_machine.GetDiskStore().SalvageToFile (6, drive, mediaId, path, outcome->report);
+    outcome->drive  = drive;
+    outcome->path   = path;
+    outcome->hr     = hrCopy;
+    outcome->report = report;
 
     BAIL_OUT_IF (!hasHwnd, S_OK);
 

@@ -614,11 +614,6 @@ void DiskStoreReload::AskAboutChange (int slot, int drive, Entry & entry, Change
 void DiskStoreReload::ResolvePendingChange (int slot, int drive, ChangeAction chosen,
                                           const string & savePath)
 {
-    HRESULT       hr = S_OK;
-    vector<Byte>  bytes;
-
-
-
     ASSERT_THREAD_OWNERSHIP (m_store.m_ownership);
 
     if (!DiskImageStore::IsValidBay (slot, drive))
@@ -659,23 +654,73 @@ void DiskStoreReload::ResolvePendingChange (int slot, int drive, ChangeAction ch
             return;
         }
 
-        hr = m_store.ReadImageFile (entry.path, bytes);
+        ReadForAnswer (slot, drive, entry, chosen);
+    }
+
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreReload::ReadForAnswer
+//
+//  The file the answer is about, read on the I/O queue with its
+//  writability, and the answer carried out in the completion while the same
+//  disk is in the bay.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreReload::ReadForAnswer (int slot, int drive, Entry & entry, ChangeAction chosen)
+{
+    shared_ptr<ReloadJob>  job = std::make_shared<ReloadJob>();
+    DiskFileOps            ops = m_store.GetFileOps();
+
+
+
+    job->slot    = slot;
+    job->drive   = drive;
+    job->imageId = entry.image->GetImageId();
+    job->path    = entry.path;
+
+    m_store.m_ioQueue->Post ([job, ops]
+    {
+        job->hrRead = ops.Read (job->path, job->bytes);
+        DiskFileOps::ProbeWritability (job->path, job->isReadOnly, job->isDenied);
+    },
+    [this, job, chosen]
+    {
+        Entry         & bay    = m_store.GetEntry (job->slot, job->drive);
+        ChangeAction    action = chosen;
+
+
+
+        if (!bay.mounted || bay.image == nullptr || bay.image->GetImageId() != job->imageId)
+        {
+            return;
+        }
 
         //  Answering "take it up" about a file that has since gone is not the
         //  same question any more.
-        if (FAILED (hr) && chosen != ChangeAction::Ignore)
+        if (FAILED (job->hrRead) && action != ChangeAction::Ignore)
         {
-            chosen = ChangeAction::Deleted;
+            action = ChangeAction::Deleted;
         }
-    }
 
-    //  THE USER DID THE INSERTING, so no program is named. A question is only
-    //  ever put when nothing stated an intent -- that is what `Ask` means --
-    //  and one arriving while the question stood on screen does not turn the
-    //  answer into somebody else's reload.
-    CarryOutChangeAction (slot, drive, chosen, bytes, ChangeAuthor::AnotherProgram);
+        //  THE USER DID THE INSERTING, so no program is given as the author.
+        //  A question is put only when no intent was stated -- that is what
+        //  `Ask` means -- and one that arrives while the question is on
+        //  screen does not turn the answer into somebody else's reload.
+        CarryOutChangeAction (job->slot, job->drive, action, job->bytes, ChangeAuthor::AnotherProgram);
 
-    return;
+        if (m_store.GetEntry (job->slot, job->drive).mounted)
+        {
+            m_store.SetFileWriteProtect (job->slot, job->drive, job->isReadOnly, job->isDenied);
+        }
+    });
 }
 
 
@@ -696,12 +741,8 @@ void DiskStoreReload::ResolvePendingChange (int slot, int drive, ChangeAction ch
 
 void DiskStoreReload::ResolveConflictAnswer (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath)
 {
-    HRESULT           hr          = S_OK;
-    bool              finishEject = entry.sharedState.IsEjectWhenAnswered();
-    SaveFailureCause  cause       = entry.sharedState.GetAskedCause();
-    bool              isAsked     = false;
-    string            written;
-    ChangePrompt      prompt;
+    bool      finishEject = entry.sharedState.IsEjectWhenAnswered();
+    uint64_t  imageId     = entry.image->GetImageId();
 
 
 
@@ -709,34 +750,72 @@ void DiskStoreReload::ResolveConflictAnswer (int slot, int drive, Entry & entry,
 
     if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
     {
-        hr = m_store.m_save.SaveAnswerCopy (entry, savePath, finishEject, written);
-
-        if (FAILED (hr))
+        m_store.m_save.SaveAnswerCopy (entry, savePath, finishEject, [this, slot, drive, imageId, finishEject] (HRESULT hr, const string & written)
         {
-            //  Still nowhere to put it. The disk is untouched and the
-            //  question stands rather than being quietly dropped. The second
-            //  question is in the terms of the first.
-            if (m_store.m_askSink)
+            Entry  & bay = m_store.GetEntry (slot, drive);
+
+
+
+            if (bay.mounted && bay.image != nullptr && bay.image->GetImageId() == imageId)
             {
-                prompt = ChangePrompt::ComposeSaveFailure (entry.path, drive, written, hr, cause);
+                FinishConflictAnswer (slot, drive, bay, finishEject, hr, written);
+            }
+        });
 
-                if (cause == SaveFailureCause::Unserializable)
-                {
-                    prompt.suggestedSavePath = DiskImageStore::MakeRecoveryPath (entry.path, 0);
-                }
+        return;
+    }
 
-                entry.sharedState.SetAskedAction (ChangeAction::Conflict);
+    FinishConflictAnswer (slot, drive, entry, finishEject, S_OK, string());
+}
 
-                isAsked = m_store.m_askSink (slot, drive, prompt);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreReload::FinishConflictAnswer
+//
+//  After the answer's copy, or at once when there was nothing to write:
+//  after a failed copy the question is put again, and otherwise the pending
+//  change is dropped and an eject that raised the question finishes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreReload::FinishConflictAnswer (int slot, int drive, Entry & entry, bool finishEject, HRESULT hr, const string & written)
+{
+    SaveFailureCause  cause   = entry.sharedState.GetAskedCause();
+    bool              isAsked = false;
+    ChangePrompt      prompt;
+
+
+
+    if (FAILED (hr))
+    {
+        //  There is nowhere to put it. The disk is untouched, and the
+        //  question is put again rather than dropped, in the terms of the
+        //  first.
+        if (m_store.m_askSink)
+        {
+            prompt = ChangePrompt::ComposeSaveFailure (entry.path, drive, written, hr, cause);
+
+            if (cause == SaveFailureCause::Unserializable)
+            {
+                prompt.suggestedSavePath = DiskImageStore::MakeRecoveryPath (entry.path, 0);
             }
 
-            entry.sharedState.SetAskOutstanding   (isAsked);
-            entry.sharedState.SetEjectWhenAnswered (finishEject && isAsked);
+            entry.sharedState.SetAskedAction (ChangeAction::Conflict);
 
-            return;
+            isAsked = m_store.m_askSink (slot, drive, prompt);
         }
+
+        entry.sharedState.SetAskOutstanding   (isAsked);
+        entry.sharedState.SetEjectWhenAnswered (finishEject && isAsked);
+
+        return;
     }
-    else if (finishEject)
+
+    if (written.empty() && finishEject)
     {
         //  THE USER CHOSE TO LET IT GO, so the dirty bit goes with it.
         //  Left standing, the eject below would find the same collision
@@ -762,7 +841,7 @@ void DiskStoreReload::ResolveConflictAnswer (int slot, int drive, Entry & entry,
     {
         entry.sharedState.SetEjectWhenAnswered (false);
 
-        m_store.Eject (slot, drive);
+        m_store.Eject (slot, drive, nullptr);
     }
 
     return;
@@ -788,7 +867,6 @@ void DiskStoreReload::ResolveConflictAnswer (int slot, int drive, Entry & entry,
 
 void DiskStoreReload::ResolveLostFileAnswer (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath)
 {
-    HRESULT       hr    = S_OK;
     ChangeAction  asked = entry.sharedState.GetAskedAction();
 
 
@@ -797,44 +875,7 @@ void DiskStoreReload::ResolveLostFileAnswer (int slot, int drive, Entry & entry,
 
     if (chosen == ChangeAction::PreserveCopy && !savePath.empty())
     {
-        vector<Byte>  held;
-
-        hr = entry.image->Serialize (held);
-
-        if (SUCCEEDED (hr))
-        {
-            hr = m_store.m_save.CommitFile (savePath, held, CommitMode::Replace);
-        }
-
-        //  A save the user asked for and did not get must not be
-        //  followed by throwing the only copy away. The second question
-        //  is the lost-file question, so its answer is read as one.
-        if (FAILED (hr))
-        {
-            if (m_store.m_askSink)
-            {
-                entry.sharedState.SetAskedAction (asked);
-                entry.sharedState.SetAskOutstanding (
-                    m_store.m_askSink (slot, drive,
-                               ChangePrompt::ComposeSaveFailure (entry.path, drive,
-                                                                 savePath, hr,
-                                                                 SaveFailureCause::FileLost)));
-            }
-
-            return;
-        }
-
-        //  THE DISK STAYS IN THE DRIVE, ON THE FILE THE USER PICKED.
-        //  Serialize writes a whole image, not a fragment, so the drive
-        //  now has somewhere to live -- and emptying it would mean
-        //  handing back a complete disk and then making them go and
-        //  find it. Keeping a version during a conflict already works
-        //  this way, and one act should not have two outcomes.
-        entry.image->MarkSaved (held);
-
-        hr = RepointBayToFile (slot, drive, savePath);
-        IGNORE_RETURN_VALUE (hr, S_OK);
-
+        SaveLostFileCopy (slot, drive, entry, asked, savePath);
         return;
     }
 
@@ -854,6 +895,94 @@ void DiskStoreReload::ResolveLostFileAnswer (int slot, int drive, Entry & entry,
     EjectLostImage (slot, drive);
 
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreReload::SaveLostFileCopy
+//
+//  The Save as answer about a lost file: the image is serialized here and
+//  committed on the I/O queue. In the completion, a save the user asked for
+//  and did not get is not followed by throwing the only copy away -- the
+//  lost-file question is put again, so its answer is read as one.
+//
+//  THE DISK STAYS IN THE DRIVE, ON THE FILE THE USER PICKED. Serialize writes
+//  a whole image, not a fragment, so the drive now has somewhere to live --
+//  and emptying it would mean handing back a complete disk and then making
+//  the user go and find it. Keeping a version during a conflict works this
+//  way too, and one act should not have two outcomes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreReload::SaveLostFileCopy (int slot, int drive, Entry & entry, ChangeAction asked, const string & savePath)
+{
+    struct CopyJob
+    {
+        vector<Byte>       bytes;
+        vector<uint64_t>   generations;
+        HRESULT            hr = S_OK;
+        ImageIdentity      after;
+    };
+
+    shared_ptr<CopyJob>  job     = std::make_shared<CopyJob>();
+    DiskFileOps          ops     = m_store.GetFileOps();
+    uint64_t             imageId = entry.image->GetImageId();
+
+
+
+    job->hr          = entry.image->Serialize (job->bytes);
+    job->generations = entry.image->GetTrackGenerations();
+
+    m_store.m_ioQueue->Post ([job, ops, savePath]
+    {
+        if (SUCCEEDED (job->hr))
+        {
+            job->hr = ops.Commit (savePath, job->bytes, CommitMode::Replace);
+        }
+
+        if (SUCCEEDED (job->hr))
+        {
+            job->after = ops.ReadIdentity (savePath);
+        }
+    },
+    [this, job, slot, drive, imageId, asked, savePath]
+    {
+        Entry    & bay       = m_store.GetEntry (slot, drive);
+        HRESULT    hrRepoint = S_OK;
+
+
+
+        if (!bay.mounted || bay.image == nullptr || bay.image->GetImageId() != imageId)
+        {
+            return;
+        }
+
+        if (FAILED (job->hr))
+        {
+            if (m_store.m_askSink)
+            {
+                bay.sharedState.SetAskedAction (asked);
+                bay.sharedState.SetAskOutstanding (
+                    m_store.m_askSink (slot, drive,
+                               ChangePrompt::ComposeSaveFailure (bay.path, drive, savePath, job->hr,
+                                                                 SaveFailureCause::FileLost)));
+            }
+
+            return;
+        }
+
+        if (bay.image->GetTrackGenerations() == job->generations)
+        {
+            bay.image->MarkSaved (job->bytes);
+        }
+
+        hrRepoint = RepointBayToFile (slot, drive, savePath, job->after);
+        IGNORE_RETURN_VALUE (hrRepoint, S_OK);
+    });
 }
 
 
@@ -1191,6 +1320,24 @@ Error:
 
 HRESULT DiskStoreReload::RepointBayToFile (int slot, int drive, const string & newPath)
 {
+    return RepointBayToFile (slot, drive, newPath, m_store.ReadIdentity (newPath));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreReload::RepointBayToFile, with the new file's identity
+//
+//  For a caller whose job wrote the new file and stat'd it after, so the
+//  repoint does no file I/O.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskStoreReload::RepointBayToFile (int slot, int drive, const string & newPath, const ImageIdentity & identity)
+{
     HRESULT  hr     = S_OK;
     bool     usable = DiskImageStore::IsValidBay (slot, drive) && !newPath.empty();
 
@@ -1211,7 +1358,7 @@ HRESULT DiskStoreReload::RepointBayToFile (int slot, int drive, const string & n
 
         //  A fresh identity for the new file, and nothing pending against the
         //  old one. Mount is what records both.
-        entry.sharedState.Mount (m_store.ReadIdentity (newPath));
+        entry.sharedState.Mount (identity);
 
         m_store.MarkStatusChanged();
         BeginWatching (slot, drive);

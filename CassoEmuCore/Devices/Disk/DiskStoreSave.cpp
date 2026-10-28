@@ -286,45 +286,89 @@ Error:
 //  Writes the copy for a Save as answer. A native copy moves the bay
 //  onto the new file, the same outcome as keeping the disk in any other
 //  question. Finishing an eject, an image that does not serialize natively is
-//  written as WOZ, with the bay on its file.
+//  written as WOZ, with the bay on its file, and becomes the recovery copy,
+//  marked as reported. The commit runs on the I/O queue, and done receives
+//  the file written or attempted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskStoreSave::SaveAnswerCopy (Entry & entry, const string & savePath, bool isEjecting, string & outPath)
+void DiskStoreSave::SaveAnswerCopy (Entry & entry, const string & savePath, bool isEjecting, PathDone done)
 {
-    HRESULT       hr        = S_OK;
-    HRESULT       hrRepoint = S_OK;
-    bool          isWoz     = false;
-    vector<Byte>  held;
-
-
-
-    outPath = savePath;
-
-    hr    = entry.image->Serialize (held);
-    isWoz = FAILED (hr) && isEjecting;
-
-    if (isWoz)
+    struct AnswerJob
     {
-        hr = WriteWozCopy (entry, savePath, outPath);
-        CHR (hr);
+        int                slot        = 0;
+        int                drive       = 0;
+        uint64_t           imageId     = 0;
+        bool               isWoz       = false;
+        string             outPath;
+        vector<Byte>       bytes;
+        vector<uint64_t>   generations;
+        HRESULT            hr          = S_OK;
+        ImageIdentity      after;
+    };
+
+    shared_ptr<AnswerJob>  job = std::make_shared<AnswerJob>();
+    DiskFileOps            ops = m_store.GetFileOps();
+
+
+
+    job->slot        = entry.slot;
+    job->drive       = entry.drive;
+    job->imageId     = entry.image->GetImageId();
+    job->generations = entry.image->GetTrackGenerations();
+    job->outPath     = savePath;
+    job->hr          = entry.image->Serialize (job->bytes);
+    job->isWoz       = FAILED (job->hr) && isEjecting;
+
+    if (job->isWoz)
+    {
+        job->outPath = fs::path (savePath).replace_extension (".woz").string();
+        job->hr      = WozLoader::Serialize (*entry.image, job->bytes);
+    }
+
+    if (FAILED (job->hr))
+    {
+        done (job->hr, job->outPath);
     }
     else
     {
-        CHR (hr);
+        m_store.m_ioQueue->Post ([job, ops]
+        {
+            job->hr = ops.Commit (job->outPath, job->bytes, CommitMode::Replace);
 
-        hr = CommitFile (savePath, held, CommitMode::Replace);
-        CHR (hr);
+            if (SUCCEEDED (job->hr))
+            {
+                job->after = ops.ReadIdentity (job->outPath);
+            }
+        },
+        [this, job, done]
+        {
+            Entry    * bay       = FindBay (job->slot, job->drive, job->imageId);
+            HRESULT    hrRepoint = S_OK;
 
-        entry.image->MarkSaved (held);
-        entry.sharedState.SetPreservedPath (string());
 
-        hrRepoint = m_store.m_reload.RepointBayToFile (entry.slot, entry.drive, savePath);
-        IGNORE_RETURN_VALUE (hrRepoint, S_OK);
+
+            if (bay != nullptr && SUCCEEDED (job->hr) && job->isWoz)
+            {
+                bay->sharedState.SetRecovery (job->outPath, job->imageId, job->generations, job->after);
+                bay->sharedState.MarkSaveFailureReported (job->outPath);
+            }
+            else if (bay != nullptr && SUCCEEDED (job->hr))
+            {
+                if (bay->image->GetTrackGenerations() == job->generations)
+                {
+                    bay->image->MarkSaved (job->bytes);
+                }
+
+                bay->sharedState.SetPreservedPath (string());
+
+                hrRepoint = m_store.m_reload.RepointBayToFile (bay->slot, bay->drive, job->outPath, job->after);
+                IGNORE_RETURN_VALUE (hrRepoint, S_OK);
+            }
+
+            done (job->hr, job->outPath);
+        });
     }
-
-Error:
-    return hr;
 }
 
 
@@ -937,9 +981,9 @@ void DiskStoreSave::PreserveAfterChange (Entry & entry, const shared_ptr<SaveJob
 
 
 
-    SaveLoadedImage (entry, preservedPath, [this, job, original, isAsked] (HRESULT hrKeep, const string & triedPath)
+    SaveLoadedImage (entry, preservedPath, [this, job, original, isAsked] (HRESULT hrKeep, const string & triedPath, const ImageIdentity & identity)
     {
-        FinishPreserve (job, original, isAsked, hrKeep, triedPath);
+        FinishPreserve (job, original, isAsked, hrKeep, triedPath, identity);
     });
 }
 
@@ -971,7 +1015,7 @@ void DiskStoreSave::PreserveAfterChange (Entry & entry, const shared_ptr<SaveJob
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskStoreSave::FinishPreserve (const shared_ptr<SaveJob> & job, const string & original, bool isAsked,
-                                    HRESULT hrKeep, const string & triedPath)
+                                    HRESULT hrKeep, const string & triedPath, const ImageIdentity & identity)
 {
     Entry       * entry  = FindBay (job->slot, job->drive, job->imageId);
     FlushOutcome  outcome;
@@ -1000,7 +1044,7 @@ void DiskStoreSave::FinishPreserve (const shared_ptr<SaveJob> & job, const strin
 
     if (entry != nullptr && SUCCEEDED (hrKeep) && !isAsked)
     {
-        hrMove = m_store.m_reload.RepointBayToFile (entry->slot, entry->drive, triedPath);
+        hrMove = m_store.m_reload.RepointBayToFile (entry->slot, entry->drive, triedPath, identity);
         IGNORE_RETURN_VALUE (hrMove, S_OK);
 
         //  Composed from the path the bay HAD, since that is the file the
@@ -1360,8 +1404,10 @@ HRESULT DiskStoreSave::SaveLoadedImage (Entry & entry, string & outPath)
 
     wait->path = outPath;
 
-    SaveLoadedImage (entry, outPath, [wait] (HRESULT hrSave, const string & path)
+    SaveLoadedImage (entry, outPath, [wait] (HRESULT hrSave, const string & path, const ImageIdentity & identity)
     {
+        UNREFERENCED_PARAMETER (identity);
+
         wait->hr     = hrSave;
         wait->path   = path;
         wait->isDone = true;
@@ -1391,11 +1437,12 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskStoreSave::SaveLoadedImage (Entry & entry, const string & path, PathDone done)
+void DiskStoreSave::SaveLoadedImage (Entry & entry, const string & path, CopyDone done)
 {
     shared_ptr<vector<Byte>>  bytes       = std::make_shared<vector<Byte>>();
     shared_ptr<string>        target      = std::make_shared<string> (path);
     shared_ptr<HRESULT>       hrWrite     = std::make_shared<HRESULT> (S_OK);
+    shared_ptr<ImageIdentity> identity    = std::make_shared<ImageIdentity>();
     DiskFileOps               ops         = m_store.GetFileOps();
     HRESULT                   hr          = (entry.image != nullptr) ? entry.image->Serialize (*bytes) : E_FAIL;
     string                    imagePath   = entry.path;
@@ -1411,12 +1458,12 @@ void DiskStoreSave::SaveLoadedImage (Entry & entry, const string & path, PathDon
     {
         if (done)
         {
-            done (hr, path);
+            done (hr, path, ImageIdentity());
         }
     }
     else
     {
-        m_store.m_ioQueue->Post ([ops, bytes, target, hrWrite, imagePath, stamp]
+        m_store.m_ioQueue->Post ([ops, bytes, target, hrWrite, identity, imagePath, stamp]
         {
             if (target->empty())
             {
@@ -1427,8 +1474,13 @@ void DiskStoreSave::SaveLoadedImage (Entry & entry, const string & path, PathDon
             {
                 *hrWrite = ops.Commit (*target, *bytes, CommitMode::Replace);
             }
+
+            if (SUCCEEDED (*hrWrite))
+            {
+                *identity = ops.ReadIdentity (*target);
+            }
         },
-        [this, bytes, target, hrWrite, slot, drive, imageId, generations, done]
+        [this, bytes, target, hrWrite, identity, slot, drive, imageId, generations, done]
         {
             Entry  * bay = FindBay (slot, drive, imageId);
 
@@ -1441,7 +1493,7 @@ void DiskStoreSave::SaveLoadedImage (Entry & entry, const string & path, PathDon
 
             if (done)
             {
-                done (*hrWrite, *target);
+                done (*hrWrite, *target, *identity);
             }
         });
     }

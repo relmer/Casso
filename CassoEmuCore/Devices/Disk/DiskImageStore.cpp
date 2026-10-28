@@ -1948,6 +1948,23 @@ HRESULT DiskImageStore::SalvageToFile (int slot, int drive, uint64_t mediaId, co
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DiskImageStore::SalvageToFile, through the I/O queue
+//
+//  Forwards to DiskStoreSalvage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SalvageToFile (int slot, int drive, uint64_t mediaId, const string & path, DiskStoreSalvage::SalvageDone done)
+{
+    m_salvage.SalvageToFile (slot, drive, mediaId, path, std::move (done));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DiskImageStore::SetMediaRetention
 //
 //  Forwards to DiskStoreMedia.

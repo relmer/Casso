@@ -44,6 +44,7 @@ public:
     //  THIS IS A SAVE-AS, NOT A MOUNT. Nothing is loaded, so a guest mid-write
     //  sees nothing at all.
     HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
+    HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath, const ImageIdentity & identity);
 
     //  Everything one bay's settled change leads to.
     void           ApplyPendingReloadToBay (int slot, int drive);
@@ -55,6 +56,12 @@ public:
     //  written, and to a question about a file that is gone.
     void           ResolveConflictAnswer        (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath);
     void           ResolveLostFileAnswer        (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath);
+
+    //  The answers' steps after their file work: the read an answer is about,
+    //  the conflict answer after its copy, and the lost file's copy.
+    void           ReadForAnswer                (int slot, int drive, Entry & entry, ChangeAction chosen);
+    void           FinishConflictAnswer         (int slot, int drive, Entry & entry, bool finishEject, HRESULT hr, const string & written);
+    void           SaveLostFileCopy             (int slot, int drive, Entry & entry, ChangeAction asked, const string & savePath);
 
     bool           IsReloadDue                  (Entry & entry, ExternalChangeIntent & outIntent);
     static bool    IsLoadable                   (const string & path, const vector<Byte> & bytes);

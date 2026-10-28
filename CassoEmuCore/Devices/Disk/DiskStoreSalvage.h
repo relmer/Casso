@@ -32,6 +32,12 @@ public:
     HRESULT        SalvageToFile    (int slot, int drive, uint64_t mediaId, const string & path,
                                      DenibblizeReport & report);
 
+    //  The same, with the commit on the store's I/O queue and done called in
+    //  its completion.
+    using SalvageDone = std::function<void (HRESULT hr, const DenibblizeReport & report)>;
+
+    void           SalvageToFile    (int slot, int drive, uint64_t mediaId, const string & path, SalvageDone done);
+
     // Recover what can be recovered. Decode only -- this is all the counts
     // need, and it is the half AssessSalvage can afford to run.
     HRESULT       DecodeForSalvage (Entry & entry, vector<Byte> & outSectors,

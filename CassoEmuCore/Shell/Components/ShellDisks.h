@@ -92,6 +92,7 @@ public:
     void     ResolvePendingChange    (int slot, int drive, int action, const std::string & savePath) override;
     void     AssessSalvage           (int drive) override;
     void     WriteSalvagedCopy       (int drive, uint64_t mediaId, const std::string & path) override;
+    void     PostSalvageDone   (int drive, const std::string & path, HRESULT hrCopy, const DenibblizeReport & report);
 
     // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user

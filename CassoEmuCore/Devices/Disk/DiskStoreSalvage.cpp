@@ -212,13 +212,57 @@ HRESULT DiskStoreSalvage::SalvageToFile (
     const string     &  path,
     DenibblizeReport &  report)
 {
-    HRESULT       hr           = S_OK;
-    bool          bayOk        = false;
-    bool          hasImage     = false;
-    bool          hasPath      = !path.empty();
-    bool          isSource     = false;
-    bool          isSameMedium = false;
-    vector<Byte>  bytes;
+    HRESULT                       hr     = S_OK;
+    shared_ptr<bool>              isDone = std::make_shared<bool> (false);
+    shared_ptr<HRESULT>           result = std::make_shared<HRESULT> (S_OK);
+    shared_ptr<DenibblizeReport>  made   = std::make_shared<DenibblizeReport>();
+
+
+
+    SalvageToFile (slot, drive, mediaId, path, [isDone, result, made] (HRESULT hrCopy, const DenibblizeReport & copied)
+    {
+        *result = hrCopy;
+        *made   = copied;
+        *isDone = true;
+    });
+
+    hr = m_store.WaitForIo (*isDone);
+    CHR (hr);
+
+    hr = *result;
+    CHR (hr);
+
+Error:
+    report = *made;
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SalvageToFile, through the I/O queue
+//
+//  The checks and the rebuild run here, on the store's thread, because the
+//  rebuild reads the image; the commit runs on the I/O queue, and done
+//  receives the result and the report in its completion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreSalvage::SalvageToFile (int slot, int drive, uint64_t mediaId, const string & path, SalvageDone done)
+{
+    HRESULT                       hr           = S_OK;
+    bool                          bayOk        = false;
+    bool                          hasImage     = false;
+    bool                          hasPath      = !path.empty();
+    bool                          isSource     = false;
+    bool                          isSameMedium = false;
+    shared_ptr<vector<Byte>>      bytes        = std::make_shared<vector<Byte>>();
+    shared_ptr<DenibblizeReport>  report       = std::make_shared<DenibblizeReport>();
+    shared_ptr<HRESULT>           hrCommit     = std::make_shared<HRESULT> (S_OK);
+    DiskFileOps                   ops          = m_store.GetFileOps();
 
 
 
@@ -245,17 +289,27 @@ HRESULT DiskStoreSalvage::SalvageToFile (
         isSource = (path == entry.path);
         CBRAEx (!isSource, E_INVALIDARG);
 
-        hr = BuildSalvagedImage (entry, bytes, report);
-        CHRN (hr, DiskStoreText::FormatSalvageFailedMessage (path).c_str());
-
-        hr = m_store.m_save.CommitFile (path, bytes, CommitMode::Replace);
+        hr = BuildSalvagedImage (entry, *bytes, *report);
         CHRN (hr, DiskStoreText::FormatSalvageFailedMessage (path).c_str());
     }
 
-Error:
-    return hr;
-}
+    m_store.m_ioQueue->Post ([ops, path, bytes, hrCommit] { *hrCommit = ops.Commit (path, *bytes, CommitMode::Replace); },
+                             [path, report, hrCommit, done]
+    {
+        if (FAILED (*hrCommit))
+        {
+            EhmNotifyUser (DiskStoreText::FormatSalvageFailedMessage (path).c_str());
+        }
 
+        done (*hrCommit, *report);
+    });
+
+Error:
+    if (FAILED (hr))
+    {
+        done (hr, *report);
+    }
+}
 
 
 
