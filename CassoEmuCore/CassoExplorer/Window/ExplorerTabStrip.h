@@ -35,6 +35,7 @@ public:
     //  strip, ahead of the window's other routing; the strip has the rest over
     //  it and while a tab is dragged.
     void  ClearHoverOnLeave (const DxuiMouseEvent & ev);
+    bool  OnCapturedMouse   (const DxuiMouseEvent & ev);
     bool  OnMouse           (const DxuiMouseEvent & ev);
     bool  OnEscapeKey       (const DxuiKeyEvent & ev);
     bool  OnKey             (const DxuiKeyEvent & ev) { return m_tabs->OnKey (ev); }

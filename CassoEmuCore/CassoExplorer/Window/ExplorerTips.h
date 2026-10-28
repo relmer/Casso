@@ -38,8 +38,6 @@ public:
     void  HideImmediate () { m_tooltip.HideImmediate(); }
     bool  WantsTick     () const { return m_tooltip.WantsTick() || m_tooltip.IsVisible(); }
     void  Tick          (int64_t nowMs);
-    void  UpdateListTip       (const DxuiMouseEvent & ev, POINT point);
-    void  RefreshListTip      ();
 
 private:
     friend class CassoExplorerWindow;

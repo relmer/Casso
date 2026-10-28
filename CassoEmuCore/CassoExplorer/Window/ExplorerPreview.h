@@ -58,6 +58,7 @@ public:
     //  The pane's widgets, as children of the window, and their settings and
     //  handlers once the window has its HWND.
     void  Create    ();
+    void  CreateToolbar ();
     void  Configure ();
 
     //  The pane over `rect`, its toolbar across the top when the preview has
@@ -80,6 +81,7 @@ public:
     bool     TickScrollbars       (int64_t nowMs);
     bool     IsOverPane           (POINT point) const;
     LPCWSTR  GetCursorForPoint    (POINT clientPx) const;
+    LPCWSTR  GetPictureCursor     (POINT clientPx) const;
     std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (const DxuiMouseEvent & ev) const;
 
     //  Keys. A focused box has its keys first; the shortcuts for an archive's

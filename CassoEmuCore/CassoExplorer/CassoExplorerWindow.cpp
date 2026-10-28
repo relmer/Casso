@@ -341,10 +341,13 @@ void CassoExplorerWindow::OnCreate()
     m_previewSplitter = previewSplitter;
     m_statusBar.Create();
     m_tabStrip.Create();
-    m_toolbars.Create();
+    m_toolbars.CreateNavBar();
     m_addressBar.Create();
-
+    m_toolbars.CreateMenuBar();
     m_fileOps.Create();
+    m_toolbars.CreateCommandBar();
+    m_previewPane.CreateToolbar();
+    m_toolbars.Create();
 
     m_toolbars.SetCommandBarDropDowns();
     m_tips.Create (GetPopupHost());

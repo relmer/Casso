@@ -25,6 +25,54 @@ ExplorerToolbars::ExplorerToolbars (CassoExplorerWindow & window)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ExplorerToolbars::CreateNavBar
+//
+//  Each bar is created where it falls in the window's paint order; Create
+//  then sets them up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerToolbars::CreateNavBar()
+{
+    m_toolbar = m_window.CreateChild<DxuiToolbar>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerToolbars::CreateMenuBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerToolbars::CreateMenuBar()
+{
+    m_menuBar = m_window.CreateChild<DxuiMenuBar>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerToolbars::CreateCommandBar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerToolbars::CreateCommandBar()
+{
+    m_commandBar = m_window.CreateChild<DxuiToolbar>();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ExplorerToolbars::Create
 //
 //  Explorer's navigation glyphs are in Windows 11's Segoe Fluent Icons.
@@ -38,10 +86,6 @@ void ExplorerToolbars::Create()
     const wchar_t *  iconFace = DxuiTextRenderer::IsFontFamilyInstalled (DxuiToolbar::kFluentIconFace) ? DxuiToolbar::kFluentIconFace : DxuiToolbar::kMdl2IconFace;
 
 
-
-    m_toolbar    = m_window.CreateChild<DxuiToolbar>();
-    m_menuBar    = m_window.CreateChild<DxuiMenuBar>();
-    m_commandBar = m_window.CreateChild<DxuiToolbar>();
 
     m_toolbar->SetTextRenderer (m_window.GetTextRenderer());
     m_toolbar->SetPopupHost    (m_window.GetPopupHost());

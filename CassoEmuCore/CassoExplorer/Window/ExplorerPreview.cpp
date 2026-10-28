@@ -56,14 +56,30 @@ void ExplorerPreview::Create()
     m_previewMessage->SetTextRole (DxuiTextRole::Muted);
     m_previewMessage->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
 
+    m_find.Create();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreview::CreateToolbar
+//
+//  The preview's toolbar is the window's last child, so it is drawn over the
+//  others.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ExplorerPreview::CreateToolbar()
+{
     m_previewToolbar = m_window.CreateChild<DxuiToolbar>();
     m_previewToolbar->SetFlatStyle    (true);
     m_previewToolbar->SetTextRenderer (m_window.GetTextRenderer());
     m_previewToolbar->SetPopupHost    (m_window.GetPopupHost());
     m_previewToolbar->SetIconDip      (ExplorerToolbars::kNavIconDip);
     m_previewToolbar->SetVisible      (false);
-
-    m_find.Create();
 }
 
 
@@ -580,12 +596,30 @@ LPCWSTR ExplorerPreview::GetCursorForPoint (POINT clientPx) const
         cursor = m_previewMessage->GetCursorForPoint (clientPx);
     }
 
-    if (cursor == nullptr && m_picture->IsVisible() && CassoExplorerWindow::Contains (m_picture->GetBounds(), clientPx))
+    return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerPreview::GetPictureCursor
+//
+//  The picture's cursor. ExplorerInput::GetCursorForPoint calls this after
+//  the address bar's and the preview splitter's lookups.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR ExplorerPreview::GetPictureCursor (POINT clientPx) const
+{
+    if (!m_picture->IsVisible() || !CassoExplorerWindow::Contains (m_picture->GetBounds(), clientPx))
     {
-        cursor = m_picture->GetCursorForPoint (clientPx);
+        return nullptr;
     }
 
-    return cursor;
+    return m_picture->GetCursorForPoint (clientPx);
 }
 
 

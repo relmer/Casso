@@ -402,7 +402,7 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
         return true;
     }
 
-    if (m_window.m_tabStrip.OnMouse (ev))
+    if (m_window.m_tabStrip.OnCapturedMouse (ev))
     {
         return true;
     }
@@ -410,6 +410,11 @@ bool ExplorerInput::OnMouse (const DxuiMouseEvent & ev)
     //  A right-click on a scrollbar opens the bar's own menu, as Windows'
     //  bars do.
     if (press && ev.button == DxuiMouseButton::Right && m_window.m_menus.ShowScrollbarMenu (ev))
+    {
+        return true;
+    }
+
+    if (m_window.m_tabStrip.OnMouse (ev))
     {
         return true;
     }
@@ -481,6 +486,11 @@ LPCWSTR ExplorerInput::GetCursorForPoint (POINT clientPx) const
     if (cursor == nullptr && m_window.m_previewSplitter->IsVisible())
     {
         cursor = m_window.m_previewSplitter->GetCursorForPoint (clientPx);
+    }
+
+    if (cursor == nullptr)
+    {
+        cursor = m_window.m_previewPane.GetPictureCursor (clientPx);
     }
 
     if (cursor == nullptr)

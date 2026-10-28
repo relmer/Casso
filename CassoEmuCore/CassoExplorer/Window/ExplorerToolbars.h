@@ -54,8 +54,12 @@ public:
     static constexpr int    kCommandBarGroupGapDp    = 9;    // 14 px at 150%, with the separator centered in it
     static constexpr int    kCommandBarPadXDp        = 6;
 
-    //  The bars, as children of the window, and their settings once the window
+    //  The bars, as children of the window, each created where it falls in the
+    //  window's paint order; their setup; and their settings once the window
     //  has its HWND.
+    void  CreateNavBar     ();
+    void  CreateMenuBar    ();
+    void  CreateCommandBar ();
     void  Create     ();
     void  Configure  ();
     bool  IsCreated  () const { return m_menuBar != nullptr; }

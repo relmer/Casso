@@ -152,13 +152,43 @@ void ExplorerTabStrip::ClearHoverOnLeave (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExplorerTabStrip::OnMouse
+//  ExplorerTabStrip::OnCapturedMouse
 //
 //  A tab being dragged has the pointer until the button comes up, so the
 //  drag can run past the strip's ends and scroll it. A move with the button
 //  already up means the release went elsewhere, as when another window took
-//  the mouse, so the drag is canceled. A right-click on a tab opens its
-//  menu, as Explorer's does.
+//  the mouse, so the drag is canceled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExplorerTabStrip::OnCapturedMouse (const DxuiMouseEvent & ev)
+{
+    if (m_tabs->IsDragging() && ev.kind == DxuiMouseEventKind::Move && ev.button != DxuiMouseButton::Left)
+    {
+        CancelTabDrag();
+        return true;
+    }
+
+    if (!m_tabs->IsInteracting())
+    {
+        return false;
+    }
+
+    m_tabs->OnMouse (ev);
+    m_window.Invalidate();
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExplorerTabStrip::OnMouse
+//
+//  A right-click on a tab opens its menu, as Explorer's does.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,19 +198,6 @@ bool ExplorerTabStrip::OnMouse (const DxuiMouseEvent & ev)
     bool   over  = CassoExplorerWindow::Contains (m_tabs->GetBounds(), point);
 
 
-
-    if (m_tabs->IsDragging() && ev.kind == DxuiMouseEventKind::Move && ev.button != DxuiMouseButton::Left)
-    {
-        CancelTabDrag();
-        return true;
-    }
-
-    if (m_tabs->IsInteracting())
-    {
-        m_tabs->OnMouse (ev);
-        m_window.Invalidate();
-        return true;
-    }
 
     if (ev.kind == DxuiMouseEventKind::Down && ev.button == DxuiMouseButton::Right && over && m_tabs->HitTest (point.x, point.y) >= 0)
     {

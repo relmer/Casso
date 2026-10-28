@@ -35,7 +35,6 @@ public:
 
     //  Every column the user chose made visible, for the location in the list.
     void         ShowChosenColumns ();
-    bool         IsChosen          (size_t column) const { return column < m_chosen.size() && m_chosen[column]; }
     void         ChooseAll         (size_t count) { m_chosen.assign (count, true); }
     void         SetChosen         (size_t column, bool chosen);
 
