@@ -307,12 +307,13 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Do the serial and network logs, and the recording they depend on, ship in 035 or later? -> A: In 035, both the emulator side (the recording and the 6551 and W5100 events the logs read) and the debugger side (FR-322 to FR-330).
 - Q: What does the memory map call $C800-$CFFF with no card's expansion ROM selected? -> A: Unused (floating bus); $CF00-$CFFF always reads it, since any access there deselects every card. Done in e16465173 (FR-331).
 
-### Session 2026-10-28 (owner decisions: resuming from the past during a call; breakpoint columns)
+### Session 2026-10-28 (owner decisions: resuming from the past during a call; breakpoint columns; the disassembly tip)
 
 - Q: Under FR-324 as written, a rewind and resume during a BBS call drops the call. Does the user then have to dial again? -> A: No. On a resume from the past, the real host connections stay open, and one closes only when the host side has actually dropped; FR-324 is amended to match, for Uthernet sockets here and for the serial attachments in 047 (its FR-019). Loading a state file closes them.
 - Q: Why does a MACRAW socket start its virtual network over, and should the data received between the resume point and the live point be delivered again? -> A: MACRAW can be recovered: the relay's guest-facing TCP state was the only part not rewound, and the frames in history indicate where the guest's stack was at the point, so each relay returns to it and sends again what it sent since. Yes, deliver it again: what each socket, relay and serial port received after the point is in the journal, so it goes to the guest again ahead of anything new. What the guest sent after the point was delivered to the peer and can't be taken back, so the peer can get it twice.
 - Q: Is Kind visible when a column choice saved before the breakpoints pane had a Kind column is loaded? -> A: Yes. Kind is a default column and that choice doesn't mention it, so it is visible, as in the build (T736).
 - Q: Should an execution breakpoint set by a symbol's name be stored with that name, so its Kind reads "Function", like Visual Studio's function breakpoint? -> A: Yes, and it follows the symbol: `BPSAVE`, undo, redo and import write the name back, and a symbol load that moves the name moves the breakpoint. Kind reads "Function" for a breakpoint set by name and "Breakpoint" for any other, a symbol at its address included (FR-117, T736).
+- Q: Is the disassembly's in-place tip for a cut-off operand on the cell's fill or on a dark background? -> A: The cell's fill (the selection's on a selected row), matching Visual Studio's in-place tips (T337).
 
 ## User Scenarios & Testing *(mandatory)*
 
