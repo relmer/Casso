@@ -133,6 +133,7 @@ public:
     HRESULT       MountRestored     (int slot, int drive, const string & path,
                                      DiskFormat fmt, const vector<Byte> & bytes);
     HRESULT       Flush             (int slot, int drive);
+    void          Flush             (int slot, int drive, std::function<void (HRESULT)> done);
     HRESULT       FlushAll          ();
 
     //  The same, for the last flush of the process, which can only ask through
@@ -225,6 +226,7 @@ public:
     //  Flushes pending guest writes first, so the patch lands on a file that
     //  already holds them. That ordering used to be the caller's to get right.
     HRESULT       SetImageWriteProtect (int slot, int drive, bool writeProtected);
+    void          SetImageWriteProtect (int slot, int drive, bool writeProtected, std::function<void (HRESULT)> done);
 
     //  Whether salvage is worth offering for a bay, and what it would cost.
     //  Writes nothing -- this exists so the user sees the counts BEFORE
@@ -284,6 +286,7 @@ public:
     //  disk first, because a protected disk is never saved; after a failed
     //  save the disk is writable, with its writes.
     HRESULT       SetUserWriteProtect     (int slot, int drive, bool isProtected);
+    void          SetUserWriteProtect     (int slot, int drive, bool isProtected, std::function<void (HRESULT)> done);
 
     void          SetFlushSink      (FlushSink sink) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_flushSink = std::move (sink); }
 
@@ -316,6 +319,10 @@ public:
     //  Applies the results of finished file I/O, on the thread with the
     //  store's token.
     void          DrainIo () { ASSERT_THREAD_OWNERSHIP (m_ownership); m_ioQueue->DrainCompletions(); }
+
+    //  The queue the store's file work runs on, for a caller whose file work
+    //  goes with a disk operation and is to run in order with it.
+    IDiskIoQueue & GetIoQueue () { ASSERT_THREAD_OWNERSHIP (m_ownership); return *m_ioQueue; }
 
     //  False for a store whose disks have no file to save to, such as a
     //  scratch machine's: its saves write nothing and clear the dirty bits.
@@ -562,6 +569,10 @@ private:
     //  How long a caller that uses a result before it returns waits for it.
     static constexpr DWORD  s_kSyncIoTimeoutMs = 30000;
 
+
+    //  SetImageWriteProtect's step after the save.
+    void            PatchWriteProtectFlag (int slot, int drive, uint64_t imageId, const string & path,
+                                           bool writeProtected, std::function<void (HRESULT)> done);
 
     //  Eject's step after the save.
     void            FinishEject        (int slot, int drive, uint64_t imageId, HRESULT hr);

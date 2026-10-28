@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Disk/DiskIoQueue.h"
+#include "Devices/Disk/WriteProtectChange.h"
 
 #include "Devices/Disk/BayChange.h"
 #include "Shell/DriveStatusPublisher.h"
@@ -168,11 +169,11 @@ public:
     // animation FSM and the audio drive-door sync recorder.
     static int64_t  GetNowMs ();
 
-    // Applies the effective external write-protect state to a freshly
-    // mounted image: the user's per-drive preference plus the backing
-    // file's read-only / no-write-permission status (probed from the
-    // host filesystem). The image's own embedded flag is left untouched.
-    void     ApplyExternalWriteProtect (int drive, const std::string & path);
+    // Applies the user's per-drive write-protect preference to a freshly
+    // mounted image. The backing file's writability is probed by the
+    // store's mount and reload jobs, and the image's embedded flag is set by
+    // its loader.
+    void     ApplyExternalWriteProtect (int drive);
 
     // Write-protects the mounted image (the WOZ flag, or the read-only
     // attribute for formats with no flag), or write-enables it by clearing
@@ -192,14 +193,6 @@ public:
     std::function<void (int, const std::string &, HRESULT, const MountDiagnosis &)>  m_onMountCompleted;
     std::function<void (const std::wstring &)>                                        m_onWriteProtectChanged;
 
-    // Probes whether the host file at `path` can be written back. Sets
-    // outReadOnly when the file carries the read-only attribute and
-    // outNoPermission when it cannot be opened for writing for another
-    // reason (ACL denial, exclusive lock). A missing / empty path is
-    // treated as writable (nothing to protect).
-    static void  ProbeFileWritability (const std::string & path,
-                                       bool              & outReadOnly,
-                                       bool              & outNoPermission);
 
 private:
     void     ApplySyncEvents   (DriveWidgetState & st, int drive,
@@ -214,6 +207,27 @@ private:
     //  MountDiskForCommand's report of an insert declined behind live.
     void     DeclineBehindLiveInsert (int drive, const std::string & path);
 
+    //  A write-protect toggle's state from step to step while its file work
+    //  is posted.
+    struct WriteProtectToggle
+    {
+        int                 drive       = 0;
+        std::string         path;
+        std::wstring        wide;
+        DiskFormat          format      = DiskFormat::Dsk;
+        bool                imageFlag   = false;
+        bool                isReadOnly  = false;
+        bool                isDenied    = false;
+        bool                isCompleted = false;
+        HRESULT             hr          = S_OK;
+        WriteProtectChange  plan;
+    };
+
+    //  ToggleImageWriteProtect's steps after the attribute's read.
+    void     PlanWriteProtectToggle   (const std::shared_ptr<WriteProtectToggle> & job);
+    void     SetWriteProtectAttribute (const std::shared_ptr<WriteProtectToggle> & job);
+    void     SetWriteProtectFlag      (const std::shared_ptr<WriteProtectToggle> & job);
+    void     FinishWriteProtectToggle (const std::shared_ptr<WriteProtectToggle> & job);
     //  What follows an attempted mount, whichever way it went.
     void     CompleteMountInSlot6 (int drive, const std::string & path, HRESULT hr, const MountDiagnosis & diagnosis);
 

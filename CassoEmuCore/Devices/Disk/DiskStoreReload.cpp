@@ -244,6 +244,7 @@ void DiskStoreReload::RunReloadWork (ReloadJob & job, const DiskFileOps & ops)
     {
         job.hrRead   = ops.Read (job.path, job.bytes);
         job.isExists = ops.Exists (job.path);
+        DiskFileOps::ProbeWritability (job.path, job.isReadOnly, job.isDenied);
     }
 }
 
@@ -361,6 +362,13 @@ void DiskStoreReload::ApplyChangedFile (ReloadJob & job)
                                                         : ChangeAuthor::CassoCli;
 
     CarryOutChangeAction (slot, drive, action, bytes, author);
+
+    //  The file's writability, probed in the job, on the disk the bay has
+    //  after the change.
+    if (m_store.GetEntry (slot, drive).mounted)
+    {
+        m_store.SetFileWriteProtect (slot, drive, job.isReadOnly, job.isDenied);
+    }
 
     return;
 }

@@ -933,14 +933,19 @@ void ShellDisks::SetDriveUserWriteProtect (int drive, bool wp)
 
     // Applied to whatever is mounted right now so the toggle takes effect
     // without a remount; a later mount re-applies the standing preference
-    // via DiskManager::MountDiskInSlot6. A protect saves the disk first.
-    hr = store.SetUserWriteProtect (6, drive, wp);
-    CHR (hr);
-
-    //  Stored only once the drive has it, so after a declined protect the
-    //  next mount applies no protection the save never got, and the next
-    //  apply that sends a protect saves again.
-    m_userWriteProtect[(size_t) drive] = wp;
+    // via DiskManager::MountDiskInSlot6. A protect saves the disk first, on
+    // the store's I/O queue.
+    //
+    //  Stored only once the drive has it, in the completion, so after a
+    //  declined protect the next mount does not apply a protection the save
+    //  never got, and the next apply that sends a protect saves again.
+    store.SetUserWriteProtect (6, drive, wp, [this, drive, wp] (HRESULT hrSet)
+    {
+        if (SUCCEEDED (hrSet))
+        {
+            m_userWriteProtect[(size_t) drive] = wp;
+        }
+    });
 
 Error:
     return;

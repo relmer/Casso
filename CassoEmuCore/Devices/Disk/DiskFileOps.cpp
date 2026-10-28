@@ -195,3 +195,46 @@ HRESULT DiskFileOps::WriteNewRecoveryImage (const std::string & imagePath, const
 Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskFileOps::ProbeWritability
+//
+//  Prefers the read-only attribute (surfaced via the owner_write perms bit on
+//  Windows) so a plain read-only file reports its true cause; otherwise
+//  probes with a non-truncating read+write open to catch ACL denials and
+//  exclusive locks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskFileOps::ProbeWritability (const std::string & path, bool & outReadOnly, bool & outNoPermission)
+{
+    std::error_code  ec;
+    fs::file_status  st;
+    fs::path         p (path);
+
+
+
+    outReadOnly     = false;
+    outNoPermission = false;
+
+    if (!path.empty() && fs::exists (p, ec))
+    {
+        st = fs::status (p, ec);
+
+        if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
+        {
+            outReadOnly = true;
+        }
+        else
+        {
+            std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
+
+            outNoPermission = !probe.good();
+        }
+    }
+}

@@ -2,6 +2,7 @@
 
 #include "EmuTests/TestMachine.h"
 #include "EmuTests/DiskManagerRig.h"
+#include "EmuTests/DeferredDiskIoQueue.h"
 #include "HResultAssert.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/MountDiagnosis.h"
@@ -130,7 +131,7 @@ public:
                                   rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
                                   rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
 
-            manager.ApplyExternalWriteProtect (s_kShownDrive, "protect.nib");
+            manager.ApplyExternalWriteProtect (s_kShownDrive);
         }
 
         Assert::AreNotEqual (before, store.GetStatusGeneration(), L"the generation moved");
@@ -288,5 +289,50 @@ private:
         }
 
         return bytes;
+    }
+
+
+    //  A write-protect toggle's file work -- the attribute's read and set, the
+    //  save and the probe after -- is posted to the store's I/O queue, and the
+    //  change is reported once the last completion has run.
+    TEST_METHOD (AWriteProtectToggleRunsItsFileWorkOnTheIoQueue)
+    {
+        TestMachine          machine    ("Apple2e");
+        auto                 rig        = std::make_unique<DiskManagerRig>();
+        DiskImageStore     & store      = machine.GetDiskStore();
+        DeferredDiskIoQueue  queue;
+        int                  reports    = 0;
+        bool                 isReadOnly = false;
+        HRESULT              hr         = S_OK;
+
+
+
+        hr = store.MountFromBytes (6, s_kShownDrive, "toggle.nib", DiskFormat::Nib, MakeImage());
+        AssertSucceeded (hr, L"MountFromBytes");
+
+        AssertSucceeded (rig->fs.WriteAllText (L"toggle.nib", std::string()), L"the file exists");
+        store.SetIoQueue (&queue);
+
+        {
+            DiskManager  manager (machine, store, rig->audioSources, rig->audio, rig->widgets,
+                                  rig->widgetState, rig->chrome, rig->cpuManager, rig->machineName,
+                                  rig->config, rig->fs, rig->writeProtect, rig->workingDirectory);
+
+            manager.SetWriteProtectChangedCallback ([&reports] (const std::wstring &) { reports++; });
+
+            hr = manager.ToggleImageWriteProtect (s_kShownDrive);
+            AssertSucceeded (hr, L"ToggleImageWriteProtect");
+
+            Assert::AreEqual ((size_t) 1, queue.GetPostedCount(), L"the attribute's read is posted");
+            Assert::AreEqual (0, reports, L"and nothing is reported before it runs");
+
+            queue.RunAll();
+        }
+
+        AssertSucceeded (rig->fs.GetReadOnlyAttribute (L"toggle.nib", isReadOnly), L"GetReadOnlyAttribute");
+        Assert::IsTrue   (isReadOnly, L"the file is read-only");
+        Assert::AreEqual (1, reports, L"and the change is reported after the last completion");
+
+        store.SetIoQueue (nullptr);
     }
 };

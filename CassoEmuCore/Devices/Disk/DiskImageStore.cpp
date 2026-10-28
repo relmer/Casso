@@ -488,6 +488,38 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Flush, through the I/O queue
+//
+//  The save of one bay a person asked for, with done called on the store's
+//  thread when it is over.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::Flush (int slot, int drive, std::function<void (HRESULT)> done)
+{
+    ASSERT_THREAD_OWNERSHIP (m_ownership);
+
+    if (!IsValidBay (slot, drive))
+    {
+        done (E_INVALIDARG);
+    }
+    else
+    {
+        m_save.Save (GetEntry (slot, drive), FlushMoment::Running, [done] (HRESULT hr, const FlushOutcome & outcome)
+        {
+            UNREFERENCED_PARAMETER (outcome);
+
+            done (hr);
+        });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetImageWriteProtect
 //
 //  Change a mounted WOZ's write-protect flag in its backing file, by patching
@@ -507,79 +539,184 @@ Error:
 
 HRESULT DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writeProtected)
 {
-    HRESULT       hr        = S_OK;
-    bool          bayOk     = false;
-    bool          isWoz     = false;
-    bool          hasPath   = false;
-    bool          hasImage  = false;
-    bool          isDamaged = false;
-    vector<Byte>  bytes;
+    HRESULT              hr     = S_OK;
+    shared_ptr<bool>     isDone = std::make_shared<bool> (false);
+    shared_ptr<HRESULT>  result = std::make_shared<HRESULT> (S_OK);
+
+
+
+    SetImageWriteProtect (slot, drive, writeProtected, [isDone, result] (HRESULT hrSet)
+    {
+        *result = hrSet;
+        *isDone = true;
+    });
+
+    hr = WaitForIo (*isDone);
+    CHR (hr);
+
+    hr = *result;
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetImageWriteProtect, through the I/O queue
+//
+//  The checks run here; the save of guest writes, the read, the patch and
+//  the commit run on the I/O queue; the live image and the bay's identity
+//  follow the file in the completion, and only once the file has changed, so
+//  after a failed write the two agree.
+//
+//  A damaged image is declined outright. Patching the flag byte recomputes
+//  the header checksum, and that checksum failing to match IS the damage
+//  report -- so the one write that is otherwise harmless is the one write
+//  that would destroy the evidence.
+//
+//  Guest writes go out FIRST, while the image accepts a save. Patching the
+//  flag byte afterwards edits a file that already has them; doing it the
+//  other way round would strand them behind the gate this call is about to
+//  close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SetImageWriteProtect (int slot, int drive, bool writeProtected, std::function<void (HRESULT)> done)
+{
+    HRESULT   hr        = S_OK;
+    bool      isValid   = IsValidBay (slot, drive);
+    bool      isDamaged = false;
+    bool      hasPath   = false;
+    uint64_t  imageId   = 0;
+    string    path;
 
 
 
     ASSERT_THREAD_OWNERSHIP (m_ownership);
 
-    bayOk = IsValidBay (slot, drive);
-    CBRAEx (bayOk, E_INVALIDARG);
+    CBRAEx (isValid, E_INVALIDARG);
 
     {
         Entry &  entry = GetEntry (slot, drive);
 
-        hasImage = (entry.mounted && entry.image != nullptr);
-        CBREx (hasImage, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
-
-        isWoz = (entry.format == DiskFormat::Woz);
-        CBRAEx (isWoz, E_INVALIDARG);
-
+        CBREx (entry.mounted && entry.image != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
+        CBRAEx (entry.format == DiskFormat::Woz, E_INVALIDARG);
         hasPath = !entry.path.empty();
         CBR (hasPath);
 
-        // A damaged image is refused outright. Patching the flag byte
-        // recomputes the header checksum, and that checksum failing to match
-        // IS the damage report -- so the one write that is otherwise harmless
-        // is the one write that would destroy the evidence.
         isDamaged = entry.image->IsDamaged();
         CBRN (!isDamaged, DiskStoreText::FormatDamagedImageMessage (entry.path, entry.image->HasDamagedTracks()).c_str());
 
-        // Guest writes go out FIRST, while the image still accepts a flush.
-        // Patching the flag byte afterwards edits a file that already holds
-        // them; doing it the other way round would strand them behind the
-        // gate this call is about to close.
-        hr = m_save.FlushEntry (entry, FlushMoment::Running);
-        CHR (hr);
+        imageId = entry.image->GetImageId();
+        path    = entry.path;
 
-        hr = ReadImageFile (entry.path, bytes);
-        CHRN (hr, DiskStoreText::FormatFlushLossMessage (entry.path, hr).c_str());
-
-        hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
-        CHRN (hr, DiskStoreText::FormatFlushLossMessage (entry.path, hr).c_str());
-
-        hr = m_save.CommitFile (entry.path, bytes, CommitMode::Replace);
-        CHRN (hr, DiskStoreText::FormatFlushLossMessage (entry.path, hr).c_str());
-
-        // The live image follows the file, and only once the file has
-        // actually changed -- so a failed write leaves the two agreeing.
-        entry.image->SetImageWriteProtected (writeProtected);
-        MarkStatusChanged();
-
-        //  THIS STORE JUST WROTE THE FILE, so the identity it watches has to
-        //  move with it, exactly as FlushEntry does after its own commit.
-        //  Without this the next poll finds bytes that do not match the
-        //  mount-time identity and reports the disk as changed outside Casso,
-        //  over a change the user made from the Disk menu.
-        //
-        //  Only for a bay that recorded one, so a mount from bytes does not
-        //  acquire an identity by being write-protected.
-        if (entry.sharedState.GetIdentity().recorded)
+        m_save.Save (entry, FlushMoment::Running, [this, slot, drive, imageId, path, writeProtected, done] (HRESULT hrSave, const FlushOutcome & outcome)
         {
-            entry.sharedState.SetIdentity (ReadIdentity (entry.path));
-        }
+            UNREFERENCED_PARAMETER (outcome);
 
-        NotifyMediaChanged();
+            if (FAILED (hrSave))
+            {
+                done (hrSave);
+            }
+            else
+            {
+                PatchWriteProtectFlag (slot, drive, imageId, path, writeProtected, done);
+            }
+        });
     }
 
 Error:
-    return hr;
+    if (FAILED (hr))
+    {
+        done (hr);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PatchWriteProtectFlag
+//
+//  I/O thread: the file is read, its INFO flag byte set and the header CRC
+//  recomputed, and the bytes committed. In the completion, while the same
+//  disk is in the bay, the live image's flag follows the file, and the
+//  bay's identity moves with this store's write, as after a save, so the
+//  next poll does not report a change the user made from the Disk menu as
+//  one made outside Casso.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::PatchWriteProtectFlag (int slot, int drive, uint64_t imageId, const string & path,
+                                            bool writeProtected, std::function<void (HRESULT)> done)
+{
+    struct PatchJob
+    {
+        HRESULT        hr = S_OK;
+        ImageIdentity  after;
+    };
+
+    shared_ptr<PatchJob>  job = std::make_shared<PatchJob>();
+    DiskFileOps           ops = GetFileOps();
+
+
+
+    m_ioQueue->Post ([job, ops, path, writeProtected]
+    {
+        vector<Byte>  bytes;
+
+
+
+        job->hr = ops.Read (path, bytes);
+
+        if (SUCCEEDED (job->hr))
+        {
+            job->hr = WozLoader::SetWriteProtectFlag (bytes, writeProtected);
+        }
+
+        if (SUCCEEDED (job->hr))
+        {
+            job->hr = ops.Commit (path, bytes, CommitMode::Replace);
+        }
+
+        if (SUCCEEDED (job->hr))
+        {
+            job->after = ops.ReadIdentity (path);
+        }
+    },
+    [this, job, slot, drive, imageId, path, writeProtected, done]
+    {
+        Entry  & entry  = GetEntry (slot, drive);
+        bool     isSame = entry.mounted && entry.image != nullptr && entry.image->GetImageId() == imageId;
+
+
+
+        if (FAILED (job->hr))
+        {
+            EhmNotifyUser (DiskStoreText::FormatFlushLossMessage (path, job->hr).c_str());
+        }
+        else if (isSame)
+        {
+            entry.image->SetImageWriteProtected (writeProtected);
+            MarkStatusChanged();
+
+            if (entry.sharedState.GetIdentity().recorded)
+            {
+                entry.sharedState.SetIdentity (job->after);
+            }
+
+            NotifyMediaChanged();
+        }
+
+        done (job->hr);
+    });
 }
 
 
@@ -1357,6 +1494,43 @@ void DiskImageStore::SetUserWriteProtectFlag (int slot, int drive, bool isProtec
 
 HRESULT DiskImageStore::SetUserWriteProtect (int slot, int drive, bool isProtected)
 {
+    HRESULT              hr     = S_OK;
+    shared_ptr<bool>     isDone = std::make_shared<bool> (false);
+    shared_ptr<HRESULT>  result = std::make_shared<HRESULT> (S_OK);
+
+
+
+    SetUserWriteProtect (slot, drive, isProtected, [isDone, result] (HRESULT hrSet)
+    {
+        *result = hrSet;
+        *isDone = true;
+    });
+
+    hr = WaitForIo (*isDone);
+    CHR (hr);
+
+    hr = *result;
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetUserWriteProtect, through the I/O queue
+//
+//  The protect's save runs on the I/O queue, and the flag is set in its
+//  completion, when the save succeeded.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskImageStore::SetUserWriteProtect (int slot, int drive, bool isProtected, std::function<void (HRESULT)> done)
+{
     HRESULT  hr        = S_OK;
     bool     isValid   = IsValidBay (slot, drive);
     bool     isMounted = false;
@@ -1372,14 +1546,32 @@ HRESULT DiskImageStore::SetUserWriteProtect (int slot, int drive, bool isProtect
 
     if (isProtected)
     {
-        hr = m_save.FlushEntry (GetEntry (slot, drive), FlushMoment::Running);
-        CHRF (hr, NotifyMediaChanged());
+        m_save.Save (GetEntry (slot, drive), FlushMoment::Running, [this, slot, drive, done] (HRESULT hrSave, const FlushOutcome & outcome)
+        {
+            UNREFERENCED_PARAMETER (outcome);
+
+            if (FAILED (hrSave))
+            {
+                NotifyMediaChanged();
+            }
+            else
+            {
+                SetUserWriteProtectFlag (slot, drive, true);
+            }
+
+            done (hrSave);
+        });
+
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    SetUserWriteProtectFlag (slot, drive, isProtected);
+    SetUserWriteProtectFlag (slot, drive, false);
 
 Error:
-    return hr;
+    if (!isMounted || !isProtected || FAILED (hr))
+    {
+        done (hr);
+    }
 }
 
 

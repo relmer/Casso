@@ -92,72 +92,18 @@ int64_t DiskManager::GetNowMs()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ProbeFileWritability
-//
-//  Determines whether the backing host file can be written back to.
-//  Prefers the read-only attribute (surfaced via the owner_write perms
-//  bit on Windows) so a plain read-only file reports its true cause;
-//  otherwise probes with a non-truncating read+write open to catch ACL
-//  denials / exclusive locks. A missing / empty path is writable --
-//  there is nothing to protect.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DiskManager::ProbeFileWritability (
-    const std::string & path,
-    bool              & outReadOnly,
-    bool              & outNoPermission)
-{
-    std::error_code  ec;
-    fs::file_status  st;
-    fs::path         p (path);
-
-
-
-    outReadOnly     = false;
-    outNoPermission = false;
-
-    // A missing / empty path is writable -- there is nothing to protect.
-    if (!path.empty() && fs::exists (p, ec))
-    {
-        st = fs::status (p, ec);
-
-        // The read-only ATTRIBUTE is preferred over the open probe so a plain
-        // read-only file reports its true cause; only when the attribute says
-        // writable do we probe for an ACL denial or exclusive lock.
-        if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
-        {
-            outReadOnly = true;
-        }
-        else
-        {
-            std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
-
-            outNoPermission = !probe.good();
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ApplyExternalWriteProtect
 //
-//  Re-asserts the user's per-drive write-protect preference and the
-//  backing file's writability onto a freshly mounted image. The image's
-//  own embedded flag (WOZ INFO chunk) is set by its loader and left
-//  alone here.
+//  Re-asserts the user's per-drive write-protect preference onto a freshly
+//  mounted image. The backing file's writability is probed by the store's
+//  mount and reload jobs, on its I/O thread, and the image's embedded flag
+//  (WOZ INFO chunk) is set by its loader.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskManager::ApplyExternalWriteProtect (int drive, const std::string & path)
+void DiskManager::ApplyExternalWriteProtect (int drive)
 {
-    bool  readOnly     = false;
-    bool  noPermission = false;
-    bool  userWp       = false;
+    bool  userWp = false;
 
 
 
@@ -166,10 +112,7 @@ void DiskManager::ApplyExternalWriteProtect (int drive, const std::string & path
         userWp = m_userWriteProtect[drive];
     }
 
-    ProbeFileWritability (path, readOnly, noPermission);
-
     m_diskStore.SetUserWriteProtectFlag (6, drive, userWp);
-    m_diskStore.SetFileWriteProtect     (6, drive, readOnly, noPermission);
 }
 
 
@@ -193,26 +136,17 @@ void DiskManager::ApplyExternalWriteProtect (int drive, const std::string & path
 //  the live image's flag to match. Setting the attribute flushes first for
 //  the same reason: a protected image drops dirty content at flush.
 //
-//  Either way the function ends by re-probing the backing file and
-//  re-applying the external state: the padlock, tooltip, and menu label
-//  reflect what actually happened, never what was merely attempted.
-//  Failures report through the shared EHM notifier; only a change that was
-//  carried out in full is reported through the write-protect callback.
+//  Each step's file work runs on the store's I/O queue, and the next step
+//  starts in its completion. Failures report through the shared EHM notifier.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DiskManager::ToggleImageWriteProtect (int drive)
 {
-    HRESULT             hr        = S_OK;
-    DiskImage         * image     = nullptr;
-    DiskFormat          fmt       = DiskFormat::Dsk;
-    bool                readOnly  = false;
-    bool                completed = false;
-    bool                isLive    = false;
-    WriteProtectInfo    info;
-    WriteProtectChange  plan;
-    std::string         path;
-    std::wstring        wide;
+    HRESULT                         hr     = S_OK;
+    DiskImage                     * image  = nullptr;
+    bool                            isLive = false;
+    shared_ptr<WriteProtectToggle>  job    = std::make_shared<WriteProtectToggle>();
 
 
 
@@ -224,58 +158,171 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
             EhmNotifyUser (DiskStoreText::FormatBehindLiveWriteProtectMessage (drive).c_str()));
 
     image = m_diskStore.GetImage (6, drive);
-    path  = m_diskStore.GetSourcePath (6, drive);
-
     CBREx (image != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_READY));
 
-    hr = DiskImageStore::GetSourceFormatByExtension (path, fmt);
+    job->drive     = drive;
+    job->path      = m_diskStore.GetSourcePath (6, drive);
+    job->wide      = fs::path (job->path).wstring();
+    job->imageFlag = image->GetWriteProtectInfo().imageFlag;
+
+    hr = DiskImageStore::GetSourceFormatByExtension (job->path, job->format);
     CHR (hr);
 
-    wide = fs::path (path).wstring();
-
-    hr = m_fileSystem.GetReadOnlyAttribute (wide, readOnly);
-    CHRN (hr, L"The disk file's attributes could not be read.");
-
-    info = image->GetWriteProtectInfo();
-    plan = WriteProtectChange::MakePlan (fmt == DiskFormat::Woz,
-                                         info.imageFlag,
-                                         readOnly,
-                                         fs::path (path).filename().wstring());
-
-    if (plan.changesAttribute && plan.protecting)
-    {
-        hr = m_diskStore.Flush (6, drive);
-        CHR (hr);
-    }
-
-    if (plan.changesAttribute)
-    {
-        hr = m_fileSystem.SetReadOnlyAttribute (wide, plan.protecting);
-        CHRN (hr, L"The disk file's read-only attribute could not be changed.");
-    }
-
-    if (plan.changesImageFlag)
-    {
-        hr = m_diskStore.SetImageWriteProtect (6, drive, plan.protecting);
-        CHR (hr);
-    }
-
-    completed = true;
+    m_diskStore.GetIoQueue().Post ([this, job] { job->hr = m_fileSystem.GetReadOnlyAttribute (job->wide, job->isReadOnly); },
+                                   [this, job] { PlanWriteProtectToggle (job); });
 
 Error:
-    // Truth, not intent: whatever happened above, the indicators re-read
-    // the file and the effective state.
-    if (image != nullptr)
-    {
-        ApplyExternalWriteProtect (drive, path);
-    }
-
-    if (completed && m_onWriteProtectChanged)
-    {
-        m_onWriteProtectChanged (WriteProtectChange::DescribeResult (plan));
-    }
-
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlanWriteProtectToggle
+//
+//  After the attribute's read: the plan, and the save before a protect.
+//  Setting the attribute saves first, because a protected image drops dirty
+//  content at a save.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::PlanWriteProtectToggle (const shared_ptr<WriteProtectToggle> & job)
+{
+    if (FAILED (job->hr))
+    {
+        EhmNotifyUser (L"The disk file's attributes could not be read.");
+        FinishWriteProtectToggle (job);
+    }
+    else
+    {
+        job->plan = WriteProtectChange::MakePlan (job->format == DiskFormat::Woz,
+                                                  job->imageFlag,
+                                                  job->isReadOnly,
+                                                  fs::path (job->path).filename().wstring());
+
+        if (job->plan.changesAttribute && job->plan.protecting)
+        {
+            m_diskStore.Flush (6, job->drive, [this, job] (HRESULT hrSave)
+            {
+                job->hr = hrSave;
+
+                if (FAILED (hrSave))
+                {
+                    FinishWriteProtectToggle (job);
+                }
+                else
+                {
+                    SetWriteProtectAttribute (job);
+                }
+            });
+        }
+        else
+        {
+            SetWriteProtectAttribute (job);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetWriteProtectAttribute
+//
+//  The attribute is set on the I/O queue, and cleared BEFORE the flag is,
+//  because the flag is in the file, and the patch writes the file. SetImageWriteProtect then does the whole flag operation.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::SetWriteProtectAttribute (const shared_ptr<WriteProtectToggle> & job)
+{
+    if (!job->plan.changesAttribute)
+    {
+        SetWriteProtectFlag (job);
+    }
+    else
+    {
+        m_diskStore.GetIoQueue().Post ([this, job] { job->hr = m_fileSystem.SetReadOnlyAttribute (job->wide, job->plan.protecting); },
+                                       [this, job]
+        {
+            if (FAILED (job->hr))
+            {
+                EhmNotifyUser (L"The disk file's read-only attribute could not be changed.");
+                FinishWriteProtectToggle (job);
+            }
+            else
+            {
+                SetWriteProtectFlag (job);
+            }
+        });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetWriteProtectFlag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::SetWriteProtectFlag (const shared_ptr<WriteProtectToggle> & job)
+{
+    if (!job->plan.changesImageFlag)
+    {
+        job->isCompleted = true;
+        FinishWriteProtectToggle (job);
+    }
+    else
+    {
+        m_diskStore.SetImageWriteProtect (6, job->drive, job->plan.protecting, [this, job] (HRESULT hrFlag)
+        {
+            job->hr          = hrFlag;
+            job->isCompleted = SUCCEEDED (hrFlag);
+            FinishWriteProtectToggle (job);
+        });
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FinishWriteProtectToggle
+//
+//  Truth, not intent: whatever happened, the file is probed again on the
+//  I/O queue and the effective state applied, so the padlock, tooltip and
+//  menu label reflect what happened, never what was merely attempted. Only
+//  a change carried out in full is reported through the write-protect
+//  callback.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::FinishWriteProtectToggle (const shared_ptr<WriteProtectToggle> & job)
+{
+    m_diskStore.GetIoQueue().Post ([job] { DiskFileOps::ProbeWritability (job->path, job->isReadOnly, job->isDenied); },
+                                   [this, job]
+    {
+        if (m_diskStore.IsMounted (6, job->drive) && m_diskStore.GetSourcePath (6, job->drive) == job->path)
+        {
+            ApplyExternalWriteProtect (job->drive);
+            m_diskStore.SetFileWriteProtect (6, job->drive, job->isReadOnly, job->isDenied);
+        }
+
+        if (job->isCompleted && m_onWriteProtectChanged)
+        {
+            m_onWriteProtectChanged (WriteProtectChange::DescribeResult (job->plan));
+        }
+    });
 }
 
 
@@ -765,7 +812,7 @@ void DiskManager::OnBayChange (int slot, int drive, BayChange change)
     //  the user's per-drive preference plus the backing file's read-only state.
     if (inserted && image != nullptr)
     {
-        ApplyExternalWriteProtect (drive, m_diskStore.GetSourcePath (6, drive));
+        ApplyExternalWriteProtect (drive);
     }
 
     //  The debug event fires whichever way the disk went, and is not held at

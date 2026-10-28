@@ -113,6 +113,8 @@ private:
         bool                   isChanged       = false;
         HRESULT                hrRead          = S_OK;
         bool                   isExists        = false;
+        bool                   isReadOnly      = false;
+        bool                   isDenied        = false;
         vector<Byte>           bytes;
     };
 

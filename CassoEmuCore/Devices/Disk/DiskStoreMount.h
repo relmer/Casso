@@ -56,6 +56,8 @@ public:
         MountDiagnosis  diagnosis;
         FlushOutcome    outcome;
         HRESULT         result     = S_OK;
+        bool            isReadOnly = false;
+        bool            isDenied   = false;
         MountDone       done;
     };
 

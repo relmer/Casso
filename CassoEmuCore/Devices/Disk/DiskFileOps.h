@@ -60,4 +60,9 @@ public:
     //  With isNameFixed, the first name is used whatever is there, for a test
     //  whose sink captures every write.
     HRESULT        WriteNewRecoveryImage (const std::string & imagePath, const std::vector<Byte> & wozBytes, bool isNameFixed, std::string & outPath) const;
+
+    //  Whether the host file can be written back to: its read-only attribute,
+    //  or, when that is clear, a denied or locked read-write open. A missing
+    //  or empty path is writable -- there is nothing to protect.
+    static void    ProbeWritability (const std::string & path, bool & outReadOnly, bool & outNoPermission);
 };

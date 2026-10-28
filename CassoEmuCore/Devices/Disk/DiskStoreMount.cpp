@@ -432,6 +432,7 @@ void DiskStoreMount::ReadMountFile (const shared_ptr<MountJob> & job)
         if (SUCCEEDED (job->result))
         {
             job->identity = ops.ReadIdentity (job->path);
+            DiskFileOps::ProbeWritability (job->path, job->isReadOnly, job->isDenied);
         }
     },
     [this, job]
@@ -472,6 +473,7 @@ void DiskStoreMount::FinishMountFromFile (const shared_ptr<MountJob> & job, HRES
     if (SUCCEEDED (hr))
     {
         m_store.GetEntry (job->slot, job->drive).sharedState.Mount (job->identity);
+        m_store.SetFileWriteProtect (job->slot, job->drive, job->isReadOnly, job->isDenied);
         m_store.m_reload.BeginWatching (job->slot, job->drive);
         m_store.EmitBayChange (job->slot, job->drive, BayChange::Inserted);
         m_store.NotifyMediaChanged();
