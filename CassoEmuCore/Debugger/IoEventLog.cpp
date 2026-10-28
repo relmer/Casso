@@ -2,6 +2,7 @@
 
 #include "Debugger/IoEventLog.h"
 #include "Debugger/Reply.h"
+#include "Devices/Acia6551.h"
 
 
 
@@ -229,23 +230,23 @@ std::string IoEventLog::FormatEvent (const IoEvent & entry)
         break;
 
     case IoEventKind::SerialSettings:
-        text = std::format ("port {} command ${:02X} control ${:02X}", entry.chip + 1, entry.command, entry.control);
+        text = std::format ("{} command ${:02X} control ${:02X}", GetSerialPortName (entry.chip), entry.command, entry.control);
         break;
 
     case IoEventKind::SerialLines:
-        text = std::format ("port {} lines ${:02X}", entry.chip + 1, entry.lines);
+        text = std::format ("{} lines ${:02X}", GetSerialPortName (entry.chip), entry.lines);
         break;
 
     case IoEventKind::SerialSent:
-        text = std::format ("port {} sent ${:02X}", entry.chip + 1, entry.value);
+        text = std::format ("{} sent ${:02X}", GetSerialPortName (entry.chip), entry.value);
         break;
 
     case IoEventKind::SerialReceived:
-        text = std::format ("port {} received ${:02X}", entry.chip + 1, entry.value);
+        text = std::format ("{} received ${:02X}", GetSerialPortName (entry.chip), entry.value);
         break;
 
     case IoEventKind::SerialOverrun:
-        text = std::format ("port {} overrun", entry.chip + 1);
+        text = std::format ("{} overrun", GetSerialPortName (entry.chip));
         break;
 
     case IoEventKind::SocketState:
@@ -262,6 +263,26 @@ std::string IoEventLog::FormatEvent (const IoEvent & entry)
     }
 
     return text;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IoEventLog::GetSerialPortName
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string IoEventLog::GetSerialPortName (Byte port)
+{
+    if (port & Acia6551::kCommPortBuiltIn)
+    {
+        return std::format ("Port {}", port & ~Acia6551::kCommPortBuiltIn);
+    }
+
+    return std::format ("Slot {}", port);
 }
 
 

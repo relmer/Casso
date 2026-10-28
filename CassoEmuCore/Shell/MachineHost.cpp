@@ -2093,15 +2093,11 @@ void MachineHost::AttachObservers (const MachineObservers & observers, ObserverS
 
 void MachineHost::AttachCommEventSink (ICommEventSink * sink)
 {
-    size_t  i = 0;
-
-
-
     m_commSink = sink;
 
-    for (i = 0; i < m_refs.serialChips.size(); i++)
+    for (Acia6551 * acia : m_refs.serialChips)
     {
-        m_refs.serialChips[i]->SetCommEventSink (sink, (Byte) i);
+        acia->SetCommEventSink (sink);
     }
 
     if (m_refs.uthernet != nullptr)

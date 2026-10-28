@@ -469,12 +469,9 @@ bool Acia6551::ApplyInput (const InputRecord & record)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::SetCommEventSink (
-    ICommEventSink  * sink,
-    Byte              port)
+void Acia6551::SetCommEventSink (ICommEventSink * sink)
 {
     m_commSink   = sink;
-    m_commPort   = port;
     m_notedLines = GetLineBits();
 }
 

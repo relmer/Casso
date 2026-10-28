@@ -140,6 +140,10 @@ public:
     //  switch turned on and off, "speaker", or a Mockingboard register write.
     static std::string  FormatEvent   (const IoEvent & entry);
 
+    //  A serial entry's port: "Slot 2" for a card, "Port 1" for one of the
+    //  //c's built-in ports.
+    static std::string  GetSerialPortName (Byte port);
+
 private:
     static constexpr Byte  kRegisterMask = 0x0F;
 

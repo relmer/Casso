@@ -2,6 +2,7 @@
 
 #include "CaptureTests/FakeHostDialogs.h"
 #include "Core/TextEncoding.h"
+#include "Devices/Acia6551.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Debugger/DebuggerLayout.h"
 #include "Ui/Debugger/DebuggerStatusText.h"
@@ -652,6 +653,7 @@ namespace DebuggerToolPanesTests
                 each.event.control = 0x1E;
                 each.event.command = 0x0B;
                 each.event.lines   = IoEventLog::kLineDtr;
+                each.event.chip    = Acia6551::kCommPortBuiltIn | 1;
                 return each;
             };
 
@@ -668,6 +670,7 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual ((ptrdiff_t) 2, std::ranges::count_if (serial.GetModel().GetView(), [] (int index) { return index >= 0; }), L"the two bytes, not the settings");
             Assert::IsTrue   (serial.GetModel().GetText (false).find (L"Sent") != std::wstring::npos);
             Assert::IsTrue   (serial.GetModel().GetText (false).find (L"41") != std::wstring::npos, L"the byte in hex");
+            Assert::IsTrue   (serial.GetModel().GetText (false).find (L"Port 1") != std::wstring::npos, L"the //c's first port");
 
             height = serial.GetGraph().GetHeightDip();
             Assert::AreEqual (8 * CommSignalGraph::kLaneDip + CommSignalGraph::kAxisDip, height, L"a lane for each of the eight lines");
