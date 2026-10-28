@@ -4,13 +4,13 @@
 
 #include "CassoExplorer/CassoExplorerBrowser.h"
 #include "CassoExplorer/CrtPictureRenderer.h"
-#include "Ui/Debugger/SourceSyntax.h"
+#include "CassoExplorer/Window/ExplorerPane.h"
+#include "CassoExplorer/Window/ExplorerPreviewArchive.h"
+#include "CassoExplorer/Window/ExplorerPreviewFind.h"
+#include "CassoExplorer/Window/PreviewHexSources.h"
+#include "Seams/Win32ShellPreview.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
 
-class CassoLinkConnections;
-class FirewallMonitor;
-class RunningCassoRegistry;
-class ILinkAnnouncements;
-struct CassoExplorerSessionWindow;
 class CassoExplorerWindow;
 
 
@@ -21,9 +21,12 @@ class CassoExplorerWindow;
 //
 //  ExplorerPreview
 //
-//  The Preview pane: its content for the selection, the picture through
-//  Casso's CRT pass, the shell's preview handler, the hex and text views'
-//  settings, go to and find, the pane's menus, and an archive's files.
+//  The Preview pane and its widgets: the catalog and archive rows, the text,
+//  the bytes, the picture through Casso's CRT pass, the shell's preview
+//  handler, the pane's message, and its toolbar with the search and go-to
+//  boxes. The window routes pointer and key events over the pane here; the
+//  pane lays out its widgets and has the hex and text views' settings and
+//  its menus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,165 +38,145 @@ public:
     static constexpr const wchar_t *  kSelectToPreview = L"Select a file to preview.";
     static constexpr float            kPromptFontDip   = 12.0f;   // Explorer's, 9 points
 
-    //  Where DOS 3.3 on a 48K machine leaves HIMEM, against which Integer BASIC
-    //  keeps its program.
-    static constexpr int  kIntegerBasicHimem   = 0x9600;
+    //  Each row is one line of fixed-width text, so a row is the line's height
+    //  rather than a file listing's roomier row.
+    static constexpr int    kRowHeightDip = 18;
+
+    //  Preview text is drawn this far from the background toward the theme's
+    //  foreground, a gray like a terminal's text rather than full white.
+    static constexpr float  kTextStrength = 0.8f;
+
+    //  Room around a picture for its glow, which spills past its edges.
+    static constexpr int    kPictureInsetDip = 16;
+
+    //  The dark pane over the list, per channel.
+    static constexpr uint32_t  kBackgroundLift = 7;
 
     //  How long a shell preview has before the bytes replace it.
     static constexpr UINT  kShellPreviewTimeoutMs = 5000;
 
-    //  The text view's rows for a preview; an assembler's source with its line
-    //  numbers and, given colors, its syntax colored.
-    static std::vector<DxuiTextView::Row>  BuildTextRows   (const PreviewContent & preview, bool lineAddresses, const SourceSyntax::Colors & colors = {});
+    //  The pane's widgets, as children of the window, and their settings and
+    //  handlers once the window has its HWND.
+    void  Create    ();
+    void  Configure ();
 
-    //  Visual Studio's code colors for the theme's background, dark or light,
-    //  as Casso's debugger colors its source.
-    static SourceSyntax::Colors            GetSourceColors (const IDxuiTheme * theme);
+    //  The pane over `rect`, its toolbar across the top when the preview has
+    //  one. Hide unloads a shell preview and the toolbar when the pane goes.
+    void           Layout (const RECT & rect);
+    void           Hide   ();
+    const RECT &   GetRect () const { return m_previewRect; }
 
-    //  Half of the largest luminance GetSourceColors weighs, 255 times 1000.
-    static constexpr uint32_t              s_kDarkLumaLimit = 127500;
+    //  Every preview draws on the content surface, a message included, which
+    //  has no background of its own.
+    void             PaintBackground (IDxuiPainter & painter, const IDxuiTheme & theme) const;
+    static uint32_t  GetBackground   (const IDxuiTheme & theme);
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  PreviewBytes
-    //
-    //  The previewed file's bytes, as a source for the hex view. The browser
-    //  owns the preview content and replaces it on every selection change, so
-    //  this stores a pointer rather than a copy, updated each time the preview
-    //  is refilled.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-    class PreviewBytes : public IDxuiHexSource
-    {
-    public:
-        void  SetBytes (const std::vector<Byte> * bytes) { m_bytes = bytes; }
+    //  Pointer events. The window routes them to the message ahead of its
+    //  other panes, since the message's text selects with the mouse, and to
+    //  the rest of the pane after them.
+    bool     OnMessageMouse       (const DxuiMouseEvent & ev);
+    bool     OnMouse              (const DxuiMouseEvent & ev);
+    bool     UpdateScrollbarHover (POINT at);
+    bool     TickScrollbars       (int64_t nowMs);
+    bool     IsOverPane           (POINT point) const;
+    LPCWSTR  GetCursorForPoint    (POINT clientPx) const;
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (const DxuiMouseEvent & ev) const;
 
-        uint64_t  GetByteCount() const override
-        {
-            return (m_bytes != nullptr) ? (uint64_t) m_bytes->size() : 0;
-        }
+    //  Keys. A focused box has its keys first; the shortcuts for an archive's
+    //  files and for a message come before the window's commands; Tab moves
+    //  between the hex view's columns before focus moves to the next pane.
+    bool     OnBoxKey       (ExplorerPane focus, const DxuiKeyEvent & ev) { return m_find.OnBoxKey (focus, ev); }
+    bool     OnShortcutKey  (const DxuiKeyEvent & ev);
+    bool     OnTabKey       (const DxuiKeyEvent & ev);
+    void     OnFocusEntered (bool forward);
+    bool     OnKey          (const DxuiKeyEvent & ev);
 
-        void  ReadBytes (uint64_t offset, std::span<uint8_t> out) const override
-        {
-            size_t  start = (size_t) offset;
+    //  Focus moved to `focus`; the pane's control, for a standard command.
+    void            OnFocusChanged    (ExplorerPane focus);
+    IDxuiControl *  GetFocusedControl () const;
+    bool            IsCaretOn         (ExplorerPane focus) const { return m_find.IsCaretOn (focus); }
 
-            for (size_t idx = 0; idx < out.size(); idx++)
-            {
-                out[idx] = (m_bytes != nullptr && (start + idx) < m_bytes->size())
-                         ? (uint8_t) (*m_bytes)[start + idx]
-                         : (uint8_t) 0;
-            }
-        }
+    //  The toolbar the preview's kind brings, if any, and its focused button.
+    DxuiToolbar &  GetToolbar  () const { return *m_previewToolbar; }
+    int            GetBarMode  () const { return m_previewBarMode; }
+    int            GetBarFocus () const { return m_previewBarFocus; }
+    void           SetBarFocus (int entry) { m_previewBarFocus = entry; }
+    int            GetPreviewStopIndex (int commandId) const;
 
-    private:
-        const std::vector<Byte> *  m_bytes = nullptr;
-    };
+    //  The hex view's settings, and find and go to.
+    bool  IsShowingValues      () const { return m_hexView->IsShowingValues(); }
+    bool  CanFindNext          () const { return m_find.CanFindNext(); }
+    bool  FocusGoTo            () { return m_find.FocusGoTo(); }
+    bool  FocusFind            () { return m_find.FocusFind(); }
+    void  ToggleLineAddresses  ();
+    void  SetHexGrouping       (int grouping);
+    void  SetHexColumns        (int columns);
+    void  SetHexFormat         (const char * format);
+    void  SetHexShowValues     (bool show);
+    void  SetPreviewZoom       (int percent);
+    void  FindNext             () { m_find.FindNext(); }
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  FileBytes
-    //
-    //  A host file, as a source for the hex view. The view asks only for the
-    //  rows it draws, and those come from a 1 MB window of the file that moves
-    //  when a row falls outside it, so a file of any size costs about the
-    //  same. A read larger than half the window, as a search makes, goes to
-    //  the file directly.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-    class FileBytes : public IDxuiHexSource
-    {
-    public:
-        ~FileBytes() override { Close(); }
+    //  Bytes or characters selected, as the status bar's detail.
+    bool  TryGetSelectionDetail (std::wstring & outDetail) const;
 
-        bool  Open  (const std::wstring & path);
-        void  Close ();
+    //  Whether the pane currently displays the hex view, or the text view,
+    //  rather than lines, a picture or a message.
+    bool  IsHexPreviewShowing  () const;
+    bool  IsTextPreviewShowing () const;
 
-        //  Which character set the start of the file is text in, if any.
-        HostCharset  GetCharset () const;
-
-        const std::wstring &  GetPath  () const { return m_path; }
-
-        //  Whether the file at the path has the size and write time it had
-        //  when opened; false once another program changed or replaced it.
-        bool                  IsCurrent () const;
-
-        //  Why the last Open failed, or S_OK.
-        HRESULT               GetError () const { return m_error; }
-
-        uint64_t  GetByteCount () const override { return m_size; }
-        void      ReadBytes    (uint64_t offset, std::span<uint8_t> out) const override;
-
-        static constexpr size_t  kWindowBytes     = 1024 * 1024;
-        static constexpr size_t  kTextSampleBytes = 64 * 1024;
-
-    private:
-        void  ReadAt (uint64_t offset, std::span<uint8_t> out) const;
-
-        HANDLE                        m_file       = INVALID_HANDLE_VALUE;
-        HRESULT                       m_error      = S_OK;
-        std::wstring                  m_path;
-        uint64_t                      m_size       = 0;
-        FILETIME                      m_written    = {};
-        mutable std::vector<uint8_t>  m_window;
-        mutable uint64_t              m_windowBase = 0;
-    };
-
-    //  The hex view's character column for a preview's bytes: the host
-    //  file's own character set, or Apple text for a file from an image.
-    static DxuiHexView::TextEncoding  GetHexEncoding (bool hostFile, HostCharset charset);
-    void   FillPreview();
-    void  UpdateShellPreview      (const PreviewContent & preview);
-    void  OnShellPreviewResult    ();
-    void  ShowShellPreviewBytes   ();
-    void  ShowTextContextMenu (int x, int y);
-    void  GoToTyped (const std::wstring & text);
-    void  SetHexGrouping (int grouping);
-
-    //  Whether the preview pane currently displays the hex view rather than
-    //  lines, a picture or a message. Key, copy and Tab routing in the pane
-    //  depend on it.
-    bool  IsHexPreviewShowing() const;
-    bool  IsTextPreviewShowing() const;
-
-    //  The text view's rows for a preview: a BASIC line as its number and its
-    //  statement, a detail as its label and value, anything else as one cell.
-    static std::vector<Word>               GetLineAddresses (const std::vector<Byte> & program, bool integerBasic);
-    void  OnSearchChanged  (const std::wstring & text);
-    void  FindNext         (bool incremental = false);
-    void  SetHexColumns    (int columns);
-    void  SetPreviewZoom   (int percent);
-
-    static std::wstring  FormatPreviewError (const std::wstring & message);
-
-    void  SetHexFormat     (const char * format);
-    void  SetHexShowValues (bool show);
-    int   GetPreviewStopIndex (int commandId) const;
-
-    static DxuiHexView::ValueFormat  ParseHexFormat (const std::string & name);
-    static std::vector<std::wstring>       SplitLineNumber (const std::wstring & line);
+    //  The content for the selection, and the Windows preview of a host file,
+    //  hosted over the pane.
+    void  FillPreview           ();
+    void  UpdateShellPreview    (const PreviewContent & preview);
+    void  OnShellPreviewResult  ();
+    void  ShowShellPreviewBytes ();
+    bool  OnHelperMessage       (UINT msg, WPARAM wParam, LPARAM lParam) { return m_shellPreview.OnHelperMessage (msg, wParam, lParam); }
 
     //  A picture preview on its monitor, through Casso's CRT pass.
     PicturePreview::Monitor   GetPreviewMonitor     () const;
     const ThemeCrtDefaults *  GetPreviewCrtDefaults ();
     void                      UpdateCrtPicture      (bool force);
     void                      SelectMonitor         (PicturePreview::Monitor monitor);
-    void                      ShowPictureContextMenu (int x, int y);
-    void                      ShowPictureForm        (bool color);
+    void                      ShowPictureForm       (bool color);
 
-    //  The archive files selected in the preview, by the shell's names for
-    //  them, and what happens to them.
-    std::vector<std::wstring>  GetSelectedArchiveIds () const;
-    bool                       RouteArchiveMouse     (const DxuiMouseEvent & ev, POINT point);
-    void                       OpenArchiveRow        (int row);
-    void                       CopyArchiveSelection  (bool cut);
-    void                       DeleteArchiveSelection ();
-    void                       ShowArchiveContextMenu (int x, int y);
-    bool  IsArchiveLocation          () const;
+    //  Whether the file list's location is the inside of an archive.
+    bool  IsArchiveLocation () const;
+
+    //  The hex view's character column for a preview's bytes: the host
+    //  file's own character set, or Apple text for a file from an image.
+    static DxuiHexView::TextEncoding       GetHexEncoding   (bool hostFile, HostCharset charset);
+    static DxuiHexView::ValueFormat        ParseHexFormat   (const std::string & name);
 
 private:
-    friend class CassoExplorerWindow;
+    void  ShowTextContextMenu    (int x, int y);
+    void  ShowPictureContextMenu (int x, int y);
 
     CassoExplorerWindow  & m_window;
+
+    friend class ExplorerPreviewArchive;
+    friend class ExplorerPreviewFind;
+    ExplorerPreviewArchive  m_archive { *this, m_window };
+    ExplorerPreviewFind     m_find    { *this, m_window };
+
+    DxuiListView         * m_previewList    = nullptr;
+    DxuiTextView         * m_textView       = nullptr;
+    DxuiHexView          * m_hexView        = nullptr;
+    DxuiFramebufferView  * m_picture        = nullptr;
+    DxuiSelectableText   * m_previewMessage = nullptr;
+    DxuiToolbar          * m_previewToolbar = nullptr;
+    Win32ShellPreview      m_shellPreview;
+
+    //  The toolbar's commands, as one of CassoExplorerCommands' preview bars,
+    //  and its focused button.
+    int    m_previewBarMode  = CassoExplorerCommands::kPreviewBarNone;
+    int    m_previewBarFocus = 0;
+
+    RECT   m_previewRect     = {};   // the pane, its toolbar included
+    RECT   m_previewContent  = {};   // below the toolbar
+
+    bool          m_previewArchive  = false;   // the rows are an archive's files, as the file list
+    std::wstring  m_shellPreviewPath;
+    bool          m_shellPicture    = false;   // the shell's preview is a thumbnail in the picture view
 
     CrtPictureRenderer  m_crtPicture;
     int                 m_crtWidth      = 0;
@@ -202,12 +185,6 @@ private:
     LoadedTheme         m_crtTheme;
     bool                m_crtThemeValid = false;
     PreviewBytes        m_previewBytes;
-    FileBytes           m_fileBytes;
-    bool                m_archiveDrag   = false;   // a left press on one of them, which may become a drag
-    bool                m_archiveMenu   = false;   // a right press on one, whose menu opens on release
-    POINT               m_archivePress  = {};
+    PreviewFileBytes    m_fileBytes;
 
-    //  The last search, as typed and as the bytes it matches.
-    std::wstring             m_findTyped;
-    bool                     m_findIsText    = false;
 };

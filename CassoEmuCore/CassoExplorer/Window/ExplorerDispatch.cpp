@@ -174,10 +174,10 @@ bool ExplorerDispatch::IsEnabled (int id) const
         case CassoExplorerCommands::kForward:           return model.HasTabs() && model.CanGoForward();
         case CassoExplorerCommands::kUp:                return m_window.m_browser.CanGoUp();
         case CassoExplorerCommands::kToggleDisassembly: return model.HasTabs() && m_window.m_browser.GetPreview().kind == PreviewContent::Kind::Hex && m_window.m_browser.GetPreview().hostPath.empty();
-        case CassoExplorerCommands::kLineAddresses:     return m_window.m_previewBarMode == CassoExplorerCommands::kPreviewBarListing;
+        case CassoExplorerCommands::kLineAddresses:     return m_window.m_previewPane.GetBarMode() == CassoExplorerCommands::kPreviewBarListing;
         case CassoExplorerCommands::kPictureMonochrome:
         case CassoExplorerCommands::kPictureColor:      return m_window.m_browser.CanTogglePictureColor();
-        case CassoExplorerCommands::kFindNext:          return m_window.m_previewPane.IsHexPreviewShowing() && !m_window.m_findBytes.empty();
+        case CassoExplorerCommands::kFindNext:          return m_window.m_previewPane.CanFindNext();
         case CassoExplorerCommands::kFind:
         case CassoExplorerCommands::kNoData:
         case CassoExplorerCommands::kFormatHex:
@@ -269,11 +269,11 @@ bool ExplorerDispatch::IsChecked (int id) const
         case CassoExplorerCommands::kThemeRetroTerminal: return m_window.m_prefs.theme == CassoExplorerPrefs::kThemeRetroTerminal;
         case CassoExplorerCommands::kPictureMonochrome: return m_window.m_browser.CanTogglePictureColor() && m_window.m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiResMono;
         case CassoExplorerCommands::kPictureColor:      return m_window.m_browser.CanTogglePictureColor() && m_window.m_browser.GetPreview().pictureMode == PicturePreview::Mode::DoubleHiRes;
-        case CassoExplorerCommands::kNoData:            return !m_window.m_hexView->IsShowingValues();
-        case CassoExplorerCommands::kGroup1:            return m_window.m_hexView->IsShowingValues() && m_window.m_prefs.hexGrouping == 1;
-        case CassoExplorerCommands::kGroup2:            return m_window.m_hexView->IsShowingValues() && m_window.m_prefs.hexGrouping == 2;
-        case CassoExplorerCommands::kGroup4:            return m_window.m_hexView->IsShowingValues() && m_window.m_prefs.hexGrouping == 4;
-        case CassoExplorerCommands::kGroup8:            return m_window.m_hexView->IsShowingValues() && m_window.m_prefs.hexGrouping == 8;
+        case CassoExplorerCommands::kNoData:            return !m_window.m_previewPane.IsShowingValues();
+        case CassoExplorerCommands::kGroup1:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 1;
+        case CassoExplorerCommands::kGroup2:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 2;
+        case CassoExplorerCommands::kGroup4:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 4;
+        case CassoExplorerCommands::kGroup8:            return m_window.m_previewPane.IsShowingValues() && m_window.m_prefs.hexGrouping == 8;
         case CassoExplorerCommands::kFormatHex:         return m_window.m_prefs.hexFormat == CassoExplorerPrefs::kHexFormatHex;
         case CassoExplorerCommands::kFormatSigned:      return m_window.m_prefs.hexFormat == CassoExplorerPrefs::kHexFormatSigned;
         case CassoExplorerCommands::kFormatUnsigned:    return m_window.m_prefs.hexFormat == CassoExplorerPrefs::kHexFormatUnsigned;
@@ -485,31 +485,19 @@ void ExplorerDispatch::Dispatch (int id)
         case CassoExplorerCommands::kPictureColor:       m_window.m_previewPane.ShowPictureForm (true);                                break;
 
         case CassoExplorerCommands::kGoToOffset:
-            if (m_window.m_previewPane.IsHexPreviewShowing())
-            {
-                m_window.m_previewBarFocus = m_window.m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kGoToOffset);
-                m_window.m_input.SetFocusPane (ExplorerInput::Pane::GoTo);
-            }
-
+            m_window.m_previewPane.FocusGoTo();
             break;
 
         case CassoExplorerCommands::kLineAddresses:
-            m_window.m_prefs.lineAddresses = !m_window.m_prefs.lineAddresses;
-            m_window.m_textView->SetRows (ExplorerPreview::BuildTextRows (m_window.m_browser.GetPreview(), m_window.m_prefs.lineAddresses, ExplorerPreview::GetSourceColors (m_window.m_theme)));
-            m_window.Invalidate();
+            m_window.m_previewPane.ToggleLineAddresses();
             break;
 
         //  Find searches the hex preview while it has focus; elsewhere it goes
         //  to the search box, as Explorer's Ctrl+E and Ctrl+F do.
         case CassoExplorerCommands::kFind:
-            if (m_window.m_previewPane.IsHexPreviewShowing() && (m_window.m_focus == ExplorerInput::Pane::Preview || m_window.m_focus == ExplorerInput::Pane::Search || m_window.m_focus == ExplorerInput::Pane::GoTo))
+            if (!m_window.m_previewPane.FocusFind())
             {
-                m_window.m_previewBarFocus = m_window.m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kFind);
-                m_window.m_input.SetFocusPane (ExplorerInput::Pane::Search);
-            }
-            else
-            {
-                m_window.m_input.SetFocusPane (ExplorerInput::Pane::LocationSearch);
+                m_window.m_input.SetFocusPane (ExplorerPane::LocationSearch);
             }
 
             break;
@@ -518,7 +506,7 @@ void ExplorerDispatch::Dispatch (int id)
         case CassoExplorerCommands::kZoomOut:        m_window.m_previewPane.SetPreviewZoom (m_window.m_prefs.previewZoom - kPreviewZoomStep); break;
         case CassoExplorerCommands::kZoomReset:      m_window.m_previewPane.SetPreviewZoom (CassoExplorerPrefs::kDefaultPreviewZoom);      break;
         case CassoExplorerCommands::kFindNext:       m_window.m_previewPane.FindNext();                                      break;
-        case CassoExplorerCommands::kNoData:         m_window.m_previewPane.SetHexShowValues (!m_window.m_hexView->IsShowingValues()); break;
+        case CassoExplorerCommands::kNoData:         m_window.m_previewPane.SetHexShowValues (!m_window.m_previewPane.IsShowingValues()); break;
         case CassoExplorerCommands::kFormatHex:      m_window.m_previewPane.SetHexFormat (CassoExplorerPrefs::kHexFormatHex);      break;
         case CassoExplorerCommands::kFormatSigned:   m_window.m_previewPane.SetHexFormat (CassoExplorerPrefs::kHexFormatSigned);   break;
         case CassoExplorerCommands::kFormatUnsigned: m_window.m_previewPane.SetHexFormat (CassoExplorerPrefs::kHexFormatUnsigned); break;
@@ -542,12 +530,12 @@ void ExplorerDispatch::Dispatch (int id)
         case CassoExplorerCommands::kUp:      refill = m_window.m_browser.GoUp();      break;
 
         case CassoExplorerCommands::kEditAddress:
-            m_window.m_input.SetFocusPane (ExplorerInput::Pane::Address);
+            m_window.m_input.SetFocusPane (ExplorerPane::Address);
             m_window.m_address->BeginEdit();
             break;
 
         case CassoExplorerCommands::kAddressHistory:
-            m_window.m_input.SetFocusPane (ExplorerInput::Pane::Address);
+            m_window.m_input.SetFocusPane (ExplorerPane::Address);
             m_window.m_address->BeginEdit();
             m_window.m_addressBar.ShowAddressHistoryMenu (m_window.m_address->GetBounds());
             break;

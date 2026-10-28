@@ -302,6 +302,9 @@
     <ClCompile Include="CassoExplorer\Window\ExplorerListPane.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerMenus.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerPreview.cpp" />
+    <ClCompile Include="CassoExplorer\Window\ExplorerPreviewArchive.cpp" />
+    <ClCompile Include="CassoExplorer\Window\ExplorerPreviewFind.cpp" />
+    <ClCompile Include="CassoExplorer\Window\PreviewHexSources.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerTabStrip.cpp" />
     <ClCompile Include="CassoExplorer\Window\ExplorerTips.cpp" />
     <ClCompile Include="CassoExplorer\Model\BrowserModel.cpp" />
@@ -341,6 +344,7 @@
     <ClCompile Include="CassoExplorer\Model\ArchiveProbe.cpp" />
     <ClCompile Include="CassoExplorer\Model\PicturePreview.cpp" />
     <ClCompile Include="CassoExplorer\Model\PreviewDecoder.cpp" />
+    <ClCompile Include="CassoExplorer\Model\PreviewText.cpp" />
     <ClCompile Include="CassoExplorer\Model\TreeModel.cpp" />
     <ClCompile Include="CassoExplorer\Model\CassoLinkConnections.cpp" />
     <ClCompile Include="Machines\Apple2\Common\VolumeImage.cpp" />
@@ -758,8 +762,12 @@
     <ClInclude Include="CassoExplorer\Window\ExplorerLayout.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerLinks.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerListPane.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerPane.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerMenus.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerPreview.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerPreviewArchive.h" />
+    <ClInclude Include="CassoExplorer\Window\ExplorerPreviewFind.h" />
+    <ClInclude Include="CassoExplorer\Window\PreviewHexSources.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerTabStrip.h" />
     <ClInclude Include="CassoExplorer\Window\ExplorerTips.h" />
     <ClInclude Include="CassoExplorer\Model\BrowserModel.h" />
@@ -807,6 +815,7 @@
     <ClInclude Include="CassoExplorer\Model\ArchiveProbe.h" />
     <ClInclude Include="CassoExplorer\Model\PicturePreview.h" />
     <ClInclude Include="CassoExplorer\Model\PreviewDecoder.h" />
+    <ClInclude Include="CassoExplorer\Model\PreviewText.h" />
     <ClInclude Include="CassoExplorer\Model\TreeModel.h" />
     <ClInclude Include="CassoExplorer\Model\CassoLinkConnections.h" />
     <ClInclude Include="Devices\Disk\IDiskFileIo.h" />

@@ -326,9 +326,6 @@ void CassoExplorerWindow::OnCreate()
 {
     CassoExplorerNamedControl<DxuiTreeView>         * tree            = CreateChild<CassoExplorerNamedControl<DxuiTreeView>>();
     CassoExplorerNamedControl<DxuiListView>         * list            = CreateChild<CassoExplorerNamedControl<DxuiListView>>();
-    CassoExplorerNamedControl<DxuiListView>         * previewList     = nullptr;
-    CassoExplorerNamedControl<DxuiFramebufferView>  * picture         = nullptr;
-    CassoExplorerNamedControl<DxuiHexView>          * hexView         = nullptr;
     CassoExplorerNamedControl<DxuiSplitter>         * treeSplitter    = nullptr;
     CassoExplorerNamedControl<DxuiSplitter>         * previewSplitter = nullptr;
 
@@ -369,25 +366,13 @@ void CassoExplorerWindow::OnCreate()
     m_listActionAlt   = CreateChild<DxuiButton> (FirewallText::kPrivateAction);
     m_listActionAlt->SetVisible (false);
     m_listActionAlt->SetOnClick ([this] () { m_links.FixFirewall (true); });
-    previewList       = CreateChild<CassoExplorerNamedControl<DxuiListView>>();
-    picture           = CreateChild<CassoExplorerNamedControl<DxuiFramebufferView>>();
-    hexView           = CreateChild<CassoExplorerNamedControl<DxuiHexView>>();
-    m_textView        = CreateChild<DxuiTextView>();
-    m_previewMessage  = CreateChild<DxuiSelectableText>();
-    m_previewMessage->SetTextRole (DxuiTextRole::Muted);
-    m_previewMessage->SetAlign    (DxuiTextHAlign::Center, DxuiTextVAlign::Center);
+    m_previewPane.Create();
     treeSplitter      = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter   = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
 
-    previewList->SetAccessibleName     (L"Preview");
-    picture->SetAccessibleName         (L"Picture preview");
-    hexView->SetAccessibleName         (L"Bytes");
     treeSplitter->SetAccessibleName    (L"Folder pane width");
     previewSplitter->SetAccessibleName (L"Preview pane width");
 
-    m_previewList     = previewList;
-    m_hexView         = hexView;
-    m_picture         = picture;
     m_treeSplitter    = treeSplitter;
     m_previewSplitter = previewSplitter;
     m_status          = CreateChild<DxuiStatusBar>();
@@ -477,54 +462,6 @@ void CassoExplorerWindow::OnCreate()
     m_toolbar->SetBarPadDp      (kNavBarPadDp);
     m_toolbar->SetGroupGapDp    (kNavAddressGapDp);
 
-    m_previewToolbar = CreateChild<DxuiToolbar>();
-    m_previewToolbar->SetFlatStyle (true);
-    m_previewToolbar->SetTextRenderer (GetTextRenderer());
-    m_previewToolbar->SetPopupHost    (GetPopupHost());
-    m_previewToolbar->SetIconDip      (kNavIconDip);
-    m_previewToolbar->SetVisible      (false);
-
-    m_goToBox.SetHint         (L"Go to");
-    m_goToBox.SetWidthDip     (130);
-    m_goToBox.SetTooltip      (L"Go to an address (e.g., $08FF) or offset (e.g., +10, +$A0), or select a range (e.g., $0803-$0810, $0803,+10). Numbers are hex; # marks decimal, as in -#16.");
-    m_goToBox.SetHwnd         (GetHwnd());
-    m_goToBox.SetTextRenderer (GetTextRenderer());
-    m_goToBox.SetOnChange     ([this] (const std::wstring &) { m_goToBox.SetError (false); });
-    m_goToBox.SetOnSubmit     ([this] () { m_previewPane.GoToTyped (m_goToBox.GetText()); });
-
-    m_goToBox.SetOnCancel ([this] ()
-    {
-        m_goToBox.SetText  (L"");
-        m_goToBox.SetError (false);
-        m_input.SetFocusPane (ExplorerInput::Pane::Preview);
-    });
-
-    m_goToBox.SetOnFocusRequest ([this] ()
-    {
-        m_previewBarFocus = m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kGoToOffset);
-        m_input.SetFocusPane (ExplorerInput::Pane::GoTo);
-    });
-
-    m_searchBox.SetGlyph        (s_kpszMdl2Search);
-    m_searchBox.SetHint         (L"Search");
-    m_searchBox.SetHwnd         (GetHwnd());
-    m_searchBox.SetTextRenderer (GetTextRenderer());
-    m_searchBox.SetOnChange     ([this] (const std::wstring & text) { m_previewPane.OnSearchChanged (text); });
-    m_searchBox.SetOnSubmit     ([this] () { m_previewPane.FindNext(); });
-
-    m_searchBox.SetOnCancel ([this] ()
-    {
-        m_searchBox.SetText (L"");
-        m_findBytes.clear();
-        m_input.SetFocusPane (ExplorerInput::Pane::Preview);
-    });
-
-    m_searchBox.SetOnFocusRequest ([this] ()
-    {
-        m_previewBarFocus = m_previewPane.GetPreviewStopIndex (CassoExplorerCommands::kFind);
-        m_input.SetFocusPane (ExplorerInput::Pane::Search);
-    });
-
     m_menuBar->SetPopupHost (GetPopupHost());
     m_menuBar->SetTextRendererForMeasure (GetTextRenderer());
 
@@ -587,14 +524,7 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     painter.FillRect ((float) bounds.left, (float) top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
 
-    //  Every preview draws on the content surface, a message included, which
-    //  has no background of its own.
-    if (m_prefs.previewVisible && m_previewRect.right > m_previewRect.left)
-    {
-        painter.FillRect ((float) m_previewRect.left, (float) m_previewRect.top,
-                          (float) (m_previewRect.right - m_previewRect.left), (float) (m_previewRect.bottom - m_previewRect.top),
-                          ExplorerLayout::GetPreviewBackground (theme));
-    }
+    m_previewPane.PaintBackground (painter, theme);
 
     DxuiWindow::Paint (painter, text, theme);
 }
@@ -966,7 +896,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
 
 
-    if (m_shellPreview.OnHelperMessage (msg, wParam, lParam))
+    if (m_previewPane.OnHelperMessage (msg, wParam, lParam))
     {
         return DxuiMessageResult::Handled;
     }
@@ -1191,7 +1121,7 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     {
         m_suggest.Close();
 
-        for (DxuiToolbar * bar : { m_commandBar, m_toolbar, m_previewToolbar })
+        for (DxuiToolbar * bar : { m_commandBar, m_toolbar, &m_previewPane.GetToolbar() })
         {
             bar->CloseMenu();
         }
@@ -1358,26 +1288,23 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  Menus slide open and submenus wait out a delay, both on ticks the host
     //  supplies; Casso supplies them from its frame loop, and this window from
     //  its timer.
-    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewToolbar->WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
+    if (m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewPane.GetToolbar().WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
     {
         m_menuBar->TickMenus (GetNowMs());
         m_toolbar->TickMenus (GetNowMs());
         m_commandBar->TickMenus (GetNowMs());
-        m_previewToolbar->TickMenus (GetNowMs());
+        m_previewPane.GetToolbar().TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
         Invalidate();
     }
 
     //  Scrollbars widen and narrow over a few frames as the pointer comes and
     //  goes.
-    barsMoved = ((int) m_hexView->TickScrollbars (GetNowMs())
-               | (int) m_textView->TickScrollbars (GetNowMs())
+    barsMoved = ((int) m_previewPane.TickScrollbars (GetNowMs())
                | (int) m_list->TickScrollbars (GetNowMs())
                | (int) m_list->IsHeaderSliding (GetNowMs())
                | (int) m_list->IsGroupSliding()
-               | (int) m_previewList->TickScrollbars (GetNowMs())
-               | (int) m_tree->TickScrollbars (GetNowMs())
-               | (int) m_picture->TickScrollbars (GetNowMs())) != 0;
+               | (int) m_tree->TickScrollbars (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
     barsMoved = barsMoved || m_tabs->IsSliding();
@@ -1389,9 +1316,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     //  The search box's caret blinks on the frames this asks for: one each
     //  time it turns on or off, not one every tick.
-    if (m_focus == ExplorerInput::Pane::Search || m_focus == ExplorerInput::Pane::GoTo || m_focus == ExplorerInput::Pane::LocationSearch)
+    if (m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch)
     {
-        bool  caretOn = (m_focus == ExplorerInput::Pane::Search) ? m_searchBox.IsCaretOn() : (m_focus == ExplorerInput::Pane::GoTo) ? m_goToBox.IsCaretOn() : m_findBox->IsCaretOn();
+        bool  caretOn = (m_focus == ExplorerPane::LocationSearch) ? m_findBox->IsCaretOn() : m_previewPane.IsCaretOn (m_focus);
 
         if (caretOn != m_caretOn)
         {
@@ -1447,8 +1374,8 @@ void CassoExplorerWindow::ArmTick()
 bool CassoExplorerWindow::IsTickWanted() const
 {
     return m_tooltip.WantsTick() || m_tooltip.IsVisible() || m_address->WantsTick() || m_tabs->IsSliding()
-        || m_menuBar->IsOpen() || m_toolbar->IsMenuOpen() || m_commandBar->IsMenuOpen() || m_previewToolbar->IsMenuOpen()
-        || m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewToolbar->WantsTick()
+        || m_menuBar->IsOpen() || m_toolbar->IsMenuOpen() || m_commandBar->IsMenuOpen() || m_previewPane.GetToolbar().IsMenuOpen()
+        || m_menuBar->WantsTick() || m_toolbar->WantsTick() || m_commandBar->WantsTick() || m_previewPane.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_focus == ExplorerInput::Pane::Search || m_focus == ExplorerInput::Pane::GoTo || m_focus == ExplorerInput::Pane::LocationSearch;
+        || m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch;
 }

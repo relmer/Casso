@@ -50,21 +50,9 @@ bool ExplorerMenus::ShowScrollbarMenu (const DxuiMouseEvent & ev)
     {
         items = m_window.m_list->GetScrollbarMenu (CassoExplorerWindow::ToLocal (ev, m_window.m_list->GetBounds()).positionDip);
     }
-    else if (m_window.m_previewList->IsVisible() && CassoExplorerWindow::Contains (m_window.m_previewList->GetBounds(), point))
+    else
     {
-        items = m_window.m_previewList->GetScrollbarMenu (CassoExplorerWindow::ToLocal (ev, m_window.m_previewList->GetBounds()).positionDip);
-    }
-    else if (m_window.m_textView->IsVisible() && CassoExplorerWindow::Contains (m_window.m_textView->GetBounds(), point))
-    {
-        items = m_window.m_textView->GetScrollbarMenu (point);
-    }
-    else if (m_window.m_hexView->IsVisible() && CassoExplorerWindow::Contains (m_window.m_hexView->GetBounds(), point))
-    {
-        items = m_window.m_hexView->GetScrollbarMenu (point);
-    }
-    else if (m_window.m_picture->IsVisible() && CassoExplorerWindow::Contains (m_window.m_picture->GetBounds(), point))
-    {
-        items = m_window.m_picture->GetScrollbarMenu (point);
+        items = m_window.m_previewPane.GetScrollbarMenu (ev);
     }
 
     if (items.empty())
@@ -948,7 +936,7 @@ void ExplorerMenus::ShowListContextMenu (int x, int y, int group)
 
     DxuiContextMenu::Show (*m_window.GetPopupHost(), x, y, std::move (items), [this, listFocused] (bool)
     {
-        if (listFocused && m_window.m_focus == ExplorerInput::Pane::List)
+        if (listFocused && m_window.m_focus == ExplorerPane::List)
         {
             m_window.m_list->SetListFocused (true);
             m_window.Invalidate();

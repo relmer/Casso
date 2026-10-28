@@ -168,9 +168,6 @@ public:
     //  Loaded at this size and scaled down by the caption, as Casso's is.
     static constexpr int       kCaptionIconPx      = 32;
 
-    //  The preview's rows hold one line of fixed-width text each, so they
-    //  are the line's height rather than a file listing's roomier row.
-    static constexpr int    kPreviewRowHeightDip = 18;
     static constexpr int    kMinWindowWidthDip   = 200;
     static constexpr int    kCascadeStepDip      = 32;   // a second window's offset from the saved placement
     static constexpr float  kStatusLeadDip       = 14.67f;   // its item count, from the band's left edge
@@ -284,11 +281,7 @@ private:
     Win32ShellIcons                              m_shellIcons;
     Win32ShellIcons                              m_dragIcons;   // drawn as each drag starts, so not in the background
     Win32InfoTips                                m_infoTips;
-    Win32ShellPreview                            m_shellPreview;
     Win32PackagedCommands                        m_packagedCommands;
-    std::wstring                                 m_shellPreviewPath;
-    bool                                         m_shellPicture    = false;
-    RECT                                         m_previewContent  = {};
     Win32ShellItemVerbs                          m_shellVerbs;
     std::vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
 
@@ -313,7 +306,6 @@ private:
     const DxuiTheme                         * m_theme               = nullptr;
     DxuiDpiScaler                             m_scaler;
     RECT                                      m_client              = {};
-    RECT                                      m_previewRect         = {};
 
     //  Why each row's image is broken, as its cells are built; empty for the
     //  rest.
@@ -327,7 +319,7 @@ private:
     DxuiListView::View                         m_listView          = DxuiListView::View::Details;
     std::wstring                               m_listViewKey;
     bool                                       m_treeRevealPending = false;
-    ExplorerInput::Pane                        m_focus             = ExplorerInput::Pane::Tree;
+    ExplorerPane                               m_focus             = ExplorerPane::Tree;
     std::vector<BrowserModel::AddressSegment>  m_addressSegments;
     BrowserModel::AddressRoot                  m_addressRoot;
 
@@ -338,34 +330,18 @@ private:
 
     //  Rename in place: an edit box laid over the row's name, as Explorer's
     //  F2 opens one. The row being renamed, or -1.
-    DxuiTextInput        * m_renameBox          = nullptr;
-    int                    m_renameRow          = -1;
-    DxuiLabel            * m_listMessage        = nullptr;
-    bool                   m_listMessageTop     = false;
-    DxuiButton           * m_listAction         = nullptr;
-    DxuiButton           * m_listActionAlt      = nullptr;
-    bool                   m_listActionFirewall = false;
-    DxuiSplitter         * m_previewSplitter    = nullptr;
-    DxuiListView         * m_previewList        = nullptr;
-    DxuiTextView         * m_textView           = nullptr;
-    DxuiHexView          * m_hexView            = nullptr;
-    DxuiFramebufferView  * m_picture            = nullptr;
-    DxuiSelectableText   * m_previewMessage     = nullptr;
-    DxuiStatusBar        * m_status             = nullptr;
-    DxuiTabStrip         * m_tabs               = nullptr;
-    DxuiToolbar          * m_toolbar            = nullptr;
-    DxuiToolbar          * m_previewToolbar     = nullptr;
-
-    //  The preview toolbar's commands, as one of CassoExplorerCommands'
-    //  preview bars.
-    int                    m_previewBarMode  = CassoExplorerCommands::kPreviewBarNone;
-
-    bool                  m_previewArchive  = false;   // the preview list is an archive's files, as the file list
-    int                   m_previewBarFocus = 0;
-    std::vector<Byte>     m_findBytes;
-    DxuiToolbarEditBox    m_searchBox;
-    DxuiToolbarEditBox    m_goToBox;
-    DxuiAddressBar      * m_address         = nullptr;
+    DxuiTextInput   * m_renameBox          = nullptr;
+    int               m_renameRow          = -1;
+    DxuiLabel       * m_listMessage        = nullptr;
+    bool              m_listMessageTop     = false;
+    DxuiButton      * m_listAction         = nullptr;
+    DxuiButton      * m_listActionAlt      = nullptr;
+    bool              m_listActionFirewall = false;
+    DxuiSplitter    * m_previewSplitter    = nullptr;
+    DxuiStatusBar   * m_status             = nullptr;
+    DxuiTabStrip    * m_tabs               = nullptr;
+    DxuiToolbar     * m_toolbar            = nullptr;
+    DxuiAddressBar  * m_address            = nullptr;
 
     //  Explorer's search box, at the address bar's right: a search over the
     //  folder shown and below it.
@@ -402,6 +378,8 @@ private:
     friend class ExplorerDragDrop;
     friend class ExplorerTabStrip;
     friend class ExplorerPreview;
+    friend class ExplorerPreviewArchive;
+    friend class ExplorerPreviewFind;
     friend class ExplorerAddressBar;
     friend class ExplorerMenus;
     friend class ExplorerDispatch;

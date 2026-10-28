@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "CassoExplorer/Model/CassoExplorerPrefs.h"
+#include "CassoExplorer/Window/ExplorerPane.h"
 
 class CassoLinkConnections;
 class FirewallMonitor;
@@ -38,9 +39,8 @@ public:
     static DxuiToolbar &  GetToolbarUnder (const RECT & commandBarBand, POINT point, DxuiToolbar & navToolbar, DxuiToolbar & commandBar);
 
     //  Keyboard focus. The toolbar is one pane, with its focused button in
-    //  m_toolbarFocus; FocusRing defines the Tab order.
-    enum class Pane { Toolbar, Address, Tabs, Tree, List, PreviewToolbar, GoTo, Search, Preview, CommandBar, LocationSearch };
-    void  SetFocusPane (Pane pane);
+    //  m_toolbarFocus.
+    void  SetFocusPane (ExplorerPane pane);
 
     FocusStop               GetFocusStop     () const;
     void                    SetFocusStop     (const FocusStop & stop);

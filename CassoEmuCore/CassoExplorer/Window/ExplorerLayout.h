@@ -30,9 +30,6 @@ class ExplorerLayout
 public:
     explicit ExplorerLayout (CassoExplorerWindow & window);
 
-    static constexpr uint32_t         kPreviewLift     = 7;       // the dark Preview pane over the list, per channel
-    static uint32_t  GetPreviewBackground (const IDxuiTheme & theme);
-
     //  Explorer's tabs are 33 dip tall. Its strip is 9 dip taller because it is
     //  also the window's caption; this window has a caption bar of its own, so
     //  the strip keeps only a small gap above the tabs.
@@ -54,14 +51,6 @@ public:
     static constexpr int    kMinTreeWidthDip      = 140;
     static constexpr int    kMinListWidthDip      = 220;
     static constexpr int    kMinPreviewWidthDip   = 280;   // wide enough for the hex view's toolbar
-
-    //  Preview text is drawn this far from the background toward the theme's
-    //  foreground, a gray like a terminal's text rather than full white.
-    static constexpr float  kPreviewTextStrength = 0.8f;
-
-    //  Room around a picture in the preview for its glow, which spills past
-    //  the picture's edges.
-    static constexpr int    kPictureInsetDip     = 16;
 
     //  The widest a pane's message runs before it wraps.
     static constexpr int     kMessageWidthDip = 400;

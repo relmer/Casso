@@ -195,7 +195,7 @@ void ExplorerAddressBar::SubmitAddress (const std::wstring & text)
 {
     if (m_window.m_browser.NavigateToAddress (text))
     {
-        m_window.m_input.SetFocusPane (ExplorerInput::Pane::List);
+        m_window.m_input.SetFocusPane (ExplorerPane::List);
         m_window.m_listPane.FillList();
 
         //  The typed path joins the history now, not only at a clean exit, and
@@ -496,7 +496,7 @@ void ExplorerAddressBar::ShowAddressContextMenu (int x, int y)
 
     m_window.m_menus.AddMenuCommand (items, L"&Edit address", [this]()
     {
-        m_window.m_input.SetFocusPane (ExplorerInput::Pane::Address);
+        m_window.m_input.SetFocusPane (ExplorerPane::Address);
         m_window.m_address->BeginEdit();
         m_window.Invalidate();
     });
@@ -719,7 +719,7 @@ bool ExplorerAddressBar::OnFindBoxKey (const DxuiKeyEvent & ev)
         m_window.m_findBox->SetText (L"");
         LeaveSearch();
 
-        m_window.m_input.SetFocusPane (ExplorerInput::Pane::List);
+        m_window.m_input.SetFocusPane (ExplorerPane::List);
         return true;
     }
 
@@ -783,7 +783,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
     //  Enter in an empty box goes back to the list, as File Explorer's does.
     if (query.empty())
     {
-        m_window.m_input.SetFocusPane (ExplorerInput::Pane::List);
+        m_window.m_input.SetFocusPane (ExplorerPane::List);
         return;
     }
 
@@ -812,7 +812,7 @@ void ExplorerAddressBar::SearchLocation (const std::wstring & query)
 
     m_window.m_browser.NavigateToLocation (Location::MakeShellFolder (SearchQuery::MakeId (scope, query), SearchQuery::GetLabel (scope)));
     m_window.m_listPane.FillList();
-    m_window.m_input.SetFocusPane (ExplorerInput::Pane::List);
+    m_window.m_input.SetFocusPane (ExplorerPane::List);
 }
 
 

@@ -279,9 +279,9 @@ void ExplorerTabStrip::SwitchToTab (size_t index)
     {
         m_window.m_address->EndEdit();
 
-        if (m_window.m_focus == ExplorerInput::Pane::Address)
+        if (m_window.m_focus == ExplorerPane::Address)
         {
-            m_window.m_input.SetFocusPane (ExplorerInput::Pane::List);
+            m_window.m_input.SetFocusPane (ExplorerPane::List);
         }
     }
 
