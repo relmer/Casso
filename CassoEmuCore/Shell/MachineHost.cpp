@@ -1131,10 +1131,6 @@ void MachineHost::SoftReset()
 
 void MachineHost::PowerCycle()
 {
-    HRESULT  hrFlush = S_OK;
-
-
-
     if (m_prng == nullptr)
     {
         return;
@@ -1147,9 +1143,9 @@ void MachineHost::PowerCycle()
     // DiskImageStore::SoftReset semantics -- see the comment block on
     // DiskImageStore::PowerCycle, which is the unmount-everything variant
     // tests can opt into directly). Not while reverse execution holds the
-    // disks, nor during a replay of a recorded power cycle.
-    hrFlush = m_diskStore->FlushAllUnlessHeld();
-    IGNORE_RETURN_VALUE (hrFlush, S_OK);
+    // disks, nor during a replay of a recorded power cycle. The saves are
+    // posted, and a failure is reported from its completion.
+    m_diskStore->SaveAllUnlessHeld();
 
     m_memoryBus->PowerCycleAll (*m_prng);
 

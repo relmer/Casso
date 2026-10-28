@@ -46,6 +46,9 @@ public:
     HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
     HRESULT       FlushEntry        (Entry & entry, FlushMoment moment, FlushOutcome & outOutcome);
 
+    //  Copies the fields a save set into an outcome a caller passes in.
+    static void   MergeOutcome      (const FlushOutcome & from, FlushOutcome & into);
+
     //  Reports a failed save to the user.
     void          ReportSaveFailure (Entry & entry, FlushMoment moment, const FlushOutcome & outcome);
 
@@ -203,9 +206,6 @@ private:
     //  The bay with this disk in it, or null when the disk has left it.
     Entry *        FindBay             (int slot, int drive, uint64_t imageId);
     Entry *        FindImage           (uint64_t imageId);
-
-    //  Copies the fields a save set into an outcome a caller passes in.
-    static void    MergeOutcome        (const FlushOutcome & from, FlushOutcome & into);
 
     //  Waits, for a caller that uses the result, until wait is done.
     HRESULT        WaitForIo           (const IoWait & wait);

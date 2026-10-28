@@ -478,16 +478,11 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 {
     HRESULT              hr         = S_OK;
     Disk2Controller  *   controller = FindSlot6Controller();
-    bool                 attempted  = false;
     MountDiagnosis       diagnosis;
 
 
 
     CBR (controller != nullptr);
-
-    // Past here a mount was genuinely attempted, so its outcome is reported
-    // whichever way it goes.
-    attempted = true;
 
     // The diagnosis rides out with the outcome. Without it the shell would be
     // left re-deriving a reason from the file name, which can only ever tell
@@ -498,13 +493,70 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     // from inside this call, before it returns. Cold-boot suppression of the
     // sound lives there too.
     hr = m_diskStore.Mount (6, drive, path, diagnosis);
+
+    // Past the controller check a mount was genuinely attempted, so its
+    // outcome is reported whichever way it goes.
+    CompleteMountInSlot6 (drive, path, hr, diagnosis);
     CHR (hr);
 
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StartMountInSlot6
+//
+//  MountDiskInSlot6 for a command: the store's file work runs on its I/O
+//  queue, and the outcome is reported from its completion, on the thread
+//  with the store's token, so the machine runs while the file is read and
+//  the disk in the drive is saved.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskManager::StartMountInSlot6 (int drive, const std::string & path)
+{
+    HRESULT              hr         = S_OK;
+    Disk2Controller  *   controller = FindSlot6Controller();
+
+
+
+    CBR (controller != nullptr);
+
+    m_diskStore.Mount (6, drive, path, [this, drive, path] (HRESULT hrMount, const MountDiagnosis & diagnosis)
+    {
+        CompleteMountInSlot6 (drive, path, hrMount, diagnosis);
+    });
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CompleteMountInSlot6
+//
+//  What follows an attempted mount, whichever way it went: the path is saved
+//  for the next launch, a declined insert's door closes, the status is
+//  published and the completion is reported.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::CompleteMountInSlot6 (int drive, const std::string & path, HRESULT hr, const MountDiagnosis & diagnosis)
+{
     // Persist this drive's mount path so the next launch / next time
     // this machine is selected auto-mounts the same disk. Don't
     // pollute hr with the registry result -- a missing key is
     // non-fatal.
-    if (!m_currentMachineName.empty())
+    if (SUCCEEDED (hr) && !m_currentMachineName.empty())
     {
         std::wstring  wPath = fs::path (path).wstring();
         HRESULT       hrReg = DiskSettings::WriteSavedDiskPath (m_userConfigStore, m_fileSystem,
@@ -512,28 +564,23 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
         IGNORE_RETURN_VALUE (hrReg, S_OK);
     }
 
-Error:
     //  After a declined insert the disk that was in the drive is there, so the
     //  door the window opened for the insert closes again.
-    if (attempted && FAILED (hr))
+    if (FAILED (hr))
     {
         RestoreDoor (drive);
     }
 
-    // Last, and on the way out of both paths, so anything the callback does
-    // (raising a dialog, say) sees the drive in its settled state -- fully
-    // mounted, or left as the failure left it.
-    //  Published first, so the completion's handler finds the mount.
+    // Last, so whatever the callback does, such as raising a dialog, runs
+    // with the drive in its settled state: mounted, or as it was after the
+    // failure. Published first, so the completion's handler finds the mount.
     (void) PublishDriveStatus (true);
 
-    if (attempted && m_onMountCompleted)
+    if (m_onMountCompleted)
     {
         m_onMountCompleted (drive, path, hr, diagnosis);
     }
-
-    return hr;
 }
-
 
 
 
@@ -559,7 +606,7 @@ HRESULT DiskManager::MountDiskForCommand (int drive, const std::string & path)
 
     CBRFEx (isLive, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE), DeclineBehindLiveInsert (drive, path));
 
-    hr = MountDiskInSlot6 (drive, path);
+    hr = StartMountInSlot6 (drive, path);
     CHR (hr);
 
 Error:
@@ -625,19 +672,27 @@ void DiskManager::EjectDiskInSlot6 (int drive)
 
 
 
-    //  A command that arrives on this thread behind live changes nothing.
+    //  A command that arrives on this thread behind live changes nothing. The
+    //  eject's save runs on the store's I/O queue, and the door closes again
+    //  from its completion when the disk is in the drive after it.
     if (isLive)
     {
-        m_diskStore.Eject (6, drive);
+        m_diskStore.Eject (6, drive, [this, drive] (bool isEjected)
+        {
+            if (!isEjected)
+            {
+                RestoreDoor (drive);
+            }
+        });
     }
     else
     {
         EhmNotifyUser (DiskStoreText::FormatBehindLiveEjectMessage (drive).c_str());
-    }
 
-    if (m_diskStore.IsMounted (6, drive))
-    {
-        RestoreDoor (drive);
+        if (m_diskStore.IsMounted (6, drive))
+        {
+            RestoreDoor (drive);
+        }
     }
 }
 

@@ -73,6 +73,7 @@ public:
     //  starts (MountCommandLineDisks); any other UI-thread caller goes
     //  through Mount.
     HRESULT  MountDiskInSlot6       (int drive, const std::string & path);
+    HRESULT  StartMountInSlot6      (int drive, const std::string & path);
 
     //  The IDM_DISK_INSERTn mount: declined while the machine is behind live,
     //  and otherwise MountDiskInSlot6.
@@ -210,6 +211,9 @@ private:
 
     //  MountDiskForCommand's report of an insert declined behind live.
     void     DeclineBehindLiveInsert (int drive, const std::string & path);
+
+    //  What follows an attempted mount, whichever way it went.
+    void     CompleteMountInSlot6 (int drive, const std::string & path, HRESULT hr, const MountDiagnosis & diagnosis);
 
     class MachineHost                               & m_machine;
     DiskImageStore                                  & m_diskStore;

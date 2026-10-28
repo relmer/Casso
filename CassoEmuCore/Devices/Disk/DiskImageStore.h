@@ -15,6 +15,7 @@
 #include "BayStatus.h"
 #include "IImageWatcher.h"
 #include "DiskStoreTypes.h"
+#include "MountDiagnosis.h"
 #include "DiskFileOps.h"
 #include "DiskIoQueue.h"
 #include "DiskStoreText.h"
@@ -23,7 +24,6 @@
 #include "DiskStoreSalvage.h"
 #include "DiskStoreMedia.h"
 
-class MountDiagnosis;
 
 
 
@@ -117,6 +117,16 @@ public:
                                      DiskFormat fmt, const vector<Byte> & bytes,
                                      MountDiagnosis & outDiagnosis);
     void          Eject             (int slot, int drive);
+
+    //  Where an asynchronous mount's result goes, and an asynchronous eject's:
+    //  whether the bay is empty. Both run on the store's thread.
+    using MountDone = std::function<void (HRESULT hr, const MountDiagnosis & diagnosis)>;
+    using EjectDone = std::function<void (bool isEjected)>;
+
+    //  Mount and Eject with their file work on the I/O queue: done runs when
+    //  it is over. The overloads above wait for it.
+    void          Mount             (int slot, int drive, const string & path, MountDone done);
+    void          Eject             (int slot, int drive, EjectDone done);
 
     //  A machine state's disk back in its bay, built from the bytes the state
     //  carries rather than read from path (see the .cpp).
@@ -548,22 +558,56 @@ private:
     //  Milliseconds now, through the injected clock when one is installed.
     int64_t        GetNowMs () const;
 
+    //  How long a caller that uses a result before it returns waits for it.
+    static constexpr DWORD  s_kSyncIoTimeoutMs = 30000;
+
+    //  A mount's state from step to step while its file work is posted.
+    struct MountJob
+    {
+        int             slot       = 0;
+        int             drive      = 0;
+        string          path;
+        DiskFormat      format     = DiskFormat::Dsk;
+        bool            isFromFile = false;
+        bool            isSameFile = false;
+        vector<Byte>    bytes;
+        ImageIdentity   identity;
+        MountDiagnosis  diagnosis;
+        FlushOutcome    outcome;
+        HRESULT         result     = S_OK;
+        MountDone       done;
+    };
+
     //  A mount over a bay, in its order: load the new image, save the disk in
-    //  the bay, and swap them only when the save left no write in no file.
+    //  the bay, and swap them only when the save left no write outside a file.
     //  LoadImage builds the image without touching the bay; SaveBeforeReplace
-    //  declines with UnsavedWrites; SwapInImage retires the old disk and seats
-    //  the new one; ReportReplaceOutcome reports a guest copy the save moved.
+    //  saves and DecideReplace declines with UnsavedWrites; SwapInImage
+    //  retires the old disk and seats the new one; ReportReplaceOutcome
+    //  reports a guest copy the save moved.
     static HRESULT  LoadImage          (DiskFormat fmt, const vector<Byte> & bytes, const string & path,
                                         unique_ptr<DiskImage> & outImage, MountDiagnosis & outDiagnosis);
-    HRESULT         SaveBeforeReplace  (Entry & entry, const string & newPath,
-                                        MountDiagnosis & outDiagnosis, FlushOutcome & outOutcome);
-    HRESULT         ReplaceBay         (int slot, int drive, const string & path, DiskFormat fmt,
-                                        const vector<Byte> & bytes, MountDiagnosis & outDiagnosis,
-                                        FlushOutcome & outOutcome);
+    void            SaveBeforeReplace  (const shared_ptr<MountJob> & job, std::function<void (HRESULT)> done);
+    HRESULT         DecideReplace      (MountJob & job);
+    void            ReplaceBay         (const shared_ptr<MountJob> & job, std::function<void (HRESULT)> done);
+    void            NoteKeptDisk       (MountJob & job, HRESULT hr);
     void            SwapInImage        (Entry & entry, unique_ptr<DiskImage> loaded,
                                         const string & path, DiskFormat fmt);
     void            ReportReplaceOutcome (int slot, int drive, const string & newPath, HRESULT hr,
                                           const FlushOutcome & outcome);
+
+    //  Mount's steps after the checks: the stat of a remounted file, the read,
+    //  and the end of a mount from a file or from bytes.
+    void            CheckSameFile        (const shared_ptr<MountJob> & job, HRESULT hr);
+    void            ReadMountFile        (const shared_ptr<MountJob> & job);
+    void            FinishMountFromFile  (const shared_ptr<MountJob> & job, HRESULT hr);
+    void            FinishMountFromBytes (const shared_ptr<MountJob> & job, HRESULT hr);
+    void            FinishMount          (const shared_ptr<MountJob> & job, HRESULT hr);
+
+    //  Eject's step after the save.
+    void            FinishEject        (int slot, int drive, uint64_t imageId, HRESULT hr);
+
+    //  Waits, for a caller that uses the result, until isDone is set.
+    HRESULT         WaitForIo          (const bool & isDone);
 
     //  Whether two paths are one file, after `..` and `.\` are resolved.
     static bool     IsSameFile         (const string & left, const string & right);
