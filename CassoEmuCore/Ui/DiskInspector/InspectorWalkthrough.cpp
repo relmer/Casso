@@ -22,29 +22,30 @@ static const InspectorWalkthrough::Step  s_kSteps[] =
       L"This is the disk, seen from above. Each ring is one quarter track: track 0 is the outermost ring and the innermost rings are near the hub. "
       L"Along each ring, colors mark what is written there: dark sync between sectors, then each sector's address field and data field.\n\n"
       L"Click a ring to select that track and the sector under the pointer. Use the mouse wheel to zoom in, drag to move around, and "
-      L"double-click to see the whole disk again. Click Legend for a key to every color." },
+      L"double-click to see the whole disk again. In the corners are the legend, the tilt, the overlays such as Files, and the zoom." },
 
-    { WalkthroughArea::Toolbar, L"The toolbar",
-      L"Click Drive 1 or Drive 2 to see the disk in that drive. Choose Structure to color the platter by what is written on it, or Timing to "
-      L"color it by how fast or slow each stretch spins, on disk images that have that timing. Turn on Follow head to select the track the "
-      L"drive's head is on.\n\n"
-      L"Use Find to search the disk for bytes, nibbles or text, Compare with to set this disk beside another, and Decode settings to "
-      L"change how sectors are decoded." },
+    { WalkthroughArea::Toolbar, L"The menus and toolbar",
+      L"The menus have every command with its shortcut. Under them, choose Drive 1 or Drive 2 to see the disk in that drive, and Structure "
+      L"to color the platter by what is written on it, or Timing to color it by how fast or slow each stretch spins, on disk images that "
+      L"have that timing.\n\n"
+      L"At the right, Follow head selects the track the drive's head is on, Go to jumps to a track, sector or nibble, and Find searches "
+      L"the disk for bytes, nibbles or text. Compare, Export and Decode settings are in the menus." },
 
     { WalkthroughArea::Track, L"The track and its sectors",
       L"The header has the selected track's number, what kind of track it is, and its size. Below it is one button per sector, in the "
       L"order the sectors pass under the head. A check mark means the sector was read without an error, and a red mark means it was not.\n\n"
       L"Click a sector to see its bytes." },
 
-    { WalkthroughArea::Tabs, L"The tabs",
-      L"Sector data has the selected sector's 256 bytes. Nibbles has every nibble on the track, in order. Fields has each "
-      L"address and data field, and Flux timing has a graph of how long each bit cell takes.\n\n"
-      L"The other tabs are about the whole disk: Tracks has every quarter track, Findings every problem found, File map which file owns "
-      L"each sector, and Image the image file itself." },
+    { WalkthroughArea::Tabs, L"The views",
+      L"Choose a view above the content. Issues lists anything unusual on the disk, and is there only when there is something to list. "
+      L"Files has the file each sector is part of, Sectors the selected sector's 256 bytes, Tracks every quarter track, and Image the "
+      L"image file itself.\n\n"
+      L"Nibbles has every nibble on the track under a header for each field and sync run. Flux, on disks with timing, has a graph of "
+      L"how long each bit cell takes." },
 
     { WalkthroughArea::Strip, L"The strip",
       L"The strip is the selected track unrolled into a straight line, starting at the index. Each block is one nibble, in the same colors "
-      L"as the platter.\n\n"
+      L"as the platter, and each stretch is labeled where the label fits.\n\n"
       L"Zoom in with + to see each nibble's value and, further in, each bit cell. Drag across the strip to select nibbles." },
 
     { WalkthroughArea::None, L"Tracks and quarter tracks",
@@ -55,7 +56,7 @@ static const InspectorWalkthrough::Step  s_kSteps[] =
     { WalkthroughArea::None, L"Sectors",
       L"Each track is divided into sectors: 16 on a DOS 3.3 or ProDOS disk, and 13 on an older DOS 3.2 disk. A sector has 256 bytes "
       L"of data.\n\n"
-      L"A file is stored as a list of sectors, so one file can be spread across many tracks. File map has which file owns each sector." },
+      L"A file is stored as a list of sectors, so one file can be spread across many tracks. The Files view has the file each sector is part of." },
 
     { WalkthroughArea::None, L"Nibbles",
       L"The drive cannot record every byte value as it is, so each byte is encoded as nibbles: 8-bit values whose top bit is always set "
@@ -75,8 +76,8 @@ static const InspectorWalkthrough::Step  s_kSteps[] =
     { WalkthroughArea::None, L"What the colors mean",
       L"Each kind of recording has its color: sync, address marks, address fields, data marks, data fields, failed checksums, noise and "
       L"random bits.\n\n"
-      L"Click Legend for the key to every color, and hover over the platter or the strip for the colors under the pointer. Click ? at the "
-      L"bottom of the window to see this walkthrough again." },
+      L"Click the legend at the platter's top left for the key to every color, and hover over the platter or the strip for the colors "
+      L"under the pointer. Choose Help > Walkthrough, or click ? at the bottom of the window, to see this walkthrough again." },
 };
 
 
