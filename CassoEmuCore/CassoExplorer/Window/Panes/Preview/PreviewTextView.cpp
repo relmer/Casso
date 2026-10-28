@@ -4,6 +4,12 @@
 #include "CassoExplorer/Model/PreviewText.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Panes/ExplorerPane.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
 
 
 

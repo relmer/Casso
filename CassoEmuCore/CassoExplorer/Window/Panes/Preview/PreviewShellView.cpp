@@ -3,6 +3,9 @@
 #include "CassoExplorer/Window/Panes/Preview/PreviewShellView.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
 #include "Core/AppTimerIds.h"
+#include "CassoExplorer/Model/PreviewDecoder.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
 
 
 

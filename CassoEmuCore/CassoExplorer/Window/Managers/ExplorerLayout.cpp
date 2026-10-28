@@ -6,6 +6,17 @@
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Model/FolderWatch.h"
+#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerTips.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
 
 
 

@@ -9,6 +9,12 @@
 #include "Config/Win32FileSystem.h"
 #include "Core/PathResolver.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Panes/ExplorerPane.h"
+#include "CassoExplorer/Window/Managers/ExplorerThemes.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
 
 
 

@@ -2,6 +2,11 @@
 
 #include "CassoExplorer/Window/Panes/Preview/PreviewFindBar.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Actions/ActionsGoTo.h"
+#include "CassoExplorer/CassoExplorerActions.h"
 
 
 

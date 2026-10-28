@@ -1,5 +1,7 @@
 #include "Pch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Panes/ExplorerListColumns.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -5,6 +5,16 @@
 #include "CassoExplorer/CassoExplorerDragOut.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "Seams/Win32ShellItemVerbs.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 
 
 

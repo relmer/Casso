@@ -6,6 +6,11 @@
 #include "Devices/Disk/ChangePrompt.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
 #include "CassoExplorer/Window/ExplorerTextStyles.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Panes/ExplorerPane.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
 
 
 

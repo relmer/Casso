@@ -11,6 +11,23 @@
 #include "Core/MachineConfig.h"
 #include "Core/TextEncoding.h"
 #include "Core/AppTimerIds.h"
+#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "Seams/Win32ShellItemVerbs.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "Seams/IHostDialogs.h"
+#include "Seams/Win32HostDialogs.h"
+#include "CassoExplorer/Window/Managers/CassoLinkManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerThemes.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
 
 
 

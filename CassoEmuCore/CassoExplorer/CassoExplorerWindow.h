@@ -4,29 +4,10 @@
 
 #include "CassoExplorer/Window/ExplorerContext.h"
 #include "CassoExplorer/Window/IExplorerWindow.h"
-#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
-#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
-#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
-#include "CassoExplorer/Window/Managers/CassoLinkManager.h"
-#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
-#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
-#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
-#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
-#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
-#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
-#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
-#include "CassoExplorer/Window/Managers/ExplorerInput.h"
-#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
-#include "CassoExplorer/Window/Managers/ExplorerThemes.h"
-#include "CassoExplorer/Window/Managers/ExplorerTips.h"
-#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
-#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
-#include "Seams/Win32HostDialogs.h"
-#include "Seams/Win32IntentChannel.h"
-#include "Seams/Win32InfoTips.h"
-#include "Seams/Win32ShellItemVerbs.h"
-#include "Ui/Chrome/CassoTheme.h"
 
+class CassoLinkManager;
+class ExplorerTabManager;
+struct ExplorerWindowParts;
 struct CassoExplorerSessionWindow;
 
 
@@ -135,17 +116,17 @@ public:
     void                             ShowAbout             () override;
     void                             ArmTick               () override;
     void                             CloseWindow           () override                         { OnWindowClose(); }
-    ExplorerTabManager             & GetTabManager         ()                              { return m_tabManager; }
-    CassoLinkManager               & GetCassoLinkManager   ()                              { return m_cassoLinkManager; }
+    ExplorerTabManager             & GetTabManager         ();
+    CassoLinkManager               & GetCassoLinkManager   ();
     static int64_t                   GetNowMs              ();
     void                             TakeLinkNotifications ();
     void                             CloseForApp           ();
     void                             Layout                (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                             Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    LPCWSTR                          GetCursorForPoint     (POINT clientPx) const override       { return m_input.GetCursorForPoint (clientPx); }
+    LPCWSTR                          GetCursorForPoint     (POINT clientPx) const override;
 
-    bool    OnMouse           (const DxuiMouseEvent & ev) override  { return m_input.HandleMouse (ev); }
-    bool    OnKey             (const DxuiKeyEvent & ev) override    { return m_input.HandleKey (ev); }
+    bool    OnMouse           (const DxuiMouseEvent & ev) override;
+    bool    OnKey             (const DxuiKeyEvent & ev) override;
     void    OnThemeChanged    () override;
 
 protected:
@@ -167,70 +148,17 @@ private:
     bool  IsTickWanted        () const;
     void  RecordSession       ();
 
-    CassoExplorerBrowser                    & m_browser;
-    CassoExplorerActions                    & m_actions;
-    CassoExplorerPrefs                      & m_prefs;
-    FolderOptions                             m_explorerOptions;
-    bool                                      m_opened          = false;
-    bool                                      m_inSizeMove      = false;
-    Context                                   m_context;
-    Win32HostDialogs                          m_dialogs;
-    Win32ShellIcons                           m_shellIcons;
-    Win32InfoTips                             m_infoTips;
-    Win32ShellItemVerbs                       m_shellVerbs;
-    std::vector<Win32IntentChannel::Reply>    m_pendingReplies;
-    CassoExplorerCommands                     m_commands;
-    const DxuiTheme                         * m_theme           = nullptr;
-    DxuiDpiScaler                             m_scaler;
-    std::vector<std::wstring>                 m_pendingLaunches;   // other launches' arguments, run once the send that brought each returns
-    bool                                      m_caretOn         = true;   // the search caret as last drawn
-    bool                                      m_tickArmed       = false;   // the animation tick is running
-    ExplorerContext                            m_explorer        { .window           = *this,
-                                                                   .browser          = m_browser,
-                                                                   .actions          = m_actions,
-                                                                   .prefs            = m_prefs,
-                                                                   .app              = m_context,
-                                                                   .explorerOptions  = m_explorerOptions,
-                                                                   .dialogs          = m_dialogs,
-                                                                   .shellIcons       = m_shellIcons,
-                                                                   .infoTips         = m_infoTips,
-                                                                   .shellVerbs       = m_shellVerbs,
-                                                                   .commands         = m_commands,
-                                                                   .scaler           = m_scaler,
-                                                                   .theme            = m_theme,
-                                                                   .layout           = m_layout,
-                                                                   .listPane         = m_listPane,
-                                                                   .folderSync       = m_folderSync,
-                                                                   .cassoLinkManager = m_cassoLinkManager,
-                                                                   .dragDrop         = m_dragDrop,
-                                                                   .tabManager       = m_tabManager,
-                                                                   .preview          = m_previewManager,
-                                                                   .addressBar       = m_addressBar,
-                                                                   .menus            = m_menus,
-                                                                   .commandManager   = m_commandManager,
-                                                                   .fileOps          = m_fileOps,
-                                                                   .input            = m_input,
-                                                                   .tips             = m_tips,
-                                                                   .themes           = m_themes,
-                                                                   .statusBar        = m_statusBar,
-                                                                   .toolbars         = m_toolbars,
-                                                                   .treePane         = m_treePane };
-    ExplorerLayout          m_layout           { m_explorer };
-    ExplorerListPane        m_listPane         { m_explorer };
-    ExplorerFolderSync      m_folderSync       { m_explorer };
-    CassoLinkManager        m_cassoLinkManager { m_explorer };
-    ExplorerDragDrop        m_dragDrop         { m_explorer };
-    ExplorerTabManager      m_tabManager       { m_explorer };
-    ExplorerPreviewManager  m_previewManager   { m_explorer };
-    ExplorerAddressBar      m_addressBar       { m_explorer };
-    ExplorerMenus           m_menus            { m_explorer };
-    ExplorerCommandManager  m_commandManager   { m_explorer };
-    ExplorerFileOps         m_fileOps          { m_explorer };
-    ExplorerInput           m_input            { m_explorer };
-    ExplorerTips            m_tips             { m_explorer };
-    ExplorerThemes          m_themes           { m_explorer };
-    ExplorerStatusBar       m_statusBar        { m_explorer };
-    ExplorerToolbars        m_toolbars         { m_explorer };
-    ExplorerTreePane        m_treePane         { m_explorer };
+    CassoExplorerBrowser                  & m_browser;
+    CassoExplorerActions                  & m_actions;
+    CassoExplorerPrefs                    & m_prefs;
+    bool                                    m_opened          = false;
+    bool                                    m_inSizeMove      = false;
+    Context                                 m_context;
+    const DxuiTheme                       * m_theme           = nullptr;
+    DxuiDpiScaler                           m_scaler;
+    std::vector<std::wstring>               m_pendingLaunches;   // other launches' arguments, run once the send that brought each returns
+    bool                                    m_caretOn         = true;    // the search caret as last drawn
+    bool                                    m_tickArmed       = false;   // the animation tick is running
+    std::unique_ptr<ExplorerWindowParts>    m_parts;
 };
 

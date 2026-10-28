@@ -2,6 +2,7 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 
 #include "../Dxui/MockDxuiTextRenderer.h"
+#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

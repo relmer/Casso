@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "CassoExplorer/CassoExplorerShell.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

@@ -9,6 +9,17 @@
 #include "Devices/Disk/ChangePrompt.h"
 #include "Core/TextEncoding.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "Seams/IHostDialogs.h"
+#include "Seams/Win32HostDialogs.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Panes/ExplorerStatusBar.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "CassoExplorer/Actions/ActionsTypes.h"
+#include "CassoExplorer/CassoExplorerNewDiskDialog.h"
 
 
 

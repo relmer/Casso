@@ -5,6 +5,13 @@
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "Core/PathResolver.h"
 #include "Core/TextEncoding.h"
+#include "CassoExplorer/Browser/BrowserCells.h"
+#include "CassoExplorer/CassoExplorerBrowser.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Model/TreeModel.h"
+#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Model/FolderOptions.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
 
 
 

@@ -15,6 +15,14 @@
 #include "Core/MachineScanner.h"
 #include "Core/TextEncoding.h"
 #include "Core/AppTimerIds.h"
+#include "Seams/Win32ShellItemVerbs.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Managers/ExplorerCommandManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Managers/ExplorerDragDrop.h"
+#include "Seams/Win32IntentChannel.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
 
 
 

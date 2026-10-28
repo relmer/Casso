@@ -3,6 +3,12 @@
 #include "CassoExplorer/Window/Managers/ExplorerThemes.h"
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Panes/ExplorerToolbars.h"
+#include "CassoExplorer/Window/Managers/ExplorerTips.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
 
 //  The Theme menu's rows, in order, by the theme each one selects: Casso's
 //  themes in Casso's order, then Windows' dark and light and Follow system.

@@ -2,6 +2,7 @@
 
 #include "CassoExplorer/CassoExplorerIcons.h"
 #include "CassoExplorer/CassoExplorerWindow.h"
+#include "CassoExplorer/Window/ExplorerWindowParts.h"
 #include "Net/FirewallText.h"
 #include "CassoExplorer/CassoExplorerAbout.h"
 #include "CassoExplorer/CassoExplorerShell.h"
@@ -29,11 +30,7 @@ CassoExplorerWindow::CassoExplorerWindow (CassoExplorerBrowser & browser, CassoE
       m_actions  (actions),
       m_prefs    (prefs),
       m_context  (std::move (context)),
-      m_commands (CassoExplorerCommands::Handlers {
-                      [this] (int id)       { m_commandManager.Dispatch (id); },
-                      [this] (int id)       { return m_commandManager.IsEnabled (id); },
-                      [this] (int id)       { return m_commandManager.IsChecked (id); },
-                      [this] (int id)       { return m_commandManager.GetCommandLabel (id); } })
+      m_parts    (std::make_unique<ExplorerWindowParts> (*this, browser, actions, prefs, m_context, m_scaler, m_theme))
 {
 }
 
@@ -57,13 +54,13 @@ CassoExplorerWindow::~CassoExplorerWindow()
     //  The link that was this window's location can now be stopped once no other window has it as theirs.
     if (m_context.links != nullptr)
     {
-        m_context.links->SetViewing (&m_explorer, std::string());
+        m_context.links->SetViewing (&m_parts->context, std::string());
     }
 
 
-    m_shellVerbs.UnwatchRecycleBin();
-    m_dragDrop.GetDropTarget().Shutdown();
-    m_treePane.HideLabelTip();
+    m_parts->shellVerbs.UnwatchRecycleBin();
+    m_parts->dragDrop.GetDropTarget().Shutdown();
+    m_parts->treePane.HideLabelTip();
     DestroyBackend();
 }
 
@@ -91,12 +88,12 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
 
 
 
-    m_themes.ChooseInitial();
+    m_parts->themes.ChooseInitial();
 
     //  Before the first layout, which the window's creation can bring on. The
     //  tabs run across the top, above the bars each tab's location drives, as
     //  a browser's do.
-    m_layout.DockBands();
+    m_parts->layout.DockBands();
 
 
     params.title                    = title;
@@ -141,7 +138,7 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
         }
     }
 
-    m_themes.Apply();
+    m_parts->themes.Apply();
 
     //  The animation tick starts with the first input; see ArmTick.
 
@@ -150,12 +147,12 @@ HRESULT CassoExplorerWindow::Open (HINSTANCE instance, const std::wstring & titl
     //  go in with their types. A failure to register leaves the window
     //  without drops, not without a window.
     {
-        HRESULT  hrDrop = m_dragDrop.GetDropTarget().Initialize (GetHwnd(), &m_layout.GetDropHits(),
-                                                              [this] (int, const std::wstring & path) { m_dragDrop.HandleDropFile (path); });
+        HRESULT  hrDrop = m_parts->dragDrop.GetDropTarget().Initialize (GetHwnd(), &m_parts->layout.GetDropHits(),
+                                                              [this] (int, const std::wstring & path) { m_parts->dragDrop.HandleDropFile (path); });
 
-        m_dragDrop.GetDropTarget().SetDataHandlers ([this] (IDataObject * data, int tag, POINT screen) { return m_dragDrop.GetDropEffect (data, tag, screen); },
-                                                 [this] (IDataObject * data, int tag, POINT screen) { m_dragDrop.HandleDrop (data, tag, screen); },
-                                  [this]                                          { m_dragDrop.ClearDropTarget(); });
+        m_parts->dragDrop.GetDropTarget().SetDataHandlers ([this] (IDataObject * data, int tag, POINT screen) { return m_parts->dragDrop.GetDropEffect (data, tag, screen); },
+                                                 [this] (IDataObject * data, int tag, POINT screen) { m_parts->dragDrop.HandleDrop (data, tag, screen); },
+                                  [this]                                          { m_parts->dragDrop.ClearDropTarget(); });
 
         IGNORE_RETURN_VALUE (hrDrop, S_OK);
     }
@@ -329,29 +326,29 @@ void CassoExplorerWindow::OnCreate()
 
 
 
-    m_treePane.Create();
-    m_listPane.Create();
-    m_cassoLinkManager.CreateListActions();
-    m_previewManager.Create();
+    m_parts->treePane.Create();
+    m_parts->listPane.Create();
+    m_parts->cassoLinkManager.CreateListActions();
+    m_parts->preview.Create();
     treeSplitter      = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
     previewSplitter   = CreateChild<CassoExplorerNamedControl<DxuiSplitter>>();
 
     treeSplitter->SetAccessibleName    (L"Folder pane width");
     previewSplitter->SetAccessibleName (L"Preview pane width");
 
-    m_layout.SetSplitters (treeSplitter, previewSplitter);
-    m_statusBar.Create();
-    m_tabManager.Create();
-    m_toolbars.CreateNavBar();
-    m_addressBar.Create();
-    m_toolbars.CreateMenuBar();
-    m_fileOps.Create();
-    m_toolbars.CreateCommandBar();
-    m_previewManager.CreateToolbar();
-    m_toolbars.Create();
+    m_parts->layout.SetSplitters (treeSplitter, previewSplitter);
+    m_parts->statusBar.Create();
+    m_parts->tabManager.Create();
+    m_parts->toolbars.CreateNavBar();
+    m_parts->addressBar.Create();
+    m_parts->toolbars.CreateMenuBar();
+    m_parts->fileOps.Create();
+    m_parts->toolbars.CreateCommandBar();
+    m_parts->preview.CreateToolbar();
+    m_parts->toolbars.Create();
 
-    m_toolbars.SetCommandBarDropDowns();
-    m_tips.Create (GetPopupHost());
+    m_parts->toolbars.SetCommandBarDropDowns();
+    m_parts->tips.Create (GetPopupHost());
 
     //  The buttons along a context menu's edge have only a word under their
     //  icons, so each has a tip, as Explorer's do.
@@ -362,28 +359,28 @@ void CassoExplorerWindow::OnCreate()
 
         if (command == nullptr || !GetCursorPos (&pointer) || !ScreenToClient (GetHwnd(), &pointer))
         {
-            m_tips.HideHoverTip (ExplorerTips::TipOwner::Menu);
+            m_parts->tips.HideHoverTip (ExplorerTips::TipOwner::Menu);
             return;
         }
 
         anchor = { pointer.x, pointer.y, pointer.x + 1, pointer.y + 1 };
-        m_tips.ShowHoverTip (ExplorerTips::TipOwner::Menu, anchor, ExplorerMenus::GetIconButtonTip (*command));
+        m_parts->tips.ShowHoverTip (ExplorerTips::TipOwner::Menu, anchor, ExplorerMenus::GetIconButtonTip (*command));
     });
 
     //  Drawn by the shell at the pixel size a row's icon is laid out at, and
     //  handed to the browser before the first nodes and rows are built.
-    m_shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
-    m_browser.SetShellIcons (&m_shellIcons);
-    m_browser.SetShellVerbs (&m_shellVerbs);
-    m_browser.SetPreviewMonitor (m_previewManager.GetPicture().GetMonitor(), m_prefs.previewCustomArgb);
-    m_explorerOptions = FolderOptions::ReadFromShell();
-    m_browser.SetFolderOptions (m_explorerOptions);
-    m_treePane.ApplyNavPaneOptions();
-    m_listPane.SizeListIcons();
-    m_listPane.StartLoaders();
-    m_infoTips.Start (GetHwnd(), (UINT) ExplorerMessage::InfoTip);
+    m_parts->shellIcons.SetSizePx (MulDiv (DxuiTreeView::s_kIconDip, (int) GetDpiForWindow (GetHwnd()), (int) DxuiDpiScaler::kBaseDpi));
+    m_browser.SetShellIcons (&m_parts->shellIcons);
+    m_browser.SetShellVerbs (&m_parts->shellVerbs);
+    m_browser.SetPreviewMonitor (m_parts->preview.GetPicture().GetMonitor(), m_prefs.previewCustomArgb);
+    m_parts->explorerOptions = FolderOptions::ReadFromShell();
+    m_browser.SetFolderOptions (m_parts->explorerOptions);
+    m_parts->treePane.ApplyNavPaneOptions();
+    m_parts->listPane.SizeListIcons();
+    m_parts->listPane.StartLoaders();
+    m_parts->infoTips.Start (GetHwnd(), (UINT) ExplorerMessage::InfoTip);
 
-    m_layout.ConfigureWidgets();
+    m_parts->layout.ConfigureWidgets();
 }
 
 
@@ -400,10 +397,10 @@ void CassoExplorerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 {
     SetBounds (boundsDip);
 
-    m_layout.SetClient (boundsDip);
+    m_parts->layout.SetClient (boundsDip);
     m_scaler.SetDpi (scaler.GetDpi());
 
-    m_layout.RecomputeLayout();
+    m_parts->layout.RecomputeLayout();
 }
 
 
@@ -419,7 +416,7 @@ void CassoExplorerWindow::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     RECT  bounds = GetBounds();
-    LONG  top    = (std::max) (bounds.top, (std::max) (m_layout.GetTabBand().GetBounds().bottom, m_layout.GetToolbarBand().GetBounds().bottom));
+    LONG  top    = (std::max) (bounds.top, (std::max) (m_parts->layout.GetTabBand().GetBounds().bottom, m_parts->layout.GetToolbarBand().GetBounds().bottom));
 
 
 
@@ -428,7 +425,7 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
     painter.FillRect ((float) bounds.left, (float) top,
                       (float) (bounds.right - bounds.left), (float) (bounds.bottom - top), theme.Background());
 
-    m_previewManager.PaintBackground (painter, theme);
+    m_parts->preview.PaintBackground (painter, theme);
 
     DxuiWindow::Paint (painter, text, theme);
 }
@@ -449,7 +446,7 @@ void CassoExplorerWindow::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 void CassoExplorerWindow::OnThemeChanged()
 {
     DxuiWindow::OnThemeChanged();
-    m_themes.HandleSystemThemeChanged();
+    m_parts->themes.HandleSystemThemeChanged();
 }
 
 
@@ -483,9 +480,9 @@ void CassoExplorerWindow::ShowAbout()
 
 void CassoExplorerWindow::OnWindowClose()
 {
-    if (m_tabManager.IsDragging())
+    if (m_parts->tabManager.IsDragging())
     {
-        m_tabManager.CancelTabDrag();
+        m_parts->tabManager.CancelTabDrag();
     }
 
     RecordSession();
@@ -514,9 +511,9 @@ void CassoExplorerWindow::OnWindowClose()
 
 void CassoExplorerWindow::CloseForApp()
 {
-    if (m_tabManager.IsDragging())
+    if (m_parts->tabManager.IsDragging())
     {
-        m_tabManager.CancelTabDrag();
+        m_parts->tabManager.CancelTabDrag();
     }
 
     RecordSession();
@@ -713,8 +710,8 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
 
     if (copy != nullptr && copy->dwData == kOpenPathCopyId && copy->lpData != nullptr)
     {
-        m_tabManager.OpenPathInNewTab (std::wstring ((const wchar_t *) copy->lpData, copy->cbData / sizeof (wchar_t)));
-        m_listPane.FillList();
+        m_parts->tabManager.OpenPathInNewTab (std::wstring ((const wchar_t *) copy->lpData, copy->cbData / sizeof (wchar_t)));
+        m_parts->listPane.FillList();
 
         return DxuiMessageResult::Handled;
     }
@@ -733,7 +730,7 @@ DxuiMessageResult CassoExplorerWindow::OnCopyData (WPARAM sender, LPARAM data)
         return DxuiMessageResult::NotHandled;
     }
 
-    m_pendingReplies.push_back (reply);
+    m_parts->pendingReplies.push_back (reply);
     PostMessageW (GetHwnd(), (UINT) ExplorerMessage::Reply, 0, 0);
 
     return DxuiMessageResult::Handled;
@@ -755,7 +752,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
 
 
-    if (m_previewManager.GetShell().HandleHelperMessage (msg, wParam, lParam))
+    if (m_parts->preview.GetShell().HandleHelperMessage (msg, wParam, lParam))
     {
         return DxuiMessageResult::Handled;
     }
@@ -780,13 +777,13 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     //  changing (a log being written, say) would hold off every re-read.
     if (msg == (UINT) ExplorerMessage::ShellPreview)
     {
-        m_previewManager.GetShell().HandleResult();
+        m_parts->preview.GetShell().HandleResult();
         return DxuiMessageResult::Handled;
     }
 
     if (msg == (UINT) ExplorerMessage::FolderChanged)
     {
-        m_folderSync.HandleFolderChanged();
+        m_parts->folderSync.HandleFolderChanged();
         return DxuiMessageResult::Handled;
     }
 
@@ -808,12 +805,12 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     {
         for (const std::wstring & key : m_browser.GetShellListings().TakeArrivedKeys())
         {
-            m_listPane.HandleShellListed (key);
+            m_parts->listPane.HandleShellListed (key);
         }
 
         for (const std::wstring & key : m_browser.GetHostListings().TakeArrivedKeys())
         {
-            m_listPane.HandleShellListed (key);
+            m_parts->listPane.HandleShellListed (key);
         }
 
         return DxuiMessageResult::Handled;
@@ -821,42 +818,42 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
 
     if (msg == (UINT) ExplorerMessage::CassoLink)
     {
-        m_cassoLinkManager.HandleConnectionChanged();
+        m_parts->cassoLinkManager.HandleConnectionChanged();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == (UINT) ExplorerMessage::RunningCasso)
     {
-        m_cassoLinkManager.HandleRunningChanged();
+        m_parts->cassoLinkManager.HandleRunningChanged();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == (UINT) ExplorerMessage::DropMenu)
     {
-        m_dragDrop.ShowDropMenu();
+        m_parts->dragDrop.ShowDropMenu();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == (UINT) ExplorerMessage::InfoTip)
     {
-        m_listPane.RefreshTip();
+        m_parts->listPane.RefreshTip();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == (UINT) ExplorerMessage::ContentDetails)
     {
-        m_listPane.HandleContentDetailsArrived();
+        m_parts->listPane.HandleContentDetailsArrived();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == (UINT) ExplorerMessage::IconsLoaded)
     {
-        m_listPane.HandleIconsLoaded();
+        m_parts->listPane.HandleIconsLoaded();
 
         return DxuiMessageResult::Handled;
     }
@@ -864,16 +861,16 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
     //  New's file types join the command bar's New once the shell lists them.
     if (msg == (UINT) ExplorerMessage::NewChoices)
     {
-        m_toolbars.SetCommandBarDropDowns();
+        m_parts->toolbars.SetCommandBarDropDowns();
 
         return DxuiMessageResult::Handled;
     }
 
     if (msg == (UINT) ExplorerMessage::RunCommand)
     {
-        if (m_commandManager.IsEnabled ((int) wParam))
+        if (m_parts->commandManager.IsEnabled ((int) wParam))
         {
-            m_commandManager.Dispatch ((int) wParam);
+            m_parts->commandManager.Dispatch ((int) wParam);
         }
 
         return DxuiMessageResult::Handled;
@@ -884,7 +881,7 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         return DxuiMessageResult::NotHandled;
     }
 
-    replies.swap (m_pendingReplies);
+    replies.swap (m_parts->pendingReplies);
 
     for (const Win32IntentChannel::Reply & reply : replies)
     {
@@ -893,11 +890,11 @@ DxuiMessageResult CassoExplorerWindow::OnAppMessage (UINT msg, WPARAM wParam, LP
         switch (reply.kind)
         {
             case Win32IntentChannel::ReplyKind::MachineDescription:
-                m_fileOps.SetCassoDriveCount (reply.driveCount);
+                m_parts->fileOps.SetCassoDriveCount (reply.driveCount);
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertDone:
-                m_statusBar.SetDetail (L"Inserted into Casso");
+                m_parts->statusBar.SetDetail (L"Inserted into Casso");
                 break;
 
             case Win32IntentChannel::ReplyKind::InsertRefused:
@@ -963,14 +960,14 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     //  to see the click that took it elsewhere.
     if (!active)
     {
-        m_addressBar.CloseSuggestions();
+        m_parts->addressBar.CloseSuggestions();
 
-        m_toolbars.CloseMenus();
+        m_parts->toolbars.CloseMenus();
     }
 
     //  Applying a theme repaints the whole window and its title bar, so it is
     //  done only when the colors Windows reports are different.
-    if (active && m_toolbars.IsCreated() && !m_commandManager.IsChecked (CassoExplorerCommands::kThemeLight) && !m_commandManager.IsChecked (CassoExplorerCommands::kThemeDark))
+    if (active && m_parts->toolbars.IsCreated() && !m_parts->commandManager.IsChecked (CassoExplorerCommands::kThemeLight) && !m_parts->commandManager.IsChecked (CassoExplorerCommands::kThemeDark))
     {
         DxuiWindowsThemeColors &                    colors     = DxuiWindowsThemeColors::Instance();
         bool                                        wasDark    = colors.IsDarkMode();
@@ -980,17 +977,17 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
 
         if (colors.IsDarkMode() != wasDark || colors.GetSystemColors() != wasSystem)
         {
-            m_themes.Apply();
+            m_parts->themes.Apply();
         }
     }
 
     //  Explorer's folder options send no message either, so they too are read
     //  again, and the folders relisted only when one changed.
-    if (active && m_listPane.GetControl() != nullptr && m_listPane.GetColumns().ReadFolderOptions())
+    if (active && m_parts->listPane.GetControl() != nullptr && m_parts->listPane.GetColumns().ReadFolderOptions())
     {
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        m_listPane.FillList();
+        m_parts->listPane.FillList();
     }
 
     //  NO RE-READ HERE. Coming back to the window used to re-enumerate the
@@ -1001,11 +998,11 @@ DxuiMessageResult CassoExplorerWindow::OnActivateApp (bool active)
     //  Without a watcher -- an unwatchable share, or a host that supplied
     //  none -- the browser shows what it read when it read it, and the next
     //  navigation picks up the rest.
-    if (active && m_listPane.GetControl() != nullptr && !m_folderSync.IsWatching() && m_browser.GetBrowserModel().HasTabs())
+    if (active && m_parts->listPane.GetControl() != nullptr && !m_parts->folderSync.IsWatching() && m_browser.GetBrowserModel().HasTabs())
     {
         hr = m_browser.Reload (true);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        m_listPane.FillList();
+        m_parts->listPane.FillList();
     }
 
     return DxuiMessageResult::NotHandled;
@@ -1045,7 +1042,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     if (timerId == (UINT_PTR) AppTimerId::ExplorerShellPreview)
     {
-        m_previewManager.GetShell().ShowBytes();
+        m_parts->preview.GetShell().ShowBytes();
         return DxuiMessageResult::Handled;
     }
 
@@ -1053,12 +1050,12 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  each second for a while after an undo.
     if (timerId == (UINT_PTR) AppTimerId::ExplorerRestore)
     {
-        if (m_fileOps.CountDownRestore())
+        if (m_parts->fileOps.CountDownRestore())
         {
             KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRestore);
         }
 
-        m_folderSync.RefreshAfterHostChange();
+        m_parts->folderSync.RefreshAfterHostChange();
 
         return DxuiMessageResult::Handled;
     }
@@ -1069,7 +1066,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
         if (m_browser.GetLocation().kind == Location::Kind::RecycleBin)
         {
-            m_folderSync.RefreshAfterHostChange();
+            m_parts->folderSync.RefreshAfterHostChange();
         }
 
         return DxuiMessageResult::Handled;
@@ -1077,15 +1074,15 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     if (timerId == (UINT_PTR) AppTimerId::ExplorerDrive)
     {
-        m_folderSync.CheckDrives();
-        m_cassoLinkManager.PollFirewall();
+        m_parts->folderSync.CheckDrives();
+        m_parts->cassoLinkManager.PollFirewall();
 
         //  An announcement since the last look is listed, on the same poll
         //  as a drive.
         if (m_context.announced != nullptr && m_context.running != nullptr && m_context.links != nullptr
-            && m_context.announced->GetChangeCount() != m_cassoLinkManager.GetAnnouncedChanges())
+            && m_context.announced->GetChangeCount() != m_parts->cassoLinkManager.GetAnnouncedChanges())
         {
-            m_cassoLinkManager.HandleRunningChanged();
+            m_parts->cassoLinkManager.HandleRunningChanged();
         }
 
         return DxuiMessageResult::Handled;
@@ -1094,8 +1091,8 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     if (timerId == (UINT_PTR) AppTimerId::ExplorerRefresh)
     {
         KillTimer (GetHwnd(), (UINT_PTR) AppTimerId::ExplorerRefresh);
-        m_listPane.SetContentHidden (false);
-        m_listPane.FillList();
+        m_parts->listPane.SetContentHidden (false);
+        m_parts->listPane.FillList();
         Invalidate();
 
         return DxuiMessageResult::Handled;
@@ -1103,7 +1100,7 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     if (timerId == (UINT_PTR) AppTimerId::ExplorerFolder)
     {
-        m_folderSync.HandleSettleTimer();
+        m_parts->folderSync.HandleSettleTimer();
 
         return DxuiMessageResult::Handled;
     }
@@ -1113,9 +1110,9 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
         return DxuiMessageResult::NotHandled;
     }
 
-    m_tips.Tick (GetNowMs());
+    m_parts->tips.Tick (GetNowMs());
 
-    if (m_addressBar.Tick (GetNowMs()))
+    if (m_parts->addressBar.Tick (GetNowMs()))
     {
         Invalidate();
     }
@@ -1123,22 +1120,22 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
     //  Menus slide open and submenus wait out a delay, both on ticks the host
     //  supplies; Casso supplies them from its frame loop, and this window from
     //  its timer.
-    if (m_toolbars.WantsTick() || m_previewManager.GetToolbar().WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
+    if (m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick() || GetPopupHost()->GetContextMenu().WantsTick())
     {
-        m_toolbars.TickMenus (GetNowMs());
-        m_previewManager.GetToolbar().TickMenus (GetNowMs());
+        m_parts->toolbars.TickMenus (GetNowMs());
+        m_parts->preview.GetToolbar().TickMenus (GetNowMs());
         GetPopupHost()->GetContextMenu().Tick (GetNowMs());
         Invalidate();
     }
 
     //  Scrollbars widen and narrow over a few frames as the pointer comes and
     //  goes.
-    barsMoved = ((int) m_previewManager.TickScrollbars (GetNowMs())
-               | (int) m_listPane.Tick (GetNowMs())
-               | (int) m_treePane.TickScrollbars (GetNowMs())) != 0;
+    barsMoved = ((int) m_parts->preview.TickScrollbars (GetNowMs())
+               | (int) m_parts->listPane.Tick (GetNowMs())
+               | (int) m_parts->treePane.TickScrollbars (GetNowMs())) != 0;
 
     //  Tabs slide apart for a dragged tab and back together after it.
-    barsMoved = barsMoved || m_tabManager.IsSliding();
+    barsMoved = barsMoved || m_parts->tabManager.IsSliding();
 
     if (barsMoved)
     {
@@ -1147,10 +1144,10 @@ DxuiMessageResult CassoExplorerWindow::OnTimer (UINT_PTR timerId)
 
     //  The search box's caret blinks on the frames this asks for: one each
     //  time it turns on or off, not one every tick.
-    if (m_input.HasCaretFocus())
+    if (m_parts->input.HasCaretFocus())
     {
-        ExplorerPane  focus   = m_input.GetFocusPane();
-        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_addressBar.IsCaretOn() : m_previewManager.GetFind().IsCaretOn (focus);
+        ExplorerPane  focus   = m_parts->input.GetFocusPane();
+        bool          caretOn = (focus == ExplorerPane::LocationSearch) ? m_parts->addressBar.IsCaretOn() : m_parts->preview.GetFind().IsCaretOn (focus);
 
         if (caretOn != m_caretOn)
         {
@@ -1205,9 +1202,84 @@ void CassoExplorerWindow::ArmTick()
 
 bool CassoExplorerWindow::IsTickWanted() const
 {
-    return m_tips.WantsTick() || m_addressBar.WantsTick() || m_tabManager.IsSliding()
-        || m_toolbars.IsMenuOpen() || m_previewManager.GetToolbar().IsMenuOpen()
-        || m_toolbars.WantsTick() || m_previewManager.GetToolbar().WantsTick()
+    return m_parts->tips.WantsTick() || m_parts->addressBar.WantsTick() || m_parts->tabManager.IsSliding()
+        || m_parts->toolbars.IsMenuOpen() || m_parts->preview.GetToolbar().IsMenuOpen()
+        || m_parts->toolbars.WantsTick() || m_parts->preview.GetToolbar().WantsTick()
         || GetPopupHost()->GetContextMenu().IsVisible() || GetPopupHost()->GetContextMenu().WantsTick()
-        || m_input.HasCaretFocus();
+        || m_parts->input.HasCaretFocus();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetTabManager
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExplorerTabManager & CassoExplorerWindow::GetTabManager()
+{
+    return m_parts->tabManager;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetCassoLinkManager
+//
+////////////////////////////////////////////////////////////////////////////////
+
+CassoLinkManager & CassoExplorerWindow::GetCassoLinkManager()
+{
+    return m_parts->cassoLinkManager;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::GetCursorForPoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR CassoExplorerWindow::GetCursorForPoint (POINT clientPx) const
+{
+    return m_parts->input.GetCursorForPoint (clientPx);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::OnMouse (const DxuiMouseEvent & ev)
+{
+    return m_parts->input.HandleMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CassoExplorerWindow::OnKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool CassoExplorerWindow::OnKey (const DxuiKeyEvent & ev)
+{
+    return m_parts->input.HandleKey (ev);
 }

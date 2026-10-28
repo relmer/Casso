@@ -5,6 +5,17 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "resource.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/Window/Panes/ExplorerTreePane.h"
+#include "Seams/Win32ShellItemVerbs.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Panes/ExplorerAddressBar.h"
+#include "CassoExplorer/Window/Managers/ExplorerTabManager.h"
+#include "CassoExplorer/Window/Managers/ExplorerPreviewManager.h"
+#include "Seams/Win32ShellIcons.h"
+#include "CassoExplorer/Window/Managers/ExplorerFolderSync.h"
+#include "CassoExplorer/Window/Managers/ExplorerFileOps.h"
 
 
 

@@ -1345,7 +1345,18 @@ waits for this phase, so it is tested once.
   files this branch did not add lines to. The reviewer found no behavior
   change.
 
-**Dependencies**: in order. T214 follows T289.
+- [X] T290 Cut the window header's includes: move its components and services into
+  a class in `Window/` that the window accesses through a pointer, so the
+  header includes only what the window's declarations use.
+  Done: `ExplorerWindowParts`; the header includes `ExplorerContext.h` and
+  `IExplorerWindow.h`, and each component's .cpp includes the headers it
+  uses.
+- [ ] T291 Sweep the tree's CS0019 and CS0025 backlog with
+  `scripts/FixDeclAlign.ps1 -Apply`, before the master merge, since CI runs
+  `CheckStyle -Mode Tree`. The owner deferred it (2026-10-28).
+
+**Dependencies**: in order. T214 follows T290; T291 precedes the master merge.
+The product-wide styles are GitHub issue #179.
 ## Section H dependencies
 
 - **Phase 16 first.** T181 before T182 to T186.

@@ -4,6 +4,13 @@
 #include "CassoExplorer/CassoExplorerShell.h"
 #include "CassoExplorer/Model/SearchQuery.h"
 #include "CassoExplorer/Window/ExplorerMetrics.h"
+#include "CassoExplorer/Window/Managers/ExplorerMenus.h"
+#include "CassoExplorer/Window/Panes/ExplorerListPane.h"
+#include "CassoExplorer/Window/Managers/ExplorerInput.h"
+#include "Seams/Win32ShellItemVerbs.h"
+#include "Seams/Win32ShellIcons.h"
+#include "CassoExplorer/Window/Managers/ExplorerLayout.h"
+#include "CassoExplorer/CassoExplorerCommands.h"
 
 
 
