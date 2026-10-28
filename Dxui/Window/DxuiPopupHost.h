@@ -268,19 +268,19 @@ public:
     //  closes the popup once `AdvanceReveal` reports it is finished. A
     //  tooltip that vanished on the frame its time ran out looked like a
     //  glitch rather than a dismissal.
-    void     BeginFadeOut  (int durationMs);
-    bool     AdvanceReveal (int64_t nowMs);
-    void     ApplyReveal    (float t);
-    void     StartCompositorSlide (int fullW, int fullH);
-    void  SetSlideCloaked (bool cloaked);
-    void     SetSlide      (float offsetY, const D2D1_RECT_F * clip);
+    void  BeginFadeOut         (int durationMs);
+    bool  AdvanceReveal        (int64_t nowMs);
+    void  ApplyReveal          (float t);
+    void  StartCompositorSlide (int fullW, int fullH);
+    void  SetSlideCloaked      (bool cloaked);
+    void  SetSlide             (float offsetY, const D2D1_RECT_F * clip);
     static constexpr float  kSlideFraction = 0.5f;
 
     //  Whether a popup that asks for acrylic gets it: the system's
     //  transparency effects are on and the window manager can show what is
     //  behind a window. Otherwise its card is filled opaque.
     static bool  IsAcrylicAvailable ();
-    bool     IsRevealing   () const { return m_revealing; }
+    bool         IsRevealing        () const { return m_revealing; }
 
     //
     //  Measure the natural extent of `text` (in DIPs) through the
@@ -378,14 +378,14 @@ private:
     //
     DxuiPopupHost *          FindAncestorAt  (POINT clientPx, POINT & outCardPx) const;
 
-    HRESULT  EnsureWindowClass               ();
-    HRESULT  CreateHwndAndComposition        (const RECT & placedRectScreenPx);
-    HRESULT  CreateComposition               (int widthPx, int heightPx);
-    void     SetCompositionSize              (int widthPx, int heightPx);
-    void     ApplyAcrylic                    ();
-    HRESULT  PaintAcrylicShadow              ();
-    static void  EnsureDispatcherQueue       ();
-    void     DestroyHwndAndComposition       ();
+    HRESULT      EnsureWindowClass         ();
+    HRESULT      CreateHwndAndComposition  (const RECT & placedRectScreenPx);
+    HRESULT      CreateComposition         (int widthPx, int heightPx);
+    void         SetCompositionSize        (int widthPx, int heightPx);
+    void         ApplyAcrylic              ();
+    HRESULT      PaintAcrylicShadow        ();
+    static void  EnsureDispatcherQueue     ();
+    void         DestroyHwndAndComposition ();
 
     //
     //  Back-buffer render-target management. CreateBackBufferRtv binds

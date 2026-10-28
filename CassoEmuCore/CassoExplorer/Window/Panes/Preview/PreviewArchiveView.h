@@ -27,7 +27,7 @@ public:
     PreviewArchiveView (PreviewListingView & listing, ExplorerContext & context);
 
     //  True when the event is taken here.
-    bool  HandleMouse         (const DxuiMouseEvent & ev, POINT point);
+    bool  HandleMouse     (const DxuiMouseEvent & ev, POINT point);
     void  OpenRow         (int row);
     void  CopySelection   (bool cut);
     void  DeleteSelection ();

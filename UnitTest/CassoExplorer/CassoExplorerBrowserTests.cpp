@@ -108,9 +108,9 @@ public:
 
     struct Host
     {
-        InMemoryFileSystem  fs;
-        FakeDiskFileIo      io;
-        CassoExplorerBrowser      browser { fs, io };
+        InMemoryFileSystem    fs;
+        FakeDiskFileIo        io;
+        CassoExplorerBrowser  browser { fs, io };
 
         Host()
         {

@@ -171,7 +171,7 @@ public:
     //  Whether ADTPro's own client has sent a request since the host was
     //  made.
     bool             HasAdtProClient () const { return m_adtProServer.m_adtProClient; }
-    CassoLinkClient  GetClient () const { return m_client; }
+    CassoLinkClient  GetClient       () const { return m_client; }
 
     //  How long since the last byte arrived from the Apple.
     DWORD    GetSilenceMs () const;
@@ -297,20 +297,20 @@ private:
     std::shared_ptr<IByteStream>    m_stream;
     ICassoLinkFolder              & m_folder;
     ClockFn                         m_clock;
-    bool                            m_hasClient   = false;
+    bool                            m_hasClient       = false;
     CassoLinkClient                 m_client;
     std::vector<Byte>               m_program;
-    LinkChip                        m_programChip = LinkChip::Acia;
-    std::atomic<bool>                 m_cancelRequested { false };
-    std::atomic<bool>                 m_writing         { false };
-    std::mutex                        m_sendLock;
-    bool                              m_readyPending   = false;
-    std::atomic<uint64_t>             m_lastHeardMs { GetTickCount64() };
-    Byte                              m_progressStart  = 0;
-    Byte                              m_progressEnd    = 100;
+    LinkChip                        m_programChip     = LinkChip::Acia;
+    std::atomic<bool>               m_cancelRequested { false };
+    std::atomic<bool>               m_writing         { false };
+    std::mutex                      m_sendLock;
+    bool                            m_readyPending    = false;
+    std::atomic<uint64_t>           m_lastHeardMs     { GetTickCount64() };
+    Byte                            m_progressStart   = 0;
+    Byte                            m_progressEnd     = 100;
 
     //  The host's parts, each with the state it uses.
-    friend class CassoLinkAdtProServer;
-    CassoLinkAdtProServer  m_adtProServer { *this };
+    friend class           CassoLinkAdtProServer;
+    CassoLinkAdtProServer  m_adtProServer        { *this };
 };
 

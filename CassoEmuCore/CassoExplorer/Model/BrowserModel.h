@@ -87,9 +87,9 @@ public:
     size_t       GetTabCount    () const { return m_tabs.size(); }
     size_t       GetActiveIndex () const { return m_active; }
     size_t       GetNextIndex   () const;
-    const Tab &  GetTab         (size_t index) const { return m_tabs[index]; }
-    Tab &        GetActiveTab   ()                   { return m_tabs[m_active]; }
-    const Tab &  GetActiveTab   () const             { return m_tabs[m_active]; }
+    const Tab  & GetTab         (size_t index) const { return m_tabs[index]; }
+    Tab        & GetActiveTab   ()                   { return m_tabs[m_active]; }
+    const Tab  & GetActiveTab   () const             { return m_tabs[m_active]; }
     bool         HasTabs        () const             { return !m_tabs.empty(); }
 
     //  Navigation within the active tab.
@@ -105,9 +105,9 @@ public:
     void  SetGroup     (RowGrouping::Field field, bool descending);
 
     //  The catalog cache.
-    bool  TryGetCachedCatalog  (const std::wstring & imagePath, VolumeListing & outListing, VolumeKind & outKind) const;
-    void  CacheCatalog         (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
-    void  InvalidateCatalog    (const std::wstring & imagePath);
+    bool  TryGetCachedCatalog   (const std::wstring & imagePath, VolumeListing & outListing, VolumeKind & outKind) const;
+    void  CacheCatalog          (const std::wstring & imagePath, const VolumeListing & listing, VolumeKind kind);
+    void  InvalidateCatalog     (const std::wstring & imagePath);
     void  InvalidateAllCatalogs ();
 
     //  Every open tab's location, for persistence.
@@ -130,12 +130,12 @@ public:
     static void                         GetFolderChildren  (IFileSystem & fs, const Location & location, std::vector<AddressSegment> & outChildren);
 
 private:
-    static bool  IsSameImage (const std::wstring & a, const std::wstring & b);
-    static void  AppendHostSegments (const std::wstring & path, const AddressRoot & root, std::vector<AddressSegment> & outSegments);
+    static bool  IsSameImage           (const std::wstring & a, const std::wstring & b);
+    static void  AppendHostSegments    (const std::wstring & path, const AddressRoot & root, std::vector<AddressSegment> & outSegments);
     static void  AppendArchiveSegments (const Location & location, const AddressRoot & root, std::vector<AddressSegment> & outSegments);
-    static bool  IsHostFolder       (IFileSystem & fs, const std::wstring & path);
-    static bool  IsLabelBefore      (const AddressSegment & a, const AddressSegment & b);
-    static bool  TryParseLinkAddress (const std::wstring & path, const std::vector<std::wstring> & linkNames, Location & outLocation);
+    static bool  IsHostFolder          (IFileSystem & fs, const std::wstring & path);
+    static bool  IsLabelBefore         (const AddressSegment & a, const AddressSegment & b);
+    static bool  TryParseLinkAddress   (const std::wstring & path, const std::vector<std::wstring> & linkNames, Location & outLocation);
 
     std::vector<Tab>  m_tabs;
     size_t            m_active = 0;

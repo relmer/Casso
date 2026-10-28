@@ -30,9 +30,9 @@ public:
 
     //  A press on a divider or a header, the drag that follows and its
     //  release; each returns whether the header took the event.
-    bool  OnPress   (int lx, int ly);
-    bool  OnDrag    (int lx);
-    bool  OnRelease (int lx, int ly);
+    bool  OnPress          (int lx, int ly);
+    bool  OnDrag           (int lx);
+    bool  OnRelease        (int lx, int ly);
     bool  IsInteracting    () const { return m_resizeColumn >= 0 || m_headerPressCol >= 0; }
     bool  IsResizingColumn () const { return m_resizeColumn >= 0; }
 
@@ -44,7 +44,7 @@ public:
 
     int   HitTestColumnResize (int xPx, int yPx, int tolerancePx) const;
     int   HitTestHeaderColumn (int xPx, int yPx) const;
-    void                         SetColumnOrder (const std::vector<size_t> & order);
+    void  SetColumnOrder      (const std::vector<size_t> & order);
 
     int   GetColumnDropPosition (int xPx) const;
     static constexpr float  s_kExplorerTitleBandDip = 27.33f;   // the titles and dividers, from the bar's top
@@ -70,13 +70,13 @@ public:
 
     // The sub-focus and the paint markers move as a unit: a marker left
     // behind paints a focus cue on a control that no longer has focus.
-    void    ClearColumnFocusMarkers  ();
-    void    ReleaseKeyboardColumnFocus ();
-    bool    HandleKeyboardColumnKey  (WPARAM vk);
-    bool    OnKeyColumnResizeNav     (const DxuiKeyEvent & ev);
-    bool    OnKeyBodyHeaderNav       (const DxuiKeyEvent & ev);
-    void    ApplyBodyHeaderFocus     ();
-    void    MoveHeaderFocus          (int dir);
+    void  ClearColumnFocusMarkers    ();
+    void  ReleaseKeyboardColumnFocus ();
+    bool  HandleKeyboardColumnKey    (WPARAM vk);
+    bool  OnKeyColumnResizeNav       (const DxuiKeyEvent & ev);
+    bool  OnKeyBodyHeaderNav         (const DxuiKeyEvent & ev);
+    void  ApplyBodyHeaderFocus       ();
+    void  MoveHeaderFocus            (int dir);
 
     //  While a header is dragged, the others slide aside, as Explorer's do,
     //  to open a gap where it would land: each column eases from where it

@@ -87,7 +87,7 @@ public:
     //  Off keeps the history (F4, Alt+Down) without the chevron, as Explorer's
     //  bar has none.
     void  SetHistoryChevron (bool show)                           { m_historyChevron = show; LayoutSegments(); }
-    void  SetOnSubmit     (SubmitFn fn)                           { m_onSubmit    = std::move (fn); }
+    void  SetOnSubmit       (SubmitFn fn)                           { m_onSubmit    = std::move (fn); }
 
     //  The location's own icon at the bar's leading end, and a chevron after
     //  it that the host hangs the shell's roots from, as Explorer's bar has.
@@ -166,7 +166,7 @@ private:
 
     //  The history chevron's rect, empty when no callback is set. It sits at
     //  the trailing end, ahead of the clear button while the field is open.
-    RECT  GetHistoryRect () const;
+    RECT  GetHistoryRect    () const;
     bool  HasHistoryChevron () const { return m_onHistory && m_historyChevron; }
 
     std::vector<std::wstring>               m_labels;

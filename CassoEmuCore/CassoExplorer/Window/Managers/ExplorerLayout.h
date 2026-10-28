@@ -65,9 +65,9 @@ public:
     //  whole multiple -- 28, 37, 43, 51, 56, 65, 71, 84 and 99 pixels.
     static int  GetListRowHeightPx (UINT dpi);
 
-    void  ConfigureWidgets();
-    void  RecomputeLayout();
-    void  UpdateCommandBar();
+    void  ConfigureWidgets ();
+    void  RecomputeLayout  ();
+    void  UpdateCommandBar ();
 
     //  The part of a pane a message wraps within.
     RECT  GetMessageRect (const RECT & pane) const;

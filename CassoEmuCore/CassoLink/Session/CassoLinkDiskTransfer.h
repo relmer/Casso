@@ -39,11 +39,11 @@ public:
     //  Revolutions timed for a drive's speed, once a connection for each
     //  drive: about two seconds.
     static constexpr Byte  kTimedRevolutions = 10;
-    HRESULT  ReadWholeDisk (LinkOperation & operation);
+    HRESULT  ReadWholeDisk      (LinkOperation & operation);
     HRESULT  SaveUnreadableList (const LinkOperation & operation);
-    HRESULT  WriteWholeDisk (LinkOperation & operation);
-    HRESULT  ReadBootSector (LinkOperation & operation);
-    HRESULT  ReadTrack     (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable);
+    HRESULT  WriteWholeDisk     (LinkOperation & operation);
+    HRESULT  ReadBootSector     (LinkOperation & operation);
+    HRESULT  ReadTrack          (int drive, int track, std::vector<Byte> & sectors, std::vector<std::pair<int, int>> & unreadable);
     HRESULT  TimeDriveForFormat (int drive, Byte & outGap);
 
 private:

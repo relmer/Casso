@@ -26,10 +26,10 @@ class PreviewFindBar
 public:
     PreviewFindBar (ExplorerPreviewManager & preview, ExplorerContext & context);
 
-    void  Create          ();
-    void  HandleFocusChanged  (ExplorerPane focus);
-    bool  HandleBoxKey        (ExplorerPane focus, const DxuiKeyEvent & ev);
-    bool  IsCaretOn       (ExplorerPane focus) const;
+    void  Create             ();
+    void  HandleFocusChanged (ExplorerPane focus);
+    bool  HandleBoxKey       (ExplorerPane focus, const DxuiKeyEvent & ev);
+    bool  IsCaretOn          (ExplorerPane focus) const;
 
     DxuiToolbarEditBox *  GetSearchBox () { return &m_searchBox; }
     DxuiToolbarEditBox *  GetGoToBox   () { return &m_goToBox; }
@@ -39,9 +39,9 @@ public:
     bool  FocusGoTo       ();
     bool  FocusFind       ();
 
-    bool  CanFindNext     () const;
-    void  FindNext        (bool incremental = false);
-    void  GoToTyped       (const std::wstring & text);
+    bool  CanFindNext         () const;
+    void  FindNext            (bool incremental = false);
+    void  GoToTyped           (const std::wstring & text);
     void  HandleSearchChanged (const std::wstring & text);
 
 private:

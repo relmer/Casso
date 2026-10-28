@@ -34,28 +34,28 @@ public:
     void  ScrollByWheelDelta    (int wheelDelta, int linesPerNotch);
     int   GetWheelLinesPerNotch () const;
 
-    bool             IsScrollbarVisible        () const;
-    DxuiListViewTypes::ScrollbarMetrics GetScrollbarGeometry      () const;
-    bool             HitTestScrollbarThumb     (int xPx, int yPx) const;
-    bool             HitTestScrollbarTrack     (int xPx, int yPx) const;
-    bool             HitTestScrollbarArrowUp   (int xPx, int yPx) const;
-    bool             HitTestScrollbarArrowDown (int xPx, int yPx) const;
-    void             GetPageFromTrackClick        (int yPx);
-    void             BeginThumbDrag            (int grabYPx);
-    void             UpdateThumbDrag           (int yPx);
-    int   GetMaxLeftPx                 () const;
-    void  SetLeftPx                    (int leftPx);
-    void  ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch);
+    bool                                 IsScrollbarVisible           () const;
+    DxuiListViewTypes::ScrollbarMetrics  GetScrollbarGeometry         () const;
+    bool                                 HitTestScrollbarThumb        (int xPx, int yPx) const;
+    bool                                 HitTestScrollbarTrack        (int xPx, int yPx) const;
+    bool                                 HitTestScrollbarArrowUp      (int xPx, int yPx) const;
+    bool                                 HitTestScrollbarArrowDown    (int xPx, int yPx) const;
+    void                                 GetPageFromTrackClick        (int yPx);
+    void                                 BeginThumbDrag               (int grabYPx);
+    void                                 UpdateThumbDrag              (int yPx);
+    int                                  GetMaxLeftPx                 () const;
+    void                                 SetLeftPx                    (int leftPx);
+    void                                 ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch);
 
-    bool              IsHorzScrollbarVisible         () const;
-    DxuiListViewTypes::HorzScrollbarMetrics GetHorzScrollbarGeometry       () const;
-    bool              HitTestHorzScrollbarThumb      (int xPx, int yPx) const;
-    bool              HitTestHorzScrollbarTrack      (int xPx, int yPx) const;
-    bool              HitTestHorzScrollbarArrowLeft  (int xPx, int yPx) const;
-    bool              HitTestHorzScrollbarArrowRight (int xPx, int yPx) const;
-    void              GetPageFromHorzTrackClick         (int xPx);
-    void              BeginHorzThumbDrag             (int grabXPx);
-    void              UpdateHorzThumbDrag            (int xPx);
+    bool                                     IsHorzScrollbarVisible         () const;
+    DxuiListViewTypes::HorzScrollbarMetrics  GetHorzScrollbarGeometry       () const;
+    bool                                     HitTestHorzScrollbarThumb      (int xPx, int yPx) const;
+    bool                                     HitTestHorzScrollbarTrack      (int xPx, int yPx) const;
+    bool                                     HitTestHorzScrollbarArrowLeft  (int xPx, int yPx) const;
+    bool                                     HitTestHorzScrollbarArrowRight (int xPx, int yPx) const;
+    void                                     GetPageFromHorzTrackClick      (int xPx);
+    void                                     BeginHorzThumbDrag             (int grabXPx);
+    void                                     UpdateHorzThumbDrag            (int xPx);
 
     int   GetRequiredRowsForHeightPx (int heightPx) const;
     int   GetRequiredHeightPx        () const;
@@ -71,21 +71,21 @@ public:
     bool  CanLiftRows   () const;
 
     //  Rows the body shows at least part of: the whole ones, and a cut one.
-    int   GetShownRowCount () const;
-    DxuiListViewTypes::ScrollLayout ComputeScrollLayout () const;
+    int                              GetShownRowCount    () const;
+    DxuiListViewTypes::ScrollLayout  ComputeScrollLayout () const;
     //  A press on either bar, the thumb drag that follows and its release,
     //  and the wheel; each returns whether the bars took the event. Tick
     //  repeats a held arrow or track.
-    bool    OnPress   (int lx, int ly);
-    bool    OnDrag    (int lx, int ly);
-    bool    OnRelease ();
-    bool    OnWheel   (const DxuiMouseEvent & ev, bool inside);
-    void    Tick      (int64_t nowMs);
-    void    EndThumbDrag     ();
-    void    EndHorzThumbDrag ();
-    bool    IsThumbDragging     () const { return m_vertDragging; }
-    bool    IsHorzThumbDragging () const { return m_horzDragging; }
-    bool    IsInteracting       () const { return m_vertDragging || m_horzDragging || m_scrollRepeat != DxuiListViewTypes::ScrollRepeat::None; }
+    bool  OnPress             (int lx, int ly);
+    bool  OnDrag              (int lx, int ly);
+    bool  OnRelease           ();
+    bool  OnWheel             (const DxuiMouseEvent & ev, bool inside);
+    void  Tick                (int64_t nowMs);
+    void  EndThumbDrag        ();
+    void  EndHorzThumbDrag    ();
+    bool  IsThumbDragging     () const { return m_vertDragging; }
+    bool  IsHorzThumbDragging () const { return m_horzDragging; }
+    bool  IsInteracting       () const { return m_vertDragging || m_horzDragging || m_scrollRepeat != DxuiListViewTypes::ScrollRepeat::None; }
     void    PaintScrollbar          (IDxuiPainter  & painter,
                                      const DxuiListViewTypes::Palette & pal,
                                      float           x,

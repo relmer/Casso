@@ -34,12 +34,12 @@ public:
     //  Pointer events: the hover is cleared when the pointer moves off the
     //  strip, ahead of the window's other routing; the strip has the rest over
     //  it and while a tab is dragged.
-    void  ClearHoverOnLeave (const DxuiMouseEvent & ev);
-    bool  HandleCapturedMouse   (const DxuiMouseEvent & ev);
-    bool  HandleMouse           (const DxuiMouseEvent & ev);
-    bool  HandleEscapeKey       (const DxuiKeyEvent & ev);
-    bool  HandleKey             (const DxuiKeyEvent & ev) { return m_tabs->OnKey (ev); }
-    void  HandleFocusChanged    (bool focused) { m_tabs->OnFocusChanged (focused); }
+    void  ClearHoverOnLeave   (const DxuiMouseEvent & ev);
+    bool  HandleCapturedMouse (const DxuiMouseEvent & ev);
+    bool  HandleMouse         (const DxuiMouseEvent & ev);
+    bool  HandleEscapeKey     (const DxuiKeyEvent & ev);
+    bool  HandleKey           (const DxuiKeyEvent & ev) { return m_tabs->OnKey (ev); }
+    void  HandleFocusChanged  (bool focused) { m_tabs->OnFocusChanged (focused); }
 
     IDxuiControl *  GetControl () const { return m_tabs; }
     RECT            GetBounds  () const { return m_tabs->GetBounds(); }
@@ -53,25 +53,25 @@ public:
     //  over this window's tab strip, the gap it opens while it is, and the
     //  tab arriving on the drop, at the gap.
     bool  IsOverTabStrip (POINT screen) const;
-    void  HandleTabHover     (bool over, POINT screen);
+    void  HandleTabHover (bool over, POINT screen);
     void  AcceptTab      (BrowserModel::Tab tab);
     static constexpr int    kTabWidthDip    = 240;
     static constexpr int    kTabMinWidthDip = 100;
-    void  FillTabs();
+    void  FillTabs    ();
     void  SwitchToTab (size_t index);
 
     //  A tab dragged off the strip: the card that moves with the pointer, the
     //  other window's strip it is over, and where it goes on the drop -- into
     //  that window, or into a window of its own.
-    void   HandleTabDragMove       (int index, POINT client, bool tornOff);
-    void   HandleTabDragEnd        (int index, POINT client, bool tornOff);
-    void   CancelTabDrag       ();
-    void   ShowTabDragVisual   (int index, POINT screen);
-    CassoExplorerWindow *  FindTabStripAt (POINT screen) const;
-    static HWND            FindWindowBelow (HWND above, POINT screen);
-    void   SetTabDragTarget    (CassoExplorerWindow * target, POINT screen);
-    void   TearOffTab          (int index, POINT screen);
-    RECT   GetTearOffRect      (POINT screen) const;
+    void                   HandleTabDragMove (int index, POINT client, bool tornOff);
+    void                   HandleTabDragEnd  (int index, POINT client, bool tornOff);
+    void                   CancelTabDrag     ();
+    void                   ShowTabDragVisual (int index, POINT screen);
+    CassoExplorerWindow  * FindTabStripAt    (POINT screen) const;
+    static HWND            FindWindowBelow   (HWND above, POINT screen);
+    void                   SetTabDragTarget  (CassoExplorerWindow * target, POINT screen);
+    void                   TearOffTab        (int index, POINT screen);
+    RECT                   GetTearOffRect    (POINT screen) const;
 
     //  A tab closed by its button, its menu or Ctrl+W, or moved to another
     //  window. The last tab closes the window, as File Explorer's does.
@@ -80,8 +80,8 @@ public:
     //  The tab strip's menu, and the pieces the menus share: one command row,
     //  Copy as path over the selection, and Properties, which is Windows' own
     //  sheet for a host item and the catalog details for an entry in an image.
-    void  ShowTabContextMenu     (int x, int y, int index);
-    void  OpenInNewWindow     (const std::wstring & path);
+    void  ShowTabContextMenu (int x, int y, int index);
+    void  OpenInNewWindow    (const std::wstring & path);
 
 private:
 

@@ -46,23 +46,23 @@ public:
     //  Pointer events. The label tip follows every move; a drag armed on a
     //  node or one under way, and the hover's end, are ahead of the list's
     //  hit test; a press over the tree is after it.
-    void  UpdateLabelTip  (const DxuiMouseEvent & ev);
-    void  HideLabelTip    () { m_labelTip.Hide(); }
+    void  UpdateLabelTip      (const DxuiMouseEvent & ev);
+    void  HideLabelTip        () { m_labelTip.Hide(); }
     bool  HandleCapturedMouse (const DxuiMouseEvent & ev);
     bool  HandleMouse         (const DxuiMouseEvent & ev);
-    void  UpdateTip       (const DxuiMouseEvent & ev, POINT point);
+    void  UpdateTip           (const DxuiMouseEvent & ev, POINT point);
 
-    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT point) const;
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu     (POINT point) const;
     bool                            UpdateScrollbarHover (POINT at) { return m_tree->SetScrollbarHover (at); }
     bool                            TickScrollbars       (int64_t nowMs) { return m_tree->TickScrollbars (nowMs); }
 
     //  Keys, and focus.
-    bool            TryShortcutKey (const DxuiKeyEvent & ev, bool & outHandled);
+    bool            TryShortcutKey     (const DxuiKeyEvent & ev, bool & outHandled);
     bool            HandleKey          (const DxuiKeyEvent & ev) { return m_tree->OnKey (ev); }
     void            HandleFocusChanged (bool focused) { m_tree->OnFocusChanged (focused); }
-    IDxuiControl *  GetControl     () const { return m_tree; }
-    RECT            GetBounds      () const { return m_tree->GetBounds(); }
-    bool            IsInteracting  () const { return m_tree->IsInteracting(); }
+    IDxuiControl  * GetControl         () const { return m_tree; }
+    RECT            GetBounds          () const { return m_tree->GetBounds(); }
+    bool            IsInteracting      () const { return m_tree->IsInteracting(); }
 
     //  The location's node revealed: opened to, highlighted and scrolled into
     //  view. RefreshTree re-reads the tree, keeping what was open,

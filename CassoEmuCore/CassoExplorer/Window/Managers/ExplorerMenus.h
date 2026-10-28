@@ -62,31 +62,31 @@ public:
 
     //  The rows of the Sort, Group by and View menus, shared by the command
     //  bar and the list's background menu.
-    std::vector<DxuiPopupMenuItem>  GetSortChoices  ();
-    std::vector<DxuiPopupMenuItem>  GetGroupChoices ();
-    std::vector<DxuiPopupMenuItem>  GetViewChoices  ();
-    void                            AddViewMenus    (std::vector<DxuiPopupMenuItem> & items);
-    bool                            ShowScrollbarMenu (const DxuiMouseEvent & ev);
-    void  AddPackagedCommands     (std::vector<DxuiPopupMenuItem> & items);
-    void  AddPackagedCommandsFor  (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    void  AddPackagedEntry        (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
-    bool  AddWindowsCommands      (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
-    bool  GetSelectionKind        (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
+    std::vector<DxuiPopupMenuItem>  GetSortChoices         ();
+    std::vector<DxuiPopupMenuItem>  GetGroupChoices        ();
+    std::vector<DxuiPopupMenuItem>  GetViewChoices         ();
+    void                            AddViewMenus           (std::vector<DxuiPopupMenuItem> & items);
+    bool                            ShowScrollbarMenu      (const DxuiMouseEvent & ev);
+    void                            AddPackagedCommands    (std::vector<DxuiPopupMenuItem> & items);
+    void                            AddPackagedCommandsFor (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    void                            AddPackagedEntry       (std::vector<DxuiPopupMenuItem> & items, const Win32PackagedCommands::Entry & entry, const std::vector<std::wstring> & paths);
+    bool                            AddWindowsCommands     (std::vector<DxuiPopupMenuItem> & items, const std::vector<std::wstring> & paths, Win32PackagedCommands::ItemKind kind);
+    bool                            GetSelectionKind       (std::vector<std::wstring> & outPaths, Win32PackagedCommands::ItemKind & outKind) const;
 
-    void  ShowListHeaderMenu (int x, int y, int column);
+    void  ShowListHeaderMenu  (int x, int y, int column);
     void  ShowListContextMenu (int x, int y, int group = -1);
 
     void  AddMenuCommand         (std::vector<DxuiPopupMenuItem> & items, const wchar_t * label, std::function<void()> dispatch, const wchar_t * accelerator = L"", const wchar_t * menuGlyph = nullptr);
-    void  AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
-    static const wchar_t *  GetVerbGlyph (CassoExplorerActions::Verb verb);
-    static int              GetIconOrder (CassoExplorerActions::Verb verb);
-    void  ShowViewOnButton       ();
-    bool  IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
-    void  AddCopyAsMenu          (std::vector<DxuiPopupMenuItem> & items);
-    void  SetCommandBarDropDowns ();
+    void                    AddOpenWithMenu        (std::vector<DxuiPopupMenuItem> & items);
+    static const wchar_t  * GetVerbGlyph           (CassoExplorerActions::Verb verb);
+    static int              GetIconOrder           (CassoExplorerActions::Verb verb);
+    void                    ShowViewOnButton       ();
+    bool                    IsListVerbOffered      (CassoExplorerActions::Verb verb) const;
+    void                    AddCopyAsMenu          (std::vector<DxuiPopupMenuItem> & items);
+    void                    SetCommandBarDropDowns ();
 
-    static const wchar_t *  GetVerbLabel (CassoExplorerActions::Verb verb);
-    static const wchar_t *  GetVerbMenuGlyph (CassoExplorerActions::Verb verb);
+    static const wchar_t  * GetVerbLabel     (CassoExplorerActions::Verb verb);
+    static const wchar_t  * GetVerbMenuGlyph (CassoExplorerActions::Verb verb);
 
     //  File Explorer's own menu icons, read from its package on this machine
     //  for the theme in use, or null where it has none; Casso's own art for a

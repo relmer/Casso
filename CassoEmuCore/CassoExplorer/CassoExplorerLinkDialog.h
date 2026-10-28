@@ -65,8 +65,8 @@ public:
     static bool  UsesFolder    (LinkTransport transport)                 { return transport == LinkTransport::AdtProServer; }
 
     //  What the transport connects, for the line under the drop-down.
-    static const wchar_t *  GetNote              (LinkTransport transport);
-    static const wchar_t *  GetAddressPlaceholder (LinkTransport transport);
+    static const wchar_t  * GetNote               (LinkTransport transport);
+    static const wchar_t  * GetAddressPlaceholder (LinkTransport transport);
 
     //  The lines under the port, above the bootstrap speed and above the
     //  folder, and the info tip beside the handshake.
@@ -145,7 +145,7 @@ public:
         DxuiFieldError  * duplicate      = nullptr;
     };
 
-    void  Init (const Children & children);
+    void  Init              (const Children & children);
     void  SetOnChildPressed (std::function<void (IDxuiControl *)> fn) { m_onPressed = std::move (fn); }
 
     //  What the panel measures its note, its errors and its info tips with.
@@ -159,7 +159,7 @@ public:
 
     //  The rows placed again, after a row's visibility changes.
     void  Relayout () { Layout (GetBounds(), m_scaler); }
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    bool  OnMouse  (const DxuiMouseEvent & ev) override;
 
     static constexpr int  kLabelWidthDip    = 150;
     static constexpr int  kFallbackNoteDip  = 40;

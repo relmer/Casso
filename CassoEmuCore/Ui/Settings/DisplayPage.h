@@ -135,24 +135,24 @@ public:
     // Routes the owned dropdown's popup menu through the host's
     // popup-host pool so the menu HWND escapes the page's clipping
     // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
-    void  SetPopupHost          (DxuiHwndSource * host) { m_monitor.SetPopupHost (host); m_textColor.SetPopupHost (host); }
-    void  SetOnBrightnessChange     (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
-    void  SetOnContrastChange       (ContrastFn      fn) { m_onContrast      = std::move (fn); }
-    void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }
-    void  SetOnPersistenceChange    (PersistenceFn   fn) { m_onPersistence   = std::move (fn); }
-    void  SetOnMonitorChange        (MonitorFn       fn) { m_onMonitor       = std::move (fn); }
-    void  SetOnScanlinesEnChange    (ScanlinesEnFn   fn) { m_onScanlinesEn   = std::move (fn); }
-    void  SetOnScanlinesIntChange   (ScanlinesIntFn  fn) { m_onScanlinesInt  = std::move (fn); }
-    void  SetOnBloomEnChange        (BloomEnFn       fn) { m_onBloomEn       = std::move (fn); }
-    void  SetOnBloomRadiusChange    (BloomRadiusFn   fn) { m_onBloomRadius   = std::move (fn); }
-    void  SetOnBloomStrengthChange  (BloomStrengthFn fn) { m_onBloomStrength = std::move (fn); }
-    void  SetOnColorBleedEnChange   (ColorBleedEnFn  fn) { m_onColorBleedEn  = std::move (fn); }
-    void  SetOnColorBleedWChange    (ColorBleedWFn   fn) { m_onColorBleedW   = std::move (fn); }
-    void  SetOnPreview              (PreviewFn       fn) { m_onPreview       = std::move (fn); }
-    void  SetOnRestoreDefaults      (RestoreFn       fn) { m_onRestore       = std::move (fn); }
-    void  SetOnTextColorChange      (TextColorFn       fn) { m_onTextColor       = std::move (fn); }
-    void  SetOnTextColorCommit      (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
-    void  SetOnCustomColor          (CustomColorFn     fn) { m_onCustomColor     = std::move (fn); }
+    void  SetPopupHost             (DxuiHwndSource * host) { m_monitor.SetPopupHost (host); m_textColor.SetPopupHost (host); }
+    void  SetOnBrightnessChange    (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
+    void  SetOnContrastChange      (ContrastFn      fn) { m_onContrast      = std::move (fn); }
+    void  SetOnGammaChange         (GammaFn         fn) { m_onGamma         = std::move (fn); }
+    void  SetOnPersistenceChange   (PersistenceFn   fn) { m_onPersistence   = std::move (fn); }
+    void  SetOnMonitorChange       (MonitorFn       fn) { m_onMonitor       = std::move (fn); }
+    void  SetOnScanlinesEnChange   (ScanlinesEnFn   fn) { m_onScanlinesEn   = std::move (fn); }
+    void  SetOnScanlinesIntChange  (ScanlinesIntFn  fn) { m_onScanlinesInt  = std::move (fn); }
+    void  SetOnBloomEnChange       (BloomEnFn       fn) { m_onBloomEn       = std::move (fn); }
+    void  SetOnBloomRadiusChange   (BloomRadiusFn   fn) { m_onBloomRadius   = std::move (fn); }
+    void  SetOnBloomStrengthChange (BloomStrengthFn fn) { m_onBloomStrength = std::move (fn); }
+    void  SetOnColorBleedEnChange  (ColorBleedEnFn  fn) { m_onColorBleedEn  = std::move (fn); }
+    void  SetOnColorBleedWChange   (ColorBleedWFn   fn) { m_onColorBleedW   = std::move (fn); }
+    void  SetOnPreview             (PreviewFn       fn) { m_onPreview       = std::move (fn); }
+    void  SetOnRestoreDefaults     (RestoreFn       fn) { m_onRestore       = std::move (fn); }
+    void  SetOnTextColorChange     (TextColorFn       fn) { m_onTextColor       = std::move (fn); }
+    void  SetOnTextColorCommit     (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
+    void  SetOnCustomColor         (CustomColorFn     fn) { m_onCustomColor     = std::move (fn); }
 
     void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild   ();
@@ -212,7 +212,7 @@ private:
     static RECT  MakeRect (int l, int t, int w, int h);
 
     void  RefreshTextColorEnabled ();
-    bool  IsTextColorActive () const;
+    bool  IsTextColorActive       () const;
 
     SettingsPanelState   * m_state             = nullptr;
     int                    m_monitorIndex      = 0;

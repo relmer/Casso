@@ -130,22 +130,22 @@ public:
     //  they used to run separate copies of it that drifted.
     HRESULT  Build                (const MachineConfig & config);
 
-    HRESULT  CreateMemoryDevices  (const MachineConfig & config);
-    void     WireLanguageCard     ();
-    void     WireBankedRom        ();
-    static HRESULT ReadRomFileBytes (const std::string & path, std::vector<Byte> & out);
+    HRESULT         CreateMemoryDevices (const MachineConfig & config);
+    void            WireLanguageCard    ();
+    void            WireBankedRom       ();
+    static HRESULT  ReadRomFileBytes    (const std::string & path, std::vector<Byte> & out);
 
     //  Starts the printer drain on the host's ring unless it is running.
-    static void    StartPrinterDrain (MachineHost & host, PrinterWorker * worker, uint64_t * autoOpenActivity);
-    void     WirePageTable        ();
-    void     MarkVideoWatchPages  ();
-    void     RebuildBankingPages  ();
-    void     CreateVideoModes     ();
-    HRESULT  CreateCpu            (const MachineConfig & config);
-    void     WireJoyport          ();
-    void     WireCassettePort     ();
-    void     AttachSerialDevices  (const MachineConfig & config);
-    HRESULT  WireUthernet         (const MachineConfig & config);
+    static void  StartPrinterDrain   (MachineHost & host, PrinterWorker * worker, uint64_t * autoOpenActivity);
+    void         WirePageTable       ();
+    void         MarkVideoWatchPages ();
+    void         RebuildBankingPages ();
+    void         CreateVideoModes    ();
+    HRESULT      CreateCpu           (const MachineConfig & config);
+    void         WireJoyport         ();
+    void         WireCassettePort    ();
+    void         AttachSerialDevices (const MachineConfig & config);
+    HRESULT      WireUthernet        (const MachineConfig & config);
 
     Byte *   GetAuxRamBuffer      ();
     Byte *   GetMainRamBuffer     ();

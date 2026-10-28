@@ -1324,9 +1324,13 @@ waits for this phase, so it is tested once.
   separate issue.
   Done: `ExplorerTextStyles` and `ExplorerMetrics` in `Window/`; the
   dialogs' form rows share `ExplorerMetrics`' form metrics.
-- [ ] T287 Extend `scripts/CheckStyle.ps1` and `scripts/FixDeclAlign.ps1`
+- [X] T287 Extend `scripts/CheckStyle.ps1` and `scripts/FixDeclAlign.ps1`
   to align function declarations' `(` columns, the `*` and `&` column,
   and brace initializers, and sweep the backlog it finds.
+  Done: CS0025 for a header's function declaration runs, and CS0019 takes
+  brace initializers; the fixer has `-Paths`. Every file where this
+  branch's lines broke them is swept. The rest of the tree, which CI's
+  `-Mode Tree` reports, is swept before the master merge.
 - [ ] T288 Order every header in the window and its components: friends,
   constructor and destructor, public, protected, private, with the `OnXxx`
   handlers together; move the declarations' comments to the

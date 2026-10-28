@@ -31,11 +31,11 @@ public:
 
     //  The watch on the folders on display, and the polls for drives and
     //  Quick access; a change posted by the watch, and its settle timer.
-    void  StartWatch    ();
-    void  StartPolling  ();
+    void  StartWatch          ();
+    void  StartPolling        ();
     void  HandleFolderChanged ();
-    void  HandleSettleTimer ();
-    bool  IsWatching    () const { return m_folderWatch != nullptr; }
+    void  HandleSettleTimer   ();
+    bool  IsWatching          () const { return m_folderWatch != nullptr; }
 
     //  File Explorer's Quick access, pinned and frequent folders alike, is the
     //  jump list of this application id, in the Recent folder's
@@ -48,17 +48,17 @@ public:
     void  UpdateWatchedFolders ();
 
     //  Re-reads whatever the watcher reported, once the burst has settled.
-    void  RefreshChangedFolders ();
-    bool  IsShownFolderIn       (const std::vector<std::wstring> & folders) const;
-    bool  RefreshOpenTreeFolders (const std::vector<std::wstring> & folders);
-    static bool  IsSameFolder   (const std::wstring & a, const std::wstring & b);
-    void  RefreshAfterHostChange ();
-    void  ReloadKnownFolders     ();
-    void  ReloadKnownFoldersIfChanged ();
-    void  RefreshQuickAccessIfChanged ();
-    static int64_t  GetQuickAccessStamp (const std::wstring & directory);
-    void  CheckDrives            ();
-    void  ChangeKnownFolder   (const std::wstring & folder, bool add);
+    void            RefreshChangedFolders       ();
+    bool            IsShownFolderIn             (const std::vector<std::wstring> & folders) const;
+    bool            RefreshOpenTreeFolders      (const std::vector<std::wstring> & folders);
+    static bool     IsSameFolder                (const std::wstring & a, const std::wstring & b);
+    void            RefreshAfterHostChange      ();
+    void            ReloadKnownFolders          ();
+    void            ReloadKnownFoldersIfChanged ();
+    void            RefreshQuickAccessIfChanged ();
+    static int64_t  GetQuickAccessStamp         (const std::wstring & directory);
+    void            CheckDrives                 ();
+    void            ChangeKnownFolder           (const std::wstring & folder, bool add);
 
 private:
 

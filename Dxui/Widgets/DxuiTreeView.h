@@ -188,11 +188,11 @@ public:
         m_twistyPx    = m_scaler.ToPx (16);
     }
 
-    const std::vector<DxuiTreeNode> & GetNodes        () const { return m_nodes; }
-    int                           GetHighlight    () const { return m_highlight; }
-    int                           GetRowHeight    () const { return m_rowHeightPx; }
-    int                           GetVisibleCount () const { return (int) m_flatRows.size(); }
-    int                           GetHoverRow     () const { return m_hoverRow; }
+    const std::vector<DxuiTreeNode>  & GetNodes        () const { return m_nodes; }
+    int                                GetHighlight    () const { return m_highlight; }
+    int                                GetRowHeight    () const { return m_rowHeightPx; }
+    int                                GetVisibleCount () const { return (int) m_flatRows.size(); }
+    int                                GetHoverRow     () const { return m_hoverRow; }
 
     //  The row a drag would drop onto, drawn as a selected row other than the
     //  keyboard's; -1 for none.
@@ -204,10 +204,10 @@ public:
 
     // Returns the path-stack indices used to address the highlight
     // node within the nested tree. Empty if highlight is invalid.
-    std::vector<int>  GetPath   (int flatIndex) const;
-    bool              IsInteractive (int flatIndex) const;
-    const DxuiTreeNode *  GetNodeAt (int flatIndex) const;
-    DxuiTreeNode       *  GetNodeAtMutable (int flatIndex);
+    std::vector<int>      GetPath          (int flatIndex) const;
+    bool                  IsInteractive    (int flatIndex) const;
+    const DxuiTreeNode  * GetNodeAt        (int flatIndex) const;
+    DxuiTreeNode        * GetNodeAtMutable (int flatIndex);
 
     // HitTestRow maps (x, y) to a row, or -1 past the last one. Within a
     // row, HitTestTwisty finds the twisty, and HitTestToggle the checkbox
@@ -229,19 +229,19 @@ public:
 
     //  The row's icon and label as the row draws them, the box's top-left at
     //  the origin; and the fill behind them, opaque.
-    void      PaintLabel      (int flatRow, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    uint32_t  GetLabelFill    (int flatRow, const IDxuiTheme & theme) const;    bool  OnLButtonDown   (int x, int y);
-    bool  OnLButtonUp     (int x, int y);
-    bool  OnKey           (WPARAM vk);
+    void      PaintLabel   (int flatRow, IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    uint32_t  GetLabelFill (int flatRow, const IDxuiTheme & theme) const;    bool  OnLButtonDown   (int x, int y);
+    bool      OnLButtonUp  (int x, int y);
+    bool      OnKey        (WPARAM vk);
 
     //  Scrolling. The tree scrolls by whole rows, so the first row drawn is
     //  the unit the scrollbar and the wheel both move.
-    int   GetTopRow        () const  { return m_topRow; }
-    void  SetTopRow        (int row);
-    void  ScrollRows       (int delta)  { SetTopRow (m_topRow + delta); }
-    void  EnsureRowVisible (int flatRow);
-    int   GetRowCap        () const;
-    int   GetMaxTopRow     () const;
+    int   GetTopRow          () const  { return m_topRow; }
+    void  SetTopRow          (int row);
+    void  ScrollRows         (int delta)  { SetTopRow (m_topRow + delta); }
+    void  EnsureRowVisible   (int flatRow);
+    int   GetRowCap          () const;
+    int   GetMaxTopRow       () const;
     bool  IsScrollbarVisible () const;
 
     //  Horizontal scrolling, as in Explorer's navigation pane when nesting is
@@ -262,11 +262,11 @@ public:
 
     //  Windows' scrollbar menu when the point is on one of the bars, in the
     //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
-    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt);
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt);
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
-    bool                OnKey             (const DxuiKeyEvent   & ev) override;
-    void                OnFocusChanged    (bool focused) override { SetFocused (focused); }
-    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TreeView; }
+    bool                            OnKey             (const DxuiKeyEvent   & ev) override;
+    void                            OnFocusChanged    (bool focused) override { SetFocused (focused); }
+    DxuiAccessibleRole              GetAccessibleRole () const override { return DxuiAccessibleRole::TreeView; }
 
     // Force the flat-rows cache to repopulate. Public so tests can
     // mutate node state via NodeAtMutable then re-flatten.
@@ -292,14 +292,14 @@ private:
     };
 
 
-    void  FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
-    RowIds        GetRowIds     () const;
-    void          RestoreRowIds (const RowIds & ids);
-    std::wstring  GetRowId      (int flatRow) const;
+    void          FlattenRecursive (const DxuiTreeNode & node, std::vector<int> & path, int depth);
+    RowIds        GetRowIds        () const;
+    void          RestoreRowIds    (const RowIds & ids);
+    std::wstring  GetRowId         (int flatRow) const;
 
-    static void  MergeNodes (std::vector<DxuiTreeNode> & current, std::vector<DxuiTreeNode> fresh);
-    void  ToggleRow        (int flatRow);
-    int   SkipDividers     (int flatRow, int step) const;
+    static void  MergeNodes   (std::vector<DxuiTreeNode> & current, std::vector<DxuiTreeNode> fresh);
+    void         ToggleRow    (int flatRow);
+    int          SkipDividers (int flatRow, int step) const;
 
     static const DxuiTreeNode *  FindNodeRecursive (const std::vector<DxuiTreeNode> & nodes, const std::wstring & id);
 

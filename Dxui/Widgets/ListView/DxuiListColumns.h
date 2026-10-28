@@ -36,12 +36,12 @@ public:
     int   GetTotalMeasuredWidthPx   () const;
     void  MeasureColumnsPx          (IDxuiTextRenderer & text) const;
 
-    void  UpdateAutoFitFromRows     ();
-    void  ResetAutoFit              ();
+    void  UpdateAutoFitFromRows    ();
+    void  ResetAutoFit             ();
     int   GetVisibleColumnCount    () const;
     int   GetNthVisibleColumnIndex (int n) const;
     int   GetVisibleIndexOfColumn  (size_t absCol) const;
-    int   GetContentWidthPx            () const;
+    int   GetContentWidthPx        () const;
 
     bool  GetCellTextRectPx   (int row, size_t column, RECT & outRect) const;
     static constexpr float  s_kExplorerIconPadDip    = 4.67f;    // the name's icon, into its column
@@ -62,16 +62,16 @@ public:
     // Grow the monotonic auto-fit glyph counts from one row's cells (the
     // per-row half of UpdateAutoFitFromRows, used for the visible window in
     // virtual mode where m_list.m_rowData is empty).
-    void         NoteAutoFitRow      (const std::vector<DxuiListViewTypes::Cell> & cells) const;
-    int          GetColumnNaturalWidthPx (size_t c) const;
+    void  NoteAutoFitRow          (const std::vector<DxuiListViewTypes::Cell> & cells) const;
+    int   GetColumnNaturalWidthPx (size_t c) const;
 
     //  What a column's content wants, ignoring any override already on it, so
     //  fitting a column that has been dragged still measures the content.
     int          GetColumnContentWidthPx (IDxuiTextRenderer & text, size_t c) const;
 
     //  Applies a width a fit asked for, once the paint pass has measured it.
-    void         ApplyPendingFit         (IDxuiTextRenderer & text);
-    void    ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
+    void  ApplyPendingFit     (IDxuiTextRenderer & text);
+    void  ComputeColumnLayout (float fullW, std::vector<int> & xs, std::vector<int> & ws) const;
 
 private:
     friend class DxuiListView;

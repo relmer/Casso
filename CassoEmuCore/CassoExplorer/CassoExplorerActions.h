@@ -66,7 +66,7 @@ public:
     //  copy onto another: the bytes as stored, the type mapped between file
     //  systems. A folder is not copied.
     Outcome  CopyEntriesToAppleDrive (const std::string & sourceImage, VolumeKind sourceKind, const std::vector<std::string> & catalogPaths) { return m_appleDrive.CopyEntriesToAppleDrive (sourceImage, sourceKind, catalogPaths); }
-    Outcome  PutFiles       (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {}) { return m_copier.PutFiles (hostPaths, askAddress); }
+    Outcome  PutFiles                (const std::vector<std::wstring> & hostPaths, const AddressFn & askAddress = {}) { return m_copier.PutFiles (hostPaths, askAddress); }
 
     //  Host files and folders into a directory of an image, by Put's rules. A
     //  folder becomes a ProDOS directory with its contents; DOS 3.3 has no
@@ -113,7 +113,7 @@ public:
 
     //  Entries by catalog path, for the second half of a move. A path that
     //  lists is a directory, and goes with everything under it.
-    Outcome  DeleteEntries (const std::string & image, const std::vector<std::string> & catalogPaths);
+    Outcome  DeleteEntries  (const std::string & image, const std::vector<std::string> & catalogPaths);
     Outcome  BootSelected   ();
     Outcome  RenameSelected (const std::wstring & newName);
 
@@ -194,12 +194,12 @@ public:
 
     static Encoding  GetEncoding (const FileEntry & entry, VolumeKind kind);
 
-    static PutPlan  PlanPut (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
-    void            GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome) { m_appleDrive.GetAppleSingle (image, entry, hostPath, inOutOutcome); }
-    static std::wstring  DescribePlan (const PutPlan & plan, VolumeKind kind);
-    static PutPlan  PlanForced      (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
-    static PutPlan  PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind);
-    static void     SetTypedPayload (PutPlan & plan, const std::vector<Byte> & bytes, Byte type, bool hasAux, Word aux, bool isDos);
+    static PutPlan       PlanPut         (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind);
+    void                 GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, Outcome & inOutOutcome) { m_appleDrive.GetAppleSingle (image, entry, hostPath, inOutOutcome); }
+    static std::wstring  DescribePlan    (const PutPlan & plan, VolumeKind kind);
+    static PutPlan       PlanForced      (const std::wstring & hostName, const std::vector<Byte> & bytes, VolumeKind kind, Conversion conversion);
+    static PutPlan       PlanAppleSingle (const std::wstring & hostName, const AppleSingleFile & file, VolumeKind kind);
+    static void          SetTypedPayload (PutPlan & plan, const std::vector<Byte> & bytes, Byte type, bool hasAux, Word aux, bool isDos);
 
     //  A host file's stem as a legal catalog name: DOS 3.3 keeps up to 30
     //  printable characters; ProDOS keeps up to 15 of letters, digits and
@@ -230,11 +230,11 @@ private:
     WrittenFn               m_onWritten;
 
     //  The actions' parts, each with the state it uses.
-    friend class ActionsAppleDrive;
-    friend class ActionsCopy;
-    friend class ActionsGoTo;
-    ActionsAppleDrive  m_appleDrive { *this };
-    ActionsCopy  m_copier { *this };
-    ActionsGoTo  m_goTo { *this };
+    friend class       ActionsAppleDrive;
+    friend class       ActionsCopy;
+    friend class       ActionsGoTo;
+    ActionsAppleDrive  m_appleDrive      { *this };
+    ActionsCopy        m_copier          { *this };
+    ActionsGoTo        m_goTo            { *this };
 };
 

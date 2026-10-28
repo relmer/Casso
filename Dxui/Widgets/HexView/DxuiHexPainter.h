@@ -29,8 +29,8 @@ public:
 
     //  One row's bytes and marks, read straight from the source into the
     //  buffers the view reuses frame after frame.
-    int   ReadRow (uint64_t row);
-    void  PaintRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count);
+    int   ReadRow        (uint64_t row);
+    void  PaintRow       (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row, int count);
     void  EnsureCellSize (IDxuiTextRenderer & text, const IDxuiTheme & theme);
 
     //  One cell run of the fixed-width face, and the fill behind it.
@@ -38,10 +38,10 @@ public:
 
     //  The addresses' strength as a fraction of the bytes'.
     static constexpr float  s_kAddressStrength  = 0.55f;
-    std::wstring  FormatValue           (uint64_t value, int present) const;
-    uint32_t      GetByteColor          (const IDxuiTheme & theme, uint8_t mark) const;
-    void      PaintLineRow       (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row);
-    static void  FillCell (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
+    std::wstring  FormatValue  (uint64_t value, int present) const;
+    uint32_t      GetByteColor (const IDxuiTheme & theme, uint8_t mark) const;
+    void          PaintLineRow (IDxuiTextRenderer & text, const IDxuiTheme & theme, uint64_t row);
+    static void   FillCell     (IDxuiTextRenderer & text, const RECT & rect, uint32_t argb);
 
     static wchar_t  GetHexDigit      (int value);
     wchar_t         GetCharFor       (uint8_t byte) const;

@@ -33,10 +33,10 @@ public:
 
     struct Host
     {
-        InMemoryFileSystem  fs;
-        FakeDiskFileIo      io;
-        CassoExplorerBrowser      browser { fs, io };
-        CassoExplorerActions      actions { browser, fs };
+        InMemoryFileSystem         fs;
+        FakeDiskFileIo             io;
+        CassoExplorerBrowser       browser { fs, io };
+        CassoExplorerActions       actions { browser, fs };
         std::vector<std::wstring>  written;
 
         Host()

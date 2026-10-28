@@ -85,9 +85,9 @@ public:
     //  is given more.
     static constexpr float  kDefaultMaxTextWidthDip = 340.0f;
     void  SetMaxTextWidthDip (float dip) { m_maxTextWidthDip = dip; }
-    void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
-    void  SetViewportSize (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
-    void  SetTheme        (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
+    void  SetDpi             (UINT dpi) { m_scaler.SetDpi (dpi); }
+    void  SetViewportSize    (int widthPx, int heightPx) { m_viewportWPx = widthPx; m_viewportHPx = heightPx; }
+    void  SetTheme           (const IDxuiTheme & theme)  { m_bgArgb = theme.TooltipBackground(); m_borderArgb = theme.TooltipBorder(); m_textArgb = theme.TooltipForeground(); }
 
     //
     //  Opt-in popup hosting (FR-054 / FR-061). When a host is wired
@@ -104,9 +104,9 @@ public:
 
     //  False for a tip with no lifetime, such as an info tip's: it is up
     //  until RequestHide or HideImmediate takes it down.
-    void  SetExpires      (bool expires) { m_expires = expires; }
-    DxuiHwndSource *  GetPopupHost   () const { return m_popupHost;   }
-    DxuiPopupHost  *  GetActivePopup () const { return m_activePopup; }
+    void              SetExpires     (bool expires) { m_expires = expires; }
+    DxuiHwndSource  * GetPopupHost   () const { return m_popupHost;   }
+    DxuiPopupHost   * GetActivePopup () const { return m_activePopup; }
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
     void  RequestHide     (int64_t nowMs);
@@ -142,8 +142,8 @@ public:
     const std::wstring & GetText   () const { return m_text;    }
     const RECT         & GetAnchor () const { return m_anchor;  }
 
-    void  Paint           (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
-    const wchar_t *  GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
+    void             Paint   (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    const wchar_t  * GetFace () const { return m_monospace ? DxuiTheme::kMonoFace : DxuiTheme::GetUiFace(); }
 
     //
     //  IDxuiControl overrides — additive shims so DxuiTooltip can

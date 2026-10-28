@@ -36,9 +36,9 @@ public:
 
     //  The list and its message, as children of the window, and their
     //  settings and handlers once the window has its HWND.
-    void  Create    ();
-    void  Configure ();
-    void  Layout    (const RECT & rect);
+    void  Create             ();
+    void  Configure          ();
+    void  Layout             (const RECT & rect);
     RECT  GetListMessageRect () const;
 
     //  The message aligned for a link's buttons below it, or for none.
@@ -48,20 +48,20 @@ public:
     ExplorerListColumns &  GetColumns () { return m_columns; }
     ExplorerListMenus   &  GetMenus   () { return m_menus; }
 
-    void  FillList          ();
+    void  FillList              ();
     void  HandleShellListed     (const std::wstring & key);
-    bool  SelectRowNamed    (const std::wstring & name);
-    void  SizeListIcons     ();
-    void  RefreshListIcons  ();
+    bool  SelectRowNamed        (const std::wstring & name);
+    void  SizeListIcons         ();
+    void  RefreshListIcons      ();
     void  RefreshContentDetails ();
 
     //  The icons and the Content view's details, read on background threads;
     //  each thread posts to the window when some are in.
-    void  StartLoaders            ();
-    void  HandleIconsLoaded           ();
-    void  HandleContentDetailsArrived ();
-    bool  TryApplyContentDetails (int row, DxuiListView::Cell & name);
-    const std::vector<DxuiListView::Cell> &  GetListRowCells (int row);
+    void                                     StartLoaders                ();
+    void                                     HandleIconsLoaded           ();
+    void                                     HandleContentDetailsArrived ();
+    bool                                     TryApplyContentDetails      (int row, DxuiListView::Cell & name);
+    const std::vector<DxuiListView::Cell>  & GetListRowCells             (int row);
 
     //  What an empty list says, for the kind of thing being looked at.
     static std::wstring  GetEmptyLocationMessage (Location::Kind kind);
@@ -70,8 +70,8 @@ public:
     //  the pointer; a press over the list is after the tree's.
     bool  HandleCapturedMouse (const DxuiMouseEvent & ev);
     bool  HandleMouse         (const DxuiMouseEvent & ev);
-    void  UpdateTip       (const DxuiMouseEvent & ev, POINT point);
-    void  RefreshTip      ();
+    void  UpdateTip           (const DxuiMouseEvent & ev, POINT point);
+    void  RefreshTip          ();
 
     std::vector<DxuiPopupMenuItem>  GetScrollbarMenu     (const DxuiMouseEvent & ev) const;
     bool                            UpdateScrollbarHover (POINT at) { return m_list->SetScrollbarHover (at); }
@@ -82,9 +82,9 @@ public:
     bool            HandleShortcutKey  (const DxuiKeyEvent & ev);
     bool            HandleKey          (const DxuiKeyEvent & ev) { return m_list->OnKey (ev); }
     void            HandleFocusChanged (bool focused) { m_list->OnFocusChanged (focused); }
-    IDxuiControl *  GetControl     () const { return m_list; }
-    DxuiListView *  GetListView    () const { return m_list; }
-    RECT            GetBounds      () const { return m_list->GetBounds(); }
+    IDxuiControl  * GetControl         () const { return m_list; }
+    DxuiListView  * GetListView        () const { return m_list; }
+    RECT            GetBounds          () const { return m_list->GetBounds(); }
 
     //  Rows cut to the clipboard and not yet pasted, drawn dimmed.
     void  SetCutPaths   (std::vector<std::wstring> paths) { m_cutPaths = std::move (paths); }

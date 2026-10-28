@@ -1014,8 +1014,8 @@ void ExplorerCommandManager::RunVerb (CassoExplorerActions::Verb verb)
 
             if (answer == IDOK)
             {
-                ExplorerFileOps::UndoStep  step { ExplorerFileOps::UndoStep::Kind::ImageDelete, m_context.browser.GetLocation() };
-                wchar_t   temp[MAX_PATH] = {};
+                ExplorerFileOps::UndoStep  step           { ExplorerFileOps::UndoStep::Kind::ImageDelete, m_context.browser.GetLocation() };
+                wchar_t                    temp[MAX_PATH] = {};
 
                 //  An AppleSingle copy keeps each file's bytes, type and
                 //  address, so a put brings it back as it was. The copy holds

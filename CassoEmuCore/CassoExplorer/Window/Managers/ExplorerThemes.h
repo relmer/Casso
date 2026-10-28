@@ -26,9 +26,9 @@ class ExplorerThemes
 public:
     explicit ExplorerThemes (ExplorerContext & context);
 
-    void  ChooseInitial        ();
-    void  Apply                ();
-    void  AdoptSystemColors    ();
+    void  ChooseInitial            ();
+    void  Apply                    ();
+    void  AdoptSystemColors        ();
     void  HandleSystemThemeChanged ();
 
     //  The theme on a row of the Theme menu, in the menu's order; a theme by

@@ -86,12 +86,12 @@ public:
 
     std::wstring  MakeFreeFolderPath (const std::wstring & parent, const std::wstring & name);
     std::wstring  MakeFreeFilePath   (const std::wstring & folder, const std::wstring & name);
-    bool  TryGetHostEntry (const std::wstring & path, FileSystemEntry & outEntry);
+    bool          TryGetHostEntry    (const std::wstring & path, FileSystemEntry & outEntry);
     void  PutItems     (const std::string & image, VolumeKind kind, const std::string & directory,
                         const std::vector<std::wstring> & hostPaths, const ActionsTypes::AddressFn & askAddress, ActionsTypes::Conversion conversion, ActionsTypes::Outcome & inOutOutcome);
     void  PutFolder    (const std::string & image, VolumeKind kind, const std::string & directory,
                         const std::wstring & hostFolder, const ActionsTypes::AddressFn & askAddress, ActionsTypes::Conversion conversion, ActionsTypes::Outcome & inOutOutcome);
-    static void  Record (ActionsTypes::Outcome & inOutOutcome, const DiskOperations::Result & result, const std::string & catalogPath);
+    static void  Record        (ActionsTypes::Outcome & inOutOutcome, const DiskOperations::Result & result, const std::string & catalogPath);
     static void  KeepCreatedIn (ActionsTypes::Outcome & inOutOutcome, const std::string & directory);
 
 private:

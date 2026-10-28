@@ -41,7 +41,7 @@ public:
     //  monitor list, then a custom one in a color the user picks. A
     //  monochrome one draws hi-res and double hi-res as their bits, as Casso
     //  does, then tints the whole picture its color.
-    enum class Monitor { Color, Green, Amber, White, Custom };
+    enum class            Monitor       { Color, Green, Amber, White, Custom };
     static constexpr int  kMonitorCount = 5;
 
     //  The custom monitor's color until the user picks one.

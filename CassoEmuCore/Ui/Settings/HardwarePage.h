@@ -67,8 +67,8 @@ public:
     void  SetOnNotice          (std::function<void (const std::wstring &)> fn) { m_onNotice = std::move (fn); }
 
     // The PC's COM ports, offered for a //c serial port to connect to.
-    void  SetComPorts (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
-    const std::vector<std::wstring> &  GetComPorts () const { return m_comPorts; }
+    void                               SetComPorts (std::vector<std::wstring> ports) { m_comPorts = std::move (ports); }
+    const std::vector<std::wstring>  & GetComPorts () const { return m_comPorts; }
 
     // Routes the machine + speed dropdown menus through the supplied host's
     // popup pool so the menu HWND escapes the page's clipping bounds.
@@ -76,13 +76,13 @@ public:
 
     void  Rebuild    ();
 
-    DxuiComboBox       & GetMachineDropdown ()       { return m_machineDropdown; }
-    DxuiComboBox       & GetSpeedDropdown   ()       { return m_speed; }
-    const DxuiComboBox & GetSpeedDropdown   () const { return m_speed; }
-    DxuiTreeView       & GetTree ()       { return m_tree; }
-    const DxuiTreeView & GetTree () const { return m_tree; }
-    const std::vector<std::string> & GetMachines () const { return m_machines; }
-    int  GetActiveMachineIndex () const { return m_activeMachineIndex; }
+    DxuiComboBox                    & GetMachineDropdown    ()       { return m_machineDropdown; }
+    DxuiComboBox                    & GetSpeedDropdown      ()       { return m_speed; }
+    const DxuiComboBox              & GetSpeedDropdown      () const { return m_speed; }
+    DxuiTreeView                    & GetTree               ()       { return m_tree; }
+    const DxuiTreeView              & GetTree               () const { return m_tree; }
+    const std::vector<std::string>  & GetMachines           () const { return m_machines; }
+    int                               GetActiveMachineIndex () const { return m_activeMachineIndex; }
 
     // Friendly display name of the machine the dropdown currently shows
     // (e.g. "Apple ][") for the FR-131 restart notice. Empty if none.
@@ -125,10 +125,10 @@ public:
     static constexpr int       kSerialPortCount   = 2;
 
 private:
-    static RECT                    MakeRect (int l, int t, int w, int h);
-    static DxuiTreeCapabilityFlag  MapFlag  (CapabilityFlag flag);
-    static std::wstring            Widen    (const std::string & narrow);
-    void                           RebuildSerialPorts   (SettingsPanelState & state);
+    static RECT                    MakeRect           (int l, int t, int w, int h);
+    static DxuiTreeCapabilityFlag  MapFlag            (CapabilityFlag flag);
+    static std::wstring            Widen              (const std::string & narrow);
+    void                           RebuildSerialPorts (SettingsPanelState & state);
 
     // The spec block is CPU / Clock / Memory-header (3 fixed rows) + N dynamic
     // memory-region rows (one per region). The machine identity is shown by the

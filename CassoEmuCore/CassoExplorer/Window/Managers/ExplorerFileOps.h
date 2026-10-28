@@ -28,9 +28,9 @@ public:
 
     //  The rename box, as a child of the window, and the pointer and keys while
     //  a rename is open.
-    void  Create        ();
-    bool  IsRenaming    () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
-    int   GetRenameRow  () const { return m_renameRow; }
+    void  Create            ();
+    bool  IsRenaming        () const { return m_renameRow >= 0 || !m_renameTreeId.empty(); }
+    int   GetRenameRow      () const { return m_renameRow; }
     bool  HandleRenameMouse (const DxuiMouseEvent & ev);
     void  HandleRenameKey   (const DxuiKeyEvent & ev);
 
@@ -44,7 +44,7 @@ public:
     //  A machine's configuration with the user's changes to it from Casso's
     //  prefs file merged in, as Casso merges them; the file is only read.
     static HRESULT  MergeUserMachineDelta (const std::string & machine, IFileSystem & files, std::string & inoutJson);
-    void  OpenSelectedEntries     ();
+    void            OpenSelectedEntries   ();
 
     //  What Ctrl+Z puts back, as Explorer's undo does: a deletion to the
     //  Recycle Bin, a rename, a new folder, and inside a disk image a
@@ -71,32 +71,32 @@ public:
     bool                              CanUndo                   () const { return !m_undo.empty(); }
     const UndoStep &                  GetLastUndo               () const { return m_undo.back(); }
 
-    void                              PasteHere                 (const std::wstring & folder);
-    void                              BeginTreeRename           (const std::wstring & id);
-    void                              ShowHostProperties        (const std::vector<std::wstring> & paths);
-    void                              PasteIntoVolume           ();
-    void                              PushPutUndo               (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner);
-    CassoExplorerActions::AddressFn    MakeAddressPrompt();
-    CassoExplorerActions::CollisionFn  MakeCollisionPrompt();
-    std::wstring  GetPasteFolder () const;
-    void  CopyEntriesToClipboard (HostFileNaming::Style style);
+    void                               PasteHere              (const std::wstring & folder);
+    void                               BeginTreeRename        (const std::wstring & id);
+    void                               ShowHostProperties     (const std::vector<std::wstring> & paths);
+    void                               PasteIntoVolume        ();
+    void                               PushPutUndo            (const CassoExplorerActions::Outcome & outcome, const std::wstring & image, const std::string & inner);
+    CassoExplorerActions::AddressFn    MakeAddressPrompt      ();
+    CassoExplorerActions::CollisionFn  MakeCollisionPrompt    ();
+    std::wstring                       GetPasteFolder         () const;
+    void                               CopyEntriesToClipboard (HostFileNaming::Style style);
 
-    HRESULT  RecycleHostFiles (const std::vector<std::wstring> & paths);
-    void  CopySelectedPaths      ();
-    void  OpenEachSelected       ();
-    void  ShowRowProperties      (int row);
-    void  ShowLocationProperties (const Location & location);
-    void  ShowHostProperties     (const std::wstring & path);
-    bool  TryGetSelectedShellIds  (std::vector<std::wstring> & outIds) const;
-    void  DeleteSelectionPermanently ();
-    void  BeginRename         ();
-    void  EndRename           (bool commit);
-    void  InsertIntoDrive     (const std::wstring & imagePath, int drive);
-    void  OpenInNewCasso      (const std::wstring & imagePath);
-    HWND  FindCassoTarget     () const;
-    int   GetDefaultMachineDriveCount();
-    void  AskCassoToDescribe  ();
-    std::wstring  GetSelectedImagePath() const;
+    HRESULT       RecycleHostFiles            (const std::vector<std::wstring> & paths);
+    void          CopySelectedPaths           ();
+    void          OpenEachSelected            ();
+    void          ShowRowProperties           (int row);
+    void          ShowLocationProperties      (const Location & location);
+    void          ShowHostProperties          (const std::wstring & path);
+    bool          TryGetSelectedShellIds      (std::vector<std::wstring> & outIds) const;
+    void          DeleteSelectionPermanently  ();
+    void          BeginRename                 ();
+    void          EndRename                   (bool commit);
+    void          InsertIntoDrive             (const std::wstring & imagePath, int drive);
+    void          OpenInNewCasso              (const std::wstring & imagePath);
+    HWND          FindCassoTarget             () const;
+    int           GetDefaultMachineDriveCount ();
+    void          AskCassoToDescribe          ();
+    std::wstring  GetSelectedImagePath        () const;
 
     bool  CountDownRestore () { return --m_restoreTicks <= 0; }
 

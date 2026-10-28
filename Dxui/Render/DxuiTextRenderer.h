@@ -204,8 +204,8 @@ public:
                                    float         & outWidthDip,
                                    float         & outHeightDip) override;
 
-    HRESULT  MeasureStringGdi (const wchar_t * text, float fontSizePx, const wchar_t * fontFamily, float & outWidthPx) override { return m_gdi.MeasureStringGdi (text, fontSizePx, fontFamily, outWidthPx); }
-    HRESULT  GetLineHeightGdi (float fontSizePx, const wchar_t * fontFamily, float & outHeightPx) override { return m_gdi.GetLineHeightGdi (fontSizePx, fontFamily, outHeightPx); }
+    HRESULT  MeasureStringGdi  (const wchar_t * text, float fontSizePx, const wchar_t * fontFamily, float & outWidthPx) override { return m_gdi.MeasureStringGdi (text, fontSizePx, fontFamily, outWidthPx); }
+    HRESULT  GetLineHeightGdi  (float fontSizePx, const wchar_t * fontFamily, float & outHeightPx) override { return m_gdi.GetLineHeightGdi (fontSizePx, fontFamily, outHeightPx); }
     bool     SetGdiClassicText (bool on) override  { bool was = m_gdiClassic; m_gdiClassic = on; return was; }
 
     HRESULT  DrawSvgIcon       (const std::string & svg, float xDip, float yDip, float sizeDip) override { return m_icons.DrawSvgIcon (svg, xDip, yDip, sizeDip); }

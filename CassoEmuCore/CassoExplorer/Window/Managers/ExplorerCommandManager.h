@@ -40,23 +40,23 @@ public:
 
     //  The raw read and write pickers' own history, apart from other pickers.
     static constexpr GUID  s_kRawPickerGuid = { 0xe347dd39, 0x4a18, 0x4a0d, { 0x93, 0x4a, 0xfd, 0x63, 0xb7, 0x9c, 0xba, 0x3e } };
-    int   ChooseFormatDefault     (const std::wstring & image);
-    void  ExtractAll();
-    void  Dispatch     (int id);
-    bool  IsEnabled    (int id) const;
-    bool  IsChecked    (int id) const;
-    void  CreateDisk (const CassoExplorerNewDiskDialog::Outcome & newDisk);
-    void  ShowOptions            ();
-    bool  IsToolbarEntryAvailable (int index) const;
-    bool  IsCommandBarEntryAvailable (int index) const;
-    HostFileNaming::Style  GetNamingStyle () const;
-    void  RunVerb             (CassoExplorerActions::Verb verb);
-    bool  RunRecycleBinVerb (CassoExplorerActions::Verb verb);
-    std::wstring  GetCommandLabel (int id) const;
-    void  RunRawVerb          (CassoExplorerActions::Verb verb);
-    bool  IsRawTargetCurrent  (const std::wstring & target);
-    void  ReportOutcome       (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
-    void  ExtractImageFiles   (const std::wstring & imagePath);
+    int                    ChooseFormatDefault        (const std::wstring & image);
+    void                   ExtractAll                 ();
+    void                   Dispatch                   (int id);
+    bool                   IsEnabled                  (int id) const;
+    bool                   IsChecked                  (int id) const;
+    void                   CreateDisk                 (const CassoExplorerNewDiskDialog::Outcome & newDisk);
+    void                   ShowOptions                ();
+    bool                   IsToolbarEntryAvailable    (int index) const;
+    bool                   IsCommandBarEntryAvailable (int index) const;
+    HostFileNaming::Style  GetNamingStyle             () const;
+    void                   RunVerb                    (CassoExplorerActions::Verb verb);
+    bool                   RunRecycleBinVerb          (CassoExplorerActions::Verb verb);
+    std::wstring           GetCommandLabel            (int id) const;
+    void                   RunRawVerb                 (CassoExplorerActions::Verb verb);
+    bool                   IsRawTargetCurrent         (const std::wstring & target);
+    void                   ReportOutcome              (const CassoExplorerActions::Outcome & outcome, const wchar_t * verbName);
+    void                   ExtractImageFiles          (const std::wstring & imagePath);
 
 private:
 

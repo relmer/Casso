@@ -248,7 +248,7 @@ public:
     //  press anywhere else.
     void  SetFlatStyle (bool flat) { m_flat = flat; m_dropdown.SetGrabsCapture (!flat); m_dropdown.SetCompactRows (flat); }
     void  CloseMenu    ()          { m_dropdown.Hide(); }
-    void  TickMenus (int64_t nowMs) { m_dropdown.Tick (nowMs); }
+    void  TickMenus    (int64_t nowMs) { m_dropdown.Tick (nowMs); }
 
     void  Layout           (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint            (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -274,12 +274,12 @@ public:
     //  entry there is on the strip rather than in See more's menu.
     int   GetEntryCommandId (int index) const            { return (index >= 0 && index < (int) m_slots.size() && m_slots[(size_t) index].entry.command != nullptr) ? m_slots[(size_t) index].entry.command->id : 0; }
     bool  IsEntryShown      (int index) const            { return index >= 0 && index < (int) m_slots.size() && !m_slots[(size_t) index].hidden; }
-    void  SetFocusIndex    (int index);
-    int   GetFocusIndex    () const                      { return m_focusIndex; }
-    void  ActivateFocused  ();
-    bool  IsMenuOpen       () const;
-    bool  OwnsKeyboard     () const;
-    bool  HandleKey        (WPARAM vk);
+    void  SetFocusIndex     (int index);
+    int   GetFocusIndex     () const                      { return m_focusIndex; }
+    void  ActivateFocused   ();
+    bool  IsMenuOpen        () const;
+    bool  OwnsKeyboard      () const;
+    bool  HandleKey         (WPARAM vk);
 
     //  A drop-down's rows are commands too, typically with `isChecked`
     //  reading the application's current choice. Preview fires as the

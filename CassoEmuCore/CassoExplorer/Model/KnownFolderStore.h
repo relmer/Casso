@@ -90,7 +90,7 @@ public:
                                                        const std::wstring & baseDir,
                                                        const std::vector<Entry> & entries);
 
-    static std::wstring  GetFilePath (const std::wstring & baseDir);
+    static std::wstring  GetFilePath   (const std::wstring & baseDir);
     static bool          ArePathsEqual (const std::wstring & a, const std::wstring & b);
 
     static constexpr const wchar_t *  kFileName    = L"KnownFolders.json";
@@ -110,8 +110,8 @@ private:
 
     //  A folder given relative, as Casso's disk paths can be, is under the
     //  base folder those paths are relative to.
-    std::wstring  Resolve (const std::wstring & folder) const;
-    HRESULT  WriteEntries (const std::vector<Entry> & entries) const;
+    std::wstring  Resolve      (const std::wstring & folder) const;
+    HRESULT       WriteEntries (const std::vector<Entry> & entries) const;
 
     HANDLE   AcquireLock () const;
     void     ReleaseLock (HANDLE lock) const;

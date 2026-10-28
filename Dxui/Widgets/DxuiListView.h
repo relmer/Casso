@@ -52,7 +52,7 @@ public:
     //  left, the name's icon and each column's text where Explorer puts them,
     //  and a slightly shorter header. Off by default.
     void  SetExplorerDetails (bool on)                       { m_explorerDetails = on; }
-    void  SetHoveredRow   (int row)                        { m_hovered = row; if (row >= 0) { m_grouping.ClearHover(); } }
+    void  SetHoveredRow      (int row)                        { m_hovered = row; if (row >= 0) { m_grouping.ClearHover(); } }
 
     //  The row a drag would drop on, drawn as Explorer draws its drop target: in
     //  the hover fill, outlined in the accent. -1 draws none.
@@ -67,11 +67,11 @@ public:
     //  a Tab into the list does. A host giving focus for a click turns it off
     //  for that call: a click on empty space selects nothing, as in Explorer.
     void  SetSeedRowOnFocus (bool seed)                    { m_seedRowOnFocus = seed; }
-    void  SetSortIndicator (int column, bool descending)   { m_header.m_sortColumn = column; m_header.m_sortDescending = descending; }
-    void  SetRect         (const RECT & rect);
-    void  SetColumns      (std::vector<Column> cols);
-    void  SetRows         (std::vector<std::vector<Cell>> rows);
-    void  SetRowIcon      (int row, std::shared_ptr<const DxuiIconImage> icon);
+    void  SetSortIndicator  (int column, bool descending)   { m_header.m_sortColumn = column; m_header.m_sortDescending = descending; }
+    void  SetRect           (const RECT & rect);
+    void  SetColumns        (std::vector<Column> cols);
+    void  SetRows           (std::vector<std::vector<Cell>> rows);
+    void  SetRowIcon        (int row, std::shared_ptr<const DxuiIconImage> icon);
 
     //  A group set again under the same label keeps whether it was collapsed.
     void                        SetGroups          (std::vector<Group> groups) { m_grouping.SetGroups (groups); }
@@ -94,8 +94,8 @@ public:
     bool                        IsItemNameCut          (int row) const { return std::find (m_itemPainter.m_nameCut.begin(), m_itemPainter.m_nameCut.end(), row) != m_itemPainter.m_nameCut.end(); }
     //  The group whose header is under a point, in the same coordinates as
     //  HitTestRow, or -1.
-    int                         HitTestGroupHeader (int xPx, int yPx) const { return m_grouping.HitTestGroupHeader (xPx, yPx); }
-    void  AppendRows      (std::vector<std::vector<Cell>> rows);
+    int   HitTestGroupHeader (int xPx, int yPx) const { return m_grouping.HitTestGroupHeader (xPx, yPx); }
+    void  AppendRows         (std::vector<std::vector<Cell>> rows);
     void  SetRowProvider     (int rowCount, RowProvider provider);
     void  SetRowSource       (int rowCount, RowSource source);
     void  SetRowNameSource   (RowNameSource names)         { m_items.m_rowNames = std::move (names); }
@@ -200,8 +200,8 @@ public:
 
     //  Copy is offered once a window to own the clipboard is set: the selected
     //  rows as text, one to a line, their cells separated by tabs.
-    void                      SetOwnerWindow  (HWND hwnd)    { m_ownerHwnd = hwnd; }
-    std::wstring              GetSelectionText () const;
+    void          SetOwnerWindow   (HWND hwnd)    { m_ownerHwnd = hwnd; }
+    std::wstring  GetSelectionText () const;
 
     // Opt-in keyboard column navigation. When enabled, OnKey walks the
     // header / divider sub-stops and the list body via Tab and acts on
@@ -233,10 +233,10 @@ public:
 
     //  Whether a dragged header's neighbors are still sliding aside, so the
     //  host keeps painting until they settle.
-    bool  IsHeaderSliding   (int64_t nowMs) const { return m_header.IsHeaderSliding (nowMs); }
-    bool  IsOverBar         (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
-    POINT GetBarPoint       (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) ? pt : POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top }; }
-    int   GetTopRow             () const                 { return m_topRow; }
+    bool   IsHeaderSliding (int64_t nowMs) const { return m_header.IsHeaderSliding (nowMs); }
+    bool   IsOverBar       (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) || bar.HitTest (pt.x - m_boundsDip.left, pt.y - m_boundsDip.top); }
+    POINT  GetBarPoint     (const DxuiScrollbar & bar, POINT pt) const { return bar.HitTest (pt.x, pt.y) ? pt : POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top }; }
+    int    GetTopRow       () const                 { return m_topRow; }
 
     //  Draws the background and the header but no rows or bars while set, as
     //  File Explorer's list is drawn for a moment when it is refreshed.
@@ -261,17 +261,17 @@ public:
     // Scrollbar geometry & thumb-drag. xPx/yPx are relative to the
     // widget rect. The caller starts a drag with BeginThumbDrag and
     // forwards subsequent mouse-move y values via UpdateThumbDrag.
-    bool             IsScrollbarVisible        () const { return m_scrollbars.IsScrollbarVisible(); }
-    ScrollbarMetrics GetScrollbarGeometry      () const { return m_scrollbars.GetScrollbarGeometry(); }
-    bool             HitTestScrollbarThumb     (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarThumb (xPx, yPx); }
-    bool             HitTestScrollbarTrack     (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarTrack (xPx, yPx); }
-    bool             HitTestScrollbarArrowUp   (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarArrowUp (xPx, yPx); }
-    bool             HitTestScrollbarArrowDown (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarArrowDown (xPx, yPx); }
-    void             GetPageFromTrackClick        (int yPx) { m_scrollbars.GetPageFromTrackClick (yPx); }
-    void             BeginThumbDrag            (int grabYPx) { m_scrollbars.BeginThumbDrag (grabYPx); }
-    void             UpdateThumbDrag           (int yPx) { m_scrollbars.UpdateThumbDrag (yPx); }
-    void             EndThumbDrag              () { m_scrollbars.EndThumbDrag(); }
-    bool             IsThumbDragging           () const { return m_scrollbars.IsThumbDragging(); }
+    bool              IsScrollbarVisible        () const { return m_scrollbars.IsScrollbarVisible(); }
+    ScrollbarMetrics  GetScrollbarGeometry      () const { return m_scrollbars.GetScrollbarGeometry(); }
+    bool              HitTestScrollbarThumb     (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarThumb (xPx, yPx); }
+    bool              HitTestScrollbarTrack     (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarTrack (xPx, yPx); }
+    bool              HitTestScrollbarArrowUp   (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarArrowUp (xPx, yPx); }
+    bool              HitTestScrollbarArrowDown (int xPx, int yPx) const { return m_scrollbars.HitTestScrollbarArrowDown (xPx, yPx); }
+    void              GetPageFromTrackClick     (int yPx) { m_scrollbars.GetPageFromTrackClick (yPx); }
+    void              BeginThumbDrag            (int grabYPx) { m_scrollbars.BeginThumbDrag (grabYPx); }
+    void              UpdateThumbDrag           (int yPx) { m_scrollbars.UpdateThumbDrag (yPx); }
+    void              EndThumbDrag              () { m_scrollbars.EndThumbDrag(); }
+    bool              IsThumbDragging           () const { return m_scrollbars.IsThumbDragging(); }
 
     // Horizontal scroll (opt-in via SetHorizontalScrollEnabled; default
     // off so existing consumers are unaffected). When enabled and the
@@ -305,17 +305,17 @@ public:
     void  SetLeftPx                    (int leftPx) { m_scrollbars.SetLeftPx (leftPx); }
     void  ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch) { m_scrollbars.ScrollByWheelDeltaHorizontal (wheelDelta, pxPerNotch); }
 
-    bool              IsHorzScrollbarVisible         () const { return m_scrollbars.IsHorzScrollbarVisible(); }
-    HorzScrollbarMetrics GetHorzScrollbarGeometry       () const { return m_scrollbars.GetHorzScrollbarGeometry(); }
-    bool              HitTestHorzScrollbarThumb      (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarThumb (xPx, yPx); }
-    bool              HitTestHorzScrollbarTrack      (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarTrack (xPx, yPx); }
-    bool              HitTestHorzScrollbarArrowLeft  (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarArrowLeft (xPx, yPx); }
-    bool              HitTestHorzScrollbarArrowRight (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarArrowRight (xPx, yPx); }
-    void              GetPageFromHorzTrackClick         (int xPx) { m_scrollbars.GetPageFromHorzTrackClick (xPx); }
-    void              BeginHorzThumbDrag             (int grabXPx) { m_scrollbars.BeginHorzThumbDrag (grabXPx); }
-    void              UpdateHorzThumbDrag            (int xPx) { m_scrollbars.UpdateHorzThumbDrag (xPx); }
-    void              EndHorzThumbDrag               () { m_scrollbars.EndHorzThumbDrag(); }
-    bool              IsHorzThumbDragging            () const { return m_scrollbars.IsHorzThumbDragging(); }
+    bool                  IsHorzScrollbarVisible         () const { return m_scrollbars.IsHorzScrollbarVisible(); }
+    HorzScrollbarMetrics  GetHorzScrollbarGeometry       () const { return m_scrollbars.GetHorzScrollbarGeometry(); }
+    bool                  HitTestHorzScrollbarThumb      (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarThumb (xPx, yPx); }
+    bool                  HitTestHorzScrollbarTrack      (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarTrack (xPx, yPx); }
+    bool                  HitTestHorzScrollbarArrowLeft  (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarArrowLeft (xPx, yPx); }
+    bool                  HitTestHorzScrollbarArrowRight (int xPx, int yPx) const { return m_scrollbars.HitTestHorzScrollbarArrowRight (xPx, yPx); }
+    void                  GetPageFromHorzTrackClick      (int xPx) { m_scrollbars.GetPageFromHorzTrackClick (xPx); }
+    void                  BeginHorzThumbDrag             (int grabXPx) { m_scrollbars.BeginHorzThumbDrag (grabXPx); }
+    void                  UpdateHorzThumbDrag            (int xPx) { m_scrollbars.UpdateHorzThumbDrag (xPx); }
+    void                  EndHorzThumbDrag               () { m_scrollbars.EndHorzThumbDrag(); }
+    bool                  IsHorzThumbDragging            () const { return m_scrollbars.IsHorzThumbDragging(); }
 
     // Sizing helpers (the host dialog uses these to size itself).
     int   GetRequiredRowsForHeightPx (int heightPx) const { return m_scrollbars.GetRequiredRowsForHeightPx (heightPx); }
@@ -382,7 +382,7 @@ public:
     // time. Selection still follows every click, and keyboard activation
     // (Enter / Space) is unaffected.
     void  SetActivateOnDoubleClick (bool enabled)                { m_rows.SetActivateOnDoubleClick (enabled); }
-    void  SetClock (ClockFn clock)                               { m_keyboard.m_clock = std::move (clock); }
+    void  SetClock                 (ClockFn clock)                               { m_keyboard.m_clock = std::move (clock); }
 
     //  Whether a page slides into view, as Explorer's does. Off by default.
     void  SetPageSlideEnabled (bool enabled)                     { m_items.m_pageSlideEnabled = enabled; }
@@ -412,8 +412,8 @@ public:
     //  The order the columns are shown in, left to right, as indexes into the
     //  columns; SetColumns starts it in their own order. A header dragged along
     //  the strip moves its column, as in Explorer, and reports the new order.
-    const std::vector<size_t> &  GetColumnOrder () const { return m_header.GetColumnOrder(); }
-    void                         SetColumnOrder (const std::vector<size_t> & order) { m_header.SetColumnOrder (order); }
+    const std::vector<size_t>  & GetColumnOrder        () const { return m_header.GetColumnOrder(); }
+    void                         SetColumnOrder        (const std::vector<size_t> & order) { m_header.SetColumnOrder (order); }
     void                         SetOnColumnsReordered (std::function<void (const std::vector<size_t> &)> cb) { m_header.m_onColumnsReordered = std::move (cb); }
 
     //  Where a column dropped at this point goes, as a position in the order.
@@ -451,14 +451,14 @@ public:
 
     //  Windows' scrollbar menu when the point is on one of the bars, in the
     //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
-    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt);
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt);
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (POINT { pt.x - m_boundsDip.left, pt.y - m_boundsDip.top })); }
-    LPCWSTR             GetCursorForPoint (POINT clientPx) const       override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override;
-    bool                QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
-    bool                InvokeCommand  (DxuiStandardCommand command) override;
-    void                OnFocusChanged (bool focused) override;
-    DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::ListView; }
+    LPCWSTR                         GetCursorForPoint (POINT clientPx) const       override;
+    bool                            OnKey             (const DxuiKeyEvent   & ev) override;
+    bool                            QueryCommand      (DxuiStandardCommand command, bool & outEnabled) const override;
+    bool                            InvokeCommand     (DxuiStandardCommand command) override;
+    void                            OnFocusChanged    (bool focused) override;
+    DxuiAccessibleRole              GetAccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 
 private:
     static constexpr int    s_kRowHeightDip          = 30;
@@ -487,8 +487,8 @@ private:
 
     //  Lines are what Details view stacks and scrolls by: each row, and a
     //  header above each group. Without groups a line is a row.
-    bool  HasGroupLines  () const { return !m_grouping.m_groups.empty() && !IsItemsView(); }
-    static bool  IsAtPageEdge           (int cur, int edge, bool down) { return cur >= 0 && (down ? cur >= edge : cur <= edge); }
+    bool         HasGroupLines () const { return !m_grouping.m_groups.empty() && !IsItemsView(); }
+    static bool  IsAtPageEdge  (int cur, int edge, bool down) { return cur >= 0 && (down ? cur >= edge : cur <= edge); }
 
     static constexpr int64_t  s_kPageSlideMs = 175;
     int                     GetShownScrollPx   () const { return m_items.GetRestScrollPx() - m_items.GetPageSlidePx(); }
@@ -606,27 +606,27 @@ private:
 
 
     //  The list's parts, each with the state it uses.
-    friend class DxuiListScrollbars;
-    friend class DxuiListGroups;
-    friend class DxuiListHeader;
-    friend class DxuiListKeyboard;
-    friend class DxuiListItemLayout;
-    friend class DxuiListItemKeys;
-    friend class DxuiListItemPainter;
-    friend class DxuiListColumns;
-    friend class DxuiListRows;
-    friend class DxuiListBand;
-    friend class DxuiListFlowLayout;
-    DxuiListScrollbars  m_scrollbars { *this };
-    DxuiListGroups  m_grouping { *this };
-    DxuiListHeader  m_header { *this };
-    DxuiListKeyboard  m_keyboard { *this };
-    DxuiListItemLayout  m_items { *this };
-    DxuiListItemKeys  m_itemKeys { *this };
-    DxuiListItemPainter  m_itemPainter { *this };
-    DxuiListColumns  m_columnSizing { *this };
-    DxuiListRows  m_rows { *this };
-    DxuiListBand  m_band { *this };
-    DxuiListFlowLayout  m_flow { *this };
+    friend class         DxuiListScrollbars;
+    friend class         DxuiListGroups;
+    friend class         DxuiListHeader;
+    friend class         DxuiListKeyboard;
+    friend class         DxuiListItemLayout;
+    friend class         DxuiListItemKeys;
+    friend class         DxuiListItemPainter;
+    friend class         DxuiListColumns;
+    friend class         DxuiListRows;
+    friend class         DxuiListBand;
+    friend class         DxuiListFlowLayout;
+    DxuiListScrollbars   m_scrollbars        { *this };
+    DxuiListGroups       m_grouping          { *this };
+    DxuiListHeader       m_header            { *this };
+    DxuiListKeyboard     m_keyboard          { *this };
+    DxuiListItemLayout   m_items             { *this };
+    DxuiListItemKeys     m_itemKeys          { *this };
+    DxuiListItemPainter  m_itemPainter       { *this };
+    DxuiListColumns      m_columnSizing      { *this };
+    DxuiListRows         m_rows              { *this };
+    DxuiListBand         m_band              { *this };
+    DxuiListFlowLayout   m_flow              { *this };
 };
 

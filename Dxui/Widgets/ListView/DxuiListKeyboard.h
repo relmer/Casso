@@ -26,7 +26,7 @@ public:
 
     //  A pause this long between characters starts a new search.
     static constexpr int64_t  s_kTypeAheadResetMs = 1000;
-    bool  HandleKeyboardGroupedNav (WPARAM vk, bool shift, bool ctrl = false);
+    bool  HandleKeyboardGroupedNav  (WPARAM vk, bool shift, bool ctrl = false);
     bool  HandleKeyboardDetailsJump (WPARAM vk, bool shift, bool ctrl);
 
     //  Page Up and Page Down, as Explorer's.
@@ -47,9 +47,9 @@ public:
 
     //  Selects the next row whose first column starts with what has been
     //  typed, as Explorer's list does. True when the character was taken.
-    bool         HandleTypeAhead         (wchar_t ch);
-    bool    HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false, bool ctrl = false);
-    bool    HandleKeyboardRowNav     (WPARAM vk, bool shift, bool ctrl);
+    bool  HandleTypeAhead          (wchar_t ch);
+    bool  HandleKeyboardBodyRowNav (WPARAM vk, bool shift = false, bool ctrl = false);
+    bool  HandleKeyboardRowNav     (WPARAM vk, bool shift, bool ctrl);
 
 private:
     friend class DxuiListView;

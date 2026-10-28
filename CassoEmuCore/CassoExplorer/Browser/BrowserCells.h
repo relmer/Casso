@@ -37,8 +37,8 @@ public:
     //  row's cells.
     static std::vector<DxuiListView::Column>  GetColumns();
 
-    static std::vector<DxuiListView::Cell>    ToCells (const CatalogRow & row, const Location & at = Location(), IShellIcons * icons = nullptr);
-    static std::shared_ptr<const DxuiIconImage>  GetRowIcon  (const CatalogRow & row, const Location & at, IShellIcons & icons);
+    static std::vector<DxuiListView::Cell>       ToCells              (const CatalogRow & row, const Location & at = Location(), IShellIcons * icons = nullptr);
+    static std::shared_ptr<const DxuiIconImage>  GetRowIcon           (const CatalogRow & row, const Location & at, IShellIcons & icons);
     static IShellIcons::Kind                     GetAppleTypeIconKind (const std::wstring & typeText);
     static bool                                  IsBasicListingName   (const std::wstring & name);
     static std::shared_ptr<const DxuiIconImage>  GetLocationIcon      (const Location & at, IShellIcons & icons);
@@ -49,8 +49,8 @@ public:
     static constexpr uint32_t  kEncryptedLightArgb  = 0xFF008000u;
 
     //  The narrower set a disk image's catalog uses in the preview pane.
-    static std::vector<DxuiListView::Column>  GetCatalogPreviewColumns();
-    static std::vector<DxuiListView::Cell>    ToCatalogPreviewCells (const CatalogRow & row);
+    static std::vector<DxuiListView::Column>  GetCatalogPreviewColumns ();
+    static std::vector<DxuiListView::Cell>    ToCatalogPreviewCells    (const CatalogRow & row);
 
     static DxuiTreeNode  ToTreeNode (const TreeNode & node, IShellIcons * icons = nullptr);
 
@@ -82,11 +82,11 @@ public:
     static std::wstring  FormatSize      (uint64_t bytes);
 
     //  A Content view line: the property's name, drawn muted, then its value.
-    static DxuiListView::Cell  MakeContentLine (const std::wstring & label, const std::wstring & value);
-    static std::wstring  FormatSizeColumn (uint64_t bytes);
-    static std::wstring  FormatModified  (int64_t unixSeconds, bool wallClock);
-    static std::wstring  FormatSelection (size_t selected, size_t total);
-    void     UpdateStatus();
+    static DxuiListView::Cell  MakeContentLine  (const std::wstring & label, const std::wstring & value);
+    static std::wstring        FormatSizeColumn (uint64_t bytes);
+    static std::wstring        FormatModified   (int64_t unixSeconds, bool wallClock);
+    static std::wstring        FormatSelection  (size_t selected, size_t total);
+    void                       UpdateStatus     ();
 
     //  An image's free and total space in the status, and what the volume is
     //  in its tip.

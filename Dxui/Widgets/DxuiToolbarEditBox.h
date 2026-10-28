@@ -85,7 +85,7 @@ public:
     static constexpr float  kFontDip         = 14.0f;
 
 private:
-    bool  Contains (int x, int y) const;
+    bool  Contains       (int x, int y) const;
     void  EditThenNotify (const std::function<void()> & edit);
 
     static constexpr int  s_kInsetDip     = 4;

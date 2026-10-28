@@ -25,8 +25,8 @@ class DxuiListItemLayout
 public:
     explicit DxuiListItemLayout (DxuiListView & list);
 
-    static DxuiListViewTypes::ItemMetrics  GetItemMetrics   (DxuiListViewTypes::View view);
-    int                 GetItemBoxPx     () const;
+    static DxuiListViewTypes::ItemMetrics  GetItemMetrics (DxuiListViewTypes::View view);
+    int                                    GetItemBoxPx   () const;
     static constexpr int    s_kItemsTopDip         = 6;
     static constexpr float  s_kItemsBarDip         = 17.33f;
     static constexpr int    s_kMeasureAllItemsMax  = 500;
@@ -62,34 +62,34 @@ public:
     static constexpr float  s_kContentRowLowDpiDip   = 48.0f;   // the row below 150%
     static constexpr float  s_kContentEndGapDip      = 2.0f;
 
-    void                    BeginPageSlide     (const DxuiListViewTypes::PageSlide & running, int fromPx, int restBeforePx);
-    int                     GetPageSlidePx     () const;
-    bool                    UsesPageSlide      () const;
-    int                     GetRestScrollPx    () const;
-    int                     GetScrollViewPx    () const;
+    void                             BeginPageSlide          (const DxuiListViewTypes::PageSlide & running, int fromPx, int restBeforePx);
+    int                              GetPageSlidePx          () const;
+    bool                             UsesPageSlide           () const;
+    int                              GetRestScrollPx         () const;
+    int                              GetScrollViewPx         () const;
     DxuiListViewTypes::ItemGrid      GetItemGrid             () const;
     DxuiListViewTypes::ScrollLayout  ComputeItemScrollLayout () const;
-    void          SpreadItemBoxes         (DxuiListViewTypes::ItemGrid & grid, int fullW, int fullH, int rows) const;
-    int           HitTestItem             (int xPx, int yPx) const;
-    void          EnsureItemVisible       (int item);
-    int           GetItemIconLeftPx       () const;
-    RECT          GetItemLabelRectPx      (const RECT & cell) const;
-    POINT         GetItemScrollOffsetPx   () const;
+    void                             SpreadItemBoxes         (DxuiListViewTypes::ItemGrid & grid, int fullW, int fullH, int rows) const;
+    int                              HitTestItem             (int xPx, int yPx) const;
+    void                             EnsureItemVisible       (int item);
+    int                              GetItemIconLeftPx       () const;
+    RECT                             GetItemLabelRectPx      (const RECT & cell) const;
+    POINT                            GetItemScrollOffsetPx   () const;
 
-    DxuiListViewTypes::ItemSlide     PlaceItemSlide          () const;
-    void          CollectItemsToMeasure   (std::vector<std::pair<int, RECT>> & out) const;
+    DxuiListViewTypes::ItemSlide  PlaceItemSlide        () const;
+    void                          CollectItemsToMeasure (std::vector<std::pair<int, RECT>> & out) const;
     void          CollectLineItemsInSight (const DxuiListViewTypes::ItemLayout & layout, const DxuiListViewTypes::ItemLine & line, const DxuiListViewTypes::ItemSlide & slide, int pageY,
                                            std::vector<std::pair<int, RECT>> & out) const;
-    bool          HasItemGroups           () const;
-    bool          UsesItemLayout          () const;
-    bool          IsFirstOfGroup          (int item) const;
-    const DxuiListViewTypes::ItemLayout &  GetItemLayout     () const;
-    DxuiListViewTypes::ItemLayout    BuildItemLayout         (int openGroup = -1) const;
-    static int    FindItemLine            (const DxuiListViewTypes::ItemLayout & layout, int y);
-    int           GetItemTopPx            (const DxuiListViewTypes::ItemLayout & layout) const;
-    bool          GetGroupedItemRectPx    (const DxuiListViewTypes::ItemLayout & layout, int item, RECT & outRect) const;
-    int           GetMaxItemTopLine       (const DxuiListViewTypes::ItemLayout & layout) const;
-    void          EnsureItemLineVisible   (const DxuiListViewTypes::ItemLayout & layout, int line);
+    bool                                   HasItemGroups         () const;
+    bool                                   UsesItemLayout        () const;
+    bool                                   IsFirstOfGroup        (int item) const;
+    const DxuiListViewTypes::ItemLayout  & GetItemLayout         () const;
+    DxuiListViewTypes::ItemLayout          BuildItemLayout       (int openGroup = -1) const;
+    static int                             FindItemLine          (const DxuiListViewTypes::ItemLayout & layout, int y);
+    int                                    GetItemTopPx          (const DxuiListViewTypes::ItemLayout & layout) const;
+    bool                                   GetGroupedItemRectPx  (const DxuiListViewTypes::ItemLayout & layout, int item, RECT & outRect) const;
+    int                                    GetMaxItemTopLine     (const DxuiListViewTypes::ItemLayout & layout) const;
+    void                                   EnsureItemLineVisible (const DxuiListViewTypes::ItemLayout & layout, int line);
     static constexpr float  s_kMediumLabelWDip     = 60.67f;
     static constexpr float  s_kLargeLabelWDip      = 92.0f;
     static constexpr int    s_kXLargeLabelInsetPx  = 1;   // Extra large's names, as wide as its icon less this, at any scale

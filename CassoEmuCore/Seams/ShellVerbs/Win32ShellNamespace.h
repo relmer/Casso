@@ -25,23 +25,23 @@ class Win32ShellNamespace
 public:
     explicit Win32ShellNamespace (Win32ShellItemVerbs & verbs);
 
-    HRESULT  ListShellFolder     (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
-    HRESULT  GetShellItemName    (const std::wstring & id, std::wstring & outName);
-    HRESULT  OpenShellItem       (HWND owner, const std::wstring & id);
-    HRESULT  GetShellParent      (const std::wstring & id, IShellItemVerbs::ShellFolderItem & outParent);
-    HRESULT  ListNavigationRoots (std::vector<IShellItemVerbs::ShellFolderItem> & outRoots);
-    HRESULT  ListPinnedFolders   (std::vector<IShellItemVerbs::ShellFolderItem> & outFolders);
-    HRESULT  ListDesktopFolders  (std::vector<IShellItemVerbs::ShellFolderItem> & outFolders);
-    HRESULT  ListDesktopNamespace (std::vector<IShellItemVerbs::ShellFolderItem> & outFolders);
-    HRESULT  SetPinnedToQuickAccess (HWND owner, const std::wstring & folder, bool pinned);
-    bool     IsArchive (const std::wstring & path);
-    static HRESULT       ReadShellFolder (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
+    HRESULT         ListShellFolder        (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
+    HRESULT         GetShellItemName       (const std::wstring & id, std::wstring & outName);
+    HRESULT         OpenShellItem          (HWND owner, const std::wstring & id);
+    HRESULT         GetShellParent         (const std::wstring & id, IShellItemVerbs::ShellFolderItem & outParent);
+    HRESULT         ListNavigationRoots    (std::vector<IShellItemVerbs::ShellFolderItem> & outRoots);
+    HRESULT         ListPinnedFolders      (std::vector<IShellItemVerbs::ShellFolderItem> & outFolders);
+    HRESULT         ListDesktopFolders     (std::vector<IShellItemVerbs::ShellFolderItem> & outFolders);
+    HRESULT         ListDesktopNamespace   (std::vector<IShellItemVerbs::ShellFolderItem> & outFolders);
+    HRESULT         SetPinnedToQuickAccess (HWND owner, const std::wstring & folder, bool pinned);
+    bool            IsArchive              (const std::wstring & path);
+    static HRESULT  ReadShellFolder        (const std::wstring & id, std::vector<IShellItemVerbs::ShellFolderItem> & outItems);
 
     //  An item's id, name, path, type, size, date and what kind of folder it
     //  is, as a listing shows it.
-    static HRESULT       DescribeShellItem (IShellItem * item, IShellItemVerbs::ShellFolderItem & outEntry);
-    static PITEMID_CHILD GetChildId (IShellItem * item);
-    static std::wstring  GetJunctionId (IShellItem * item);
+    static HRESULT        DescribeShellItem (IShellItem * item, IShellItemVerbs::ShellFolderItem & outEntry);
+    static PITEMID_CHILD  GetChildId        (IShellItem * item);
+    static std::wstring   GetJunctionId     (IShellItem * item);
 
     //  A shell item by the shell's name for it, the desktop namespace's own
     //  root included.
@@ -59,10 +59,10 @@ public:
     static constexpr const wchar_t *  s_kLinuxId      =L"::{B2B4A4D1-2754-4140-A2EB-9A76D9D7CDC6}";
 
     //  Where a navigation root goes in Explorer's order.
-    static int  GetNavigationRank (const IShellItemVerbs::ShellFolderItem & root);
-    static int   GetDesktopRank   (const IShellItemVerbs::ShellFolderItem & root);
-    static bool  IsDesktopRoot    (const IShellItemVerbs::ShellFolderItem & item);
-    static bool  IsOnDesktop      (const std::wstring & path);
+    static int   GetNavigationRank (const IShellItemVerbs::ShellFolderItem & root);
+    static int   GetDesktopRank    (const IShellItemVerbs::ShellFolderItem & root);
+    static bool  IsDesktopRoot     (const IShellItemVerbs::ShellFolderItem & item);
+    static bool  IsOnDesktop       (const std::wstring & path);
 
 private:
     friend class Win32ShellItemVerbs;

@@ -24,12 +24,12 @@
 class DxuiDwm
 {
 public:
-    static bool IsWindows11OrGreater      ();
-    static bool IsWindows10_1809OrGreater();
-    static void ApplyRoundedCorners       (HWND hwnd, bool round);
-    static void ApplyMicaBackdrop         (HWND hwnd, bool mica, bool alt = false);
-    static void ApplyImmersiveDarkMode    (HWND hwnd, bool dark);
-    static void ExtendFrameIntoClientArea (HWND hwnd, int inset);
+    static bool  IsWindows11OrGreater      ();
+    static bool  IsWindows10_1809OrGreater ();
+    static void  ApplyRoundedCorners       (HWND hwnd, bool round);
+    static void  ApplyMicaBackdrop         (HWND hwnd, bool mica, bool alt = false);
+    static void  ApplyImmersiveDarkMode    (HWND hwnd, bool dark);
+    static void  ExtendFrameIntoClientArea (HWND hwnd, int inset);
 
 private:
     // RTL_OSVERSIONINFOW by another name -- declared here so we do not

@@ -51,25 +51,25 @@ public:
         bool  operator== (const SystemColors &) const = default;
     };
 
-    void  Refresh();
-    bool  IsDarkMode() const { return m_darkMode; }
+    void  Refresh    ();
+    bool  IsDarkMode () const { return m_darkMode; }
 
     const SystemColors &  GetSystemColors() const { return m_system; }
 
     //  The registry's AccentPalette is eight RGBA entries, lightest first:
     //  Light3, Light2, Light1, the accent, Dark1, Dark2, Dark3. Public so the
     //  decoding can be checked against bytes read off a real machine.
-    static bool      DecodeAccentPalette (std::span<const BYTE> bytes, SystemColors & colors);
+    static bool      DecodeAccentPalette      (std::span<const BYTE> bytes, SystemColors & colors);
     static bool      AreSurfacesForTheirModes (uint32_t dark, uint32_t light);
-    static uint32_t  ToArgb (COLORREF color);
+    static uint32_t  ToArgb                   (COLORREF color);
 
-    uint32_t  CaptionButtonHoverArgb        () const;
-    uint32_t  CaptionButtonPressedArgb      () const;
-    uint32_t  CaptionButtonForegroundArgb   () const;
-    uint32_t  CloseButtonHoverArgb           () const;
-    uint32_t  CloseButtonPressedArgb         () const;
-    uint32_t  CloseButtonGlyphHoverArgb      () const;
-    uint32_t  CloseButtonGlyphPressedArgb    () const;
+    uint32_t  CaptionButtonHoverArgb      () const;
+    uint32_t  CaptionButtonPressedArgb    () const;
+    uint32_t  CaptionButtonForegroundArgb () const;
+    uint32_t  CloseButtonHoverArgb        () const;
+    uint32_t  CloseButtonPressedArgb      () const;
+    uint32_t  CloseButtonGlyphHoverArgb   () const;
+    uint32_t  CloseButtonGlyphPressedArgb () const;
 
     // The Fluent tokens, public so a palette can be built from the same
     // values the caption buttons use.
@@ -117,8 +117,8 @@ private:
     // toggled the setting.
     static bool  ReadAppsUseLightTheme();
 
-    static void  ReadAccentPalette   (SystemColors & colors);
-    static void  ReadItemsViewColors (SystemColors & colors);
+    static void      ReadAccentPalette   (SystemColors & colors);
+    static void      ReadItemsViewColors (SystemColors & colors);
     static bool      ReadThemeFill       (LPCWSTR themeClass, uint32_t & outArgb);
     static uint32_t  GetPaletteEntry     (std::span<const BYTE> bytes, size_t index);
 

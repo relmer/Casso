@@ -36,11 +36,11 @@ public:
 
     static LRESULT CALLBACK  MenuHostProc (HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-    HRESULT  EnumHandlers    (const std::wstring & path, std::vector<IAssocHandler *> & outHandlers);
-    HRESULT  CreateMenuHost  (HWND owner);
-    HRESULT  GetItemsMenu    (HWND owner, const std::vector<std::wstring> & paths, IContextMenu ** outMenu);
+    HRESULT      EnumHandlers          (const std::wstring & path, std::vector<IAssocHandler *> & outHandlers);
+    HRESULT      CreateMenuHost        (HWND owner);
+    HRESULT      GetItemsMenu          (HWND owner, const std::vector<std::wstring> & paths, IContextMenu ** outMenu);
     static void  RemoveExtraSeparators (HMENU menu);
-    HRESULT  TrackMenu       (HWND owner, IContextMenu * menu, POINT screenPx, const std::function<void()> & rename);
+    HRESULT      TrackMenu             (HWND owner, IContextMenu * menu, POINT screenPx, const std::function<void()> & rename);
 
 private:
     friend class Win32ShellItemVerbs;

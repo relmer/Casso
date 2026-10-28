@@ -53,10 +53,10 @@ public:
     static constexpr size_t  kShortTextBytes   = 256;
 
 private:
-    static bool  IsPrintable    (Byte value);
-    static bool  IsIdentifierStart (char c);
-    static bool  IsIdentifierChar  (char c);
+    static bool  IsPrintable        (Byte value);
+    static bool  IsIdentifierStart  (char c);
+    static bool  IsIdentifierChar   (char c);
     static bool  LooksLikeApplesoft (std::span<const Byte> bytes);
     static bool  LooksLikeText      (std::span<const Byte> bytes);
-    static void  SplitLines (std::span<const Byte> bytes, std::vector<std::string_view> & outLines);
+    static void  SplitLines         (std::span<const Byte> bytes, std::vector<std::string_view> & outLines);
 };

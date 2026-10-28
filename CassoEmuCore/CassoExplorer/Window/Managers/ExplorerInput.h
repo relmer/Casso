@@ -27,14 +27,14 @@ class ExplorerInput
 public:
     explicit ExplorerInput (ExplorerContext & context);
 
-    bool    HandleMouse           (const DxuiMouseEvent & ev);
-    bool    HandleKey             (const DxuiKeyEvent & ev);
-    LPCWSTR GetCursorForPoint (POINT clientPx) const;
+    bool     HandleMouse       (const DxuiMouseEvent & ev);
+    bool     HandleKey         (const DxuiKeyEvent & ev);
+    LPCWSTR  GetCursorForPoint (POINT clientPx) const;
 
     //  Keyboard focus. The toolbar is one pane, with its focused button in
     //  m_toolbarFocus.
-    void          SetFocusPane (ExplorerPane pane);
-    ExplorerPane  GetFocusPane () const { return m_focus; }
+    void          SetFocusPane  (ExplorerPane pane);
+    ExplorerPane  GetFocusPane  () const { return m_focus; }
     bool          HasCaretFocus () const { return m_focus == ExplorerPane::Search || m_focus == ExplorerPane::GoTo || m_focus == ExplorerPane::LocationSearch; }
 
     FocusStop               GetFocusStop     () const;
@@ -45,8 +45,8 @@ public:
 
     //  The focused pane's control, where routing of a standard command such as
     //  Copy or Select all starts.
-    IDxuiControl *  GetFocusedControl() const;
-    bool  RouteCommandBarKey      (const DxuiKeyEvent & ev);
+    IDxuiControl  * GetFocusedControl  () const;
+    bool            RouteCommandBarKey (const DxuiKeyEvent & ev);
 
     struct RightPress
     {

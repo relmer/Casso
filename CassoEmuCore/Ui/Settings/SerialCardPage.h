@@ -70,10 +70,10 @@ public:
 
     //  The sentence for an Uthernet II port the card's connector has, empty
     //  when there is none; read again by SyncListenProblem each dialog tick.
-    void  SetListenProblem  (std::function<std::wstring ()> fn) { m_listenProblem = std::move (fn); SyncListenProblem(); }
-    void  SyncListenProblem ();
-    const std::wstring & GetListenText () const { return m_listenBanner.GetText(); }
-    bool                 IsListenShown () const { return m_listenBanner.IsVisible(); }
+    void                  SetListenProblem  (std::function<std::wstring ()> fn) { m_listenProblem = std::move (fn); SyncListenProblem(); }
+    void                  SyncListenProblem ();
+    const std::wstring  & GetListenText     () const { return m_listenBanner.GetText(); }
+    bool                  IsListenShown     () const { return m_listenBanner.IsVisible(); }
 
     // The attachments offered for a card in `slot`, as devices and as the
     // drop-down's labels. A current device that is none of them is added at
@@ -85,16 +85,16 @@ public:
     void  Rebuild  ();
 
     // Test accessors.
-    int                   GetRowCount       () const { return static_cast<int> (m_rowSettings.size()); }
-    SscSetting            GetRowSetting     (int row) const { return m_rowSettings[static_cast<size_t> (row)]; }
-    DxuiComboBox        & GetRowDropdown    (int row) { return m_rowCombos[row]; }
-    DxuiComboBox        & GetAttachDropdown ()        { return m_attach; }
-    SscSwitchesView     & GetSwitchesView   ()        { return m_switchesView; }
-    const std::wstring  & GetRowNote        (int row) const { return m_rowNoteText[row]; }
-    const std::wstring  & GetAttachNote     () const  { return m_attachNoteText; }
-    const std::vector<string> & GetAttachDevices () const { return m_devices; }
-    DxuiInfoTip         & GetRowInfoTip     (int row) { return m_rowTips[row]; }
-    DxuiButton          & GetRestoreButton  ()        { return m_restore; }
+    int                          GetRowCount       () const { return static_cast<int> (m_rowSettings.size()); }
+    SscSetting                   GetRowSetting     (int row) const { return m_rowSettings[static_cast<size_t> (row)]; }
+    DxuiComboBox               & GetRowDropdown    (int row) { return m_rowCombos[row]; }
+    DxuiComboBox               & GetAttachDropdown ()        { return m_attach; }
+    SscSwitchesView            & GetSwitchesView   ()        { return m_switchesView; }
+    const std::wstring         & GetRowNote        (int row) const { return m_rowNoteText[row]; }
+    const std::wstring         & GetAttachNote     () const  { return m_attachNoteText; }
+    const std::vector<string>  & GetAttachDevices  () const { return m_devices; }
+    DxuiInfoTip                & GetRowInfoTip     (int row) { return m_rowTips[row]; }
+    DxuiButton                 & GetRestoreButton  ()        { return m_restore; }
 
 private:
     static RECT          MakeRect          (int l, int t, int w, int h);

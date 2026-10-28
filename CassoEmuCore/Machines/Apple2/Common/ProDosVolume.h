@@ -51,9 +51,9 @@ public:
     //  Called with each sector the volume reads from here on; null for none.
     void     SetReadObserver (ISectorReadObserver * observer) { m_readObserver = observer; }
 
-    HRESULT  Enumerate (VolumeListing & outListing) const override;
+    HRESULT  Enumerate          (VolumeListing & outListing) const override;
     HRESULT  EnumerateDirectory (const FilePath & directory, VolumeListing & outListing) const override;
-    HRESULT  Read      (const FilePath & path, FilePayload & outPayload) const override;
+    HRESULT  Read               (const FilePath & path, FilePayload & outPayload) const override;
 
     //  Placement goes to the writer and removal to the remover.
     HRESULT  CreateDirectory   (const FilePath & path, vector<Byte> & outBuffer) const override { return m_writer.CreateDirectory (path, outBuffer); }
@@ -155,8 +155,8 @@ private:
 
     //  The buffer, for a read of one block of it. Every read of the volume's
     //  own buffer goes through here, so the read observer has each sector.
-    const vector<Byte> &  AccessBlock (int block) const;
-    Word  ReadWord (int block, size_t offset) const;
+    const vector<Byte>  & AccessBlock (int block) const;
+    Word                  ReadWord    (int block, size_t offset) const;
 
     //  Volume bitmap: one bit per block, MSB of byte 0 is block 0, SET is free.
     static bool  IsFreeInBitmap  (const vector<Byte> & buffer, uint32_t block);

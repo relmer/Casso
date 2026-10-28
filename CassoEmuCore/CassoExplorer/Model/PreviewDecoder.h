@@ -178,10 +178,10 @@ private:
     static bool  IsBinaryType    (Byte type, VolumeKind kind);
 
     //  A ProDOS date as CAT prints it, 17-AUG-84, or <NO DATE>.
-    static std::wstring  FormatProDosDate (const FileEntry & entry);
+    static std::wstring  FormatProDosDate      (const FileEntry & entry);
     static std::wstring  FormatAppleSingleDate (int32_t secondsFrom2000);
-    static bool          IsCutOff         (const ApplesoftListingError & error);
-    static std::wstring  DescribeCutOff   (const ApplesoftListingError & error);
+    static bool          IsCutOff              (const ApplesoftListingError & error);
+    static std::wstring  DescribeCutOff        (const ApplesoftListingError & error);
 
     static constexpr size_t  s_kTextSampleBytes = 4096;
 
@@ -190,6 +190,6 @@ private:
         L"JAN", L"FEB", L"MAR", L"APR", L"MAY", L"JUN", L"JUL", L"AUG", L"SEP", L"OCT", L"NOV", L"DEC",
     };
 
-    static void  SplitIntoLines (const std::string & text, std::vector<std::wstring> & outLines);
-    static const Microcode *  GetNmosTable ();
+    static void               SplitIntoLines (const std::string & text, std::vector<std::wstring> & outLines);
+    static const Microcode  * GetNmosTable   ();
 };

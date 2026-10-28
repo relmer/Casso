@@ -93,26 +93,26 @@ struct DxuiTheme : public IDxuiTheme
 
     // IDxuiTheme overrides map the named tokens onto the generic contract
     // so any Dxui widget paints against this theme through the interface.
-    uint32_t  Background          () const override { return panelBg;            }
-    uint32_t  BackgroundElevated  () const override { return dropdownBg;         }
-    uint32_t  ContentBackground   () const override { return (contentBg != 0) ? contentBg : panelBg; }
-    uint32_t  ContentEdge         () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
-    uint32_t  SplitterHighlight   () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
-    uint32_t  ContentHover        () const override { return (contentHover != 0) ? contentHover : navHover; }
-    uint32_t  ContentSelection    () const override { return (contentSelection != 0) ? contentSelection : navHover; }
-    uint32_t  ContentSelectionEdge () const override { return contentSelectionEdge; }
-    uint32_t  ContentSelectionInactive () const override { return (contentSelectionInactive != 0) ? contentSelectionInactive : ContentSelection(); }
-    uint32_t  ContentSelectionMulti    () const override { return (contentSelectionMulti    != 0) ? contentSelectionMulti    : ContentSelection(); }
+    uint32_t  Background                   () const override { return panelBg;            }
+    uint32_t  BackgroundElevated           () const override { return dropdownBg;         }
+    uint32_t  ContentBackground            () const override { return (contentBg != 0) ? contentBg : panelBg; }
+    uint32_t  ContentEdge                  () const override { return (contentEdge != 0) ? contentEdge : panelEdge; }
+    uint32_t  SplitterHighlight            () const override { return (splitterHighlight != 0) ? splitterHighlight : panelEdge; }
+    uint32_t  ContentHover                 () const override { return (contentHover != 0) ? contentHover : navHover; }
+    uint32_t  ContentSelection             () const override { return (contentSelection != 0) ? contentSelection : navHover; }
+    uint32_t  ContentSelectionEdge         () const override { return contentSelectionEdge; }
+    uint32_t  ContentSelectionInactive     () const override { return (contentSelectionInactive != 0) ? contentSelectionInactive : ContentSelection(); }
+    uint32_t  ContentSelectionMulti        () const override { return (contentSelectionMulti    != 0) ? contentSelectionMulti    : ContentSelection(); }
     uint32_t  ContentSelectionInactiveEdge () const override { return contentSelectionInactiveEdge; }
-    uint32_t  ContentHeaderDivider () const override { return (contentHeaderDivider != 0) ? contentHeaderDivider : ContentEdge(); }
-    uint32_t  MenuSeparator        () const override { return (menuSeparator != 0) ? menuSeparator : Divider(); }
-    uint32_t  TabStripEdge         () const override { return tabStripEdge; }
-    uint32_t  StatusBackground    () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
-    uint32_t  ControlBackground   () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
-    uint32_t  HoverBackground     () const override { return navHover;           }
-    uint32_t  MenuHover           () const override { return (dropdownHover != 0) ? dropdownHover : navHover; }
-    uint32_t  PressedBackground   () const override { return buttonPressed;      }
-    uint32_t  SelectionBackground () const override { return navHover;           }
+    uint32_t  ContentHeaderDivider         () const override { return (contentHeaderDivider != 0) ? contentHeaderDivider : ContentEdge(); }
+    uint32_t  MenuSeparator                () const override { return (menuSeparator != 0) ? menuSeparator : Divider(); }
+    uint32_t  TabStripEdge                 () const override { return tabStripEdge; }
+    uint32_t  StatusBackground             () const override { return (statusBg  != 0) ? statusBg  : panelBg; }
+    uint32_t  ControlBackground            () const override { return (controlBg != 0) ? controlBg : dropdownBg; }
+    uint32_t  HoverBackground              () const override { return navHover;           }
+    uint32_t  MenuHover                    () const override { return (dropdownHover != 0) ? dropdownHover : navHover; }
+    uint32_t  PressedBackground            () const override { return buttonPressed;      }
+    uint32_t  SelectionBackground          () const override { return navHover;           }
 
     uint32_t  Foreground          () const override { return bodyText;           }
     uint32_t  ForegroundMuted     () const override { return dropdownAccel;      }

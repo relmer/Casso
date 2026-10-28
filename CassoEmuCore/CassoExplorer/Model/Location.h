@@ -40,8 +40,8 @@ struct Location
 
     bool operator!= (const Location & other) const { return !(*this == other); }
 
-    static Location  MakeHostFolder   (const std::wstring & path)                              { return Location { Kind::HostFolder,    path, std::string() }; }
-    static Location  MakeDiskImage    (const std::wstring & path)                              { return Location { Kind::DiskImage,     path, std::string() }; }
+    static Location  MakeHostFolder    (const std::wstring & path)                              { return Location { Kind::HostFolder,    path, std::string() }; }
+    static Location  MakeDiskImage     (const std::wstring & path)                              { return Location { Kind::DiskImage,     path, std::string() }; }
     static Location  MakeDiskDirectory (const std::wstring & path, const std::string & inner)   { return Location { Kind::DiskDirectory, path, inner }; }
     static Location  MakeRoot          (const std::wstring & id)                                { return Location { Kind::Root,          id,   std::string() }; }
     static Location  MakeRecycleBin    ()                                                       { return Location { Kind::RecycleBin,    kRecycleBinId, std::string() }; }

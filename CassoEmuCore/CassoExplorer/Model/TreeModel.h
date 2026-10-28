@@ -114,13 +114,13 @@ public:
 
     explicit TreeModel (IFileSystem & fs);
 
-    void  SetKnownFolders   (std::vector<std::wstring> folders);
-    bool  IsKnownFolder     (const std::wstring & path) const;
-    void  SetDrives         (std::vector<std::wstring> driveRoots);
-    void  SetDirectoryProbe (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
-    bool  IsDirectory       (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
-    void                          SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
-    const LocalizedNameLookup &   GetLocalizedNameLookup () const { return m_localizedName; }
+    void                         SetKnownFolders        (std::vector<std::wstring> folders);
+    bool                         IsKnownFolder          (const std::wstring & path) const;
+    void                         SetDrives              (std::vector<std::wstring> driveRoots);
+    void                         SetDirectoryProbe      (DirectoryProbe probe) { m_directoryProbe = std::move (probe); }
+    bool                         IsDirectory            (const std::wstring & path) const { return m_directoryProbe && m_directoryProbe (path); }
+    void                         SetLocalizedNameLookup (LocalizedNameLookup lookup) { m_localizedName = std::move (lookup); }
+    const LocalizedNameLookup  & GetLocalizedNameLookup () const { return m_localizedName; }
 
     //  Which hidden folders and images are listed. A change applies to the
     //  folders listed after it; the caller invalidates what is cached.
@@ -172,9 +172,9 @@ public:
     bool  GetLinkStatus      (const std::wstring & name, std::wstring & outStatus) const;
 
     //  Whether the link's Apple is replying to Casso's program.
-    bool  IsLinkReplying     (const std::wstring & name) const;
-    const std::vector<LinkTreeEntry> &  GetLinks () const { return m_links; }
-    bool  IsNavRootShown     (NavRoot root) const;
+    bool                                IsLinkReplying (const std::wstring & name) const;
+    const std::vector<LinkTreeEntry>  & GetLinks       () const { return m_links; }
+    bool                                IsNavRootShown (NavRoot root) const;
 
     void     GetRoots    (std::vector<TreeNode> & outNodes) const;
     HRESULT  GetChildren (const std::wstring & id, std::vector<TreeNode> & outNodes);
@@ -259,23 +259,23 @@ private:
     static constexpr const wchar_t *  kThisPcTag       = L"pc";
     static constexpr wchar_t          kSeparator       = L'|';
 
-    HRESULT  ListRoot       (bool underCasso, std::vector<TreeNode> & outNodes);
-    HRESULT  ListLink       (const std::wstring & name, std::vector<TreeNode> & outNodes);
+    HRESULT  ListRoot        (bool underCasso, std::vector<TreeNode> & outNodes);
+    HRESULT  ListLink        (const std::wstring & name, std::vector<TreeNode> & outNodes);
     HRESULT  ListLinkFolders (const std::wstring & driveId, std::vector<TreeNode> & outNodes) const;
     void     AppendLinkRoots (std::vector<TreeNode> & outNodes, bool copy) const;
 
-    HRESULT  ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
-    HRESULT  ListDesktopRoot  (std::vector<TreeNode> & outNodes);
-    TreeNode  MakeRootNode    (const std::wstring & id) const;
+    HRESULT   ListShellFolders (const std::wstring & id, std::vector<TreeNode> & outNodes);
+    HRESULT   ListDesktopRoot  (std::vector<TreeNode> & outNodes);
+    TreeNode  MakeRootNode     (const std::wstring & id) const;
 
     //  The node for an item of the shell's: a folder on a disk is a host
     //  folder, with all a host folder's children; anything else opens through
     //  the shell.
-    static TreeNode  MakeShellNode (const IShellItemVerbs::ShellFolderItem & item);
-    HRESULT  ListHostFolder (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
-    bool     HasTreeChildren (const std::wstring & path);
-    HRESULT  ListImage      (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
-    HRESULT  ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes);
+    static TreeNode  MakeShellNode      (const IShellItemVerbs::ShellFolderItem & item);
+    HRESULT          ListHostFolder     (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
+    bool             HasTreeChildren    (const std::wstring & path);
+    HRESULT          ListImage          (bool underCasso, const std::wstring & path, std::vector<TreeNode> & outNodes);
+    HRESULT          ListImageDirectory (bool underCasso, const std::wstring & path, const std::string & inner, std::vector<TreeNode> & outNodes);
 
     static void  ListDirectories (bool underCasso, const std::wstring & path, const std::vector<Byte> & sectors,
                                   const std::string & inner, std::vector<TreeNode> & outNodes);

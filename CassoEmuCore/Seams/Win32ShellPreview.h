@@ -58,8 +58,8 @@ public:
     void      SetRect (const RECT & rectPx);
 
     //  Makes the host visible over the pane, once a handler draws in it.
-    void      ShowHost (bool show);
-    void      Unload  ();
+    void  ShowHost (bool show);
+    void  Unload   ();
 
     //  A helper's message to the owner; returns whether it was one.
     bool  OnHelperMessage (UINT msg, WPARAM wParam, LPARAM lParam);

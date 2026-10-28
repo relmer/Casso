@@ -71,7 +71,7 @@ public:
     static constexpr uintmax_t  s_kArchiveProbeMaxBytes = 64ull * 1024 * 1024;
 
     void  ShowShellPreviewBytes ();
-    void  SetDisassemble   (bool disassemble);
+    void  SetDisassemble        (bool disassemble);
 
     void                     SetPreviewMonitor (PicturePreview::Monitor monitor, uint32_t customArgb = PicturePreview::kDefaultCustomArgb);
 
@@ -79,17 +79,17 @@ public:
 
     static PicturePreview::Monitor  ChooseMonitor (PicturePreview::Monitor chosen, PicturePreview::Mode mode);
 
-    bool  TogglePictureColor ();
+    bool  TogglePictureColor    ();
     bool  CanTogglePictureColor () const;
 
     std::wstring  GetExtractTarget () const;
 
-    void  GetSelectedSearchMatches (std::vector<BrowserSearchMatch> & outMatches);
+    void  GetSelectedSearchMatches     (std::vector<BrowserSearchMatch> & outMatches);
     bool  AreSelectedRowsSearchMatches () const;
-    bool  TryFindSearchMatch       (const CatalogRow & row, BrowserSearchMatch & outMatch, std::wstring & outError);
-    void     PreviewAppleEntry (const std::string & entryPath, const FileEntry & entry);
-    bool     PreviewAppleDrive (const CatalogRow & row);
-    void     PreviewCassoLinkItem (const CatalogRow & row);
+    bool  TryFindSearchMatch           (const CatalogRow & row, BrowserSearchMatch & outMatch, std::wstring & outError);
+    void  PreviewAppleEntry            (const std::string & entryPath, const FileEntry & entry);
+    bool  PreviewAppleDrive            (const CatalogRow & row);
+    void  PreviewCassoLinkItem         (const CatalogRow & row);
 
     bool     TryPreviewAppleSingle (const std::wstring & folder, const CatalogRow & row);
     void     ReadTextPreview       (const std::wstring & path, const std::wstring & name);
@@ -100,9 +100,9 @@ public:
     static constexpr unsigned         s_kWindowsCodePage       = 1252;
     static constexpr wchar_t          s_kByteOrderMark         = 0xFEFF;
     static constexpr size_t           s_kTabStop               = 8;
-    void     PreviewEntry          (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
-    void     PreviewSearchMatch    (const CatalogRow & row);
-    void     UpdatePreview();
+    void  PreviewEntry       (const std::wstring & imagePath, const std::string & entryPath, const FileEntry & entry, VolumeKind kind);
+    void  PreviewSearchMatch (const CatalogRow & row);
+    void  UpdatePreview      ();
 
 private:
     friend class CassoExplorerBrowser;

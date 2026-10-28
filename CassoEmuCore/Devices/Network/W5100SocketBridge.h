@@ -98,25 +98,25 @@ private:
         uint16_t                      hostPort    = 0;   // the PC port a listener or UDP socket has; 0 for an ephemeral one
     };
 
-    void  CloseSlot        (int socket);
-    void  OnOpen           (int socket);
-    void  OnConnect        (int socket);
-    void  OnListen         (int socket);
-    void  OnDisconnect     (int socket);
-    void  OnSend           (int socket);
-    void  SendTcp          (int socket);
-    void  SendUdp          (int socket);
-    void  SendMacRaw       (int socket, uint64_t now);
-    void  Fail             (int socket, Byte interrupt);
+    void  CloseSlot         (int socket);
+    void  OnOpen            (int socket);
+    void  OnConnect         (int socket);
+    void  OnListen          (int socket);
+    void  OnDisconnect      (int socket);
+    void  OnSend            (int socket);
+    void  SendTcp           (int socket);
+    void  SendUdp           (int socket);
+    void  SendMacRaw        (int socket, uint64_t now);
+    void  Fail              (int socket, Byte interrupt);
     void  NoteListenFailure (uint16_t port, HRESULT hr);
 
-    void  PumpSocket       (int socket, uint64_t now);
-    void  PumpConnecting   (int socket);
-    void  PumpListening    (int socket);
-    void  PumpTcpTransfer  (int socket);
-    void  PumpTcpReceive   (int socket);
-    void  PumpUdpReceive   (int socket);
-    void  PumpMacRaw       (int socket);
+    void  PumpSocket         (int socket, uint64_t now);
+    void  PumpConnecting     (int socket);
+    void  PumpListening      (int socket);
+    void  PumpTcpTransfer    (int socket);
+    void  PumpTcpReceive     (int socket);
+    void  PumpUdpReceive     (int socket);
+    void  PumpMacRaw         (int socket);
     bool  TryDeliverDatagram (int socket, const Datagram & datagram);
 
     static uint64_t  PackEndpoint (const HostEndpoint & endpoint);

@@ -229,25 +229,25 @@ class ISettingsApplySink
 public:
     virtual ~ISettingsApplySink() = default;
 
-    virtual void ApplySpeedMode      (SettingsSpeedMode mode)        = 0;
-    virtual void ApplyColorMode      (SettingsColorMode mode)        = 0;
-    virtual void ApplyFloppySound    (bool enabled)                  = 0;
-    virtual void ApplyMechanism      (const std::string & mechanism) = 0;
-    virtual void ApplyFastTapeLoading (bool enabled)                 = 0;
-    virtual void ApplyTapeVolume     (float gain)                    = 0;
-    virtual void ApplyTapeAutoStop   (bool enabled)                  = 0;
-    virtual void ApplyTapeIdleStop   (bool enabled)                  = 0;
-    virtual void ApplyTapeEightBit   (bool enabled)                  = 0;
-    virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
-    virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
-    virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
-    virtual void ApplyExternalDriveConnected (bool connected)        = 0;
-    virtual void ApplyMouseConnected         (bool connected)        = 0;
-    virtual void ApplySerialPortDevice       (int port, const std::string & device, const std::string & path) = 0;
-    virtual void ApplyParallelPrinter        (int slot, bool attached)       = 0;
-    virtual void ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
-    virtual void ApplyNetworkCard    (const NetworkCardSettings & settings) = 0;
-    virtual void QueueMachineReset   ()                              = 0;
+    virtual void  ApplySpeedMode              (SettingsSpeedMode mode)        = 0;
+    virtual void  ApplyColorMode              (SettingsColorMode mode)        = 0;
+    virtual void  ApplyFloppySound            (bool enabled)                  = 0;
+    virtual void  ApplyMechanism              (const std::string & mechanism) = 0;
+    virtual void  ApplyFastTapeLoading        (bool enabled)                 = 0;
+    virtual void  ApplyTapeVolume             (float gain)                    = 0;
+    virtual void  ApplyTapeAutoStop           (bool enabled)                  = 0;
+    virtual void  ApplyTapeIdleStop           (bool enabled)                  = 0;
+    virtual void  ApplyTapeEightBit           (bool enabled)                  = 0;
+    virtual void  ApplyDriveVolumes           (float motor, float head, float door) = 0;
+    virtual void  ApplyDrivePan               (float driveOnePan, float driveTwoPan) = 0;
+    virtual void  ApplyWriteProtect           (int drive, bool wp)            = 0;
+    virtual void  ApplyExternalDriveConnected (bool connected)        = 0;
+    virtual void  ApplyMouseConnected         (bool connected)        = 0;
+    virtual void  ApplySerialPortDevice       (int port, const std::string & device, const std::string & path) = 0;
+    virtual void  ApplyParallelPrinter        (int slot, bool attached)       = 0;
+    virtual void  ApplySerialCardSwitches     (const std::string & sw1, const std::string & sw2) = 0;
+    virtual void  ApplyNetworkCard            (const NetworkCardSettings & settings) = 0;
+    virtual void  QueueMachineReset           ()                              = 0;
 };
 
 
@@ -306,18 +306,18 @@ public:
     // The machine document as it would be saved now, for a caller that
     // changes a setting without a sheet -- the Storage menu's second drive.
     void       SetTapeRecorderConnected (bool connected) { m_current.prefs.tapeRecorderConnected = connected; }
-    JsonValue  BuildCurrentJson () const;
+    JsonValue  BuildCurrentJson         () const;
 
     bool IsDirty       () const;
     bool RequiresReset () const;          // a hardware enable or a serial attachment changed
 
     // Live (current) accessors / mutators
 
-    const std::string                & GetMachineName () const { return m_machineName; }
-    const SettingsMachineInfo        & GetMachineInfo() const { return m_machineInfo; }
-    const SettingsUiPrefs            & GetPrefs       () const { return m_current.prefs; }
-    const std::vector<HardwareEntry> & GetHardware    () const { return m_current.hardware; }
-    const JsonValue                  & GetDefaultJson () const { return m_defaultJson; }
+    const std::string                 & GetMachineName () const { return m_machineName; }
+    const SettingsMachineInfo         & GetMachineInfo () const { return m_machineInfo; }
+    const SettingsUiPrefs             & GetPrefs       () const { return m_current.prefs; }
+    const std::vector<HardwareEntry>  & GetHardware    () const { return m_current.hardware; }
+    const JsonValue                   & GetDefaultJson () const { return m_defaultJson; }
 
     // True when the (staged) hardware config includes an enabled Disk ][
     // controller (a slot whose device is "disk-ii"). Drives the settings
@@ -341,33 +341,33 @@ public:
         return false;
     }
 
-    void    SetSpeedMode       (SettingsSpeedMode mode);
-    void    SetColorMode       (SettingsColorMode mode);
-    void    SetWriteMode       (SettingsWriteMode mode);
-    void    SetFloppySound     (bool enabled);
-    void    SetMechanism       (const std::string & mechanism);
-    void    SetFastTapeLoading (bool enabled);
-    void    SetTapeVolume      (float gain);
-    void    SetTapeAutoStop    (bool enabled);
-    void    SetTapeIdleStop    (bool enabled);
-    void    SetTapeEightBit    (bool enabled);
-    void    SetDriveMotorVolume (float gain);
-    void    SetDriveHeadVolume  (float gain);
-    void    SetDriveDoorVolume  (float gain);
-    void    SetDriveOnePan      (float pan);
-    void    SetDriveTwoPan      (float pan);
-    void    SetWriteProtect    (int drive, bool wp);
-    void    SetExternalDriveConnected (bool connected);
+    void  SetSpeedMode              (SettingsSpeedMode mode);
+    void  SetColorMode              (SettingsColorMode mode);
+    void  SetWriteMode              (SettingsWriteMode mode);
+    void  SetFloppySound            (bool enabled);
+    void  SetMechanism              (const std::string & mechanism);
+    void  SetFastTapeLoading        (bool enabled);
+    void  SetTapeVolume             (float gain);
+    void  SetTapeAutoStop           (bool enabled);
+    void  SetTapeIdleStop           (bool enabled);
+    void  SetTapeEightBit           (bool enabled);
+    void  SetDriveMotorVolume       (float gain);
+    void  SetDriveHeadVolume        (float gain);
+    void  SetDriveDoorVolume        (float gain);
+    void  SetDriveOnePan            (float pan);
+    void  SetDriveTwoPan            (float pan);
+    void  SetWriteProtect           (int drive, bool wp);
+    void  SetExternalDriveConnected (bool connected);
 
     // The machine's SECOND DRIVE, wherever that machine keeps it: the //c's
     // back-panel disk port, or the Disk ][ card's second connector. One
     // question, two stores, because the hardware really is different -- the
     // //c's is an external unit on a cable and the //e's is a drive on the
     // card's other plug.
-    bool    HasSecondDriveStore () const;
-    bool    SecondDriveAttached () const;
-    void    SetSecondDriveAttached (bool attached);
-    void    SetMouseConnected         (bool connected);
+    bool  HasSecondDriveStore    () const;
+    bool  SecondDriveAttached    () const;
+    void  SetSecondDriveAttached (bool attached);
+    void  SetMouseConnected      (bool connected);
 
     // What a //c serial port, 1 or 2, connects to, where the ImageWriter II is
     // attached, the Super Serial Card and the Uthernet II: see

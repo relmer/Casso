@@ -56,8 +56,8 @@ public:
     DxuiPropertySheet  () = default;
     ~DxuiPropertySheet () override = default;
 
-    int  GetActiveIndex () const { return m_active; }
-    void SetActivePage (int index);
+    int   GetActiveIndex () const { return m_active; }
+    void  SetActivePage  (int index);
 
     //
     //  Page (tab) visibility. A hidden page contributes no tab, is skipped by
@@ -82,12 +82,12 @@ public:
     //  relabel at runtime with just a repaint (the row does not reflow
     //  between resizes).
     //
-    void  SetApplyVisible (bool visible);
-    bool  ApplyVisible    () const { return m_applyVisible; }
-    void  SetOkText       (std::wstring text);
-    const std::wstring &  GetOkText () const { return m_okText; }
-    void  SetOkWidthDip (int widthDip);
-    int   GetOkWidthDip () const { return m_okWidthDip; }
+    void                  SetApplyVisible (bool visible);
+    bool                  ApplyVisible    () const { return m_applyVisible; }
+    void                  SetOkText       (std::wstring text);
+    const std::wstring  & GetOkText       () const { return m_okText; }
+    void                  SetOkWidthDip   (int widthDip);
+    int                   GetOkWidthDip   () const { return m_okWidthDip; }
 
     //
     //  Pure layout helper (exposed for tests). Right-aligns a row of buttons
@@ -195,16 +195,16 @@ protected:
     //  sheet's pixels and its label. Null while the page has no tab.
     const DxuiTabStrip::Tab *  FindTabOfPage (int pageIndex) const;
 
-    void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
-    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
-    bool  ShowScrollbarMenu (HWND hwnd, POINT pt) override { return m_scrollable && m_scrollbar.ShowContextMenu (hwnd, pt.x, pt.y, pt); }
-    LPCWSTR  GetCursorForPoint (POINT clientPx) const override;
-    void  OnCreate () override;
-    bool  OnDialogTabSwitch (bool backward) override;
-    void  OnDialogKeyHandled (IDxuiControl * focused) override;
-    bool  TryGetMaxClientSizePx (SIZE & outSizePx) const override;
-    bool  TryGetMaxTrackSizePx  (SIZE & outSizePx) const override;
+    void     Layout                (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    void     Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnMouse               (const DxuiMouseEvent & ev) override;
+    bool     ShowScrollbarMenu     (HWND hwnd, POINT pt) override { return m_scrollable && m_scrollbar.ShowContextMenu (hwnd, pt.x, pt.y, pt); }
+    LPCWSTR  GetCursorForPoint     (POINT clientPx) const override;
+    void     OnCreate              () override;
+    bool     OnDialogTabSwitch     (bool backward) override;
+    void     OnDialogKeyHandled    (IDxuiControl * focused) override;
+    bool     TryGetMaxClientSizePx (SIZE & outSizePx) const override;
+    bool     TryGetMaxTrackSizePx  (SIZE & outSizePx) const override;
 
     //
     //  Commit hooks (Template Method). The button row calls these so a

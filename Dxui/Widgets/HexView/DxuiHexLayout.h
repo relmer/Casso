@@ -31,8 +31,8 @@ public:
     int       GetRowCap       () const;
     uint64_t  GetMaxTopRow    () const;
 
-    RECT       GetByteRect      (uint64_t offset, DxuiHexViewTypes::Column column) const;
-    RECT       GetRowOffsetRect (uint64_t row) const;
+    RECT                         GetByteRect      (uint64_t offset, DxuiHexViewTypes::Column column) const;
+    RECT                         GetRowOffsetRect (uint64_t row) const;
     DxuiHexViewTypes::HitResult  HitTestPoint     (POINT clientDip) const;
 
     //  Hex digits the offset column spends, which is eight once the last
@@ -42,11 +42,11 @@ public:
     int   GetGroupCount   () const;
 
     //  First character cell of a byte's two hex digits, within the hex column.
-    int   GetByteCellInRow (int indexInRow) const;
-    int   GetColumnStartCell (DxuiHexViewTypes::Column column) const;
-    RECT  GetCellRect (int cellX, uint64_t row, int cellCount) const;
-    bool  IsRowVisible (uint64_t row) const;
-    void  ClampTopRow ();
+    int   GetByteCellInRow     (int indexInRow) const;
+    int   GetColumnStartCell   (DxuiHexViewTypes::Column column) const;
+    RECT  GetCellRect          (int cellX, uint64_t row, int cellCount) const;
+    bool  IsRowVisible         (uint64_t row) const;
+    void  ClampTopRow          ();
     RECT  GetSelectionCellRect (uint64_t offset, int index, const RECT & cell, bool hexColumn) const;
 
     //  Cells one value spends, its text, and the fill behind a selected one.

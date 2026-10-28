@@ -119,9 +119,9 @@ public:
     HRESULT  Create      (const CreateParams & params);
     // activate=false shows the window without pulling foreground/focus (for
     // windows that pop up on their own and must not steal keystrokes).
-    void     Show        (bool activate = true);
-    void     Hide        ();
-    void     Close        ();
+    void  Show  (bool activate = true);
+    void  Hide  ();
+    void  Close ();
 
     //
     //  Modal show. Displays the window, disables its owner, and runs a
@@ -152,8 +152,8 @@ public:
     //  call did not block). Use for a live overlay whose backdrop must
     //  keep animating (e.g. Settings over the running emulator).
     //
-    void     ShowModelessDialog (int defaultButtonId);
-    void     EndDialog   (int result);
+    void  ShowModelessDialog (int defaultButtonId);
+    void  EndDialog          (int result);
 
     //
     //  Window-level translucency for a composited window (CreateParams::
@@ -245,11 +245,11 @@ public:
     //
     void     Invalidate ();
 
-    void     SetTheme   (const IDxuiTheme * theme);
-    const IDxuiTheme *  GetTheme () const { return m_theme; }
-    void     SetTitle   (const std::wstring & title);
-    int      GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
-    UINT     GetDpi         () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
+    void                SetTheme           (const IDxuiTheme * theme);
+    const IDxuiTheme  * GetTheme           () const { return m_theme; }
+    void                SetTitle           (const std::wstring & title);
+    int                 GetCaptionHeightPx () const { return m_source != nullptr ? m_source->GetCaptionHeightPx() : 0; }
+    UINT                GetDpi             () const { return m_source != nullptr ? m_source->GetScaler().GetDpi() : USER_DEFAULT_SCREEN_DPI; }
 
     //
     //  Popup backend for DxuiPopupMenu / DxuiTooltip owned by content
@@ -367,22 +367,22 @@ protected:
 
 
 private:
-    DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnRButtonUp   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnXButtonUp   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseLeave  () override;
-    DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
-    DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
-    DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
-    DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
-    DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
-    DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
+    DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnXButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseLeave    () override;
+    DxuiMessageResult  OnMouseWheel    (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
+    DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
+    DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
+    DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
     void               OnModalLoopTick () override;
-    DxuiMessageResult  OnClose       () override;
-    void               OnDestroy     () override;
+    DxuiMessageResult  OnClose         () override;
+    void               OnDestroy       () override;
 
     DxuiMessageResult  DispatchMouse (DxuiMouseEventKind kind,
                                       DxuiMouseButton    button,
@@ -390,7 +390,7 @@ private:
                                       int                y,
                                       float              wheelDelta,
                                       bool               wheelHorizontal = false);
-    DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
+    DxuiMessageResult  DispatchKey       (DxuiKeyEventKind kind, WPARAM code);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
     void               ResizeToMaxSize   (bool growOnly);
 
@@ -403,12 +403,12 @@ private:
     //  recursive over the panel tree so buttons may live in a nested
     //  button-row panel.
     //
-    void          BeginDialogMode  (int defaultButtonId, bool modal);
-    void          WireDialogButtons   ();
-    bool          RouteKeyToFocused   (WPARAM vk, bool shift);
-    bool          IsTriggerButtonById (int commandId);
-    static DxuiButton *  FindButtonById   (IDxuiControl * node, int commandId);
-    static void          ForEachButton    (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
+    void                 BeginDialogMode     (int defaultButtonId, bool modal);
+    void                 WireDialogButtons   ();
+    bool                 RouteKeyToFocused   (WPARAM vk, bool shift);
+    bool                 IsTriggerButtonById (int commandId);
+    static DxuiButton  * FindButtonById      (IDxuiControl * node, int commandId);
+    static void          ForEachButton       (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
 
 
     std::unique_ptr<DxuiHwndSource>    m_source;

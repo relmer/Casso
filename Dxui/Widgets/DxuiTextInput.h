@@ -97,7 +97,7 @@ public:
     //  Draws the placeholder in italics and the disabled color, as File
     //  Explorer's search box draws its hint.
     void  SetPlaceholderItalic (bool italic)          { m_placeholderItalic = italic; }
-    void  SetFont       (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
+    void  SetFont              (const wchar_t * face, float sizeDip) { m_face = face; m_fontDip = sizeDip; }
 
     // Double-click seam. The clock supplies milliseconds for click timing
     // (GetTickCount64 when unset); the metrics override the system
@@ -129,9 +129,9 @@ public:
     //  The edit menu every text box has, as Windows' do: Undo, Cut, Copy,
     //  Paste, Delete and Select all, each enabled when it would do something.
     bool  ShowContextMenu (int x, int y);
-    void  OnMouseMove   (int x, int y);
-    bool  OnKey         (WPARAM vk);
-    bool  OnChar        (wchar_t ch);
+    void  OnMouseMove     (int x, int y);
+    bool  OnKey           (WPARAM vk);
+    bool  OnChar          (wchar_t ch);
 
     void  Paint         (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     bool  IsCaretOn     () const;
@@ -151,10 +151,10 @@ public:
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::TextInput; }
 
 private:
-    void   ClampCaret ();
-    size_t CaretFromX (IDxuiTextRenderer & text, int xPx) const;
-    size_t GetWordBoundary (size_t from, bool forward) const;
-    const wchar_t *  GetFace () const;
+    void             ClampCaret      ();
+    size_t           CaretFromX      (IDxuiTextRenderer & text, int xPx) const;
+    size_t           GetWordBoundary (size_t from, bool forward) const;
+    const wchar_t  * GetFace         () const;
 
     enum class CharClass
     {
@@ -171,14 +171,14 @@ private:
     void   SelectWordAt        (size_t charIndex);
     void   ExtendWordSelection (size_t charIndex);
 
-    static bool      IsWordChar   (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
-    static CharClass GetCharClass (wchar_t c);
-    void   DeleteSelection ();
-    void   InsertText      (const std::wstring & ins);
-    void   CopyToClipboard () const;
-    void   PasteFromClipboard ();
-    void   FireChange ();
-    void   ResetBlink () const { m_blinkAnchorMs = 0; }
+    static bool       IsWordChar         (wchar_t c) { return iswalnum (c) != 0 || c == L'_'; }
+    static CharClass  GetCharClass       (wchar_t c);
+    void              DeleteSelection    ();
+    void              InsertText         (const std::wstring & ins);
+    void              CopyToClipboard    () const;
+    void              PasteFromClipboard ();
+    void              FireChange         ();
+    void              ResetBlink         () const { m_blinkAnchorMs = 0; }
 
     static bool IsShiftKeyDown   () { return (GetKeyState (VK_SHIFT)   & 0x8000) != 0; }
     static bool IsControlKeyDown () { return (GetKeyState (VK_CONTROL) & 0x8000) != 0; }

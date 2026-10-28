@@ -66,8 +66,8 @@ public:
     void       SetRetryInterval (DWORD retryMs) { m_connector.m_retryMs = retryMs; }
 
     //  The pauses after each line of the loader and each of its characters.
-    void       SetBootstrapPause (DWORD pauseMs, DWORD charPauseUs = LinkBootstrap::kCharPauseUs) { m_connector.m_bootstrapPauseMs = pauseMs; m_connector.m_charPauseUs = charPauseUs; }
-    void       Stop   ();
+    void  SetBootstrapPause (DWORD pauseMs, DWORD charPauseUs = LinkBootstrap::kCharPauseUs) { m_connector.m_bootstrapPauseMs = pauseMs; m_connector.m_charPauseUs = charPauseUs; }
+    void  Stop              ();
 
     //  Stops the running operation; queued ones remain.
     void       Cancel ();
@@ -77,8 +77,8 @@ public:
     //  Whether ADTPro's own client is on the line instead of Casso's. The
     //  session goes on serving it, and opening goes on waiting for Casso's
     //  program.
-    bool       IsServingAdtPro () const { return m_connector.m_adtPro; }
-    Byte       GetDriveMap () const { return m_connector.m_driveMap; }
+    bool  IsServingAdtPro () const { return m_connector.m_adtPro; }
+    Byte  GetDriveMap     () const { return m_connector.m_driveMap; }
 
     //  The Apple's model, as its program reported it on connecting; empty
     //  before then.
@@ -153,23 +153,23 @@ private:
     static bool  IsSameCatalog (const VolumeListing & a, const VolumeListing & b);
     static bool  IsLineLost    (HRESULT hr);
 
-    IByteStreamFactory                          & m_factory;
-    ICassoLinkFolder                            & m_folder;
-    IDiskFileIo                                 & m_fileIo;
-    ICassoLinkSessionSink                       & m_sink;
-    CassoLinkSettings                             m_settings;
-    std::unique_ptr<CassoLinkHost>                m_host;
-    std::array<std::unique_ptr<DriveSource>, 2>   m_sources;
-    std::array<std::unique_ptr<LinkedDisk>, 2>    m_disks;
-    std::array<std::optional<VolumeListing>, 2>   m_listings;
-    std::atomic<bool>                             m_stopping { false };   // Stop closed the line
-    std::shared_ptr<LinkOperation>              m_running;
+    IByteStreamFactory                           & m_factory;
+    ICassoLinkFolder                             & m_folder;
+    IDiskFileIo                                  & m_fileIo;
+    ICassoLinkSessionSink                        & m_sink;
+    CassoLinkSettings                              m_settings;
+    std::unique_ptr<CassoLinkHost>                 m_host;
+    std::array<std::unique_ptr<DriveSource>, 2>    m_sources;
+    std::array<std::unique_ptr<LinkedDisk>, 2>     m_disks;
+    std::array<std::optional<VolumeListing>, 2>    m_listings;
+    std::atomic<bool>                              m_stopping { false };   // Stop closed the line
+    std::shared_ptr<LinkOperation>                 m_running;
 
     //  The session's parts, each with the state it uses.
     friend class CassoLinkConnector;
     friend class CassoLinkDiskTransfer;
     friend class CassoLinkSessionTypes::DriveSource;
-    CassoLinkConnector  m_connector { *this };
+    CassoLinkConnector     m_connector    { *this };
     CassoLinkDiskTransfer  m_diskTransfer { *this };
 };
 

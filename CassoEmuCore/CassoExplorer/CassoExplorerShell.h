@@ -186,10 +186,10 @@ private:
     //  order it was made in.
     struct WindowSlot;
 
-    void  ConfigureBrowser       (CassoExplorerBrowser & browser);
-    void  ReleaseClosedWindows   ();
-    bool  HasOpenWindows         () const;
-    std::vector<CassoExplorerSessionWindow>  GetOpenSession () const;
+    void                                     ConfigureBrowser     (CassoExplorerBrowser & browser);
+    void                                     ReleaseClosedWindows ();
+    bool                                     HasOpenWindows       () const;
+    std::vector<CassoExplorerSessionWindow>  GetOpenSession       () const;
 
     //  The open windows, then `closed`, written as the session.
     void  SaveSessionWith (const std::vector<CassoExplorerSessionWindow> & closed);

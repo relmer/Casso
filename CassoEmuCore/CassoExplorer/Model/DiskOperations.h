@@ -108,7 +108,7 @@ public:
 
     //  What a removal would remove, for a confirmation to show before one.
     Result  BuildRemovalPlan (const std::string & imagePath, const std::string & path, DirectoryRemovalPlan & outPlan);
-    Result  Init     (const std::string & imagePath, const NewDiskRequest & request);
+    Result  Init             (const std::string & imagePath, const NewDiskRequest & request);
 
     Result  SectorRead  (const std::string & imagePath, Numbering numbering, int track, int sector, int count, const std::string & hostPath);
     Result  SectorWrite (const std::string & imagePath, const std::string & hostPath, Numbering numbering, int track, int sector);

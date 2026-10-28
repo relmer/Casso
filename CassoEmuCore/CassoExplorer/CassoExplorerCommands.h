@@ -182,15 +182,15 @@ public:
     static constexpr int  kPreviewBarHex     = 2;
     static constexpr int  kPreviewBarPicture = 3;
 
-    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
+    std::vector<DxuiToolbar::Entry>  BuildPreviewToolbarEntries  (int bar, IDxuiToolbarCustomEntry * search, IDxuiToolbarCustomEntry * goTo) const;
     static std::vector<int>          GetPreviewToolbarCommandIds (int bar);
     static int                       GetPreviewBar               (int id);
 
     //  The toolbar entries' commands in strip order, so a host moving focus
     //  along the strip can check whether each one is enabled.
-    static size_t  GetToolbarEntryCount ();
-    static int     GetToolbarCommandId  (size_t index);
-    std::shared_ptr<const DxuiCommand>  Find (int id) const;
+    static size_t                       GetToolbarEntryCount ();
+    static int                          GetToolbarCommandId  (size_t index);
+    std::shared_ptr<const DxuiCommand>  Find                 (int id) const;
 
     //  The SVG a command's button and menu rows draw in place of its glyph;
     //  the text is the caller's and must outlive the command.
@@ -459,8 +459,8 @@ private:
     //  defines their keystrokes, and the focused control handles them. The
     //  rows still include the accelerator text for the menu.
 
-    void  ApplyToolbarRows (std::span<const ToolbarRow> rows);
-    std::vector<DxuiToolbar::Entry>  BuildEntries (std::span<const ToolbarRow> rows) const;
+    void                             ApplyToolbarRows (std::span<const ToolbarRow> rows);
+    std::vector<DxuiToolbar::Entry>  BuildEntries     (std::span<const ToolbarRow> rows) const;
 
     Handlers                                   m_handlers;
     std::vector<std::shared_ptr<DxuiCommand>>  m_commands;

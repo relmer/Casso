@@ -46,10 +46,10 @@ public:
     void  CreateNavBar     ();
     void  CreateMenuBar    ();
     void  CreateCommandBar ();
-    void  Create     ();
-    void  Configure  ();
-    bool  IsCreated  () const { return m_menuBar != nullptr; }
-    void  ApplyTheme (const DxuiTheme & theme);
+    void  Create           ();
+    void  Configure        ();
+    bool  IsCreated        () const { return m_menuBar != nullptr; }
+    void  ApplyTheme       (const DxuiTheme & theme);
 
     void  PlanForWidth (int widthPx);
     void  Layout       (const RECT & commandBand, const RECT & navBand);
@@ -63,12 +63,12 @@ public:
     //  Pointer events. A press outside a bar with a menu open closes it, ahead
     //  of the window's other routing; the menu bar is ahead of the address
     //  bar, and the two bars after it.
-    void  CloseMenusOutside (const DxuiMouseEvent & ev);
-    void  CloseMenus        ();
-    bool  HandleMenuBarMouse    (const DxuiMouseEvent & ev) { return m_menuBar->OnMouse (ev); }
-    bool  HandleMouse           (const DxuiMouseEvent & ev);
-    bool  RouteToolbarMouse (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
-    bool  TryMenuBarKey     (const DxuiKeyEvent & ev, bool & outHandled);
+    void  CloseMenusOutside  (const DxuiMouseEvent & ev);
+    void  CloseMenus         ();
+    bool  HandleMenuBarMouse (const DxuiMouseEvent & ev) { return m_menuBar->OnMouse (ev); }
+    bool  HandleMouse        (const DxuiMouseEvent & ev);
+    bool  RouteToolbarMouse  (DxuiToolbar & toolbar, const DxuiMouseEvent & ev);
+    bool  TryMenuBarKey      (const DxuiKeyEvent & ev, bool & outHandled);
 
     //  The strip a pointer event goes to: the command bar over its band, the
     //  navigation toolbar anywhere else.

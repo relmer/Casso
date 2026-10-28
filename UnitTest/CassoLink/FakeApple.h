@@ -164,7 +164,7 @@ private:
 
     void  Serve (std::stop_token stop, InProcessByteStream & stream)
     {
-        Line             line { stream, {} };
+        Line             line    { stream, {} };
         Word             version = startAsShim ? 0 : LinkProgram::kProgramVersion;
         CassoLinkPacket  packet;
         bool             silent  = readySentEarly;

@@ -129,11 +129,11 @@ private:
         { 0x40, 'B', 0x06 },
     };
 
-    static std::wstring  FormatHex (unsigned value, int digits);
-    static bool          TryParseHex (const std::wstring & text, size_t at, size_t digits, unsigned & outValue);
-    static bool          EndsWithIgnoringCase (const std::wstring & text, const std::wstring & suffix);
-    static std::vector<std::wstring>  SplitOnDots (const std::wstring & text);
-    static std::string   ToNarrow (const std::wstring & text);
-    static std::wstring  ToWide   (const std::string & text);
-    static bool          EqualsIgnoringCase (const std::wstring & a, const wchar_t * b);
+    static std::wstring               FormatHex            (unsigned value, int digits);
+    static bool                       TryParseHex          (const std::wstring & text, size_t at, size_t digits, unsigned & outValue);
+    static bool                       EndsWithIgnoringCase (const std::wstring & text, const std::wstring & suffix);
+    static std::vector<std::wstring>  SplitOnDots          (const std::wstring & text);
+    static std::string                ToNarrow             (const std::wstring & text);
+    static std::wstring               ToWide               (const std::string & text);
+    static bool                       EqualsIgnoringCase   (const std::wstring & a, const wchar_t * b);
 };

@@ -70,8 +70,8 @@ public:
     static bool  Parse (const wchar_t * d, std::vector<DxuiSvgSubpath> & outSubpaths);
 
 private:
-    static bool  IsCommand     (wchar_t c);
-    static bool  ReadNumber    (const wchar_t *& p, float & outValue);
-    static bool  ReadFlag      (const wchar_t *& p, bool & outValue);
+    static bool  IsCommand      (wchar_t c);
+    static bool  ReadNumber     (const wchar_t *& p, float & outValue);
+    static bool  ReadFlag       (const wchar_t *& p, bool & outValue);
     static void  SkipSeparators (const wchar_t *& p);
 };

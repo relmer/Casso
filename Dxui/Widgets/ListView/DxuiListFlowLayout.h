@@ -25,18 +25,18 @@ public:
     explicit DxuiListFlowLayout (DxuiListView & list);
 
     static constexpr float  s_kListGroupColumnTrimDip = 10.67f;
-    const std::vector<int> &  GetListColumnLefts () const;
-    int           FindListColumn          (int x) const;
+    const std::vector<int>  & GetListColumnLefts () const;
+    int                       FindListColumn     (int x) const;
 
-    bool          HasListGroups           () const;
-    const DxuiListViewTypes::ListLayout &  GetListLayout     () const;
-    DxuiListViewTypes::ListLayout    BuildListLayout         () const;
-    bool          GetListItemRectPx       (const DxuiListViewTypes::ListLayout & layout, int item, RECT & outRect) const;
-    static int    FindListBlock           (const DxuiListViewTypes::ListLayout & layout, int x);
-    int           HitTestListItem         (const DxuiListViewTypes::ListLayout & layout, int xPx, int yPx) const;
+    bool                                   HasListGroups     () const;
+    const DxuiListViewTypes::ListLayout  & GetListLayout     () const;
+    DxuiListViewTypes::ListLayout          BuildListLayout   () const;
+    bool                                   GetListItemRectPx (const DxuiListViewTypes::ListLayout & layout, int item, RECT & outRect) const;
+    static int                             FindListBlock     (const DxuiListViewTypes::ListLayout & layout, int x);
+    int                                    HitTestListItem   (const DxuiListViewTypes::ListLayout & layout, int xPx, int yPx) const;
 
-    std::vector<DxuiListViewTypes::ListColumn>  GetListColumns            () const;
-    static int               FindColumnOfItem          (const std::vector<DxuiListViewTypes::ListColumn> & cols, int item);
+    std::vector<DxuiListViewTypes::ListColumn>  GetListColumns   () const;
+    static int                                  FindColumnOfItem (const std::vector<DxuiListViewTypes::ListColumn> & cols, int item);
 
 private:
     friend class DxuiListView;

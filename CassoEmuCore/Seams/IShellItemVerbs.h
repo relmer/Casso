@@ -143,9 +143,9 @@ public:
     //  or a thumbnail for a picture or a video.
     virtual bool  HasShellPreview (const std::wstring & path) { (void) path; return false; }
 
-    virtual ShellLister  GetShellLister ()                                                                { return [this] (const std::wstring & id, std::vector<ShellFolderItem> & outItems) { return ListShellFolder (id, outItems); }; }
-    virtual HRESULT  GetShellItemName  (const std::wstring & id, std::wstring & outName)               { (void) id; (void) outName; return E_NOTIMPL; }
-    virtual HRESULT  OpenShellItem     (HWND owner, const std::wstring & id)                            { (void) owner; (void) id; return E_NOTIMPL; }
+    virtual ShellLister  GetShellLister   ()                                                                { return [this] (const std::wstring & id, std::vector<ShellFolderItem> & outItems) { return ListShellFolder (id, outItems); }; }
+    virtual HRESULT      GetShellItemName (const std::wstring & id, std::wstring & outName)               { (void) id; (void) outName; return E_NOTIMPL; }
+    virtual HRESULT      OpenShellItem    (HWND owner, const std::wstring & id)                            { (void) owner; (void) id; return E_NOTIMPL; }
 
     //  The folder above a shell item, as Explorer's Up goes: its id, the name
     //  it shows, and its path when it is a folder on a disk. S_FALSE at the

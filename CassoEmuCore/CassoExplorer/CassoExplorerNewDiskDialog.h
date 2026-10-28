@@ -42,8 +42,8 @@ public:
         { L"Nibble (.nib)",        "nib" },
     };
 
-    static std::vector<std::wstring>  GetFormatLabels();
-    static std::vector<std::wstring>  GetContainerLabels();
+    static std::vector<std::wstring>  GetFormatLabels    ();
+    static std::vector<std::wstring>  GetContainerLabels ();
 
     //  The request for the chosen indices. An index out of range takes the
     //  first choice; an empty volume leaves the runner's default.
@@ -116,7 +116,7 @@ public:
 
     using TipFn = std::function<std::wstring (IDxuiControl * field)>;
 
-    void  Init (const Children & children, bool showNameRows);
+    void  Init              (const Children & children, bool showNameRows);
     void  SetOnChildPressed (std::function<void (IDxuiControl *)> fn) { m_onPressed = std::move (fn); }
 
     //  The tooltip a hovered field shows, and the text for each field; a field
@@ -202,7 +202,7 @@ private:
 
     //  Grows or shrinks the window by the difference between the room the rows
     //  have and the room they need.
-    void  FitToContent ();
+    void  FitToContent     ();
     void  FitBeforeShowing ();
 
     const IDxuiTheme    * m_theme          = nullptr;

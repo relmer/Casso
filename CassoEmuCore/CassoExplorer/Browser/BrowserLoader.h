@@ -53,19 +53,19 @@ public:
     std::wstring  GetImageProblem (const std::wstring & imagePath);
 
     //  Refresh for a navigation, whose failure is already in the list error.
-    void     ReloadAfterNavigation();
-    bool     IsOnMissingDrive (const Location & location) const;
-    HRESULT  LoadHostFolder (const std::wstring & path);
-    HRESULT  LoadRoot       (const std::wstring & id);
-    HRESULT  LoadRecycleBin ();
-    HRESULT  LoadShellFolder (const std::wstring & id);
-    HRESULT  LoadImage      (const std::wstring & path, const std::string & directory);
-    HRESULT  LoadAppleDrive (const Location & location);
-    void     AddCassoLinkItems ();
-    void     AddAdtProHelpItem ();
-    bool     IsAdtProServer    (const std::string & name) const;
-    void     RevisitLink       (const Location & location);
-    bool     CanListImage   (const std::wstring & imagePath);
+    void     ReloadAfterNavigation ();
+    bool     IsOnMissingDrive      (const Location & location) const;
+    HRESULT  LoadHostFolder        (const std::wstring & path);
+    HRESULT  LoadRoot              (const std::wstring & id);
+    HRESULT  LoadRecycleBin        ();
+    HRESULT  LoadShellFolder       (const std::wstring & id);
+    HRESULT  LoadImage             (const std::wstring & path, const std::string & directory);
+    HRESULT  LoadAppleDrive        (const Location & location);
+    void     AddCassoLinkItems     ();
+    void     AddAdtProHelpItem     ();
+    bool     IsAdtProServer        (const std::string & name) const;
+    void     RevisitLink           (const Location & location);
+    bool     CanListImage          (const std::wstring & imagePath);
     bool     TryGetImageLocation   (int row, Location & outLocation) const;
 
 private:

@@ -43,10 +43,10 @@ public:
 
     CassoExplorerBrowser (IFileSystem & fs, IDiskFileIo & fileIo);
 
-    TreeModel &       GetTreeModel    ()       { return m_tree;  }
-    const TreeModel & GetTreeModel    () const { return m_tree;  }
-    BrowserModel &    GetBrowserModel ()       { return m_model; }
-    DiskOperations &  GetOperations   ()       { return m_operations; }
+    TreeModel        & GetTreeModel    ()       { return m_tree;  }
+    const TreeModel  & GetTreeModel    () const { return m_tree;  }
+    BrowserModel     & GetBrowserModel ()       { return m_model; }
+    DiskOperations   & GetOperations   ()       { return m_operations; }
 
     //  The tree's roots, collapsed with children unloaded, and one node's
     //  children for the tree widget's provider.
@@ -94,8 +94,8 @@ public:
 
     //  A tab arriving from another window goes in at `index`, history and view
     //  included, and becomes the active tab.
-    size_t        InsertTab   (size_t index, BrowserModel::Tab tab);
-    std::vector<DxuiListView::Cell>            GetArchivePreviewCells   (const CatalogRow & row) const { return m_previewer.GetArchivePreviewCells (row); }
+    size_t                           InsertTab              (size_t index, BrowserModel::Tab tab);
+    std::vector<DxuiListView::Cell>  GetArchivePreviewCells (const CatalogRow & row) const { return m_previewer.GetArchivePreviewCells (row); }
 
 private:
 
@@ -118,13 +118,13 @@ public:
 
     //  Where Up goes from the active tab, for its tooltip and for GoUp.
     bool  TryGetUpTarget (Location & outTarget) const;
-    bool  GoBack    ();
-    bool  GoForward ();
+    bool  GoBack         ();
+    bool  GoForward      ();
 
     //  Several steps at once, as a pick from the Back or Forward list takes.
     bool  GoBackBy    (size_t steps);
     bool  GoForwardBy (size_t steps);
-    bool  GoUp      ();
+    bool  GoUp        ();
 
     //  Navigates the active tab to a location, as a click on an address bar
     //  segment does, or to a typed path. False, with nothing changed, for a
@@ -136,13 +136,13 @@ public:
     //  does when the folder it shows is deleted. False, with nothing
     //  changed, when the location still exists or is not on the host.
     bool  LeaveMissingLocation () { return m_loader.LeaveMissingLocation(); }
-    bool  NavigateToAddress  (const std::wstring & text);
+    bool  NavigateToAddress    (const std::wstring & text);
 
     //  The paths typed into the address bar. Held here because this is where a
     //  typed path is told apart from a click, and where its navigation is known
     //  to have succeeded. Seeded from the stored copy at startup.
-    TypedPathHistory &        GetTypedPaths ()       { return m_typedPaths; }
-    const TypedPathHistory &  GetTypedPaths () const { return m_typedPaths; }
+    TypedPathHistory        & GetTypedPaths ()       { return m_typedPaths; }
+    const TypedPathHistory  & GetTypedPaths () const { return m_typedPaths; }
 
     //  What an address bar separator lists: the folders and images in a host
     //  folder.
@@ -160,8 +160,8 @@ public:
 
     //  A folder's own sort and grouping, set together as it opens.
     void                              SetSortAndGroup (CatalogModel::Column column, bool descending, RowGrouping::Field group, bool groupDescending);
-    std::vector<DxuiListView::Group>  GetListGroups () const;
-    void  SetSelectedRows  (const std::vector<int> & rows);
+    std::vector<DxuiListView::Group>  GetListGroups   () const;
+    void                              SetSelectedRows (const std::vector<int> & rows);
 
     //  The preview made again for the selection, as when a slow read arrives.
     void  RefreshPreview   () { m_previewer.UpdatePreview(); }
@@ -169,10 +169,10 @@ public:
     //  A shell preview that failed or took too long is replaced by the file's
     //  bytes.
     void  ShowShellPreviewBytes () { m_previewer.ShowShellPreviewBytes(); }
-    void  SetDisassemble   (bool disassemble) { m_previewer.SetDisassemble (disassemble); }
+    void  SetDisassemble        (bool disassemble) { m_previewer.SetDisassemble (disassemble); }
 
-    const std::vector<CatalogRow> &  GetRows       () const { return m_rows;      }
-    const PreviewContent &           GetPreview    () const { return m_previewer.m_preview;   }
+    const std::vector<CatalogRow>  & GetRows    () const { return m_rows;      }
+    const PreviewContent           & GetPreview () const { return m_previewer.m_preview;   }
 
     //  The monitor a picture preview is drawn for, with the custom monitor's
     //  color; a change draws the current picture again.
@@ -188,22 +188,22 @@ public:
 
     //  A double hi-res picture drawn in color or as its bits, whichever the
     //  automatic choice was not; again to go back. False for any other preview.
-    bool  TogglePictureColor () { return m_previewer.TogglePictureColor(); }
-    bool  CanTogglePictureColor () const { return m_previewer.CanTogglePictureColor(); }
-    const std::wstring &             GetListError  () const { return m_loader.m_listError; }
-    const Status &                   GetStatus     () const { return m_status;    }
-    const std::vector<int> &         GetSelectedRows () const { return m_selectedRows; }
-    Location                         GetLocation   () const;
-    VolumeKind                       GetVolumeKind () const { return m_kind; }
-    bool                             IsAppleDriveLocation () const { return m_isAppleDrive; }
+    bool                      TogglePictureColor    () { return m_previewer.TogglePictureColor(); }
+    bool                      CanTogglePictureColor () const { return m_previewer.CanTogglePictureColor(); }
+    const std::wstring      & GetListError          () const { return m_loader.m_listError; }
+    const Status            & GetStatus             () const { return m_status;    }
+    const std::vector<int>  & GetSelectedRows       () const { return m_selectedRows; }
+    Location                  GetLocation           () const;
+    VolumeKind                GetVolumeKind         () const { return m_kind; }
+    bool                      IsAppleDriveLocation  () const { return m_isAppleDrive; }
 
     //  An Apple drive is open, whether or not its catalog could be read, as
     //  for a disk to format.
     bool                             IsAppleDriveOpen () const { return GetLocation().kind == Location::Kind::AppleDrive; }
 
     //  An image or an Apple drive: a volume whose catalog is in the list.
-    bool                             IsVolumeLocation () const { return m_isImage || m_isAppleDrive; }
-    bool                             IsImageLocation () const { return m_isImage; }
+    bool  IsVolumeLocation () const { return m_isImage || m_isAppleDrive; }
+    bool  IsImageLocation  () const { return m_isImage; }
 
     //  The root being listed, or empty when the list is another location's.
     std::wstring                     GetRootId () const;
@@ -211,8 +211,8 @@ public:
     //  Whether the image shown is write-protected, read once when it loads:
     //  the commands that would write to it ask on every repaint, which is too
     //  often to hit the file system.
-    bool                             IsWriteProtected () const { return m_loader.m_writeProtected; }
-    const VolumeListing &            GetListing    () const { return m_listing; }
+    bool                   IsWriteProtected () const { return m_loader.m_writeProtected; }
+    const VolumeListing  & GetListing       () const { return m_listing; }
 
     //  The catalog entries behind the selected rows, in row order, when the
     //  location is an image; empty otherwise.
@@ -244,9 +244,9 @@ public:
     //  disk images, each with its image, found again in that image's catalog.
     using SearchMatch = BrowserSearchMatch;
 
-    void  GetSelectedSearchMatches (std::vector<SearchMatch> & outMatches) { m_previewer.GetSelectedSearchMatches (outMatches); }
+    void  GetSelectedSearchMatches     (std::vector<SearchMatch> & outMatches) { m_previewer.GetSelectedSearchMatches (outMatches); }
     bool  AreSelectedRowsSearchMatches () const { return m_previewer.AreSelectedRowsSearchMatches(); }
-    bool  TryFindSearchMatch       (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError) { return m_previewer.TryFindSearchMatch (row, outMatch, outError); }
+    bool  TryFindSearchMatch           (const CatalogRow & row, SearchMatch & outMatch, std::wstring & outError) { return m_previewer.TryFindSearchMatch (row, outMatch, outError); }
 
     //  Whether the selected rows are all disk images in a host folder.
     bool  AreSelectedRowsImages() const;
@@ -319,10 +319,10 @@ public:
 private:
 
     CassoExplorerShellListings  m_shellListings;
-    void     SortRows();
-    void     GroupRows();
-    void     ResortKeepingSelection();
-    bool     TryGetSelectedEntry (const FileEntry *& outEntry) const;
+    void  SortRows               ();
+    void  GroupRows              ();
+    void  ResortKeepingSelection ();
+    bool  TryGetSelectedEntry    (const FileEntry *& outEntry) const;
 
     //  The key a selection stores for a row: its name and its occurrence among
     //  rows with that name, since a DOS 3.3 catalog can repeat a name.
@@ -349,11 +349,11 @@ private:
     IShellItemVerbs                   * m_shellVerbs     = nullptr;
 
     //  The browser's parts, each with the state it uses.
-    friend class BrowserLoader;
-    friend class BrowserPreviewer;
-    friend class BrowserCells;
-    BrowserLoader  m_loader { *this };
-    BrowserPreviewer  m_previewer { *this };
-    BrowserCells  m_cells { *this };
+    friend class      BrowserLoader;
+    friend class      BrowserPreviewer;
+    friend class      BrowserCells;
+    BrowserLoader     m_loader         { *this };
+    BrowserPreviewer  m_previewer      { *this };
+    BrowserCells      m_cells          { *this };
 };
 

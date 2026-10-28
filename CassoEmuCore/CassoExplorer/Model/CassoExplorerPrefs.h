@@ -129,7 +129,7 @@ struct CassoExplorerPrefs
 
     //  The emulator's active theme mapped onto this browser's palette for
     //  it: the three emulator themes by name, anything else Follow system.
-    static std::string  MapCassoTheme (const std::string & activeTheme);
+    static std::string  MapCassoTheme  (const std::string & activeTheme);
     static std::string  ReadCassoTheme (const std::wstring & baseDir, IFileSystem & fs);
 
     static bool  IsKnownTheme (const std::string & theme);
@@ -179,13 +179,13 @@ struct CassoExplorerPrefs
     static bool          TryGetLocationKind  (const std::string & name, Location::Kind & outKind);
 
 private:
-    static JsonValue  LocationToJson (const Location & location);
-    static JsonValue  LinkToJson     (const CassoLinkSettings & link);
+    static JsonValue  LocationToJson  (const Location & location);
+    static JsonValue  LinkToJson      (const CassoLinkSettings & link);
     static bool       TryLinkFromJson (const JsonValue & value, CassoLinkSettings & outLink);
 
     //  A list of column indexes, and the one under a key; an entry that is
     //  not a number reads as -1, which nothing applies.
-    static JsonValue         MakeIntArray (const std::vector<int> & values);
-    static std::vector<int>  ReadIntArray (const JsonValue & object, const char * key);
-    static bool       TryLocationFromJson (const JsonValue & value, Location & outLocation);
+    static JsonValue         MakeIntArray        (const std::vector<int> & values);
+    static std::vector<int>  ReadIntArray        (const JsonValue & object, const char * key);
+    static bool              TryLocationFromJson (const JsonValue & value, Location & outLocation);
 };

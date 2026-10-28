@@ -45,10 +45,10 @@ public:
     static constexpr float   kActivityTipWidthDip = 720.0f;   // a log line, time and link and all, on one line
 
     //  The bar, as a child of the window, and its fields.
-    void  Create    ();
-    void  Configure ();
-    void  Layout    (const RECT & band);
-    void  Fill      ();
+    void  Create      ();
+    void  Configure   ();
+    void  Layout      (const RECT & band);
+    void  Fill        ();
     void  SetDetail   (const std::wstring & text) { m_status->SetText (kStatusDetail, text); }
     void  SetActivity (const std::wstring & text) { m_status->SetText (kStatusFill, text); }
 
@@ -56,7 +56,7 @@ public:
     //  routing, one on the CassoLink line after the panes' captures.
     bool  HandleZoomClick     (const DxuiMouseEvent & ev);
     bool  HandleActivityClick (const DxuiMouseEvent & ev);
-    void  UpdateTip       (const DxuiMouseEvent & ev, POINT point);
+    void  UpdateTip           (const DxuiMouseEvent & ev, POINT point);
 
 private:
     ExplorerContext  & m_context;

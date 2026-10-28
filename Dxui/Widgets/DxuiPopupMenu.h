@@ -283,10 +283,10 @@ public:
         return (row >= 0) ? GetIconButtonAt (row, x - m_boundsDip.left) : -1;
     }
 
-    int  GetIconHighlight () const              { return m_iconHover; }
-    void  SetHighlight   (int index)            { SetHover (index); }
-    void  HighlightFirst ()                     { SetHover (FindFirstSelectable()); }
-    void  ActivateRow    (int index)            { Commit (index); }
+    int   GetIconHighlight () const              { return m_iconHover; }
+    void  SetHighlight     (int index)            { SetHover (index); }
+    void  HighlightFirst   ()                     { SetHover (FindFirstSelectable()); }
+    void  ActivateRow      (int index)            { Commit (index); }
 
     //  The reopen guard exists for an opener whose hosted popup dismisses
     //  itself on the click BEFORE the opener sees that click. An opener that
@@ -383,18 +383,18 @@ private:
 
     void  RefreshMetrics     ();
 
-    bool  IsSelectable       (int index) const;
-    int   FindNextSelectable (int from, int direction) const;
+    bool  IsSelectable        (int index) const;
+    int   FindNextSelectable  (int from, int direction) const;
     int   FindFirstSelectable () const;
-    bool  IsReopenSuppressed (const RECT & anchor) const;
+    bool  IsReopenSuppressed  (const RECT & anchor) const;
 
-    void  SetIconHover       (int button);
-    int   GetIconButtonAt    (int index, int localX) const;
-    void  CommitIcon         (int index, int button);
-    void  PlaceIconRow       (bool atBottom);
+    void  SetIconHover        (int button);
+    int   GetIconButtonAt     (int index, int localX) const;
+    void  CommitIcon          (int index, int button);
+    void  PlaceIconRow        (bool atBottom);
     void  DropStraySeparators ();
-    bool  OpensUpward        (int originX, int originY, int heightPx, Anchoring anchoring) const;
-    int   HitTestIndex       (int x, int y) const;
+    bool  OpensUpward         (int originX, int originY, int heightPx, Anchoring anchoring) const;
+    int   HitTestIndex        (int x, int y) const;
 
     void  ShowCore           (int                              originX,
                               int                              originY,
@@ -403,14 +403,14 @@ private:
                               std::vector<DxuiPopupMenuItem>   items,
                               IDxuiTextRenderer              & text,
                               const RECT                     & hostClient);
-    void  AcquirePopup       (const RECT & anchor, Anchoring anchoring);
-    void  SetHover           (int index);
-    void  ArmChild           (int index);
-    void  DisarmChild        ();
-    void  OpenChild          (int index, bool highlightFirst);
-    void  CloseChild         ();
-    void  Commit             (int index);
-    DxuiPopupMenu *  GetRoot ();
+    void             AcquirePopup (const RECT & anchor, Anchoring anchoring);
+    void             SetHover     (int index);
+    void             ArmChild     (int index);
+    void             DisarmChild  ();
+    void             OpenChild    (int index, bool highlightFirst);
+    void             CloseChild   ();
+    void             Commit       (int index);
+    DxuiPopupMenu  * GetRoot      ();
 
     void     RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
     void     OnPopupMove     (POINT localPx);

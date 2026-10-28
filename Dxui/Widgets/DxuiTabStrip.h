@@ -96,10 +96,10 @@ public:
 
     ~DxuiTabStrip() override = default;
 
-    void  SetTabs    (std::vector<Tab> tabs);
+    void  SetTabs     (std::vector<Tab> tabs);
     void  SetSelected (int index);
-    void  SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
-    void  SetFocused (bool focused) { m_focused = focused; }
+    void  SetEnabled  (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; }
+    void  SetFocused  (bool focused) { m_focused = focused; }
     void  SetStyle    (DxuiTabStripStyle style) { m_style = style; }
     void  SetOnChange (ChangeFn fn) { m_change = std::move (fn); }
 
@@ -226,31 +226,31 @@ private:
     static constexpr float  s_kExplorerCloseGlyphDip  = 8.67f;
     static constexpr int    s_kCornerDip              = 6;   // the selected tab's rounded top corners
 
-    void  Commit         (int newIndex);
-    bool  HasBounds      () const { return m_boundsDip.right > m_boundsDip.left; }
-    int   GetMaxScrollPx () const;
-    int   GetContentX    (int x) const { return x + m_scrollPx - GetArrowWidthPx(); }
-    void  EndDrag        (int x, int y);
-    void  ClampScroll    ();
-    void  ScrollIntoView (int index);
-    void  MoveDraggedTab (int to);
-    bool  IsOverflowing  () const;
-    int   GetArrowWidthPx () const;
-    int   GetViewLeft    () const { return (int) m_boundsDip.left  + GetArrowWidthPx(); }
-    int   GetViewRight   () const { return (int) m_boundsDip.right - GetNewTabWidthPx() - GetArrowWidthPx(); }
-    int   GetArrowAt     (int x, int y) const;
-    bool  CanScroll      (int direction) const;
-    void  ScrollByTab    (int direction);
+    void  Commit           (int newIndex);
+    bool  HasBounds        () const { return m_boundsDip.right > m_boundsDip.left; }
+    int   GetMaxScrollPx   () const;
+    int   GetContentX      (int x) const { return x + m_scrollPx - GetArrowWidthPx(); }
+    void  EndDrag          (int x, int y);
+    void  ClampScroll      ();
+    void  ScrollIntoView   (int index);
+    void  MoveDraggedTab   (int to);
+    bool  IsOverflowing    () const;
+    int   GetArrowWidthPx  () const;
+    int   GetViewLeft      () const { return (int) m_boundsDip.left  + GetArrowWidthPx(); }
+    int   GetViewRight     () const { return (int) m_boundsDip.right - GetNewTabWidthPx() - GetArrowWidthPx(); }
+    int   GetArrowAt       (int x, int y) const;
+    bool  CanScroll        (int direction) const;
+    void  ScrollByTab      (int direction);
     int   GetNewTabWidthPx () const;
-    RECT  GetNewTabRect  () const;
-    bool  IsOverNewTab   (int x, int y) const;
-    RECT  GetCloseRect   (int index) const;
+    RECT  GetNewTabRect    () const;
+    bool  IsOverNewTab     (int x, int y) const;
+    RECT  GetCloseRect     (int index) const;
 
     //  The tab drawn as selected: none while the selected tab is the one being
     //  dragged, which is not drawn in the row. And whether tab `index` is
     //  drawn at all.
     int   GetPaintedSelection () const;
-    bool  IsPainted      (int index) const { return !(m_dragging && index == m_pressed); }
+    bool  IsPainted           (int index) const { return !(m_dragging && index == m_pressed); }
 
     int       GetCloseAt          (int x, int y) const;
 

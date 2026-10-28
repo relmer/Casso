@@ -75,27 +75,27 @@ public:
 
     // Configuration. arrowStep is the position delta for an arrow-button
     // click (one line); track clicks page by the SCROLLINFO page extent.
-    void     Configure (Orientation orientation, int thicknessPx, int minThumbPx, int arrowStepPx);
-    void     SetTrack (const RECT & trackPx)  { m_track = trackPx; }
-    void     SetScrollInfo (const SCROLLINFO & info);
-    void     GetScrollInfo (SCROLLINFO & info) const;
-    void     SetScrollPos (int pos);
-    int      GetScrollPos() const             { return m_pos; }
-    int      GetMaxScrollPos() const;
+    void  Configure       (Orientation orientation, int thicknessPx, int minThumbPx, int arrowStepPx);
+    void  SetTrack        (const RECT & trackPx)  { m_track = trackPx; }
+    void  SetScrollInfo   (const SCROLLINFO & info);
+    void  GetScrollInfo   (SCROLLINFO & info) const;
+    void  SetScrollPos    (int pos);
+    int   GetScrollPos    () const             { return m_pos; }
+    int   GetMaxScrollPos () const;
 
     // Queries.
-    bool     IsVisible() const;
-    bool     IsDragging() const               { return m_dragging; }
-    Metrics  GetMetrics() const;
-    bool     HitTest (int xPx, int yPx) const;
+    bool     IsVisible  () const;
+    bool     IsDragging () const               { return m_dragging; }
+    Metrics  GetMetrics () const;
+    bool     HitTest    (int xPx, int yPx) const;
 
     // Input (widget-relative px). OnMouseDown classifies the press
     // (arrow / track / thumb) and acts; OnMouseMove drives an in-progress
     // thumb drag; OnMouseUp ends it. Each returns true when consumed and
     // fires onScroll if the position changed.
-    bool     OnMouseDown (int xPx, int yPx);
-    bool     OnMouseMove (int xPx, int yPx);
-    bool     OnMouseUp();
+    bool  OnMouseDown (int xPx, int yPx);
+    bool  OnMouseMove (int xPx, int yPx);
+    bool  OnMouseUp   ();
 
     //  For a host that runs the thumb drag itself: the puck's distance along
     //  the track while the drag lasts, or nothing once it ends. The puck is
@@ -132,17 +132,17 @@ public:
     static bool  ShowMenu (HWND hwnd, POINT atPx, std::vector<DxuiPopupMenuItem> items);
 
 private:
-    int    GetContentExtent() const;     // nMax - nMin
-    int    GetMainTrackStart() const;    // along the scroll axis
-    int    GetMainTrackLength() const;
-    int    GetArrowExtent() const;       // 0 when the bar is too short
-    float  GetThumbStart() const;
-    float  GetThumbLength() const;
-    RECT   GetMainRect (int mainStart, int mainExtent) const;
-    void   NotifyPos (int sbCode, int newPos);
-    int    GetPosAt (int xPx, int yPx) const;
-    void   PaintThumb (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
-    void   PaintArrow (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
+    int    GetContentExtent   () const;     // nMax - nMin
+    int    GetMainTrackStart  () const;    // along the scroll axis
+    int    GetMainTrackLength () const;
+    int    GetArrowExtent     () const;       // 0 when the bar is too short
+    float  GetThumbStart      () const;
+    float  GetThumbLength     () const;
+    RECT   GetMainRect        (int mainStart, int mainExtent) const;
+    void   NotifyPos          (int sbCode, int newPos);
+    int    GetPosAt           (int xPx, int yPx) const;
+    void   PaintThumb         (IDxuiPainter & painter, float x, float y, float w, float h, uint32_t argb) const;
+    void   PaintArrow         (IDxuiPainter & painter, const RECT & rect, bool less, uint32_t argb) const;
 
     Orientation                            m_orientation = Orientation::Vertical;
     int                                    m_thicknessPx = 0;

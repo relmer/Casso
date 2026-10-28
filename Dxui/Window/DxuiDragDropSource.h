@@ -89,8 +89,8 @@ public:
     STDMETHODIMP  EnumDAdvise           (IEnumSTATDATA ** outEnum) override;
 
 private:
-    explicit DxuiDragDropSource (std::vector<Format> formats);
-    virtual ~DxuiDragDropSource() = default;
+    explicit  DxuiDragDropSource  (std::vector<Format> formats);
+    virtual   ~DxuiDragDropSource () = default;
 
     const Format *  FindFormat (CLIPFORMAT format) const;
 

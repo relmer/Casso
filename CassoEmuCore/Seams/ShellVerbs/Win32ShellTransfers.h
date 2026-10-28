@@ -25,15 +25,15 @@ class Win32ShellTransfers
 public:
     explicit Win32ShellTransfers (Win32ShellItemVerbs & verbs);
 
-    HRESULT  DragItems (const std::vector<std::wstring> & ids, DWORD allowedEffects, const DxuiIconImage * dragImage = nullptr);
-    HRESULT  ReadItemBytes (const std::wstring & id, size_t maxBytes, std::vector<Byte> & outBytes);
-    HRESULT  RenameItem          (HWND owner, const std::wstring & path, const std::wstring & newName);
-    HRESULT  PlaceOnClipboard    (HWND owner, const std::vector<std::wstring> & paths, bool cut);
-    bool     ClipboardHasFiles   () const;
-    HRESULT  PasteInto           (HWND owner, const std::wstring & folder, IShellItemVerbs::PasteResult & outResult);
-    HRESULT  MoveItemsTo         (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets);
-    HRESULT  CreateFolder        (HWND owner, const std::wstring & parent, const std::wstring & name);
-    HRESULT  Share               (HWND owner, const std::vector<std::wstring> & paths);
+    HRESULT  DragItems         (const std::vector<std::wstring> & ids, DWORD allowedEffects, const DxuiIconImage * dragImage = nullptr);
+    HRESULT  ReadItemBytes     (const std::wstring & id, size_t maxBytes, std::vector<Byte> & outBytes);
+    HRESULT  RenameItem        (HWND owner, const std::wstring & path, const std::wstring & newName);
+    HRESULT  PlaceOnClipboard  (HWND owner, const std::vector<std::wstring> & paths, bool cut);
+    bool     ClipboardHasFiles () const;
+    HRESULT  PasteInto         (HWND owner, const std::wstring & folder, IShellItemVerbs::PasteResult & outResult);
+    HRESULT  MoveItemsTo       (HWND owner, const std::vector<std::wstring> & paths, const std::vector<std::wstring> & targets);
+    HRESULT  CreateFolder      (HWND owner, const std::wstring & parent, const std::wstring & name);
+    HRESULT  Share             (HWND owner, const std::vector<std::wstring> & paths);
 
     //  The canonical verb of Explorer's Share command, which opens the same
     //  share sheet an app would through the data transfer manager.

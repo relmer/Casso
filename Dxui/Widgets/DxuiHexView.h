@@ -86,8 +86,8 @@ public:
     DxuiHexView() { m_focusable = true; }
     ~DxuiHexView() override = default;
 
-    void  SetSource (const IDxuiHexSource * source);
-    const IDxuiHexSource *  GetSource () const { return m_source; }
+    void                    SetSource (const IDxuiHexSource * source);
+    const IDxuiHexSource  * GetSource () const { return m_source; }
 
     void      SetOriginAddress (uint64_t address);
     uint64_t  GetOriginAddress () const { return m_originAddress; }
@@ -126,12 +126,12 @@ public:
     void  SetCellSizeDip (int widthDip, int heightDip);
 
     //  Rows the source fills, and rows the bounds can show.
-    uint64_t  GetRowCount     () const { return m_layout.GetRowCount(); }
-    int       GetRowCap       () const { return m_layout.GetRowCap(); }
-    uint64_t  GetTopRow       () const { return m_scroll.GetTopRow(); }
-    uint64_t  GetMaxTopRow    () const { return m_layout.GetMaxTopRow(); }
-    void      SetTopRow       (uint64_t row) { m_scroll.SetTopRow (row); }
-    void      ScrollRows      (int64_t delta) { m_scroll.ScrollRows (delta); }
+    uint64_t  GetRowCount       () const { return m_layout.GetRowCount(); }
+    int       GetRowCap         () const { return m_layout.GetRowCap(); }
+    uint64_t  GetTopRow         () const { return m_scroll.GetTopRow(); }
+    uint64_t  GetMaxTopRow      () const { return m_layout.GetMaxTopRow(); }
+    void      SetTopRow         (uint64_t row) { m_scroll.SetTopRow (row); }
+    void      ScrollRows        (int64_t delta) { m_scroll.ScrollRows (delta); }
     void      EnsureByteVisible (uint64_t offset) { m_scroll.EnsureByteVisible (offset); }
 
     //  Where a byte is drawn, in the same DIPs as the bounds. An off-screen
@@ -142,10 +142,10 @@ public:
 
     //  Selection. `SelectByte` starts a new run, `ExtendSelectionTo` moves the
     //  moving end of it, and the anchor stays where the run began.
-    void  SelectByte       (uint64_t offset, Column column) { m_selection.SelectByte (offset, column); }
+    void  SelectByte        (uint64_t offset, Column column) { m_selection.SelectByte (offset, column); }
     void  ExtendSelectionTo (uint64_t offset) { m_selection.ExtendSelectionTo (offset); }
-    void  SelectAll        () { m_selection.SelectAll(); }
-    void  ClearSelection   () { m_selection.ClearSelection(); }
+    void  SelectAll         () { m_selection.SelectAll(); }
+    void  ClearSelection    () { m_selection.ClearSelection(); }
 
     bool      HasSelection       () const { return m_selection.HasSelection(); }
     bool      IsByteSelected     (uint64_t offset) const { return m_selection.IsByteSelected (offset); }
@@ -183,7 +183,7 @@ public:
 
     //  Copies the selection to the clipboard in the active column's format.
     //  With nothing selected, the clipboard is not changed.
-    void          CopySelection () const { m_selection.CopySelection(); }
+    void          CopySelection    () const { m_selection.CopySelection(); }
     std::wstring  GetSelectionText () const { return m_selection.GetSelectionText(); }
 
     //  The characters the text column displays for a run of bytes, and the
@@ -203,24 +203,24 @@ public:
     int   GetLeftPx              () const { return m_scroll.GetLeftPx(); }
 
     //  Whether a point is on a scrollbar, and the hover that widens one.
-    bool  IsOverScrollbar   (POINT pt) const override { return m_scroll.m_vertScroll.HitTest (pt.x, pt.y) || m_scroll.m_horzScroll.HitTest (pt.x, pt.y); }
-    bool  SetScrollbarHover (POINT pt)                { return ((int) m_scroll.m_vertScroll.SetHover (m_scroll.m_vertScroll.HitTest (pt.x, pt.y), pt) | (int) m_scroll.m_horzScroll.SetHover (m_scroll.m_horzScroll.HitTest (pt.x, pt.y), pt)) != 0; }
-    bool  TickScrollbars    (int64_t nowMs)           { return ((int) m_scroll.m_vertScroll.Tick (nowMs) | (int) m_scroll.m_horzScroll.Tick (nowMs)) != 0; }
-    void  SetLeftPx              (int leftPx) { m_scroll.SetLeftPx (leftPx); }
+    bool  IsOverScrollbar    (POINT pt) const override { return m_scroll.m_vertScroll.HitTest (pt.x, pt.y) || m_scroll.m_horzScroll.HitTest (pt.x, pt.y); }
+    bool  SetScrollbarHover  (POINT pt)                { return ((int) m_scroll.m_vertScroll.SetHover (m_scroll.m_vertScroll.HitTest (pt.x, pt.y), pt) | (int) m_scroll.m_horzScroll.SetHover (m_scroll.m_horzScroll.HitTest (pt.x, pt.y), pt)) != 0; }
+    bool  TickScrollbars     (int64_t nowMs)           { return ((int) m_scroll.m_vertScroll.Tick (nowMs) | (int) m_scroll.m_horzScroll.Tick (nowMs)) != 0; }
+    void  SetLeftPx          (int leftPx) { m_scroll.SetLeftPx (leftPx); }
     bool  IsScrollbarVisible () const { return m_layout.GetRowCount() > (uint64_t) (std::max) (m_layout.GetRowCap(), 0); }
 
-    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  OnFocusEntered (bool forward) override;
     bool  QueryCommand   (DxuiStandardCommand command, bool & outEnabled) const override;
     bool  InvokeCommand  (DxuiStandardCommand command) override;
-    bool  OnMouse (const DxuiMouseEvent & ev) override;
+    bool  OnMouse        (const DxuiMouseEvent & ev) override;
 
     //  Windows' scrollbar menu when the point is on one of the bars, in the
     //  coordinates OnMouse takes; empty elsewhere. Its rows scroll the view.
-    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt) { return m_scroll.GetScrollbarMenu (pt); }
+    std::vector<DxuiPopupMenuItem>  GetScrollbarMenu  (POINT pt) { return m_scroll.GetScrollbarMenu (pt); }
     bool                            ShowScrollbarMenu (HWND hwnd, POINT pt) override { return DxuiScrollbar::ShowMenu (hwnd, pt, GetScrollbarMenu (pt)); }
-    bool  OnKey   (const DxuiKeyEvent   & ev) override;
-    void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                            OnKey             (const DxuiKeyEvent   & ev) override;
+    void                            Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     DxuiAccessibleRole  GetAccessibleRole () const override { return DxuiAccessibleRole::Custom; }
     std::wstring        GetAccessibleName () const override { return L"Hex view"; }
@@ -266,13 +266,13 @@ private:
     std::function<void ()>  m_onSelectionChanged;
 
     //  The view's parts, each with the state it uses.
-    friend class DxuiHexLayout;
-    friend class DxuiHexPainter;
-    friend class DxuiHexSelection;
-    friend class DxuiHexScroll;
-    DxuiHexLayout  m_layout { *this };
-    DxuiHexPainter  m_painter { *this };
-    DxuiHexSelection  m_selection { *this };
-    DxuiHexScroll  m_scroll { *this };
+    friend class      DxuiHexLayout;
+    friend class      DxuiHexPainter;
+    friend class      DxuiHexSelection;
+    friend class      DxuiHexScroll;
+    DxuiHexLayout     m_layout         { *this };
+    DxuiHexPainter    m_painter        { *this };
+    DxuiHexSelection  m_selection      { *this };
+    DxuiHexScroll     m_scroll         { *this };
 };
 

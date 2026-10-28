@@ -103,30 +103,30 @@ private:
     static constexpr UINT  s_kFirstNewCommandId = 1;
     static constexpr UINT  s_kLastNewCommandId  = 0x7FFF;
 
-    void  ReadAll ();
+    void  ReadAll        ();
     void  ReadNewChoices ();
 
-    static HRESULT  OpenManifest     (const wchar_t * fullName, IStream ** outStream);
-    static HRESULT  ReadManifest     (IStream * stream, const wchar_t * fullName, std::vector<Registration> & outRegistrations);
+    static HRESULT       OpenManifest       (const wchar_t * fullName, IStream ** outStream);
+    static HRESULT       ReadManifest       (IStream * stream, const wchar_t * fullName, std::vector<Registration> & outRegistrations);
     static std::wstring  LoadAppName        (const wchar_t * fullName, const std::wstring & displayName);
     static std::wstring  FindLogoFile       (const wchar_t * fullName, const std::wstring & logo);
     static std::wstring  LoadIndirectString (const std::wstring & text);
-    static HRESULT  GetAttribute     (IXmlReader * reader, const wchar_t * attribute, std::wstring & outValue);
-    static HRESULT  ParseClsid       (const std::wstring & text, CLSID & outClsid);
-    static void     AddRegistration  (const Registration & registration, std::vector<Registration> & outRegistrations);
-    static bool     Applies          (const Registration & registration, const std::vector<std::wstring> & paths, ItemKind kind);
-    static HRESULT  MakeItems        (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
+    static HRESULT       GetAttribute       (IXmlReader * reader, const wchar_t * attribute, std::wstring & outValue);
+    static HRESULT       ParseClsid         (const std::wstring & text, CLSID & outClsid);
+    static void          AddRegistration    (const Registration & registration, std::vector<Registration> & outRegistrations);
+    static bool          Applies            (const Registration & registration, const std::vector<std::wstring> & paths, ItemKind kind);
+    static HRESULT       MakeItems          (const std::vector<std::wstring> & paths, IShellItemArray ** outItems);
     static void     AddEntry         (IExplorerCommand * command, IShellItemArray * items, int depth, const std::wstring & fallbackTitle,
                                       const std::wstring & fallbackIcon, std::vector<Entry> & outEntries);
-    static void     AddPackageEntries (const Registration & package, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries);
-    static void     AddStoreEntry    (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Entry> & outEntries);
-    static void     AddStaticVerbs   (const std::wstring & path, IShellItemArray * items, std::vector<Entry> & outEntries);
-    static HRESULT  AddStaticVerb    (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Entry> & outEntries);
-    static HRESULT  AddStoreVerb     (const wchar_t * name, IShellItemArray * items, std::vector<Entry> & outEntries);
-    static HRESULT  ReadString       (HKEY root, const std::wstring & key, const wchar_t * value, std::wstring & outText);
-    static bool     HasValue         (const std::wstring & key, const wchar_t * value);
-    static HRESULT  OpenNewMenu      (const std::wstring & folder, IContextMenu3 ** outMenu, HMENU & outPopup, HMENU & outChoices);
-    static std::wstring  GetMenuVerb (IContextMenu * menu, UINT id);
+    static void          AddPackageEntries (const Registration & package, size_t applies, std::vector<Entry> & own, std::vector<Entry> & outEntries);
+    static void          AddStoreEntry     (const wchar_t * name, const wchar_t * explorerIcon, IShellItemArray * items, std::vector<Entry> & outEntries);
+    static void          AddStaticVerbs    (const std::wstring & path, IShellItemArray * items, std::vector<Entry> & outEntries);
+    static HRESULT       AddStaticVerb     (const std::wstring & classKey, const wchar_t * verb, IShellItemArray * items, std::vector<Entry> & outEntries);
+    static HRESULT       AddStoreVerb      (const wchar_t * name, IShellItemArray * items, std::vector<Entry> & outEntries);
+    static HRESULT       ReadString        (HKEY root, const std::wstring & key, const wchar_t * value, std::wstring & outText);
+    static bool          HasValue          (const std::wstring & key, const wchar_t * value);
+    static HRESULT       OpenNewMenu       (const std::wstring & folder, IContextMenu3 ** outMenu, HMENU & outPopup, HMENU & outChoices);
+    static std::wstring  GetMenuVerb       (IContextMenu * menu, UINT id);
 
     std::thread                 m_reader;
     std::thread                 m_newReader;

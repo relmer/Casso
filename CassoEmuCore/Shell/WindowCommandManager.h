@@ -68,14 +68,14 @@ public:
     void  HandleCommand        (WORD commandId);
     bool  OnCommand            (HWND hwnd, int id);
 
-    void  OnFileCommand        (int id);
-    void  OnEditCommand        (int id);
-    void  OnMachineCommand     (int id);
-    void  OnViewCommand        (int id);
-    void  OnDiskCommand        (int id);
-    void  OpenCassoExplorer          ();
-    void  OnPrinterCommand     (int id);
-    void  OnHelpCommand        (int id);
+    void  OnFileCommand          (int id);
+    void  OnEditCommand          (int id);
+    void  OnMachineCommand       (int id);
+    void  OnViewCommand          (int id);
+    void  OnDiskCommand          (int id);
+    void  OpenCassoExplorer      ();
+    void  OnPrinterCommand       (int id);
+    void  OnHelpCommand          (int id);
     void  OnExternalDriveCommand (int id);
     void  OnMouseConnectCommand  (int id);
 
@@ -141,10 +141,10 @@ private:
 
     // Print-path helpers. Every reader is a WindowCommandManager method, so
     // they belong to the class rather than to the translation unit.
-    static HRESULT  HrFromSpoolResult (int ret, const wchar_t * call, int pageIx);
+    static HRESULT  HrFromSpoolResult         (int ret, const wchar_t * call, int pageIx);
     static void     PrimeDefaultPrinterDriver ();
-    static HDC      CreateDcFromDevNames (const PRINTDLGW & pd);
-    static HRESULT  BlitRgbaToDc (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
+    static HDC      CreateDcFromDevNames      (const PRINTDLGW & pd);
+    static HRESULT  BlitRgbaToDc              (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
 
     EmulatorShell &  m_shell;
 };

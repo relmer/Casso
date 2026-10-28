@@ -45,6 +45,6 @@ public:
 
     //  A word with * or ? matches the whole name as a pattern, as in File
     //  Explorer's box; the index is left out of such a search.
-    static bool                       HasWildcards (const std::wstring & query);
-    static bool                       MatchesPattern (const wchar_t * name, const wchar_t * pattern);
+    static bool  HasWildcards   (const std::wstring & query);
+    static bool  MatchesPattern (const wchar_t * name, const wchar_t * pattern);
 };

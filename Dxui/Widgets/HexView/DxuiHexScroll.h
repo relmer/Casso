@@ -37,8 +37,8 @@ public:
     //  column in view.
     void      KeepCaretInView   ();
 
-    void  SyncScrollbar  ();
-    void  ScrollToBarPos ();
+    void                            SyncScrollbar    ();
+    void                            ScrollToBarPos   ();
     std::vector<DxuiPopupMenuItem>  GetScrollbarMenu (POINT pt);
 
     //  A press on either bar, the thumb drag that follows and its release, and

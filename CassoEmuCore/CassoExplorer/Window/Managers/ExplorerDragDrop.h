@@ -50,12 +50,12 @@ public:
     //  The linked Apple's drive a drop would land on: a drive's node or row,
     //  or the drive in the list.
     bool  TryGetAppleDropDrive (int tag, POINT screen, Location & outDrive);
-    void  BeginDiskDrag           (const std::wstring & driveId);
+    void  BeginDiskDrag        (const std::wstring & driveId);
 
     //  The first selected row's icon at the drag image's size.
     std::shared_ptr<const DxuiIconImage>  GetRowDragImage ();
-    void  BeginDragOut();
-    void  HandleDropFile (const std::wstring & path);
+    void                                  BeginDragOut    ();
+    void                                  HandleDropFile  (const std::wstring & path);
 
     //  Drag-in: the image location under a drop point, what a drop there
     //  would do, and the drop.
@@ -65,14 +65,14 @@ public:
     //  A host folder under the drag takes it as Explorer would: the drag goes
     //  to the folder's own shell drop target, which copies or moves it with
     //  Explorer's progress, conflict and undo handling.
-    bool  TryGetHostDropFolder   (int tag, POINT screen, std::wstring & outFolder);
-    DWORD ForwardHostDrag        (IDataObject * data, const std::wstring & folder, POINT screen);
-    void  LeaveHostDrop          ();
-    void  ShowDropTarget         (int tag, POINT screen, bool accepted);
-    void  ShowDropMenu           ();
-    void  RunDrop                (CassoExplorerActions::Conversion conversion);
-    void  ClearDropTarget        ();
-    void  HandleDrop                 (IDataObject * data, int tag, POINT screen);
+    bool   TryGetHostDropFolder (int tag, POINT screen, std::wstring & outFolder);
+    DWORD  ForwardHostDrag      (IDataObject * data, const std::wstring & folder, POINT screen);
+    void   LeaveHostDrop        ();
+    void   ShowDropTarget       (int tag, POINT screen, bool accepted);
+    void   ShowDropMenu         ();
+    void   RunDrop              (CassoExplorerActions::Conversion conversion);
+    void   ClearDropTarget      ();
+    void   HandleDrop           (IDataObject * data, int tag, POINT screen);
 
     //  What a drag holds: another image's entries, or host files.
     struct DropSource
@@ -84,11 +84,11 @@ public:
         std::vector<std::wstring>  hostPaths;
     };
 
-    bool  ReadDropSource   (IDataObject * data, DropSource & outSource);
-    DWORD ChooseDropEffect (const DropSource & source, const Location & target) const;
-    void  DescribeDrop     (IDataObject * data, DWORD effect, const Location & target);
-    void  HoverDropTab     (POINT screen);
-    bool  IsShellDropFile     (int row, std::wstring & outPath) const;
+    bool   ReadDropSource   (IDataObject * data, DropSource & outSource);
+    DWORD  ChooseDropEffect (const DropSource & source, const Location & target) const;
+    void   DescribeDrop     (IDataObject * data, DWORD effect, const Location & target);
+    void   HoverDropTab     (POINT screen);
+    bool   IsShellDropFile  (int row, std::wstring & outPath) const;
 
     static bool  IsProgramPath (const std::wstring & path);
 

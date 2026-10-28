@@ -42,8 +42,8 @@ public:
     //  The interface returns zero for this one, and a widget that guards on
     //  it draws nothing; a test wanting to see the outline needs a value.
     uint32_t  ContentSelectionEdge () const override { return s_kContentSelectionEdge; }
-    uint32_t  Border              () const override { return s_kBorder;              }
-    uint32_t  Divider             () const override { return s_kDivider;             }
+    uint32_t  Border               () const override { return s_kBorder;              }
+    uint32_t  Divider              () const override { return s_kDivider;             }
 
     uint32_t  ButtonIdle          () const override { return s_kButtonIdle;          }
     uint32_t  ButtonHover         () const override { return s_kButtonHover;         }

@@ -47,9 +47,9 @@ public:
     //  A search as typed: an even run of hex digits, with spaces anywhere, is
     //  bytes; text in double quotes, or anything else, is characters, and
     //  `outIsText` is set.
-    static bool  TryParseSearch (const std::wstring & text, std::vector<Byte> & outBytes, bool & outIsText);
-    static size_t  FindBytes (const std::vector<Byte> & haystack, const std::vector<Byte> & pattern, bool isText, size_t start);
-    static uint64_t  FindInSource (const ActionsTypes::ReadFn & read, uint64_t count, const std::vector<Byte> & pattern, bool isText, uint64_t start);
+    static bool      TryParseSearch (const std::wstring & text, std::vector<Byte> & outBytes, bool & outIsText);
+    static size_t    FindBytes      (const std::vector<Byte> & haystack, const std::vector<Byte> & pattern, bool isText, size_t start);
+    static uint64_t  FindInSource   (const ActionsTypes::ReadFn & read, uint64_t count, const std::vector<Byte> & pattern, bool isText, uint64_t start);
 
     static bool  TryParseGoToTarget (const std::wstring & text, int64_t caretAddress, int64_t & outAddress);
 

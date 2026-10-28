@@ -261,15 +261,15 @@ private:
 
     static std::string  MakeKey (int drive, const std::string & path, bool file);
 
-    Link *        FindLink (const std::string & name);
-    const Link *  FindLink (const std::string & name) const;
+    Link        * FindLink (const std::string & name);
+    const Link  * FindLink (const std::string & name) const;
     bool          TryGetResult (const std::string & name, int drive, const std::string & key, LinkOperationKind kind,
                                 const std::string & path, std::shared_ptr<LinkOperation> & outOperation);
-    void          Notify ();
-    HRESULT       StartLink (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
-    void          Merge ();
-    bool          IsSearching () const;
-    void          AddFirewall (const CassoLinkSettings & settings, LinkTreeEntry & entry) const;
+    void     Notify      ();
+    HRESULT  StartLink   (const std::string & name, bool search, std::shared_ptr<LinkOperation> * outBootstrap);
+    void     Merge       ();
+    bool     IsSearching () const;
+    void     AddFirewall (const CassoLinkSettings & settings, LinkTreeEntry & entry) const;
 
     IByteStreamFactory                 & m_factory;
     ICassoLinkFolder                   & m_folder;

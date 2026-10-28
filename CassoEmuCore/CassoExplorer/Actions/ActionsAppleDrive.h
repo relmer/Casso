@@ -72,7 +72,7 @@ public:
     std::wstring  DescribeAppleDrive () const;
 
     void  CancelLinkOperation ();
-    void            GetAppleSingle  (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, ActionsTypes::Outcome & inOutOutcome);
+    void  GetAppleSingle      (const std::string & image, const FileEntry & entry, const std::wstring & hostPath, ActionsTypes::Outcome & inOutOutcome);
 
     //  The verbs on an Apple drive. Each queues its operations on the link
     //  and returns at once; each result is reported when the link's

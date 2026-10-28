@@ -173,14 +173,14 @@ protected:
     void  OnCreate        () override;
     void  OnWindowClose   () override;
 
-    DxuiMessageResult  OnCopyData   (WPARAM sender, LPARAM data) override;
-    DxuiMessageResult  OnActivateApp (bool active) override;
-    DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
-    DxuiMessageResult  OnSize        (UINT widthPx, UINT heightPx) override;
-    void               OnExitSizeMove           () override;
-    void               OnEnterSizeMove          () override;
-    DxuiMessageResult  OnAppMessage (UINT msg, WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnEndSession (bool ending) override;
+    DxuiMessageResult  OnCopyData      (WPARAM sender, LPARAM data) override;
+    DxuiMessageResult  OnActivateApp   (bool active) override;
+    DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
+    DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
+    void               OnExitSizeMove  () override;
+    void               OnEnterSizeMove () override;
+    DxuiMessageResult  OnAppMessage    (UINT msg, WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnEndSession    (bool ending) override;
 
 private:
     //  Stands for a separator in a list of command ids.
@@ -242,22 +242,22 @@ private:
                                                                    .toolbars         = m_toolbars,
                                                                    .treePane         = m_treePane };
 
-    ExplorerLayout                             m_layout           { m_explorer };
-    ExplorerListPane                           m_listPane         { m_explorer };
-    ExplorerFolderSync                         m_folderSync       { m_explorer };
-    CassoLinkManager                           m_cassoLinkManager { m_explorer };
-    ExplorerDragDrop                           m_dragDrop         { m_explorer };
-    ExplorerTabManager                         m_tabManager       { m_explorer };
-    ExplorerPreviewManager                            m_previewManager      { m_explorer };
-    ExplorerAddressBar                         m_addressBar       { m_explorer };
-    ExplorerMenus                              m_menus            { m_explorer };
-    ExplorerCommandManager                     m_commandManager   { m_explorer };
-    ExplorerFileOps                            m_fileOps          { m_explorer };
-    ExplorerInput                              m_input            { m_explorer };
-    ExplorerTips                               m_tips             { m_explorer };
-    ExplorerThemes                             m_themes           { m_explorer };
-    ExplorerStatusBar                          m_statusBar        { m_explorer };
-    ExplorerToolbars                           m_toolbars         { m_explorer };
-    ExplorerTreePane                           m_treePane         { m_explorer };
+    ExplorerLayout          m_layout           { m_explorer };
+    ExplorerListPane        m_listPane         { m_explorer };
+    ExplorerFolderSync      m_folderSync       { m_explorer };
+    CassoLinkManager        m_cassoLinkManager { m_explorer };
+    ExplorerDragDrop        m_dragDrop         { m_explorer };
+    ExplorerTabManager      m_tabManager       { m_explorer };
+    ExplorerPreviewManager  m_previewManager   { m_explorer };
+    ExplorerAddressBar      m_addressBar       { m_explorer };
+    ExplorerMenus           m_menus            { m_explorer };
+    ExplorerCommandManager  m_commandManager   { m_explorer };
+    ExplorerFileOps         m_fileOps          { m_explorer };
+    ExplorerInput           m_input            { m_explorer };
+    ExplorerTips            m_tips             { m_explorer };
+    ExplorerThemes          m_themes           { m_explorer };
+    ExplorerStatusBar       m_statusBar        { m_explorer };
+    ExplorerToolbars        m_toolbars         { m_explorer };
+    ExplorerTreePane        m_treePane         { m_explorer };
 };
 

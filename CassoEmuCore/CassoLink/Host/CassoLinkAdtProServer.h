@@ -62,27 +62,27 @@ public:
     //  bytes is in DOS 3.3 sector order, as ADTPro's server reads and writes
     //  one, so each block's two sectors are gathered from where DOS 3.3 puts
     //  them; any other image is in block order already.
-    static bool                 IsDosOrder         (const std::string & name, size_t size);
-    static void                 ToBlockOrder       (const std::string & name, const std::vector<Byte> & file, std::vector<Byte> & outBlocks);
-    static void                 ToFileOrder        (const std::string & name, const std::vector<Byte> & blocks, std::vector<Byte> & outFile);
-    HRESULT  SendHome        ();
+    static bool  IsDosOrder   (const std::string & name, size_t size);
+    static void  ToBlockOrder (const std::string & name, const std::vector<Byte> & file, std::vector<Byte> & outBlocks);
+    static void  ToFileOrder  (const std::string & name, const std::vector<Byte> & blocks, std::vector<Byte> & outFile);
+    HRESULT      SendHome     ();
 
-    HRESULT  ServePacket       (const CassoLinkPacket & packet);
-    HRESULT  ServeChangeDir    (const CassoLinkPacket & packet);
-    HRESULT  ServeDirectory    (const CassoLinkPacket & packet);
-    HRESULT  ServeSize         (const CassoLinkPacket & packet);
-    HRESULT  ServeGet          (const CassoLinkPacket & packet);
-    HRESULT  ServePut          (const CassoLinkPacket & packet, bool batch);
-    HRESULT  ServeNibblePut    (const CassoLinkPacket & packet, bool batch);
-    std::string  ResolveName   (const std::vector<Byte> & payload, size_t & outEnd) const;
-    HRESULT  ServeVirtualDrive ();
-    void     ReportRequest     (const CassoLinkPacket & packet, HRESULT result);
+    HRESULT      ServePacket       (const CassoLinkPacket & packet);
+    HRESULT      ServeChangeDir    (const CassoLinkPacket & packet);
+    HRESULT      ServeDirectory    (const CassoLinkPacket & packet);
+    HRESULT      ServeSize         (const CassoLinkPacket & packet);
+    HRESULT      ServeGet          (const CassoLinkPacket & packet);
+    HRESULT      ServePut          (const CassoLinkPacket & packet, bool batch);
+    HRESULT      ServeNibblePut    (const CassoLinkPacket & packet, bool batch);
+    std::string  ResolveName       (const std::vector<Byte> & payload, size_t & outEnd) const;
+    HRESULT      ServeVirtualDrive ();
+    void         ReportRequest     (const CassoLinkPacket & packet, HRESULT result);
 
-    HRESULT  ReceiveImage      (std::vector<Byte> & image, bool untilSummary = true);
-    HRESULT  LoadVirtualDrive  (int drive);
-    HRESULT  WriteDriveBlock   (size_t drive, size_t block, std::span<const Byte> data);
-    HRESULT  ReadImage         (const std::string & name, std::vector<Byte> & outFile);
-    std::string  GetBatchName  (const std::string & prefix, const std::string & extension);
+    HRESULT             ReceiveImage      (std::vector<Byte> & image, bool untilSummary = true);
+    HRESULT             LoadVirtualDrive  (int drive);
+    HRESULT             WriteDriveBlock   (size_t drive, size_t block, std::span<const Byte> data);
+    HRESULT             ReadImage         (const std::string & name, std::vector<Byte> & outFile);
+    std::string         GetBatchName      (const std::string & prefix, const std::string & extension);
     static std::string  AddImageExtension (const std::string & name, size_t bytes);
 
     static std::string  ReadName (const std::vector<Byte> & payload, size_t & outEnd);
@@ -103,8 +103,8 @@ private:
     DWORD                             m_replyTimeoutMs     = CassoLinkHostTypes::kReplyTimeoutMs;
     DWORD                             m_operationTimeoutMs = CassoLinkHostTypes::kOperationTimeoutMs;
     std::atomic<bool>                 m_adtProClient       { false };
-    CassoLinkHostTypes::Clients                           m_clients            = CassoLinkHostTypes::Clients::Both;
-    std::atomic<HRESULT>              m_lastResult { S_OK };
-    CassoLinkHostTypes::ActivityFn  m_activity;
-    std::vector<std::string>        m_listing;   // the last DIR's names, which ADTPro's file chooser picks from by page and row
+    CassoLinkHostTypes::Clients       m_clients            = CassoLinkHostTypes::Clients::Both;
+    std::atomic<HRESULT>              m_lastResult         { S_OK };
+    CassoLinkHostTypes::ActivityFn    m_activity;
+    std::vector<std::string>          m_listing;   // the last DIR's names, which ADTPro's file chooser picks from by page and row
 };

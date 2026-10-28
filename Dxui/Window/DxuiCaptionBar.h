@@ -94,8 +94,8 @@ public:
     // The full title when the last paint cut it short and the point, in
     // client pixels, is over it; null otherwise, so a title that fits shows
     // no tip. The anchor is the title's rect.
-    const wchar_t *  GetTooltipAt (POINT clientPx, RECT & anchorPx) const;
-    DxuiAccessibleRole  GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
+    const wchar_t       * GetTooltipAt      (POINT clientPx, RECT & anchorPx) const;
+    DxuiAccessibleRole    GetAccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
     static constexpr int      kButtonWidthDip   = 46;
