@@ -1174,8 +1174,21 @@ included, follow this phase, so none is repeated after it.
   and removed. Parts added to the plan's: the details
   view's columns (`DxuiListColumns`), pointer dispatch (`DxuiListMouse`)
   and the List view's column flow (`DxuiListFlowLayout`); the painting of
-  rows and items is `DxuiListPainter`. The public nested types are in
-  `DxuiListViewTypes`, which `DxuiListView` derives from.
+  rows and items is DxuiListPainter. The public nested types are in
+  DxuiListViewTypes, which DxuiListView derives from.
+
+  Redone on 2026-10-27 so each area has its state and its input. The
+  header has the column order, header presses and divider resizes; the
+  scrollbars have the thumb drags, a pressed arrow or track and the wheel;
+  the groups have the groups, their slide and hover; and the item layout
+  has the name measurements, the page slide and the scroll anchor.
+  DxuiListMouse is gone: the list routes a press, a drag and a release to
+  the scrollbars, header, groups, rows and band in the order it used.
+  DxuiListRows has the row press, the drag that selects and activation,
+  and the Details rows' paint. DxuiListBand is the rubber band.
+  DxuiListIcons has the icon drawing the rows, the items and the tree
+  share. DxuiListPainter is DxuiListItemPainter, for the item views.
+  The row data moved from the columns to the list.
 - [X] T270 Split `CassoEmuCore/Seams/Win32ShellItemVerbs.h/.cpp` into menus
   and Open with, the Recycle Bin, the namespace (shell folders, navigation
   roots, desktop, pinned), search (index and walks) and transfers
@@ -1188,8 +1201,13 @@ included, follow this phase, so none is repeated after it.
   index, offsets, cells) and formatting (values, text, code pages). The
   view is left with selection, input and paint.
 
-  Done in `Dxui/Widgets/HexView/` as `DxuiHexLayout` and `DxuiHexPainter`.
+  Done in Dxui/Widgets/HexView/ as DxuiHexLayout and DxuiHexPainter.
   The value and text formatting went to the painter with the drawing.
+
+  Redone on 2026-10-27: DxuiHexSelection has the caret, anchor, active
+  column, the press and drag that select, and the caret keys;
+  DxuiHexScroll has the top row, the left edge, both scrollbars and the
+  wheel. The view routes its input to them.
 - [X] T272 Factor the ADTPro server (requests, directory, get, put, virtual
   drive) out of `CassoEmuCore/CassoLink/CassoLinkHost.h/.cpp`. The host
   is left with Casso's protocol.
@@ -1204,30 +1222,58 @@ included, follow this phase, so none is repeated after it.
   `CassoLinkDiskTransfer`. `LinkState`, `LinkOperation`,
   `ICassoLinkSessionSink` and `DriveSource` moved to
   `CassoLinkSessionTypes.h`, which the parts' headers include.
-- [ ] T274 Factor a writer for writes and deletions out of
-  `CassoEmuCore/Machines/Apple2/Common/ProDosVolume.h/.cpp`, which is left with
+- [X] T274 Factor a writer for writes and deletions out of
+  CassoEmuCore/Machines/Apple2/Common/ProDosVolume.h/.cpp, which is left with
   reading and the integrity report.
-- [ ] T275 Factor JSON extraction and building, and the connectors and the
-  printer, out of `CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp`,
+
+  Done as ProDosVolumeWriter (write, create, rename, the startup program)
+  and ProDosVolumeRemover (delete, removal plans, directory removal): one
+  writer for both would have been over the limit.
+- [X] T275 Factor JSON extraction and building, and the connectors and the
+  printer, out of CassoEmuCore/Ui/Settings/SettingsPanelState.h/.cpp,
   which is left with the panel's state and setters.
-- [ ] T276 Factor render targets (texture, deferred, offscreen) and icons
-  (vector, SVG, bitmaps) out of `Dxui/Render/DxuiTextRenderer.h/.cpp`,
+
+  Done as SettingsJson, which has only statics, and SettingsConnectors,
+  which has the notice. The callers of the JSON helpers call
+  SettingsJson directly.
+- [X] T276 Factor render targets (texture, deferred, offscreen) and icons
+  (vector, SVG, bitmaps) out of Dxui/Render/DxuiTextRenderer.h/.cpp,
   which is left with text, primitives and fonts.
-- [ ] T277 Factor painting, and metrics and scrolling, out of
-  `Dxui/Widgets/DxuiPopupMenu.h/.cpp`, which is left with rows, hover, keys and
+
+  Done as DxuiRenderTargets and DxuiRenderIcons, and DxuiGdiText for
+  the GDI measurement and its fonts.
+- [X] T277 Factor painting, and metrics and scrolling, out of
+  Dxui/Widgets/DxuiPopupMenu.h/.cpp, which is left with rows, hover, keys and
   child menus.
-- [ ] T278 Factor painting (standard and Explorer styles) and drag slides
-  out of `Dxui/Widgets/DxuiTabStrip.h/.cpp`, which is left with tabs, selection,
+
+  Done as DxuiPopupMenuPainter and DxuiPopupMenuLayout. The palette and
+  anchoring types are in DxuiPopupMenuTypes.h, so the parts' headers can
+  use them.
+- [X] T278 Factor painting (standard and Explorer styles) and drag slides
+  out of Dxui/Widgets/DxuiTabStrip.h/.cpp, which is left with tabs, selection,
   scrolling and input.
-- [ ] T279 Check `Dxui/Widgets/DxuiTreeView.cpp`, at the limit: split it
+
+  Done as DxuiTabStripPainter and DxuiTabSlides.
+- [X] T279 Check Dxui/Widgets/DxuiTreeView.cpp, at the limit: split it
   only where a seam came up in T269 or T278, and record the outcome here.
-- [ ] T280 Run the final gate: the full unit and scenario suites, Release
+
+  Left whole, at the limit: neither split exposed a seam in it. It draws
+  its badges through DxuiListIcons.
+- [X] T280 Run the final gate: the full unit and scenario suites, Release
   and ARM64 builds, the Debug x64 rebuild with `-RunCodeAnalysis`, and
   `scripts/CheckStyle.ps1 -Mode Tree`. Record the sizes of every file in
   scope in `specs/033-casso-explorer/validation.md`.
-- [ ] T281 One review agent reads the phase's diff for behavior changes,
+- [X] T281 One review agent reads the phase's diff for behavior changes,
   state left in the wrong component and dead forwards; fix what it
   confirms, with the T280 gate again.
+
+  The review found three ordering changes in the window's split, all fixed:
+  the children were created in a different order, which is their paint
+  order; the picture's cursor came ahead of the address bar's and the
+  preview splitter's; and the scrollbar menu came after the tab strip's
+  right-click. It also found dead declarations in `ExplorerTips` and
+  `ExplorerListColumns`, removed. The list view, hex view, renderer,
+  settings and ProDOS splits came through clean.
 
 **Dependencies**: T266 to T278 in order, one at a time, since several
 share project and filter files; T279 after T269 and T278; T280 after all

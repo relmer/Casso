@@ -688,5 +688,30 @@ and the other `DxuiListView*Tests` (the list view's), `DxuiSplitterTests`,
 
 | Gate | Result |
 |---|---|
-| `scripts/CheckStyle.ps1 -Mode Tree` | OK, 1708 files |
+| `scripts/CheckStyle.ps1 -Mode Tree` | OK, 1708 files; on 2026-10-28, OK apart from the CassoLink probe file, which is not committed |
 | `scripts/Build.ps1 -Target Rebuild -RunCodeAnalysis`, all four configurations | Zero warnings, 2026-09-16 (T081); to be rerun before the master merge |
+| Release x64, Release ARM64, Debug x64 `-Target Rebuild -RunCodeAnalysis` | Built, 2026-10-28 (T280); the analysis rebuild's one warning, C4091 in `ExplorerTabStrip.h` and `ExplorerAddressBar.h`, where `class` was missing, fixed in `4ef2710da` |
+| Unit suite | 7,875 passed, 2026-10-28 |
+
+## 11. Component split, 2026-10-28
+
+Each file the branch added or grew past about 2,000 lines, with its size when the split began, and every .cpp it became.
+
+| Was | Now |
+|---|---|
+| CassoExplorerWindow (17,455) | `CassoExplorerWindow.cpp` 1,237, `ExplorerAddressBar.cpp` 1,414, `ExplorerDispatch.cpp` 1,405, `ExplorerDragDrop.cpp` 1,368, `ExplorerFileOps.cpp` 1,473, `ExplorerFolderSync.cpp` 648, `ExplorerInput.cpp` 688, `ExplorerLayout.cpp` 306, `ExplorerLinks.cpp` 1,815, `ExplorerListColumns.cpp` 500, `ExplorerListMenus.cpp` 777, `ExplorerListPane.cpp` 1,409, `ExplorerMenus.cpp` 828, `ExplorerPreview.cpp` 1,600, `ExplorerPreviewArchive.cpp` 323, `ExplorerPreviewFind.cpp` 320, `ExplorerStatusBar.cpp` 216, `ExplorerTabStrip.cpp` 1,010, `ExplorerThemes.cpp` 222, `ExplorerTips.cpp` 77, `ExplorerToolbars.cpp` 562, `ExplorerTreePane.cpp` 1,262, `PreviewHexSources.cpp` 207 |
+| CassoExplorerBrowser (5,171) | `CassoExplorerBrowser.cpp` 1,801, `BrowserCells.cpp` 1,034, `BrowserLoader.cpp` 1,056, `BrowserPreviewer.cpp` 1,342 |
+| CassoExplorerActions (4,217) | `CassoExplorerActions.cpp` 1,403, `ActionsAppleDrive.cpp` 1,283, `ActionsCopy.cpp` 1,112, `ActionsGoTo.cpp` 479 |
+| DxuiListView and DxuiListViewItems (6,932 and 3,904) | `DxuiListView.cpp` 1,537, `DxuiListBand.cpp` 239, `DxuiListColumns.cpp` 894, `DxuiListFlowLayout.cpp` 388, `DxuiListGroups.cpp` 883, `DxuiListHeader.cpp` 1,174, `DxuiListIcons.cpp` 98, `DxuiListItemKeys.cpp` 1,012, `DxuiListItemLayout.cpp` 1,697, `DxuiListItemPainter.cpp` 602, `DxuiListKeyboard.cpp` 811, `DxuiListRows.cpp` 523, `DxuiListScrollbars.cpp` 1,521 |
+| Win32ShellItemVerbs (3,763) | `Win32ShellItemVerbs.cpp` 23, `Win32RecycleBin.cpp` 831, `Win32ShellMenus.cpp` 657, `Win32ShellNamespace.cpp` 1,130, `Win32ShellSearch.cpp` 503, `Win32ShellTransfers.cpp` 716 |
+| DxuiHexView (3,131) | `DxuiHexView.cpp` 695, `DxuiHexLayout.cpp` 1,168, `DxuiHexPainter.cpp` 595, `DxuiHexScroll.cpp` 364, `DxuiHexSelection.cpp` 560 |
+| CassoLinkHost (2,393) | `CassoLinkHost.cpp` 1,181, `CassoLinkAdtProServer.cpp` 1,230 |
+| CassoLinkSession (2,374) | `CassoLinkSession.cpp` 1,212, `CassoLinkConnector.cpp` 717, `CassoLinkDiskTransfer.cpp` 479 |
+| ProDosVolume (3,048) | `ProDosVolume.cpp` 1,112, `ProDosVolumeWriter.cpp` 1,412, `ProDosVolumeRemover.cpp` 568 |
+| SettingsPanelState (3,480) | `SettingsPanelState.cpp` 871, `SettingsJson.cpp` 1,686, `SettingsConnectors.cpp` 974 |
+| DxuiTextRenderer (3,011) | `DxuiTextRenderer.cpp` 1,913, `DxuiRenderTargets.cpp` 475, `DxuiRenderIcons.cpp` 534, `DxuiGdiText.cpp` 157 |
+| DxuiPopupMenu (2,997) | `DxuiPopupMenu.cpp` 1,995, `DxuiPopupMenuLayout.cpp` 527, `DxuiPopupMenuPainter.cpp` 533 |
+| DxuiTabStrip (2,183) | `DxuiTabStrip.cpp` 1,246, `DxuiTabSlides.cpp` 271, `DxuiTabStripPainter.cpp` 720 |
+| DxuiTreeView (2,002) | `DxuiTreeView.cpp` 2,003 |
+
+The largest is `DxuiTreeView.cpp`, at 2,003 lines.
