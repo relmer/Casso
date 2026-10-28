@@ -1138,8 +1138,8 @@ menu also opens these, which stay closed until first opened:
 - **Profiler**, the profile as `PROFILE` lists it, read while the machine
   is paused. Its bar builds the profile of a period of history with **Show**,
   starts the counts over with the Reset glyph, writes them to a text file with
-  the Save glyph, and chooses **Opcodes**, **Addresses**, **Routines**, **Call
-  tree** or **Flame graph**. A line above the list has the totals and the time
+  the Save glyph, and chooses **Routines**, the view it opens on, **Call
+  tree**, **Flame graph**, **Addresses** or **Opcodes**. A line above the list has the totals and the time
   the profile's cycles cover, so a period longer than the history reads as
   the shorter time there is; while a profile builds, its progress bar is drawn
   over the list. A timeline of the period runs across the top, each bar a

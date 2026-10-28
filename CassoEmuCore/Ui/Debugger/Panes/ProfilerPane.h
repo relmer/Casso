@@ -28,13 +28,14 @@ class ToolbarLabelEntry;
 class ProfilerPane : public ToolListPane
 {
 public:
+    //  The views, most used first, as the view drop-down lists them.
     enum class View
     {
-        Opcodes,
-        Addresses,
         Routines,
         Tree,
         Flame,
+        Addresses,
+        Opcodes,
     };
 
     static constexpr int  kViewCount        = 5;
@@ -115,7 +116,7 @@ private:
     std::optional<uint64_t>                      m_builtCycle;           // the stop the last profile was requested at
     FlameGraphView                             * m_flameGraph  = nullptr;
     std::vector<std::shared_ptr<DxuiCommand>>    m_commands;
-    View                                         m_view        = View::Opcodes;
+    View                                         m_view        = View::Routines;
     bool                                         m_isOn        = false;
     std::optional<ProfileData>                   m_byOpcode;
     std::optional<ProfileData>                   m_byAddress;

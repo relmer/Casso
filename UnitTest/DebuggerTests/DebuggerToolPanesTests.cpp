@@ -324,12 +324,13 @@ namespace DebuggerToolPanesTests
             for (const std::shared_ptr<DxuiCommand> & command : window.GetProfilerPane().GetCommands())
             {
                 if (command->label == L"Last 60 s") { period = command; }
-                if (command->label == L"Opcodes")   { view   = command; }
+                if (command->label == L"Routines")  { view   = command; }
                 Assert::AreNotEqual (std::wstring (L"Profile"), command->label, L"a Profile switch");
             }
 
             Assert::IsNotNull (period.get());
-            Assert::IsNotNull (view.get());
+            Assert::IsNotNull (view.get(), L"the pane opens on Routines");
+            Assert::IsTrue    (window.GetProfilerPane().GetView() == ProfilerPane::View::Routines);
 
             window.GetProfilerPane().ShowPeriod (0);
             Assert::IsTrue   (host.commands == std::vector<std::string> { "PROFILE HISTORY 10" });
@@ -344,8 +345,25 @@ namespace DebuggerToolPanesTests
             window.TakeSnapshot (snapshot);
             Assert::IsFalse (window.GetProfilerPane().IsBuilding(), L"the progress bar outlasted the build");
 
-            window.GetProfilerPane().SetView (ProfilerPane::View::Routines);
-            Assert::AreEqual (std::wstring (L"Routines"), view->labelText());
+            window.GetProfilerPane().SetView (ProfilerPane::View::Tree);
+            Assert::AreEqual (std::wstring (L"Call tree"), view->labelText());
+        }
+
+
+        //  The view drop-down lists the views most used first.
+        TEST_METHOD (TheProfilerViewsAreListedMostUsedFirst)
+        {
+            std::vector<std::wstring>  labels;
+            int                        view   = 0;
+
+
+
+            for (view = 0; view < ProfilerPane::kViewCount; view++)
+            {
+                labels.push_back (ProfilerPane::GetViewLabel ((ProfilerPane::View) view));
+            }
+
+            Assert::IsTrue (labels == std::vector<std::wstring> { L"Routines", L"Call tree", L"Flame graph", L"Addresses", L"Opcodes" });
         }
 
 

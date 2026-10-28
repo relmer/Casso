@@ -107,7 +107,7 @@ void ProfilerPane::Configure()
         }
     });
 
-    SetView (View::Opcodes);
+    SetView (View::Routines);
 
     m_bar.Configure();
     m_bar.SetOnPress ([this] { SetViewMenu(); });
@@ -501,7 +501,7 @@ void ProfilerPane::SetBarEntries()
     add (s_kProfileReset, L"Reset",   L"Reset: start the counts over",           DxuiToolbar::Kind::Command, 0, [this] { RunProfile ("RESET"); }, s_kpszMdl2Refresh);
     add (s_kProfileSave,  L"Save...", L"Save...: save the profile to a text file", DxuiToolbar::Kind::Command, 0, [this] { Save(); },            s_kpszMdl2Save);
 
-    command            = add (s_kProfileView, L"Opcodes", L"Choose the profile's view: opcodes, addresses, routines, the call tree or a flame graph", DxuiToolbar::Kind::DropDown, 1, [] {});
+    command            = add (s_kProfileView, L"Routines", L"Choose the profile's view: routines, the call tree, a flame graph, addresses or opcodes", DxuiToolbar::Kind::DropDown, 1, [] {});
     command->labelText = [this] { return std::wstring (GetViewLabel (m_view)); };
 
     m_bar.GetBar()->SetEntries (std::move (entries));
