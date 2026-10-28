@@ -13,6 +13,7 @@
 class IHistoryObserver;
 class IReverseStopTest;
 class MachineHost;
+class ReverseStepSearch;
 struct ReplayControl;
 
 
@@ -138,8 +139,8 @@ public:
     HRESULT   Start               (const ReverseSettings & settings);
     void      SetWorkQueue        (IWorkQueue * queue) { m_workQueueOverride = queue; }
     void      SetReplayControl    (ReplayControl * control) { m_control = control; }
-    void      SetCallerProbe      (CallerProbe probe) { m_callerProbe = std::move (probe); }
-    void      SetCallerLinksProbe (CallerLinksProbe probe) { m_callerLinksProbe = std::move (probe); }
+    void      SetCallerProbe      (CallerProbe probe);
+    void      SetCallerLinksProbe (CallerLinksProbe probe);
     void      SetHistoryObserver  (IHistoryObserver * observer) { m_observer = observer; }
     void      SetKeyframeListener (const void * owner, KeyframeListener listener);
     void      SetLiveListener     (const void * owner, LiveListener listener);
@@ -180,6 +181,8 @@ public:
     const KeyframeStore  & GetKeyframes () const { return m_keyframes; }
 
 private:
+    friend class ReverseStepSearch;
+
     //  The positions one keyframe's replay covers: from the keyframe to the
     //  next one, or to where recording paused, or to the end of history.
     struct Stretch
@@ -194,15 +197,6 @@ private:
     HRESULT   HandleDivergence   (const ReplayReport & report, ReverseResult & result);
     HRESULT   GetStep            (uint64_t position, ReplayStep & outStep, bool & outIsInGap, uint64_t & outGapStart);
     HRESULT   BuildStepTable     (const Stretch & stretch);
-    HRESULT   ReplayStackLevels  (uint64_t end, Stretch & outStretch, bool & outIsInGap);
-    HRESULT   FindStepOverTarget (uint64_t current, int spNow, bool & outFound, uint64_t & outTarget, bool & outIsGap);
-    HRESULT   FindStepOutTarget  (uint64_t current, int spNow, bool & outFound, uint64_t & outTarget, bool & outIsGap);
-    bool      HasNoCaller        () const;
-    bool      TryGetCallerLinks  (size_t & outCount);
-    bool      HasGapSince        (uint64_t cycle, uint64_t position) const;
-    HRESULT   StepOutByRecord    (bool & outIsDone, ReverseResult & result);
-    bool      IsAtCallerLink     (const CallerLink & link);
-    void      DiscardCallerLinks ();
     HRESULT   LandAt             (uint64_t position, ReverseOutcome outcome, ReverseResult & result);
     HRESULT   CaptureNow         (bool isNotifying = true);
     void      NotifyKeyframe     (uint64_t position);
@@ -222,27 +216,22 @@ private:
     bool      TryFindStretch     (uint64_t position, Stretch & outStretch) const;
     uint64_t  GetSegmentEnd      (size_t keyframe) const;
 
-    MachineHost              & m_machine;
-    ThreadPoolWorkQueue        m_workQueue;              // before the store, which waits on it as it goes
-    KeyframeStore              m_keyframes;
-    Replayer                   m_replayer;
-    StateWriter                m_writer;                 // kept so its section and segment lists keep their capacity
-    StateWriter                m_hostWriter;             // the host input state taken with every capture
-    std::vector<Byte>          m_side;                   // the observer's bytes for the keyframe being taken, kept for its capacity
-    IHistoryObserver         * m_observer          = nullptr;
-    IWorkQueue               * m_workQueueOverride = nullptr;  // set by a test
-    ReplayControl            * m_control           = nullptr;  // the shell's, read and set from another thread
-    CallerProbe                m_callerProbe;            // the debugger's call record, when one is attached
-    CallerLinksProbe           m_callerLinksProbe;       // the same record's calls still entered
-    std::vector<CallerLink>    m_callerLinks;            // the chain step back out last read live, outermost first
+    MachineHost                         & m_machine;
+    std::unique_ptr<ReverseStepSearch>    m_search;   // where step back over and step back out land
+    ThreadPoolWorkQueue                   m_workQueue;   // before the store, which waits on it as it goes
+    KeyframeStore                         m_keyframes;
+    Replayer                              m_replayer;
+    StateWriter                           m_writer;   // kept so its section and segment lists keep their capacity
+    StateWriter                           m_hostWriter;   // the host input state taken with every capture
+    std::vector<Byte>                     m_side;   // the observer's bytes for the keyframe being taken, kept for its capacity
+    IHistoryObserver                    * m_observer          = nullptr;
+    IWorkQueue                          * m_workQueueOverride = nullptr;   // set by a test
+    ReplayControl                       * m_control           = nullptr;   // the shell's, read and set from another thread
 
     //  Each owner's keyframe listener, in the order they were set.
     std::vector<std::pair<const void *, KeyframeListener>>  m_keyframeListeners;
     std::vector<std::pair<const void *, LiveListener>>      m_liveListeners;
 
-    size_t                     m_callerDepth       = 0;      // the links outside the call step back out last landed on
-    uint64_t                   m_callerLanding     = UINT64_MAX;  // where it landed; any other position uses no link
-    std::vector<Byte>          m_stackPointers;          // a search's stack pointer per position, for one stretch
     std::vector<ReplayStep>    m_steps;                  // one stretch's registers and bytes per position
     uint64_t                   m_stepsStart        = 0;
     uint64_t                   m_stepsEnd          = 0;

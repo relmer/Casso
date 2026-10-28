@@ -341,6 +341,7 @@
     <ClCompile Include="Debugger\Reverse\Replayer.cpp" />
     <ClCompile Include="Debugger\Reverse\ReplayDiskCopier.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseController.cpp" />
+    <ClCompile Include="Debugger\Reverse\ReverseStepSearch.cpp" />
     <ClCompile Include="Debugger\Reverse\ReverseHost.cpp" />
     <ClCompile Include="Debugger\Reverse\DivergenceGate.cpp" />
     <ClCompile Include="Debugger\Reverse\DeferredHistoryEdits.cpp" />
@@ -1011,6 +1012,7 @@
     <ClInclude Include="Debugger\Reverse\Replayer.h" />
     <ClInclude Include="Debugger\Reverse\ReplayDiskCopier.h" />
     <ClInclude Include="Debugger\Reverse\ReverseController.h" />
+    <ClInclude Include="Debugger\Reverse\ReverseStepSearch.h" />
     <ClInclude Include="Debugger\Reverse\ReverseCommand.h" />
     <ClInclude Include="Debugger\Reverse\ReverseHost.h" />
     <ClInclude Include="Debugger\Reverse\DivergenceGate.h" />
