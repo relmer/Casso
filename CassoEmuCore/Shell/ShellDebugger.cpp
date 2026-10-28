@@ -557,11 +557,15 @@ void ShellDebugger::TakeDebuggerEventLogs (DebugLogDeltas & deltas)
     deltas.input.clear();
     deltas.video.clear();
     deltas.sound.clear();
+    deltas.serial.clear();
+    deltas.network.clear();
 
-    deltas.disk.swap  (m_eventLogsPending.disk);
-    deltas.input.swap (m_eventLogsPending.input);
-    deltas.video.swap (m_eventLogsPending.video);
-    deltas.sound.swap (m_eventLogsPending.sound);
+    deltas.disk.swap    (m_eventLogsPending.disk);
+    deltas.input.swap   (m_eventLogsPending.input);
+    deltas.video.swap   (m_eventLogsPending.video);
+    deltas.sound.swap   (m_eventLogsPending.sound);
+    deltas.serial.swap  (m_eventLogsPending.serial);
+    deltas.network.swap (m_eventLogsPending.network);
 }
 
 
@@ -1906,10 +1910,14 @@ void ShellDebugger::ServiceEventLogs()
     InputLogDelta  input;
     IoLogDelta     video;
     IoLogDelta     sound;
-    bool           isDisk  = false;
-    bool           isInput = false;
-    bool           isVideo = false;
-    bool           isSound = false;
+    IoLogDelta     serial;
+    IoLogDelta     network;
+    bool           isDisk    = false;
+    bool           isInput   = false;
+    bool           isVideo   = false;
+    bool           isSound   = false;
+    bool           isSerial  = false;
+    bool           isNetwork = false;
 
 
 
@@ -1936,9 +1944,11 @@ void ShellDebugger::ServiceEventLogs()
     isDisk  = m_eventLogs.TakeDelta (disk);
     isInput = m_eventLogs.TakeDelta (input);
     isVideo = m_eventLogs.TakeDelta (DebugLogKind::Video, video);
-    isSound = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
+    isSound   = m_eventLogs.TakeDelta (DebugLogKind::Sound, sound);
+    isSerial  = m_eventLogs.TakeDelta (DebugLogKind::Serial, serial);
+    isNetwork = m_eventLogs.TakeDelta (DebugLogKind::Network, network);
 
-    if (isDisk || isInput || isVideo || isSound)
+    if (isDisk || isInput || isVideo || isSound || isSerial || isNetwork)
     {
         std::lock_guard<std::mutex>  held (m_debugViewMutex);
 
@@ -1960,6 +1970,16 @@ void ShellDebugger::ServiceEventLogs()
         if (isSound)
         {
             m_eventLogsPending.sound.push_back (std::move (sound));
+        }
+
+        if (isSerial)
+        {
+            m_eventLogsPending.serial.push_back (std::move (serial));
+        }
+
+        if (isNetwork)
+        {
+            m_eventLogsPending.network.push_back (std::move (network));
         }
     }
 }

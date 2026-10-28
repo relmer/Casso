@@ -176,8 +176,23 @@ struct DebugLogDeltas
     std::vector<InputLogDelta>  input;
     std::vector<IoLogDelta>     video;
     std::vector<IoLogDelta>     sound;
+    std::vector<IoLogDelta>     serial;
+    std::vector<IoLogDelta>     network;
 
-    //  The video or sound log's.
-    std::vector<IoLogDelta> &        GetIo (DebugLogKind kind)       { return (kind == DebugLogKind::Video) ? video : sound; }
-    const std::vector<IoLogDelta> &  GetIo (DebugLogKind kind) const { return (kind == DebugLogKind::Video) ? video : sound; }
+    //  The video, sound, serial or network log's.
+    std::vector<IoLogDelta> &  GetIo (DebugLogKind kind)
+    {
+        switch (kind)
+        {
+        case DebugLogKind::Video:   return video;
+        case DebugLogKind::Serial:  return serial;
+        case DebugLogKind::Network: return network;
+        default:                    return sound;
+        }
+    }
+
+    const std::vector<IoLogDelta> &  GetIo (DebugLogKind kind) const
+    {
+        return const_cast<DebugLogDeltas *> (this)->GetIo (kind);
+    }
 };

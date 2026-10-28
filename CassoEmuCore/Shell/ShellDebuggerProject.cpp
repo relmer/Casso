@@ -795,6 +795,8 @@ std::map<std::string, std::string> ShellDebugger::GetProjectWindowStrings() cons
     strings["inputLogOptions"] = m_settings.inputLogOptions;
     strings["videoLogOptions"] = m_settings.videoLogOptions;
     strings["soundLogOptions"] = m_settings.soundLogOptions;
+    strings["serialLogOptions"]  = m_settings.serialLogOptions;
+    strings["networkLogOptions"] = m_settings.networkLogOptions;
     return strings;
 }
 
@@ -824,6 +826,8 @@ void ShellDebugger::SetProjectWindowStrings (const std::map<std::string, std::st
         { "inputLogOptions", &m_settings.inputLogOptions },
         { "videoLogOptions", &m_settings.videoLogOptions },
         { "soundLogOptions", &m_settings.soundLogOptions },
+        { "serialLogOptions",  &m_settings.serialLogOptions },
+        { "networkLogOptions", &m_settings.networkLogOptions },
     };
 
 

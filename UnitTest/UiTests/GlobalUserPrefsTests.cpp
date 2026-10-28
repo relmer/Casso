@@ -275,7 +275,9 @@ public:
 
         Assert::IsTrue (settings.GetLogOptions (0) == &settings.diskLogOptions);
         Assert::IsTrue (settings.GetLogOptions (3) == &settings.soundLogOptions);
-        Assert::IsNull (settings.GetLogOptions (4),  L"not the Disk II log's again");
+        Assert::IsTrue (settings.GetLogOptions (4) == &settings.serialLogOptions);
+        Assert::IsTrue (settings.GetLogOptions (5) == &settings.networkLogOptions);
+        Assert::IsNull (settings.GetLogOptions (6),  L"not the Disk II log's again");
         Assert::IsNull (settings.GetLogOptions (-1));
     }
 

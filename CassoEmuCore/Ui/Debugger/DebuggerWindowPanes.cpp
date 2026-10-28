@@ -4,6 +4,7 @@
 
 #include "Core/TextEncoding.h"
 #include "Ui/Debugger/DebuggerLayout.h"
+#include "Ui/Debugger/Panes/CommLogController.h"
 #include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/HeatMapPane.h"
 #include "Ui/Debugger/Panes/HeatRangesPane.h"
@@ -106,6 +107,8 @@ void DebuggerWindow::CreatePanes()
     m_panes.push_back (std::make_unique<InputLogController> (host));
     m_panes.push_back (std::make_unique<IoLogController>    (host, DebugLogKind::Video));
     m_panes.push_back (std::make_unique<IoLogController>    (host, DebugLogKind::Sound));
+    m_panes.push_back (std::make_unique<CommLogController>  (host, DebugLogKind::Serial));
+    m_panes.push_back (std::make_unique<CommLogController>  (host, DebugLogKind::Network));
     m_panes.push_back (std::move (memory));
 
     for (std::unique_ptr<IDebuggerPane> & window : m_memoryGroup->CreateWindows())
@@ -176,6 +179,8 @@ void DebuggerWindow::OpenEventLog (DebugLogKind kind)
     case DebugLogKind::Input: ShowPane (DebuggerLayout::kInputLog); break;
     case DebugLogKind::Video: ShowPane (DebuggerLayout::kVideoLog); break;
     case DebugLogKind::Sound: ShowPane (DebuggerLayout::kSoundLog); break;
+    case DebugLogKind::Serial:  ShowPane (DebuggerLayout::kSerialLog);  break;
+    case DebugLogKind::Network: ShowPane (DebuggerLayout::kNetworkLog); break;
     }
 }
 

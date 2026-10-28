@@ -12,6 +12,11 @@
 #include "../Dxui/MockDxuiTextRenderer.h"
 #include "../Dxui/MockDxuiTheme.h"
 #include "Ui/Debugger/Panes/ToolPanes.h"
+#include "Ui/Debugger/Panes/CommGraph.h"
+#include "Ui/Debugger/Panes/CommLogController.h"
+#include "Ui/Debugger/Panes/CommLogPane.h"
+#include "Ui/Debugger/Panes/CommSignalGraph.h"
+#include "Ui/Debugger/Panes/DevicePanelController.h"
 #include "Ui/Debugger/Panes/EventLogControllers.h"
 #include "Ui/Debugger/Panes/InputLogPane.h"
 #include "Ui/Debugger/Panes/IoLogPane.h"
@@ -620,6 +625,123 @@ namespace DebuggerToolPanesTests
 
             Assert::AreEqual ((size_t) 3, sound.GetColumnFilterItems (sound.GetLists().front(), IoLogPane::kSource, commands).size(), L"speaker, 6522 and AY");
             Assert::IsTrue   (video.GetColumnFilterItems (video.GetLists().front(), IoLogPane::kSource, commands).empty());
+        }
+
+
+        //  The serial log's list has a row for each byte sent and received,
+        //  not for the settings and line rows, which are the graph's. The
+        //  graph has a lane for each line, and a lane turned off makes it a
+        //  lane shorter.
+        TEST_METHOD (TheSerialLogListsBytesAndGraphsTheirBits)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            ToolWindow         window   (theme, host);
+            CommLogController  serial   (window.GetPaneHostForTest(), DebugLogKind::Serial);
+            DebugLogDeltas     deltas;
+            IoLogDelta         delta;
+            int                height   = 0;
+            auto               row      = [] (IoEventKind kind, uint64_t cycle, Byte value)
+            {
+                IoLogRow  each;
+
+                each.cycle         = cycle;
+                each.event.kind    = kind;
+                each.event.cycle   = cycle;
+                each.event.value   = value;
+                each.event.control = 0x1E;
+                each.event.command = 0x0B;
+                each.event.lines   = IoEventLog::kLineDtr;
+                return each;
+            };
+
+
+
+            window.OnCreate();
+            serial.CreateControls();
+            serial.Configure();
+
+            delta.newer = { row (IoEventKind::SerialSettings, 900, 0), row (IoEventKind::SerialSent, 1'000, 'A'), row (IoEventKind::SerialReceived, 9'000, 'B') };
+            deltas.serial.push_back (delta);
+            serial.ApplyLogDeltas (deltas, false);
+
+            Assert::AreEqual ((ptrdiff_t) 2, std::ranges::count_if (serial.GetModel().GetView(), [] (int index) { return index >= 0; }), L"the two bytes, not the settings");
+            Assert::IsTrue   (serial.GetModel().GetText (false).find (L"Sent") != std::wstring::npos);
+            Assert::IsTrue   (serial.GetModel().GetText (false).find (L"41") != std::wstring::npos, L"the byte in hex");
+
+            height = serial.GetGraph().GetHeightDip();
+            Assert::AreEqual (8 * CommSignalGraph::kLaneDip + CommSignalGraph::kAxisDip, height, L"a lane for each of the eight lines");
+
+            serial.ShowLane (CommGraph::kIrq, false);
+            Assert::AreEqual (height - CommSignalGraph::kLaneDip, serial.GetGraph().GetHeightDip(), L"one lane fewer");
+            Assert::IsTrue   (serial.GetModel().GetOptionsText().starts_with ("lanes=11111110"), L"and the choice is in the options");
+        }
+
+
+        //  The serial ports' and the Uthernet II's panels open their logs.
+        TEST_METHOD (TheSerialAndNetworkPanelsOpenTheirLogs)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            ToolWindow         window   (theme, host);
+            PaneMenuItems      items;
+
+
+
+            for (const char * id : { "serial-card", "serial-port-1" })
+            {
+                DevicePanelController  panel (window.GetPaneHostForTest(), id, L"Serial");
+
+                items.clear();
+                panel.AddContentMenuItems ({}, items);
+
+                Assert::AreEqual ((size_t) 1, items.size());
+                Assert::AreEqual (std::wstring (L"Open serial log"), items[0].first);
+            }
+
+            {
+                DevicePanelController  panel (window.GetPaneHostForTest(), "uthernet", L"Uthernet II");
+
+                items.clear();
+                panel.AddContentMenuItems ({}, items);
+
+                Assert::AreEqual ((size_t) 1, items.size());
+                Assert::AreEqual (std::wstring (L"Open network log"), items[0].first);
+            }
+        }
+
+
+        //  The network log lists each send and receive with its length, and a
+        //  lane for each socket.
+        TEST_METHOD (TheNetworkLogListsSendsAndReceives)
+        {
+            CassoTheme         theme    = CassoTheme::MakeSkeuomorphic();
+            QuietDebuggerHost  host;
+            ToolWindow         window   (theme, host);
+            CommLogController  network  (window.GetPaneHostForTest(), DebugLogKind::Network);
+            DebugLogDeltas     deltas;
+            IoLogDelta         delta;
+            IoLogRow           sent;
+
+
+
+            window.OnCreate();
+            network.CreateControls();
+            network.Configure();
+
+            sent.cycle         = 1'000;
+            sent.event.kind    = IoEventKind::SocketSent;
+            sent.event.cycle   = 1'000;
+            sent.event.chip    = 1;
+            sent.event.length  = 3;
+            sent.data          = std::make_shared<const std::vector<Byte>> (std::vector<Byte> { 'G', 'E', 'T' });
+
+            delta.newer = { sent };
+            deltas.network.push_back (delta);
+            network.ApplyLogDeltas (deltas, false);
+
+            Assert::IsTrue   (network.GetModel().GetText (false).find (L"Socket 1\tSent\t3\tGET\t47 45 54") != std::wstring::npos, network.GetModel().GetText (false).c_str());
+            Assert::AreEqual (4 * CommSignalGraph::kLaneDip + CommSignalGraph::kAxisDip, network.GetGraph().GetHeightDip(), L"a lane for each socket");
         }
 
 

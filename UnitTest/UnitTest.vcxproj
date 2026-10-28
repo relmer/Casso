@@ -226,6 +226,7 @@
     <ClCompile Include="DebuggerTests\HeatMapRangesPaneTests.cpp" />
     <ClCompile Include="DebuggerTests\MemoryMapTests.cpp" />
     <ClCompile Include="DebuggerTests\SerialWaveformTests.cpp" />
+    <ClCompile Include="DebuggerTests\CommGraphTests.cpp" />
     <ClCompile Include="DebuggerTests\BreakpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchpointTableTests.cpp" />
     <ClCompile Include="DebuggerTests\WatchTableTests.cpp" />

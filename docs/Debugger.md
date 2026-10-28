@@ -911,6 +911,32 @@ A speaker toggle costs about fourteen nanoseconds of host time, so a program
 playing a note runs one to three percent slower at maximum speed, and a loop
 that toggles the speaker as fast as a 6502 can about a sixth slower. Other
 I/O, a keyboard poll among it, costs nothing measurable.
+
+## Serial and network logs
+
+The serial log has the traffic of each 6551: the Super Serial Card's and the
+//c's two ports. The network log has the Uthernet II's sockets. Each opens from
+the View menu, or from the serial and Uthernet II panels' menus.
+
+Each pane has a graph across the top and a list under it. The serial log's
+graph has a lane for each of TxD, RxD, RTS, CTS, DTR, DSR, DCD and the
+interrupt line. TxD and RxD are drawn bit by bit: each byte's start bit, data
+bits low bit first, parity bit and stop bits, laid out from the word length,
+parity and stop bits in force and the baud rate, as the 6551 times them. A
+line rests at mark. The network log's graph has a lane for each socket,
+colored by its state, with a tick up for each send and down for each receive.
+
+The bar has a toggle for each lane, and Zoom in and Zoom out. The graph ends
+just after the newest row, or centers on the row the keyboard is on; the
+serial graph is of that row's port. Rest the pointer on the graph for the state
+of each lane turned on: on or off for a control line, mark or space for a data
+line with which bit of which byte it is, and for a socket its state and the
+bytes it has sent and received.
+
+The list has a row for each byte a port sent or received, or each send and
+receive of a socket, with the bytes as text and in hex. Reads of the 6551's
+status register make no entry. Both logs are rebuilt from history, as the
+video and sound logs are, so they follow a rewind or a seek.
 ## The debugger window
 
 **Debug > Debugger...** opens the window beside the emulator, as do F12, F7

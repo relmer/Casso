@@ -381,4 +381,12 @@ void DevicePanelController::AddContentMenuItems (POINT clientPx, PaneMenuItems &
     {
         items.push_back ({ L"Open sound log", [this] { m_host.OpenEventLog (DebugLogKind::Sound); } });
     }
+    else if (m_panelId == "serial-card" || m_panelId.starts_with ("serial-port-"))
+    {
+        items.push_back ({ L"Open serial log", [this] { m_host.OpenEventLog (DebugLogKind::Serial); } });
+    }
+    else if (m_panelId == "uthernet")
+    {
+        items.push_back ({ L"Open network log", [this] { m_host.OpenEventLog (DebugLogKind::Network); } });
+    }
 }
