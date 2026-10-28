@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "Pch.h"
 
@@ -8,6 +8,7 @@
 
 
 class InspectorMarquee;
+class PlatterOverlays;
 class InspectorTip;
 
 
@@ -32,7 +33,8 @@ class PlatterView : public InspectorView
 public:
     static constexpr double  kWheelZoomStep = 1.25;
 
-    explicit PlatterView (InspectorViewContext & context) : InspectorView (context) {}
+    explicit PlatterView (InspectorViewContext & context);
+    ~PlatterView () override;
 
     void  Paint      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool  OnMouse    (const DxuiMouseEvent & ev) override;
@@ -49,6 +51,8 @@ public:
     void               SetAlignmentShown (bool isShown) { m_isAlignmentShown = isShown; }
 
 private:
+    friend class PlatterOverlays;
+
     struct RingTurns
     {
         const TrackAnalysis *  of = nullptr;
@@ -56,39 +60,10 @@ private:
         vector<double>         cells;
     };
 
-    //  A data field of the selected file on a whole track's rings, between
-    //  two turns; `b` passes 1 when the field crosses the index.
-    struct FileArc
-    {
-        int     wholeTrack = 0;
-        double  a          = 0;
-        double  b          = 0;
-    };
-
     void           Draw           (const DxuiCustomDrawArgs & args);
     void           PaintNibbles   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
                                    const TrackAnalysis & track, const RingTurns & turns, double start, double end);
-    void           PaintFiles     (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
-    void           PaintDiffs     (IDxuiPainter & painter, const PlatterPlacement & view);
-    void           PaintHits      (IDxuiPainter & painter, const PlatterPlacement & view);
-    void           GetFileArcs    (vector<FileArc> & outArcs) const;
-    void           PaintSelectedArc (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
-    void           PaintArcMark     (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, double start, double end, bool isSelected) const;
-    void           GetMarkBand      (const PlatterPlacement & view, int quarterTrack, double & outR0, double & outR1) const;
-    RECT           GetArcBox        (const PlatterPlacement & view, double start, double end, double r0, double r1) const;
-    void           GetVisibleRadii  (const PlatterPlacement & view, double r0, double r1, double & outNear, double & outFar) const;
-    bool           IsOverSelection  (const PlatterPlacement & view, POINT pointPx) const;
-    void           DimOutsideFile (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
-    void           PaintMarquee   (IDxuiPainter & painter, const PlatterPlacement & view, const vector<FileArc> & arcs) const;
-    static void    GetDiffTurns   (const Difference & difference, const TrackAnalysis & track, const RingTurns & turns, double & outA, double & outB);
-    void           ShadeRingArc   (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb) const;
-    vector<std::pair<double, double>>  GetVisibleParts (const PlatterPlacement & view, double a, double b) const;
-    bool           IsBandVisible  (const PlatterPlacement & view, double r0, double r1) const;
-    void           DrawMarqueeArc (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
-    void           DrawMarqueeClear (const InspectorMarquee & marquee, IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r) const;
-    double         GetClearTurn     (const PlatterPlacement & view, double turn, double inner, double outer) const;
-    bool           GetSelectionBorder (const PlatterPlacement & view, double & outStart, double & outEnd, double & outR0, double & outR1) const;
     static void    ShadeArc       (IDxuiPainter & painter, const PlatterPlacement & view, double a, double b, double r0, double r1, uint32_t argb);
     bool           IsSelectedNibble (int quarterTrack, int nibble) const;
     static void    DrawRadial     (IDxuiPainter & painter, const PlatterPlacement & view, double turn, double r0, double r1, float thicknessPx, uint32_t argb);
@@ -100,9 +75,7 @@ private:
     const TrackAnalysis *  GetRingTrack (int quarterTrack) const;
     const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
-    void           PaintAlignment (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
-    void           PaintReads     (IDxuiPainter & painter, const PlatterPlacement & view) const;
     bool           OnTiltMouse    (const DxuiMouseEvent & ev);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
     static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);
@@ -118,16 +91,17 @@ private:
     PlatterPlacement  MakeView       () const;
     InspectorViewModel::Point  ToViewPoint (POINT pointPx) const;
 
-    PlatterRenderer            m_renderer;
-    bool                       m_isRendererReady   = false;
-    bool                       m_isAlignmentShown  = false;
-    bool                       m_isPressed         = false;
-    bool                       m_isPanning         = false;
-    bool                       m_isTilting         = false;
-    POINT                      m_tiltAt            = {};
-    POINT                      m_pressAt           = {};
-    POINT                      m_lastAt            = {};
-    int64_t                    m_lastClickMs       = 0;
-    int                        m_hoverRing         = -1;
-    mutable vector<RingTurns>  m_ringTurns;
+    PlatterRenderer                   m_renderer;
+    bool                              m_isRendererReady  = false;
+    bool                              m_isAlignmentShown = false;
+    bool                              m_isPressed        = false;
+    bool                              m_isPanning        = false;
+    bool                              m_isTilting        = false;
+    POINT                             m_tiltAt           = {};
+    POINT                             m_pressAt          = {};
+    POINT                             m_lastAt           = {};
+    int64_t                           m_lastClickMs      = 0;
+    int                               m_hoverRing        = -1;
+    mutable vector<RingTurns>         m_ringTurns;
+    std::unique_ptr<PlatterOverlays>  m_overlays;
 };

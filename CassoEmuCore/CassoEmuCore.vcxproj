@@ -524,6 +524,7 @@
     <ClCompile Include="Ui\DiskInspector\FloatingGroup.cpp" />
     <ClCompile Include="Ui\DiskInspector\NibbleSections.cpp" />
     <ClCompile Include="Ui\DiskInspector\OverlayChip.cpp" />
+    <ClCompile Include="Ui\DiskInspector\PlatterOverlays.cpp" />
     <ClCompile Include="Ui\DiskInspector\TiltButton.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
     <ClCompile Include="Ui\DiskInspector\Views\FilesView.cpp" />
@@ -1045,6 +1046,7 @@
     <ClInclude Include="Ui\DiskInspector\FloatingGroup.h" />
     <ClInclude Include="Ui\DiskInspector\NibbleSections.h" />
     <ClInclude Include="Ui\DiskInspector\OverlayChip.h" />
+    <ClInclude Include="Ui\DiskInspector\PlatterOverlays.h" />
     <ClInclude Include="Ui\DiskInspector\TiltButton.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />
     <ClInclude Include="Ui\DiskInspector\Views\FilesView.h" />
