@@ -1318,14 +1318,16 @@ bool DebugEventLogs::TryMakeRow (
             break;
 
         case InputKind::AciaLines:
+            isRow                    = record.detail < m_machine.GetRefs().serialChips.size();
             event.type               = InputEventType::HostSerialLines;
-            event.payload.io.address = record.detail;
+            event.payload.io.address = isRow ? m_machine.GetRefs().serialChips[record.detail]->GetCommPort() : 0;
             event.payload.io.value   = record.value;
             break;
 
         case InputKind::AciaConnection:
+            isRow                    = record.detail < m_machine.GetRefs().serialChips.size();
             event.type               = InputEventType::HostSerialLink;
-            event.payload.io.address = record.detail;
+            event.payload.io.address = isRow ? m_machine.GetRefs().serialChips[record.detail]->GetCommPort() : 0;
             event.payload.io.value   = record.value;
             break;
 

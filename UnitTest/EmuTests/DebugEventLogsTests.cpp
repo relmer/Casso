@@ -597,6 +597,46 @@ namespace DebugEventLogsTests
         }
 
 
+        //  A host attachment's line change and connection are rows of the
+        //  input log with the port they came in on.
+        TEST_METHOD (SerialLinesAndConnectionsAreHostRowsByPort)
+        {
+            TestMachine            machine    ("Apple2c");
+            ReverseController      controller (machine);
+            DebugEventLogs         logs       (machine);
+            InputLogDelta          delta;
+            const InputLogRow    * lines      = nullptr;
+            const InputLogRow    * link       = nullptr;
+            HRESULT                hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (KeyframeSettings::kDefaultFrames));
+            AssertSucceeded (hr, L"Start");
+
+            logs.Start   (&controller);
+            logs.SetOpen (DebugLogKind::Input, true);
+
+            machine.GetRefs().serialChips[1]->SetHostLines       (false, true, true);
+            machine.GetRefs().serialChips[1]->NoteHostConnection (true, "bbs.example.org:23");
+            machine.RunCycles (kSliceCycles);
+
+            logs.TakeDelta (delta);
+            logs.Stop();
+
+            for (const InputLogRow & each : delta.newer)
+            {
+                lines = (each.kind == DebugLogRowKind::Event && each.event.type == InputEventType::HostSerialLines) ? &each : lines;
+                link  = (each.kind == DebugLogRowKind::Event && each.event.type == InputEventType::HostSerialLink)  ? &each : link;
+            }
+
+            Assert::IsNotNull (lines, L"the line change is a row");
+            Assert::IsNotNull (link,  L"the connection is a row");
+            Assert::AreEqual<uint16_t> (Acia6551::kCommPortBuiltIn | 2, lines->event.payload.io.address, L"on the //c's port 2");
+            Assert::AreEqual<uint16_t> (Acia6551::kCommPortBuiltIn | 2, link->event.payload.io.address,  L"on the //c's port 2");
+        }
+
+
         //  A pane gets everything when it opens, then each new row once.
         TEST_METHOD (AnOpenPaneGetsEachRowOnce)
         {

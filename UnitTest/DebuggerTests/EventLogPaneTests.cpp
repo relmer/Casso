@@ -732,13 +732,13 @@ namespace EventLogPaneTests
             std::wstring   address;
             std::wstring   value;
             std::wstring   meaning;
-            InputEvent     event = MakeInputRow (10, InputEventType::HostSerialLines, 0, IoEventLog::kLineCts | IoEventLog::kLineDcd).event;
+            InputEvent     event = MakeInputRow (10, InputEventType::HostSerialLines, Acia6551::kCommPortBuiltIn | 1, IoEventLog::kLineCts | IoEventLog::kLineDcd).event;
 
 
 
             pane.FormatEvent (event, address, value, meaning);
 
-            Assert::AreEqual (std::wstring (L"Serial 1"), address);
+            Assert::AreEqual (std::wstring (L"Port 1"), address);
             Assert::AreEqual (std::wstring (L"CTS DCD"), value);
             Assert::AreEqual (std::wstring (L"HOST serial lines CTS DCD"), meaning);
         }
@@ -751,12 +751,13 @@ namespace EventLogPaneTests
             std::wstring   address;
             std::wstring   value;
             std::wstring   meaning;
-            InputEvent     opened = MakeInputRow (10, InputEventType::HostSerialLink, 1, 1).event;
-            InputEvent     closed = MakeInputRow (11, InputEventType::HostSerialLink, 1, 0).event;
+            InputEvent     opened = MakeInputRow (10, InputEventType::HostSerialLink, 2, 1).event;
+            InputEvent     closed = MakeInputRow (11, InputEventType::HostSerialLink, 2, 0).event;
 
 
 
             pane.FormatEvent (opened, address, value, meaning);
+            Assert::AreEqual (std::wstring (L"Slot 2"), address);
             Assert::AreEqual (std::wstring (L"HOST serial connection opened"), meaning);
 
             pane.FormatEvent (closed, address, value, meaning);
