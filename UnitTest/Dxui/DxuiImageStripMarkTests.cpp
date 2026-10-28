@@ -253,6 +253,27 @@ namespace DxuiImageStripMarkTests
         }
 
 
+        TEST_METHOD (AResetJoiningItsForkIsDrawnAsTheFork)
+        {
+            StripRig       rig;
+            DxuiStripMark  fork = MarkingSource::MakeMark (2.01f, 0, L"Other branches");
+
+
+
+            fork.art         = DxuiStripMarkArt::Branch;
+            fork.hasRows     = true;
+            fork.id          = kForkMark;
+            rig.source.marks = { MarkingSource::MakeMark (2.0f, kResetGlyph, L"Reset"), fork };
+            rig.Paint();
+
+            Assert::AreEqual<size_t>   (1, rig.strip.GetMarkBadges().size(), L"one badge");
+            Assert::IsTrue             (rig.strip.GetMarkBadges().front().hasRows, L"with the fork's rows");
+            Assert::AreEqual<uint64_t> (kForkMark, rig.strip.GetMarkBadges().front().id, L"keyed by the fork");
+            Assert::AreEqual           (rig.strip.GetLineAlong (2.0f), rig.strip.GetMarkBadges().front().along, L"at the first mark's offset");
+            Assert::AreEqual           (0, rig.CountStrings (std::wstring (1, kResetGlyph)), L"drawn as the branch, not the reset's glyph");
+        }
+
+
         TEST_METHOD (ABadgeHasItsTip)
         {
             StripRig         rig;

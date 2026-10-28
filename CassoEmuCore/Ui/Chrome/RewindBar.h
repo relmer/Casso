@@ -19,9 +19,10 @@ struct HistoryThumbnailCell;
 //  history's pictures over the bottom of the emulated screen, with where
 //  history begins before them and Live after them. It opens when the pointer
 //  enters a band kOpeningBandDip tall, scaled for the DPI, along the screen's
-//  bottom edge, and closes when the pointer moves off it. It never opens
-//  while the pointer is captured or history is off, and covers nothing while
-//  closed.
+//  bottom edge, and closes when the pointer moves off it, or, once the
+//  pointer moves into the strip's fork flyout, when the flyout closes. It
+//  never opens while the pointer is captured or history is off, and covers
+//  nothing while closed.
 //
 //  A click on the strip seeks there and a drag of its playhead line scrubs,
 //  through HistoryTimelineClick and HistoryTimelineScrub as the debugger's
@@ -95,16 +96,17 @@ private:
     void  ApplyScrub    (const HistoryTimelineScrubStep & step);
     void  ShowState     ();
 
-    ShellHistory                  * m_history    = nullptr;
+    ShellHistory                  * m_history         = nullptr;
     DxuiToolbar                     m_bar;
     DxuiImageStrip                  m_strip;
     std::shared_ptr<DxuiCommand>    m_command;
     DxuiTooltip                     m_tooltip;
     HistoryTimelineScrub            m_scrub;
     ScreenTestFn                    m_screenTest;
-    RECT                            m_screen     = {};
+    RECT                            m_screen          = {};
     DxuiDpiScaler                   m_scaler;
-    bool                            m_isOpen     = false;
-    bool                            m_isPressed  = false;   // a press on the bar, whose drag and release go to the bar too
-    bool                            m_isHidden   = false;
+    bool                            m_isOpen          = false;
+    bool                            m_isPressed       = false;   // a press on the bar, whose drag and release go to the bar too
+    bool                            m_isHidden        = false;
+    bool                            m_isLeftForFlyout = false;   // the pointer left the bar for the strip's flyout
 };

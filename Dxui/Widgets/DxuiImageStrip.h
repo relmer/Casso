@@ -171,6 +171,7 @@ private:
     void  PaintPartChrome  (IDxuiPainter & painter, const IDxuiTheme & theme, const RECT & rc, Part part);
     void  PaintHoverLine   (IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  PaintMarks       (IDxuiTextRenderer & text, const IDxuiTheme & theme);
+    void  JoinMarks        (float badgePx);
     void  PaintBranchArt   (IDxuiTextRenderer & text, float x, float y, float sizePx, uint32_t ink);
     void  TrackFlyout      (int x, int y);
     void  PaintLabelPair   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const std::wstring & top, const std::wstring & bottom, float centerX);

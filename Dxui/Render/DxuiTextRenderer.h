@@ -348,9 +348,20 @@ private:
     UINT                              m_textureH           = 0;
     UINT                              m_offscreenW         = 0;
     UINT                              m_offscreenH         = 0;
-    ComPtr<ID2D1Bitmap>               m_framebufferBitmap;
-    int                               m_framebufferBitmapW = 0;
-    int                               m_framebufferBitmapH = 0;
+    // DrawFramebuffer's bitmaps, a slot for each call in turn. Pixels copied
+    // into a bitmap with a draw queued from it flush that draw early, ahead of
+    // whatever is drawn under it afterward, so calls in one frame take
+    // different slots.
+    struct FramebufferSlot
+    {
+        ComPtr<ID2D1Bitmap>  bitmap;
+        int                  width  = 0;
+        int                  height = 0;
+    };
+
+    static constexpr size_t                           s_kFramebufferSlots = 8;
+    std::array<FramebufferSlot, s_kFramebufferSlots>  m_framebufferSlots;
+    size_t                                            m_framebufferNext   = 0;
     // One cached bitmap per distinct picture. D2D batches the draws of a
     // frame, so pixels uploaded into a bitmap already drawn once would show
     // up in that earlier draw as well: every picture of a given size would

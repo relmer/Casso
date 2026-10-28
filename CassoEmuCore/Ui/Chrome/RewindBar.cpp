@@ -359,6 +359,8 @@ bool RewindBar::OfferMouse (
                 break;
             }
 
+            m_isLeftForFlyout = false;
+
             (void) m_bar.OnToolbarMouseMove (x, y);
 
             tip = m_isPressed ? nullptr : m_bar.GetTooltipAt (x, y, anchor);
@@ -407,7 +409,13 @@ bool RewindBar::OfferMouse (
             break;
 
         case DxuiMouseEventKind::Leave:
-            if (!m_isPressed)
+            //  The pointer went into the strip's flyout, a separate window:
+            //  the bar closes once the flyout does.
+            if (m_strip.GetFlyout().IsOpen() && m_strip.GetFlyout().IsPointerOn())
+            {
+                m_isLeftForFlyout = true;
+            }
+            else if (!m_isPressed)
             {
                 Close();
             }
@@ -455,8 +463,9 @@ void RewindBar::Close()
         return;
     }
 
-    m_isOpen    = false;
-    m_isPressed = false;
+    m_isOpen          = false;
+    m_isPressed       = false;
+    m_isLeftForFlyout = false;
 
     m_bar.OnToolbarMouseLeave();
     m_strip.HidePreview();
@@ -538,6 +547,12 @@ void RewindBar::Sync()
 
     if (!m_isOpen)
     {
+        return;
+    }
+
+    if (m_isLeftForFlyout && !m_strip.GetFlyout().IsOpen())
+    {
+        Close();
         return;
     }
 

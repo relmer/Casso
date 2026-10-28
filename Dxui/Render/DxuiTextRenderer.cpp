@@ -298,9 +298,7 @@ void DxuiTextRenderer::Shutdown()
     m_offscreen.Reset();
     m_offscreenW = 0;
     m_offscreenH = 0;
-    m_framebufferBitmap.Reset();
-    m_framebufferBitmapW = 0;
-    m_framebufferBitmapH = 0;
+    m_framebufferSlots.fill (FramebufferSlot());
     m_iconBitmaps.clear();
     m_brushCache.clear();
     m_layoutCache.clear();
@@ -2247,12 +2245,12 @@ void DxuiTextRenderer::PopTextRotation()
 //
 //  DrawFramebuffer
 //
-//  Uploads a BGRA8 CPU pixel buffer into a cached ID2D1Bitmap and
-//  draws it into the destination DIP rect with linear interpolation.
-//  The bitmap is created lazily and recreated when the source
-//  dimensions change; otherwise CopyFromMemory rewrites the pixels
-//  in place each call. Used by the Settings → Theme preview to show
-//  the live emulator framebuffer inside the mock window.
+//  Uploads a BGRA8 CPU pixel buffer into the next of the framebuffer
+//  slots' bitmaps and draws it into the destination DIP rect with linear
+//  interpolation. A slot's bitmap is created lazily and recreated when the
+//  source dimensions change; otherwise CopyFromMemory rewrites its pixels.
+//  Used by the Settings → Theme preview to show the live emulator
+//  framebuffer inside the mock window.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2265,8 +2263,9 @@ HRESULT DxuiTextRenderer::DrawFramebuffer (
     float            destWidthDip,
     float            destHeightDip)
 {
-    HRESULT       hr     = S_OK;
-    D2D1_RECT_F   dest   = {};
+    HRESULT            hr     = S_OK;
+    D2D1_RECT_F        dest   = {};
+    FramebufferSlot  * slot   = nullptr;
 
 
 
@@ -2277,9 +2276,12 @@ HRESULT DxuiTextRenderer::DrawFramebuffer (
     CBRA (srcBgraPixels);
     CBRA (srcWidthPx > 0 && srcHeightPx > 0);
 
-    if (m_framebufferBitmap == nullptr ||
-        m_framebufferBitmapW != srcWidthPx ||
-        m_framebufferBitmapH != srcHeightPx)
+    slot              = &m_framebufferSlots[m_framebufferNext];
+    m_framebufferNext = (m_framebufferNext + 1) % s_kFramebufferSlots;
+
+    if (slot->bitmap == nullptr ||
+        slot->width  != srcWidthPx ||
+        slot->height != srcHeightPx)
     {
         D2D1_BITMAP_PROPERTIES  props = {};
 
@@ -2288,18 +2290,18 @@ HRESULT DxuiTextRenderer::DrawFramebuffer (
         props.dpiX                  = 96.0f;
         props.dpiY                  = 96.0f;
 
-        m_framebufferBitmap.Reset();
+        slot->bitmap.Reset();
         hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) srcWidthPx, (UINT32) srcHeightPx),
-                                         nullptr, 0, &props, &m_framebufferBitmap);
+                                         nullptr, 0, &props, &slot->bitmap);
         CHRA (hr);
-        m_framebufferBitmapW = srcWidthPx;
-        m_framebufferBitmapH = srcHeightPx;
+        slot->width  = srcWidthPx;
+        slot->height = srcHeightPx;
     }
 
     {
         D2D1_RECT_U  srcRect = D2D1::RectU (0, 0, (UINT32) srcWidthPx, (UINT32) srcHeightPx);
 
-        hr = m_framebufferBitmap->CopyFromMemory (&srcRect, srcBgraPixels,
+        hr = slot->bitmap->CopyFromMemory (&srcRect, srcBgraPixels,
                                                   (UINT32) (srcWidthPx * sizeof (uint32_t)));
         CHRA (hr);
     }
@@ -2309,7 +2311,7 @@ HRESULT DxuiTextRenderer::DrawFramebuffer (
     dest.right  = destXDip + destWidthDip;
     dest.bottom = destYDip + destHeightDip;
 
-    m_d2dContext->DrawBitmap (m_framebufferBitmap.Get(),
+    m_d2dContext->DrawBitmap (slot->bitmap.Get(),
                               &dest, m_globalAlpha,
                               D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                               nullptr);

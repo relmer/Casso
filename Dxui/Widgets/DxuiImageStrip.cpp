@@ -927,10 +927,10 @@ void DxuiImageStrip::PaintHoverLine (
 //
 //  Each of the source's marks on a strip lying down: a thin line across the
 //  pictures at its offset, and its glyph or branch in a badge on the
-//  pictures' bottom edge, with the count beside it when it is above 1. A mark closer
-//  to the one before than a badge's width joins that badge, whose tip lists
-//  both. Drawn as pictures are, since pictures draw over shapes. The badges
-//  are saved for the tooltip's hit test.
+//  pictures' bottom edge, with the count beside it when it is above 1. Marks
+//  closer together than a badge's width share one badge (JoinMarks). Drawn as
+//  pictures are, since pictures draw over shapes. The badges are saved for
+//  the tooltip's hit test.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -967,15 +967,11 @@ void DxuiImageStrip::PaintMarks (
 
     m_source->GetMarks (m_marks);
 
+    JoinMarks (badge);
+
     for (const DxuiStripMark & mark : m_marks)
     {
         along = GetLineAlong (mark.offset);
-
-        if (!m_badges.empty() && along - m_badges.back().along < badge)
-        {
-            m_badges.back().tip += L"\n" + mark.tip;
-            continue;
-        }
 
         label = (mark.art == DxuiStripMarkArt::Glyph) ? std::wstring (1, mark.glyph) : std::wstring();
 
@@ -1019,6 +1015,58 @@ void DxuiImageStrip::PaintMarks (
 
         m_badges.push_back (placed);
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiImageStrip::JoinMarks
+//
+//  A mark closer to the one before than a badge's width joins that mark's
+//  badge, whose tip lists both. A mark with rows takes the badge's art, id
+//  and rows from a mark without, since only it opens a flyout: a fork made
+//  by a reset is joined by the reset's mark, one keyframe after it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiImageStrip::JoinMarks (float badgePx)
+{
+    std::vector<DxuiStripMark>  joined;
+    float                       lastAlong = 0.0f;
+    float                       along     = 0.0f;
+
+
+
+    for (const DxuiStripMark & mark : m_marks)
+    {
+        along = GetLineAlong (mark.offset);
+
+        if (!joined.empty() && along - lastAlong < badgePx)
+        {
+            DxuiStripMark  & first = joined.back();
+            std::wstring     tip   = first.tip + L"\n" + mark.tip;
+            float            at    = first.offset;
+
+
+
+            if (mark.hasRows && !first.hasRows)
+            {
+                first        = mark;
+                first.offset = at;
+            }
+
+            first.tip = std::move (tip);
+            continue;
+        }
+
+        joined.push_back (mark);
+        lastAlong = along;
+    }
+
+    m_marks.swap (joined);
 }
 
 

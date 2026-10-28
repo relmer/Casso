@@ -446,7 +446,7 @@ void DxuiStripFlyout::Render (
 {
     constexpr uint32_t  kInkArgb   = 0xFFF0F0F0u;
     constexpr uint32_t  kDimArgb   = 0xFFB0B0B0u;
-    constexpr uint32_t  kHoverArgb = 0x30FFFFFFu;
+    constexpr uint32_t  kHoverArgb = 0x30303030u;   // translucent white, premultiplied
     constexpr uint32_t  kEmptyArgb = 0xFF101010u;
 
 
