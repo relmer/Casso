@@ -23,6 +23,7 @@
 #include "DiskStoreSave.h"
 #include "DiskStoreSalvage.h"
 #include "DiskStoreMedia.h"
+#include "DiskStoreMount.h"
 
 
 
@@ -119,7 +120,7 @@ public:
 
     //  Where an asynchronous mount's result goes, and an asynchronous eject's:
     //  whether the bay is empty. Both run on the store's thread.
-    using MountDone = std::function<void (HRESULT hr, const MountDiagnosis & diagnosis)>;
+    using MountDone = DiskStoreMount::MountDone;
     using EjectDone = std::function<void (bool isEjected)>;
 
     //  Mount and Eject with their file work on the I/O queue: done runs when
@@ -517,6 +518,7 @@ private:
     friend class DiskStoreSalvage;
     friend class DiskStoreMedia;
     friend class DiskFileOps;
+    friend class DiskStoreMount;
 
     using Entry = DiskBayEntry;
 
@@ -560,47 +562,6 @@ private:
     //  How long a caller that uses a result before it returns waits for it.
     static constexpr DWORD  s_kSyncIoTimeoutMs = 30000;
 
-    //  A mount's state from step to step while its file work is posted.
-    struct MountJob
-    {
-        int             slot       = 0;
-        int             drive      = 0;
-        string          path;
-        DiskFormat      format     = DiskFormat::Dsk;
-        bool            isFromFile = false;
-        bool            isSameFile = false;
-        vector<Byte>    bytes;
-        ImageIdentity   identity;
-        MountDiagnosis  diagnosis;
-        FlushOutcome    outcome;
-        HRESULT         result     = S_OK;
-        MountDone       done;
-    };
-
-    //  A mount over a bay, in its order: load the new image, save the disk in
-    //  the bay, and swap them only when the save left no write outside a file.
-    //  LoadImage builds the image without touching the bay; SaveBeforeReplace
-    //  saves and DecideReplace declines with UnsavedWrites; SwapInImage
-    //  retires the old disk and seats the new one; ReportReplaceOutcome
-    //  reports a guest copy the save moved.
-    static HRESULT  LoadImage          (DiskFormat fmt, const vector<Byte> & bytes, const string & path,
-                                        unique_ptr<DiskImage> & outImage, MountDiagnosis & outDiagnosis);
-    void            SaveBeforeReplace  (const shared_ptr<MountJob> & job, std::function<void (HRESULT)> done);
-    HRESULT         DecideReplace      (MountJob & job);
-    void            ReplaceBay         (const shared_ptr<MountJob> & job, std::function<void (HRESULT)> done);
-    void            NoteKeptDisk       (MountJob & job, HRESULT hr);
-    void            SwapInImage        (Entry & entry, unique_ptr<DiskImage> loaded,
-                                        const string & path, DiskFormat fmt);
-    void            ReportReplaceOutcome (int slot, int drive, const string & newPath, HRESULT hr,
-                                          const FlushOutcome & outcome);
-
-    //  Mount's steps after the checks: the stat of a remounted file, the read,
-    //  and the end of a mount from a file or from bytes.
-    void            CheckSameFile        (const shared_ptr<MountJob> & job, HRESULT hr);
-    void            ReadMountFile        (const shared_ptr<MountJob> & job);
-    void            FinishMountFromFile  (const shared_ptr<MountJob> & job, HRESULT hr);
-    void            FinishMountFromBytes (const shared_ptr<MountJob> & job, HRESULT hr);
-    void            FinishMount          (const shared_ptr<MountJob> & job, HRESULT hr);
 
     //  Eject's step after the save.
     void            FinishEject        (int slot, int drive, uint64_t imageId, HRESULT hr);
@@ -651,4 +612,5 @@ private:
     DiskStoreSave            m_save    { *this };
     DiskStoreSalvage         m_salvage { *this };
     DiskStoreMedia           m_media   { *this };
+    DiskStoreMount           m_mount   { *this };
 };

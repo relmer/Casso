@@ -548,6 +548,7 @@
     <ClCompile Include="Devices\Disk\DiskStoreSave.cpp" />
     <ClCompile Include="Devices\Disk\DiskStoreSalvage.cpp" />
     <ClCompile Include="Devices\Disk\DiskStoreMedia.cpp" />
+    <ClCompile Include="Devices\Disk\DiskStoreMount.cpp" />
     <ClCompile Include="Devices\Disk\DiskStoreReload.cpp" />
     <ClCompile Include="Devices\Disk\DriveStatus.cpp" />
     <ClCompile Include="Devices\Disk\ImageIdentity.cpp" />
@@ -1252,6 +1253,7 @@
     <ClInclude Include="Devices\Disk\DiskStoreSave.h" />
     <ClInclude Include="Devices\Disk\DiskStoreSalvage.h" />
     <ClInclude Include="Devices\Disk\DiskStoreMedia.h" />
+    <ClInclude Include="Devices\Disk\DiskStoreMount.h" />
     <ClInclude Include="Devices\Disk\DiskStoreReload.h" />
     <ClInclude Include="Devices\Disk\DiskStoreTypes.h" />
     <ClInclude Include="Devices\Disk\IDiskIoQueue.h" />
