@@ -352,10 +352,9 @@ namespace AciaComPortEndpointTestNs
         }
 
 
-        //  The 6551's 110 baud is 109.92, which a port runs at 110, the rate the
-        //  program chose, so nothing is reported. Its 134.5 is 134.58, which a port that
-        //  takes only whole rates runs at 135, off by any amount, so it is.
-        TEST_METHOD (ARateOffTheProgramsChoiceByAnyAmountIsReported)
+        //  A port within 2% of the 6551's rate is not reported, as each end of a
+        //  line has that much room: 109.92 runs at 110 and 134.58 at 135.
+        TEST_METHOD (ARateWithinTwoPercentIsNotReported)
         {
             ComRig  rig;
 
@@ -363,15 +362,13 @@ namespace AciaComPortEndpointTestNs
 
             rig.acia.Write (kAddrCtrl, 0x13);
             rig.Run (Acia6551::kIdlePollCycles);
-
             Assert::AreEqual (110.0, rig.port->formats.back().baud);
-            Assert::AreEqual (std::string(), rig.GetReport(), L"110 is the rate chosen");
 
             rig.acia.Write (kAddrCtrl, 0x14);
             rig.Run (Acia6551::kIdlePollCycles);
-
             Assert::AreEqual (135.0, rig.port->formats.back().baud);
-            Assert::AreEqual (std::string ("134.5 baud is not available on COM3. It runs at 135 baud."), rig.GetReport());
+
+            Assert::AreEqual (std::string(), rig.GetReport());
         }
 
 

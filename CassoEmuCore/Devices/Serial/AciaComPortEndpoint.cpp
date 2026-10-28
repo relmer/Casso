@@ -250,7 +250,8 @@ Error:
 //  AciaComPortEndpoint::ApplyFormat
 //
 //  The port runs at the nearest rate it has to the one the guest chose; one
-//  that differs is reported the first time the guest sets that rate.
+//  off the chip's rate by more than kRateTolerance is reported the first time
+//  the guest sets that rate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,7 +263,7 @@ HRESULT AciaComPortEndpoint::ApplyFormat()
     double            nominal     = GetNominalBaud (m_format.baud);
     uint32_t          rate        = ChooseRate (nominal, m_rates, m_isAnyRate);
     uint32_t          key         = (uint32_t) llround (nominal * kHundredths);
-    bool              isOff       = rate != nominal;
+    bool              isOff       = std::abs (rate - m_format.baud) > m_format.baud * kRateTolerance;
 
 
 
