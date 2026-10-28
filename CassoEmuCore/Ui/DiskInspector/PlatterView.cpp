@@ -31,6 +31,7 @@ static constexpr float    s_kHeadEyeDip      = 14.0f;
 static constexpr float    s_kHeadFarShare    = 1.5f;
 static constexpr float    s_kHeadMarginDip   = 9.0f;
 static constexpr uint32_t s_kHeadBodyAlpha   = 0x90000000u;
+static constexpr float    s_kHeadSightAlpha  = 0.75f;
 static constexpr uint32_t s_kHeadHaloAlpha   = 0xA0000000u;
 static constexpr float    s_kHeadShadowDip   = 6.0f;
 static constexpr uint32_t s_kHeadShadowArgb  = 0x40000000u;
@@ -988,7 +989,8 @@ bool PlatterView::GetHeadPoint (POINT & outPointPx) const
 //  a margin of arm around it has a clear window over the platter under the
 //  head, and a crosshair in the window has its center exactly on the head's
 //  quarter track and angle, its lines along the radius and across it. The
-//  arm is one tapered capsule, so its translucent fill has no seams. Tilted,
+//  ring and crosshair are a little translucent, and the arm is one tapered
+//  capsule, so its translucent fill has no seams. Tilted,
 //  the arm has a soft shadow under it. The arm's edge, the ring and the
 //  crosshair indicate idle, reading or writing by color, and a blocked write
 //  adds a cross. The marker is drawn over everything and is not hit-tested,
@@ -1021,6 +1023,7 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     uint32_t                     argb   = colors.headIdle;
     uint32_t                     body   = (theme.BackgroundElevated() & 0x00FFFFFFu) | s_kHeadBodyAlpha;
     uint32_t                     halo   = (theme.Background() & 0x00FFFFFFu) | s_kHeadHaloAlpha;
+    float                        alpha  = painter.GetGlobalAlpha();
 
 
 
@@ -1054,6 +1057,9 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
     painter.FillTaperedCapsule (ex, ey, tip, ox, oy, farW, hole, 0.0f, body);
     painter.FillTaperedCapsule (ex, ey, tip, ox, oy, farW, 0.0f, line / 2.0f, argb);
 
+    //  The window's ring and crosshair are a little translucent too.
+    painter.SetGlobalAlpha (alpha * s_kHeadSightAlpha);
+
     //  The window's ring: a dark halo so it reads over any ring color, then
     //  its rim.
     OutlineCircle (painter, ex, ey, ring + line, rimW + line * 2.0f, halo);
@@ -1082,6 +1088,8 @@ void PlatterView::PaintHead (IDxuiPainter & painter, const IDxuiTheme & theme, c
         painter.DrawLine (ex - cross, ey - cross, ex + cross, ey + cross, line, argb);
         painter.DrawLine (ex - cross, ey + cross, ex + cross, ey - cross, line, argb);
     }
+
+    painter.SetGlobalAlpha (alpha);
 }
 
 
