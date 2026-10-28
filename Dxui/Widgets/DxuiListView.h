@@ -77,6 +77,10 @@ public:
         //  Drawn at the start of the cell, the text moved along past it.
         std::shared_ptr<const DxuiIconImage>  icon;
 
+        //  A square of this color after the checkbox and icon, the text moved
+        //  along past it, for a key to colors drawn elsewhere; zero for none.
+        uint32_t  swatch = 0;
+
         //  The text's color in place of the palette's, and a fill behind the
         //  cell. Zero leaves each as the list would draw it. A fill given on
         //  every cell of a row marks the row.
@@ -563,6 +567,7 @@ private:
     static constexpr int    s_kScrollbarWidthDip = 10;
     static constexpr int    s_kCellIconDip       = 16;
     static constexpr int    s_kCellIconGapDip    = 6;
+    static constexpr int    s_kCellSwatchDip     = 10;
     static constexpr int    s_kCellCheckDip      = 14;
     static constexpr int    s_kCellCheckGapDip   = 6;
     static constexpr int    s_kMinColWidthDip    = 48;

@@ -167,6 +167,45 @@ public:
     }
 
 
+    //  A swatch, like a checkbox, is drawn ahead of the text, which moves
+    //  along past it.
+    TEST_METHOD (TheTextMovesPastASwatch)
+    {
+        constexpr uint32_t                            kBlue   = 0xFF5B9BD5;
+        DxuiListView                                  list;
+        DxuiDpiScaler                                 scaler;
+        MockDxuiPainter                               painter;
+        MockDxuiTextRenderer                          text;
+        MockDxuiTheme                                 theme;
+        std::vector<std::vector<DxuiListView::Cell>>  rows    (2, std::vector<DxuiListView::Cell> (1));
+        RECT                                          with    = {};
+        RECT                                          without = {};
+        float                                         swatchX = -1.0f;
+
+
+
+        scaler.SetDpi (96);
+        rows[0][0].text   = L"PLOT";
+        rows[0][0].swatch = kBlue;
+        rows[1][0].text   = L"Other";
+
+        list.SetColumns ({ DxuiListView::Column { L"Routine", 160 } });
+        list.SetRows    (std::move (rows));
+        list.Layout     (RECT { 0, 0, 400, 300 }, scaler);
+        list.Paint      (painter, text, theme);
+
+        for (const RecordedPaintCall & call : painter.Calls())
+        {
+            swatchX = (call.kind == RecordedPaintKind::FillRect && call.argb == kBlue) ? call.x : swatchX;
+        }
+
+        Assert::IsTrue (list.GetCellTextRectPx (0, 0, with));
+        Assert::IsTrue (list.GetCellTextRectPx (1, 0, without));
+        Assert::IsTrue (swatchX >= 0.0f, L"the swatch is drawn in its color");
+        Assert::IsTrue (with.left > without.left && (float) with.left > swatchX, L"the text starts past the swatch");
+    }
+
+
     TEST_METHOD (SpaceTogglesTheSelectedRowsToTheKeyboardRowsOpposite)
     {
         DxuiListView         list;

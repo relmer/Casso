@@ -715,11 +715,16 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
     }
     else if (view == View::Routines)
     {
-        for (const ProfileRoutineEntry & entry : profile->routines)
+        //  A routine's swatch is its color in the timeline; the routines it
+        //  draws together in gray have none.
+        for (size_t i = 0; i < profile->routines.size(); i++)
         {
+            const ProfileRoutineEntry  & entry = profile->routines[i];
+
             cells.push_back ({ { TextEncoding::NarrowToWide (entry.GetName()) }, { count (entry.self) }, { share (entry.self) },
                                { count (entry.total) }, { share (entry.total) }, { count (entry.calls) },
                                { (entry.calls != 0) ? count (entry.total / entry.calls) : std::wstring (L"-") } });
+            cells.back()[0].swatch = ProfileTimeline::GetShareColor (i, 0);
         }
     }
     else if (view == View::Tree)
@@ -728,6 +733,7 @@ std::vector<std::vector<DxuiListView::Cell>> ProfilerPane::GetCells (const std::
         {
             cells.push_back ({ { std::wstring ((size_t) entry.depth * 2, L' ') + TextEncoding::NarrowToWide (profile->routines[entry.routine].GetName()) },
                                { count (entry.self) }, { count (entry.total) }, { share (entry.total) }, { count (entry.calls) } });
+            cells.back()[0].swatch = ProfileTimeline::GetShareColor (entry.routine, 0);
         }
     }
     else if (view == View::Opcodes)

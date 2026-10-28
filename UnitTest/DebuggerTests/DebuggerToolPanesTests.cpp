@@ -401,11 +401,15 @@ namespace DebuggerToolPanesTests
             Assert::AreEqual (std::wstring (L"40.0%"), cells[0][2].text);
             Assert::AreEqual (std::wstring (L"5"),     cells[0][6].text, L"40 cycles over 8 calls");
             Assert::AreEqual (std::wstring (L"-"),     cells[2][6].text, L"Top level is never called");
+            Assert::AreEqual (FlameGraphView::GetRoutineColor (0), cells[0][0].swatch, L"PLOT's swatch is its timeline color");
+            Assert::AreEqual (FlameGraphView::GetRoutineColor (2), cells[2][0].swatch, L"and Top level's");
 
             cells = ProfilerPane::GetCells (profile, ProfilerPane::View::Tree, true);
             Assert::AreEqual (std::wstring (L"Top level"),  cells[0][0].text);
             Assert::AreEqual (std::wstring (L"    PLOT"),   cells[2][0].text, L"two levels in");
             Assert::AreEqual (std::wstring (L"70.0%"),      cells[1][3].text);
+            Assert::AreEqual (FlameGraphView::GetRoutineColor (2), cells[0][0].swatch, L"each node in its routine's color");
+            Assert::AreEqual (FlameGraphView::GetRoutineColor (0), cells[2][0].swatch);
 
             Assert::AreEqual ((Word) 0x6000, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Routines, 0).value_or (0));
             Assert::AreEqual ((Word) 0x6200, ProfilerPane::GetRowAddress (profile, ProfilerPane::View::Tree, 1).value_or (0));
