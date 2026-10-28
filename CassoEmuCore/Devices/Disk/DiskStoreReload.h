@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "DiskStoreTypes.h"
+#include "DiskFileOps.h"
 #include "ChangePrompt.h"
 #include "IImageWatcher.h"
 
@@ -56,7 +57,7 @@ public:
     void           ResolveLostFileAnswer        (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath);
 
     bool           IsReloadDue                  (Entry & entry, ExternalChangeIntent & outIntent);
-    bool           ReadChangedImage             (const Entry & entry, vector<Byte> & outBytes) const;
+    static bool    IsLoadable                   (const string & path, const vector<Byte> & bytes);
     bool           PreserveGuestCopyForConflict (int slot, int drive, Entry & entry, string & outSavePath);
     void           AskAboutChange               (int slot, int drive, Entry & entry, ChangeAction action);
 
@@ -96,8 +97,33 @@ public:
     void           EndWatching   (int slot, int drive);
 
 private:
+    //  One bay's reload from the post to the completion. The I/O thread
+    //  reads the request half and writes the result half.
+    struct ReloadJob
+    {
+        int                    slot            = 0;
+        int                    drive           = 0;
+        uint64_t               imageId         = 0;
+        string                 path;
+        ExternalChangeIntent   intent          = ExternalChangeIntent::Unstated;
+        ImageIdentity          recorded;
+        IDiskFileIo          * fileIo          = nullptr;
+
+        bool                   isHeldElsewhere = false;
+        bool                   isChanged       = false;
+        HRESULT                hrRead          = S_OK;
+        bool                   isExists        = false;
+        vector<Byte>           bytes;
+    };
+
+    //  ApplyPendingReloadToBay's file work and the decision after it.
+    static void    RunReloadWork    (ReloadJob & job, const DiskFileOps & ops);
+    void           ApplyChangedFile (ReloadJob & job);
+
     DiskImageStore &  m_store;
 
+    //  Whether a bay's reload job is in flight.
+    bool              m_isJobPosted[8][2] = {};
     //  Changes noted from any thread, keyed by path, with only the latest per
     //  path, so the inbox is bounded by the distinct paths noted. The mutex
     //  guards the inbox alone: NoteExternalChange reads no Entry, and

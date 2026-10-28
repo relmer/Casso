@@ -304,4 +304,96 @@ public:
         Assert::IsTrue   (seen.failure == MountFailure::UnsavedWrites, L"because the disk in the drive has writes outside a file");
         Assert::AreEqual (std::string (kPath), rig->store.GetSourcePath (kSlot, kDrive), L"which is in the drive");
     }
+
+
+    //  A settled change to the bay's file, for which the writer stated a
+    //  reload: the identity check and the read
+    //  are one job, and while it is in flight the reload pass, which runs
+    //  every frame, does not post a second one.
+    TEST_METHOD (AReloadReadsTheChangedFileInOneJobAtATime)
+    {
+        static constexpr const char *  kFile = "reloaded.dsk";
+
+        auto                 store    = std::make_unique<DiskImageStore>();
+        DeferredDiskIoQueue  queue;
+        vector<Byte>         file     = vector<Byte> (NibblizationLayer::kImageByteSize, 0x11);
+        ImageIdentity        identity;
+        int64_t              nowMs    = 0;
+        int                  reads    = 0;
+        vector<Byte>         before;
+
+
+
+        identity.recorded           = true;
+        identity.stamp.sizeBytes    = file.size();
+        identity.stamp.modifiedUnix = 100;
+
+        store->SetClock          ([&nowMs] { return nowMs; });
+        store->SetImageReader    ([&file, &reads] (const string &, vector<Byte> & bytes) { reads++; bytes = file; return S_OK; });
+        store->SetIdentityReader ([&identity] (const string &) { return identity; });
+        store->SetFlushSink      ([] (const string &, const vector<Byte> &) { return S_OK; });
+
+        AssertSucceeded (store->Mount (kSlot, kDrive, kFile));
+        before = store->GetImage (kSlot, kDrive)->GetTrackBits (0);
+
+        store->SetIoQueue (&queue);
+        reads = 0;
+
+        file                        = vector<Byte> (NibblizationLayer::kImageByteSize, 0x22);
+        identity.stamp.modifiedUnix = 101;
+
+        store->NoteExternalChange (kFile, ExternalChangeIntent::ReloadInPlace);
+        nowMs += MountedImageState::kQuietPeriodMs;
+
+        store->ApplyPendingReload();
+        store->ApplyPendingReload();
+
+        Assert::AreEqual ((size_t) 1, queue.GetPostedCount(), L"one job for the bay");
+        Assert::AreEqual (0, reads, L"and nothing is read on the store's thread");
+
+        queue.RunNextWork();
+        Assert::AreEqual (1, reads, L"the job reads the file");
+        Assert::IsTrue   (before == store->GetImage (kSlot, kDrive)->GetTrackBits (0), L"and the disk in the drive is as mounted until the completion");
+
+        store->DrainIo();
+        Assert::IsFalse  (before == store->GetImage (kSlot, kDrive)->GetTrackBits (0), L"the completion reloads the changed file");
+
+        store->SetIoQueue (nullptr);
+    }
+
+
+    //  With the threaded queue the shell uses, a spin-down save is written on
+    //  the queue's thread, and its completion runs on the thread that drains.
+    TEST_METHOD (OnTheThreadedQueueASpinDownSaveIsWrittenOffTheStoresThread)
+    {
+        auto                  store   = std::make_unique<DiskImageStore>();
+        ThreadedDiskIoQueue   queue;
+        std::thread::id       writer;
+        int                   writes  = 0;
+        HRESULT               hr      = S_OK;
+
+
+
+        store->SetFlushSink ([&writer, &writes] (const string &, const vector<Byte> &)
+        {
+            writer = std::this_thread::get_id();
+            writes++;
+            return S_OK;
+        });
+
+        AssertSucceeded (store->MountFromBytes (kSlot, kDrive, kPath, DiskFormat::Woz, MakeWoz()));
+        store->GetImage (kSlot, kDrive)->SetLoadedForTest (true, true);
+        store->SetIoQueue (&queue);
+
+        store->SaveAllUnlessHeld();
+
+        hr = queue.WaitUntilIdle (5000);
+        AssertSucceeded (hr, L"WaitUntilIdle");
+
+        Assert::AreEqual (1, writes, L"the save wrote once");
+        Assert::IsTrue   (writer == queue.GetThreadId(), L"on the queue's thread");
+        Assert::IsFalse  (store->GetImage (kSlot, kDrive)->IsDirty(), L"and the completion, drained here, marked the disk saved");
+
+        store->SetIoQueue (nullptr);
+    }
 };

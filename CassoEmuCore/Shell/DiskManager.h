@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/DiskIoQueue.h"
+
 #include "Devices/Disk/BayChange.h"
 #include "Shell/DriveStatusPublisher.h"
 #include "Ui/DriveWidgetController.h"
@@ -233,8 +235,9 @@ private:
 
     //  Both outlive every mount, because the store holds bare pointers to them
     //  and a watch may be started at any mount.
-    std::unique_ptr<IImageWatcher>  m_imageWatcher;
-    std::unique_ptr<IDiskFileIo>    m_imageFileIo;
+    std::unique_ptr<IImageWatcher>        m_imageWatcher;
+    std::unique_ptr<IDiskFileIo>          m_imageFileIo;
+    std::unique_ptr<ThreadedDiskIoQueue>  m_ioQueue;
 
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};

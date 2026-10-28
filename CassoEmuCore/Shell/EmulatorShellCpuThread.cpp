@@ -466,8 +466,9 @@ void EmulatorShell::RunOneFrame()
 //  ServiceCpuThread
 //
 //  The CPU thread's service pass, on every pass through its loop, paused or
-//  running: the debug channel, the history thumbnails, and then the drive
-//  status, with activity due on every pass while paused.
+//  running: the debug channel, the history thumbnails, the results of the
+//  disk store's file work, and then the drive status, with activity due on
+//  every pass while paused.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -475,6 +476,8 @@ void EmulatorShell::ServiceCpuThread()
 {
     m_debugger->ServiceDebugger();
     m_debugger->ServiceHistoryThumbnails();
+
+    m_machine.GetDiskStore().DrainIo();
 
     (void) m_disks->GetManager()->PublishDriveStatus (m_cpuManager.IsPaused());
 }

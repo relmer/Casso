@@ -1264,7 +1264,7 @@ public:
 //
 //  DiskManager::InstallSharedImageSupport
 //
-//  Hands the store the watcher and the file probe it was built with.
+//  Sets the watcher, the file probe and the I/O queue on the store.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1283,8 +1283,14 @@ void DiskManager::InstallSharedImageSupport (bool watchDisabled)
     //  "is somebody else holding this file" is answered one way in one place.
     m_imageFileIo = std::make_unique<Win32DiskFileIo> ();
 
+    //  The store's file work runs on a separate thread, and its results are
+    //  applied on the thread with the store's token, which drains them from the
+    //  CPU thread's service pass.
+    m_ioQueue = std::make_unique<ThreadedDiskIoQueue> ();
+
     m_diskStore.SetImageWatcher (m_imageWatcher.get());
     m_diskStore.SetFileIo       (m_imageFileIo.get());
+    m_diskStore.SetIoQueue      (m_ioQueue.get());
 
     //  Every path that moves a disk ends at OnBayChange, so the door, its
     //  sounds and the debug event are lit from one place. Set here, before the

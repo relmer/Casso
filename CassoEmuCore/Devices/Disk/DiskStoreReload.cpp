@@ -176,31 +176,123 @@ void DiskStoreReload::DrainChangeInbox()
 //  policy rank "cannot be used" above everything else: whether the new bytes
 //  can be this disk is not knowable without reading them.
 //
-//  The steps are IsReloadDue, ReadChangedImage, PreserveGuestCopyForConflict
-//  and AskAboutChange.
+//  The file work -- whether another program has the file open, its identity,
+//  the read and whether the file exists -- is one job on the I/O queue, and
+//  the decision is made in its completion, by ApplyChangedFile. One job per
+//  bay is in flight at a time: this runs every frame while a change is
+//  settled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DiskStoreReload::ApplyPendingReloadToBay (int slot, int drive)
 {
-    Entry                            & entry     = m_store.GetEntry (slot, drive);
+    Entry                    & entry  = m_store.GetEntry (slot, drive);
+    ExternalChangeIntent       intent = ExternalChangeIntent::Unstated;
+    shared_ptr<ReloadJob>      job;
+    DiskFileOps                ops    = m_store.GetFileOps();
+
+
+
+    if (m_isJobPosted[slot][drive] || !IsReloadDue (entry, intent))
+    {
+        return;
+    }
+
+    job           = std::make_shared<ReloadJob>();
+    job->slot     = slot;
+    job->drive    = drive;
+    job->imageId  = entry.image->GetImageId();
+    job->path     = entry.path;
+    job->intent   = intent;
+    job->recorded = entry.sharedState.GetIdentity();
+    job->fileIo   = m_store.m_fileIo;
+
+    m_isJobPosted[slot][drive] = true;
+
+    m_store.m_ioQueue->Post ([job, ops] { RunReloadWork (*job, ops); },
+                             [this, job]
+    {
+        m_isJobPosted[job->slot][job->drive] = false;
+        ApplyChangedFile (*job);
+    });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreReload::RunReloadWork
+//
+//  I/O thread. A file another program has open is left for a later pass;
+//  otherwise the file is stat'd, and read when it differs from the bay's
+//  identity.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreReload::RunReloadWork (ReloadJob & job, const DiskFileOps & ops)
+{
+    job.isHeldElsewhere = job.fileIo != nullptr && job.fileIo->IsHeldByAnotherProcess (job.path);
+
+    if (!job.isHeldElsewhere)
+    {
+        job.isChanged = !job.recorded.Matches (ops.ReadIdentity (job.path));
+    }
+
+    if (job.isChanged)
+    {
+        job.hrRead   = ops.Read (job.path, job.bytes);
+        job.isExists = ops.Exists (job.path);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskStoreReload::ApplyChangedFile
+//
+//  The decision, after the file work. A CHANGE THAT TURNS OUT NOT TO BE ONE IS
+//  DROPPED: a directory watch reports a write to any file in the folder and a
+//  stated intent is only a hint, so the identity is what settles whether
+//  anything happened. This is also what stops the store's commit from coming
+//  back as another program's change.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskStoreReload::ApplyChangedFile (ReloadJob & job)
+{
+    Entry                            & entry     = m_store.GetEntry (job.slot, job.drive);
+    int                                slot      = job.slot;
+    int                                drive     = job.drive;
     bool                               usable    = false;
     bool                               preserved = false;
-    ExternalChangeIntent               intent    = ExternalChangeIntent::Unstated;
+    ExternalChangeIntent               intent    = job.intent;
     ChangeAuthor                       author    = ChangeAuthor::AnotherProgram;
     ChangeAction                       action    = ChangeAction::Ignore;
-    vector<Byte>                       bytes;
+    vector<Byte>                     & bytes     = job.bytes;
     ExternalChangePolicy::Situation    situation;
     string                             savePath;
 
 
 
-    if (!IsReloadDue (entry, intent))
+    if (!entry.mounted || entry.image == nullptr || entry.image->GetImageId() != job.imageId || job.isHeldElsewhere)
     {
         return;
     }
 
-    usable = ReadChangedImage (entry, bytes);
+    if (!job.isChanged)
+    {
+        std::lock_guard<std::mutex>  guard (m_pendingMutex);
+
+        entry.sharedState.ClearPending();
+        return;
+    }
+
+    usable = SUCCEEDED (job.hrRead) && IsLoadable (entry.path, bytes);
 
     //  An open write on a flux track is a guest write that is not in the image
     //  yet. It is committed here, as FlushEntry does, so it counts toward the
@@ -245,7 +337,7 @@ void DiskStoreReload::ApplyPendingReloadToBay (int slot, int drive)
 
     //  A file that is simply gone gets its own sentence rather than sharing
     //  one with a file that is present and unreadable.
-    if (action == ChangeAction::Unusable && !m_store.m_save.DoesPathExist (entry.path))
+    if (action == ChangeAction::Unusable && !job.isExists)
     {
         action = ChangeAction::Deleted;
     }
@@ -301,26 +393,18 @@ void DiskStoreReload::ApplyPendingReloadToBay (int slot, int drive)
 //  and the change stays pending by design for as long as the user reads --
 //  sixty full reads and nibblizations a second until they answer.
 //
-//  A file another program has open is deferred rather than refused,
+//  A file another program has open is deferred rather than declined,
 //  indefinitely and silently: the pick-up happens once it is closed. Both
 //  writers in this system commit atomically, but a text editor or a copy tool
 //  need not, and the quiet period alone does not cover one that takes its
-//  time.
-//
-//  A CHANGE THAT TURNS OUT NOT TO BE ONE IS DROPPED. A directory watch reports
-//  a write to any file in the folder and a stated intent is only a hint, so
-//  the recorded identity is what settles whether anything actually happened.
-//  This is also what stops the store's own commit from coming back as
-//  somebody else's change.
+//  time. RunReloadWork checks for one, on the I/O thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DiskStoreReload::IsReloadDue (Entry & entry, ExternalChangeIntent & outIntent)
 {
-    bool           settled   = false;
-    bool           unchanged = false;
-    bool           isDue     = false;
-    ImageIdentity  current;
+    bool  settled = false;
+    bool  isDue   = false;
 
 
 
@@ -333,23 +417,7 @@ bool DiskStoreReload::IsReloadDue (Entry & entry, ExternalChangeIntent & outInte
         outIntent = entry.sharedState.GetPending().intent;
     }
 
-    isDue = settled
-         && !entry.sharedState.IsAskOutstanding()
-         && !(m_store.m_fileIo != nullptr && m_store.m_fileIo->IsHeldByAnotherProcess (entry.path));
-
-    if (isDue)
-    {
-        current   = m_store.ReadIdentity (entry.path);
-        unchanged = entry.sharedState.GetIdentity().Matches (current);
-    }
-
-    if (isDue && unchanged)
-    {
-        std::lock_guard<std::mutex>  guard (m_pendingMutex);
-
-        entry.sharedState.ClearPending();
-        isDue = false;
-    }
+    isDue = settled && !entry.sharedState.IsAskOutstanding();
 
     return isDue;
 }
@@ -360,15 +428,15 @@ bool DiskStoreReload::IsReloadDue (Entry & entry, ExternalChangeIntent & outInte
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DiskStoreReload::ReadChangedImage
+//  DiskStoreReload::IsLoadable
 //
-//  Reads the bay's file and trial-loads it: true when these bytes can be this disk. A
-//  trial load into a throwaway image is the only honest answer -- the
-//  extension and the length agree with plenty of files that will not load.
+//  Whether the file's bytes can be this disk. A trial load into a throwaway
+//  image is the only honest answer -- plenty of files that will not load
+//  have the right extension and length.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskStoreReload::ReadChangedImage (const Entry & entry, vector<Byte> & outBytes) const
+bool DiskStoreReload::IsLoadable (const string & path, const vector<Byte> & bytes)
 {
     HRESULT     hr     = S_OK;
     DiskFormat  fmt    = DiskFormat::Dsk;
@@ -376,18 +444,13 @@ bool DiskStoreReload::ReadChangedImage (const Entry & entry, vector<Byte> & outB
 
 
 
-    hr = m_store.ReadImageFile (entry.path, outBytes);
-
-    if (SUCCEEDED (hr))
-    {
-        hr = DiskImageStore::GetSourceFormatByExtension (entry.path, fmt);
-    }
+    hr = DiskImageStore::GetSourceFormatByExtension (path, fmt);
 
     if (SUCCEEDED (hr))
     {
         DiskImage  trial;
 
-        trial.LoadFromBytes (fmt, outBytes, entry.path);
+        trial.LoadFromBytes (fmt, bytes, path);
         usable = trial.IsLoaded();
     }
 
