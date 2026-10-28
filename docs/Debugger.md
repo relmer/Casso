@@ -934,9 +934,18 @@ line with which bit of which byte it is, and for a socket its state and the
 bytes it has sent and received.
 
 The list has a row for each byte a port sent or received, or each send and
-receive of a socket, with the bytes as text and in hex. Reads of the 6551's
-status register make no entry. Both logs are rebuilt from history, as the
-video and sound logs are, so they follow a rewind or a seek.
+receive of a socket, with the bytes as text and in hex. A byte received with
+a framing, parity or overrun error lists the error beside **Received**. A
+port attached to a COM port, TCP or the modem also has a row for each
+connection opening and closing, with the other end's address as its text.
+Reads of the 6551's status register make no entry. Both logs are rebuilt from
+history, as the video and sound logs are, so they follow a rewind or a seek.
+
+What a serial attachment brings in from the PC is input, as keys are, so the
+input log lists it too: each byte with its errors, each change of CTS, DSR
+and DCD, and each connection opening and closing. History replays it at the
+instruction it arrived at, and sends nothing to the PC while behind live. The
+attachments themselves are in [Serial ports](Serial.md).
 ## The debugger window
 
 **Debug > Debugger...** opens the window beside the emulator, as do F12, F7

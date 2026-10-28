@@ -316,7 +316,10 @@ driven by the machine's own mouse firmware. Its two latching case switches are
 modeled on a control strip: **80/40** drives `$C060`, and the **keyboard** switch
 flips the typed stream to Dvorak. The ][, ][+, //e and Enhanced //e support
 Apple's Super Serial Card in slot 2. You can also send its output to a file,
-feed it input from a file, or loop its output back to its input.
+feed it input from a file, or loop its output back to its input. Any serial
+port, the card's or the //c's, can also attach to a PC COM port, a TCP
+connection, or a Hayes-compatible modem that dials Telnet BBSes; see
+[docs/Serial.md](docs/Serial.md).
 
 On first launch Casso fetches the ROMs and Disk II audio samples it needs, with
 your consent, and its boot disk picker offers the DOS 3.3 System Master and

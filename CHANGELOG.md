@@ -16,6 +16,10 @@ Entries before versioning was introduced use dates only.
   Turn it on in Settings > Machine and set it up on the new Serial card page.
   You can also send its output to a file, feed it input from a file, or loop
   its output back to its input.
+- Serial connections: the Super Serial Card and the //c's two ports attach to a PC
+  COM port, a TCP connection, or a Hayes-compatible modem that dials Telnet BBSes.
+  The //c's ports are set up on a new Serial ports page, and history replays what
+  they receive.
 - An Uthernet II Ethernet card (WIZnet W5100) for the ][, ][+, //e and //e Enhanced,
   turned on in Settings > Machine.
 - A tab added to the Settings dialog while it is open sparkles until it is
@@ -32,6 +36,8 @@ Entries before versioning was introduced use dates only.
   longer have to hit the checkbox.
 - The //c's serial ports send and receive bytes at the selected baud rate, not
   instantly.
+- A 6551 set to an 8-bit word with parity and two stop bits sends one stop bit,
+  as the chip does.
 - Changed the drive strip's hotkey from Ctrl+D to F8.
 - EmulatorShell is split into components: audio, Disk II drives, tape deck,
   printer, update notification, settings, desk scene, chrome, renderer and
