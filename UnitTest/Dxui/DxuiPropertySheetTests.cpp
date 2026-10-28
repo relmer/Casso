@@ -1,6 +1,8 @@
 #include "Pch.h"
 
+#include "MockDxuiPainter.h"
 #include "MockDxuiTextRenderer.h"
+#include "MockDxuiTheme.h"
 
 
 
@@ -607,13 +609,13 @@ public:
         scaler.SetDpi (96);
         DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
 
-        // Left pad 16; widths 50+12*2 = 74 and 80+12*2 = 104, edge to edge.
-        AssertRect (MakeRect (16, 0, 90,  36), rects[0], L"first");
-        AssertRect (MakeRect (90, 0, 194, 36), rects[1], L"second");
+        // Left pad 16; widths 50+8*2 = 66 and 80+8*2 = 96, edge to edge.
+        AssertRect (MakeRect (16, 0, 82,  36), rects[0], L"first");
+        AssertRect (MakeRect (82, 0, 178, 36), rects[1], L"second");
     }
 
 
-    TEST_METHOD (LayoutTabRects_ShortLabelGetsMinimumWidth)
+    TEST_METHOD (LayoutTabRects_ShortLabelIsSizedToItsLabel)
     {
         DxuiDpiScaler                scaler;
         RECT                         strip   = MakeRect (0, 0, 720, 36);
@@ -623,7 +625,7 @@ public:
         scaler.SetDpi (96);
         DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
 
-        Assert::AreEqual ((LONG) DxuiPropertySheet::kTabMinWidthDip, rects[0].right - rects[0].left, L"held to the minimum");
+        Assert::AreEqual (36L, rects[0].right - rects[0].left, L"20 + 8*2, with no minimum width");
         Assert::AreEqual (rects[0].right, rects[1].left, L"next tab starts where the short one ends");
     }
 
@@ -640,9 +642,9 @@ public:
         scaler.SetDpi (96);
         DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
 
-        AssertRect (MakeRect (16, 0, 90,  36), rects[0], L"first");
+        AssertRect (MakeRect (16, 0, 82,  36), rects[0], L"first");
         AssertRect (MakeRect (0,  0, 0,   0),  rects[1], L"hidden");
-        AssertRect (MakeRect (90, 0, 164, 36), rects[2], L"third follows the first");
+        AssertRect (MakeRect (82, 0, 148, 36), rects[2], L"third follows the first");
     }
 
 
@@ -656,9 +658,52 @@ public:
         scaler.SetDpi (144);
         DxuiPropertySheet::LayoutTabRects (strip, scaler, tabs, rects);
 
-        // Pad 24; 75 + 18*2 = 111; the short one is held to 64*1.5 = 96.
-        AssertRect (MakeRect (34,  5, 145, 59), rects[0], L"first");
-        AssertRect (MakeRect (145, 5, 241, 59), rects[1], L"second");
+        // Pad 24; 75 + 12*2 = 99 and 15 + 12*2 = 39.
+        AssertRect (MakeRect (34,  5, 133, 59), rects[0], L"first");
+        AssertRect (MakeRect (133, 5, 172, 59), rects[1], L"second");
+    }
+
+
+    TEST_METHOD (LayoutTabRects_DrawnLabelHasEqualSpaceOnBothSides)
+    {
+        constexpr float  kLabelDip = 70.0f;
+        constexpr UINT   kDpis[]   = { 96, 144 };
+
+        for (UINT dpi : kDpis)
+        {
+            DxuiDpiScaler                   scaler;
+            MockDxuiTextRenderer            text;
+            MockDxuiPainter                 painter;
+            MockDxuiTheme                   theme;
+            DxuiTabStrip                    strip;
+            std::array<DxuiSheetTab, 1>     tabs    = { DxuiSheetTab { kLabelDip, true } };
+            std::array<RECT, 1>             rects   = {};
+            std::vector<DxuiTabStrip::Tab>  stripTabs (1);
+            float                           labelPx = 0.0f;
+            float                           labelX  = -1.0f;
+
+            scaler.SetDpi (dpi);
+            labelPx = scaler.ToPxf (kLabelDip);
+            text.SetCannedMetrics (L"Machine", SIZE { (LONG) kLabelDip, 17 });
+            DxuiPropertySheet::LayoutTabRects (MakeRect (0, 0, 720, 54), scaler, tabs, rects);
+
+            stripTabs[0].rect  = rects[0];
+            stripTabs[0].label = L"Machine";
+            strip.SetDpi  (dpi);
+            strip.SetTabs (std::move (stripTabs));
+            strip.Paint   (painter, text, theme);
+
+            for (const RecordedTextCall & call : text.Calls())
+            {
+                if (call.kind == RecordedTextKind::DrawString && call.text == L"Machine")
+                {
+                    labelX = call.x;
+                }
+            }
+
+            Assert::IsTrue   (labelX >= 0.0f, L"The strip draws the label");
+            Assert::AreEqual (labelX - (float) rects[0].left, (float) rects[0].right - (labelX + labelPx), 0.01f, L"Space left of the label matches space right of it");
+        }
     }
 
 
