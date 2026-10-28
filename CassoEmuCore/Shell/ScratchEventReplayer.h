@@ -62,7 +62,7 @@ public:
     ScratchEventReplayer             (const ScratchEventReplayer &) = delete;
     ScratchEventReplayer & operator= (const ScratchEventReplayer &) = delete;
 
-    void  SetMachine   (const MachineConfig & config, const std::wstring & name) { m_scratch.SetMachine (config, name); }
+    void  SetMachine   (const MachineConfig & config, const std::wstring & name) { m_scratch->SetMachine (config, name); }
     void  SetWorkQueue (IWorkQueue * queue)                                        { m_queue = queue; }
 
     void  WaitForWork()
@@ -227,7 +227,7 @@ private:
 
 
 
-        hr      = m_scratch.Build();
+        hr      = m_scratch->Build();
         isBuilt = SUCCEEDED (hr);
 
         if (!isBuilt && !job.stretches.empty())
@@ -241,7 +241,7 @@ private:
 
         CHR (hr);
 
-        m_scratch.GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
+        m_scratch->GetMachine()->GetInputJournal().LoadRecords (job.inputsFrom, job.inputs);
 
         for (const DebugEventStretch & stretch : job.stretches)
         {
@@ -271,8 +271,8 @@ private:
     HRESULT  RunStretch (const DebugEventJob & job, const DebugEventStretch & stretch, DebugEventStretchResult<T> & outResult)
     {
         HRESULT                 hr         = S_OK;
-        MachineHost           * machine    = m_scratch.GetMachine();
-        Replayer              * replayer   = m_scratch.GetReplayer();
+        MachineHost           * machine    = m_scratch->GetMachine();
+        Replayer              * replayer   = m_scratch->GetReplayer();
         EmuCpu                * cpu        = (machine != nullptr) ? machine->GetCpu() : nullptr;
         bool                    isAttached = false;
         bool                    isAtEnd    = false;
@@ -297,7 +297,7 @@ private:
             BAIL_OUT_IF (true, S_OK);
         }
 
-        hr = m_scratch.MountDisks (job.disks);
+        hr = m_scratch->MountDisks (job.disks);
         CHR (hr);
 
         hr = replayer->LoadFrom (m_state, stretch.startPosition, stretch.journalIndex);
@@ -348,9 +348,11 @@ private:
     ThreadPoolWorkQueue                            m_ownQueue;
     IWorkQueue                                   * m_queue     = nullptr;
 
-    //  The worker's own.
+    //  The worker thread's. The scratch machine is on the heap, since a
+    //  DebugEventLogs has seven of these, and it would be too large to put
+    //  on a stack otherwise (C6262).
     std::unique_ptr<IDebugEventProbe<T>>           m_probe;
-    ScratchReplayMachine                           m_scratch;
+    std::unique_ptr<ScratchReplayMachine>          m_scratch   = std::make_unique<ScratchReplayMachine>();
     KeyframeUnpacker                               m_unpacker;
     std::vector<Byte>                              m_state;
 };
