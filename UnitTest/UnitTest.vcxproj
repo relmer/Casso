@@ -151,6 +151,9 @@
     <ResourceCompile Include="EmuTests\DemoAssets.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="SerialTests\TcpSerialLinkTests.cpp" />
+    <ClCompile Include="SerialTests\TelnetCodecTests.cpp" />
+    <ClCompile Include="NetworkTests\FakeHostNameLookup.cpp" />
     <ClCompile Include="SerialTests\SerialAttachmentBuildTests.cpp" />
     <ClCompile Include="SerialTests\SerialLinkReportsTests.cpp" />
     <ClCompile Include="EmuTests\AciaHostLinkTests.cpp" />
@@ -605,6 +608,7 @@
     <ClCompile Include="Cassque\TypedPathHistoryTests.cpp" />
     <ClCompile Include="Cassque\FolderWatchTests.cpp" />
     <ClCompile Include="Cassque\RefreshAnchorTests.cpp" />
+    <ClInclude Include="NetworkTests\FakeHostNameLookup.h" />
     <ClInclude Include="Cassque\FakeFolderWatcher.h" />
     <ClCompile Include="Cassque\CassoTargetingTests.cpp" />
     <ClCompile Include="Cassque\DragPayloadTests.cpp" />

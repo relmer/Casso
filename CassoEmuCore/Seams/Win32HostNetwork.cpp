@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Seams/Win32HostNetwork.h"
+#include "Seams/Win32HostNameLookup.h"
 #include "Seams/Win32HostSocket.h"
 
 #pragma comment(lib, "ws2_32.lib")
@@ -126,6 +127,39 @@ HRESULT Win32HostNetwork::GetDnsServer (uint32_t & outIpv4)
     }
 
     CBREx (outIpv4 != 0, E_NOT_SET);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Win32HostNetwork::LookUpHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Win32HostNetwork::LookUpHost (
+    const std::string                 & host,
+    std::unique_ptr<IHostNameLookup>  & outLookup)
+{
+    HRESULT                               hr     = S_OK;
+    std::unique_ptr<Win32HostNameLookup>  lookup;
+
+
+
+    CBREx (m_started, E_NOT_VALID_STATE);
+
+    lookup = std::make_unique<Win32HostNameLookup>();
+    CPRA (lookup);
+
+    hr = lookup->Start (host);
+    CHR (hr);
+
+    outLookup = std::move (lookup);
 
 Error:
     return hr;

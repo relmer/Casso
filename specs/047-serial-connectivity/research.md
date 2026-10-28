@@ -104,8 +104,8 @@ CTS itself.
 ## R6. Host name lookup
 
 **Decision**: `IHostNetwork::LookUpHost` starts a lookup and returns an
-`IHostNameLookup` the attachment polls. The Win32 implementation runs
-`getaddrinfo` on a worker thread. A dotted IPv4 literal completes at once
+`IHostNameLookup` the attachment polls. The Win32 implementation is an
+asynchronous `GetAddrInfoExW`, canceled when the lookup is abandoned. A dotted IPv4 literal completes at once
 without a lookup. The fake completes from a table the test fills.
 
 **Rationale**: `getaddrinfo` can block for seconds, and the attachment runs on
@@ -119,8 +119,8 @@ modem), `TelnetCodec`:
 - doubles $FF in data sent and undoubles it in data received;
 - replies to `DO SGA` with `WILL SGA`, to `WILL ECHO` and `WILL SGA` with
   `DO`, to every other `DO` with `WONT` and to every other `WILL` with
-  `DONT`, and only when the reply changes that option's state, so negotiation
-  cannot loop;
+  `DONT`; an option already in the state asked for is not acknowledged
+  again, so negotiation cannot loop;
 - drops subnegotiation (`SB` ... `IAC SE`) and the other `IAC` commands;
 - sends CR as CR NUL, and drops the NUL after a received CR (RFC 854's NVT
   rule, since binary mode is never agreed).

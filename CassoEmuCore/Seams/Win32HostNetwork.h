@@ -30,6 +30,7 @@ public:
 
     HRESULT  CreateSocket (HostSocketKind kind, std::unique_ptr<IHostSocket> & outSocket) override;
     HRESULT  GetDnsServer (uint32_t & outIpv4)                                            override;
+    HRESULT  LookUpHost   (const std::string & host, std::unique_ptr<IHostNameLookup> & outLookup) override;
 
 private:
 

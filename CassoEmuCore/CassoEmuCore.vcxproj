@@ -127,6 +127,9 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Devices\Serial\TcpSerialLink.cpp" />
+    <ClCompile Include="Devices\Serial\TelnetCodec.cpp" />
+    <ClCompile Include="Seams\Win32HostNameLookup.cpp" />
     <ClCompile Include="Devices\Serial\SerialLinkReports.cpp" />
     <ClCompile Include="Devices\Serial\SerialLineFormat.cpp" />
     <ClCompile Include="Pch.cpp">
@@ -793,6 +796,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Devices\Serial\TcpSerialLink.h" />
+    <ClInclude Include="Devices\Serial\TelnetCodec.h" />
+    <ClInclude Include="Seams\Win32HostNameLookup.h" />
     <ClInclude Include="Devices\Serial\SerialLinkReports.h" />
     <ClInclude Include="Devices\Serial\SerialLineFormat.h" />
     <ClInclude Include="Ui\Dialogs\TapePositionDialog.h" />

@@ -61,6 +61,79 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FakeHostNetwork::LookUpHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT FakeHostNetwork::LookUpHost (
+    const std::string                 & host,
+    std::unique_ptr<IHostNameLookup>  & outLookup)
+{
+    std::shared_ptr<FakeLookupState>  state = std::make_shared<FakeLookupState>();
+
+
+
+    state->host = host;
+    m_lookups.push_back (state);
+
+    if (!m_holdLookups)
+    {
+        Complete (*state);
+    }
+
+    outLookup = std::make_unique<FakeHostNameLookup> (state);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FakeHostNetwork::CompleteLookups
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FakeHostNetwork::CompleteLookups()
+{
+    for (const auto & state : m_lookups)
+    {
+        if (!state->isDone)
+        {
+            Complete (*state);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FakeHostNetwork::Complete
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void FakeHostNetwork::Complete (FakeLookupState & lookup) const
+{
+    auto  found = m_addresses.find (lookup.host);
+
+
+
+    lookup.isDone = true;
+    lookup.hr     = (found != m_addresses.end()) ? S_OK : HRESULT_FROM_WIN32 (WSAHOST_NOT_FOUND);
+    lookup.ipv4   = (found != m_addresses.end()) ? found->second : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FakeHostNetwork::FindBound
 //
 ////////////////////////////////////////////////////////////////////////////////

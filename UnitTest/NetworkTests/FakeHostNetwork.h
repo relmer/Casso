@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Seams/IHostNetwork.h"
+#include "FakeHostNameLookup.h"
 #include "FakeHostSocket.h"
 
 
@@ -29,6 +30,14 @@ public:
 
     HRESULT  CreateSocket (HostSocketKind kind, std::unique_ptr<IHostSocket> & outSocket) override;
     HRESULT  GetDnsServer (uint32_t & outIpv4)                                            override;
+    HRESULT  LookUpHost   (const std::string & host, std::unique_ptr<IHostNameLookup> & outLookup) override;
+
+    // Host names a lookup finds; any other fails as the PC's resolver fails
+    // a name it cannot find. Held lookups stay pending until completed.
+    void      SetHostAddress  (const std::string & host, uint32_t ipv4) { m_addresses[host] = ipv4; }
+    void      HoldLookups     (bool hold)                               { m_holdLookups = hold; }
+    void      CompleteLookups ();
+    size_t    GetLookupCount  () const                                  { return m_lookups.size(); }
 
     // Every socket created so far, live or destroyed, in creation order.
     const std::vector<std::shared_ptr<FakeSocketState>> & GetSockets() const { return m_sockets; }
@@ -53,7 +62,12 @@ public:
 
 private:
 
+    void  Complete (FakeLookupState & lookup) const;
+
     std::vector<std::shared_ptr<FakeSocketState>>   m_sockets;
+    std::vector<std::shared_ptr<FakeLookupState>>   m_lookups;
+    std::map<std::string, uint32_t>                 m_addresses;
+    bool                                            m_holdLookups   = false;
     std::set<std::pair<HostSocketKind, uint16_t>>   m_occupied;
     uint32_t                                        m_dnsServer     = 0;
     bool                                            m_failCreate    = false;

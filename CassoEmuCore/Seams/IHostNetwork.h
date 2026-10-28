@@ -119,12 +119,37 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IHostNameLookup
+//
+//  A host name being looked up on the PC. The lookup runs without blocking
+//  the caller, which polls for the result; destroying the object abandons a
+//  lookup still running.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class IHostNameLookup
+{
+public:
+
+    virtual ~IHostNameLookup () = default;
+
+    //  False while the lookup runs. Then true, with the lookup's result in
+    //  outHr and, on success, the first IPv4 address in outIpv4.
+    virtual bool  TryGetResult (HRESULT & outHr, uint32_t & outIpv4) = 0;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IHostNetwork
 //
-//  The PC's network stack, as the emulated network card uses it: sockets,
-//  and the address of the PC's DNS server for the virtual network's DNS
-//  relay. Unit tests substitute a fake in which the test acts as the remote
-//  peer.
+//  The PC's network stack, as the emulated network card and the serial
+//  attachments use it: sockets, host name lookups, and the address of the
+//  PC's DNS server for the virtual network's DNS relay. Unit tests
+//  substitute a fake in which the test acts as the remote peer.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,4 +163,7 @@ public:
 
     //  E_NOT_SET when the PC has no IPv4 DNS server.
     virtual HRESULT  GetDnsServer (uint32_t & outIpv4)                                           = 0;
+
+    //  Starts looking up a host name or a dotted IPv4 address.
+    virtual HRESULT  LookUpHost   (const std::string & host, std::unique_ptr<IHostNameLookup> & outLookup) = 0;
 };
