@@ -127,6 +127,9 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Seams\Win32HostSerialPorts.cpp" />
+    <ClCompile Include="Seams\Win32HostSerialPort.cpp" />
+    <ClCompile Include="Devices\Serial\AciaComPortEndpoint.cpp" />
     <ClCompile Include="Devices\Serial\AciaModemEndpoint.cpp" />
     <ClCompile Include="Devices\Serial\HayesModem.cpp" />
     <ClCompile Include="Devices\Serial\AciaTcpEndpoint.cpp" />
@@ -799,6 +802,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Seams\Win32HostSerialPorts.h" />
+    <ClInclude Include="Seams\Win32HostSerialPort.h" />
+    <ClInclude Include="Seams\IHostSerialPort.h" />
+    <ClInclude Include="Devices\Serial\AciaComPortEndpoint.h" />
     <ClInclude Include="Devices\Serial\AciaModemEndpoint.h" />
     <ClInclude Include="Devices\Serial\HayesModem.h" />
     <ClInclude Include="Devices\Serial\AciaTcpEndpoint.h" />

@@ -8,6 +8,7 @@
 class Acia6551;
 class DriveAudioMixer;
 class IHostNetwork;
+class IHostSerialPorts;
 class Disk2AudioSource;
 class JsonValue;
 class PrinterAudioSource;
@@ -60,10 +61,12 @@ struct MachineBuildServices
 
     PrinterWorker  *  printerWorker           = nullptr;
 
-    //  The PC's network stack, for the Uthernet II. With null, the card has no
-    //  PC connectivity.
-    IHostNetwork   *  hostNetwork             = nullptr;
-    uint64_t       *  printerAutoOpenActivity = nullptr;
+    //  The PC's network stack, for the Uthernet II and the serial TCP and
+    //  modem attachments, and its serial ports, for the COM port attachment.
+    //  With null, those have no PC connectivity.
+    IHostNetwork      *  hostNetwork             = nullptr;
+    IHostSerialPorts  *  hostSerialPorts         = nullptr;
+    uint64_t          *  printerAutoOpenActivity = nullptr;
 
     const float  *  drivePan          = nullptr;    // two entries
     const float  *  driveMotorVolume  = nullptr;

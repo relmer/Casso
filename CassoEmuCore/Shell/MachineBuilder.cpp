@@ -13,6 +13,7 @@
 #include "Devices/Acia6551.h"
 #include "Devices/AciaByteSourceEndpoint.h"
 #include "Devices/AciaEndpoints.h"
+#include "Devices/Serial/AciaComPortEndpoint.h"
 #include "Devices/Serial/AciaModemEndpoint.h"
 #include "Devices/Serial/AciaTcpEndpoint.h"
 #include "Devices/Printer/PrintRaster.h"
@@ -2243,6 +2244,14 @@ std::unique_ptr<IAciaEndpoint> MachineBuilder::CreateSerialAttachment (
                                                                                   port.serial.tcpPort,
                                                                                   port.serial.listen,
                                                                                   port.serial.IsTelnetOn (false) });
+    }
+    else if (port.device == kpszSerialComPort)
+    {
+        endpoint = std::make_unique<AciaComPortEndpoint> (acia,
+                                                          m_services.hostSerialPorts,
+                                                          m_host.GetSerialLinkReports(),
+                                                          portTitle,
+                                                          port.serial.comPort);
     }
     else if (port.device == kpszSerialModem)
     {

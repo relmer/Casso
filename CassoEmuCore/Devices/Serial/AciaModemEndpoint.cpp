@@ -53,6 +53,7 @@ void AciaModemEndpoint::OnAttached()
 
 
 
+    m_notedDtr = m_acia.IsDtrOn();
     m_acia.ApplyHostLinesNow (true, true, m_modem.GetDcd());
 
     CBRF (m_network != nullptr, Report ("The PC's network is not available."));
@@ -115,23 +116,6 @@ void AciaModemEndpoint::OnByteTransmitted (Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AciaModemEndpoint::OnModemControlChanged
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void AciaModemEndpoint::OnModemControlChanged (bool dtr, bool rts)
-{
-    (void) rts;
-
-    m_dtr = dtr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  AciaModemEndpoint::Poll
 //
 //  The modem's timers and DTR, its requests to the link, the link's events
@@ -148,15 +132,16 @@ bool AciaModemEndpoint::Poll (uint64_t cycles)
     TcpSerialLink::PollResult  result;
     std::vector<Byte>          toGuest;
     std::vector<Byte>          toRemote;
+    bool                       dtr     = m_acia.IsDtrOn();
 
 
 
     m_modem.SetBaudRate (m_acia.GetLineFormat().baud);
 
-    if (m_dtr != m_notedDtr)
+    if (dtr != m_notedDtr)
     {
-        m_notedDtr = m_dtr;
-        m_modem.OnDtrChanged (m_dtr, cycles);
+        m_notedDtr = dtr;
+        m_modem.OnDtrChanged (dtr, cycles);
     }
 
     m_modem.Tick (cycles);

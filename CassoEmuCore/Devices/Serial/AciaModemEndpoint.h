@@ -27,7 +27,8 @@ class SerialLinkReports;
 //  chip's journaled host input, so a replay gives the guest the same bytes
 //  at the same instructions without a modem. Bytes the guest sends are
 //  passed to the modem as they finish shifting, with the emulated cycle,
-//  which times the escape. DTR changes are passed on the next poll.
+//  which times the escape. The chip's DTR is passed to the modem on each
+//  poll.
 //
 //  DSR and CTS are on while the modem is attached; DCD follows the call
 //  unless &C0.
@@ -49,12 +50,11 @@ public:
                        std::string          portTitle,
                        Settings             settings);
 
-    void  OnByteTransmitted     (Byte value) override;
-    void  OnModemControlChanged (bool dtr, bool rts) override;
-    void  OnAttached            () override;
-    bool  IsHostLink            () const override { return true; }
-    bool  Poll                  (uint64_t cycles) override;
-    void  DropConnection        () override;
+    void  OnByteTransmitted (Byte value) override;
+    void  OnAttached        () override;
+    bool  IsHostLink        () const override { return true; }
+    bool  Poll              (uint64_t cycles) override;
+    void  DropConnection    () override;
 
     const HayesModem &  GetModem () const { return m_modem; }
 
@@ -74,7 +74,6 @@ private:
     Settings             m_settings;
     HayesModem           m_modem;
     TcpSerialLink        m_link;
-    bool                 m_dtr        = false;
     bool                 m_notedDtr   = false;   // the DTR the modem was last told of
     std::vector<Byte>    m_received;
 };

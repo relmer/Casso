@@ -4,9 +4,11 @@
 #include "Devices/Acia6551.h"
 #include "Devices/AciaEndpoints.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Devices/Serial/AciaComPortEndpoint.h"
 #include "Devices/Serial/SerialLinkReports.h"
 #include "Machines/Apple2/Common/SuperSerialCard.h"
 #include "../EmuTests/TestMachine.h"
+#include "FakeHostSerialPorts.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -82,6 +84,47 @@ namespace SerialAttachmentBuildTestNs
             Assert::IsNull    (machine.GetRefs().serialChips[1]->GetEndpoint(), L"port 2 takes its own setting");
             Assert::AreEqual<size_t> (1, machine.GetSerialLinkReports().GetReports().size(), L"an unknown attachment is reported");
             Assert::AreEqual (std::string ("Serial port 2"), machine.GetSerialLinkReports().GetReports()[0].portTitle);
+        }
+
+
+        TEST_METHOD (AnApple2cPortOpensItsComPort)
+        {
+            FakeHostSerialPorts                   ports;
+            std::shared_ptr<FakeSerialPortState>  com3    = ports.AddPort ("COM3");
+            TestMachine                           machine ("Apple2c", TestMachine::Slots::AsShipped, [&ports] (MachineConfig & config, MachineBuildServices & services)
+            {
+                for (PortConfig & port : config.ports)
+                {
+                    if (port.name == kpszSerialPort1Name)
+                    {
+                        port.device         = kpszSerialComPort;
+                        port.serial.comPort = "COM3";
+                    }
+                }
+
+                services.hostSerialPorts = &ports;
+            });
+
+
+
+            Assert::IsNotNull (dynamic_cast<AciaComPortEndpoint *> (machine.GetRefs().serialChips[0]->GetEndpoint()));
+            Assert::IsTrue (com3->isOpen);
+            Assert::AreEqual<size_t> (0, machine.GetSerialLinkReports().GetReports().size());
+        }
+
+
+        TEST_METHOD (WithoutTheSeamsTheHostAttachmentsAreReported)
+        {
+            TestMachine  machine ("Apple2c", [] (MachineConfig & config)
+            {
+                SetApple2cPort (config, kpszSerialPort1Name, kpszSerialComPort);
+                SetApple2cPort (config, kpszSerialPort2Name, kpszSerialTcp);
+            });
+
+
+
+            Assert::AreEqual<size_t> (2, machine.GetSerialLinkReports().GetReports().size(), L"the scratch machine's case: nothing opened, both reported");
+            Assert::IsTrue ((machine.GetRefs().serialChips[0]->GetStatus() & Acia6551::kStatusDcd) != 0, L"DCD off");
         }
 
 

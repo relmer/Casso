@@ -7,6 +7,7 @@
 #include "Seams/IntentReplyTracker.h"
 #include "Seams/Win32IntentChannel.h"
 #include "Seams/Win32HostNetwork.h"
+#include "Seams/Win32HostSerialPorts.h"
 #include "Shell/Input/CapsLockTracker.h"
 #include "Shell/Input/ShellKeyRouting.h"
 #include "Shell/CpuCommandDispatcher.h"
@@ -616,9 +617,11 @@ private:
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
 
-    //  Winsock for the Uthernet II. Declared ahead of the machine so it is
-    //  destroyed after it: the card's host sockets close before WSACleanup.
+    //  Winsock for the Uthernet II and the serial attachments, and the PC's
+    //  COM ports. Declared ahead of the machine so they are destroyed after
+    //  it: the host sockets close before WSACleanup.
     Win32HostNetwork        m_hostNetwork;
+    Win32HostSerialPorts    m_hostSerialPorts;
 
     //  Notices raised before the window exists, displayed once it does.
     std::vector<std::wstring>  m_pendingNotices;
