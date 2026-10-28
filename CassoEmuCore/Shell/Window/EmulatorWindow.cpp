@@ -415,7 +415,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[0]);
     m_host->GetRoot().Adopt (m_disks->GetDriveChrome()[1]);
     m_host->GetRoot().Adopt (m_tapeDeck->GetWidget());
-    m_chrome->AdoptFrameRateReadout (m_host->GetRoot());
+    m_chrome->GetFrameRateReadout().AdoptFrameRateReadout (m_host->GetRoot());
     m_scene->AdoptOverlays (m_host->GetRoot());
     m_chrome->AdoptToolbar (m_host->GetRoot());
     m_host->GetRoot().Adopt (m_disks->GetChangeBanner());
@@ -492,7 +492,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // reads, so a click dispatches through HandleCommand like a menu row;
     // the volume group drives the master output gain and persists in
     // GlobalUserPrefs through the coalescing save below.
-    m_chrome->BuildToolbar (m_printer->GetLed());
+    m_chrome->GetToolbarEntries().BuildToolbar (m_printer->GetLed());
 
     // Mouse mode routes through the same toggle the band selector used, so
     // the leave-time release of a held guest button runs identically. It is
@@ -505,9 +505,9 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // The theme + monitor-color pickers, and the catalog behind the first of
     // them. Both option lists render through the host popup pool for the same
     // reason the menu bar's does: they hang off the strip over the viewport.
-    m_chrome->WireToolbarPickers();
-    m_chrome->RefreshToolbarThemeList();
-    m_chrome->SyncToolbarState();
+    m_chrome->GetToolbarEntries().WireToolbarPickers();
+    m_chrome->GetToolbarEntries().RefreshToolbarThemeList();
+    m_chrome->GetToolbarEntries().SyncToolbarState();
     m_chrome->GetMainMenu().SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -1273,7 +1273,7 @@ DxuiMessageResult EmulatorShell::OnCancelMode()
     if (m_input->IsPaddleCaptured()
         && GetForegroundWindow() == m_hwnd
         && !m_chrome->IsMenuOpen()
-        && m_chrome->TakeCaptureReflowEcho (ChangeBannerNowMs()))
+        && m_chrome->GetStandInBar().TakeCaptureReflowEcho (ChangeBannerNowMs()))
     {
         SetCapture (m_hwnd);
         m_input->ClipPaddleCursorToClient();

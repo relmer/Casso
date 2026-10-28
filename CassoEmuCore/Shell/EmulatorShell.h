@@ -587,6 +587,10 @@ private:
     // friend declarations are the pragmatic seam; no new global state is
     // introduced.
     friend class ShellChrome;
+    friend class ShellFrameRateReadout;
+    friend class ShellNotices;
+    friend class ShellStandInBar;
+    friend class ShellToolbarEntries;
     friend class ShellRenderer;
     friend class ShellWindow;
     friend class ShellDeskScene;

@@ -725,6 +725,10 @@
     <ClCompile Include="Shell\Window\EmulatorWindow.cpp" />
     <ClCompile Include="Shell\Window\EmulatorWindowInput.cpp" />
     <ClCompile Include="Shell\Components\ShellChrome.cpp" />
+    <ClCompile Include="Shell\Components\ShellFrameRateReadout.cpp" />
+    <ClCompile Include="Shell\Components\ShellNotices.cpp" />
+    <ClCompile Include="Shell\Components\ShellStandInBar.cpp" />
+    <ClCompile Include="Shell\Components\ShellToolbarEntries.cpp" />
     <ClCompile Include="Shell\Components\ShellRenderer.cpp" />
     <ClCompile Include="Shell\Components\ShellWindow.cpp" />
     <ClCompile Include="Ui\Chrome\ChromeBand.cpp" />
@@ -1483,6 +1487,10 @@
     <ClInclude Include="Shell\EmulatorShellInternal.h" />
     <ClInclude Include="Shell\Components\ShellAudio.h" />
     <ClInclude Include="Shell\Components\ShellChrome.h" />
+    <ClInclude Include="Shell\Components\ShellFrameRateReadout.h" />
+    <ClInclude Include="Shell\Components\ShellNotices.h" />
+    <ClInclude Include="Shell\Components\ShellStandInBar.h" />
+    <ClInclude Include="Shell\Components\ShellToolbarEntries.h" />
     <ClInclude Include="Shell\Components\ShellRenderer.h" />
     <ClInclude Include="Shell\Components\ShellWindow.h" />
     <ClInclude Include="Ui\Chrome\ChromeBand.h" />

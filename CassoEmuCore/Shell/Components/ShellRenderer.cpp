@@ -530,7 +530,7 @@ bool ShellRenderer::TryPresentUiFrame()
     //  The capture band a lost grab left standing, given back -- here, at the
     //  top of the frame, because re-docking repaints and nothing has been
     //  composed yet. See SyncStandInBanner for what sets this.
-    if (m_shell.m_chrome->TakeStandInBandStale())
+    if (m_shell.m_chrome->GetStandInBar().TakeStandInBandStale())
     {
         m_shell.m_chrome->ReflowChromeForChangeBand();
     }
@@ -589,10 +589,10 @@ bool ShellRenderer::TryPresentUiFrame()
     // toolbar, and bounds the tick has not written yet put the bar where the
     // strip was last frame -- visibly trailing it through the reveal.
     m_shell.m_chrome->TickFullscreenTopChrome();
-    m_shell.m_chrome->SyncStandInBanner();
+    m_shell.m_chrome->GetStandInBar().SyncStandInBanner();
     m_shell.m_input->TraceControllerState();
-    m_shell.m_chrome->SyncNotice();
-    m_shell.m_chrome->SyncFrameRateReadout();
+    m_shell.m_chrome->GetNotices().SyncNotice();
+    m_shell.m_chrome->GetFrameRateReadout().SyncFrameRateReadout();
     m_shell.m_scene->SyncSceneViewReadout();
 
 
@@ -759,7 +759,7 @@ bool ShellRenderer::TryPresentUiFrame()
     // An open toolbar picker previews live, so it needs the same treatment:
     // a highlight change alters the chrome or the picture, and without a
     // forced present the preview would wait for the next unrelated redraw.
-    m_shell.m_chrome->SyncToolbarState();
+    m_shell.m_chrome->GetToolbarEntries().SyncToolbarState();
 
     if (m_shell.m_chrome->GetToolbar().IsMenuOpen())
     {

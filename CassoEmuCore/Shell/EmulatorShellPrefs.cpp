@@ -144,7 +144,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
         // manager outlives every other path that can change the active theme
         // (the picker itself, Settings, a fallback activation), so this is
         // the one place that sees all of them.
-        m_chrome->RefreshToolbarThemeList();
+        m_chrome->GetToolbarEntries().RefreshToolbarThemeList();
     });
 
     // Tell the theme manager which machine is active BEFORE the
