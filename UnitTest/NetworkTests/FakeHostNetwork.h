@@ -39,6 +39,11 @@ public:
     void      CompleteLookups ();
     size_t    GetLookupCount  () const                                  { return m_lookups.size(); }
 
+    // Calls made on the sockets' Accept, Send, Receive and Poll, the ones a
+    // polled idle connection makes.
+    void      NoteCall        ()                                        { m_calls++; }
+    size_t    GetCallCount    () const                                  { return m_calls; }
+
     // Every socket created so far, live or destroyed, in creation order.
     const std::vector<std::shared_ptr<FakeSocketState>> & GetSockets() const { return m_sockets; }
 
@@ -68,6 +73,7 @@ private:
     std::vector<std::shared_ptr<FakeLookupState>>   m_lookups;
     std::map<std::string, uint32_t>                 m_addresses;
     bool                                            m_holdLookups   = false;
+    size_t                                          m_calls         = 0;
     std::set<std::pair<HostSocketKind, uint16_t>>   m_occupied;
     uint32_t                                        m_dnsServer     = 0;
     bool                                            m_failCreate    = false;

@@ -89,10 +89,10 @@ dial a fake server, exchange text, escape, hang up; every result code and DCD.
 **Goal**: replays match live and send nothing; a resume drops the line.
 **Independent test**: record a session, seek back and forth, compare.
 
-- [ ] T024 [US4] Replay tests in `UnitTest/EmuTests/ReverseSerialTests.cpp` for each of TCP, modem and COM: a session replayed by seeking matches live at every cycle (status, received bytes, serial log) and the fake host receives nothing (FR-017, FR-018, SC-005)
-- [ ] T025 [US4] Resume tests in the same file: a connection open at a past point is closed on resume, DCD reads off, the modem returns `NO CARRIER` (FR-019); the COM port's lines are read again on the next poll
-- [ ] T026 [US4] Serial log tests in `UnitTest/DebuggerTests/IoEventLogTests.cpp` or `ReverseSerialTests.cpp`: each attachment's traffic, line changes, errors and connections appear live and in a replay (FR-020)
-- [ ] T027 [US4] Idle-cost test in `UnitTest/SerialTests/SerialIdleCostTests.cpp`: a TCP and a modem attachment, idle for one emulated second, make at most 130 host calls (SC-006)
+- [X] T024 [US4] Replay tests in `UnitTest/EmuTests/ReverseSerialLinkTests.cpp` for each of TCP, modem and COM: a session replayed by seeking matches live at every cycle (status, received bytes, serial log) and the fake host receives nothing (FR-017, FR-018, SC-005)
+- [X] T025 [US4] Resume tests in the same file: a connection open at a past point is closed on resume, DCD reads off, the modem returns `NO CARRIER` (FR-019); the COM port's lines are read again on the next poll
+- [X] T026 [US4] Serial log tests in `UnitTest/DebuggerTests/IoEventLogTests.cpp` or `ReverseSerialTests.cpp`: each attachment's traffic, line changes, errors and connections appear live and in a replay (FR-020)
+- [X] T027 [US4] Idle-cost test in `UnitTest/SerialTests/SerialIdleCostTests.cpp`: a TCP and a modem attachment, idle for one emulated second, make at most 130 host calls (SC-006)
 
 **Checkpoint**: commit and push.
 

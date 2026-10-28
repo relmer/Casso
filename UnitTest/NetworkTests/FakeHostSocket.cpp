@@ -139,6 +139,8 @@ HRESULT FakeHostSocket::Accept (
 
 
 
+    m_network.NoteCall();
+
     outWouldBlock = m_state->pendingAccepts.empty();
     BAIL_OUT_IF (outWouldBlock, S_OK);
 
@@ -194,6 +196,8 @@ HRESULT FakeHostSocket::Send (
 
 
 
+    m_network.NoteCall();
+
     outSent = 0;
 
     CBREx (!m_state->resetByPeer, HRESULT_FROM_WIN32 (WSAECONNRESET));
@@ -231,6 +235,8 @@ HRESULT FakeHostSocket::Receive (
     size_t   i     = 0;
 
 
+
+    m_network.NoteCall();
 
     outReceived = 0;
     outEof      = false;
@@ -357,6 +363,8 @@ HRESULT FakeHostSocket::Poll (HostSocketReadiness & outReadiness)
     const FakeSocketState  & state = *m_state;
 
 
+
+    m_network.NoteCall();
 
     outReadiness = {};
 
