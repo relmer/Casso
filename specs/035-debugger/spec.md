@@ -307,10 +307,12 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 - Q: Do the serial and network logs, and the recording they depend on, ship in 035 or later? -> A: In 035, both the emulator side (the recording and the 6551 and W5100 events the logs read) and the debugger side (FR-322 to FR-330).
 - Q: What does the memory map call $C800-$CFFF with no card's expansion ROM selected? -> A: Unused (floating bus); $CF00-$CFFF always reads it, since any access there deselects every card. Done in e16465173 (FR-331).
 
-### Session 2026-10-28 (owner decision: resuming from the past during a call)
+### Session 2026-10-28 (owner decisions: resuming from the past during a call; breakpoint columns)
 
 - Q: Under FR-324 as written, a rewind and resume during a BBS call drops the call. Does the user then have to dial again? -> A: No. On a resume from the past, the real host connections stay open, and one closes only when the host side has actually dropped; FR-324 is amended to match, for Uthernet sockets here and for the serial attachments in 047 (its FR-019). Loading a state file closes them.
 - Q: Why does a MACRAW socket start its virtual network over, and should the data received between the resume point and the live point be delivered again? -> A: MACRAW can be recovered: the relay's guest-facing TCP state was the only part not rewound, and the frames in history indicate where the guest's stack was at the point, so each relay returns to it and sends again what it sent since. Yes, deliver it again: what each socket, relay and serial port received after the point is in the journal, so it goes to the guest again ahead of anything new. What the guest sent after the point was delivered to the peer and can't be taken back, so the peer can get it twice.
+- Q: Is Kind visible when a column choice saved before the breakpoints pane had a Kind column is loaded? -> A: Yes. Kind is a default column and that choice doesn't mention it, so it is visible, as in the build (T736).
+- Q: Should an execution breakpoint set by a symbol's name be stored with that name, so its Kind reads "Function", like Visual Studio's function breakpoint? -> A: Yes, and it follows the symbol: `BPSAVE`, undo, redo and import write the name back, and a symbol load that moves the name moves the breakpoint. Kind reads "Function" for a breakpoint set by name and "Breakpoint" for any other, a symbol at its address included (FR-117, T736).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -1039,14 +1041,16 @@ confirm it disables without being removed.
 14. **Given** breakpoints, **When** the user exports them to a file, clears
     them and imports the file, **Then** the same breakpoints return, with the
     same enabled states, conditions and When hit settings.
-15. **Given** a write watchpoint, a breakpoint on a line of the loaded source
-    and one at `COUT`, **When** the pane opens, **Then** their Kind cells are
-    "Memory", "Breakpoint" and "Breakpoint", and their Trigger cells "Write",
-    "Execute" and "Execute" (a symbol at the address does not make a
-    function breakpoint); **and when** the user clicks the Kind
-    heading, **Then** the rows group by kind in FR-117's order, each kind's
-    rows in the order they were set. Added 2026-10-08, and amended the same
-    day, and again when Trigger was added.
+15. **Given** a write watchpoint, a breakpoint on a line of the loaded source,
+    one set as `BP FDED` and one set as `BP COUT`, **When** the pane opens,
+    **Then** their Kind cells are "Memory", "Breakpoint", "Breakpoint" and
+    "Function", and their Trigger cells "Write", "Execute", "Execute" and
+    "Execute" (a symbol at the address does not make a function breakpoint;
+    setting it by the symbol's name does); **and when** the user clicks the
+    Kind heading, **Then** the rows group by kind in FR-117's order, each
+    kind's rows in the order they were set. Added 2026-10-08, and amended
+    the same day, again when Trigger was added, and on 2026-10-28 for
+    function breakpoints.
 
 ---
 
@@ -2166,16 +2170,20 @@ run something, switch back to the //e: it is where it was left.
   and Data (what a data breakpoint watches). Kind and Trigger MUST be one of
   these pairs, in sentence case: "Breakpoint" and "Execute" for an execution
   breakpoint (amended 2026-10-14), whether or not a line of the loaded source produced the code
-  at its address (File shows the line); "Memory" and "Read", "Write" or
+  at its address (File shows the line); "Function" and "Execute" for an
+  execution breakpoint set by a symbol's name (amended 2026-10-28); "Memory" and "Read", "Write" or
   "Read or write" for a data breakpoint; "Memory" and "Value" for a value
   breakpoint (FR-062); "Register" and "Condition"; "Opcode" and "Execute";
   "BRK" and "Execute"; "Interrupt" and "IRQ or NMI"; or "Disk" and a disk
   event (FR-163). There is no I/O kind: the New drop-down's I/O range is a
   memory watchpoint over $C000-$C0FF, as AppleWin's `BPIO` is (amended
   2026-10-14). A symbol at an execution
-  breakpoint's address MUST NOT make its Kind "Function": the engine keeps
-  the address, not how it was given, and the symbol may label a loop or data
-  as well as a routine. Clicking a column's heading MUST sort by it; Kind
+  breakpoint's address MUST NOT make its Kind "Function", since the symbol
+  may label a loop or data as well as a routine; only setting it by the
+  symbol's name does. The name a function breakpoint was set by MUST be
+  stored with it: `BPSAVE`, undo, redo and import write it back, and when loaded symbols put
+  the name at another address, the breakpoint moves there (amended
+  2026-10-28). Clicking a column's heading MUST sort by it; Kind
   sorts by the pairs in the order listed here, and within a pair in the
   order the breakpoints were set. Amended 2026-10-08 to the columns as built, and
   again the same day on the owner's request: Kind added, Filter (always

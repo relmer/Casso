@@ -1213,6 +1213,11 @@ breakpoints; unchecking or removing one runs `BRKUNINIT OFF`, `BPV OFF` or
 `BPBEAM OFF`, and a read before written is listed as counting from the next
 power cycle until the heat map tracks writes.
 
+An execution breakpoint set by a symbol's name, as `BP COUT`, is a function
+breakpoint: its Kind is "Function", `BPSAVE` writes it by name, and when a
+symbol load puts the name at another address, the breakpoint moves there. One
+set by address is "Breakpoint", a symbol at that address included.
+
 The Watches pane has an ID column: **Auto** for what the instruction at the
 PC and the one just run touch, the watch's number for a watch, and ZPn for a
 zero-page pointer. What is typed in the add row is watched as what it is,
