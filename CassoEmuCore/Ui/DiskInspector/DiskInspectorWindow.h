@@ -2,11 +2,11 @@
 
 #include "Pch.h"
 
+#include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Config/DiskInspectorPrefs.h"
 #include "Devices/Disk/Inspector/InspectorSearch.h"
 #include "Seams/Win32Clipboard.h"
 #include "Ui/Chrome/CassoTheme.h"
-#include "Ui/DiskInspector/AnalysisScheduler.h"
 #include "Ui/DiskInspector/ComparisonSession.h"
 #include "Ui/DiskInspector/FindSession.h"
 #include "Ui/DiskInspector/FollowHead.h"
@@ -31,29 +31,6 @@ class FileMapGridView;
 class DifferencesTab;
 class FindBar;
 class EditBar;
-
-
-
-
-
-//  Which view the keys act on: the one pressed last (FR-029, FR-034, FR-043).
-enum class KeyTarget
-{
-    Platter,
-    Strip,
-    SectorRow,
-    SectorData,
-    Nibbles,
-    Fields,
-    FluxTiming,
-    Tracks,
-    Findings,
-    Image,
-    FileList,
-    Differences,
-    FindBar,
-    FindResults,
-};
 
 
 
@@ -89,7 +66,7 @@ public:
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDiskInspectorHost * host, bool activate);
     HRESULT  ShowDrive   (int drive);
     HRESULT  RenderFrame ();
-    int      GetDrive    () const { return m_drive; }
+    int      GetDrive    () const { return m_session.drive; }
 
     //  Before something discards the pending edits (FR-108): true when there
     //  are none, or the user confirms that they are discarded.
@@ -162,8 +139,6 @@ private:
     void  StepDifference   (int step);
     void  SelectDifference (const Difference & difference);
     void  PaintComparisonBar (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    bool  IsWindowDiskA    () const;
-    bool  IsWriteProtected () const { return m_context.drive != nullptr && m_context.drive->writeProtect.Any(); }
     void  PaintNoDisk      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void  PaintHelp        (IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     bool  OnWalkthroughMouse (const DxuiMouseEvent & ev);
@@ -200,7 +175,6 @@ private:
     void  UpdateEditBar      ();
     void  PasteIntoEdit      ();
     void  FollowEdits        ();
-    bool  IsSectorImage      () const;
     int   GetSelectedEdit    () const;
     bool  HandleEditKey      (const DxuiKeyEvent & ev);
     bool  ConfirmEdit        (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
@@ -225,7 +199,6 @@ private:
     void  OpenExport ();
     void  PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     bool  IsCovered  (POINT pointPx) const;
-    const FileMap *  GetFileMap () const;
     void  LayoutFileMap        (const RECT & area, const DxuiDpiScaler & scaler);
     void  OpenFilePicker       (bool isOpen);
     void  SetZoom              (double zoom);
@@ -263,44 +236,24 @@ private:
     void  UpdateTooltip    (POINT pointPx);
     void  PaintToolbar     (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     void  StepSector       (int delta, bool isToEnd);
-    std::wstring  GetFileName () const;
     static bool   IsInside    (const RECT & rect, POINT pointPx);
 
-    const CassoTheme                                                                           * m_theme             = nullptr;
-    IDiskInspectorHost                                                                         * m_host              = nullptr;
-    NullDiskInspectorHost                                                                        m_nullHost;
-    int                                                                                          m_drive             = 0;
-    uint64_t                                                                                     m_pendingRequest    = 0;
-    uint64_t                                                                                     m_requestedMediaId  = UINT64_MAX;
-    DiskAnalysis                                                                                 m_analysis;
-    InspectorViewModel                                                                           m_model;
-    InspectorViewContext                                                                         m_context;
-    std::unique_ptr<AnalysisScheduler>                                                           m_scheduler;
-    ComparisonSession                                                                            m_comparison;
-    ComparisonSource                                                                             m_sourceA;
+    InspectorSession                                                                             m_session;
     uint64_t                                                                                     m_comparisonVersion = 0;
     bool                                                                                         m_isTracksCompared  = false;
     int                                                                                          m_diffIndex         = -1;
     uint32_t                                                                                     m_toolSig           = 0;
     RECT                                                                                         m_barPx             = {};
-    InspectorViewModel                                                                           m_modelB;
-    InspectorViewContext                                                                         m_contextB;
     uint64_t                                                                                     m_modelBDisk        = 0;
     vector<Difference>                                                                           m_nibbleDiffs;
-    vector<int>                                                                                  m_diffCells;
     const TrackAnalysis                                                                        * m_diffsOfA          = nullptr;
     const TrackAnalysis                                                                        * m_diffsOfB          = nullptr;
     double                                                                                       m_bOffset           = 0.0;
     double                                                                                       m_linkStartB        = -1.0;
     double                                                                                       m_linkSpanB         = 0.0;
     DxuiTooltip                                                                                  m_tooltip;
-    std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_levels;
-    std::array<std::shared_ptr<const PlatterRenderer::Levels>, DiskImage::kQuarterTrackCount>    m_timingLevels;
-    std::set<int>                                                                                m_changedSlots;
     bool                                                                                         m_isSplitting       = false;
     double                                                                                       m_splitFraction     = 0.5;
-    int                                                                                          m_trackTab          = 0;
-    DxuiDpiScaler                                                                                m_scaler;
     RECT                                                                                         m_toolbarPx         = {};
     RECT                                                                                         m_fileNamePx        = {};
     RECT                                                                                         m_chipsPx           = {};
@@ -313,7 +266,6 @@ private:
     DxuiPopupHost                         * m_legendPopup        = nullptr;
     bool                                    m_isLegendPinned     = false;
     int64_t                                 m_legendClosedMs     = 0;
-    bool                                    m_isDiskGroup        = false;
     bool                                    m_isHintShown        = false;
     RECT                                    m_stripAreaPx        = {};
     DxuiButton                            * m_zoomOut            = nullptr;
@@ -336,10 +288,7 @@ private:
     bool                                    m_isFilesSaved       = false;
     InspectorWalkthrough                    m_walkthrough;
     RECT                                    m_helpPx             = {};
-    std::shared_ptr<const DriveHeadState>   m_headState;
     uint64_t                                m_countsGeneration   = 0;
-    vector<uint64_t>                        m_writeCounts;
-    std::set<int>                           m_writtenSlots;
     uint64_t                                m_trackRequest       = 0;
     int64_t                                 m_trackRequestMs     = 0;
     DxuiButton                            * m_prevDiff           = nullptr;
@@ -354,18 +303,10 @@ private:
     DxuiButton                            * m_stripWhole         = nullptr;
     DxuiLabel                             * m_stripReadout       = nullptr;
     DxuiLabel                             * m_stripHint          = nullptr;
-    KeyTarget                               m_keyTarget          = KeyTarget::Platter;
     bool                                    m_isFocusShown       = false;
-    Win32Clipboard                          m_clipboard;
-    FindSession                             m_find;
     FindBar                               * m_findBar            = nullptr;
     InspectorTableView                    * m_findResults        = nullptr;
-    bool                                    m_isFindOpen         = false;
-    FindMarks                               m_findMarks;
-    EditController                          m_edits;
     EditBar                               * m_editBar            = nullptr;
-    std::wstring                            m_editNote;
-    std::wstring                            m_statusNote;
     int64_t                                 m_sourceCheckMs      = 0;
     int64_t                                 m_editSig            = 0;
 
@@ -388,7 +329,6 @@ private:
     bool                                    m_isApplyWaiting     = false;
     bool                                    m_isApplyPaused      = false;
     bool                                    m_isFirstApplyDone   = false;
-    std::set<int>                           m_appliedSlots;
     GoToKind                                m_goToKind           = GoToKind::Track;
     vector<std::shared_ptr<DxuiCommand>>    m_menuCommands;
     PlatterView                           * m_platterView        = nullptr;
@@ -426,28 +366,20 @@ private:
     bool                                    m_isPickerOpen       = true;
     std::wstring                            m_pickerLabel        = L"Choose a file";
     float                                   m_pickerTextPx       = 0.0f;
-    bool                                    m_isLayoutStale      = false;
     int                                     m_sectorRows         = 1;
     DxuiLabel                             * m_statusText         = nullptr;
     RECT                                    m_statusPx           = {};
     DxuiZoomControl                       * m_zoomControl        = nullptr;
-    DxuiDpiScaler                           m_hostScaler;
     double                                  m_zoom               = 1.0;
     DxuiScrollPanel                       * m_mapScroll          = nullptr;
     int                                     m_revealedCell       = -1;
     RECT                                    m_tabGapPx           = {};
-    int                                     m_mapIndex           = 0;
-    int                                     m_mapFile            = -1;
     int                                     m_fileSortColumn     = -1;
     bool                                    m_fileSortDescending = false;
-    bool                                    m_is35               = false;
-    std::wstring                            m_openError;
     RECT                                    m_platterAreaPx      = {};
     RECT                                    m_trackAreaPx        = {};
     RECT                                    m_diskContentPx      = {};
     FluxTimingTab                         * m_fluxTab            = nullptr;
-    int                                     m_diskTab            = 0;
-    bool                                    m_isTablesDirty      = true;
     int                                     m_fieldsOf           = -1;
     const TrackAnalysis                   * m_fieldsTrack        = nullptr;
 };
