@@ -26,8 +26,11 @@ TEST_CLASS (DiskAccessTests)
 {
 public:
 
+    static constexpr uint32_t  kTrackCells = 51'200;
+
     //  A data field as the guest takes it from the latch, one nibble every 8
-    //  cells from the given cell: D5 AA AD, the body, then DE AA EB.
+    //  cells from the given cell: D5 AA AD, the body, then DE AA, after which
+    //  a guest that reads the field skips cells while it decodes it.
     static void ReadDataField (DiskAccessLog & log, int quarterTrack, uint32_t firstCell)
     {
         uint32_t  cell = firstCell;
@@ -36,19 +39,19 @@ public:
 
         for (Byte nibble : { Byte (0xD5), Byte (0xAA), Byte (0xAD) })
         {
-            log.ObserveRead (quarterTrack, nibble, cell);
+            log.ObserveRead (quarterTrack, nibble, cell, kTrackCells);
             cell += 8;
         }
 
         for (int n = 0; n < 343; n++)
         {
-            log.ObserveRead (quarterTrack, 0x96, cell);
+            log.ObserveRead (quarterTrack, 0x96, cell, kTrackCells);
             cell += 8;
         }
 
-        for (Byte nibble : { Byte (0xDE), Byte (0xAA), Byte (0xEB) })
+        for (Byte nibble : { Byte (0xDE), Byte (0xAA) })
         {
-            log.ObserveRead (quarterTrack, nibble, cell);
+            log.ObserveRead (quarterTrack, nibble, cell, kTrackCells);
             cell += 8;
         }
     }
@@ -75,12 +78,14 @@ public:
 
 
         ReadDataField (log, 8, 1000);
+        log.EndRead();
 
         Assert::AreEqual (static_cast<size_t> (1), log.GetReads()[8].size());
         Assert::AreEqual (1000u, log.GetReads()[8][0].start, L"from the D5");
         Assert::AreEqual (1u, log.GetReads()[8][0].count);
 
         ReadDataField (log, 8, 1000);
+        log.EndRead();
         Assert::AreEqual (static_cast<size_t> (1), log.GetReads()[8].size(), L"the same field again");
         Assert::AreEqual (2u, log.GetReads()[8][0].count);
         Assert::IsTrue   (log.GetReads()[4].empty());
@@ -97,18 +102,45 @@ public:
 
         for (Byte nibble : { Byte (0xD5), Byte (0xAA), Byte (0xAD), Byte (0x96), Byte (0xDE), Byte (0xAA) })
         {
-            log.ObserveRead (8, nibble, cell);
+            log.ObserveRead (8, nibble, cell, kTrackCells);
             cell += 8;
         }
 
         Assert::IsTrue (log.GetReads()[8].empty(), L"an epilogue before the body ends is not a field");
 
-        log.ObserveRead (8, 0xD5, 0);
-        log.ObserveRead (8, 0xAA, 8);
-        log.ObserveRead (8, 0xAD, 16);
+        log.ObserveRead (8, 0xD5, 0, kTrackCells);
+        log.ObserveRead (8, 0xAA, 8, kTrackCells);
+        log.ObserveRead (8, 0xAD, 16, kTrackCells);
         ReadDataField (log, 9, 24);
+        log.EndRead();
         Assert::IsTrue (log.GetReads()[8].empty(), L"the head moved in the middle of the field");
         Assert::AreEqual (static_cast<size_t> (1), log.GetReads()[9].size());
+    }
+
+
+
+    TEST_METHOD (AFieldPassedWhileSearchingIsNotARead)
+    {
+        DiskAccessLog  log;
+
+
+
+        //  A guest searching for an address field takes the nibble after the
+        //  epilogue with no gap.
+        ReadDataField (log, 8, 1000);
+        log.ObserveRead (8, 0xEB, 1000 + 349 * 8, kTrackCells);
+        log.EndRead();
+        Assert::IsTrue (log.GetReads()[8].empty(), L"a field passed while searching");
+
+        //  A guest that read the field takes its next nibble well after it.
+        ReadDataField (log, 8, 5000);
+        log.ObserveRead (8, 0xFF, 5000 + 349 * 8 + 2000, kTrackCells);
+        Assert::AreEqual (static_cast<size_t> (1), log.GetReads()[8].size(), L"a field followed by a gap");
+
+        //  The same, with the field ending just before the index.
+        ReadDataField (log, 12, kTrackCells - 349 * 8 - 4);
+        log.ObserveRead (12, 0xFF, 4, kTrackCells);
+        Assert::IsTrue (log.GetReads()[12].empty(), L"the next nibble across the index is close behind");
     }
 
 

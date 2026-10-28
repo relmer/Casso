@@ -31,7 +31,10 @@ struct CellSpan
 //  Where on each quarter track of one drive the guest read a data field and
 //  where it wrote, as cell positions (FR-161). A read is a data field the
 //  guest took from the latch, from its D5 AA AD prologue through the DE AA
-//  of its epilogue. A write is a run of nibbles the guest loaded into the
+//  of its epilogue, after which the guest skips cells before its next
+//  nibble, as RWTS does while it decodes the field. A guest searching for
+//  an address field takes every nibble that passes, data fields included,
+//  with no gap. A write is a run of nibbles the guest loaded into the
 //  latch while writing, each close after the one before. The same stretch
 //  read or written again counts again. Cleared when the drive's disk
 //  changes, with the visit counts (FR-068).
@@ -48,11 +51,16 @@ public:
     static constexpr uint32_t  kMinDataNibbles = 340;
     static constexpr uint32_t  kMaxDataNibbles = 420;
 
+    //  After a field's epilogue, a gap of more cells than this before the
+    //  guest's next nibble marks the field as read.
+    static constexpr uint32_t  kPauseCells     = 64;
+
     //  Write nibbles further apart than this start another run.
     static constexpr uint32_t  kWriteGapCells  = 64;
 
     void  Clear        ();
-    void  ObserveRead  (int quarterTrack, uint8_t nibble, uint32_t cell);
+    void  ObserveRead  (int quarterTrack, uint8_t nibble, uint32_t cell, uint32_t trackCells);
+    void  EndRead      ();
     void  ObserveWrite (int quarterTrack, uint32_t cell);
     void  EndWrite     ();
 
@@ -69,14 +77,17 @@ private:
 
     Spans     m_reads;
     Spans     m_writes;
-    uint64_t  m_generation  = 0;
-    int       m_readTrack   = -1;
-    uint8_t   m_prev[2]     = {};
-    uint32_t  m_prevCell[2] = {};
-    bool      m_isInData    = false;
-    uint32_t  m_dataStart   = 0;
-    uint32_t  m_dataCount   = 0;
-    int       m_writeTrack  = -1;
-    uint32_t  m_writeStart  = 0;
-    uint32_t  m_writeLast   = 0;
+    uint64_t  m_generation   = 0;
+    int       m_readTrack    = -1;
+    uint8_t   m_prev[2]      = {};
+    uint32_t  m_prevCell[2]  = {};
+    bool      m_isInData     = false;
+    uint32_t  m_dataStart    = 0;
+    uint32_t  m_dataCount    = 0;
+    int       m_pendingTrack = -1;
+    uint32_t  m_pendingStart = 0;
+    uint32_t  m_pendingEnd   = 0;
+    int       m_writeTrack   = -1;
+    uint32_t  m_writeStart   = 0;
+    uint32_t  m_writeLast    = 0;
 };

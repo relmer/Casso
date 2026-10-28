@@ -328,7 +328,8 @@ Byte Disk2Controller::HandleReadDispatch()
         if (m_engine[m_activeDrive].ConsumeFreshNibble (fresh))
         {
             m_addrMarkWatcher.ObserveNibble (fresh);
-            m_access[m_activeDrive].ObserveRead (m_quarterTrack[m_activeDrive], fresh, static_cast<uint32_t> (m_engine[m_activeDrive].GetBitPosition()));
+            m_access[m_activeDrive].ObserveRead (m_quarterTrack[m_activeDrive], fresh, static_cast<uint32_t> (m_engine[m_activeDrive].GetBitPosition()),
+                                                 static_cast<uint32_t> (m_engine[m_activeDrive].GetCurrentTrackBits()));
         }
 
         // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
@@ -582,6 +583,8 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
             m_motorOn             = false;
             m_engine[0].SetMotorOn (false);
             m_engine[1].SetMotorOn (false);
+            m_access[0].EndRead();
+            m_access[1].EndRead();
 
             // FR-002: motor sound fades out only when the spindown
             // timer actually expires -- NOT at the raw $C0E8 access.

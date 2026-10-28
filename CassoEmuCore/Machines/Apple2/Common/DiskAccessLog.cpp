@@ -34,9 +34,10 @@ void DiskAccessLog::Clear()
         spans.clear();
     }
 
-    m_readTrack  = -1;
-    m_isInData   = false;
-    m_writeTrack = -1;
+    m_readTrack    = -1;
+    m_isInData     = false;
+    m_pendingTrack = -1;
+    m_writeTrack   = -1;
     m_generation++;
 }
 
@@ -48,20 +49,35 @@ void DiskAccessLog::Clear()
 //
 //  DiskAccessLog::ObserveRead
 //
-//  One nibble the guest took from the latch, at the cell it started at. A
-//  D5 AA AD opens a data field at the D5's cell; DE AA after enough nibbles
-//  closes it, and the field counts as read. Anything else, or a move to
-//  another quarter track, drops a field in progress.
+//  One nibble the guest took from the latch, at the cell it started at, on
+//  a quarter track of the given length in cells. A D5 AA AD opens a data
+//  field at the D5's cell; DE AA after enough nibbles closes it. The closed
+//  field counts as read once the guest skips more than kPauseCells cells
+//  before its next nibble; a next nibble close behind drops it. Anything else, or a move to another
+//  quarter track, drops a field in progress.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell)
+void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell, uint32_t trackCells)
 {
-    bool  isValid = quarterTrack >= 0 && quarterTrack < DiskImage::kQuarterTrackCount;
+    bool      isValid = quarterTrack >= 0 && quarterTrack < DiskImage::kQuarterTrackCount;
+    uint32_t  gap     = 0;
 
 
 
     EndWrite();
+
+    if (m_pendingTrack >= 0)
+    {
+        gap = (quarterTrack == m_pendingTrack && trackCells > 0) ? (cell + trackCells - m_pendingEnd % trackCells) % trackCells : UINT32_MAX;
+
+        if (gap > kPauseCells)
+        {
+            EndRead();
+        }
+
+        m_pendingTrack = -1;
+    }
 
     if (quarterTrack != m_readTrack)
     {
@@ -77,9 +93,10 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
 
         if (m_prev[1] == s_kEpilogue0 && nibble == s_kEpilogue1 && m_dataCount >= kMinDataNibbles)
         {
-            Add (m_reads[static_cast<size_t> (quarterTrack)], m_dataStart, cell);
-            m_isInData = false;
-            m_generation++;
+            m_pendingTrack = quarterTrack;
+            m_pendingStart = m_dataStart;
+            m_pendingEnd   = cell;
+            m_isInData     = false;
         }
         else if (m_dataCount > kMaxDataNibbles)
         {
@@ -97,6 +114,30 @@ void DiskAccessLog::ObserveRead (int quarterTrack, uint8_t nibble, uint32_t cell
     m_prevCell[0] = m_prevCell[1];
     m_prev[1]     = nibble;
     m_prevCell[1] = cell;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskAccessLog::EndRead
+//
+//  The closed data field counts as read: the guest skipped cells after it
+//  or moved to another quarter track, or the motor stopped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskAccessLog::EndRead()
+{
+    if (m_pendingTrack >= 0 && m_pendingTrack < DiskImage::kQuarterTrackCount)
+    {
+        Add (m_reads[static_cast<size_t> (m_pendingTrack)], m_pendingStart, m_pendingEnd);
+        m_generation++;
+    }
+
+    m_pendingTrack = -1;
 }
 
 

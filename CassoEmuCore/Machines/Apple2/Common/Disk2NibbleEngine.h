@@ -133,6 +133,7 @@ public:
     bool       IsOnFluxTrack() const { return m_isFluxSlot; }
     int        GetSlot() const { return m_slot; }
     double     GetAngle() const;
+    size_t     GetCurrentTrackBits() const;
 
     // Flux time is kept in exact units of 1/45 of a 125 ns tick. The master
     // clock is 14.31818 MHz = 315/22 MHz, the CPU runs at 1/14 of it (45/44
@@ -207,7 +208,6 @@ private:
     void       StepLss();
     uint8_t    ApplyHeadWindow (uint8_t inBit);
     uint8_t    NextWeakBit();
-    size_t     GetCurrentTrackBits() const;
     void       ResolveSlot();
     void       RefreshSlot();
     void       PlaceHead (double angle);
