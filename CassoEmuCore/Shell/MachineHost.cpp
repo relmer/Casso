@@ -688,9 +688,6 @@ bool MachineHost::IsSerialInput (InputKind kind)
 //
 //  MachineHost::DropHostConnections
 //
-//  The machine is live again at a point in the past, so the connections
-//  its devices have on the host are from later; each device closes them.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineHost::DropHostConnections()
@@ -703,6 +700,28 @@ void MachineHost::DropHostConnections()
     for (Acia6551 * acia : m_refs.serialChips)
     {
         acia->DropConnection();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineHost::ResyncHostConnections
+//
+//  The serial attachments are not called: each poll sets the 6551's CTS,
+//  DSR and DCD from the attachment, so the first poll after the resume
+//  corrects the restored levels.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineHost::ResyncHostConnections()
+{
+    if (m_refs.uthernet != nullptr)
+    {
+        m_refs.uthernet->ResyncHostConnections();
     }
 }
 

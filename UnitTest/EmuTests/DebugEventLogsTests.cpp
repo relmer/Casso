@@ -593,7 +593,7 @@ namespace DebugEventLogsTests
             Assert::IsNotNull (row, L"the byte is a row");
             Assert::IsTrue    (row->event.category == InputEventCategory::Host, L"of host input");
             Assert::AreEqual<Byte>     (kByte, row->event.payload.io.value, L"with the byte");
-            Assert::AreEqual<uint16_t> (1,     row->event.payload.io.address, L"and the port's index");
+            Assert::AreEqual<uint16_t> (Acia6551::kCommPortBuiltIn | 2, row->event.payload.io.address, L"and the //c's port 2");
         }
 
 

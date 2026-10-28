@@ -41,6 +41,7 @@ public:
     bool  IsActive       () const;
     void  Pump           (uint64_t now);
     void  CloseAll       ();
+    void  Resync         ();
 
 private:
 
@@ -66,12 +67,15 @@ private:
 
     struct Slot
     {
-        Phase                         phase       = Phase::Idle;
+        Phase                         phase           = Phase::Idle;
         std::unique_ptr<IHostSocket>  host;
-        std::vector<Byte>             txQueue;      // copied from TX, not yet taken by the host
-        bool                          sendPending = false;
-        std::set<uint64_t>            udpPeers;     // packed endpoints sent to
-        std::deque<Datagram>          udpPending;   // received, waiting for RX space
+        std::vector<Byte>             txQueue;                // copied from TX, not yet taken by the host
+        bool                          sendPending     = false;
+        uint16_t                      sourcePort      = 0;    // the chip's endpoints when the phase began
+        uint32_t                      destinationIp   = 0;
+        uint16_t                      destinationPort = 0;
+        std::set<uint64_t>            udpPeers;               // packed endpoints sent to
+        std::deque<Datagram>          udpPending;             // received, waiting for RX space
     };
 
     void  CloseSlot        (int socket);
@@ -84,6 +88,9 @@ private:
     void  SendUdp          (int socket);
     void  SendMacRaw       (int socket, uint64_t now);
     void  Fail             (int socket, Byte interrupt);
+    void  NoteEndpoints    (int socket);
+    bool  IsInStep         (int socket) const;
+    void  ResyncSocket     (int socket);
 
     void  PumpSocket       (int socket, uint64_t now);
     void  PumpConnecting   (int socket);

@@ -300,12 +300,16 @@ Settled from the request sent by the disk inspector work (spec 040) on the owner
 ### Session 2026-10-27 (owner decisions: network history, serial and network logs)
 
 - Q: Is history off while the Uthernet II has a socket open, as T1149 built it? -> A: No. Rewinding through its traffic is what debugging a network program takes. The host sockets' replies are stored in history at the host network boundary, as host serial bytes are, and a replay reads them from history and sends nothing to the real network. This replaces T1149's rule that history stops while the card is in use (FR-322, FR-323).
-- Q: What happens to a socket that is open when the user resumes from a point in the past? -> A: During a replay it is fed from history and stays valid. When the user resumes from the past, the real connection has moved on, so the socket is closed to the guest as reset by the remote end (FR-324).
+- Q: What happens to a socket that is open when the user resumes from a point in the past? -> A: During a replay it is fed from history and stays valid. When the user resumes from the past, the real connection has moved on, so the socket is closed to the guest as reset by the remote end (FR-324). Superseded 2026-10-28: a connection that matches the socket stays open (FR-324 as amended).
 - Q: Is the serial log drawn at bit level, when the guest reads and writes the 6551 a whole byte at a time? -> A: Yes, in the signal graph. Each byte's start, data, parity and stop bits are drawn on TxD and RxD from the byte, the framing in force (for example 8N1) and the baud rate, starting at the cycle the byte started. The emulator times each character by the same framing and baud rate, so the drawn bits match the emulated timing (FR-325, FR-326).
 - Q: What words does the serial graph's tip use for the signal states? -> A: Control lines are on or off; the data lines are mark or space (FR-327).
 - Q: What does the network log draw? -> A: A lane per W5100 socket colored by state, with bars for data in and out, each lane turned on and off, and a tip with each socket's state and byte counts; a data view under it (FR-328, FR-329).
 - Q: Do the serial and network logs, and the recording they depend on, ship in 035 or later? -> A: In 035, both the emulator side (the recording and the 6551 and W5100 events the logs read) and the debugger side (FR-322 to FR-330).
 - Q: What does the memory map call $C800-$CFFF with no card's expansion ROM selected? -> A: Unused (floating bus); $CF00-$CFFF always reads it, since any access there deselects every card. Done in e16465173 (FR-331).
+
+### Session 2026-10-28 (owner decision: resuming from the past during a call)
+
+- Q: Under FR-324 as written, a rewind and resume during a BBS call drops the call. Does the user then have to dial again? -> A: No. On a resume from the past, the real host connections stay open, and one closes only when the host side has actually dropped; FR-324 is amended to match, for Uthernet sockets here and for the serial attachments in 047 (its FR-019). Loading a state file closes them. Data the network sent between the resume point and the live point is not delivered again.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -3475,8 +3479,14 @@ run something, switch back to the //e: it is where it was left.
 - **FR-323**: A replay MUST read the stored replies from history and MUST
   send nothing to the real network. History MUST be taken while the Uthernet
   II is in use.
-- **FR-324**: A socket open when the user resumes from a point in the past
-  MUST be closed to the guest as reset by the remote end.
+- **FR-324**: When the user resumes from a point in the past, a host
+  connection that matches a socket the guest has open there (the same ports
+  and peer) MUST stay open. A connection the peer has closed since MUST read
+  to the guest as closed by the peer, and a socket whose connection is gone
+  MUST read as reset by the remote end. A host connection that doesn't match
+  any socket MUST be closed. A connect in progress, a listen and a UDP socket
+  MUST start again on the host. A MACRAW socket's virtual network MUST start
+  over. Loading a state file MUST close every host connection.
 - **FR-325**: The debugger MUST have a serial log for each serial port: a
   signal graph with one colored line for each of TxD, RxD, RTS, CTS, DTR, DSR,
   DCD and IRQ, each line turned on and off by the user, and under the graph a

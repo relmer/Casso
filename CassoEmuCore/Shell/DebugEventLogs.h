@@ -175,7 +175,7 @@ private:
     void      AppendEntries (const std::vector<DebugEventEntry<T>> & entries, std::vector<DebugLogRow<T>> & rows) const;
 
     static bool  TryMakeRow (const InputRecord & record, DiskLogRow & outRow);
-    static bool  TryMakeRow (const InputRecord & record, InputLogRow & outRow);
+    bool         TryMakeRow (const InputRecord & record, InputLogRow & outRow) const;
     static bool  TryMakeRow (const InputRecord & record, IoLogRow & outRow);
 
     template <typename T>

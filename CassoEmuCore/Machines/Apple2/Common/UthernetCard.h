@@ -113,10 +113,15 @@ public:
     void  SetHostInputGate (const HostInputGate * gate)     { m_inputGate = gate; }
     bool  ApplyInput       (const InputRecord & record);
 
-    // The machine is live again at a point in the past. The host's
-    // connections have moved on since, so each is closed, and each socket the
-    // guest has open reads as closed by the remote end.
+    // A state file replaced the machine. The host's connections are from the
+    // state replaced, so each is closed, and each socket the guest has open
+    // reads as closed by the remote end.
     void  DropHostConnections ();
+
+    // The machine is live again at a point in the past. Each host connection
+    // that matches a restored socket stays open, and the rest are brought
+    // back in step (see W5100SocketBridge::Resync).
+    void  ResyncHostConnections ();
 
     // The debugger's network log: each socket's state changes and the data
     // each sends and receives go to `sink`, or nowhere when it is null.

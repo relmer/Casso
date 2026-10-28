@@ -280,9 +280,13 @@ public:
     void  AttachInputJournal  ();
     bool  ApplyDeviceInput    (const InputRecord & record);
 
-    //  The machine is live again at a point in the past: the connections
-    //  its devices have on the host are from later, so each is closed.
+    //  A state file replaced the machine: the connections its devices have
+    //  on the host are from the state replaced, so each is closed.
     void  DropHostConnections ();
+
+    //  The machine is live again at a point in the past: each device brings
+    //  its connections on the host back in step with its restored state.
+    void  ResyncHostConnections  ();
 
     //  Before a rebuild: every serial attachment is detached and destroyed,
     //  so the COM ports and listen ports it had are free for the new

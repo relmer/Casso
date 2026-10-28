@@ -884,15 +884,17 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
 
 
         //  A change made at a point in the past where the connection was open
-        //  makes the machine live there. The host's connection has moved on
-        //  since, so it is closed, and the guest's socket reads as closed by
-        //  the remote end.
-        TEST_METHOD (AResumeFromThePastClosesTheOpenSockets)
+        //  makes the machine live there. The host's connection is the one the
+        //  guest's socket has, so it stays open, and the session goes on.
+        TEST_METHOD (AResumeFromThePastKeepsTheConnectionOpen)
         {
+            constexpr size_t  kLength = 3 * 1024;
+
             Guest                             guest      (s_kTcpProgram);
             TestMachine                     & machine    = guest.GetMachine();
             ReverseController                 controller (machine);
             W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::vector<Byte>                 reply      = MakePattern (kLength, 0x5A);
             std::shared_ptr<FakeSocketState>  peer;
             ReverseResult                     result;
             uint64_t                          connected  = 0;
@@ -916,15 +918,99 @@ slots:      db $80, $86, $8C, $92, $98, $9E, $A4, $AA
             hr = controller.SeekToCycle (connected, result);
             AssertSucceeded (hr, L"SeekToCycle");
             Assert::IsTrue (controller.IsInHistory(), L"the machine is behind live");
-            Assert::AreNotEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the socket is open at that point");
 
             hr = controller.OnMachineChanged();
             AssertSucceeded (hr, L"OnMachineChanged");
 
             Assert::IsFalse  (controller.IsInHistory(), L"the machine is live where it stands");
+            Assert::AreEqual (R::kSockEstablished, chip.GetSocketStatus (0), L"the guest's socket is connected");
+            Assert::IsFalse  (peer->destroyed, L"and the host connection is open");
+
+            peer->inbound.assign (reply.begin(), reply.end());
+            guest.RunUntil ([&] { return guest.Peek (kDoneFlag) == kDone; }, L"the guest receives 3 KB and disconnects");
+
+            Assert::IsTrue (guest.PeekBytes (kRecvBuffer, kLength) == reply, L"3 KB back, in order, on the same connection");
+            Assert::IsTrue (peer->shutdownSent, L"DISCON shuts the host connection down");
+        }
+
+
+        //  At a point before the guest connected, the host's connection
+        //  doesn't match any socket the guest has, so it is closed.
+        TEST_METHOD (AResumeFromBeforeTheConnectClosesTheConnection)
+        {
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            uint64_t                          before     = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            before = machine.GetCpu()->GetTotalCycles();
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            hr = controller.SeekToCycle (before, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+            Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the socket is closed at that point");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
             Assert::AreEqual (R::kSockClosed, chip.GetSocketStatus (0), L"the guest's socket is closed");
-            Assert::IsTrue   ((chip.GetSocketInterrupt (0) & R::kSnIrDisconnect) != 0, L"as closed by the remote end");
-            Assert::IsTrue   (peer->destroyed, L"the host connection is closed");
+            Assert::IsTrue   (peer->destroyed, L"and the host connection is closed");
+        }
+
+
+        //  At a point where the connection was open, after the peer has
+        //  closed it since, the guest's socket reads as closed by the peer.
+        TEST_METHOD (AResumeAfterThePeerClosedReadsAsClosedByThePeer)
+        {
+            Guest                             guest      (s_kTcpProgram);
+            TestMachine                     & machine    = guest.GetMachine();
+            ReverseController                 controller (machine);
+            W5100                           & chip       = machine.GetRefs().uthernet->GetChip();
+            std::shared_ptr<FakeSocketState>  peer;
+            ReverseResult                     result;
+            uint64_t                          connected  = 0;
+            HRESULT                           hr         = S_OK;
+
+
+
+            hr = controller.Start (ReverseSessionRig::MakeSettings (1));
+            AssertSucceeded (hr, L"Start");
+
+            guest.RunUntil ([&] { return guest.host.FindConnected ({ kLanPeer, kHttp }) != nullptr; }, L"the guest connects");
+
+            peer          = guest.host.FindConnected ({ kLanPeer, kHttp });
+            peer->connect = FakeSocketState::ConnectOutcome::Accepted;
+
+            guest.RunUntil ([&] { return peer->sent.size() > 0; }, L"the guest starts sending");
+
+            connected        = machine.GetCpu()->GetTotalCycles();
+            peer->inboundEof = true;
+            guest.RunUntil ([&] { return chip.GetSocketStatus (0) == R::kSockCloseWait; }, L"the peer closes");
+
+            hr = controller.SeekToCycle (connected, result);
+            AssertSucceeded (hr, L"SeekToCycle");
+            Assert::AreEqual (R::kSockEstablished, chip.GetSocketStatus (0), L"the socket is connected at that point");
+
+            hr = controller.OnMachineChanged();
+            AssertSucceeded (hr, L"OnMachineChanged");
+
+            Assert::AreEqual (R::kSockCloseWait, chip.GetSocketStatus (0), L"the guest's socket is closed by the peer");
+            Assert::IsTrue   ((chip.GetSocketInterrupt (0) & R::kSnIrDisconnect) != 0, L"with the disconnect interrupt");
+            Assert::IsFalse  (peer->destroyed, L"until the guest closes it");
         }
 
 

@@ -418,4 +418,101 @@ namespace W5100SocketBridgeTests
             Assert::AreEqual (kXid,                       DhcpTestPackets::GetXid (got.payload));
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  W5100SocketBridgeResyncTests
+    //
+    //  The chip's sockets set as if restored from an earlier point, then
+    //  brought back in step with the host's sockets.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (W5100SocketBridgeResyncTests)
+    {
+    public:
+
+        TEST_METHOD (AConnectionInStepStaysOpen)
+        {
+            UthernetRig  rig;
+
+            auto  peer = rig.ConnectEstablished (1, UthernetRig::kLanPeer, kHttp);
+
+            rig.bus.ClearInterrupts (1, 0xFF);
+            rig.card.ResyncHostConnections();
+
+            Assert::AreEqual (R::kSockEstablished, rig.bus.Status (1));
+            Assert::AreEqual ((Byte) 0,           rig.bus.Interrupts (1));
+            Assert::IsFalse  (peer->destroyed);
+        }
+
+
+        TEST_METHOD (AConnectionToAnotherPeerIsClosed)
+        {
+            UthernetRig  rig;
+
+            auto  peer = rig.ConnectEstablished (1, UthernetRig::kLanPeer, kHttp);
+
+            rig.card.GetChip().SetDestination (1, UthernetRig::kOtherLanPeer, kHttp);
+            rig.card.ResyncHostConnections();
+
+            Assert::AreEqual (R::kSockClosed,     rig.bus.Status (1));
+            Assert::AreEqual (R::kSnIrDisconnect, (Byte) (rig.bus.Interrupts (1) & R::kSnIrDisconnect), L"reset by the peer");
+            Assert::IsTrue   (peer->destroyed);
+        }
+
+
+        TEST_METHOD (TheGuestsQueuedBytesAreSentAgain)
+        {
+            UthernetRig        rig;
+            std::vector<Byte>  bytes = MakePattern (0x100, 3);
+
+            auto  peer = rig.ConnectEstablished (1, UthernetRig::kLanPeer, kHttp);
+
+            peer->sendLimit = 0;
+            rig.bus.Send (1, bytes);
+            peer->sendLimit = SIZE_MAX;
+
+            rig.card.ResyncHostConnections();
+
+            Assert::IsTrue (peer->sent == bytes, L"the bytes in the TX buffer, once");
+        }
+
+
+        TEST_METHOD (AListeningSocketListensAgain)
+        {
+            UthernetRig  rig;
+
+            rig.OpenSocket (0, R::kProtocolTcp, kAdtPro);
+            rig.card.GetChip().SetSocketStatus (0, R::kSockListen);
+            rig.card.ResyncHostConnections();
+
+            auto  listener = rig.network.FindBound (HostSocketKind::Tcp, kAdtPro);
+
+            Assert::AreEqual  (R::kSockListen, rig.bus.Status (0));
+            Assert::IsNotNull (listener.get());
+            Assert::IsTrue    (listener->listening);
+        }
+
+
+        TEST_METHOD (AUdpSocketOnAnotherPortIsBoundAgain)
+        {
+            UthernetRig  rig;
+
+            rig.OpenSocket (1, R::kProtocolUdp, kAdtPro);
+
+            auto  before = rig.network.FindBound (HostSocketKind::Udp, kAdtPro);
+
+            rig.bus.PokeWord (W5100Driver::SocketReg (1, R::kSnPort), (Word) (kAdtPro + 1));
+            rig.card.ResyncHostConnections();
+
+            Assert::AreEqual  (R::kSockUdp, rig.bus.Status (1));
+            Assert::IsTrue    (before->destroyed);
+            Assert::IsNotNull (rig.network.FindBound (HostSocketKind::Udp, (uint16_t) (kAdtPro + 1)).get());
+        }
+    };
 }
