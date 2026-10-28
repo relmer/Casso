@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 
+#include "Ui/DiskInspector/Components/IInspectorComponentHost.h"
 #include "Ui/DiskInspector/Components/InspectorSession.h"
 #include "Config/DiskInspectorPrefs.h"
 #include "Devices/Disk/Inspector/InspectorSearch.h"
@@ -28,6 +29,7 @@ class InspectorTableView;
 class PlatterLegendView;
 class FluxTimingTab;
 class FileMapGridView;
+class FilesView;
 class DifferencesTab;
 class FindBar;
 class EditBar;
@@ -49,7 +51,7 @@ class EditBar;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class DiskInspectorWindow : public DxuiWindow
+class DiskInspectorWindow : public DxuiWindow, private IInspectorComponentHost
 {
 public:
     //  Wide enough for the track tabs and the disk tabs on one row, with
@@ -64,13 +66,13 @@ public:
     ~DiskInspectorWindow () override;
 
     HRESULT  Create      (HINSTANCE hInstance, HWND hwndOwner, const CassoTheme * theme, IDiskInspectorHost * host, bool activate);
-    HRESULT  ShowDrive   (int drive);
+    HRESULT  ShowDrive   (int drive) override;
     HRESULT  RenderFrame ();
     int      GetDrive    () const { return m_session.drive; }
 
     //  Before something discards the pending edits (FR-108): true when there
     //  are none, or the user confirms that they are discarded.
-    bool     ConfirmDiscardEdits (const std::wstring & action);
+    bool     ConfirmDiscardEdits (const std::wstring & action) override;
 
     //  The window's state to save, and the saved state applied to a new
     //  window before ShowDrive (FR-080). The host sets `isOpen`.
@@ -93,6 +95,16 @@ protected:
     DxuiMessageResult  OnSysCommand (UINT command) override;
 
 private:
+    //  IInspectorComponentHost, through which the components call the window.
+    IInspectorComponentHost & GetHost () { return *this; }
+    DxuiPanel          & GetControlParent () override { return *this; }
+    HWND                 GetOwnerHwnd     () const override { return GetHwnd(); }
+    DxuiHwndSource     * GetPopupHost     () const override { return DxuiWindow::GetPopupHost(); }
+    IDxuiTextRenderer  * GetTextRenderer  () const override { return DxuiWindow::GetTextRenderer(); }
+    void                 Relayout         () override;
+    void                 SetStatusNote    (const std::wstring & note) override;
+    bool                 Confirm          (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action) override;
+
     //  The toolbar's controls after the file name, in FR-007's order.
     enum class ToolId
     {
@@ -120,8 +132,8 @@ private:
     uint32_t          GetToolSig    () const;
     bool              IsHeadShown   () const;
 
-    void  RequestCopy      ();
-    void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason);
+    void  RequestCopy      () override;
+    void  StartDisk        (std::shared_ptr<const DiskCopy> copy, const std::wstring & reason) override;
     void  TakeComparison   ();
     void  SyncSideB        ();
     void  TickHead         ();
@@ -148,8 +160,8 @@ private:
     void  TakeResults      ();
     void  UpdateRings      ();
     void  UpdateControls   ();
-    void  OnSelection      ();
-    void  ShowTrackTab     (int tab);
+    void  OnSelection      () override;
+    void  ShowTrackTab     (int tab) override;
     void  ShowTabContent   ();
     void  ShowLegend       (bool isPinned);
     void  HideLegend       ();
@@ -177,7 +189,6 @@ private:
     void  FollowEdits        ();
     int   GetSelectedEdit    () const;
     bool  HandleEditKey      (const DxuiKeyEvent & ev);
-    bool  ConfirmEdit        (const std::wstring & title, const vector<std::wstring> & lines, const std::wstring & action);
     std::wstring  GetApplyBlock () const;
     bool  IsHistoryCurrent   (const vector<RecordWriteCount> & counts) const;
     void  ApplyEdits         ();
@@ -199,26 +210,11 @@ private:
     void  OpenExport ();
     void  PaintNot35 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
     bool  IsCovered  (POINT pointPx) const;
-    void  LayoutFileMap        (const RECT & area, const DxuiDpiScaler & scaler);
-    void  OpenFilePicker       (bool isOpen);
     void  SetZoom              (double zoom);
     void  LayoutContent        (const RECT & boundsPx, const DxuiDpiScaler & scaler);
     static bool  IsZoomKey     (WPARAM vk);
-    void  PaintPicker          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme);
-    void  SetPickerLabel       (const std::wstring & label);
-    int   GetPickerWidthPx     (const DxuiDpiScaler & scaler) const;
-    void  ShowFileMap          (bool isShown);
-    void  RefreshFileList      ();
-    void  ChooseFile           (int file);
-    void  SelectMapCell        (int cell);
-    void  StepFileSector       (int step);
-    int   GetSelectedMapCell   () const;
-    void  SyncFileMapSelection ();
-    bool  IsOverMapGrid        (POINT pointPx) const;
     double   GetMostZoom       () const;
     HRESULT  GrowToMinSize     ();
-    void  ZoomMapGrid          (float notches, POINT pointPx);
-    void  CopyFileMap          ();
     void  ShowContextMenu (POINT pointPx);
     std::wstring  GetButtonTip       (POINT pointPx, RECT & outAnchorPx) const;
     void          StepKeyTarget      (int step);
@@ -226,7 +222,7 @@ private:
     void  OpenGoTo  ();
     void  StepFind  (int step);
     void  SelectHit (const SearchHit & hit);
-    void  ShowDiskTab      (int tab);
+    void  ShowDiskTab      (int tab) override;
     void  RefreshTables    ();
     void  SyncTables       ();
     void  SelectFromRow    (const TableRow & row);
@@ -239,6 +235,7 @@ private:
     static bool   IsInside    (const RECT & rect, POINT pointPx);
 
     InspectorSession                                                                             m_session;
+    std::unique_ptr<FilesView>                                                                   m_files;
     uint64_t                                                                                     m_comparisonVersion = 0;
     bool                                                                                         m_isTracksCompared  = false;
     int                                                                                          m_diffIndex         = -1;
@@ -353,29 +350,12 @@ private:
     FindingsTab                           * m_findingsTab        = nullptr;
     InspectorTableView                    * m_fieldsTab          = nullptr;
     InspectorTableView                    * m_imageTab           = nullptr;
-    FileMapGridView                       * m_mapGrid            = nullptr;
-    InspectorTableView                    * m_fileList           = nullptr;
-    DxuiTabStrip                          * m_mapVolumes         = nullptr;
-    DxuiCheckbox                          * m_mapDeleted         = nullptr;
-    DxuiCheckbox                          * m_mapBadOnly         = nullptr;
-    DxuiButton                            * m_mapPrev            = nullptr;
-    DxuiButton                            * m_mapNext            = nullptr;
-    DxuiButton                            * m_mapCopy            = nullptr;
-    DxuiLabel                             * m_mapStepLabel       = nullptr;
-    DxuiButton                            * m_filePicker         = nullptr;
-    bool                                    m_isPickerOpen       = true;
-    std::wstring                            m_pickerLabel        = L"Choose a file";
-    float                                   m_pickerTextPx       = 0.0f;
     int                                     m_sectorRows         = 1;
     DxuiLabel                             * m_statusText         = nullptr;
     RECT                                    m_statusPx           = {};
     DxuiZoomControl                       * m_zoomControl        = nullptr;
     double                                  m_zoom               = 1.0;
-    DxuiScrollPanel                       * m_mapScroll          = nullptr;
-    int                                     m_revealedCell       = -1;
     RECT                                    m_tabGapPx           = {};
-    int                                     m_fileSortColumn     = -1;
-    bool                                    m_fileSortDescending = false;
     RECT                                    m_platterAreaPx      = {};
     RECT                                    m_trackAreaPx        = {};
     RECT                                    m_diskContentPx      = {};

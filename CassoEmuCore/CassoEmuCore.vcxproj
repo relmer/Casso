@@ -512,6 +512,7 @@
     <ClCompile Include="Ui\DiskInspector\DiskInspectorPalette.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\InspectorSession.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
+    <ClCompile Include="Ui\DiskInspector\Views\FilesView.cpp" />
     <ClCompile Include="Ui\DiskInspector\FindingsTab.cpp" />
     <ClCompile Include="Ui\DiskInspector\FluxTiming.cpp" />
     <ClCompile Include="Ui\DiskInspector\FollowHead.cpp" />
@@ -1017,6 +1018,10 @@
     <ClInclude Include="Ui\DiskInspector\DiskInspectorPalette.h" />
     <ClInclude Include="Ui\DiskInspector\Components\InspectorSession.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />
+    <ClInclude Include="Ui\DiskInspector\Views\FilesView.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\IInspectorComponent.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\IInspectorComponentHost.h" />
+    <ClInclude Include="Ui\DiskInspector\Components\InspectorMetrics.h" />
     <ClInclude Include="Ui\DiskInspector\IDiskInspectorHost.h" />
     <ClInclude Include="Ui\DiskInspector\FindingsTab.h" />
     <ClInclude Include="Ui\DiskInspector\FluxTiming.h" />
