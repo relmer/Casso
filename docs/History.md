@@ -11,7 +11,9 @@ history.
 - **F2**: while it is down, the machine runs backward, a frame at a time, with
   each frame drawn and the sound silent. Let go, and the machine pauses on the
   frame on screen. The guest never receives F2.
-- **History > Rewind** steps back one frame.
+- **History > Rewind 10 seconds** and **History > Forward 10 seconds** pause
+  the machine and move ten seconds back, or toward the live end. Each stops
+  at the oldest point or the live end.
 - **History > Step back** (Ctrl+F11) steps back one instruction.
 - **History > Go live** (Ctrl+F2) returns to where the machine was before you
   went back.
@@ -41,9 +43,10 @@ the change. There is no question first, and no history is lost.
 
 ## Branches
 
-A fork is a mark on the timeline, with a count when more than one branch forks
-there. Rest the pointer on the mark to list the branches: each row has
-the branch's last frame, how long it ran past the fork, and when you left it.
+A fork is a mark on the timeline, a line with a branch rising from it, and a
+count when more than one branch forks there. Rest the pointer on the mark to
+list the branches: each row has the branch's last frame, how long it ran past
+the fork, and when you left it.
 Rest on a row to see that frame over the screen; click it to switch to that
 branch, which pauses the machine at the branch's live end, exactly as it was
 there. The path you left becomes a branch in turn.
@@ -71,8 +74,8 @@ includes a disk taken out of a drive; the machine is saved without it.
 
 ## Settings
 
-Settings > General has the History group: on or off, the memory budget (64 MB
-by default), and the keyframe interval. The debugger's options edit the same
+The History page of Settings has history on or off, and the memory budget (64
+MB by default). The History page of the debugger's options edits the same
 settings. Turning history off deletes all of the machine's history, in memory
 and saved, after a confirmation.
 

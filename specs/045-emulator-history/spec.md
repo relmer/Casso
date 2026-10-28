@@ -43,6 +43,12 @@ This feature adds history to the emulator window, makes it non-destructive (a ch
 - Q: Which keys do step back and go live use in the emulator window? -> A: Ctrl+F11 and Ctrl+F2, approved with the plan. Apple II software cannot read the Control key alone, so pressing them changes nothing in the guest.
 - Q: What does loading a state file do to the current history? -> A: A file saved with history replaces the current history with the file's history, and the current history is discarded. A file without history is a change: the load becomes a marked point in the current history, forking it when the machine is behind live, so the user can rewind to before the load.
 
+### Session 2026-10-27
+
+- Q: Does the user need to set the keyframe interval? -> A: No. It trades seek speed against memory, which the program can choose, and a change could not apply to history already recorded. The interval is fixed at 10 video frames; the general preferences have only on or off and the memory budget.
+- Q: How far does a click of History > Rewind move? -> A: Ten seconds, as a video player's skip does, and a History > Forward command moves ten seconds toward the live end. Each stops at the oldest point or the live end. Holding F2 keeps the smooth rewind, and Step back stays one instruction.
+- Q: How is a fork mark drawn? -> A: As a horizontal branch: a line, and a second line that curves up from it and runs on beside it, drawn by the program since the glyph font has none. No points are marked on the lines, since a fork has nothing like a commit.
+
 ## User Scenarios & Testing *(mandatory)*
 
 All stories ship together in one merge. Priorities order the work; they do not mark a releasable subset.
@@ -63,7 +69,7 @@ A player makes a mistake in a game, holds the rewind key, watches the game run b
 4. **Given** a running machine, **When** the user moves the pointer into the band at the bottom edge of the screen, **Then** the rewind bar appears: a strip of thumbnails covering the history, with the current position marked; **When** the user moves the pointer off the bar, **Then** the bar hides.
 5. **Given** the rewind bar is open, **When** the user drags along it, **Then** the frame under the pointer is drawn on the main screen, silently; **When** the user lets go and presses Run, **Then** the machine replays from that frame.
 6. **Given** the history includes a gap, a reset, a power cycle, a disk mount, eject or swap, a write-protect change or a loaded saved state, **When** the rewind bar is open, **Then** each appears as a mark at its moment.
-7. **Given** the emulator window, **When** the user opens its menus, **Then** the history commands are there (go live, step back, rewind, turn history on or off) with their keys.
+7. **Given** the emulator window, **When** the user opens its menus, **Then** the history commands are there (rewind and forward ten seconds, step back, go live, turn history on or off) with their keys.
 8. **Given** the machine is replaying history, **When** the emulator window is drawn, **Then** a pulsing "Replaying" indicator with the time of the position is drawn over the screen, until the machine is at the live end, forks or pauses.
 
 ---
@@ -136,7 +142,7 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 1. **Given** history captured with the debugger closed, **When** the debugger opens, **Then** its timeline has the same history, position and branches as the emulator window.
 2. **Given** the debugger timeline, **When** it is drawn, **Then** it is the rewind bar's strip with the same marks, fork marks included, and no mark for a breakpoint stop.
 3. **Given** the debugger's stops and reverse continue, **When** used on the active branch, **Then** they work as 035 defines them.
-4. **Given** the history settings, **When** the user looks for them, **Then** they are in the general preferences (on or off, memory budget, keyframe interval), not only in the debugger's options.
+4. **Given** the history settings, **When** the user looks for them, **Then** they are in the general preferences (on or off, memory budget), not only in the debugger's options.
 
 ---
 
@@ -171,15 +177,16 @@ A developer rewinds in the emulator window, opens the debugger and finds the sam
 - **FR-004**: The rewind bar MUST display thumbnails across the active path, the current position, and marks for gaps, resets, power cycles, disk mounts, ejects and swaps, write-protect changes and loaded saved states.
 - **FR-005**: Dragging along the rewind bar MUST preview the frame under the pointer on the main screen; after the release, pressing Run MUST replay from that frame, and a key the guest reads MUST fork there (FR-009).
 - **FR-006**: Audio MUST be silent while rewinding and while scrubbing.
-- **FR-007**: The emulator window MUST offer the history commands in its menus with their keys: rewind (F2, while it is down), step back (Ctrl+F11), go live (Ctrl+F2), and history on or off.
-- **FR-008**: The history settings (on or off, memory budget, keyframe interval) MUST be in the general preferences.
+- **FR-007**: The emulator window MUST offer the history commands in its menus with their keys: rewind ten seconds, forward ten seconds, step back (Ctrl+F11), go live (Ctrl+F2), and history on or off. Holding F2 rewinds as FR-002 describes.
+- **FR-007a**: Rewind ten seconds and forward ten seconds MUST pause the machine and move ten seconds back, or toward the live end, along the active path, stopping at the oldest point or the live end.
+- **FR-008**: The history settings (on or off, memory budget) MUST be in the general preferences. The keyframe interval MUST NOT be a setting; it is 10 video frames.
 - **FR-008a**: While the machine replays history, the emulator window MUST display a prominent, pulsing "Replaying" indicator with the time of the position, over the screen, until the machine is at the live end, forks or pauses.
 - **FR-008b**: Recording MUST continue at every speed, Maximum included.
 
 **Forking**
 
 - **FR-009**: Run from a point in the past MUST replay the recorded future, inputs included, in the emulator window and the debugger alike. The first change made behind live (a key or other input the guest reads, a disk change, a reset or power cycle, a debugger edit) MUST NOT prompt and MUST NOT discard history: it forks history at that point, makes the new timeline the active branch, and makes the future left behind a branch. The one exception is a change made before a gap where saved history's disks no longer match their files, which is ignored with a notice (see Edge Cases).
-- **FR-010**: The timeline MUST display one path, from the oldest point in history to the live end of the active branch. Every other branch MUST appear only as a fork mark at the point where it split from that path, with a count when several branches split there.
+- **FR-010**: The timeline MUST display one path, from the oldest point in history to the live end of the active branch. Every other branch MUST appear only as a fork mark at the point where it split from that path, with a count when several branches split there. A fork mark MUST be drawn as a horizontal branch: a line, and a second line that curves up from it and runs on beside it, with no points marked on either.
 - **FR-011**: Resting the pointer on a fork mark MUST open a flyout with one row per branch: the branch's last frame, how long it ran past the fork, and when the user left it. Resting on a row MUST preview that last frame on the main screen.
 - **FR-012**: Clicking a branch row MUST make that branch active and pause the machine at its live end, in the exact machine state it had there. The timeline MUST then display that branch's path, and the branch left MUST appear as a fork mark at the same point.
 - **FR-013**: Rewinding and scrubbing MUST move along the active branch's path only.

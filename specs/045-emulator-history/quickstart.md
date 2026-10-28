@@ -69,7 +69,7 @@ A filtered run is not the suite; the gate before the master merge is the full De
 1. Fork history in the emulator window, then open the debugger: its timeline is the same strip with the same path, marks and position.
 2. Switch branches in the debugger's timeline: the emulator window's rewind bar redraws the new path.
 3. Set a breakpoint and run reverse continue: it stops on the active branch, as 035 defines; no mark is added for the stop.
-4. Settings > General has the History group (on or off, budget, keyframe interval), and the debugger's options edit the same settings.
+4. Settings has a History page (on or off, and the memory budget), and the debugger's options edit the same settings. History > Rewind 10 seconds and Forward 10 seconds move ten seconds back or toward the live end, and stop at either end.
 
 ## Edge cases to check by hand
 

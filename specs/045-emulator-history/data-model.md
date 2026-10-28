@@ -112,11 +112,10 @@ What a strip source returns from `GetMarks` (R-009).
 |---|---|---|---|
 | `isRecording` | `bool` | `true` | `reverseRecording` |
 | `budgetMb` | `int` | 64 | `reverseBudgetMb` |
-| `intervalFrames` | `int` | 10 | `reverseIntervalFrames` |
 
-The keys are the ones the debugger's options used, so builds that share the preferences file read the same settings.
+The keys are the ones the debugger's options used, so builds that share the preferences file read the same settings. The keyframe interval is not a setting: it is `KeyframeSettings::kDefaultFrames`, 10 video frames. An older build's `reverseIntervalFrames` key is kept in the file as an unknown key.
 
-Ranges are `HistorySettings::kMinBudgetMb` to `kMaxBudgetMb`, and 1 to `kMaxIntervalFrames`.
+The budget's range is `HistorySettings::kMinBudgetMb` to `kMaxBudgetMb`.
 
 ## Saved history (new: a section of `MachineStateFile` version 4)
 

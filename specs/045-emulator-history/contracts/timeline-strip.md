@@ -7,17 +7,26 @@ The rewind bar and the debugger timeline are both a `DxuiImageStrip` over a `His
 ## `IDxuiImageStripSource` additions
 
 ```cpp
-//  A mark along the strip. The source picks the glyph, since Dxui has no
-//  reference to history's kinds; hasRows marks a fork, whose flyout replaces
-//  the tip.
+//  What a mark's badge draws: its glyph, or a branch DxuiBranchArt draws,
+//  since the glyph font has no horizontal branch.
+enum class DxuiStripMarkArt
+{
+    Glyph,
+    Branch,
+};
+
+//  A mark along the strip. The source picks the art and glyph, since Dxui
+//  has no reference to history's kinds; hasRows marks a fork, whose flyout
+//  replaces the tip.
 struct DxuiStripMark
 {
-    float         offset  = 0.0f;     // in cells from the leading edge
-    wchar_t       glyph   = 0;        // drawn at the offset
-    int           count   = 1;        // drawn beside the glyph when above 1
-    std::wstring  tip;
-    uint64_t      id      = 0;        // the source's key for it
-    bool          hasRows = false;    // a fork: resting on it opens the flyout
+    float             offset  = 0.0f;     // in cells from the leading edge
+    DxuiStripMarkArt  art     = DxuiStripMarkArt::Glyph;
+    wchar_t           glyph   = 0;        // drawn at the offset for Glyph art
+    int               count   = 1;        // drawn beside the art when above 1
+    std::wstring      tip;
+    uint64_t          id      = 0;        // the source's key for it
+    bool              hasRows = false;    // a fork: resting on it opens the flyout
 };
 
 //  One row of a fork mark's flyout.
@@ -41,7 +50,7 @@ All on the UI thread, as the existing members are. A source with no marks uses t
 
 | Event | Result |
 |---|---|
-| Paint | Each mark's glyph is drawn at its offset across the pictures (`HistoryThumbnails` sets the glyphs from `CassoEmuCore/Core/UnicodeSymbols.h`); a fork mark with a count above 1 has the count beside it |
+| Paint | Each mark's glyph is drawn at its offset across the pictures (`HistoryThumbnails` sets the glyphs from `CassoEmuCore/Core/UnicodeSymbols.h`); a fork mark is a horizontal branch drawn by `DxuiBranchArt`, and with a count above 1 has the count beside it |
 | Pointer over a mark | The mark's tip; a fork mark opens the flyout instead, after the tooltip delay |
 | Pointer over a flyout row | `OnForkRowHovered`; the host draws that picture over the viewport |
 | Click on a flyout row | `OnForkRowClicked`; the flyout closes |
