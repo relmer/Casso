@@ -48,8 +48,11 @@ public:
     bool  IsHostLink        () const override { return true; }
     bool  Poll              (uint64_t cycles) override;
 
-    // The nearest rate a port can run at to `baud`.
-    static uint32_t  ChooseRate (double baud, const std::vector<uint32_t> & rates, bool isAnyRate);
+    // The nearest rate a port can run at to `baud`; and the rate a program
+    // chose that the 6551 runs `baud` for: 110 for 109.92, 134.5 for 134.58,
+    // the rate itself for the others.
+    static uint32_t  ChooseRate     (double baud, const std::vector<uint32_t> & rates, bool isAnyRate);
+    static double    GetNominalBaud (double baud);
 
 private:
     void     Open          ();

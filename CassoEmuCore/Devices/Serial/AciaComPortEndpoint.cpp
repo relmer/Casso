@@ -249,8 +249,8 @@ Error:
 //
 //  AciaComPortEndpoint::ApplyFormat
 //
-//  The port runs at the nearest rate it has; a replacement is reported the
-//  first time the guest sets that rate.
+//  The port runs at the nearest rate it has to the one the guest chose; one
+//  that differs is reported the first time the guest sets that rate.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -259,16 +259,17 @@ HRESULT AciaComPortEndpoint::ApplyFormat()
     constexpr double  kHundredths = 100.0;
     HRESULT           hr          = S_OK;
     SerialLineFormat  applied     = m_format;
-    uint32_t          rate        = ChooseRate (m_format.baud, m_rates, m_isAnyRate);
-    uint32_t          key         = (uint32_t) llround (m_format.baud * kHundredths);
-    bool              isOff       = rate != m_format.baud;
+    double            nominal     = GetNominalBaud (m_format.baud);
+    uint32_t          rate        = ChooseRate (nominal, m_rates, m_isAnyRate);
+    uint32_t          key         = (uint32_t) llround (nominal * kHundredths);
+    bool              isOff       = rate != nominal;
 
 
 
     if (isOff && !m_reportedRates.contains (key))
     {
         m_reportedRates.insert (key);
-        Report (std::format ("{:g} baud is not available on {}. It runs at {} baud.", m_format.baud, m_portName, rate));
+        Report (std::format ("{:g} baud is not available on {}. It runs at {} baud.", nominal, m_portName, rate));
     }
 
     applied.baud = rate;
@@ -414,6 +415,37 @@ uint32_t AciaComPortEndpoint::ChooseRate (
     }
 
     return chosen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AciaComPortEndpoint::GetNominalBaud
+//
+////////////////////////////////////////////////////////////////////////////////
+
+double AciaComPortEndpoint::GetNominalBaud (double baud)
+{
+    static constexpr std::pair<double, double>  kNominal[] =
+    {
+        { 109.92, 110.0 },
+        { 134.58, 134.5 },
+    };
+
+
+
+    for (const auto & [actual, nominal] : kNominal)
+    {
+        if (baud == actual)
+        {
+            return nominal;
+        }
+    }
+
+    return baud;
 }
 
 

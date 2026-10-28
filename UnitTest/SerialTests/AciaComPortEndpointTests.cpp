@@ -340,7 +340,7 @@ namespace AciaComPortEndpointTestNs
             rig.Run (Acia6551::kIdlePollCycles);
 
             Assert::AreEqual (110.0, rig.port->formats.back().baud, L"134.58 is nearest 110 among the port's rates");
-            Assert::AreEqual (std::string ("134.58 baud is not available on COM3. It runs at 110 baud."), rig.GetReport());
+            Assert::AreEqual (std::string ("134.5 baud is not available on COM3. It runs at 110 baud."), rig.GetReport(), L"by the rate the program chose");
 
             generation = rig.reports.GetGeneration();
             rig.acia.Write (kAddrCtrl, kCtrl9600);
@@ -352,21 +352,26 @@ namespace AciaComPortEndpointTestNs
         }
 
 
-        //  A port that takes any whole rate runs 109.92 baud at 110, which is
-        //  reported; a rate the port has exactly is not.
-        TEST_METHOD (ARateOffByAnyAmountIsReported)
+        //  The 6551's 110 baud is 109.92, which a port runs at 110, the rate the
+        //  program chose, so nothing is reported. Its 134.5 is 134.58, which a port that
+        //  takes only whole rates runs at 135, off by any amount, so it is.
+        TEST_METHOD (ARateOffTheProgramsChoiceByAnyAmountIsReported)
         {
             ComRig  rig;
 
 
 
-            Assert::AreEqual (std::string(), rig.GetReport(), L"9600 exactly");
-
             rig.acia.Write (kAddrCtrl, 0x13);
             rig.Run (Acia6551::kIdlePollCycles);
 
             Assert::AreEqual (110.0, rig.port->formats.back().baud);
-            Assert::AreEqual (std::string ("109.92 baud is not available on COM3. It runs at 110 baud."), rig.GetReport());
+            Assert::AreEqual (std::string(), rig.GetReport(), L"110 is the rate chosen");
+
+            rig.acia.Write (kAddrCtrl, 0x14);
+            rig.Run (Acia6551::kIdlePollCycles);
+
+            Assert::AreEqual (135.0, rig.port->formats.back().baud);
+            Assert::AreEqual (std::string ("134.5 baud is not available on COM3. It runs at 135 baud."), rig.GetReport());
         }
 
 
