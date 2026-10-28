@@ -60,19 +60,6 @@ private:
         vector<double>         cells;
     };
 
-    //  One side of the head marker's arm, in pixels (PaintHead).
-    struct HeadSide
-    {
-        float  farX     = 0.0f;
-        float  farY     = 0.0f;
-        float  tangentX = 0.0f;
-        float  tangentY = 0.0f;
-        float  nearX    = 0.0f;
-        float  nearY    = 0.0f;
-        float  circleX  = 0.0f;
-        float  circleY  = 0.0f;
-    };
-
     void           Draw           (const DxuiCustomDrawArgs & args);
     void           PaintNibbles   (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintRing      (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme, const PlatterPlacement & view, int quarterTrack,
@@ -89,7 +76,6 @@ private:
     const RingTurns &      GetRingTurns (int slot, const TrackAnalysis & track) const;
     void           PaintDisk      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view);
     void           PaintHead      (IDxuiPainter & painter, const IDxuiTheme & theme, const PlatterPlacement & view) const;
-    static HeadSide  GetHeadSide  (float ex, float ey, float ux, float uy, float sign, float tip, float back, float ox, float oy, float farW);
     bool           OnTiltMouse    (const DxuiMouseEvent & ev);
     void           OutlineRing    (IDxuiPainter & painter, const PlatterPlacement & view, int quarterTrack, float thicknessPx, uint32_t argb) const;
     static void    OutlineCircle  (IDxuiPainter & painter, float cx, float cy, float radius, float thicknessPx, uint32_t argb);

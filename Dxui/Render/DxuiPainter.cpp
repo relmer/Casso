@@ -1126,6 +1126,73 @@ void DxuiPainter::DrawLine (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FillTaperedCapsule
+//
+//  One quad covering both circles, cut by the tapered capsule's distance
+//  function in the pixel shader, so the whole capsule is filled once: a
+//  translucent color has no seams or overlaps inside it. The hole and the
+//  rim go to the shader in the first two edge slots, unused by this kind
+//  otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillTaperedCapsule (
+    float     x0,
+    float     y0,
+    float     r0,
+    float     x1,
+    float     y1,
+    float     r1,
+    float     holeRadiusPx,
+    float     rimPx,
+    uint32_t  argbColor)
+{
+    float   left   = fminf (x0 - r0, x1 - r1) - kShapeFringePx;
+    float   top    = fminf (y0 - r0, y1 - r1) - kShapeFringePx;
+    float   right  = fmaxf (x0 + r0, x1 + r1) + kShapeFringePx;
+    float   bottom = fmaxf (y0 + r0, y1 + r1) + kShapeFringePx;
+    Vertex  tl     = MakeVertex (argbColor, m_globalAlpha);
+    Vertex  tr;
+    Vertex  bl;
+    Vertex  br;
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (r0 <= 0.0f && r1 <= 0.0f)
+    {
+        return;
+    }
+
+    tl.shape0 = x1 - x0;
+    tl.shape1 = y1 - y0;
+    tl.shape2 = r0;
+    tl.shape3 = r1;
+    tl.edge0  = holeRadiusPx;
+    tl.edge1  = rimPx;
+    tl.kind   = (float) ShapeKind::TaperedCapsule;
+    tl.localX = left - x0;
+    tl.localY = top  - y0;
+
+    tr = tl;
+    bl = tl;
+    br = tl;
+
+    tr.localX += right - left;
+    bl.localY += bottom - top;
+    br.localX += right - left;
+    br.localY += bottom - top;
+
+    PushQuad (left, top, right - left, bottom - top, tl, tr, bl, br);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  End
 //
 //  Flushes everything accumulated since Begin as ONE draw call.

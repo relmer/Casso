@@ -34,6 +34,7 @@ static const int kKindRoundedRing = 2;
 static const int kKindEllipse     = 3;
 static const int kKindCapsule     = 4;
 static const int kKindConvexQuad  = 5;
+static const int kKindTaperedCapsule = 6;
 
 static const float kTinyLength = 1.0e-6f;
 
@@ -85,6 +86,44 @@ float DistanceToCapsule (float2 p, float2 b, float halfThickness)
 }
 
 
+// Two circles, radius ra at the origin and rb at b, joined by the lines
+// tangent to both: an uneven capsule. A hole of radius hole at the origin is
+// cut from it, and a rim greater than 0 limits it to a band that thick
+// inside its edge.
+float DistanceToTaperedCapsule (float2 p, float2 b, float ra, float rb, float hole, float rim)
+{
+    float  h        = max (dot (b, b), kTinyLength);
+    float2 q        = float2 (dot (p, float2 (b.y, -b.x)), dot (p, b)) / h;
+    float  d        = ra - rb;
+    float2 c        = float2 (sqrt (max (h - d * d, kTinyLength)), d);
+    float  k        = 0.0f;
+    float  distance = 0.0f;
+
+    q.x = abs (q.x);
+    k   = c.x * q.y - c.y * q.x;
+
+    if (k < 0.0f)
+    {
+        distance = sqrt (h * dot (q, q)) - ra;
+    }
+    else if (k > c.x)
+    {
+        distance = sqrt (h * (dot (q, q) + 1.0f - 2.0f * q.y)) - rb;
+    }
+    else
+    {
+        distance = dot (c, q) - ra;
+    }
+
+    if (rim > 0.0f)
+    {
+        distance = max (distance, -distance - rim);
+    }
+
+    return (hole > 0.0f) ? max (distance, hole - length (p)) : distance;
+}
+
+
 float4 main (PSIn input) : SV_TARGET
 {
     int   kind     = (int) (input.kind + 0.5f);
@@ -110,6 +149,10 @@ float4 main (PSIn input) : SV_TARGET
     else if (kind == kKindCapsule)
     {
         distance = DistanceToCapsule (input.local, input.shape.xy, input.shape.z);
+    }
+    else if (kind == kKindTaperedCapsule)
+    {
+        distance = DistanceToTaperedCapsule (input.local, input.shape.xy, input.shape.z, input.shape.w, input.edges.x, input.edges.y);
     }
     else
     {
