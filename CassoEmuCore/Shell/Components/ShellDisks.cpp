@@ -446,7 +446,7 @@ void ShellDisks::HandleMountCompletion (const MountCompletion & completion)
         return;
     }
 
-    message = DiskImageStore::FormatMountFailureMessage (completion.path, completion.diagnosis);
+    message = DiskStoreText::FormatMountFailureMessage (completion.path, completion.diagnosis);
 
     //  A tool that asked is told why instead; the dialog would sit behind the
     //  window the user is looking at.
@@ -929,7 +929,7 @@ void ShellDisks::SetDriveUserWriteProtect (int drive, bool wp)
     //  A command that arrives on this thread behind live changes nothing.
     isLive = !store.IsFlushHeld() && !store.IsReplaying();
     CBRFEx (isLive, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE),
-            EhmNotifyUser (DiskImageStore::FormatBehindLiveWriteProtectMessage (drive).c_str()));
+            EhmNotifyUser (DiskStoreText::FormatBehindLiveWriteProtectMessage (drive).c_str()));
 
     // Applied to whatever is mounted right now so the toggle takes effect
     // without a remount; a later mount re-applies the standing preference

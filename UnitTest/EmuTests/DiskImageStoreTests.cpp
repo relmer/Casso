@@ -2713,14 +2713,14 @@ public:
                                    L"The disk already in drive 1 has changes that could not be saved to its file:\n\n"
                                    L"C:\\disks\\Kept.dsk\n\nError: ") + reason +
                           L"\n\nThat disk is still in the drive with its changes. Eject it to save them to another file.",
-                          DiskImageStore::FormatMountFailureMessage ("C:\\disks\\New.dsk",
+                          DiskStoreText::FormatMountFailureMessage ("C:\\disks\\New.dsk",
                               UnsavedWritesOver ("C:\\disks\\Kept.dsk", HRESULT_FROM_WIN32 (ERROR_DISK_FULL), false)));
 
         Assert::AreEqual (wstring (L"Casso did not insert this disk image:\n\nC:\\disks\\New.dsk\n\n"
                                    L"The disk already in drive 1 has changes that have not been saved to its file yet:\n\n"
                                    L"C:\\disks\\Kept.dsk\n\n"
                                    L"That disk is still in the drive with its changes. Eject it to save them to another file."),
-                          DiskImageStore::FormatMountFailureMessage ("C:\\disks\\New.dsk",
+                          DiskStoreText::FormatMountFailureMessage ("C:\\disks\\New.dsk",
                               UnsavedWritesOver ("C:\\disks\\Kept.dsk", S_OK, false)),
                           L"with no save attempted, no Error paragraph");
     }
@@ -2734,7 +2734,7 @@ public:
 
         Assert::AreEqual (wstring (L"Casso could not save changes to the disk image:\n\nC:\\disks\\Kept.dsk\n\nError: ") + reason +
                           L"\n\nThe file on disk is unchanged, and the disk was not read from it again. The drive still has your changes.",
-                          DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Kept.dsk",
+                          DiskStoreText::FormatMountFailureMessage ("C:\\disks\\Kept.dsk",
                               UnsavedWritesOver ("C:\\disks\\Kept.dsk", HRESULT_FROM_WIN32 (ERROR_DISK_FULL), true)));
     }
 
@@ -2747,7 +2747,7 @@ public:
 
 
         diagnosis.keptPath = "C:\\disks\\Kept.dsk";
-        message            = DiskImageStore::FormatMountFailureMessage ("C:\\disks\\Short.dsk", diagnosis);
+        message            = DiskStoreText::FormatMountFailureMessage ("C:\\disks\\Short.dsk", diagnosis);
 
         Assert::IsTrue (message.ends_with (L"\n\nThe disk already in the drive was not changed."),
                         L"a decline over an occupied drive states that the disk there was not changed");
@@ -3078,7 +3078,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_UnknownExtension_ListsWhatIsRead)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Notes.txt",
                                DiagnosisOf (MountFailure::UnknownExtension));
 
@@ -3110,7 +3110,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_KnownExtension_BlamesTheContents)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Broken.dsk",
                                DiagnosisOf (MountFailure::WrongSizeForFormat,
                                             DiskFormat::Dsk, 4096));
@@ -3129,7 +3129,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_WrongSize_GivesBothNumbers)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Truncated.dsk",
                                DiagnosisOf (MountFailure::WrongSizeForFormat,
                                             DiskFormat::Dsk, 4096));
@@ -3150,7 +3150,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_WrongSize_NamesTheFormatItWasGiven)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Half.po",
                                DiagnosisOf (MountFailure::WrongSizeForFormat,
                                             DiskFormat::Po, 71680));
@@ -3165,7 +3165,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_Unreadable_PointsAtTheFileNotTheContents)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Gone.dsk",
                                DiagnosisOf (MountFailure::FileUnreadable, DiskFormat::Dsk));
 
@@ -3180,7 +3180,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_EmptyFile_SaysSoPlainly)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Zero.dsk",
                                DiagnosisOf (MountFailure::EmptyFile, DiskFormat::Dsk));
 
@@ -3193,7 +3193,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_NotAWoz_SuggestsARename)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Renamed.woz",
                                DiagnosisOf (MountFailure::NotAWozFile, DiskFormat::Woz));
 
@@ -3208,10 +3208,10 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_MalformedWoz_SaysTheFileIsDamaged)
     {
-        wstring  notAWoz = DiskImageStore::FormatMountFailureMessage (
+        wstring  notAWoz = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Renamed.woz",
                                DiagnosisOf (MountFailure::NotAWozFile, DiskFormat::Woz));
-        wstring  damaged = DiskImageStore::FormatMountFailureMessage (
+        wstring  damaged = DiskStoreText::FormatMountFailureMessage (
                                "C:\\disks\\Damaged.woz",
                                DiagnosisOf (MountFailure::MalformedWoz, DiskFormat::Woz));
 
@@ -3230,7 +3230,7 @@ public:
 
     TEST_METHOD (FormatMountFailureMessage_EmptyPath_StillReadsAsASentence)
     {
-        wstring  message = DiskImageStore::FormatMountFailureMessage (
+        wstring  message = DiskStoreText::FormatMountFailureMessage (
                                string(), DiagnosisOf (MountFailure::Unrecognized));
 
 
@@ -3274,7 +3274,7 @@ public:
 
         for (i = 0; i < sizeof (reasons) / sizeof (reasons[0]); i++)
         {
-            wstring  message = DiskImageStore::FormatMountFailureMessage (
+            wstring  message = DiskStoreText::FormatMountFailureMessage (
                                    "C:\\disks\\Image.dsk",
                                    DiagnosisOf (reasons[i], DiskFormat::Dsk, 4096));
 

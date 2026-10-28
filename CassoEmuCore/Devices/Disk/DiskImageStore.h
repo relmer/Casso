@@ -14,6 +14,12 @@
 #include "BayChange.h"
 #include "BayStatus.h"
 #include "IImageWatcher.h"
+#include "DiskStoreTypes.h"
+#include "DiskStoreText.h"
+#include "DiskStoreReload.h"
+#include "DiskStoreSave.h"
+#include "DiskStoreSalvage.h"
+#include "DiskStoreMedia.h"
 
 class MountDiagnosis;
 
@@ -68,37 +74,6 @@ class MountDiagnosis;
 //  GetThreadOwnership, which returns the token itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-//
-//  What salvaging a bay would produce, and whether it is worth offering.
-//  Read-only: producing one writes nothing and touches nothing.
-//
-//      isOffered      the disk is damaged AND has ordinary 16-sector
-//                     structure. Both halves matter. A disk that is not
-//                     damaged is not write-protected, so there is nothing to
-//                     escape and a lossy copy would only lose data; a
-//                     copy-protected disk has no standard sectors to salvage,
-//                     and rebuilding it from sectors would destroy the very
-//                     tracks that make it work.
-//      totalSectors   sectors on the tracks this disk actually has -- 320 on a
-//                     20-track disk, not a flat 560, or the count is a lie.
-//      suggestedPath  "<name>.salvaged.woz" beside the original.
-//      mediaId        the medium assessed; the copy is written only while the
-//                     bay still holds it.
-//      sourcePath     the file that medium came from.
-//
-struct SalvageAssessment
-{
-    bool              isOffered     = false;
-    int               totalSectors  = 0;
-    DenibblizeReport  report;
-    string            suggestedPath;
-    uint64_t          mediaId       = 0;
-    string            sourcePath;
-};
-
-
-
 
 
 class DiskImageStore
@@ -189,8 +164,8 @@ public:
     //  any unsaved writes, so a snapshot taken while it was in the drive can
     //  put it back. Turning retention off releases every kept disk.
     void          SetMediaRetention     (bool isOn);
-    bool          IsRetainingMedia      () const { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_isRetaining; }
-    size_t        GetRetainedMediaCount () const { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_retained.size(); }
+    bool          IsRetainingMedia      () const { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_media.IsRetaining(); }
+    size_t        GetRetainedMediaCount () const { ASSERT_THREAD_OWNERSHIP (m_ownership); return m_media.GetRetainedCount(); }
 
     //  Whether SeatMedia could put mediaId in the bay, and putting it there:
     //  the bay's current disk is kept (or dropped, without retention) and the
@@ -209,7 +184,7 @@ public:
     void          PruneRetainedMedia (uint64_t oldestPosition);
 
     //  The machine's instruction count, which stamps when a disk left its bay.
-    void          SetPositionSource (const uint64_t * source) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_positionSource = source; }
+    void          SetPositionSource (const uint64_t * source) { ASSERT_THREAD_OWNERSHIP (m_ownership); m_media.SetPositionSource (source); }
 
     //  Told after a disk is mounted, ejected, swapped for a changed file, or
     //  has its write protection changed in its file: the change reverse
@@ -507,64 +482,18 @@ public:
     //  above, and public for the same reason.
     static HRESULT  ReadFileBytes (const string & path, vector<Byte> & bytes);
 
-    //  Why a mount failed, in the user's terms: the file named, then the
-    //  diagnosis worded as a sentence about it. Pure -- no filesystem access
-    //  -- and public because the wording is the observable half of a failed
-    //  mount, and the only half worth testing on its own.
-    //
-    //  It takes the diagnosis rather than re-deriving one from the path. The
-    //  path can only ever answer "is this an extension we read", which left
-    //  every other refusal sharing one sentence that named none of them.
-    static wstring  FormatMountFailureMessage (const string & path,
-                                               const MountDiagnosis & diagnosis);
-
-    //  FormatMountFailureMessage's text for a mount declined because the disk
-    //  in the drive has writes in no file, for another file or the same one.
-    static wstring  FormatUnsavedWritesMessage (const string & path,
-                                                const MountDiagnosis & diagnosis);
-
-    //  The notices for an eject and a write-protect change declined because
-    //  the machine is behind live, where no save can be made.
-    static wstring  FormatBehindLiveEjectMessage        (int drive);
-    static wstring  FormatBehindLiveWriteProtectMessage (int drive);
 
     //  Why a load of these bytes was refused, from what the bytes and the
     //  format alone can settle. Static and pure, so a test can ask it about a
     //  buffer without mounting anything.
     static MountDiagnosis  ClassifyLoadFailure (DiskFormat fmt, const vector<Byte> & bytes);
 private:
-    struct Entry
-    {
-        unique_ptr<DiskImage>  image;
-        string                 path;
-        DiskFormat             format  = DiskFormat::Dsk;
-        bool                   mounted = false;
+    friend class DiskStoreReload;
+    friend class DiskStoreSave;
+    friend class DiskStoreSalvage;
+    friend class DiskStoreMedia;
 
-        //  Whether salvage applies to this image, decided once at mount.
-        //  Answering it needs a full decode for a damaged disk, which is far
-        //  too much work to repeat every time a menu is drawn.
-        bool                   salvageOffered = false;
-
-        //  What this bay knows about the file behind it. Set at mount, cleared
-        //  at eject, refreshed after every commit this store makes.
-        MountedImageState      sharedState;
-
-        //  Which bay this is.
-        //
-        //  CARRIED ON THE ENTRY BECAUSE FlushEntry NEEDS IT AND HAS ONLY THIS.
-        //  Every message about a disk names the drive it is in, and threading
-        //  a pair of ints through five call sites to reach one function is a
-        //  worse answer than the entry knowing where it lives.
-        int                    slot    = 0;
-        int                    drive   = 0;
-
-        //  For a kept disk, the position at which it left its bay.
-        uint64_t               retiredAt = 0;
-    };
-
-    //  Moves a bay's disk into the kept list (or drops it without retention)
-    //  and leaves the bay empty. No flush, no bay change.
-    void           RetireBay (Entry & entry);
+    using Entry = DiskBayEntry;
 
     //  Tells the media change listener, unless a replay is running.
     void           NotifyMediaChanged ();
@@ -573,115 +502,9 @@ private:
     // one range-checks before GetEntry() indexes the fixed array.
     static bool   IsValidBay        (int slot, int drive);
 
-    //  Moves a mounted bay onto a different file without disturbing the disk
-    //  in it. The image, and everything the guest can observe, is untouched;
-    //  what changes is which file the bay reads and writes from here on.
-    //
-    //  THIS IS A SAVE-AS, NOT A MOUNT. Nothing is loaded, so a guest mid-write
-    //  sees nothing at all.
-    HRESULT       RepointBayToFile  (int slot, int drive, const string & newPath);
-
-    //  How a flush failure can be put to the user, which differs by what is
-    //  still standing when it happens.
-    //
-    //  THE DISCRIMINATOR IS NOT WHICH FUNCTION FLUSHED. What matters is
-    //  whether there is a bay still holding the disk, a pump still running,
-    //  and a thread that can raise a file dialog -- and the three moments
-    //  below have different answers to those.
-    enum class FlushMoment
-    {
-        //  The machine is running, the bay stays, and a person asked for the
-        //  save of one bay: an explicit flush, a write-protect change. The
-        //  question goes to the shell and is answered later, and nothing is
-        //  lost while it stands.
-        Running,
-
-        //  The machine is running, the bay stays, and nobody asked: every bay
-        //  is saved at a spindown, a machine switch or a soft reset. The
-        //  question goes the same way as at Running.
-        Background,
-
-        //  The save before a mount over the bay. Only a first recovery copy is
-        //  reported; a save after which writes are in no file declines the
-        //  mount, and the mount's text reports it.
-        Replacing,
-
-        //  The disk is coming out. The question goes the same way, but the
-        //  eject waits for it: emptying the bay is what would destroy a disk
-        //  whose copy could not be written, so it does not happen until the
-        //  user has said which way they want it.
-        Ejecting,
-
-        //  The process is on its way out. There is no pump left to deliver a
-        //  posted question and no CPU thread to act on the answer -- but this
-        //  runs on the UI thread with its apartment still up, so a blocking
-        //  file dialog still works. That is the one route left, and asking
-        //  through it is synchronous.
-        ShuttingDown,
-    };
-
-    //  What a save that failed to write the bay's file produced.
-    struct FlushOutcome
-    {
-        HRESULT  saveError        = S_OK;
-        bool     isUnserializable = false;
-        string   recoveryPath;
-        HRESULT  recoveryError    = S_OK;
-
-        //  At Replacing, the file another program changed and where the
-        //  guest's version went instead, for the mount to report.
-        string   movedFrom;
-        string   movedTo;
-    };
-
     Entry &       GetEntry          (int slot, int drive);
     const Entry & GetEntry          (int slot, int drive) const;
-    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment);
-    HRESULT       FlushEntry        (Entry & entry, FlushMoment moment, FlushOutcome & outOutcome);
     HRESULT       FlushEveryBay     (FlushMoment moment);
-
-    //  FlushEntry's steps: moving the guest's version to a separate file when
-    //  another program changed the bay's file, telling the user a save
-    //  failed, and recording the file the save committed.
-    HRESULT       PreserveConflictingCopy (Entry & entry, FlushMoment moment, bool & isPreserved, FlushOutcome & outOutcome);
-    void          ReportSaveFailure       (Entry & entry, FlushMoment moment, const FlushOutcome & outcome);
-    void          RecordCommittedFile     (Entry & entry, const vector<Byte> & savedBytes);
-
-    //  Tells the user the guest's version could not be written beside the
-    //  file that displaced it -- as a question where one can still be
-    //  answered, and as a notice where it cannot.
-    void          ReportPreserveFailure (Entry & entry, FlushMoment moment,
-                                         const string & attemptedPath, HRESULT hrKeep,
-                                         const string & original);
-
-    //  Asks the shell where to put a disk on the way out and writes it there,
-    //  without returning until it is done. Only ever called at ShuttingDown.
-    //  A disk whose format cannot store its writes is offered a .woz name, and
-    //  any disk that does not serialize natively is written as WOZ.
-    bool          RescueOnTheWayOut (Entry & entry, const string & original, bool isUnserializable);
-
-    //  The eject's question for a save to the disk's file that failed with no
-    //  recovery copy. Returns whether the question was delivered, in which
-    //  case the eject waits for its answer.
-    bool          AskBeforeEject (Entry & entry, const FlushOutcome & outcome);
-
-    //  Writes the bay's image as WOZ at `path` with a .woz extension, and
-    //  makes it the bay's recovery copy, marked as reported. The bay stays on
-    //  its file, whose format cannot change.
-    HRESULT       WriteWozCopy (Entry & entry, const string & path, string & outPath);
-
-    //  A Save as answer: a native copy at `savePath`, with the bay moved onto
-    //  it, or, finishing an eject, a WOZ copy when the image does not
-    //  serialize natively. outPath is the file written or attempted.
-    HRESULT       SaveAnswerCopy (Entry & entry, const string & savePath, bool isEjecting, string & outPath);
-
-    //  Why the guest's version could not be written beside a file another
-    //  program changed, at an eject or a quit.
-    static wstring FormatPreserveFailureMessage (const string & path,
-                                                 const string & attemptedPath,
-                                                 HRESULT        reason,
-                                                 int            drive,
-                                                 FlushMoment    moment);
 
     //  Whether some other bay already reads and writes this file, and which
     //  drive has it. The bay being mounted into is excluded, because putting
@@ -693,144 +516,15 @@ private:
     // read and write seams stay symmetric.
     HRESULT       ReadImageFile     (const string & path, vector<Byte> & bytes) const;
 
-    // Recover what can be recovered. Decode only -- this is all the counts
-    // need, and it is the half AssessSalvage can afford to run.
-    HRESULT       DecodeForSalvage (Entry & entry, vector<Byte> & outSectors,
-                                    DenibblizeReport & report);
-
-    // Decode, then rebuild the result as a WOZ. Only the write path needs the
-    // rebuild, so only the write path pays for it.
-    HRESULT       BuildSalvagedImage (Entry & entry, vector<Byte> & outBytes,
-                                      DenibblizeReport & report);
-
-    // Builds the user-facing "could not save" message from the mount path;
-    // handed to CHRN/CBRN in FlushEntry on a genuine persist failure. When a
-    // recovery image was written, its path is named so the user can retrieve
-    // the session rather than only being told what was lost.
-    //
-    //  `reason` IS PRINTED, code and system text both. The notice used to name
-    //  no cause at all and then advise switching to .woz, which is wrong
-    //  advice for a folder that refused the write; the system's own words for
-    //  the failure are the useful part.
-    //
-    //  recoveryPath is optional: the write-protect path has no recovery copy
-    //  to name, and the message says something useful either way.
-    static wstring FormatFlushLossMessage (const string & path,
-                                           HRESULT        reason,
-                                           const string & recoveryPath = string());
-
-    // Preserves an image that could not be serialized to its own format,
-    // beside the original and losslessly. Leaves the original untouched.
-    HRESULT        TryWriteRecoveryImage  (Entry & entry, string & outPath);
-
-    // TryWriteRecoveryImage's steps: whether the copy this mount wrote is as
-    // it was written, and a new copy at the first free recovery name.
-    bool           IsRecoveryCopyIntact   (const Entry & entry);
-    HRESULT        WriteNewRecoveryImage  (const Entry & entry, const vector<Byte> & wozBytes, string & outPath);
-
-    // The save-failure notice from what the save produced, including the text
-    // for a recovery copy that could not be written. At an eject or a quit with
-    // no copy, the tail states what happens to the changes.
-    static wstring FormatFlushLossMessage (const string & path, const FlushOutcome & outcome, FlushMoment moment);
-
     // Enough room to step past collisions without ever spinning.
     static constexpr int  kMaxRecoveryNameAttempts = 64;
-
-    // Why a damaged image will not be written to. A checksum mismatch
-    // write-protects the image for the session, so the file is never
-    // rewritten and the damage it carries stays detectable.
-    static wstring FormatDamagedImageMessage (const string & path, bool hasDamagedTracks);
-
-    // Why a salvaged copy could not be written. Names the copy, and says the
-    // original is untouched -- which is the thing the user will worry about.
-    static wstring FormatSalvageFailedMessage (const string & path);
 
     //  The identity `path` has right now: through the seam when one is
     //  installed, and from the filesystem when none is.
     ImageIdentity  ReadIdentity (const string & path) const;
 
-    //  Why a commit was refused because the file changed underneath it. Names
-    //  the image, and says the writes are still held rather than lost, which is
-    //  the part the user will worry about.
-    static wstring FormatExternalChangeMessage (const string & path);
-
-    //  Everything one bay's settled change leads to.
-    void           ApplyPendingReloadToBay (int slot, int drive);
-
-    //  ApplyPendingReloadToBay's steps: whether the noticed change is due,
-    //  reading and trial-loading the file, moving the guest's version to a
-    //  separate file in a conflict, and putting the question.
-    //  ResolvePendingChange's answers: to a conflict whose copy could not be
-    //  written, and to a question about a file that is gone.
-    void           ResolveConflictAnswer        (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath);
-    void           ResolveLostFileAnswer        (int slot, int drive, Entry & entry, ChangeAction chosen, const string & savePath);
-
-    bool           IsReloadDue                  (Entry & entry, ExternalChangeIntent & outIntent);
-    bool           ReadChangedImage             (const Entry & entry, vector<Byte> & outBytes) const;
-    bool           PreserveGuestCopyForConflict (int slot, int drive, Entry & entry, string & outSavePath);
-    void           AskAboutChange               (int slot, int drive, Entry & entry, ChangeAction action);
-
-    //  Moves the inbox NoteExternalChange fills into the bays, on the owning
-    //  thread.
-    void           DrainChangeInbox ();
-
-    //  Carries out what was decided. Split from deciding so the decision has
-    //  one shape whether it came from the policy or from the user.
-    //
-    //  `author` COMES FROM THE CALLER BECAUSE ONLY THE CALLER STILL KNOWS. A
-    //  bay's pending record holds the newest change and nothing older, so by
-    //  the time this runs it can describe a write that landed after the one
-    //  being acted on. Reading it here named whoever wrote last.
-    void           CarryOutChangeAction (int slot, int drive, ChangeAction action,
-                                         const vector<Byte> & bytes, ChangeAuthor author);
-
-    //  Writes what the bay currently holds to a preserved copy beside the
-    //  original, and reports where it went.
-    //
-    //  SERIALIZED FROM THE MOUNTED IMAGE rather than copied from the file: the
-    //  point of preserving it is that the file no longer holds this version.
-    HRESULT        SaveLoadedImage (Entry & entry, string & outPath);
-
-    //  A preserved-copy path nothing is sitting at yet.
-    //
-    //  THE COLLISION LOOP IS NOT OPTIONAL. Two conflicts on one image inside a
-    //  second is exactly what a build loop produces, and a one-second stamp
-    //  cannot keep the accumulate-rather-than-overwrite promise on its own.
-    HRESULT        FindFreePreservedPath (const string & imagePath, string & outPath) const;
-
-    //  Whether something is already at `path`, through the file seam when one
-    //  is installed and through the filesystem when none is.
-    bool           DoesPathExist (const string & path) const;
-
-    //  Puts bytes at a path: through the flush sink when one is installed, and
-    //  otherwise through DurableCommit over the file seam, or over a local
-    //  Win32DiskFileIo when no seam is installed. Every write of an image, a
-    //  salvaged copy or a preserved copy goes through here.
-    HRESULT        CommitFile (const string & path, const vector<Byte> & bytes, CommitMode mode);
-
     //  The tag in this process's commit temporaries, taken once.
     static uint64_t  GetInvocationTag();
-
-    //  Empties a bay whose file is gone, WITHOUT trying to flush it. The
-    //  ordinary eject flushes first, which here would either fail or write the
-    //  disk back to a path the user has just been told no longer exists.
-    void           EjectLostImage (int slot, int drive);
-
-    //  Replaces a mounted image's contents WITHOUT flushing what it held.
-    //
-    //  A FLUSH HERE WOULD WRITE THE OLD DISK OVER THE NEW FILE, which is the
-    //  precise loss this feature exists to prevent. The new bytes are loaded
-    //  into a fresh image first, so a load that fails leaves the mounted disk
-    //  exactly as it was.
-    HRESULT        MountExternallyModifiedDisk (int slot, int drive, const vector<Byte> & bytes);
-
-    //  Registers and drops the watch on a bay's directory.
-    //
-    //  A DIRECTORY IS DROPPED ONLY WHEN NO OTHER BAY STILL NEEDS IT. Two disks
-    //  out of one folder are ordinary, and ejecting the first must not blind
-    //  the second.
-    void           BeginWatching (int slot, int drive);
-    void           EndWatching   (int slot, int drive);
 
     //  Milliseconds now, through the injected clock when one is installed.
     int64_t        GetNowMs () const;
@@ -851,11 +545,6 @@ private:
                                         const string & path, DiskFormat fmt);
     void            ReportReplaceOutcome (int slot, int drive, const string & newPath, HRESULT hr,
                                           const FlushOutcome & outcome);
-
-    //  Whether a bay's guest writes are in a file, and whether its recovery
-    //  copy is current and as this mount wrote it.
-    bool            AreWritesSaved     (Entry & entry);
-    bool            IsRecoveryCurrent  (Entry & entry);
 
     //  Whether two paths are one file, after `..` and `.\` are resolved.
     static bool     IsSameFile         (const string & left, const string & right);
@@ -886,31 +575,15 @@ private:
     std::function<time_t ()>   m_timestamp;
     std::function<void ()>     m_mediaChangeListener;
 
-    std::vector<Entry>       m_retained;
-    const uint64_t *         m_positionSource = nullptr;
     bool                     m_isFlushHeld    = false;
     bool                     m_isReplaying    = false;
-    bool                     m_isRetaining    = false;
     ThreadOwnership          m_ownership;
 
     //  Starts at 1, so the first publish builds the bay table.
     uint64_t                 m_statusGeneration = 1;
 
-    //  Changes noted from any thread, keyed by path, with only the latest per
-    //  path, so the inbox is bounded by the distinct paths noted. The mutex
-    //  guards the inbox alone: NoteExternalChange reads no Entry, and
-    //  ApplyPendingReload moves the inbox into the bays on the thread that has
-    //  the store's token.
-    struct NotedChange
-    {
-        int64_t               atMs   = 0;
-        ExternalChangeIntent  intent = ExternalChangeIntent::Unstated;
-    };
-
-    mutable std::mutex                   m_pendingMutex;
-    std::map<std::string, NotedChange>   m_changeInbox;
-
-    //  The owning thread's side of the swap: the inbox is swapped into it,
-    //  and it is cleared after the drain, so an idle drain allocates nothing.
-    std::map<std::string, NotedChange>   m_drainedChanges;
+    DiskStoreReload          m_reload  { *this };
+    DiskStoreSave            m_save    { *this };
+    DiskStoreSalvage         m_salvage { *this };
+    DiskStoreMedia           m_media   { *this };
 };

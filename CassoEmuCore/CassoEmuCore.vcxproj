@@ -542,6 +542,11 @@
     <ClCompile Include="Machines\Apple2\Common\Dos33Skeleton.cpp" />
     <ClCompile Include="Machines\Apple2\Common\ProDosSkeleton.cpp" />
     <ClCompile Include="Devices\Disk\DiskImageStore.cpp" />
+    <ClCompile Include="Devices\Disk\DiskStoreText.cpp" />
+    <ClCompile Include="Devices\Disk\DiskStoreSave.cpp" />
+    <ClCompile Include="Devices\Disk\DiskStoreSalvage.cpp" />
+    <ClCompile Include="Devices\Disk\DiskStoreMedia.cpp" />
+    <ClCompile Include="Devices\Disk\DiskStoreReload.cpp" />
     <ClCompile Include="Devices\Disk\DriveStatus.cpp" />
     <ClCompile Include="Devices\Disk\ImageIdentity.cpp" />
     <ClCompile Include="Devices\Disk\ChangePrompt.cpp" />
@@ -1241,6 +1246,12 @@
     <ClInclude Include="Machines\Apple2\Common\ProDosSkeleton.h" />
     <ClInclude Include="Devices\Disk\BayStatus.h" />
     <ClInclude Include="Devices\Disk\DiskImageStore.h" />
+    <ClInclude Include="Devices\Disk\DiskStoreText.h" />
+    <ClInclude Include="Devices\Disk\DiskStoreSave.h" />
+    <ClInclude Include="Devices\Disk\DiskStoreSalvage.h" />
+    <ClInclude Include="Devices\Disk\DiskStoreMedia.h" />
+    <ClInclude Include="Devices\Disk\DiskStoreReload.h" />
+    <ClInclude Include="Devices\Disk\DiskStoreTypes.h" />
     <ClInclude Include="Devices\Disk\DriveStatus.h" />
     <ClInclude Include="Devices\Disk\ImageIdentity.h" />
     <ClInclude Include="Devices\Disk\ChangePrompt.h" />

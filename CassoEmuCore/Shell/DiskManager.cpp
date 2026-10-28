@@ -221,7 +221,7 @@ HRESULT DiskManager::ToggleImageWriteProtect (int drive)
     //  A command that arrives on this thread behind live changes nothing.
     isLive = !m_diskStore.IsFlushHeld() && !m_diskStore.IsReplaying();
     CBRFEx (isLive, HRESULT_FROM_WIN32 (ERROR_INVALID_STATE),
-            EhmNotifyUser (DiskImageStore::FormatBehindLiveWriteProtectMessage (drive).c_str()));
+            EhmNotifyUser (DiskStoreText::FormatBehindLiveWriteProtectMessage (drive).c_str()));
 
     image = m_diskStore.GetImage (6, drive);
     path  = m_diskStore.GetSourcePath (6, drive);
@@ -632,7 +632,7 @@ void DiskManager::EjectDiskInSlot6 (int drive)
     }
     else
     {
-        EhmNotifyUser (DiskImageStore::FormatBehindLiveEjectMessage (drive).c_str());
+        EhmNotifyUser (DiskStoreText::FormatBehindLiveEjectMessage (drive).c_str());
     }
 
     if (m_diskStore.IsMounted (6, drive))
