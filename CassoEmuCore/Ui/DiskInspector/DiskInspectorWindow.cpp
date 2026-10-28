@@ -485,7 +485,6 @@ HRESULT DiskInspectorWindow::RenderFrame()
 
     m_tracksView->Tick   (static_cast<int64_t> (GetTickCount64()));
     m_issuesView->Tick (static_cast<int64_t> (GetTickCount64()));
-    m_fieldsView->Tick   (static_cast<int64_t> (GetTickCount64()));
 
     for (IInspectorComponent * component : m_components)
     {
@@ -529,7 +528,6 @@ void DiskInspectorWindow::OnCreate()
     m_stripHint   = CreateChild<DxuiLabel> (s_kpszStripHint, DxuiTextRole::Muted, DxuiTextHAlign::Right);
     m_sectorsView    = CreateChild<SectorsView>  (m_session.context);
     m_nibblesView  = CreateChild<NibblesView>      (m_session.context);
-    m_fieldsView   = CreateChild<InspectorTableView> (m_session.context);
     m_fluxView     = CreateChild<FluxView>   (m_session.context);
     m_copySector   = CreateChild<DxuiIconButton>();
     m_tracksView   = CreateChild<InspectorTableView> (m_session.context);
@@ -547,11 +545,9 @@ void DiskInspectorWindow::OnCreate()
     m_editing->Create();
 
     m_tracksView->SetColumns  (InspectorTables::GetTrackColumns());
-    m_fieldsView->SetColumns  (InspectorTables::GetFieldColumns());
     m_imageView->SetColumns   (InspectorTables::GetImageColumns());
     m_tracksView->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_issuesView->SetOnSelect ([this] (const TableRow & row) { SelectFromRow (row); });
-    m_fieldsView->SetOnSelect   ([this] (const TableRow & row) { SelectFromRow (row); });
     m_stripOut->SetOnClick   ([this] () { m_stripView->ZoomAboutCenter (1.0 / kZoomStep); });
     m_stripIn->SetOnClick    ([this] () { m_stripView->ZoomAboutCenter (kZoomStep); });
     m_stripWhole->SetOnClick ([this] () { m_stripView->ShowWholeTrack(); });
@@ -1152,7 +1148,7 @@ void DiskInspectorWindow::LayoutContent (const RECT & boundsDip, const DxuiDpiSc
 
     m_diskContentPx = { right.left, y, right.right, right.bottom };
 
-    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_nibblesView, m_fieldsView, m_fluxView, m_tracksView, m_issuesView, m_imageView, m_diffsView, m_findResults })
+    for (IDxuiControl * content : std::initializer_list<IDxuiControl *> { m_nibblesView, m_fluxView, m_tracksView, m_issuesView, m_imageView, m_diffsView, m_findResults })
     {
         content->Layout (m_diskContentPx, scaler);
     }
@@ -1882,7 +1878,6 @@ void DiskInspectorWindow::ShowTabContent()
 
     m_sectorsView->SetVisible    (isTrack && m_session.trackTab == kTabSectorData);
     m_nibblesView->SetVisible  (isTrack && m_session.trackTab == kTabNibbles);
-    m_fieldsView->SetVisible   (isTrack && m_session.trackTab == kTabFields);
     m_fluxView->SetVisible     (isTrack && m_session.trackTab == kTabFluxTiming);
     m_tracksView->SetVisible   (!isTrack && m_session.diskTab == kTabTracks);
     m_issuesView->SetVisible (!isTrack && m_session.diskTab == kTabFindings);
@@ -1901,7 +1896,7 @@ void DiskInspectorWindow::ShowTabContent()
 //  DiskInspectorWindow::RefreshTables
 //
 //  The Tracks and Findings tabs after the analysis changes, and the Fields
-//  tab when its track or that track's analysis changes.
+//  selection when the quarter track changes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1965,11 +1960,9 @@ void DiskInspectorWindow::RefreshTables()
         Layout (m_boundsDip, m_session.hostScaler);
     }
 
-    if (m_session.isTablesDirty || qt != m_fieldsOf || track != m_fieldsTrack)
+    if (m_session.isTablesDirty || qt != m_syncedQuarterTrack)
     {
-        m_fieldsView->SetRows (m_session.context.hasDisk ? InspectorTables::BuildFields (m_session.analysis, qt) : vector<TableRow>());
-        m_fieldsOf    = qt;
-        m_fieldsTrack = track;
+        m_syncedQuarterTrack = qt;
         SyncTables();
     }
 
@@ -1990,13 +1983,11 @@ void DiskInspectorWindow::RefreshTables()
 
 void DiskInspectorWindow::SyncTables()
 {
-    int  qt     = m_session.model.GetQuarterTrack();
-    int  sector = m_session.model.GetSectorIndex();
+    int  qt = m_session.model.GetQuarterTrack();
 
 
 
     m_tracksView->SelectRowWhere ([qt] (const TableRow & row) { return row.quarterTrack == qt; });
-    m_fieldsView->SelectRowWhere ([sector] (const TableRow & row) { return sector >= 0 && row.sectorIndex == sector; });
 }
 
 
@@ -2284,10 +2275,6 @@ KeyTarget DiskInspectorWindow::GetKeyTarget (POINT pointPx) const
     {
         target = KeyTarget::Nibbles;
     }
-    else if (m_fieldsView->IsVisible() && IsInside (m_fieldsView->GetBounds(), pointPx))
-    {
-        target = KeyTarget::Fields;
-    }
     else if (m_fluxView->IsVisible() && IsInside (m_fluxView->GetBounds(), pointPx))
     {
         target = KeyTarget::FluxTiming;
@@ -2411,7 +2398,6 @@ void DiskInspectorWindow::Copy()
 
     switch (m_session.keyTarget)
     {
-        case KeyTarget::Fields:     text = m_fieldsView->GetSelectedText();   break;
         case KeyTarget::Tracks:     text = m_tracksView->GetSelectedText();   break;
         case KeyTarget::Findings:   text = m_issuesView->GetSelectedText(); break;
         case KeyTarget::Image:      text = m_imageView->GetSelectedText();    break;
@@ -2422,7 +2408,9 @@ void DiskInspectorWindow::Copy()
 
         case KeyTarget::Strip:
         case KeyTarget::Nibbles:
-            text = (track != nullptr && m_session.model.GetNibbleCount() > 0) ? InspectorClipboard::FormatNibbles (*track, m_session.model.GetFirstNibble(), m_session.model.GetNibbleCount())
+            //  A section header last clicked copies as its line (FR-057).
+            text = (m_session.keyTarget == KeyTarget::Nibbles) ? m_nibblesView->GetSelectedHeaderText() : std::wstring();
+            text = !text.empty() ? text : (track != nullptr && m_session.model.GetNibbleCount() > 0) ? InspectorClipboard::FormatNibbles (*track, m_session.model.GetFirstNibble(), m_session.model.GetNibbleCount())
                                                                       : std::wstring();
             break;
 
@@ -2670,14 +2658,13 @@ std::wstring DiskInspectorWindow::GetButtonTip (POINT pointPx, RECT & outAnchorP
 
 void DiskInspectorWindow::StepKeyTarget (int step)
 {
-    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 11>  order =
+    const std::array<std::pair<KeyTarget, const IDxuiControl *>, 10>  order =
     {{
         { KeyTarget::Platter,    m_platterView },
         { KeyTarget::Strip,      m_stripView },
         { KeyTarget::SectorRow,  m_sectorRow },
         { KeyTarget::SectorData, m_sectorsView },
         { KeyTarget::Nibbles,    m_nibblesView },
-        { KeyTarget::Fields,     m_fieldsView },
         { KeyTarget::FluxTiming, m_fluxView },
         { KeyTarget::Tracks,     m_tracksView },
         { KeyTarget::Findings,   m_issuesView },
@@ -2733,7 +2720,6 @@ RECT DiskInspectorWindow::GetKeyTargetBounds() const
         case KeyTarget::SectorRow:  bounds = m_sectorRow->GetBounds();   break;
         case KeyTarget::SectorData: bounds = m_sectorsView->GetBounds();    break;
         case KeyTarget::Nibbles:    bounds = m_nibblesView->GetBounds();  break;
-        case KeyTarget::Fields:     bounds = m_fieldsView->GetBounds();   break;
         case KeyTarget::FluxTiming: bounds = m_fluxView->GetBounds();     break;
         case KeyTarget::Tracks:     bounds = m_tracksView->GetBounds();   break;
         case KeyTarget::Findings:   bounds = m_issuesView->GetBounds(); break;

@@ -17,8 +17,8 @@ static constexpr int     s_kSelectorDip  = 30;
 static constexpr int     s_kMinSegmentDip = 64;
 static constexpr int     s_kSegmentPadDip = 24;
 
-//  Every view in FR-160's order. Fields is a separate view until it merges
-//  into Nibbles.
+//  Every view in FR-160's order; the Fields table is the Nibbles view's
+//  section headers (FR-042).
 static const TrackColumn::View  s_kViews[] =
 {
     { L"Issues",       true,  kTabFindings,    L"Anything unusual about the disk or its image file" },
@@ -27,7 +27,6 @@ static const TrackColumn::View  s_kViews[] =
     { L"Tracks",       true,  kTabTracks,      L"Every quarter track: what is recorded there and how well it reads" },
     { L"Image",        true,  kTabImage,       L"What the image file itself contains" },
     { L"Nibbles",      false, kTabNibbles,     L"Every nibble on the track, as the disk controller reads them" },
-    { L"Fields",       false, kTabFields,      L"Every address field and data field on the track: its marks, sector and volume numbers, and checksum results" },
     { L"Flux",         false, kTabFluxTiming,  L"How fast or slow each cell runs, on a track recorded as flux" },
     { L"Differences",  true,  kTabDifferences, L"Everything that differs between disk A and disk B" },
     { L"Find results", true,  kTabFindResults, L"Every hit of the find" },

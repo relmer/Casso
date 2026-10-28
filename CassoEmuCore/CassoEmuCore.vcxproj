@@ -521,6 +521,7 @@
     <ClCompile Include="Ui\DiskInspector\Components\StatusBand.cpp" />
     <ClCompile Include="Ui\DiskInspector\Components\TrackColumn.cpp" />
     <ClCompile Include="Ui\DiskInspector\FloatingGroup.cpp" />
+    <ClCompile Include="Ui\DiskInspector\NibbleSections.cpp" />
     <ClCompile Include="Ui\DiskInspector\OverlayChip.cpp" />
     <ClCompile Include="Ui\DiskInspector\TiltButton.cpp" />
     <ClCompile Include="Ui\DiskInspector\DiskInspectorWindow.cpp" />
@@ -1040,6 +1041,7 @@
     <ClInclude Include="Ui\DiskInspector\Components\StatusBand.h" />
     <ClInclude Include="Ui\DiskInspector\Components\TrackColumn.h" />
     <ClInclude Include="Ui\DiskInspector\FloatingGroup.h" />
+    <ClInclude Include="Ui\DiskInspector\NibbleSections.h" />
     <ClInclude Include="Ui\DiskInspector\OverlayChip.h" />
     <ClInclude Include="Ui\DiskInspector\TiltButton.h" />
     <ClInclude Include="Ui\DiskInspector\DiskInspectorWindow.h" />

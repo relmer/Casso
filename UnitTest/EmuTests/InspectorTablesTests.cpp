@@ -7,6 +7,7 @@
 #include "Ui/DiskInspector/FindBar.h"
 #include "Ui/DiskInspector/FindSession.h"
 #include "Ui/DiskInspector/InspectorTables.h"
+#include "Ui/DiskInspector/NibbleSections.h"
 #include "Shell/InspectorStatusPublisher.h"
 #include "InspectorTrackBuilder.h"
 
@@ -179,6 +180,49 @@ public:
         Assert::IsTrue   (rows[2].cells[9].ends_with (L" good"));
         Assert::AreEqual (3, rows[3].sectorIndex);
         Assert::AreEqual (std::wstring (L"6-and-2"), rows[3].cells[10]);
+    }
+
+
+
+    //  The Nibbles view's sections cover every nibble in order: the sync
+    //  runs, and each field with its sector and facts (FR-041, FR-042).
+    TEST_METHOD (NibbleSectionsCoverTheTrackInFieldAndSyncOrder)
+    {
+        DiskAnalysis           analysis;
+        vector<NibbleSection>  sections;
+        int                    next      = 0;
+        int                    addresses = 0;
+        int                    datas     = 0;
+
+
+
+        AnalyzePlanted (analysis);
+        sections = NibbleSections::Build (analysis, 20);
+
+        Assert::IsFalse  (sections.empty());
+        Assert::IsTrue   (sections[0].kind == NibbleSectionKind::Sync, L"the track starts with its sync run");
+        Assert::IsTrue   (sections[0].facts.find (L"self-sync FF") != std::wstring::npos);
+        Assert::IsTrue   (sections[1].kind == NibbleSectionKind::Address);
+        Assert::AreEqual (std::wstring (L"Address field \x00B7 sector $0"), sections[1].title);
+        Assert::IsTrue   (sections[1].facts.starts_with (L"volume 17"));
+        Assert::IsTrue   (sections[1].details.find (L"Address marks: D5 AA 96 / DE AA EB") != std::wstring::npos, L"the tooltip has the Fields columns");
+
+        for (const NibbleSection & section : sections)
+        {
+            Assert::AreEqual (next, section.firstNibble, L"no gaps or overlaps");
+            next      += section.count;
+            addresses += (section.kind == NibbleSectionKind::Address) ? 1 : 0;
+            datas     += (section.kind == NibbleSectionKind::Data) ? 1 : 0;
+
+            if (section.kind == NibbleSectionKind::Data && section.sectorIndex == 3)
+            {
+                Assert::IsTrue (section.facts.find (L"checksum bad") != std::wstring::npos, L"sector 3's data checksum is broken");
+            }
+        }
+
+        Assert::AreEqual (static_cast<int> (analysis.tracks[analysis.entries[20].slot]->framed.nibbles.size()), next);
+        Assert::AreEqual (16, addresses);
+        Assert::AreEqual (16, datas);
     }
 
 
